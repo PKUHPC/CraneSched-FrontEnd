@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"strconv"
 )
@@ -17,11 +18,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	path := "/etc/crane/config.yaml"
-	config := util.ParseConfig(path)
+	config := util.ParseConfig()
 
 	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic("Cannot connect to CraneCtld: " + err.Error())
 	}
@@ -87,7 +87,7 @@ func main() {
 					fmt.Printf("No node is avalable.\n")
 				} else {
 					for _, partitionInfo := range reply.PartitionInfo {
-						fmt.Printf("PartitionName=%v State=%v\n\tTotalNodes=%d AliveNodes=%d\n\tTotalCpus=%d AvailCpus=%d AllocCpus=%d FreeCpus=%d\n\tTotalMem=%d AvailMem=%d AllocMem=%d FreeMem=%d\n\tHostList=%v\n", partitionInfo.Name, partitionInfo.State.String(), partitionInfo.TotalNodes, partitionInfo.AliveNodes, partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus, partitionInfo.FreeCpus, partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.FreeMem, partitionInfo.Hostlist)
+						fmt.Printf("PartitionName=%v State=%v\n\tTotalNodes=%d AliveNodes=%d\n\tTotalCpus=%d AvailCpus=%d AllocCpus=%d\n\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n", partitionInfo.Name, partitionInfo.State.String(), partitionInfo.TotalNodes, partitionInfo.AliveNodes, partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus, partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
 					}
 				}
 			} else {
@@ -95,7 +95,7 @@ func main() {
 					fmt.Printf("Partition %s not found.\n", partitionName)
 				} else {
 					for _, partitionInfo := range reply.PartitionInfo {
-						fmt.Printf("PartitionName=%v State=%v\n\tTotalNodes=%d AliveNodes=%d\n\tTotalCpus=%d AvailCpus=%d AllocCpus=%d FreeCpus=%d\n\tTotalMem=%d AvailMem=%d AllocMem=%d FreeMem=%d\n\tHostList=%v\n", partitionInfo.Name, partitionInfo.State.String(), partitionInfo.TotalNodes, partitionInfo.AliveNodes, partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus, partitionInfo.FreeCpus, partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.FreeMem, partitionInfo.Hostlist)
+						fmt.Printf("PartitionName=%v State=%v\n\tTotalNodes=%d AliveNodes=%d\n\tTotalCpus=%d AvailCpus=%d AllocCpus=%d\n\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n", partitionInfo.Name, partitionInfo.State.String(), partitionInfo.TotalNodes, partitionInfo.AliveNodes, partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus, partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
 					}
 				}
 			}

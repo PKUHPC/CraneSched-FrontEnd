@@ -5,12 +5,13 @@ import (
 	"context"
 	"github.com/olekukonko/tablewriter"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"strconv"
 )
 
-func Query(serverAddr string, partition string) {
-	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
+func Query(serverAddr string, partition string, findAll bool) {
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic("Cannot connect to CraneCtld: " + err.Error())
 	}
@@ -19,6 +20,7 @@ func Query(serverAddr string, partition string) {
 
 	request := protos.QueryJobsInPartitionRequest{
 		Partition: partition,
+		FindAll:   findAll,
 	}
 	reply, err := stub.QueryJobsInPartition(context.Background(), &request)
 	if err != nil {

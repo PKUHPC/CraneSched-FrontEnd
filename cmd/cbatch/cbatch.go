@@ -2,13 +2,13 @@ package main
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"bufio"
 	"context"
 	"fmt"
 	"github.com/golang/protobuf/ptypes/duration"
 	"google.golang.org/grpc"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
 	"regexp"
@@ -144,7 +144,7 @@ func ProcessLine(line string, sh *[]string, args *[]SbatchArg) bool {
 }
 
 func SendRequest(serverAddr string, req *protos.SubmitBatchTaskRequest) {
-	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic("Cannot connect to CraneCtld: " + err.Error())
 	}
@@ -174,17 +174,8 @@ func main() {
 		}
 	}(file)
 
-	confFile, err := ioutil.ReadFile("/etc/crane/config.yaml")
-	if err != nil {
-		log.Fatal(err)
-	}
-	confTxt := ServerAddr{}
-	err = yaml.Unmarshal(confFile, &confTxt)
-	if err != nil {
-		log.Fatal(err)
-	}
-	ip := confTxt.ControlMachine
-	port := confTxt.CraneCtldListenPort
+	config := util.ParseConfig()
+	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
 	scanner := bufio.NewScanner(file)
 	// optionally, resize scanner's capacity for lines over 64K, see next example
@@ -224,5 +215,5 @@ func main() {
 
 	// fmt.Printf("Req:\n%v\n\n", req)
 
-	SendRequest(fmt.Sprintf("%s:%s", ip, port), req)
+	SendRequest(serverAddr, req)
 }

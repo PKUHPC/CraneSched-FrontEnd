@@ -8,15 +8,16 @@ import (
 )
 
 func main() {
-	if len(os.Args) <= 1 {
-		fmt.Println("Arg must > 1")
-		os.Exit(1)
+	findAll := true
+	partitionName := ""
+	if len(os.Args) > 1 {
+		findAll = false
+		partitionName = os.Args[1]
 	}
 
-	path := "/etc/crane/config.yaml"
-	config := util.ParseConfig(path)
+	config := util.ParseConfig()
 
 	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
-	cqueue.Query(serverAddr, os.Args[1])
+	cqueue.Query(serverAddr, partitionName, findAll)
 }
