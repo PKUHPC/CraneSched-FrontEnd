@@ -11,8 +11,10 @@ type Config struct {
 	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
 }
 
-func ParseConfig(path string) *Config {
-	confFile, err := ioutil.ReadFile(path)
+var configFilePath = "/etc/crane/config.yaml"
+
+func ParseConfig() *Config {
+	confFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}

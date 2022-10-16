@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
 	"strconv"
@@ -17,17 +18,16 @@ func main() {
 		log.Fatal("Invalid task id!")
 	}
 
-	path := "/etc/crane/config.yaml"
-	config := util.ParseConfig(path)
+	config := util.ParseConfig()
 
 	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic("Cannot connect to CraneCtld: " + err.Error())
 	}
 
 	stub := protos.NewCraneCtldClient(conn)
-	req := &protos.CancelTaskRequest{TaskId: uint32(taskId)}
+	req := &protos.CancelTaskRequest{OperatorUid: uint32(os.Getuid()), TaskId: uint32(taskId)}
 
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
