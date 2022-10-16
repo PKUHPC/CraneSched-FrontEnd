@@ -1,7 +1,6 @@
-package cmd
+package cacctmgr
 
 import (
-	"CraneFrontEnd/cmd/cacctmgr/cacctmgr"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -30,7 +29,7 @@ var (
 		Short: "Add a new account to crane",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.AddAccount(name, describe, account, partition, Qos)
+			AddAccount(name, describe, account, partition, Qos)
 		},
 	}
 	addUserCmd = &cobra.Command{
@@ -38,7 +37,7 @@ var (
 		Short: "Add a new user to crane",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.AddUser(name, account, partition, level)
+			AddUser(name, account, partition, level)
 		},
 	}
 	/* --------------------------------------------------- delete --------------------------------------------------- */
@@ -53,7 +52,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.DeleteAccount(args[0])
+			DeleteAccount(args[0])
 		},
 	}
 	deleteUserCmd = &cobra.Command{
@@ -62,7 +61,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.DeleteUser(args[0])
+			DeleteUser(args[0])
 		},
 	}
 	deleteQosCmd = &cobra.Command{
@@ -71,7 +70,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.DeleteQos(args[0])
+			DeleteQos(args[0])
 		},
 	}
 	/* ---------------------------------------------------- set  ---------------------------------------------------- */
@@ -86,9 +85,9 @@ var (
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("parent") { //See if a flag was set by the user
-				cacctmgr.SetAccount(name, describe, &account, Qos)
+				SetAccount(name, describe, &account, Qos)
 			} else {
-				cacctmgr.SetAccount(name, describe, nil, Qos)
+				SetAccount(name, describe, nil, Qos)
 			}
 		},
 	}
@@ -98,9 +97,9 @@ var (
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("level") { //See if a flag was set by the user
-				cacctmgr.SetUser(name, account, &level)
+				SetUser(name, account, &level)
 			} else {
-				cacctmgr.SetUser(name, account, nil)
+				SetUser(name, account, nil)
 			}
 		},
 	}
@@ -115,7 +114,7 @@ var (
 		Short: "Display account tree and account details",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.ShowAccounts()
+			ShowAccounts()
 		},
 	}
 	showUserCmd = &cobra.Command{
@@ -123,7 +122,7 @@ var (
 		Short: "Display user table",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.ShowUsers()
+			ShowUsers()
 		},
 	}
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
@@ -138,7 +137,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.FindAccount(args[0])
+			FindAccount(args[0])
 		},
 	}
 	findUserCmd = &cobra.Command{
@@ -147,13 +146,13 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cacctmgr.FindUser(args[0])
+			FindUser(args[0])
 		},
 	}
 )
 
-// Execute executes the root command.
-func Execute() {
+// ParseCmdArgs executes the root command.
+func ParseCmdArgs() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
