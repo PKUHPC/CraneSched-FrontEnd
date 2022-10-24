@@ -2,7 +2,9 @@ package cqueue
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
 	"github.com/olekukonko/tablewriter"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -10,13 +12,11 @@ import (
 	"strconv"
 )
 
-func Query(serverAddr string, partition string, findAll bool) {
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
+var (
+	stub protos.CraneCtldClient
+)
 
-	stub := protos.NewCraneCtldClient(conn)
+func Query(partition string, findAll bool) {
 
 	request := protos.QueryJobsInPartitionRequest{
 		Partition: partition,
@@ -53,4 +53,15 @@ func Query(serverAddr string, partition string, findAll bool) {
 
 	table.AppendBulk(tableData)
 	table.Render()
+}
+func Init() {
+	config := util.ParseConfig()
+
+	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		panic("Cannot connect to CraneCtld: " + err.Error())
+	}
+	stub = protos.NewCraneCtldClient(conn)
+
 }
