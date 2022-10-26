@@ -3,20 +3,21 @@ package ccancel
 import (
 	"github.com/spf13/cobra"
 	"os"
+	"strconv"
 )
 
 var (
-	taskId uint32
-
 	rootCmd = &cobra.Command{
 		Use:   "ccancel",
 		Short: "A command to cancel the specified task",
 		Long:  "",
+		Args:  cobra.ExactArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			Init()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			CancelTask(taskId)
+			taskId64, _ := strconv.ParseUint(args[0], 10, 32)
+			CancelTask(uint32(taskId64))
 		},
 	}
 )
@@ -28,5 +29,4 @@ func ParseCmdArgs() {
 	}
 }
 func init() {
-	rootCmd.Flags().Uint32VarP(&taskId, "taskId", "T", 0, "the id of the task")
 }
