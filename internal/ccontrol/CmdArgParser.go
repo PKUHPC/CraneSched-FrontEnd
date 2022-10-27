@@ -25,7 +25,7 @@ var (
 		Short: "A command to perform the show operation.",
 		Long:  "",
 	}
-	showNodeCmd = &cobra.Command{ //可以指定nodename(arg[0])也可以没有，显示所有
+	showNodeCmd = &cobra.Command{
 		Use:   "node",
 		Short: "A command to show the status of nodes.",
 		Long: "Specify a node name: ccontrol show node [name], " +
