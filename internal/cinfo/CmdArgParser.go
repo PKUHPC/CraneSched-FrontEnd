@@ -8,7 +8,7 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "cinfo",
-		Short: "A command to show the status of all partitions and nodes",
+		Short: "display the status of all partitions and nodes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
 			cinfoFun()

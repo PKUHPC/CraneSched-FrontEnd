@@ -14,7 +14,7 @@ var (
 
 	rootCmd = &cobra.Command{
 		Use:   "ccontrol",
-		Short: "A command to show the status of partitions and nodes.",
+		Short: "display the state of partitions and nodes",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			Init()
@@ -22,15 +22,14 @@ var (
 	}
 	showCmd = &cobra.Command{
 		Use:   "show",
-		Short: "A command to perform the show operation.",
+		Short: "display state of identified entity, default is all records",
 		Long:  "",
 	}
 	showNodeCmd = &cobra.Command{
 		Use:   "node",
-		Short: "A command to show the status of nodes.",
-		Long: "Specify a node name: ccontrol show node [name], " +
-			"otherwise all node status will be displayed.",
-		Args: cobra.MaximumNArgs(1),
+		Short: "display state of the specified node, default is all records",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				nodeName = ""
@@ -44,10 +43,9 @@ var (
 	}
 	showPartitionCmd = &cobra.Command{
 		Use:   "partition",
-		Short: " A command to show the status of partitions.",
-		Long: " Specify a partition:  ccontrol show partition [name], " +
-			" otherwise all partition status will be displayed.",
-		Args: cobra.MaximumNArgs(1),
+		Short: "display state of the specified partition, default is all records",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				partitionName = ""
@@ -61,16 +59,15 @@ var (
 	}
 	showJobCmd = &cobra.Command{
 		Use:   "job",
-		Short: "A command to show the status of jobs.",
-		Long: "Specify a job name:  ccontrol show node [job], " +
-			"   otherwise all job status will be displayed.",
-		Args: cobra.MaximumNArgs(1),
+		Short: "display state of the specified job, default is all records",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				queryAll = true
 			} else {
-				int, _ := strconv.Atoi(args[0])
-				jobId = uint32(int)
+				id, _ := strconv.Atoi(args[0])
+				jobId = uint32(id)
 				queryAll = false
 			}
 			ShowJobs(jobId, queryAll)

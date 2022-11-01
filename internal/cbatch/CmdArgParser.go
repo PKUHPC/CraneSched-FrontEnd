@@ -16,7 +16,7 @@ var (
 	output        string
 	rootCmd       = &cobra.Command{
 		Use:   "cbatch",
-		Short: "A command to submit batch jobs",
+		Short: "submit batch jobs",
 		Run: func(cmd *cobra.Command, args []string) {
 			Init()
 		},

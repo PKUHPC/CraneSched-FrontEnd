@@ -9,7 +9,7 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "ccancel",
-		Short: "A command to cancel the specified task",
+		Short: "cancel the specified task",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {

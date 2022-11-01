@@ -10,7 +10,7 @@ var (
 	findAll   bool
 	rootCmd   = &cobra.Command{
 		Use:   "cqueue",
-		Short: "A command to show the job information for all queues in the cluster.",
+		Short: "display the job information for all queues in the cluster",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
