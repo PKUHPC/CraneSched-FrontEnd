@@ -5,6 +5,5 @@ import (
 )
 
 func main() {
-	cacctmgr.Init()
 	cacctmgr.ParseCmdArgs()
 }
