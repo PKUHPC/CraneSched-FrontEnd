@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
-	"os/user"
+	OSuser "os/user"
 	"regexp"
 	"strconv"
 )
@@ -115,6 +115,31 @@ func PrintAllUsers(userList []*protos.UserInfo, curLevel protos.UserInfo_AdminLe
 	table.Render()
 }
 
+func PrintAllQos(qosList []*protos.QosInfo) {
+	if len(qosList) == 0 {
+		fmt.Println("There is no qos in crane")
+		return
+	}
+
+	table := tablewriter.NewWriter(os.Stdout) //table format control
+	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
+	table.SetCenterSeparator("|")
+	table.SetTablePadding("\t")
+	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser"})
+	table.SetAutoFormatHeaders(false)
+	tableData := make([][]string, len(qosList))
+	for _, info := range qosList {
+		tableData = append(tableData, []string{
+			info.Name,
+			info.Description,
+			fmt.Sprintf("%d", info.Priority),
+			fmt.Sprintf("%d", info.MaxJobsPerUser)})
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
+}
+
 func PrintAllAccount(accountList []*protos.AccountInfo, curLevel protos.UserInfo_AdminLevel, curAccount string) {
 	if len(accountList) == 0 {
 		fmt.Println("There is no account in crane")
@@ -189,24 +214,15 @@ var (
 	stub       protos.CraneCtldClient
 )
 
-func AddAccount(name string, describe string, parent string, partition []string, defaultQos string, qosList []string) {
+func AddAccount(account *protos.AccountInfo) {
 	if curLevel != protos.UserInfo_Admin {
 		Error("Permission error : You do not have permission to add account")
 	}
-
 	var req *protos.AddAccountRequest
 	req = new(protos.AddAccountRequest)
-	req.Account = new(protos.AccountInfo)
-	var account = req.Account
-	account.Name = name
-	account.Description = describe
-	account.ParentAccount = parent
-	account.AllowedPartition = partition
-	account.AllowedQos = qosList
-	if defaultQos == "" && len(qosList) > 0 {
-		account.DefaultQos = qosList[0]
-	} else {
-		account.DefaultQos = defaultQos
+	req.Account = account
+	if account.DefaultQos == "" && len(account.AllowedQos) > 0 {
+		account.DefaultQos = account.AllowedQos[0]
 	}
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddAccount(context.Background(), req)
@@ -220,41 +236,38 @@ func AddAccount(name string, describe string, parent string, partition []string,
 	}
 }
 
-func AddUser(name string, account string, partition []string, level string) {
+func AddUser(user *protos.UserInfo, partition []string, level string) {
 	var req *protos.AddUserRequest
 	req = new(protos.AddUserRequest)
-	req.User = new(protos.UserInfo)
-	var myUser = req.User
-	myUser.Name = name
-	myUser.Account = account
+	req.User = user
 	for _, par := range partition {
-		myUser.AllowedPartitionQosList = append(myUser.AllowedPartitionQosList, &protos.UserInfoAllowedPartitionQos{Name: par})
+		user.AllowedPartitionQosList = append(user.AllowedPartitionQosList, &protos.UserInfoAllowedPartitionQos{Name: par})
 	}
 
-	lu, err := user.Lookup(myUser.Name)
+	lu, err := OSuser.Lookup(user.Name)
 	if err != nil {
 		log.Fatal(err)
 	}
 	i64, err := strconv.ParseInt(lu.Uid, 10, 64)
 	if err == nil {
-		myUser.Uid = uint32(i64)
+		user.Uid = uint32(i64)
 	}
 
 	if level == "none" {
-		myUser.AdminLevel = protos.UserInfo_None
+		user.AdminLevel = protos.UserInfo_None
 	} else if level == "operator" {
-		myUser.AdminLevel = protos.UserInfo_Operator
+		user.AdminLevel = protos.UserInfo_Operator
 	} else if level == "admin" {
-		myUser.AdminLevel = protos.UserInfo_Admin
+		user.AdminLevel = protos.UserInfo_Admin
 	}
 
 	if curLevel == protos.UserInfo_None {
 		Error("Permission error : You do not have permission to add user")
 	} else if curLevel == protos.UserInfo_Operator {
-		if myUser.Account != curAccount {
+		if user.Account != curAccount {
 			Error("Permission error : You can't add user to other account")
 		}
-		if myUser.AdminLevel != protos.UserInfo_None {
+		if user.AdminLevel != protos.UserInfo_None {
 			Error("Permission error : You cannot add users with permissions")
 		}
 	}
@@ -268,6 +281,26 @@ func AddUser(name string, account string, partition []string, level string) {
 		fmt.Printf("add user success\n")
 	} else {
 		fmt.Printf("add user failed: %s\n", reply.GetReason())
+	}
+}
+
+func AddQos(qos *protos.QosInfo) {
+	if curLevel != protos.UserInfo_Admin {
+		Error("Permission error : You do not have permission to add qos")
+	}
+	var req *protos.AddQosRequest
+	req = new(protos.AddQosRequest)
+	req.Qos = qos
+
+	//fmt.Printf("Req:\n%v\n\n", req)
+	reply, err := stub.AddQos(context.Background(), req)
+	if err != nil {
+		panic("add qos failed: " + err.Error())
+	}
+	if reply.GetOk() {
+		fmt.Printf("add qos success\n")
+	} else {
+		fmt.Printf("add qos failed: %s\n", reply.GetReason())
 	}
 }
 
@@ -322,7 +355,7 @@ func DeleteUser(name string) {
 func DeleteQos(name string) {
 	var req *protos.DeleteEntityRequest
 
-	if curLevel == protos.UserInfo_Admin {
+	if curLevel != protos.UserInfo_Admin {
 		Error("Permission error : You do not have permission to delete Qos")
 	}
 	req = &protos.DeleteEntityRequest{EntityType: protos.EntityType_Qos, Name: name}
@@ -403,6 +436,31 @@ func ModifyUser(modifyItem string, name string, partition string, requestType pr
 	}
 }
 
+func ModifyQos(modifyItem string, name string) {
+	itemLeft, itemRight := ParseEquation(modifyItem)
+	if !checkQosFieldName(itemLeft) {
+		Error("Field name %s not exist!", itemLeft)
+	}
+
+	req := protos.ModifyEntityRequest{
+		ItemLeft:   itemLeft,
+		ItemRight:  itemRight,
+		Name:       name,
+		Type:       protos.ModifyEntityRequest_Overwrite,
+		EntityType: protos.EntityType_Qos,
+	}
+	//fmt.Printf("Req:\n%v\n\n", req)
+	reply, err := stub.ModifyEntity(context.Background(), &req)
+	if err != nil {
+		panic("Modify information failed: " + err.Error())
+	}
+	if reply.GetOk() {
+		fmt.Printf("Modify information success\n")
+	} else {
+		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
+	}
+}
+
 func ShowAccounts() {
 	var req *protos.QueryEntityInfoRequest
 	req = &protos.QueryEntityInfoRequest{EntityType: protos.EntityType_Account}
@@ -431,6 +489,22 @@ func ShowUsers() {
 		PrintAllUsers(reply.UserList, curLevel, curAccount)
 	} else {
 		fmt.Println("Query all users failed! ")
+	}
+}
+
+func ShowQos() {
+	var req *protos.QueryEntityInfoRequest
+	req = &protos.QueryEntityInfoRequest{EntityType: protos.EntityType_Qos}
+
+	reply, err := stub.QueryEntityInfo(context.Background(), req)
+	if err != nil {
+		panic("query entity info failed: " + err.Error())
+	}
+
+	if reply.GetOk() {
+		PrintAllQos(reply.QosList)
+	} else {
+		fmt.Println("Query all qos failed! ")
 	}
 }
 
@@ -491,6 +565,14 @@ func checkAccountFieldName(s string) bool {
 	return false
 }
 
+func checkQosFieldName(s string) bool {
+	switch s {
+	case "name", "description", "priority", "max_jobs_per_user":
+		return true
+	}
+	return false
+}
+
 func Init() {
 
 	config := util.ParseConfig()
@@ -503,7 +585,7 @@ func Init() {
 
 	stub = protos.NewCraneCtldClient(conn)
 
-	currentUser, err := user.Current()
+	currentUser, err := OSuser.Current()
 	if err != nil {
 		log.Fatal(err.Error())
 	}

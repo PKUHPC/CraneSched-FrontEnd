@@ -7,16 +7,16 @@ import (
 )
 
 var (
-	name        string
-	description string
-	account     string
-	partition   []string
-	defaultQos  string
-	qosList     []string
-	level       string
+	name      string
+	partition []string
+	level     string
 
 	modifyItem      string
 	partitionFilter string
+
+	account protos.AccountInfo
+	user    protos.UserInfo
+	qos     protos.QosInfo
 
 	rootCmd = &cobra.Command{
 		Use:   "cacctmgr",
@@ -37,7 +37,7 @@ var (
 		Short: "Add a new account to crane",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			AddAccount(name, description, account, partition, defaultQos, qosList)
+			AddAccount(&account)
 		},
 	}
 	addUserCmd = &cobra.Command{
@@ -45,7 +45,15 @@ var (
 		Short: "Add a new user to crane",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			AddUser(name, account, partition, level)
+			AddUser(&user, partition, level)
+		},
+	}
+	addQosCmd = &cobra.Command{
+		Use:   "qos",
+		Short: "Add a new qos to crane",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			AddQos(&qos)
 		},
 	}
 	/* --------------------------------------------------- remove --------------------------------------------------- */
@@ -74,7 +82,7 @@ var (
 		},
 	}
 	removeQosCmd = &cobra.Command{
-		Use:   "Qos",
+		Use:   "qos",
 		Short: "Delete existing Qos",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -107,8 +115,6 @@ var (
 		Short: "Modify user information",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			//itemLeft, itemRight := ParseEquation(modifyItem)
-			//filterLeft, filterRight := ParseEquation(modifyFilter)
 			if cmd.Flags().Changed("set") { //See if a flag was set by the user
 				ModifyUser(modifyItem, name, partitionFilter, protos.ModifyEntityRequest_Overwrite)
 			} else if cmd.Flags().Changed("add") {
@@ -116,6 +122,15 @@ var (
 			} else if cmd.Flags().Changed("delete") {
 				ModifyUser(modifyItem, name, partitionFilter, protos.ModifyEntityRequest_Delete)
 			}
+		},
+	}
+	modifyQosCmd = &cobra.Command{
+		Use:   "qos",
+		Short: "Modify qos information",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			ModifyQos(modifyItem, args[0])
 		},
 	}
 	/* ---------------------------------------------------- show ---------------------------------------------------- */
@@ -143,6 +158,14 @@ var (
 			ShowUsers()
 		},
 	}
+	showQosCmd = &cobra.Command{
+		Use:   "qos",
+		Short: "Display qos table",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			ShowQos()
+		},
+	}
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	findCmd = &cobra.Command{
 		Use:     "find",
@@ -168,6 +191,15 @@ var (
 			FindUser(args[0])
 		},
 	}
+	findQosCmd = &cobra.Command{
+		Use:   "qos",
+		Short: "Find and display a specific qos information",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			//FindQos(args[0])
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -183,20 +215,20 @@ func init() {
 	/* ---------------------------------------------------- add  ---------------------------------------------------- */
 	addCmd.AddCommand(addAccountCmd)
 
-	addAccountCmd.Flags().StringVarP(&name, "name", "N", "", "the name to identify account")
-	addAccountCmd.Flags().StringVarP(&description, "description", "D", "", "some information to describe account")
-	addAccountCmd.Flags().StringVarP(&account, "parent", "P", "", "parent account")
-	addAccountCmd.Flags().StringSliceVar(&partition, "partition", nil, "the partition list which this account has access to")
-	addAccountCmd.Flags().StringVarP(&defaultQos, "default_qos", "Q", "", "Default qos of the account")
-	addAccountCmd.Flags().StringSliceVar(&qosList, "qos_list", nil, "Allowed qos list of the account")
+	addAccountCmd.Flags().StringVarP(&account.Name, "name", "N", "", "the name to identify account")
+	addAccountCmd.Flags().StringVarP(&account.Description, "description", "D", "", "some information to describe account")
+	addAccountCmd.Flags().StringVarP(&account.ParentAccount, "parent", "P", "", "parent account")
+	addAccountCmd.Flags().StringSliceVar(&account.AllowedPartition, "partition", nil, "the partition list which this account has access to")
+	addAccountCmd.Flags().StringVarP(&account.DefaultQos, "default_qos", "Q", "", "Default qos of the account")
+	addAccountCmd.Flags().StringSliceVar(&account.AllowedQos, "qos_list", nil, "Allowed qos list of the account")
 	err := addAccountCmd.MarkFlagRequired("name")
 	if err != nil {
 		return
 	}
 
 	addCmd.AddCommand(addUserCmd)
-	addUserCmd.Flags().StringVarP(&name, "name", "N", "", "the name to identify user")
-	addUserCmd.Flags().StringVarP(&account, "account", "A", "", "parent account")
+	addUserCmd.Flags().StringVarP(&user.Name, "name", "N", "", "the name to identify user")
+	addUserCmd.Flags().StringVarP(&user.Account, "account", "A", "", "parent account")
 	addUserCmd.Flags().StringSliceVar(&partition, "partition", nil, "the partition list which this account has access to")
 	addUserCmd.Flags().StringVarP(&level, "level", "L", "none", "user power level")
 	err = addUserCmd.MarkFlagRequired("name")
@@ -204,6 +236,16 @@ func init() {
 		return
 	}
 	err = addUserCmd.MarkFlagRequired("account")
+	if err != nil {
+		return
+	}
+
+	addCmd.AddCommand(addQosCmd)
+	addQosCmd.Flags().StringVarP(&qos.Name, "name", "N", "", "the name to identify qos")
+	addQosCmd.Flags().StringVarP(&qos.Description, "description", "D", "", "some information to describe qos")
+	addQosCmd.Flags().Uint32VarP(&qos.Priority, "priority", "P", 1000, "")
+	addQosCmd.Flags().Uint32Var(&qos.MaxJobsPerUser, "max_jobs_per_user", 0, "")
+	err = addQosCmd.MarkFlagRequired("name")
 	if err != nil {
 		return
 	}
@@ -238,12 +280,21 @@ func init() {
 	if err != nil {
 		Error("Can't mark 'name' flag required")
 	}
+
+	modifyCmd.AddCommand(modifyQosCmd)
+	modifyQosCmd.Flags().StringVarP(&modifyItem, "set", "S", "", "Modify as an overlay")
+	err = modifyQosCmd.MarkFlagRequired("set")
+	if err != nil {
+		return
+	}
 	/* ---------------------------------------------------- show ---------------------------------------------------- */
 	rootCmd.AddCommand(showCmd)
 	showCmd.AddCommand(showAccountCmd)
 	showCmd.AddCommand(showUserCmd)
+	showCmd.AddCommand(showQosCmd)
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	rootCmd.AddCommand(findCmd)
 	findCmd.AddCommand(findAccountCmd)
 	findCmd.AddCommand(findUserCmd)
+	findCmd.AddCommand(findQosCmd)
 }
