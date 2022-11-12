@@ -224,6 +224,18 @@ func AddAccount(account *protos.AccountInfo) {
 	if account.DefaultQos == "" && len(account.AllowedQos) > 0 {
 		account.DefaultQos = account.AllowedQos[0]
 	}
+	if account.DefaultQos != "" {
+		find := false
+		for _, qos := range account.AllowedQos {
+			if qos == account.DefaultQos {
+				find = true
+				break
+			}
+		}
+		if !find {
+			Error("Parameter error : default qos %s not contain in allowed qos list", account.DefaultQos)
+		}
+	}
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
@@ -518,7 +530,8 @@ func FindAccount(name string) {
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("AccountName:%v Description:'%v' ParentAccount:%v ChildAccount:%v Users:%v AllowedPartition:%v QOS:%v\n", reply.AccountList[0].Name, reply.AccountList[0].Description, reply.AccountList[0].ParentAccount, reply.AccountList[0].ChildAccount, reply.AccountList[0].Users, reply.AccountList[0].AllowedPartition, reply.AccountList[0].DefaultQos)
+		PrintAllAccount(reply.AccountList, protos.UserInfo_Admin, curAccount)
+		//fmt.Printf("AccountName:%v Description:'%v' ParentAccount:%v ChildAccount:%v Users:%v AllowedPartition:%v QOS:%v\n", reply.AccountList[0].Name, reply.AccountList[0].Description, reply.AccountList[0].ParentAccount, reply.AccountList[0].ChildAccount, reply.AccountList[0].Users, reply.AccountList[0].AllowedPartition, reply.AccountList[0].DefaultQos)
 	} else {
 		fmt.Printf("Query account %s failed! \n", name)
 	}
@@ -534,7 +547,8 @@ func FindUser(name string) {
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("UserName:%v Uid:%v Account:%v AllowedPartition:%v AdminLevel:%v\n", reply.UserList[0].Name, reply.UserList[0].Uid, reply.UserList[0].Account, "", reply.UserList[0].AdminLevel)
+		PrintAllUsers(reply.UserList, protos.UserInfo_Admin, curAccount)
+		//fmt.Printf("UserName:%v Uid:%v Account:%v AllowedPartition:%v AdminLevel:%v\n", reply.UserList[0].Name, reply.UserList[0].Uid, reply.UserList[0].Account, "", reply.UserList[0].AdminLevel)
 	} else {
 		fmt.Printf("Query user %s failed! \n", name)
 	}

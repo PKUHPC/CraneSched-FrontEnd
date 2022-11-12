@@ -128,9 +128,8 @@ var (
 		Use:   "qos",
 		Short: "Modify qos information",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			ModifyQos(modifyItem, args[0])
+			ModifyQos(modifyItem, name)
 		},
 	}
 	/* ---------------------------------------------------- show ---------------------------------------------------- */
@@ -282,6 +281,11 @@ func init() {
 	}
 
 	modifyCmd.AddCommand(modifyQosCmd)
+	modifyQosCmd.Flags().StringVarP(&name, "name", "N", "", "Name of the qos being modified")
+	err = modifyQosCmd.MarkFlagRequired("name")
+	if err != nil {
+		return
+	}
 	modifyQosCmd.Flags().StringVarP(&modifyItem, "set", "S", "", "Modify as an overlay")
 	err = modifyQosCmd.MarkFlagRequired("set")
 	if err != nil {
