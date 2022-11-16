@@ -218,6 +218,9 @@ func AddAccount(account *protos.AccountInfo) {
 	if curLevel != protos.UserInfo_Admin {
 		Error("Permission error : You do not have permission to add account")
 	}
+	if account.Name == "=" {
+		Error("Parameter error : Account name empty")
+	}
 	var req *protos.AddAccountRequest
 	req = new(protos.AddAccountRequest)
 	req.Account = account
@@ -249,6 +252,10 @@ func AddAccount(account *protos.AccountInfo) {
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string) {
+	lu, err := OSuser.Lookup(user.Name)
+	if err != nil {
+		log.Fatal(err)
+	}
 	var req *protos.AddUserRequest
 	req = new(protos.AddUserRequest)
 	req.User = user
@@ -256,10 +263,6 @@ func AddUser(user *protos.UserInfo, partition []string, level string) {
 		user.AllowedPartitionQosList = append(user.AllowedPartitionQosList, &protos.UserInfoAllowedPartitionQos{Name: par})
 	}
 
-	lu, err := OSuser.Lookup(user.Name)
-	if err != nil {
-		log.Fatal(err)
-	}
 	i64, err := strconv.ParseInt(lu.Uid, 10, 64)
 	if err == nil {
 		user.Uid = uint32(i64)
