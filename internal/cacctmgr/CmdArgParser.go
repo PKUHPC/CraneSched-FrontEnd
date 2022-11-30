@@ -217,9 +217,9 @@ func init() {
 	addAccountCmd.Flags().StringVarP(&account.Name, "name", "N", "", "the name to identify account")
 	addAccountCmd.Flags().StringVarP(&account.Description, "description", "D", "", "some information to describe account")
 	addAccountCmd.Flags().StringVarP(&account.ParentAccount, "parent", "P", "", "parent account")
-	addAccountCmd.Flags().StringSliceVar(&account.AllowedPartition, "partition", nil, "the partition list which this account has access to")
+	addAccountCmd.Flags().StringSliceVar(&account.AllowedPartitions, "partition", nil, "the partition list which this account has access to")
 	addAccountCmd.Flags().StringVarP(&account.DefaultQos, "default_qos", "Q", "", "Default qos of the account")
-	addAccountCmd.Flags().StringSliceVar(&account.AllowedQos, "qos_list", nil, "Allowed qos list of the account")
+	addAccountCmd.Flags().StringSliceVar(&account.AllowedQosList, "qos_list", nil, "Allowed qos list of the account")
 	err := addAccountCmd.MarkFlagRequired("name")
 	if err != nil {
 		return

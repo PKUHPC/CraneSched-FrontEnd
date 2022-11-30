@@ -88,7 +88,7 @@ func PrintAllUsers(userList []*protos.UserInfo, curLevel protos.UserInfo_AdminLe
 						key,
 						userInfo.Name,
 						strconv.FormatUint(uint64(userInfo.Uid), 10),
-						allowedPartitionQos.Name,
+						allowedPartitionQos.PartitionName,
 						fmt.Sprintf("%v", allowedPartitionQos.QosList),
 						allowedPartitionQos.DefaultQos,
 						fmt.Sprintf("%v", userInfo.AdminLevel)})
@@ -103,7 +103,7 @@ func PrintAllUsers(userList []*protos.UserInfo, curLevel protos.UserInfo_AdminLe
 					curAccount,
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
-					allowedPartitionQos.Name,
+					allowedPartitionQos.PartitionName,
 					fmt.Sprintf("%v", allowedPartitionQos.QosList),
 					allowedPartitionQos.DefaultQos,
 					fmt.Sprintf("%v", userInfo.AdminLevel)})
@@ -181,9 +181,9 @@ func PrintAllAccount(accountList []*protos.AccountInfo, curLevel protos.UserInfo
 		tableData = append(tableData, []string{
 			name,
 			info.Description,
-			fmt.Sprintf("%v", info.AllowedPartition),
+			fmt.Sprintf("%v", info.AllowedPartitions),
 			info.DefaultQos,
-			fmt.Sprintf("%v", info.AllowedQos)})
+			fmt.Sprintf("%v", info.AllowedQosList)})
 	}
 
 	table.AppendBulk(tableData)
@@ -198,11 +198,11 @@ func Error(inf string, args ...interface{}) {
 
 func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap map[string]*protos.AccountInfo) {
 
-	if len(accountMap[account].ChildAccount) == 0 {
+	if len(accountMap[account].ChildAccounts) == 0 {
 		parentTreeRoot.AddNode(account)
 	} else {
 		branch := parentTreeRoot.AddBranch(account)
-		for _, child := range accountMap[account].ChildAccount {
+		for _, child := range accountMap[account].ChildAccounts {
 			PraseAccountTree(branch, child, accountMap)
 		}
 	}
@@ -224,12 +224,12 @@ func AddAccount(account *protos.AccountInfo) {
 	var req *protos.AddAccountRequest
 	req = new(protos.AddAccountRequest)
 	req.Account = account
-	if account.DefaultQos == "" && len(account.AllowedQos) > 0 {
-		account.DefaultQos = account.AllowedQos[0]
+	if account.DefaultQos == "" && len(account.AllowedQosList) > 0 {
+		account.DefaultQos = account.AllowedQosList[0]
 	}
 	if account.DefaultQos != "" {
 		find := false
-		for _, qos := range account.AllowedQos {
+		for _, qos := range account.AllowedQosList {
 			if qos == account.DefaultQos {
 				find = true
 				break
@@ -260,7 +260,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string) {
 	req = new(protos.AddUserRequest)
 	req.User = user
 	for _, par := range partition {
-		user.AllowedPartitionQosList = append(user.AllowedPartitionQosList, &protos.UserInfoAllowedPartitionQos{Name: par})
+		user.AllowedPartitionQosList = append(user.AllowedPartitionQosList, &protos.UserInfo_AllowedPartitionQos{PartitionName: par})
 	}
 
 	i64, err := strconv.ParseInt(lu.Uid, 10, 64)
@@ -397,8 +397,8 @@ func ModifyAccount(modifyItem string, name string, requestType protos.ModifyEnti
 	}
 
 	req := protos.ModifyEntityRequest{
-		ItemLeft:   itemLeft,
-		ItemRight:  itemRight,
+		Lhs:        itemLeft,
+		Rhs:        itemRight,
 		Name:       name,
 		Type:       requestType,
 		EntityType: protos.EntityType_Account,
@@ -432,8 +432,8 @@ func ModifyUser(modifyItem string, name string, partition string, requestType pr
 	}
 
 	req := protos.ModifyEntityRequest{
-		ItemLeft:   itemLeft,
-		ItemRight:  itemRight,
+		Lhs:        itemLeft,
+		Rhs:        itemRight,
 		Name:       name,
 		Partition:  partition,
 		Type:       requestType,
@@ -458,8 +458,8 @@ func ModifyQos(modifyItem string, name string) {
 	}
 
 	req := protos.ModifyEntityRequest{
-		ItemLeft:   itemLeft,
-		ItemRight:  itemRight,
+		Lhs:        itemLeft,
+		Rhs:        itemRight,
 		Name:       name,
 		Type:       protos.ModifyEntityRequest_Overwrite,
 		EntityType: protos.EntityType_Qos,
