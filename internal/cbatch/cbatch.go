@@ -86,11 +86,11 @@ func ProcessSbatchArg(args []SbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 			}
 			req.Task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
-			num, err := strconv.ParseUint(arg.val, 10, 32)
+			num, err := strconv.ParseFloat(arg.val, 10)
 			if err != nil {
 				return false, nil
 			}
-			req.Task.CpusPerTask = uint32(num)
+			req.Task.CpusPerTask = num
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -117,7 +117,7 @@ func ProcessSbatchArg(args []SbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 
 	}
 
-	req.Task.Resources.AllocatableResource.CpuCoreLimit = uint64(req.Task.CpusPerTask * req.Task.NtasksPerNode)
+	req.Task.Resources.AllocatableResource.CpuCoreLimit = req.Task.CpusPerTask * float64(req.Task.NtasksPerNode)
 
 	return true, req
 }
@@ -145,22 +145,22 @@ func SetTime(time string, req *protos.SubmitBatchTaskRequest) bool {
 	return true
 }
 func SetMem(mem string, req *protos.SubmitBatchTaskRequest) bool {
-	re := regexp.MustCompile(`(.*)([MmGg])`)
+	re := regexp.MustCompile(`([0-9]+(\.?[0-9]+)?)([MmGg])`)
 	result := re.FindAllStringSubmatch(mem, -1)
 	if result == nil || len(result) != 1 {
 		return false
 	}
-	sz, err := strconv.ParseUint(result[0][1], 10, 32)
+	sz, err := strconv.ParseFloat(result[0][1], 10)
 	if err != nil {
 		return false
 	}
-	switch result[0][2] {
+	switch result[0][len(result[0])-1] {
 	case "M", "m":
-		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = 1024 * 1024 * sz
-		req.Task.Resources.AllocatableResource.MemoryLimitBytes = 1024 * 1024 * sz
+		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = uint64(1024 * 1024 * sz)
+		req.Task.Resources.AllocatableResource.MemoryLimitBytes = uint64(1024 * 1024 * sz)
 	case "G", "g":
-		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = 1024 * 1024 * 1024 * sz
-		req.Task.Resources.AllocatableResource.MemoryLimitBytes = 1024 * 1024 * 1024 * sz
+		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = uint64(1024 * 1024 * 1024 * sz)
+		req.Task.Resources.AllocatableResource.MemoryLimitBytes = uint64(1024 * 1024 * 1024 * sz)
 	}
 	return true
 }

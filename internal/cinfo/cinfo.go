@@ -34,7 +34,7 @@ func cinfoFun() {
 		for _, partitionCraned := range reply.PartitionCraned {
 			for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
 				if commonCranedStateList.CranedNum > 0 {
-					fmt.Printf("%9s%8s%11s%7d%7s  %v\n", partitionCraned.Name, partitionCraned.State.String(), "infinite", commonCranedStateList.CranedNum, commonCranedStateList.State, commonCranedStateList.CranedList)
+					fmt.Printf("%9s%8s%11s%7d%7s  %v\n", partitionCraned.Name, partitionCraned.State.String(), "infinite", commonCranedStateList.CranedNum, commonCranedStateList.State.String(), commonCranedStateList.CranedListRegex)
 				}
 			}
 		}
