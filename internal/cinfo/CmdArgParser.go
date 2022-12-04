@@ -6,12 +6,22 @@ import (
 )
 
 var (
-	rootCmd = &cobra.Command{
+	dead       bool
+	responding bool
+	partitions string
+	nodes      string
+	states     string
+	iterate    uint64
+	rootCmd    = &cobra.Command{
 		Use:   "cinfo",
 		Short: "display the status of all partitions and nodes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			cinfoFun()
+			if iterate != 0 {
+				IterateQuery(iterate)
+			} else {
+				cinfoFun()
+			}
 		},
 	}
 )
@@ -23,4 +33,10 @@ func ParseCmdArgs() {
 	}
 }
 func init() {
+	rootCmd.Flags().BoolVarP(&dead, "dead", "d", false, "show only non-responding nodes")
+	rootCmd.Flags().StringVarP(&partitions, "partition", "p", "", "report on specific partition")
+	rootCmd.Flags().StringVarP(&nodes, "nodes", "n", "", "report on specific node(s)")
+	rootCmd.Flags().StringVarP(&states, "states", "t", "", "specify the what states of nodes to view")
+	rootCmd.Flags().BoolVarP(&responding, "responding", "r", false, "report only responding nodes")
+	rootCmd.Flags().Uint64VarP(&iterate, "iterate", "i", 0, "specify an interation period in seconds")
 }

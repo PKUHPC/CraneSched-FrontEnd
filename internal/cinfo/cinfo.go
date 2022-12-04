@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"strconv"
+	"strings"
+	"time"
 )
 
 func cinfoFun() {
@@ -19,8 +22,23 @@ func cinfoFun() {
 		panic("Cannot connect to CraneCtld: " + err.Error())
 	}
 
+	partitionList := strings.Split(partitions, ",")
+	nodeList := strings.Split(nodes, ",")
+	stateList := strings.Split(strings.ToLower(states), ",")
+
 	stub := protos.NewCraneCtldClient(conn)
-	req := &protos.QueryClusterInfoRequest{}
+	req := &protos.QueryClusterInfoRequest{
+		QueryDownNodes:       dead,
+		QueryRespondingNodes: responding,
+	}
+
+	if partitions != "" {
+		req.SetQueryPartitions = partitionList
+	} else if nodes != "" {
+		req.SetQueryNodes = nodeList
+	} else if states != "" {
+		req.SetQueryStates = stateList
+	}
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
@@ -38,5 +56,13 @@ func cinfoFun() {
 				}
 			}
 		}
+	}
+}
+
+func IterateQuery(iterate uint64) {
+	iter, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	for {
+		cinfoFun()
+		time.Sleep(time.Duration(iter.Nanoseconds()))
 	}
 }
