@@ -33,10 +33,16 @@ func ParseCmdArgs() {
 	}
 }
 func init() {
-	rootCmd.Flags().BoolVarP(&dead, "dead", "d", false, "show only non-responding nodes")
-	rootCmd.Flags().StringVarP(&partitions, "partition", "p", "", "report on specific partition")
-	rootCmd.Flags().StringVarP(&nodes, "nodes", "n", "", "report on specific node(s)")
-	rootCmd.Flags().StringVarP(&states, "states", "t", "", "specify the what states of nodes to view")
-	rootCmd.Flags().BoolVarP(&responding, "responding", "r", false, "report only responding nodes")
-	rootCmd.Flags().Uint64VarP(&iterate, "iterate", "i", 0, "specify an interation period in seconds")
+	rootCmd.Flags().BoolVarP(&dead, "dead", "d", false,
+		"show only non-responding nodes")
+	rootCmd.Flags().StringVarP(&partitions, "partition", "p",
+		"", "report on specific partition")
+	rootCmd.Flags().StringVarP(&nodes, "nodes", "n", "",
+		"report on specific node(s)")
+	rootCmd.Flags().StringVarP(&states, "states", "t", "",
+		"specify the what states of nodes to view")
+	rootCmd.Flags().BoolVarP(&responding, "responding", "r", false,
+		"report only responding nodes")
+	rootCmd.Flags().Uint64VarP(&iterate, "iterate", "i", 0,
+		"specify an interation period in seconds")
 }

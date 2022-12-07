@@ -44,11 +44,18 @@ func ParseCmdArgs() {
 }
 
 func init() {
-	rootCmd.Flags().BoolVarP(&noheader, "noheader", "N", false, "no headers on output")
-	rootCmd.Flags().Uint64VarP(&iterate, "iterate", "i", 0, "specify an interation period in seconds")
-	rootCmd.Flags().StringVarP(&format, "format", "o", "", "format specification")
-	rootCmd.Flags().StringVarP(&taskId, "job", "j", "", "comma separated list of tasks IDs to view,\ndefault is all")
-	rootCmd.Flags().StringVarP(&partition, "partition", "p", "", "comma separated list of partitions to view,\ndefault is all partitions")
-	rootCmd.Flags().StringVarP(&states, "states", "t", "", "Specify a states to view, default is  all states")
-	rootCmd.Flags().StringVarP(&taskName, "name", "n", "", "comma separated list of task names to view,\ndefault is all")
+	rootCmd.Flags().BoolVarP(&noheader, "noheader", "N", false,
+		"no headers on output")
+	rootCmd.Flags().Uint64VarP(&iterate, "iterate", "i", 0,
+		"specify an interation period in seconds")
+	rootCmd.Flags().StringVarP(&format, "format", "o", "",
+		"format specification")
+	rootCmd.Flags().StringVarP(&taskId, "job", "j", "",
+		"comma separated list of tasks IDs to view,\ndefault is all")
+	rootCmd.Flags().StringVarP(&partition, "partition", "p", "",
+		"comma separated list of partitions to view,\ndefault is all partitions")
+	rootCmd.Flags().StringVarP(&states, "states", "t", "",
+		"Specify a states to view, default is  all states")
+	rootCmd.Flags().StringVarP(&taskName, "name", "n", "",
+		"comma separated list of task names to view,\ndefault is all")
 }

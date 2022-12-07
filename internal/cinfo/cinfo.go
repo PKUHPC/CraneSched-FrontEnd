@@ -5,8 +5,10 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
+	"github.com/olekukonko/tablewriter"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -45,17 +47,39 @@ func cinfoFun() {
 		panic("QueryClusterInfo failed: " + err.Error())
 	}
 
-	if len(reply.PartitionCraned) == 0 {
-		fmt.Printf("No partition is available.\n")
-	} else {
-		fmt.Printf("PARTITION   AVAIL  TIMELIMIT  NODES  STATE  NODELIST\n")
-		for _, partitionCraned := range reply.PartitionCraned {
-			for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
-				if commonCranedStateList.CranedNum > 0 {
-					fmt.Printf("%9s%8s%11s%7d%7s  %v\n", partitionCraned.Name, partitionCraned.State.String(), "infinite", commonCranedStateList.CranedNum, commonCranedStateList.State.String(), commonCranedStateList.CranedListRegex)
-				}
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetBorder(false)
+	table.SetTablePadding("\t")
+	table.SetHeaderLine(false)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(false)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetNoWhiteSpace(true)
+	var tableData [][]string
+	table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
+	for _, partitionCraned := range reply.PartitionCraned {
+		for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
+			if commonCranedStateList.CranedNum > 0 {
+				tableData = append(tableData, []string{
+					partitionCraned.Name,
+					partitionCraned.State.String(),
+					"infinite",
+					strconv.FormatUint(uint64(commonCranedStateList.CranedNum), 10),
+					commonCranedStateList.State.String(),
+					commonCranedStateList.CranedListRegex,
+				})
 			}
 		}
+	}
+	table.AppendBulk(tableData)
+	if len(tableData) == 0 {
+		fmt.Printf("No partition is available.\n")
+	} else {
+		table.Render()
 	}
 }
 

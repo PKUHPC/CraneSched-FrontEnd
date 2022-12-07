@@ -128,25 +128,31 @@ func FormatQuery(format string) {
 				for j := 0; j < len(reply.TaskMetas); j++ {
 					idStr = append(idStr, strconv.FormatUint(uint64(reply.TaskIds[j]), 10))
 				}
-				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15, tableData, header, "TaskId", idStr, reply)
+				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15,
+					tableData, header, "TaskId", idStr, reply)
 			case "j": ///column TaskName
-				header, tableData = SetColumWidth(regNum.FindString(split[i]), 20, tableData, header, "TaskName", reply.TaskNames, reply)
+				header, tableData = SetColumWidth(regNum.FindString(split[i]), 20,
+					tableData, header, "TaskName", reply.TaskNames, reply)
 			case "T": ///column Type
 				var typeStr []string
 				for j := 0; j < len(reply.TaskMetas); j++ {
 					typeStr = append(typeStr, reply.TaskMetas[j].Type.String())
 				}
-				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15, tableData, header, "Type", typeStr, reply)
+				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15,
+					tableData, header, "Type", typeStr, reply)
 			case "t": ///column Status
 				var statusStr []string
 				for j := 0; j < len(reply.TaskMetas); j++ {
 					statusStr = append(statusStr, reply.TaskStatus[j].String())
 				}
-				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15, tableData, header, "Status", statusStr, reply)
+				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15,
+					tableData, header, "Status", statusStr, reply)
 			case "N": ///column NodeIndex
-				header, tableData = SetColumWidth(regNum.FindString(split[i]), 50, tableData, header, "NodeIndex", reply.AllocatedCraneds, reply)
+				header, tableData = SetColumWidth(regNum.FindString(split[i]), 50,
+					tableData, header, "NodeIndex", reply.AllocatedCraneds, reply)
 			case "P": ///column Partition
-				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15, tableData, header, "Partition", reply.TaskPartitions, reply)
+				header, tableData = SetColumWidth(regNum.FindString(split[i]), 15,
+					tableData, header, "Partition", reply.TaskPartitions, reply)
 			}
 		} else {
 			fmt.Printf("Unrecognized option: %s\n", split[i])
@@ -165,7 +171,9 @@ func SetColumWidth(setWidth string, limit uint32, tableData [][]string, header [
 		convInt64, _ := strconv.ParseUint(setWidth, 10, 32)
 		colWidth := uint32(convInt64)
 		if colWidth > limit {
-			fmt.Println("The width of the " + setHeader + "column exceeds the limit, please enter a number between 1 and " + strconv.FormatUint(uint64(limit), 10) + ".")
+			fmt.Println("The width of the " + setHeader +
+				"column exceeds the limit, please enter a number between 1 and " +
+				strconv.FormatUint(uint64(limit), 10) + ".")
 			os.Exit(1)
 		} else {
 			header = append(header, setHeader)
@@ -215,7 +223,6 @@ func TableDefaultPrint(table *tablewriter.Table, reply *protos.QueryJobsInPartit
 	tableData := make([][]string, len(reply.TaskMetas))
 	if !noheader {
 		table.SetHeader([]string{"TaskId", "TaskName", "Type", "Status", "Partition", "NodeIndex"})
-		//table.SetHeader([]string{"TaskId", "Type", "Status", "Partition", "NodeIndex"})
 	}
 	for i := 0; i < len(reply.TaskMetas); i++ {
 		tableData = append(tableData, []string{
