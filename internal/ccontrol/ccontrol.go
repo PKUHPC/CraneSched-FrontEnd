@@ -2,7 +2,6 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 )
@@ -111,9 +110,4 @@ func ShowJobs(taskId uint32, queryAll bool) {
 				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}
-}
-
-func Preparation() {
-	config := util.ParseConfig(FlagConfigFilePath)
-	stub = util.GetStubToCtldByConfig(config)
 }

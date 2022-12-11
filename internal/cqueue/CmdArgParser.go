@@ -16,7 +16,8 @@ var (
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			Preparation()
+			config := util.ParseConfig(FlagConfigFilePath)
+			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {

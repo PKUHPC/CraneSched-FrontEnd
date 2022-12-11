@@ -56,10 +56,7 @@ func CancelTask(args []string) {
 		}
 	}
 
-	if FlagNodes != "" {
-		nodeList := strings.Split(FlagNodes, ",")
-		req.FilterNodes = nodeList
-	}
+	req.FilterNodes = FlagNodes
 
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
