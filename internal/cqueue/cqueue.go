@@ -37,6 +37,7 @@ func DefaultQuery() {
 func IterateQuery(iterate uint64) {
 	iter, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	for {
+		fmt.Println(time.Now().String()[0:19])
 		DefaultQuery()
 		time.Sleep(time.Duration(iter.Nanoseconds()))
 	}
@@ -48,11 +49,11 @@ func FilterQuery() {
 	if taskName != "" {
 		///Query the specified task names
 		nameList := strings.Split(taskName, ",")
-		request.SetTaskNames = nameList
+		request.TaskNames = nameList
 	} else if partition != "" {
 		///Query the specified partitions
 		partitionList := strings.Split(partition, ",")
-		request.SetPartitions = partitionList
+		request.Partitions = partitionList
 	} else if taskId != "" {
 		///Query the specified task ids
 		split := strings.Split(taskId, ",")
@@ -65,7 +66,7 @@ func FilterQuery() {
 			}
 			taskIdList = append(taskIdList, uint32(task))
 		}
-		request.SetTaskIds = taskIdList
+		request.TaskIds = taskIdList
 	} else if states != "" {
 
 		///Query a specified status
@@ -87,7 +88,7 @@ func FilterQuery() {
 			fmt.Printf("Invaid task status: %s\n", states)
 			os.Exit(1)
 		}
-		request.SetTaskStatus = status
+		request.TaskStatus = status
 
 	}
 	reply, err := stub.QueryJobsInPartition(context.Background(), &request)

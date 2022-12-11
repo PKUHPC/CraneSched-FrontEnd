@@ -228,11 +228,11 @@ message QueryTaskIdFromPortForwardReply{
 }
 
 message QueryJobsInPartitionRequest {
-  repeated string set_partitions = 1;
+  repeated string partitions = 1;
   bool find_all = 2;
-  repeated uint32 set_task_ids = 3;
-  TaskStatus set_task_status = 4;
-  repeated string set_task_names =5;
+  repeated uint32 task_ids = 3;
+  TaskStatus task_status = 4;
+  repeated string task_names =5;
 }
 
 message QueryJobsInPartitionReply {
@@ -350,9 +350,9 @@ message MigrateSshProcToCgroupReply {
 }
 
 message QueryClusterInfoRequest {
-  repeated string set_query_partitions=1;
-  repeated string set_query_nodes=2;
-  repeated string set_query_states=3;
+  repeated string partitions=1;
+  repeated string nodes=2;
+  repeated string states=3;
   bool query_down_nodes=4;
   bool query_responding_nodes=5;
 }

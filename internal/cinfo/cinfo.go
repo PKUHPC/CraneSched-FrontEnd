@@ -35,11 +35,11 @@ func cinfoFun() {
 	}
 
 	if partitions != "" {
-		req.SetQueryPartitions = partitionList
+		req.Partitions = partitionList
 	} else if nodes != "" {
-		req.SetQueryNodes = nodeList
+		req.Nodes = nodeList
 	} else if states != "" {
-		req.SetQueryStates = stateList
+		req.States = stateList
 	}
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
@@ -86,6 +86,7 @@ func cinfoFun() {
 func IterateQuery(iterate uint64) {
 	iter, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	for {
+		fmt.Println(time.Now().String()[0:19])
 		cinfoFun()
 		time.Sleep(time.Duration(iter.Nanoseconds()))
 	}
