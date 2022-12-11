@@ -73,19 +73,48 @@ func cinfoFun() {
 	table.SetRowSeparator("")
 	table.SetNoWhiteSpace(true)
 	var tableData [][]string
-	table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
-	for _, partitionCraned := range reply.PartitionCraned {
-		for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
-			if commonCranedStateList.CranedNum > 0 {
-				tableData = append(tableData, []string{
-					partitionCraned.Name,
-					partitionCraned.State.String(),
-					"infinite",
-					strconv.FormatUint(uint64(commonCranedStateList.CranedNum), 10),
-					commonCranedStateList.State.String(),
-					commonCranedStateList.CranedListRegex,
-				})
+	if !summarize {
+		table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
+		for _, partitionCraned := range reply.PartitionCraned {
+			for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
+				if commonCranedStateList.CranedNum > 0 {
+					tableData = append(tableData, []string{
+						partitionCraned.Name,
+						partitionCraned.State.String(),
+						"infinite",
+						strconv.FormatUint(uint64(commonCranedStateList.CranedNum), 10),
+						commonCranedStateList.State.String(),
+						commonCranedStateList.CranedListRegex,
+					})
+				}
 			}
+		}
+	} else {
+		table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES(A/I/O/T)", "NODELIST"})
+		for _, partitionCraned := range reply.PartitionCraned {
+			var allocNum, idleNum, otherNum uint32
+			for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
+				switch commonCranedStateList.State {
+				case 0:
+					idleNum = commonCranedStateList.CranedNum
+				case 1, 2:
+					allocNum += commonCranedStateList.CranedNum
+				case 3:
+					otherNum = commonCranedStateList.CranedNum
+				}
+			}
+			totalNum := idleNum + allocNum + otherNum
+			nodesNum := strconv.FormatUint(uint64(allocNum), 10) + "/" +
+				strconv.FormatUint(uint64(idleNum), 10) + "/" +
+				strconv.FormatUint(uint64(otherNum), 10) + "/" +
+				strconv.FormatUint(uint64(totalNum), 10)
+			tableData = append(tableData, []string{
+				partitionCraned.Name,
+				partitionCraned.State.String(),
+				"infinite",
+				nodesNum,
+				partitionCraned.PartitionCranedListRegex,
+			})
 		}
 	}
 	table.AppendBulk(tableData)

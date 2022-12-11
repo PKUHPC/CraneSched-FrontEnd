@@ -8,6 +8,7 @@ import (
 var (
 	dead       bool
 	responding bool
+	summarize  bool
 	partitions string
 	nodes      string
 	states     string
@@ -45,4 +46,6 @@ func init() {
 		"report only responding nodes")
 	rootCmd.Flags().Uint64VarP(&iterate, "iterate", "i", 0,
 		"specify an interation period in seconds")
+	rootCmd.Flags().BoolVarP(&summarize, "summarize", "s", false,
+		"report state summary only")
 }
