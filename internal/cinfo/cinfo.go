@@ -26,7 +26,20 @@ func cinfoFun() {
 
 	partitionList := strings.Split(partitions, ",")
 	nodeList := strings.Split(nodes, ",")
-	stateList := strings.Split(strings.ToLower(states), ",")
+	stateReq := strings.Split(strings.ToLower(states), ",")
+	var stateList []protos.CranedState
+	for i := 0; i < len(stateReq); i++ {
+		switch stateReq[i] {
+		case "idle":
+			stateList = append(stateList, 0)
+		case "mix":
+			stateList = append(stateList, 1)
+		case "alloc":
+			stateList = append(stateList, 2)
+		case "down":
+			stateList = append(stateList, 3)
+		}
+	}
 
 	stub := protos.NewCraneCtldClient(conn)
 	req := &protos.QueryClusterInfoRequest{
