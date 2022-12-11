@@ -2,6 +2,7 @@ package cacctmgr
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -23,7 +24,7 @@ var (
 		Short: "Manage account in crane",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) { //The Persistent*Run functions will be inherited by children if they do not declare their own
-			Init()
+			Preparation()
 		},
 	}
 	/* ---------------------------------------------------- add  ---------------------------------------------------- */
@@ -211,13 +212,14 @@ func ParseCmdArgs() {
 func init() {
 
 	rootCmd.AddCommand(addCmd)
+	rootCmd.PersistentFlags().StringVarP(&util.ConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
 	/* ---------------------------------------------------- add  ---------------------------------------------------- */
 	addCmd.AddCommand(addAccountCmd)
 
-	addAccountCmd.Flags().StringVarP(&account.Name, "name", "N", "", "the name to identify account")
-	addAccountCmd.Flags().StringVarP(&account.Description, "description", "D", "", "some information to describe account")
-	addAccountCmd.Flags().StringVarP(&account.ParentAccount, "parent", "P", "", "parent account")
-	addAccountCmd.Flags().StringSliceVar(&account.AllowedPartitions, "partition", nil, "the partition list which this account has access to")
+	addAccountCmd.Flags().StringVarP(&account.Name, "name", "N", "", "The name to identify account")
+	addAccountCmd.Flags().StringVarP(&account.Description, "description", "D", "", "Some information to describe account")
+	addAccountCmd.Flags().StringVarP(&account.ParentAccount, "parent", "P", "", "Parent account")
+	addAccountCmd.Flags().StringSliceVar(&account.AllowedPartitions, "partition", nil, "The partition list which this account has access to")
 	addAccountCmd.Flags().StringVarP(&account.DefaultQos, "default_qos", "Q", "", "Default qos of the account")
 	addAccountCmd.Flags().StringSliceVar(&account.AllowedQosList, "qos_list", nil, "Allowed qos list of the account")
 	err := addAccountCmd.MarkFlagRequired("name")
@@ -226,10 +228,10 @@ func init() {
 	}
 
 	addCmd.AddCommand(addUserCmd)
-	addUserCmd.Flags().StringVarP(&user.Name, "name", "N", "", "the name to identify user")
-	addUserCmd.Flags().StringVarP(&user.Account, "account", "A", "", "parent account")
-	addUserCmd.Flags().StringSliceVar(&partition, "partition", nil, "the partition list which this account has access to")
-	addUserCmd.Flags().StringVarP(&level, "level", "L", "none", "user power level")
+	addUserCmd.Flags().StringVarP(&user.Name, "name", "N", "", "The name to identify user")
+	addUserCmd.Flags().StringVarP(&user.Account, "account", "A", "", "Parent account")
+	addUserCmd.Flags().StringSliceVar(&partition, "partition", nil, "The partition list which this account has access to")
+	addUserCmd.Flags().StringVarP(&level, "level", "L", "none", "User power level")
 	err = addUserCmd.MarkFlagRequired("name")
 	if err != nil {
 		return
@@ -240,8 +242,8 @@ func init() {
 	}
 
 	addCmd.AddCommand(addQosCmd)
-	addQosCmd.Flags().StringVarP(&qos.Name, "name", "N", "", "the name to identify qos")
-	addQosCmd.Flags().StringVarP(&qos.Description, "description", "D", "", "some information to describe qos")
+	addQosCmd.Flags().StringVarP(&qos.Name, "name", "N", "", "The name to identify qos")
+	addQosCmd.Flags().StringVarP(&qos.Description, "description", "D", "", "Some information to describe qos")
 	addQosCmd.Flags().Uint32VarP(&qos.Priority, "priority", "P", 1000, "")
 	addQosCmd.Flags().Uint32Var(&qos.MaxJobsPerUser, "max_jobs_per_user", 0, "")
 	err = addQosCmd.MarkFlagRequired("name")

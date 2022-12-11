@@ -1,6 +1,7 @@
 package cinfo
 
 import (
+	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -36,6 +37,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.PersistentFlags().StringVarP(&util.ConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
 	RootCmd.Flags().BoolVarP(&FlagFilterDownOnly, "dead", "d", false,
 		"show only non-responding nodes")
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p",

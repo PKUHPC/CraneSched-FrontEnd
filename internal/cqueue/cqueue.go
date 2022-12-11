@@ -50,7 +50,8 @@ func Query(partition string) {
 	table.AppendBulk(tableData)
 	table.Render()
 }
-func Init() {
+
+func Preparation() {
 	config := util.ParseConfig()
 	stub = util.GetStubToCtldByConfig(config)
 }

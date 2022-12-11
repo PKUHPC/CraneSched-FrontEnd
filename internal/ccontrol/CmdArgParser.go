@@ -1,6 +1,7 @@
 package ccontrol
 
 import (
+	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
 	"strconv"
@@ -17,7 +18,7 @@ var (
 		Short: "display the state of partitions and nodes",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			Init()
+			Preparation()
 		},
 	}
 	showCmd = &cobra.Command{
@@ -81,8 +82,10 @@ func ParseCmdArgs() {
 		os.Exit(1)
 	}
 }
+
 func init() {
 	rootCmd.AddCommand(showCmd)
+	rootCmd.PersistentFlags().StringVarP(&util.ConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
 	showCmd.AddCommand(showNodeCmd)
 	showCmd.AddCommand(showPartitionCmd)
 	showCmd.AddCommand(showJobCmd)

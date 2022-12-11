@@ -113,7 +113,7 @@ func ShowJobs(taskId uint32, queryAll bool) {
 	}
 }
 
-func Init() {
+func Preparation() {
 	config := util.ParseConfig()
 	stub = util.GetStubToCtldByConfig(config)
 }
