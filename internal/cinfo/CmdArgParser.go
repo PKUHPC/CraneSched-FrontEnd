@@ -12,6 +12,7 @@ var (
 	partitions string
 	nodes      string
 	states     string
+	format     string
 	iterate    uint64
 	rootCmd    = &cobra.Command{
 		Use:   "cinfo",
@@ -48,4 +49,6 @@ func init() {
 		"specify an interation period in seconds")
 	rootCmd.Flags().BoolVarP(&summarize, "summarize", "s", false,
 		"report state summary only")
+	rootCmd.Flags().StringVarP(&format, "format", "o", "",
+		"format specification")
 }

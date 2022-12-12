@@ -9,7 +9,6 @@ var (
 	iterate   uint64
 	noheader  bool
 	partition string
-	findAll   bool
 	format    string
 	taskId    string
 	states    string

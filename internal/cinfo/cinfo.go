@@ -28,17 +28,23 @@ func cinfoFun() {
 	nodeList := strings.Split(nodes, ",")
 	stateReq := strings.Split(strings.ToLower(states), ",")
 	var stateList []protos.CranedState
-	for i := 0; i < len(stateReq); i++ {
-		switch stateReq[i] {
-		case "idle":
-			stateList = append(stateList, 0)
-		case "mix":
-			stateList = append(stateList, 1)
-		case "alloc":
-			stateList = append(stateList, 2)
-		case "down":
-			stateList = append(stateList, 3)
+	if states != "" {
+		for i := 0; i < len(stateReq); i++ {
+			switch stateReq[i] {
+			case "idle":
+				stateList = append(stateList, 0)
+			case "mix":
+				stateList = append(stateList, 1)
+			case "alloc":
+				stateList = append(stateList, 2)
+			case "down":
+				stateList = append(stateList, 3)
+			default:
+				fmt.Println("Invalid states specified.")
+				os.Exit(1)
+			}
 		}
+
 	}
 
 	stub := protos.NewCraneCtldClient(conn)
@@ -78,7 +84,6 @@ func cinfoFun() {
 		for _, partitionCraned := range reply.PartitionCraned {
 			for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
 				if commonCranedStateList.CranedNum > 0 {
-
 					tableData = append(tableData, []string{
 						partitionCraned.Name,
 						strings.ToLower(partitionCraned.State.String()[10:]),
@@ -111,7 +116,7 @@ func cinfoFun() {
 				strconv.FormatUint(uint64(totalNum), 10)
 			tableData = append(tableData, []string{
 				partitionCraned.Name,
-				partitionCraned.State.String(),
+				strings.ToLower(partitionCraned.State.String()[10:]),
 				"infinite",
 				nodesNum,
 				partitionCraned.PartitionCranedListRegex,
@@ -120,7 +125,13 @@ func cinfoFun() {
 	}
 	table.AppendBulk(tableData)
 	if len(tableData) == 0 {
-		fmt.Printf("No partition is available.\n")
+		if nodes != "" {
+			fmt.Println("Invalid node names specified.")
+		} else if partitions != "" {
+			fmt.Println("Invalid partitions specified.")
+		} else {
+			fmt.Printf("No partition is available.\n")
+		}
 	} else {
 		table.Render()
 	}

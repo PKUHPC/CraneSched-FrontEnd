@@ -20,10 +20,7 @@ var (
 )
 
 func DefaultQuery() {
-	findAll = true
-	request := protos.QueryJobsInPartitionRequest{
-		FindAll: findAll,
-	}
+	request := protos.QueryJobsInPartitionRequest{}
 	reply, err := stub.QueryJobsInPartition(context.Background(), &request)
 	if err != nil {
 		panic("QueryJobsInPartition failed: " + err.Error())
@@ -68,48 +65,53 @@ func FilterQuery() {
 		}
 		request.TaskIds = taskIdList
 	} else if states != "" {
-
 		///Query a specified status
-		var status protos.TaskStatus
-		switch states {
-		case "Pending", "pending", "PD":
-			status = protos.TaskStatus_Pending
-		case "Running", "running", "R":
-			status = protos.TaskStatus_Running
-		case "finished", "Finished":
-			status = protos.TaskStatus_Finished
-		case "Failed", "failed":
-			status = protos.TaskStatus_Failed
-		case "completing", "Completing":
-			status = protos.TaskStatus_Completing
-		case "cancelled", "Cancelled":
-			status = protos.TaskStatus_Cancelled
-		default:
-			fmt.Printf("Invaid task status: %s\n", states)
-			os.Exit(1)
+		statesList := strings.Split(states, ",")
+		var status []protos.TaskStatus
+		for i := 0; i < len(statesList); i++ {
+			switch statesList[i] {
+			case "Pending", "pending", "PD":
+				status = append(status, protos.TaskStatus_Pending)
+			case "Running", "running", "R":
+				status = append(status, protos.TaskStatus_Running)
+			case "finished", "Finished":
+				status = append(status, protos.TaskStatus_Finished)
+			case "Failed", "failed":
+				status = append(status, protos.TaskStatus_Failed)
+			case "completing", "Completing":
+				status = append(status, protos.TaskStatus_Completing)
+			case "cancelled", "Cancelled":
+				status = append(status, protos.TaskStatus_Cancelled)
+			default:
+				fmt.Printf("Invaid task status: %s\n", states)
+				os.Exit(1)
+			}
 		}
 		request.TaskStatus = status
-
 	}
-	reply, err := stub.QueryJobsInPartition(context.Background(), &request)
 
+	reply, err := stub.QueryJobsInPartition(context.Background(), &request)
 	if err != nil {
 		panic("QueryJobsInPartition failed: " + err.Error())
 	}
-	if !reply.GetOk() {
-		fmt.Println(reply.GetReason())
-		os.Exit(1)
+
+	if taskName != "" && len(reply.TaskMetas) == 0 {
+		fmt.Printf("Invaid task name specified")
+	} else if partition != "" && len(reply.TaskMetas) == 0 {
+		fmt.Printf("Invaid partition specified")
+	} else if taskId != "" && len(reply.TaskMetas) == 0 {
+		fmt.Printf("Invaid task id specified")
+	} else if states != "" && len(reply.TaskMetas) == 0 {
+		fmt.Printf("Invaid states specified")
+	} else {
+		table := tablewriter.NewWriter(os.Stdout)
+		TableInit(table)
+		TableDefaultPrint(table, reply)
 	}
-	table := tablewriter.NewWriter(os.Stdout)
-	TableInit(table)
-	TableDefaultPrint(table, reply)
 }
 
 func FormatQuery(format string) {
-	findAll = true
-	request := protos.QueryJobsInPartitionRequest{
-		FindAll: findAll,
-	}
+	request := protos.QueryJobsInPartitionRequest{}
 	reply, err := stub.QueryJobsInPartition(context.Background(), &request)
 	if err != nil {
 		panic("QueryJobsInPartition failed: " + err.Error())
