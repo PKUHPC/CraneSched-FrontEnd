@@ -78,12 +78,13 @@ func cinfoFun() {
 		for _, partitionCraned := range reply.PartitionCraned {
 			for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
 				if commonCranedStateList.CranedNum > 0 {
+
 					tableData = append(tableData, []string{
 						partitionCraned.Name,
-						partitionCraned.State.String(),
+						strings.ToLower(partitionCraned.State.String()[10:]),
 						"infinite",
 						strconv.FormatUint(uint64(commonCranedStateList.CranedNum), 10),
-						commonCranedStateList.State.String(),
+						strings.ToLower(commonCranedStateList.State.String()[6:]),
 						commonCranedStateList.CranedListRegex,
 					})
 				}
@@ -131,5 +132,6 @@ func IterateQuery(iterate uint64) {
 		fmt.Println(time.Now().String()[0:19])
 		cinfoFun()
 		time.Sleep(time.Duration(iter.Nanoseconds()))
+		fmt.Println()
 	}
 }
