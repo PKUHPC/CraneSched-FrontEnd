@@ -3,21 +3,23 @@ package ccancel
 import (
 	"github.com/spf13/cobra"
 	"os"
-	"strconv"
 )
 
 var (
-	rootCmd = &cobra.Command{
+	name      string
+	partition string
+	state     string
+	rootCmd   = &cobra.Command{
 		Use:   "ccancel",
 		Short: "cancel the specified task",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		//Args:  cobra.MinimumNArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			Init()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			taskId64, _ := strconv.ParseUint(args[0], 10, 32)
-			CancelTask(uint32(taskId64))
+			//taskId64, _ := strconv.ParseUint(args[0], 10, 32)
+			CancelTask()
 		},
 	}
 )
@@ -29,4 +31,7 @@ func ParseCmdArgs() {
 	}
 }
 func init() {
+	rootCmd.Flags().StringVarP(&name, "name", "n", "", "act only on jobs with this name")
+	rootCmd.Flags().StringVarP(&partition, "partition", "p", "", "act only on jobs in this partition")
+	rootCmd.Flags().StringVarP(&state, "state", "t", "", "act only on jobs in this state.  Valid job\nstates are PENDING, RUNNING")
 }

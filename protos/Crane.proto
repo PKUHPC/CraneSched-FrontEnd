@@ -213,7 +213,7 @@ message CheckTaskStatusReply {
 }
 
 message CancelTaskRequest {
-  uint32 task_id = 1;
+  repeated uint32 task_id = 1;
   uint32 operator_uid = 2;
 }
 
