@@ -23,22 +23,14 @@ func INVALID_DURATION() *duration.Duration {
 	}
 }
 
-type SbatchArg struct {
+type CbatchArg struct {
 	name string
 	val  string
 }
 
-type ServerAddr struct {
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
-}
-
-func ProcessSbatchArg(args []SbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
+func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	req := new(protos.SubmitBatchTaskRequest)
 	req.Task = new(protos.TaskToCtld)
-	req.Task.NodeNum = 1
-	req.Task.NtasksPerNode = 1
-	req.Task.CpusPerTask = 1
 	req.Task.TimeLimit = INVALID_DURATION()
 	req.Task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
@@ -114,7 +106,10 @@ func ProcessSbatchArg(args []SbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 		case "-J", "job-name":
 			req.Task.Name = arg.val
 		}
+	}
 
+	if req.Task.CpusPerTask <= 0 || req.Task.NtasksPerNode == 0 || req.Task.NodeNum == 0 {
+		return false, nil
 	}
 
 	req.Task.Resources.AllocatableResource.CpuCoreLimit = req.Task.CpusPerTask * float64(req.Task.NtasksPerNode)
@@ -144,6 +139,7 @@ func SetTime(time string, req *protos.SubmitBatchTaskRequest) bool {
 	req.Task.TimeLimit.Seconds = int64(60*60*hh + 60*mm + ss)
 	return true
 }
+
 func SetMem(mem string, req *protos.SubmitBatchTaskRequest) bool {
 	re := regexp.MustCompile(`([0-9]+(\.?[0-9]+)?)([MmGg])`)
 	result := re.FindAllStringSubmatch(mem, -1)
@@ -165,14 +161,14 @@ func SetMem(mem string, req *protos.SubmitBatchTaskRequest) bool {
 	return true
 }
 
-func ProcessLine(line string, sh *[]string, args *[]SbatchArg) bool {
+func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
 	re := regexp.MustCompile(`^#CBATCH`)
 	if re.MatchString(line) {
 		split := strings.Fields(line)
 		if len(split) == 3 {
-			*args = append(*args, SbatchArg{name: split[1], val: split[2]})
+			*args = append(*args, CbatchArg{name: split[1], val: split[2]})
 		} else if len(split) == 2 {
-			*args = append(*args, SbatchArg{name: split[1]})
+			*args = append(*args, CbatchArg{name: split[1]})
 		} else {
 			return false
 		}
@@ -201,9 +197,9 @@ func SendRequest(serverAddr string, req *protos.SubmitBatchTaskRequest) {
 	}
 }
 
-func Init() {
+func Cbatch(jobFilePath string) {
 
-	file, err := os.Open(os.Args[1])
+	file, err := os.Open(jobFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -221,7 +217,7 @@ func Init() {
 	// optionally, resize scanner's capacity for lines over 64K, see next example
 	num := 0
 	sh := make([]string, 0)
-	args := make([]SbatchArg, 0)
+	args := make([]CbatchArg, 0)
 
 	for scanner.Scan() {
 		num++
@@ -238,11 +234,11 @@ func Init() {
 	}
 	// fmt.Printf("Invoking UID: %d\n\n", os.Getuid())
 	// fmt.Printf("Shell script:\n%s\n\n", strings.Join(sh, "\n"))
-	// fmt.Printf("Sbatch args:\n%v\n\n", args)
+	// fmt.Printf("Cbatch args:\n%v\n\n", args)
 
-	ok, req := ProcessSbatchArg(args)
+	ok, req := ProcessCbatchArg(args)
 	if !ok {
-		log.Fatal("Invalid sbatch argument")
+		log.Fatal("Invalid cbatch argument")
 	}
 
 	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
