@@ -69,30 +69,35 @@ func ShowPartitions(partitionName string, queryAll bool) {
 	}
 }
 
-func ShowJobs(jobId uint32, queryAll bool) {
-	var req *protos.QueryJobsInfoRequest
-	req = &protos.QueryJobsInfoRequest{FindAll: queryAll, JobId: jobId}
+func ShowJobs(taskId uint32, queryAll bool) {
+	var req *protos.QueryTasksInfoRequest
+	if queryAll {
+		req = &protos.QueryTasksInfoRequest{TaskId: -1, Partition: ""}
+	} else {
+		req = &protos.QueryTasksInfoRequest{TaskId: int32(taskId), Partition: ""}
+	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), req)
-	if err != nil {
-		panic("QueryJobsInfo failed: " + err.Error())
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	if err != nil || reply.GetOk() {
+		panic("QueryTasksInfo failed: " + err.Error())
 	}
 
 	if len(reply.TaskInfoList) == 0 {
 		if queryAll {
-			fmt.Printf("No job is running.\n")
+			fmt.Printf("No task is running.\n")
 		} else {
-			fmt.Printf("Job %d is not running.\n", jobId)
+			fmt.Printf("Task %d is not running.\n", taskId)
 		}
 
 	} else {
-		for _, jobInfo := range reply.TaskInfoList {
-			timeStart := jobInfo.StartTime.AsTime()
+		for _, taskInfo := range reply.TaskInfoList {
+			fmt.Println(taskInfo.SubmitInfo)
+			timeStart := taskInfo.StartTime.AsTime()
 			timeStartStr := "unknown"
 			if !timeStart.IsZero() {
 				timeStartStr = timeStart.Local().String()
 			}
-			timeEnd := jobInfo.EndTime.AsTime()
+			timeEnd := taskInfo.EndTime.AsTime()
 			timeEndStr := "unknown"
 			runTime := "unknown"
 			if timeEnd.After(timeStart) {
@@ -100,16 +105,12 @@ func ShowJobs(jobId uint32, queryAll bool) {
 				runTime = timeEnd.Sub(timeStart).String()
 			}
 
-			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v TimeLimit=%v SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v NumNodes=%d\n\tCmdLine=%v Workdir=%v\n", jobInfo.TaskId, jobInfo.SubmitInfo.Name, jobInfo.SubmitInfo.Uid, jobInfo.Gid, jobInfo.Account, jobInfo.Status.String(), runTime, jobInfo.SubmitInfo.TimeLimit.String(), timeStartStr, timeStartStr, timeEndStr, jobInfo.SubmitInfo.PartitionName, jobInfo.CranedList, jobInfo.SubmitInfo.NodeNum, jobInfo.SubmitInfo.CmdLine, jobInfo.SubmitInfo.Cwd)
+			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v TimeLimit=%v SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v NumNodes=%d\n\tCmdLine=%v Workdir=%v\n", taskInfo.TaskId, taskInfo.SubmitInfo.Name, taskInfo.SubmitInfo.Uid, taskInfo.Gid, taskInfo.Account, taskInfo.Status.String(), runTime, taskInfo.SubmitInfo.TimeLimit.String(), timeStartStr, timeStartStr, timeEndStr, taskInfo.SubmitInfo.PartitionName, taskInfo.CranedList, taskInfo.SubmitInfo.NodeNum, taskInfo.SubmitInfo.CmdLine, taskInfo.SubmitInfo.Cwd)
 		}
 	}
 }
 
 func Init() {
-	//if len(os.Args) <= 1 {
-	//	fmt.Println("Arg must > 1")
-	//	os.Exit(1)
-	//}
 
 	config := util.ParseConfig()
 

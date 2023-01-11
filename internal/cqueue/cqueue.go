@@ -16,13 +16,13 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query(partition string, findAll bool) {
+func Query(partition string) {
 
-	request := protos.QueryJobsInPartitionRequest{
+	request := protos.QueryTasksInfoRequest{
 		Partition: partition,
-		FindAll:   findAll,
+		TaskId:    -1,
 	}
-	reply, err := stub.QueryJobsInPartition(context.Background(), &request)
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		panic("QueryJobsInPartition failed: " + err.Error())
 	}
@@ -42,13 +42,13 @@ func Query(partition string, findAll bool) {
 
 	table.SetHeader([]string{"TaskId", "Type", "Status", "NodeIndex"})
 
-	tableData := make([][]string, len(reply.TaskMetas))
-	for i := 0; i < len(reply.TaskMetas); i++ {
+	tableData := make([][]string, len(reply.TaskInfoList))
+	for i := 0; i < len(reply.TaskInfoList); i++ {
 		tableData = append(tableData, []string{
-			strconv.FormatUint(uint64(reply.TaskIds[i]), 10),
-			reply.TaskMetas[i].Type.String(),
-			reply.TaskStatus[i].String(),
-			reply.AllocatedCraneds[i]})
+			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
+			reply.TaskInfoList[i].SubmitInfo.Type.String(),
+			reply.TaskInfoList[i].Status.String(),
+			reply.TaskInfoList[i].CranedList})
 	}
 
 	table.AppendBulk(tableData)

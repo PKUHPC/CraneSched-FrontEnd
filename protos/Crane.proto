@@ -194,6 +194,24 @@ message TerminateTaskReply {
   string reason = 2;
 }
 
+message TerminateOrphanedTaskRequest {
+  uint32 task_id = 1;
+}
+
+message TerminateOrphanedTaskReply {
+  bool ok = 1;
+  string reason = 2;
+}
+
+message CheckTaskStatusRequest {
+  uint32 task_id = 1;
+}
+
+message CheckTaskStatusReply {
+  bool ok = 1;
+  TaskStatus status = 2;
+}
+
 message CancelTaskRequest {
   uint32 task_id = 1;
   uint32 operator_uid = 2;
@@ -225,27 +243,6 @@ message QueryTaskIdFromPortForwardReply{
   bool from_user = 2;
   uint32 task_id = 3;
   string cgroup_path = 4;
-}
-
-message QueryJobsInPartitionRequest {
-  string partition = 1;
-  bool find_all = 2;
-}
-
-message QueryJobsInPartitionReply {
-  repeated TaskToCtld task_metas = 1;
-  repeated TaskStatus task_status = 2;
-  repeated string allocated_craneds = 3;
-  repeated uint32 task_ids = 4;
-}
-
-message QueryJobsInfoRequest {
-  bool find_all = 1;
-  uint32 job_id = 2;
-}
-
-message QueryJobsInfoReply {
-  repeated TaskInfo task_info_list = 1;
 }
 
 message QueryCranedInfoRequest {
@@ -308,8 +305,8 @@ message ModifyEntityRequest {
     Delete = 2;
   }
 
-  string lhs = 1;
-  string rhs = 2;
+  string lhs = 1;   //modify item field
+  string rhs = 2;   //new value
   string name = 3;
   string partition = 4;
   OperatorType type = 5;
@@ -351,6 +348,17 @@ message QueryClusterInfoReply {
   repeated PartitionCranedInfo partition_craned = 2;
 }
 
+message QueryTasksInfoRequest{
+  int32 task_id = 1;
+  string partition = 2;
+  //  string status = 3;
+}
+
+message QueryTasksInfoReply{
+  bool ok = 1;
+  repeated TaskInfo task_info_list = 2;
+}
+
 // Todo: Divide service into two parts: one for Craned and one for Crun
 //  We need to distinguish the message sender
 //  and have some kind of authentication
@@ -368,15 +376,10 @@ service CraneCtld {
   rpc CancelTask(CancelTaskRequest) returns (CancelTaskReply);
 
 
-  /* RPCs called from sbatch */
+  /* RPCs called from cbatch */
   rpc SubmitBatchTask(SubmitBatchTaskRequest) returns (SubmitBatchTaskReply);
 
-
-  /* RPCs called from cqueue */
-  rpc QueryJobsInPartition(QueryJobsInPartitionRequest) returns (QueryJobsInPartitionReply);
-
   /* PRCs called from ccontrol */
-  rpc QueryJobsInfo(QueryJobsInfoRequest) returns (QueryJobsInfoReply);
   rpc QueryCranedInfo(QueryCranedInfoRequest) returns (QueryCranedInfoReply);
   rpc QueryPartitionInfo(QueryPartitionInfoRequest) returns (QueryPartitionInfoReply);
 
@@ -392,6 +395,9 @@ service CraneCtld {
 
   /* RPCs called from cinfo */
   rpc QueryClusterInfo(QueryClusterInfoRequest) returns (QueryClusterInfoReply);
+
+  /* common RPCs */
+  rpc QueryTasksInfo(QueryTasksInfoRequest) returns (QueryTasksInfoReply);
 }
 
 service Craned {
@@ -404,6 +410,8 @@ service Craned {
    */
   rpc ExecuteTask(ExecuteTaskRequest) returns(ExecuteTaskReply);
 
+  rpc CheckTaskStatus(CheckTaskStatusRequest) returns(CheckTaskStatusReply);
+
   rpc CreateCgroupForTask(CreateCgroupForTaskRequest) returns(CreateCgroupForTaskReply);
   rpc ReleaseCgroupForTask(ReleaseCgroupForTaskRequest) returns(ReleaseCgroupForTaskReply);
 
@@ -414,6 +422,7 @@ service Craned {
   If the task is a batch task, just kill it.
   */
   rpc TerminateTask(TerminateTaskRequest) returns (TerminateTaskReply);
+  rpc TerminateOrphanedTask(TerminateOrphanedTaskRequest) returns (TerminateOrphanedTaskReply);
 
 
   /* ----------------------------------- Called from Craned  ------------------------------------------------------ */
