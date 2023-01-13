@@ -17,8 +17,9 @@ var (
 	rootCmd       = &cobra.Command{
 		Use:   "cbatch",
 		Short: "submit batch jobs",
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			Init()
+			Cbatch(args[0])
 		},
 	}
 )
@@ -28,6 +29,7 @@ func ParseCmdArgs() {
 		os.Exit(1)
 	}
 }
+
 func init() {
 	rootCmd.Flags().Uint32VarP(&nodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
 	rootCmd.Flags().Float64VarP(&cpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")

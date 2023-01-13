@@ -7,7 +7,6 @@ import (
 
 var (
 	partition string
-	findAll   bool
 	rootCmd   = &cobra.Command{
 		Use:   "cqueue",
 		Short: "display the job information for all queues in the cluster",
@@ -19,12 +18,10 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				partition = ""
-				findAll = true
 			} else {
 				partition = args[0]
-				findAll = false
 			}
-			Query(partition, findAll)
+			Query(partition)
 		},
 	}
 )
