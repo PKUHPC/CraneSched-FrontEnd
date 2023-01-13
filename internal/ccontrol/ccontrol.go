@@ -91,7 +91,6 @@ func ShowJobs(taskId uint32, queryAll bool) {
 
 	} else {
 		for _, taskInfo := range reply.TaskInfoList {
-			fmt.Println(taskInfo.SubmitInfo)
 			timeStart := taskInfo.StartTime.AsTime()
 			timeStartStr := "unknown"
 			if !timeStart.IsZero() {
@@ -105,7 +104,13 @@ func ShowJobs(taskId uint32, queryAll bool) {
 				runTime = timeEnd.Sub(timeStart).String()
 			}
 
-			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v TimeLimit=%v SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v NumNodes=%d\n\tCmdLine=%v Workdir=%v\n", taskInfo.TaskId, taskInfo.SubmitInfo.Name, taskInfo.SubmitInfo.Uid, taskInfo.Gid, taskInfo.Account, taskInfo.Status.String(), runTime, taskInfo.SubmitInfo.TimeLimit.String(), timeStartStr, timeStartStr, timeEndStr, taskInfo.SubmitInfo.PartitionName, taskInfo.CranedList, taskInfo.SubmitInfo.NodeNum, taskInfo.SubmitInfo.CmdLine, taskInfo.SubmitInfo.Cwd)
+			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
+				"TimeLimit=%v SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
+				"NumNodes=%d\n\tCmdLine=%v Workdir=%v\n",
+				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
+				taskInfo.Account, taskInfo.Status.String(), runTime, taskInfo.TimeLimit.String(),
+				timeStartStr, timeStartStr, timeEndStr, taskInfo.Partition,
+				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}
 }

@@ -16,8 +16,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query(partition string) {
-
+func Query(partition string, _ bool) {
 	request := protos.QueryTasksInfoRequest{
 		Partition: partition,
 		TaskId:    -1,
@@ -46,7 +45,7 @@ func Query(partition string) {
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		tableData = append(tableData, []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-			reply.TaskInfoList[i].SubmitInfo.Type.String(),
+			reply.TaskInfoList[i].Type.String(),
 			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].CranedList})
 	}
