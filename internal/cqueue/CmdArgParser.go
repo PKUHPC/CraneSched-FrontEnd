@@ -7,8 +7,9 @@ import (
 
 var (
 	partition string
-	rootCmd   = &cobra.Command{
-		Use:   "cqueue",
+
+	rootCmd = &cobra.Command{
+		Use:   "cqueue [partition]",
 		Short: "display the job information for all queues in the cluster",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
@@ -16,9 +17,7 @@ var (
 			Init()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				partition = ""
-			} else {
+			if len(args) > 0 {
 				partition = args[0]
 			}
 			Query(partition)
@@ -26,11 +25,8 @@ var (
 	}
 )
 
-// ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
-}
-func init() {
 }
