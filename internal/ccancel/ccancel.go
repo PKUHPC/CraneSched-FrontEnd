@@ -2,11 +2,8 @@ package ccancel
 
 import (
 	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
 	"strconv"
@@ -17,50 +14,51 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func CancelTask() {
+func CancelTask(args []string) {
+	req := &protos.CancelTaskRequest{
+		OperatorUid: uint32(os.Getuid()),
 
-	reqState := 10 //default state
-	req := &protos.CancelTaskRequest{OperatorUid: uint32(os.Getuid()),
-		Partition: partition,
-		TaskName:  taskName,
-		Account:   account,
-		State:     protos.TaskStatus(reqState),
+		FilterPartition: FlagPartition,
+		FilterAccount:   FlagAccount,
+		FilterTaskName:  FlagTaskName,
+		FilterState:     protos.TaskStatus_Invalid,
 	}
 
 	curUerName, _ := os.Hostname()
-	if userName != "" && userName != curUerName {
+	if FlagUserName != "" && FlagUserName != curUerName {
 		fmt.Println("Failed to cancel task: Permission Denied.")
 		os.Exit(1)
 	}
 
-	if partition == "" && taskName == "" && state == "" && account == "" && nodes == "" && userName == "" {
-		taskId := strings.Split(os.Args[1], ",")
+	if len(args) > 0 {
+		taskIdStrSplit := strings.Split(args[0], ",")
 		var taskIds []uint32
-		for i := 0; i < len(taskId); i++ {
-			taskId64, err := strconv.ParseUint(taskId[i], 10, 32)
+		for i := 0; i < len(taskIdStrSplit); i++ {
+			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 			if err != nil {
-				fmt.Println("Invalid task Id: " + taskId[i])
+				fmt.Println("Invalid task Id: " + taskIdStrSplit[i])
 				os.Exit(1)
 			}
 			taskIds = append(taskIds, uint32(taskId64))
 		}
-		req.TaskId = taskIds
+		req.FilterTaskIds = taskIds
 	}
 
-	if state != "" {
-		state = strings.ToLower(state)
-		if state == "pd" || state == "pending" {
-			req.State = protos.TaskStatus_Pending
-		} else if state == "r" || state == "running" {
-			req.State = protos.TaskStatus_Running
+	if FlagState != "" {
+		FlagState = strings.ToLower(FlagState)
+		if FlagState == "pd" || FlagState == "pending" {
+			req.FilterState = protos.TaskStatus_Pending
+		} else if FlagState == "r" || FlagState == "running" {
+			req.FilterState = protos.TaskStatus_Running
 		} else {
-			fmt.Printf("Invalid state, Valid job states are PENDING, RUNNING.")
+			fmt.Printf("Invalid FlagState, Valid job states are PENDING, RUNNING.")
 			os.Exit(1)
 		}
 	}
-	nodeList := strings.Split(nodes, ",")
-	if nodes != "" {
-		req.Nodes = nodeList
+
+	if FlagNodes != "" {
+		nodeList := strings.Split(FlagNodes, ",")
+		req.FilterNodes = nodeList
 	}
 
 	reply, err := stub.CancelTask(context.Background(), req)
@@ -69,26 +67,18 @@ func CancelTask() {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		cancelledTasks := strconv.FormatUint(uint64(reply.CancelledTasks[0]), 10)
+		cancelledTasksStr := strconv.FormatUint(uint64(reply.CancelledTasks[0]), 10)
 		for i := 1; i < len(reply.CancelledTasks); i++ {
-			cancelledTasks += ","
-			cancelledTasks += strconv.FormatUint(uint64(reply.CancelledTasks[i]), 10)
+			cancelledTasksStr += ","
+			cancelledTasksStr += strconv.FormatUint(uint64(reply.CancelledTasks[i]), 10)
 		}
-		fmt.Printf("Task %s cancelled successfully.\n", cancelledTasks)
+		fmt.Printf("Task %s cancelled successfully.\n", cancelledTasksStr)
 	}
 
-	if !reply.Ok {
-		fmt.Print("Failed to cancel task: %d, %s\n", reply.NotCancelledId, reply.Reason)
+	if len(reply.NotCancelledTasks) > 0 {
+		for i := 0; i < len(reply.NotCancelledTasks); i++ {
+			fmt.Printf("Failed to cancel task: %d. Reason: %s\n",
+				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
+		}
 	}
-}
-
-func Init() {
-	config := util.ParseConfig()
-
-	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
-	stub = protos.NewCraneCtldClient(conn)
 }

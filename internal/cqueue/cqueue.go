@@ -16,7 +16,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query(partition string, _ bool) {
+func Query(partition string) {
 	request := protos.QueryTasksInfoRequest{
 		Partition: partition,
 		TaskId:    -1,
