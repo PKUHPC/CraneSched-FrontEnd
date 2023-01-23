@@ -18,11 +18,22 @@ var (
 )
 
 func CancelTask() {
-	req := &protos.CancelTaskRequest{OperatorUid: uint32(os.Getuid()), Partition: partition, TaskName: name}
-	//
-	//os.Hostname()只能是自己，否则不允许
 
-	if partition == "" && name == "" && state == "" {
+	reqState := 10
+	req := &protos.CancelTaskRequest{OperatorUid: uint32(os.Getuid()),
+		Partition: partition,
+		TaskName:  taskName,
+		Account:   account,
+		State:     protos.TaskStatus(reqState),
+	}
+
+	curUerName, _ := os.Hostname()
+	if userName != "" && userName != curUerName {
+		fmt.Println("Failed to cancel task: Permission Denied.")
+		os.Exit(1)
+	}
+
+	if partition == "" && taskName == "" && state == "" && account == "" && nodes == "" && userName == "" {
 		taskId := strings.Split(os.Args[1], ",")
 		var taskIds []uint32
 		for i := 0; i < len(taskId); i++ {
@@ -35,9 +46,21 @@ func CancelTask() {
 		}
 		req.TaskId = taskIds
 	}
-	for i := 0; i < len(GetTaskIds()); i++ {
-		id := GetTaskIds()
-		req.TaskId = append(req.TaskId, id[i])
+
+	if state != "" {
+		state = strings.ToLower(state)
+		if state == "pd" || state == "pending" {
+			req.State = protos.TaskStatus_Pending
+		} else if state == "r" || state == "running" {
+			req.State = protos.TaskStatus_Running
+		} else {
+			fmt.Printf("Invalid state, Valid job states are PENDING, RUNNING.")
+			os.Exit(1)
+		}
+	}
+	nodeList := strings.Split(nodes, ",")
+	if nodes != "" {
+		req.Nodes = nodeList
 	}
 
 	reply, err := stub.CancelTask(context.Background(), req)
@@ -55,37 +78,8 @@ func CancelTask() {
 	}
 
 	if !reply.Ok {
-		fmt.Printf("Failed to cancel task: %s\n", reply.Reason)
+		fmt.Print("Failed to cancel task: %d, %s\n", reply.NotCancelledId, reply.Reason)
 	}
-}
-
-func GetTaskIds() []uint32 {
-	var taskIds []uint32
-	request := protos.QueryJobsInPartitionRequest{FindAll: true}
-	reply, err := stub.QueryJobsInPartition(context.Background(), &request)
-	if err != nil {
-		panic("QueryJobsInPartition failed: " + err.Error())
-	}
-	var reqState protos.TaskStatus
-	reqState = -1
-	switch strings.ToLower(state) {
-	case "pd", "pending":
-		reqState = protos.TaskStatus_Pending
-	case "r", "running":
-		reqState = protos.TaskStatus_Running
-	default:
-		reqState = -1
-	}
-	if state != "" {
-		for i := 0; i < len(reply.TaskMetas); i++ {
-			if reqState != reply.TaskStatus[i] {
-				continue
-			}
-			taskIds = append(taskIds, reply.TaskIds[i])
-		}
-	}
-
-	return taskIds
 }
 
 func Init() {
@@ -96,6 +90,5 @@ func Init() {
 	if err != nil {
 		panic("Cannot connect to CraneCtld: " + err.Error())
 	}
-
 	stub = protos.NewCraneCtldClient(conn)
 }
