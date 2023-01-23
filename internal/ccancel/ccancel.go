@@ -19,7 +19,7 @@ var (
 
 func CancelTask() {
 
-	reqState := 10
+	reqState := 10 //default state
 	req := &protos.CancelTaskRequest{OperatorUid: uint32(os.Getuid()),
 		Partition: partition,
 		TaskName:  taskName,
