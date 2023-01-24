@@ -7,13 +7,17 @@ import (
 	"fmt"
 	"github.com/olekukonko/tablewriter"
 	"github.com/xlab/treeprint"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
 	OSuser "os/user"
 	"regexp"
 	"strconv"
+)
+
+var (
+	curLevel   protos.UserInfo_AdminLevel
+	curAccount string
+	stub       protos.CraneCtldClient
 )
 
 type ServerAddr struct {
@@ -207,12 +211,6 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 		}
 	}
 }
-
-var (
-	curLevel   protos.UserInfo_AdminLevel
-	curAccount string
-	stub       protos.CraneCtldClient
-)
 
 func AddAccount(account *protos.AccountInfo) {
 	if curLevel != protos.UserInfo_Admin {
@@ -591,16 +589,8 @@ func checkQosFieldName(s string) bool {
 }
 
 func Init() {
-
 	config := util.ParseConfig()
-	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
-
-	stub = protos.NewCraneCtldClient(conn)
+	stub = util.GetStubToCtldByConfig(config)
 
 	currentUser, err := OSuser.Current()
 	if err != nil {

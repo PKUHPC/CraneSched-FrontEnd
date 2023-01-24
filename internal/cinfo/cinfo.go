@@ -6,8 +6,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"strconv"
 	"strings"
@@ -16,13 +14,8 @@ import (
 
 func cinfoFunc() {
 	config := util.ParseConfig()
+	stub := util.GetStubToCtldByConfig(config)
 
-	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
-	stub := protos.NewCraneCtldClient(conn)
 	req := &protos.QueryClusterInfoRequest{
 		FilterOnlyDownNodes:       FlagFilterDownOnly,
 		FilterOnlyRespondingNodes: FlagFilterRespondingOnly,

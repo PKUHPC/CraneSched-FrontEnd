@@ -4,10 +4,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"fmt"
 	"github.com/olekukonko/tablewriter"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"strconv"
 )
@@ -55,12 +52,5 @@ func Query(partition string) {
 }
 func Init() {
 	config := util.ParseConfig()
-
-	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
-	stub = protos.NewCraneCtldClient(conn)
-
+	stub = util.GetStubToCtldByConfig(config)
 }

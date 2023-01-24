@@ -5,8 +5,6 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -116,14 +114,6 @@ func ShowJobs(taskId uint32, queryAll bool) {
 }
 
 func Init() {
-
 	config := util.ParseConfig()
-
-	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
-
-	stub = protos.NewCraneCtldClient(conn)
+	stub = util.GetStubToCtldByConfig(config)
 }
