@@ -14,8 +14,7 @@ import (
 	"time"
 )
 
-func cinfoFun() {
-
+func cinfoFunc() {
 	config := util.ParseConfig()
 
 	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
@@ -25,47 +24,45 @@ func cinfoFun() {
 	}
 	stub := protos.NewCraneCtldClient(conn)
 	req := &protos.QueryClusterInfoRequest{
-		QueryDownNodes:       dead,
-		QueryRespondingNodes: responding,
+		FilterOnlyDownNodes:       FlagFilterDownOnly,
+		FilterOnlyRespondingNodes: FlagFilterRespondingOnly,
 	}
 
-	partitionList := strings.Split(partitions, ",")
-	nodeList := strings.Split(nodes, ",")
-	stateReq := strings.Split(strings.ToLower(states), ",")
 	var stateList []protos.CranedState
-	if states != "" {
-		for i := 0; i < len(stateReq); i++ {
-			switch stateReq[i] {
+	if FlagFilterCranedStates != "" {
+		filterCranedStateList := strings.Split(strings.ToLower(FlagFilterCranedStates), ",")
+		for i := 0; i < len(filterCranedStateList); i++ {
+			switch filterCranedStateList[i] {
 			case "idle":
-				stateList = append(stateList, 0)
+				stateList = append(stateList, protos.CranedState_CRANE_IDLE)
 			case "mix":
-				stateList = append(stateList, 1)
+				stateList = append(stateList, protos.CranedState_CRANE_MIX)
 			case "alloc":
-				stateList = append(stateList, 2)
+				stateList = append(stateList, protos.CranedState_CRANE_ALLOC)
 			case "down":
-				stateList = append(stateList, 3)
+				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 			default:
-				fmt.Println("Invalid states specified.")
+				fmt.Fprintf(os.Stderr, "Invalid state given: %s\n", filterCranedStateList[i])
 				os.Exit(1)
 			}
 		}
+		req.FilterCranedStates = stateList
 	}
 
-	if partitions != "" {
-		req.Partitions = partitionList
+	if FlagFilterPartitions != "" {
+		filterPartitionList := strings.Split(FlagFilterPartitions, ",")
+		req.FilterPartitions = filterPartitionList
 	}
-	if nodes != "" {
-		req.Nodes = nodeList
-	}
-	if states != "" {
-		req.States = stateList
+
+	if FlagFilterNodes != "" {
+		filterNodeList := strings.Split(FlagFilterNodes, ",")
+		req.FilterNodes = filterNodeList
 	}
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		panic("QueryClusterInfo failed: " + err.Error())
 	}
-	//fmt.Println(reply.Num)
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetBorder(false)
@@ -81,14 +78,14 @@ func cinfoFun() {
 	table.SetNoWhiteSpace(true)
 	var tableData [][]string
 	table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
-	for _, partitionCraned := range reply.PartitionCraned {
-		for _, commonCranedStateList := range partitionCraned.CommonCranedStateList {
-			if commonCranedStateList.CranedNum > 0 {
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			if commonCranedStateList.Count > 0 {
 				tableData = append(tableData, []string{
 					partitionCraned.Name,
 					strings.ToLower(partitionCraned.State.String()[10:]),
 					"infinite",
-					strconv.FormatUint(uint64(commonCranedStateList.CranedNum), 10),
+					strconv.FormatUint(uint64(commonCranedStateList.Count), 10),
 					strings.ToLower(commonCranedStateList.State.String()[6:]),
 					commonCranedStateList.CranedListRegex,
 				})
@@ -103,12 +100,12 @@ func cinfoFun() {
 	}
 }
 
-func IterateQuery(iterate uint64) {
-	iter, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+func loopedQuery(iterate uint64) {
+	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	for {
 		fmt.Println(time.Now().String()[0:19])
-		cinfoFun()
-		time.Sleep(time.Duration(iter.Nanoseconds()))
+		cinfoFunc()
+		time.Sleep(time.Duration(interval.Nanoseconds()))
 		fmt.Println()
 	}
 }
