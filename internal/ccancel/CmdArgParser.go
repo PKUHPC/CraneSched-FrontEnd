@@ -1,12 +1,9 @@
 package ccancel
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"fmt"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"regexp"
 )
@@ -79,11 +76,5 @@ func init() {
 		"cancel tasks running on the nodes")
 
 	config := util.ParseConfig()
-
-	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
-	stub = protos.NewCraneCtldClient(conn)
+	stub = util.GetStubToCtldByConfig(config)
 }

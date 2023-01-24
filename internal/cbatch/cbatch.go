@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang/protobuf/ptypes/duration"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
 	"regexp"
@@ -178,13 +176,10 @@ func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
 	return true
 }
 
-func SendRequest(serverAddr string, req *protos.SubmitBatchTaskRequest) {
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic("Cannot connect to CraneCtld: " + err.Error())
-	}
+func SendRequest(req *protos.SubmitBatchTaskRequest) {
+	config := util.ParseConfig()
+	stub := util.GetStubToCtldByConfig(config)
 
-	stub := protos.NewCraneCtldClient(conn)
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		panic("SubmitBatchTask failed: " + err.Error())
@@ -198,7 +193,6 @@ func SendRequest(serverAddr string, req *protos.SubmitBatchTaskRequest) {
 }
 
 func Cbatch(jobFilePath string) {
-
 	file, err := os.Open(jobFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -209,9 +203,6 @@ func Cbatch(jobFilePath string) {
 			log.Printf("Failed to close %s\n", file.Name())
 		}
 	}(file)
-
-	config := util.ParseConfig()
-	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
 	scanner := bufio.NewScanner(file)
 	// optionally, resize scanner's capacity for lines over 64K, see next example
@@ -248,7 +239,5 @@ func Cbatch(jobFilePath string) {
 	req.Task.Env = strings.Join(os.Environ(), "||")
 	req.Task.Type = protos.TaskType_Batch
 
-	// fmt.Printf("Req:\n%v\n\n", req)
-
-	SendRequest(serverAddr, req)
+	SendRequest(req)
 }
