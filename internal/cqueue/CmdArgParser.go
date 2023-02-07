@@ -1,13 +1,13 @@
 package cqueue
 
 import (
-	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
 )
 
 var (
-	partition string
+	FlagPartition      string
+	FlagConfigFilePath string
 
 	rootCmd = &cobra.Command{
 		Use:   "cqueue [partition]",
@@ -19,9 +19,9 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
-				partition = args[0]
+				FlagPartition = args[0]
 			}
-			Query(partition)
+			Query(FlagPartition)
 		},
 	}
 )
@@ -33,5 +33,5 @@ func ParseCmdArgs() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&util.ConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
+	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
 }

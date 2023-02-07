@@ -42,29 +42,29 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	}
 
 	///*************set parameter values based on the command line*********************///
-	req.Task.NodeNum = nodes
-	req.Task.CpusPerTask = cpuPerTask
-	req.Task.NtasksPerNode = ntasksPerNode
-	if time != "" {
-		isOk := SetTime(time, req)
+	req.Task.NodeNum = FlagNodes
+	req.Task.CpusPerTask = FlagCpuPerTask
+	req.Task.NtasksPerNode = FlagNtasksPerNode
+	if FlagTime != "" {
+		isOk := SetTime(FlagTime, req)
 		if isOk == false {
 			return false, nil
 		}
 	}
-	if mem != "" {
-		isOk := SetMem(mem, req)
+	if FlagMem != "" {
+		isOk := SetMem(FlagMem, req)
 		if isOk == false {
 			return false, nil
 		}
 	}
-	if partition != "" {
-		req.Task.PartitionName = partition
+	if FlagPartition != "" {
+		req.Task.PartitionName = FlagPartition
 	}
-	if output != "" {
-		req.Task.GetBatchMeta().OutputFilePattern = output
+	if FlagOutput != "" {
+		req.Task.GetBatchMeta().OutputFilePattern = FlagOutput
 	}
-	if job != "" {
-		req.Task.Name = job
+	if FlagJob != "" {
+		req.Task.Name = FlagJob
 	}
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
@@ -177,7 +177,7 @@ func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
 }
 
 func SendRequest(req *protos.SubmitBatchTaskRequest) {
-	config := util.ParseConfig()
+	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
 	reply, err := stub.SubmitBatchTask(context.Background(), req)

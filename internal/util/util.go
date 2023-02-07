@@ -24,10 +24,8 @@ type Config struct {
 	DomainSuffix       string `yaml:"DomainSuffix"`
 }
 
-var ConfigFilePath string
-
-func ParseConfig() *Config {
-	confFile, err := ioutil.ReadFile(ConfigFilePath)
+func ParseConfig(configFilePath string) *Config {
+	confFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}

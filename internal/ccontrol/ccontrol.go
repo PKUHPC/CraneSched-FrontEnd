@@ -114,6 +114,6 @@ func ShowJobs(taskId uint32, queryAll bool) {
 }
 
 func Preparation() {
-	config := util.ParseConfig()
+	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 }

@@ -52,6 +52,6 @@ func Query(partition string) {
 }
 
 func Preparation() {
-	config := util.ParseConfig()
+	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 }
