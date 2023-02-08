@@ -1,6 +1,7 @@
 package cbatch
 
 import (
+	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -34,7 +35,8 @@ func ParseCmdArgs() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
+	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
+		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
 	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
 	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")

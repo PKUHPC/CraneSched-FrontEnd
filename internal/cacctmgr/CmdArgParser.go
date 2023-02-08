@@ -2,6 +2,7 @@ package cacctmgr
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -212,7 +213,8 @@ func ParseCmdArgs() {
 
 func init() {
 	rootCmd.AddCommand(addCmd)
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
+	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
+		util.DefaultConfigPath, "Path to configuration file")
 	/* ---------------------------------------------------- add  ---------------------------------------------------- */
 	addCmd.AddCommand(addAccountCmd)
 

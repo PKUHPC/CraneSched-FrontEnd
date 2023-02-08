@@ -62,7 +62,8 @@ func ParseCmdArgs() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", "/etc/crane/config.yaml", "Path to configuration file")
+	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
+		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.Flags().StringVarP(&FlagTaskName, "name", "n", "",
 		"cancel tasks only with the task name")
 	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
