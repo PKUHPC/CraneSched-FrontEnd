@@ -13,7 +13,7 @@ import (
 )
 
 func cinfoFunc() {
-	config := util.ParseConfig()
+	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
 	req := &protos.QueryClusterInfoRequest{

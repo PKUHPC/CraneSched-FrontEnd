@@ -24,9 +24,15 @@ type Config struct {
 	DomainSuffix       string `yaml:"DomainSuffix"`
 }
 
-var configFilePath = "/etc/crane/config.yaml"
+var (
+	DefaultConfigPath string
+)
 
-func ParseConfig() *Config {
+func init() {
+	DefaultConfigPath = "/etc/crane/config.yaml"
+}
+
+func ParseConfig(configFilePath string) *Config {
 	confFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		log.Fatal(err)

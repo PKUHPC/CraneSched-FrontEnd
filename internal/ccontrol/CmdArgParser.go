@@ -1,23 +1,26 @@
 package ccontrol
 
 import (
+	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
 	"strconv"
 )
 
 var (
-	nodeName      string
-	partitionName string
-	jobId         uint32
-	queryAll      bool
+	FlagNodeName      string
+	FlagPartitionName string
+	FlagJobId         uint32
+	FlagQueryAll      bool
+
+	FlagConfigFilePath string
 
 	rootCmd = &cobra.Command{
 		Use:   "ccontrol",
 		Short: "display the state of partitions and nodes",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			Init()
+			Preparation()
 		},
 	}
 	showCmd = &cobra.Command{
@@ -32,13 +35,13 @@ var (
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				nodeName = ""
-				queryAll = true
+				FlagNodeName = ""
+				FlagQueryAll = true
 			} else {
-				nodeName = args[0]
-				queryAll = false
+				FlagNodeName = args[0]
+				FlagQueryAll = false
 			}
-			ShowNodes(nodeName, queryAll)
+			ShowNodes(FlagNodeName, FlagQueryAll)
 		},
 	}
 	showPartitionCmd = &cobra.Command{
@@ -48,13 +51,13 @@ var (
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				partitionName = ""
-				queryAll = true
+				FlagPartitionName = ""
+				FlagQueryAll = true
 			} else {
-				partitionName = args[0]
-				queryAll = false
+				FlagPartitionName = args[0]
+				FlagQueryAll = false
 			}
-			ShowPartitions(partitionName, queryAll)
+			ShowPartitions(FlagPartitionName, FlagQueryAll)
 		},
 	}
 	showJobCmd = &cobra.Command{
@@ -64,13 +67,13 @@ var (
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				queryAll = true
+				FlagQueryAll = true
 			} else {
 				id, _ := strconv.Atoi(args[0])
-				jobId = uint32(id)
-				queryAll = false
+				FlagJobId = uint32(id)
+				FlagQueryAll = false
 			}
-			ShowJobs(jobId, queryAll)
+			ShowJobs(FlagJobId, FlagQueryAll)
 		},
 	}
 )
@@ -81,8 +84,11 @@ func ParseCmdArgs() {
 		os.Exit(1)
 	}
 }
+
 func init() {
 	rootCmd.AddCommand(showCmd)
+	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
+		"Path to configuration file")
 	showCmd.AddCommand(showNodeCmd)
 	showCmd.AddCommand(showPartitionCmd)
 	showCmd.AddCommand(showJobCmd)

@@ -9,7 +9,7 @@ import (
 	"github.com/xlab/treeprint"
 	"log"
 	"os"
-	OSuser "os/user"
+	OSUser "os/user"
 	"regexp"
 	"strconv"
 )
@@ -250,7 +250,7 @@ func AddAccount(account *protos.AccountInfo) {
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string) {
-	lu, err := OSuser.Lookup(user.Name)
+	lu, err := OSUser.Lookup(user.Name)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -588,11 +588,11 @@ func checkQosFieldName(s string) bool {
 	return false
 }
 
-func Init() {
-	config := util.ParseConfig()
+func Preparation() {
+	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 
-	currentUser, err := OSuser.Current()
+	currentUser, err := OSUser.Current()
 	if err != nil {
 		log.Fatal(err.Error())
 	}

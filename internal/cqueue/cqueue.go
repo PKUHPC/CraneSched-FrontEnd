@@ -50,7 +50,8 @@ func Query(partition string) {
 	table.AppendBulk(tableData)
 	table.Render()
 }
-func Init() {
-	config := util.ParseConfig()
+
+func Preparation() {
+	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 }

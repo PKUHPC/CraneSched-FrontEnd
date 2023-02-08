@@ -9,12 +9,13 @@ import (
 )
 
 var (
-	FlagTaskName  string //单个.
-	FlagPartition string //单个.
-	FlagState     string //单个. 默认值
-	FlagAccount   string //单个.
-	FlagUserName  string //单个.
-	FlagNodes     string //多个
+	FlagTaskName       string //单个.
+	FlagPartition      string //单个.
+	FlagState          string //单个. 默认值
+	FlagAccount        string //单个.
+	FlagUserName       string //单个.
+	FlagNodes          string //多个
+	FlagConfigFilePath string
 
 	rootCmd = &cobra.Command{
 		Use:   "ccancel [<task id>[[,<task id>]...]] [options]",
@@ -59,7 +60,10 @@ func ParseCmdArgs() {
 		os.Exit(1)
 	}
 }
+
 func init() {
+	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
+		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.Flags().StringVarP(&FlagTaskName, "name", "n", "",
 		"cancel tasks only with the task name")
 	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
@@ -75,6 +79,6 @@ func init() {
 	rootCmd.Flags().StringVarP(&FlagNodes, "nodes", "w", "",
 		"cancel tasks running on the nodes")
 
-	config := util.ParseConfig()
+	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 }
