@@ -20,7 +20,8 @@ var (
 		Short: "display the state of partitions and nodes",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			Preparation()
+			config := util.ParseConfig(FlagConfigFilePath)
+			stub = util.GetStubToCtldByConfig(config)
 		},
 	}
 	showCmd = &cobra.Command{

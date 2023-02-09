@@ -556,7 +556,7 @@ func FindUser(name string) {
 }
 
 func ParseEquation(s string) (left string, right string) {
-	reg := regexp.MustCompile("^([\\w]+)=([\\w]+)$")
+	reg := regexp.MustCompile("^([\\w]+)=(.*)$")
 	match := reg.FindAllStringSubmatch(s, -1)
 	if match == nil || len(match[0]) != 3 {
 		Error("Parse equation '%s' fail,it may not match regex '^([\\w]+)=([\\w]+)$'", s)

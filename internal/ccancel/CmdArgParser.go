@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	FlagTaskName       string //单个.
-	FlagPartition      string //单个.
-	FlagState          string //单个. 默认值
-	FlagAccount        string //单个.
-	FlagUserName       string //单个.
-	FlagNodes          string //多个
+	FlagTaskName       string   //单个.
+	FlagPartition      string   //单个.
+	FlagState          string   //单个. 默认值
+	FlagAccount        string   //单个.
+	FlagUserName       string   //单个.
+	FlagNodes          []string //多个
 	FlagConfigFilePath string
 
 	rootCmd = &cobra.Command{
@@ -33,7 +33,7 @@ var (
 				FlagState == "" &&
 				FlagAccount == "" &&
 				FlagUserName == "" &&
-				FlagNodes == "" {
+				FlagNodes == nil {
 				return fmt.Errorf("at least one condition should be given")
 			}
 
@@ -46,6 +46,10 @@ var (
 			}
 
 			return nil
+		},
+		PreRun: func(cmd *cobra.Command, args []string) {
+			config := util.ParseConfig(FlagConfigFilePath)
+			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			// args was checked by cobra.ExactArgs(1)
@@ -76,9 +80,6 @@ func init() {
 		"cancel tasks under the FlaAccount")
 	rootCmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
 		"cancel tasks run by the user")
-	rootCmd.Flags().StringVarP(&FlagNodes, "nodes", "w", "",
+	rootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
 		"cancel tasks running on the nodes")
-
-	config := util.ParseConfig(FlagConfigFilePath)
-	stub = util.GetStubToCtldByConfig(config)
 }

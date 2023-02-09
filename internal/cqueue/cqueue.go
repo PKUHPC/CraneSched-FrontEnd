@@ -2,7 +2,6 @@ package cqueue
 
 import (
 	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"github.com/olekukonko/tablewriter"
 	"os"
@@ -49,9 +48,4 @@ func Query(partition string) {
 
 	table.AppendBulk(tableData)
 	table.Render()
-}
-
-func Preparation() {
-	config := util.ParseConfig(FlagConfigFilePath)
-	stub = util.GetStubToCtldByConfig(config)
 }
