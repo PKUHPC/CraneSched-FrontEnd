@@ -129,7 +129,7 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
 	table.SetCenterSeparator("|")
 	table.SetTablePadding("\t")
-	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser"})
+	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"})
 	table.SetAutoFormatHeaders(false)
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
@@ -137,7 +137,9 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 			info.Name,
 			info.Description,
 			fmt.Sprintf("%d", info.Priority),
-			fmt.Sprintf("%d", info.MaxJobsPerUser)})
+			fmt.Sprintf("%d", info.MaxJobsPerUser),
+			fmt.Sprintf("%d", info.MaxCpusPerUser),
+			fmt.Sprintf("%d", info.MaxTimeLimitPerTask)})
 	}
 
 	table.AppendBulk(tableData)
@@ -579,7 +581,7 @@ func checkAccountFieldName(s string) bool {
 
 func checkQosFieldName(s string) bool {
 	switch s {
-	case "name", "description", "priority", "max_jobs_per_user":
+	case "name", "description", "priority", "max_jobs_per_user", "max_cpus_per_user", "max_time_limit_per_task":
 		return true
 	}
 	return false
