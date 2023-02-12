@@ -157,7 +157,7 @@ var (
 		Short:   "Display user table",
 		Long:    "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowUsers()
+			ShowUser("")
 		},
 	}
 	showQosCmd = &cobra.Command{
@@ -165,7 +165,7 @@ var (
 		Short: "Display qos table",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowQos()
+			ShowQos("")
 		},
 	}
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
@@ -190,7 +190,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			FindUser(args[0])
+			ShowUser(args[0])
 		},
 	}
 	findQosCmd = &cobra.Command{
@@ -199,7 +199,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			//FindQos(args[0])
+			ShowQos(args[0])
 		},
 	}
 )
@@ -233,7 +233,7 @@ func init() {
 	addUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "The name to identify user")
 	addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Parent account")
 	addUserCmd.Flags().StringSliceVarP(&FlagPartition, "partition", "p", nil, "The partition list which this account has access to")
-	addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level")
+	addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level(none/operator/admin)")
 	err = addUserCmd.MarkFlagRequired("name")
 	if err != nil {
 		return
@@ -277,7 +277,7 @@ func init() {
 	modifyUserCmd.Flags().StringVarP(&FlagModifyItem, "add", "A", "", "Modify by adding")
 	modifyUserCmd.Flags().StringVarP(&FlagModifyItem, "delete", "D", "", "Modify by deleting")
 	modifyUserCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Name of the user being modified")
-	modifyUserCmd.Flags().StringVarP(&FlagPartitionFilter, "partition", "P", "", "partition which being modified")
+	modifyUserCmd.Flags().StringVarP(&FlagPartitionFilter, "partition", "p", "", "Partition which being modified, if this parameter is not set explicitly, all partitions are modified by default")
 	modifyUserCmd.MarkFlagsMutuallyExclusive("set", "add", "delete")
 	err = modifyUserCmd.MarkFlagRequired("name")
 	if err != nil {
