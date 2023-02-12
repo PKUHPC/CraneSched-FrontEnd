@@ -547,7 +547,6 @@ func FindAccount(name string) {
 
 	if reply.GetOk() {
 		PrintAccountTable(reply.AccountList)
-		//fmt.Printf("AccountName:%v Description:'%v' ParentAccount:%v ChildAccount:%v Users:%v AllowedPartition:%v QOS:%v\n", reply.AccountList[0].Name, reply.AccountList[0].Description, reply.AccountList[0].ParentAccount, reply.AccountList[0].ChildAccount, reply.AccountList[0].Users, reply.AccountList[0].AllowedPartition, reply.AccountList[0].DefaultQos)
 	} else {
 		fmt.Printf("Can't find account %s\n", name)
 	}
@@ -596,15 +595,4 @@ func Preparation() {
 	}
 
 	_, curLevel, curAccount = QueryLevelAndAccount(currentUser.Name, stub)
-	//if find {
-	//if curLevel == protos.UserInfo_None {
-	//	fmt.Println("none")
-	//} else if curLevel == protos.UserInfo_Operator {
-	//	fmt.Println("operator")
-	//} else if curLevel == protos.UserInfo_Admin {
-	//	fmt.Println("admin")
-	//}
-	//} else {
-	//	fmt.Printf("%s, you are not a user in the system\n", currentUser.Name)
-	//}
 }
