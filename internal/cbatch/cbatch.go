@@ -6,20 +6,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/duration"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 )
-
-func INVALID_DURATION() *duration.Duration {
-	return &duration.Duration{
-		Seconds: 630720000000,
-		Nanos:   0,
-	}
-}
 
 type CbatchArg struct {
 	name string
@@ -29,7 +21,7 @@ type CbatchArg struct {
 func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	req := new(protos.SubmitBatchTaskRequest)
 	req.Task = new(protos.TaskToCtld)
-	req.Task.TimeLimit = INVALID_DURATION()
+	req.Task.TimeLimit = util.InvalidDuration()
 	req.Task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
