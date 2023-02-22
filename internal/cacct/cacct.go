@@ -45,7 +45,7 @@ func QueryJob() {
 			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Partition,
 			reply.TaskInfoList[i].Account,
-			strconv.FormatFloat(reply.TaskInfoList[i].Alloc_CPUs, 'f', 2, 64),
+			strconv.FormatFloat(reply.TaskInfoList[i].AllocCpus, 'f', 2, 64),
 			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].ExitCode})
 	}
