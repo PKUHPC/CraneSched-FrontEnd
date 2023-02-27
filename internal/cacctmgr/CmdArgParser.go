@@ -26,7 +26,9 @@ var (
 		Short: "Manage accounts, users, and qos tables",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) { //The Persistent*Run functions will be inherited by children if they do not declare their own
-			Preparation()
+			config := util.ParseConfig(FlagConfigFilePath)
+			stub = util.GetStubToCtldByConfig(config)
+			userUid = uint32(os.Getuid())
 		},
 	}
 	/* ---------------------------------------------------- add  ---------------------------------------------------- */
