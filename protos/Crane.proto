@@ -4,7 +4,6 @@ package crane.grpc;
 option go_package = "/protos";
 
 import "PublicDefs.proto";
-import "google/protobuf/timestamp.proto";
 
 message Negotiation {
   uint32 version = 1;
@@ -364,6 +363,7 @@ message QueryClusterInfoRequest {
   repeated CranedState filter_craned_states = 3;
   bool filter_only_down_nodes = 4;
   bool filter_only_responding_nodes = 5;
+  bool option_nodes_on_centric_format = 6;
 }
 
 message QueryClusterInfoReply {
@@ -372,19 +372,9 @@ message QueryClusterInfoReply {
 }
 
 message QueryTasksInfoRequest{
-  repeated uint32 filter_task_ids = 1;
-  repeated string filter_partitions = 2;
+  int32 task_id = 1;
+  string partition = 2;
   int32 num_limit = 3;
-  repeated string filter_task_names = 4;
-  //repeated string filter_qos = 5;
-
-  repeated TaskStatus filter_task_states = 6;
-  repeated string filter_users = 7;
-  repeated string filter_accounts = 8;
-  google.protobuf.Timestamp filter_start_time = 9;
-  google.protobuf.Timestamp filter_end_time = 10;
-
-  bool option_include_completed_tasks = 11;
 }
 
 message QueryTasksInfoReply{

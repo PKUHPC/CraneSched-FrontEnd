@@ -11,6 +11,7 @@ var (
 	FlagFilterRespondingOnly bool
 	FlagFilterPartitions     string
 	FlagFilterNodes          string
+	FlagNodesOnCentricFormat bool
 	FlagFilterCranedStates   string
 	FlagSummarize            bool
 	FlagFormat               string
@@ -60,4 +61,6 @@ func init() {
 		"report state summary only")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		"format specification")
+	RootCmd.Flags().BoolVarP(&FlagNodesOnCentricFormat, "Node", "N", false,
+		"report on node centric format")
 }

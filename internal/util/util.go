@@ -127,7 +127,7 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 	for i, h := range tableHeader {
 		if tableOutputWidth[i] != -1 {
 			padLength := tableOutputWidth[i] - len(h)
-			if padLength >= 0 {
+			if padLength > 0 {
 				tableHeader[i] = h + strings.Repeat(" ", padLength)
 			} else {
 				tableHeader[i] = h[:tableOutputWidth[i]]
@@ -138,7 +138,7 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 		for j, cell := range row {
 			if tableOutputWidth[j] != -1 {
 				padLength := tableOutputWidth[j] - len(cell)
-				if padLength >= 0 {
+				if padLength > 0 {
 					tableData[i][j] = cell + strings.Repeat(" ", padLength)
 				} else {
 					tableData[i][j] = cell[:tableOutputWidth[j]]
