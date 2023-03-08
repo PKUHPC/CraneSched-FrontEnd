@@ -4,6 +4,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
 	"github.com/olekukonko/tablewriter"
 	"os"
 	"strconv"
@@ -11,6 +12,10 @@ import (
 
 var (
 	stub protos.CraneCtldClient
+)
+
+const (
+	kCraneExitCodeBase = 256
 )
 
 func QueryJob() {
@@ -40,6 +45,13 @@ func QueryJob() {
 
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
+		exitCode := ""
+		if reply.TaskInfoList[i].ExitCode >= kCraneExitCodeBase {
+			exitCode = fmt.Sprintf("0:%d", reply.TaskInfoList[i].ExitCode-kCraneExitCodeBase)
+		} else {
+			exitCode = fmt.Sprintf("%d:0", reply.TaskInfoList[i].ExitCode)
+		}
+
 		tableData = append(tableData, []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 			reply.TaskInfoList[i].Name,
@@ -47,7 +59,7 @@ func QueryJob() {
 			reply.TaskInfoList[i].Account,
 			strconv.FormatFloat(reply.TaskInfoList[i].AllocCpus, 'f', 2, 64),
 			reply.TaskInfoList[i].Status.String(),
-			reply.TaskInfoList[i].ExitCode})
+			exitCode})
 	}
 
 	table.AppendBulk(tableData)

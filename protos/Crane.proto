@@ -130,7 +130,7 @@ message TaskStatusChangeRequest {
   uint32 task_id = 1;
   uint32 craned_index = 2;
   TaskStatus new_status = 3;
-  int32 exit_code = 4;
+  uint32 exit_code = 4;
   string reason = 5;
 }
 
@@ -366,7 +366,6 @@ message QueryTasksInfoRequest{
   int32 task_id = 1;
   string partition = 2;
   int32 num_limit = 3;
-  //  string status = 3;
 }
 
 message QueryTasksInfoReply{
