@@ -9,8 +9,8 @@ import (
 	"log"
 	"os"
 	OSUser "os/user"
-	"regexp"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -66,7 +66,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
 					allowedPartitionQos.PartitionName,
-					fmt.Sprintf("%v", allowedPartitionQos.QosList),
+					strings.Join(allowedPartitionQos.QosList, ", "),
 					allowedPartitionQos.DefaultQos,
 					fmt.Sprintf("%v", userInfo.AdminLevel)})
 			}
@@ -150,9 +150,9 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 		tableData = append(tableData, []string{
 			accountInfo.Name,
 			accountInfo.Description,
-			fmt.Sprintf("%v", accountInfo.AllowedPartitions),
+			strings.Join(accountInfo.AllowedPartitions, ", "),
 			accountInfo.DefaultQos,
-			fmt.Sprintf("%v", accountInfo.AllowedQosList)})
+			strings.Join(accountInfo.AllowedQosList, ", ")})
 	}
 
 	table.AppendBulk(tableData)
@@ -318,12 +318,7 @@ func DeleteQos(name string) {
 	}
 }
 
-func ModifyAccount(modifyItem string, name string, requestType protos.ModifyEntityRequest_OperatorType) {
-	itemLeft, itemRight := ParseEquation(modifyItem)
-	if !checkAccountFieldName(itemLeft) {
-		Error("Field name %s not exist!", itemLeft)
-	}
-
+func ModifyAccount(itemLeft string, itemRight string, name string, requestType protos.ModifyEntityRequest_OperatorType) {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
 		Lhs:        itemLeft,
@@ -345,11 +340,7 @@ func ModifyAccount(modifyItem string, name string, requestType protos.ModifyEnti
 	}
 }
 
-func ModifyUser(modifyItem string, name string, partition string, requestType protos.ModifyEntityRequest_OperatorType) {
-	itemLeft, itemRight := ParseEquation(modifyItem)
-	if !checkUserFieldName(itemLeft) {
-		Error("Field name %s not exist!", itemLeft)
-	}
+func ModifyUser(itemLeft string, itemRight string, name string, partition string, requestType protos.ModifyEntityRequest_OperatorType) {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
 			Error("Unknown admin_level, please enter one of {none, operator, admin}")
@@ -377,12 +368,7 @@ func ModifyUser(modifyItem string, name string, partition string, requestType pr
 	}
 }
 
-func ModifyQos(modifyItem string, name string) {
-	itemLeft, itemRight := ParseEquation(modifyItem)
-	if !checkQosFieldName(itemLeft) {
-		Error("Field name %s not exist!", itemLeft)
-	}
-
+func ModifyQos(itemLeft string, itemRight string, name string) {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
 		Lhs:        itemLeft,
@@ -391,6 +377,7 @@ func ModifyQos(modifyItem string, name string) {
 		Type:       protos.ModifyEntityRequest_Overwrite,
 		EntityType: protos.EntityType_Qos,
 	}
+
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
@@ -466,39 +453,6 @@ func FindAccount(name string) {
 	if reply.GetOk() {
 		PrintAccountTable(reply.AccountList)
 	} else {
-		fmt.Printf("Can't find account %s\n", name)
+		fmt.Println(reply.Reason)
 	}
-}
-
-func ParseEquation(s string) (left string, right string) {
-	reg := regexp.MustCompile("^([\\w]+)=(.*)$")
-	match := reg.FindAllStringSubmatch(s, -1)
-	if match == nil || len(match[0]) != 3 {
-		Error("Parse equation '%s' fail,it may not match regex '^([\\w]+)=([\\w]+)$'", s)
-	}
-	return match[0][1], match[0][2]
-}
-
-func checkUserFieldName(s string) bool {
-	switch s {
-	case "name", "account", "default_qos", "allowed_qos_list", "allowed_partition", "admin_level":
-		return true
-	}
-	return false
-}
-
-func checkAccountFieldName(s string) bool {
-	switch s {
-	case "name", "description", "parent_account", "allowed_partition", "default_qos", "allowed_qos_list":
-		return true
-	}
-	return false
-}
-
-func checkQosFieldName(s string) bool {
-	switch s {
-	case "name", "description", "priority", "max_jobs_per_user", "max_cpus_per_user", "max_time_limit_per_task":
-		return true
-	}
-	return false
 }
