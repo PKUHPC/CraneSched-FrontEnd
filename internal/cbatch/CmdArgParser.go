@@ -15,10 +15,13 @@ var (
 	FlagPartition     string
 	FlagJob           string
 	FlagOutput        string
+	FlagCwd           string
 
 	FlagConfigFilePath string
+)
 
-	rootCmd = &cobra.Command{
+func ParseCmdArgs() {
+	rootCmd := &cobra.Command{
 		Use:   "cbatch",
 		Short: "submit batch jobs",
 		Args:  cobra.ExactArgs(1),
@@ -26,15 +29,7 @@ var (
 			Cbatch(args[0])
 		},
 	}
-)
 
-func ParseCmdArgs() {
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
-}
-
-func init() {
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
@@ -45,4 +40,9 @@ func init() {
 	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
 	rootCmd.Flags().StringVarP(&FlagOutput, "output", "o", "", "file for batch script's standard output")
 	rootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
+	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

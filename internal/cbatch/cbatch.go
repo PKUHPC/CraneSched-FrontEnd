@@ -45,6 +45,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	req.Task.NodeNum = FlagNodes
 	req.Task.CpusPerTask = FlagCpuPerTask
 	req.Task.NtasksPerNode = FlagNtasksPerNode
+	req.Task.Cwd, _ = os.Getwd()
+
 	if FlagTime != "" {
 		isOk := SetTime(FlagTime, req)
 		if isOk == false {
@@ -66,6 +68,10 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	if FlagJob != "" {
 		req.Task.Name = FlagJob
 	}
+	if FlagCwd != "" {
+		req.Task.Cwd = FlagCwd
+	}
+
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
 		switch arg.name {
@@ -87,7 +93,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 				return false, nil
 			}
 			req.Task.NtasksPerNode = uint32(num)
-		case "--time", "t":
+		case "--time", "-t":
 			isOk := SetTime(arg.val, req)
 			if isOk == false {
 				return false, nil
@@ -97,12 +103,14 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 			if isOk == false {
 				return false, nil
 			}
-		case "-p", "partition":
+		case "-p", "--partition":
 			req.Task.PartitionName = arg.val
-		case "-o", "output":
+		case "-o", "--output":
 			req.Task.GetBatchMeta().OutputFilePattern = arg.val
-		case "-J", "job-name":
+		case "-J", "--job-name":
 			req.Task.Name = arg.val
+		case "--chdir":
+			req.Task.Cwd = arg.val
 		}
 	}
 
@@ -235,7 +243,6 @@ func Cbatch(jobFilePath string) {
 	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
 	req.Task.Uid = uint32(os.Getuid())
 	req.Task.CmdLine = strings.Join(os.Args, " ")
-	req.Task.Cwd, _ = os.Getwd()
 	req.Task.Env = strings.Join(os.Environ(), "||")
 	req.Task.Type = protos.TaskType_Batch
 
