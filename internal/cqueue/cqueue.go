@@ -2,6 +2,7 @@ package cqueue
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
@@ -16,6 +17,8 @@ var (
 )
 
 func Query() {
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub = util.GetStubToCtldByConfig(config)
 	req := protos.QueryTasksInfoRequest{}
 
 	var stateList []protos.TaskStatus

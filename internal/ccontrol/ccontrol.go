@@ -93,10 +93,12 @@ func ShowPartitions(partitionName string, queryAll bool) {
 
 func ShowJobs(taskId uint32, queryAll bool) {
 	var req *protos.QueryTasksInfoRequest
+	var taskIdList []uint32
+	taskIdList = append(taskIdList, taskId)
 	if queryAll {
-		req = &protos.QueryTasksInfoRequest{TaskId: -1, Partition: ""}
+		req = &protos.QueryTasksInfoRequest{}
 	} else {
-		req = &protos.QueryTasksInfoRequest{TaskId: int32(taskId), Partition: ""}
+		req = &protos.QueryTasksInfoRequest{FilterTaskIds: taskIdList}
 	}
 
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
