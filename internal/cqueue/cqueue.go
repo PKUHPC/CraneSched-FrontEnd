@@ -91,9 +91,9 @@ func Query() {
 	table.SetNoWhiteSpace(true)
 	if !FlagNoHeader {
 		if FlagStartTime {
-			table.SetHeader([]string{"TaskId", "Name", "Type", "Status", "StartTime", "NodeIndex"})
+			table.SetHeader([]string{"TaskId", "Name", "State", "Partition", "User", "Account", "Type", "Status", "StartTime", "NodeIndex"})
 		} else {
-			table.SetHeader([]string{"TaskId", "Name", "Type", "Status", "NodeIndex"})
+			table.SetHeader([]string{"TaskId", "Name", "State", "Partition", "User", "Account", "Type", "Status", "NodeIndex"})
 		}
 	}
 
@@ -103,7 +103,10 @@ func Query() {
 			tableData = append(tableData, []string{
 				strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 				reply.TaskInfoList[i].Name,
-				//reply.TaskInfoList[i].UserName,
+				reply.TaskInfoList[i].Status.String(),
+				reply.TaskInfoList[i].Partition,
+				reply.TaskInfoList[i].UserName,
+				reply.TaskInfoList[i].Account,
 				reply.TaskInfoList[i].Type.String(),
 				reply.TaskInfoList[i].Status.String(),
 				reply.TaskInfoList[i].StartTime.String(),
@@ -112,6 +115,10 @@ func Query() {
 			tableData = append(tableData, []string{
 				strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 				reply.TaskInfoList[i].Name,
+				reply.TaskInfoList[i].Status.String(),
+				reply.TaskInfoList[i].Partition,
+				reply.TaskInfoList[i].UserName,
+				reply.TaskInfoList[i].Account,
 				reply.TaskInfoList[i].Type.String(),
 				reply.TaskInfoList[i].Status.String(),
 				reply.TaskInfoList[i].CranedList})
