@@ -69,8 +69,8 @@ var (
 	}
 	/* --------------------------------------------------- remove --------------------------------------------------- */
 	removeCmd = &cobra.Command{
-		Use:     "remove",
-		Aliases: []string{"delete"},
+		Use:     "delete",
+		Aliases: []string{"remove"},
 		Short:   "Delete entity",
 		Long:    "",
 	}
@@ -244,7 +244,7 @@ var (
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	findCmd = &cobra.Command{
 		Use:     "find",
-		Aliases: []string{"search"},
+		Aliases: []string{"search", "query"},
 		Short:   "Find a specific entity",
 		Long:    "",
 	}
@@ -273,6 +273,54 @@ var (
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowQos(args[0])
+		},
+	}
+	/* --------------------------------------------------- block ---------------------------------------------------- */
+	blockCmd = &cobra.Command{
+		Use:   "block",
+		Short: "Block the entity so that it cannot be used",
+		Long:  "",
+	}
+	blockAccountCmd = &cobra.Command{
+		Use:   "account",
+		Short: "Block an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			BlockEntity(args[0], protos.EntityType_Account, "")
+		},
+	}
+	blockUserCmd = &cobra.Command{
+		Use:   "user",
+		Short: "Block a user under an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			BlockEntity(args[0], protos.EntityType_User, FlagName)
+		},
+	}
+	/* -------------------------------------------------- unblock --------------------------------------------------- */
+	unblockCmd = &cobra.Command{
+		Use:   "unblock",
+		Short: "Unblock the entity",
+		Long:  "",
+	}
+	unblockAccountCmd = &cobra.Command{
+		Use:   "account",
+		Short: "Unblock an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			UnblockEntity(args[0], protos.EntityType_Account, "")
+		},
+	}
+	unblockUserCmd = &cobra.Command{
+		Use:   "user",
+		Short: "Unblock a user under an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			UnblockEntity(args[0], protos.EntityType_User, FlagName)
 		},
 	}
 )
@@ -396,4 +444,14 @@ func init() {
 	findCmd.AddCommand(findAccountCmd)
 	findCmd.AddCommand(findUserCmd)
 	findCmd.AddCommand(findQosCmd)
+	/* --------------------------------------------------- block ---------------------------------------------------- */
+	rootCmd.AddCommand(blockCmd)
+	blockCmd.AddCommand(blockAccountCmd)
+	blockCmd.AddCommand(blockUserCmd)
+	blockUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "The account where the user resides")
+	/* -------------------------------------------------- unblock --------------------------------------------------- */
+	rootCmd.AddCommand(unblockCmd)
+	unblockCmd.AddCommand(unblockAccountCmd)
+	unblockCmd.AddCommand(unblockUserCmd)
+	unblockUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "The account where the user resides")
 }

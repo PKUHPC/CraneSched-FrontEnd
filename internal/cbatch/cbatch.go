@@ -41,37 +41,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 		BatchMeta: &protos.BatchTaskAdditionalMeta{},
 	}
 
-	///*************set parameter values based on the command line*********************///
-	req.Task.NodeNum = FlagNodes
-	req.Task.CpusPerTask = FlagCpuPerTask
-	req.Task.NtasksPerNode = FlagNtasksPerNode
-	req.Task.Cwd, _ = os.Getwd()
-
-	if FlagTime != "" {
-		isOk := SetTime(FlagTime, req)
-		if isOk == false {
-			return false, nil
-		}
-	}
-	if FlagMem != "" {
-		isOk := SetMem(FlagMem, req)
-		if isOk == false {
-			return false, nil
-		}
-	}
-	if FlagPartition != "" {
-		req.Task.PartitionName = FlagPartition
-	}
-	if FlagOutput != "" {
-		req.Task.GetBatchMeta().OutputFilePattern = FlagOutput
-	}
-	if FlagJob != "" {
-		req.Task.Name = FlagJob
-	}
-	if FlagCwd != "" {
-		req.Task.Cwd = FlagCwd
-	}
-
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
 		switch arg.name {
@@ -109,9 +78,50 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 			req.Task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-J", "--job-name":
 			req.Task.Name = arg.val
+		case "--qos", "Q":
+			req.Task.Qos = arg.val
 		case "--chdir":
 			req.Task.Cwd = arg.val
 		}
+	}
+
+	///*************set parameter values based on the command line*********************///
+	//If the command line argument is set, it replaces the argument read from the file, so the command line has a higher priority
+	if FlagNodes != 0 {
+		req.Task.NodeNum = FlagNodes
+	}
+	if FlagCpuPerTask != 0 {
+		req.Task.CpusPerTask = FlagCpuPerTask
+	}
+	if FlagNtasksPerNode != 0 {
+		req.Task.NtasksPerNode = FlagNtasksPerNode
+	}
+	if FlagTime != "" {
+		isOk := SetTime(FlagTime, req)
+		if isOk == false {
+			return false, nil
+		}
+	}
+	if FlagMem != "" {
+		isOk := SetMem(FlagMem, req)
+		if isOk == false {
+			return false, nil
+		}
+	}
+	if FlagPartition != "" {
+		req.Task.PartitionName = FlagPartition
+	}
+	if FlagOutput != "" {
+		req.Task.GetBatchMeta().OutputFilePattern = FlagOutput
+	}
+	if FlagJob != "" {
+		req.Task.Name = FlagJob
+	}
+	if FlagQos != "" {
+		req.Task.Qos = FlagQos
+	}
+	if FlagCwd != "" {
+		req.Task.Cwd = FlagCwd
 	}
 
 	if req.Task.CpusPerTask <= 0 || req.Task.NtasksPerNode == 0 || req.Task.NodeNum == 0 {
@@ -245,6 +255,9 @@ func Cbatch(jobFilePath string) {
 	req.Task.CmdLine = strings.Join(os.Args, " ")
 	req.Task.Env = strings.Join(os.Environ(), "||")
 	req.Task.Type = protos.TaskType_Batch
+	if req.Task.Cwd == "" {
+		req.Task.Cwd, _ = os.Getwd()
+	}
 
 	SendRequest(req)
 }

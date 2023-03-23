@@ -497,3 +497,35 @@ func FindAccount(name string) {
 		fmt.Println(reply.Reason)
 	}
 }
+
+func BlockEntity(name string, entityType protos.EntityType, account string) {
+	var req *protos.BlockEntityRequest
+	req = &protos.BlockEntityRequest{Uid: userUid, Block: true, EntityType: entityType, Name: name, Account: account}
+
+	reply, err := stub.BlockEntity(context.Background(), req)
+	if err != nil {
+		panic("Block entity info failed: " + err.Error())
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Block %s success!\n", name)
+	} else {
+		fmt.Println(reply.Reason)
+	}
+}
+
+func UnblockEntity(name string, entityType protos.EntityType, account string) {
+	var req *protos.BlockEntityRequest
+	req = &protos.BlockEntityRequest{Uid: userUid, Block: false, EntityType: entityType, Name: name, Account: account}
+
+	reply, err := stub.BlockEntity(context.Background(), req)
+	if err != nil {
+		panic("Unblock entity info failed: " + err.Error())
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Unblock %s success!\n", name)
+	} else {
+		fmt.Println(reply.Reason)
+	}
+}
