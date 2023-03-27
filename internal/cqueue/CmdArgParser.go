@@ -17,6 +17,7 @@ var (
 	FlagFilterStates     string
 	FlagFilterUsers      string
 	FlagFilterAccounts   string
+	FlagFormat           string
 	FlagIterate          uint64
 
 	RootCmd = &cobra.Command{
@@ -66,4 +67,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"comma separated list of partitions\n"+
 			"to view, default is all partitions")
+	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
 }

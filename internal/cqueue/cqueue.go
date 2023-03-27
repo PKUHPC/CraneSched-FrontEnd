@@ -78,53 +78,105 @@ func Query() {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetBorder(false)
-	table.SetTablePadding("\t")
-	table.SetHeaderLine(false)
-	table.SetAutoWrapText(false)
-	table.SetAutoFormatHeaders(false)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetCenterSeparator("")
-	table.SetColumnSeparator("")
-	table.SetRowSeparator("")
-	table.SetNoWhiteSpace(true)
-	if !FlagNoHeader {
-		if FlagStartTime {
-			table.SetHeader([]string{"TaskId", "Name", "State", "Partition", "User", "Account", "Type", "Status", "StartTime", "NodeIndex"})
-		} else {
-			table.SetHeader([]string{"TaskId", "Name", "State", "Partition", "User", "Account", "Type", "Status", "NodeIndex"})
-		}
-	}
-
+	util.SetTableStyle(table)
+	header := []string{"TaskId", "Name", "Status", "Partition", "User", "Account", "Type", "NodeIndex"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
-		if FlagStartTime {
-			tableData = append(tableData, []string{
-				strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-				reply.TaskInfoList[i].Name,
-				reply.TaskInfoList[i].Status.String(),
-				reply.TaskInfoList[i].Partition,
-				reply.TaskInfoList[i].UserName,
-				reply.TaskInfoList[i].Account,
-				reply.TaskInfoList[i].Type.String(),
-				reply.TaskInfoList[i].Status.String(),
-				reply.TaskInfoList[i].StartTime.String(),
-				reply.TaskInfoList[i].CranedList})
-		} else {
-			tableData = append(tableData, []string{
-				strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-				reply.TaskInfoList[i].Name,
-				reply.TaskInfoList[i].Status.String(),
-				reply.TaskInfoList[i].Partition,
-				reply.TaskInfoList[i].UserName,
-				reply.TaskInfoList[i].Account,
-				reply.TaskInfoList[i].Type.String(),
-				reply.TaskInfoList[i].Status.String(),
-				reply.TaskInfoList[i].CranedList})
+		tableData = append(tableData, []string{
+			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
+			reply.TaskInfoList[i].Name,
+			reply.TaskInfoList[i].Status.String(),
+			reply.TaskInfoList[i].Partition,
+			reply.TaskInfoList[i].UserName,
+			reply.TaskInfoList[i].Account,
+			reply.TaskInfoList[i].Type.String(),
+			reply.TaskInfoList[i].CranedList})
+	}
+
+	if FlagFormat != "" {
+		var tableOutputWidth []int
+		var tableOutputHeader []string
+		formatTableData := make([][]string, len(reply.TaskInfoList))
+		formatReq := strings.Split(FlagFormat, " ")
+		for i := 0; i < len(formatReq); i++ {
+			if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
+				fmt.Println("Invalid format.")
+				os.Exit(1)
+			}
+			if formatReq[i][1] == '.' {
+				if len(formatReq[i]) < 4 {
+					fmt.Println("Invalid format.")
+					os.Exit(1)
+				}
+				width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
+				if err != nil {
+					if err != nil {
+						fmt.Println("Invalid format.")
+						os.Exit(1)
+					}
+				}
+				tableOutputWidth[i] = int(width)
+			} else {
+				tableOutputWidth[i] = -1
+			}
+			tableOutputHeader[i] = formatReq[i][len(formatReq[i])-1:]
+			switch tableOutputHeader[i] {
+			//j-TaskId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, N-NodeIndex
+			case "j":
+				tableOutputHeader[i] = "TaskId"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10)
+				}
+			case "n":
+				tableOutputHeader[i] = "Name"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = reply.TaskInfoList[i].Name
+				}
+			case "t":
+				tableOutputHeader[i] = "Status"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = reply.TaskInfoList[i].Status.String()
+				}
+			case "p":
+				tableOutputHeader[i] = "Partition"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = reply.TaskInfoList[i].Partition
+				}
+			case "u":
+				tableOutputHeader[i] = "User"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = reply.TaskInfoList[i].UserName
+				}
+			case "a":
+				tableOutputHeader[i] = "Account"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = reply.TaskInfoList[i].Account
+				}
+			case "T":
+				tableOutputHeader[i] = "Type"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = reply.TaskInfoList[i].Type.String()
+				}
+			case "N":
+				tableOutputHeader[i] = "NodeIndex"
+				for j := 0; j < len(reply.TaskInfoList); j++ {
+					formatTableData[j][i] = reply.TaskInfoList[i].CranedList
+				}
+			}
+		}
+		header, tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
+	}
+
+	if FlagStartTime {
+		header = append(header, "StartTime")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].StartTime.String())
 		}
 	}
 
+	if !FlagNoHeader {
+		table.SetHeader(header)
+	}
 	table.AppendBulk(tableData)
 	table.Render()
 }

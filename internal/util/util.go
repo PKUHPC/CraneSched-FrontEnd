@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/olekukonko/tablewriter"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
+	"strings"
 )
 
 type Config struct {
@@ -104,4 +106,41 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	}
 
 	return stub
+}
+
+func SetTableStyle(table *tablewriter.Table) {
+	table.SetBorder(false)
+	table.SetTablePadding("\t")
+	table.SetHeaderLine(false)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(false)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetNoWhiteSpace(true)
+}
+func FormatTable(tableOutputWidth []int, tableHeader []string, tableData [][]string) (formatTableHeader []string, formatTableData [][]string) {
+	for i, h := range tableHeader {
+		padLength := tableOutputWidth[i] - len(h)
+		if padLength > 0 {
+			tableHeader[i] = h + strings.Repeat(" ", padLength)
+		} else {
+			tableHeader[i] = h[-padLength:]
+		}
+	}
+
+	for i, row := range tableData {
+		for j, cell := range row {
+			padLength := tableOutputWidth[j] - len(cell)
+			if padLength > 0 {
+				tableData[i][j] = cell + strings.Repeat(" ", padLength)
+			} else {
+				tableData[i][j] = cell[-padLength:]
+			}
+		}
+	}
+
+	return tableHeader, tableData
 }
