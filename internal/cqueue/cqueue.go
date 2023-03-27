@@ -125,43 +125,47 @@ func Query() {
 			case "j":
 				tableOutputHeader[i] = "TaskId"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10)
+					formatTableData[j][i] = strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10)
 				}
 			case "n":
 				tableOutputHeader[i] = "Name"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = reply.TaskInfoList[i].Name
+					formatTableData[j][i] = reply.TaskInfoList[j].Name
 				}
 			case "t":
 				tableOutputHeader[i] = "Status"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = reply.TaskInfoList[i].Status.String()
+					formatTableData[j][i] = reply.TaskInfoList[j].Status.String()
 				}
 			case "p":
 				tableOutputHeader[i] = "Partition"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = reply.TaskInfoList[i].Partition
+					formatTableData[j][i] = reply.TaskInfoList[j].Partition
 				}
 			case "u":
 				tableOutputHeader[i] = "User"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = reply.TaskInfoList[i].UserName
+					formatTableData[j][i] = reply.TaskInfoList[j].UserName
 				}
 			case "a":
 				tableOutputHeader[i] = "Account"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = reply.TaskInfoList[i].Account
+					formatTableData[j][i] = reply.TaskInfoList[j].Account
 				}
 			case "T":
 				tableOutputHeader[i] = "Type"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = reply.TaskInfoList[i].Type.String()
+					formatTableData[j][i] = reply.TaskInfoList[j].Type.String()
 				}
 			case "N":
 				tableOutputHeader[i] = "NodeIndex"
 				for j := 0; j < len(reply.TaskInfoList); j++ {
-					formatTableData[j][i] = reply.TaskInfoList[i].CranedList
+					formatTableData[j][i] = reply.TaskInfoList[j].CranedList
 				}
+			default:
+				fmt.Println("Invalid format, shorthand reference:\n" +
+					"j-TaskId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, N-NodeIndex")
+				os.Exit(1)
 			}
 		}
 		header, tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
