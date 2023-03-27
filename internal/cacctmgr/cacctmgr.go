@@ -2,6 +2,7 @@ package cacctmgr
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
@@ -139,12 +140,8 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 
 func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
-	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
-	table.SetCenterSeparator("|")
-	table.SetTablePadding("\t")
-	table.SetHeader([]string{"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList"})
-	table.SetAutoFormatHeaders(false)
-
+	util.SetTableStyle(table)
+	header := []string{"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList"}
 	tableData := make([][]string, len(accountList))
 	for _, accountInfo := range accountList {
 		tableData = append(tableData, []string{
@@ -155,6 +152,50 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 			strings.Join(accountInfo.AllowedQosList, ", ")})
 	}
 
+	if FlagFormat != "" {
+		formatTableData := make([][]string, len(accountList))
+		formatReq := strings.Split(FlagFormat, ",")
+		tableOutputHeader := make([]string, len(formatReq))
+		for i := 0; i < len(formatReq); i++ {
+			//"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList"
+			switch formatReq[i] {
+			case "Name":
+				tableOutputHeader[i] = "Name"
+				for j := 0; j < len(accountList); j++ {
+					formatTableData[j] = append(formatTableData[j], accountList[j].Name)
+				}
+			case "Description":
+				tableOutputHeader[i] = "Description"
+				for j := 0; j < len(accountList); j++ {
+					formatTableData[j] = append(formatTableData[j], accountList[j].Description)
+				}
+			case "AllowedPartition":
+				tableOutputHeader[i] = "AllowedPartition"
+				for j := 0; j < len(accountList); j++ {
+					formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].AllowedPartitions, ", "))
+				}
+			case "DefaultQos":
+				tableOutputHeader[i] = "DefaultQos"
+				for j := 0; j < len(accountList); j++ {
+					formatTableData[j] = append(formatTableData[j], accountList[j].DefaultQos)
+				}
+			case "AllowedQosList":
+				tableOutputHeader[i] = "AllowedQosList"
+				for j := 0; j < len(accountList); j++ {
+					formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].AllowedQosList, ", "))
+				}
+			default:
+				fmt.Println("Invalid format.")
+				os.Exit(1)
+			}
+		}
+		header = tableOutputHeader
+		tableData = formatTableData
+	}
+
+	if !FlagNoHeader {
+		table.SetHeader(header)
+	}
 	table.AppendBulk(tableData)
 	table.Render()
 }
