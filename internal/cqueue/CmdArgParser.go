@@ -10,13 +10,13 @@ var (
 	FlagConfigFilePath   string
 	FlagNoHeader         bool
 	FlagStartTime        bool
-	FlagFilterPartitions string
-	FlagFilterJobIDs     string
-	FlagFilterJobNames   string
+	FlagFilterPartitions string //有限制
+	FlagFilterJobIDs     string //不限制
+	FlagFilterJobNames   string //不限制
 	FlagFilterQos        string //to use
-	FlagFilterStates     string
-	FlagFilterUsers      string
-	FlagFilterAccounts   string
+	FlagFilterStates     string //限制
+	FlagFilterUsers      string //限制
+	FlagFilterAccounts   string //限制
 	FlagFormat           string
 	FlagIterate          uint64
 
