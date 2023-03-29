@@ -4,6 +4,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"context"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -24,7 +25,12 @@ func ShowNodes(nodeName string, queryAll bool) {
 			fmt.Printf("No node is avalable.\n")
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
-				fmt.Printf("NodeName=%v State=%v CPUs=%.2f AllocCpus=%.2f FreeCpus=%.2f\n\tRealMemory=%d AllocMem=%d FreeMem=%d\n\tPatition=%s RunningTask=%d\n\n", nodeInfo.Hostname, nodeInfo.State.String(), nodeInfo.Cpus, nodeInfo.AllocCpus, nodeInfo.FreeCpus, nodeInfo.RealMem, nodeInfo.AllocMem, nodeInfo.FreeMem, nodeInfo.PartitionName, nodeInfo.RunningTaskNum)
+				fmt.Printf("NodeName=%v State=%v CPUs=%.2f AllocCpus=%.2f FreeCpus=%.2f\n"+
+					"\tRealMemory=%d AllocMem=%d FreeMem=%d\n"+
+					"\tPatition=%s RunningTask=%d\n\n",
+					nodeInfo.Hostname, nodeInfo.State.String(), nodeInfo.Cpus, nodeInfo.AllocCpus, nodeInfo.FreeCpus,
+					nodeInfo.RealMem, nodeInfo.AllocMem, nodeInfo.FreeMem,
+					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
 	} else {
@@ -32,7 +38,12 @@ func ShowNodes(nodeName string, queryAll bool) {
 			fmt.Printf("Node %s not found.\n", nodeName)
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
-				fmt.Printf("NodeName=%v State=%v CPUs=%.2f AllocCpus=%.2f FreeCpus=%.2f\n\tRealMemory=%d AllocMem=%d FreeMem=%d\n\tPatition=%s RunningTask=%d\n\n", nodeInfo.Hostname, nodeInfo.State.String(), nodeInfo.Cpus, nodeInfo.AllocCpus, nodeInfo.FreeCpus, nodeInfo.RealMem, nodeInfo.AllocMem, nodeInfo.FreeMem, nodeInfo.PartitionName, nodeInfo.RunningTaskNum)
+				fmt.Printf("NodeName=%v State=%v CPUs=%.2f AllocCpus=%.2f FreeCpus=%.2f\n"+
+					"\tRealMemory=%d AllocMem=%d FreeMem=%d\n"+
+					"\tPatition=%s RunningTask=%d\n\n",
+					nodeInfo.Hostname, nodeInfo.State.String(), nodeInfo.Cpus, nodeInfo.AllocCpus, nodeInfo.FreeCpus,
+					nodeInfo.RealMem, nodeInfo.AllocMem, nodeInfo.FreeMem,
+					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
 	}
@@ -52,7 +63,14 @@ func ShowPartitions(partitionName string, queryAll bool) {
 			fmt.Printf("No node is avalable.\n")
 		} else {
 			for _, partitionInfo := range reply.PartitionInfo {
-				fmt.Printf("PartitionName=%v State=%v\n\tTotalNodes=%d AliveNodes=%d\n\tTotalCpus=%.2f AvailCpus=%.2f AllocCpus=%.2f\n\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n", partitionInfo.Name, partitionInfo.State.String(), partitionInfo.TotalNodes, partitionInfo.AliveNodes, partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus, partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
+				fmt.Printf("PartitionName=%v State=%v\n"+
+					"\tTotalNodes=%d AliveNodes=%d\n"+
+					"\tTotalCpus=%.2f AvailCpus=%.2f AllocCpus=%.2f\n"+
+					"\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n",
+					partitionInfo.Name, partitionInfo.State.String(),
+					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
+					partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus,
+					partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
 			}
 		}
 	} else {
@@ -60,7 +78,14 @@ func ShowPartitions(partitionName string, queryAll bool) {
 			fmt.Printf("Partition %s not found.\n", partitionName)
 		} else {
 			for _, partitionInfo := range reply.PartitionInfo {
-				fmt.Printf("PartitionName=%v State=%v\n\tTotalNodes=%d AliveNodes=%d\n\tTotalCpus=%.2f AvailCpus=%.2f AllocCpus=%.2f\n\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n", partitionInfo.Name, partitionInfo.State.String(), partitionInfo.TotalNodes, partitionInfo.AliveNodes, partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus, partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
+				fmt.Printf("PartitionName=%v State=%v\n"+
+					"\tTotalNodes=%d AliveNodes=%d\n"+
+					"\tTotalCpus=%.2f AvailCpus=%.2f AllocCpus=%.2f\n"+
+					"\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n",
+					partitionInfo.Name, partitionInfo.State.String(),
+					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
+					partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus,
+					partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
 			}
 		}
 	}
