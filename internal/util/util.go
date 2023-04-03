@@ -123,24 +123,26 @@ func SetTableStyle(table *tablewriter.Table) {
 }
 func FormatTable(tableOutputWidth []int, tableHeader []string, tableData [][]string) (formatTableHeader []string, formatTableData [][]string) {
 	for i, h := range tableHeader {
-		padLength := tableOutputWidth[i] - len(h)
-		if padLength > 0 {
-			tableHeader[i] = h + strings.Repeat(" ", padLength)
-		} else {
-			tableHeader[i] = h[-padLength:]
-		}
-	}
-
-	for i, row := range tableData {
-		for j, cell := range row {
-			padLength := tableOutputWidth[j] - len(cell)
-			if padLength > 0 {
-				tableData[i][j] = cell + strings.Repeat(" ", padLength)
+		if tableOutputWidth[i] != -1 {
+			padLength := tableOutputWidth[i] - len(h)
+			if padLength >= 0 {
+				tableHeader[i] = h + strings.Repeat(" ", padLength)
 			} else {
-				tableData[i][j] = cell[-padLength:]
+				tableHeader[i] = h[:tableOutputWidth[i]]
 			}
 		}
 	}
-
+	for i, row := range tableData {
+		for j, cell := range row {
+			if tableOutputWidth[j] != -1 {
+				padLength := tableOutputWidth[j] - len(cell)
+				if padLength >= 0 {
+					tableData[i][j] = cell + strings.Repeat(" ", padLength)
+				} else {
+					tableData[i][j] = cell[:tableOutputWidth[j]]
+				}
+			}
+		}
+	}
 	return tableHeader, tableData
 }

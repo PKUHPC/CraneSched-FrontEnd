@@ -10,15 +10,16 @@ var (
 	FlagConfigFilePath   string
 	FlagNoHeader         bool
 	FlagStartTime        bool
-	FlagFilterPartitions string //有限制
+	FlagFilterPartitions string
 	FlagFilterJobIDs     string //不限制
 	FlagFilterJobNames   string //不限制
 	FlagFilterQos        string //to use
-	FlagFilterStates     string //限制
-	FlagFilterUsers      string //限制
-	FlagFilterAccounts   string //限制
+	FlagFilterStates     string
+	FlagFilterUsers      string
+	FlagFilterAccounts   string
 	FlagFormat           string
 	FlagIterate          uint64
+	FlagNumLimit         int32
 
 	RootCmd = &cobra.Command{
 		Use:   "cqueue",
@@ -68,4 +69,6 @@ func init() {
 		"comma separated list of partitions\n"+
 			"to view, default is all partitions")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
+	RootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
+		"print job information for the specified number of lines")
 }
