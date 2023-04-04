@@ -16,6 +16,7 @@ var (
 	FlagFilterUsers    string
 	FlagFilterJobNames string
 	FlagNoHeader       bool
+	FlagNumLimit       int32
 
 	rootCmd = &cobra.Command{
 		Use:   "cacct",
@@ -55,4 +56,6 @@ func init() {
 	rootCmd.Flags().BoolVarP(&FlagNoHeader, "noHeader", "N", false,
 		"no headers on output")
 	rootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
+	rootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
+		"print job information for the specified number of lines")
 }

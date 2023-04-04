@@ -78,6 +78,10 @@ func QueryJob() {
 		request.FilterTaskNames = filterJobNameList
 	}
 
+	if FlagNumLimit != 0 {
+		request.NumLimit = FlagNumLimit
+	}
+
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		panic("QueryJobsInPartition failed: " + err.Error())
