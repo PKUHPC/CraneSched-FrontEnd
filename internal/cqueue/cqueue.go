@@ -84,7 +84,8 @@ func Query() {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetTableStyle(table)
-	header := []string{"TaskId", "Name", "Status", "Partition", "User", "Account", "Type", "NodeIndex", "Nodes", "TimeLimit"}
+	header := []string{"TaskId", "Name", "Status", "Partition", "User",
+		"Account", "Type", "NodeIndex", "Nodes", "TimeLimit"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		tableData[i] = []string{
@@ -150,7 +151,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "j":
 			tableOutputHeader[i] = "TaskId"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
+				formatTableData[j] = append(formatTableData[j],
+					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
 			}
 		case "n":
 			tableOutputHeader[i] = "Name"
@@ -195,7 +197,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "N":
 			tableOutputHeader[i] = "Nodes"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10))
+				formatTableData[j] = append(formatTableData[j],
+					strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10))
 			}
 		default:
 			fmt.Println("Invalid format, shorthand reference:\n" +

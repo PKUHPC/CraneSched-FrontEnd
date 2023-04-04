@@ -43,12 +43,11 @@ func QueryJob() {
 		request.FilterEndTime = timestamppb.New(t)
 	}
 
-	//FlagFilterAccounts string
 	if FlagFilterAccounts != "" {
 		filterAccountList := strings.Split(FlagFilterAccounts, ",")
 		request.FilterAccounts = filterAccountList
 	}
-	//FlagFilterJobIDs   string
+
 	if FlagFilterJobIDs != "" {
 		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
 		request.NumLimit = int32(len(filterJobIdList))
@@ -63,12 +62,12 @@ func QueryJob() {
 		}
 		request.FilterTaskIds = filterJobIdListInt
 	}
-	//FlagFilterUsers    string
+
 	if FlagFilterUsers != "" {
 		filterUserList := strings.Split(FlagFilterUsers, ",")
 		request.FilterUsers = filterUserList
 	}
-	//FlagFilterJobNames string
+
 	if FlagFilterJobNames != "" {
 		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
 		request.FilterTaskNames = filterJobNameList
@@ -104,7 +103,7 @@ func QueryJob() {
 			reply.TaskInfoList[i].Status.String(),
 			exitCode})
 	}
-	//FlagFormat           string
+
 	if FlagFormat != "" {
 		header, tableData = FormatData(reply)
 	}
@@ -129,6 +128,7 @@ func QueryJob() {
 	table.AppendBulk(tableData)
 	table.Render()
 }
+
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
 	formatTableData := make([][]string, len(reply.TaskInfoList))
 	formatReq := strings.Split(FlagFormat, ",")
@@ -156,7 +156,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		switch tableOutputHeader[i] {
 		case "TaskId":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
+				formatTableData[j] = append(formatTableData[j],
+					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
 			}
 		case "TaskName":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -172,7 +173,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			}
 		case "AllocCPUs":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], strconv.FormatFloat(reply.TaskInfoList[j].AllocCpus, 'f', 2, 64))
+				formatTableData[j] = append(formatTableData[j],
+					strconv.FormatFloat(reply.TaskInfoList[j].AllocCpus, 'f', 2, 64))
 			}
 		case "State":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -195,6 +197,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
 }
+
 func Preparation() {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)

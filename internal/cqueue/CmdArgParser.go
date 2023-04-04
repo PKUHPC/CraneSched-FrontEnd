@@ -11,8 +11,8 @@ var (
 	FlagNoHeader         bool
 	FlagStartTime        bool
 	FlagFilterPartitions string
-	FlagFilterJobIDs     string //不限制
-	FlagFilterJobNames   string //不限制
+	FlagFilterJobIDs     string
+	FlagFilterJobNames   string
 	FlagFilterQos        string //to use
 	FlagFilterStates     string
 	FlagFilterUsers      string

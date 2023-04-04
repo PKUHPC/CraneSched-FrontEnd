@@ -121,7 +121,9 @@ func SetTableStyle(table *tablewriter.Table) {
 	table.SetRowSeparator("")
 	table.SetNoWhiteSpace(true)
 }
-func FormatTable(tableOutputWidth []int, tableHeader []string, tableData [][]string) (formatTableHeader []string, formatTableData [][]string) {
+
+func FormatTable(tableOutputWidth []int, tableHeader []string,
+	tableData [][]string) (formatTableHeader []string, formatTableData [][]string) {
 	for i, h := range tableHeader {
 		if tableOutputWidth[i] != -1 {
 			padLength := tableOutputWidth[i] - len(h)
