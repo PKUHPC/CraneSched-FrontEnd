@@ -19,7 +19,7 @@ var (
 func Query() {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
-	req := protos.QueryTasksInfoRequest{QueryAll: false}
+	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
 
 	var stateList []protos.TaskStatus
 	if FlagFilterStates != "" {
@@ -92,7 +92,7 @@ func Query() {
 			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].Partition,
-			reply.TaskInfoList[i].UserName,
+			reply.TaskInfoList[i].Username,
 			reply.TaskInfoList[i].Account,
 			reply.TaskInfoList[i].Type.String(),
 			reply.TaskInfoList[i].CranedList})
@@ -168,7 +168,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "u":
 			tableOutputHeader[i] = "User"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].UserName)
+				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Username)
 			}
 		case "a":
 			tableOutputHeader[i] = "Account"

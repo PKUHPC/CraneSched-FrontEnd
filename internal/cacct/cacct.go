@@ -21,14 +21,10 @@ const (
 	kCraneExitCodeBase = 256
 )
 
-//查询所有状态的作业：内存中，嵌入式数据库，mongodb。
-
+// QueryJob will query all pending, running and completed tasks
 func QueryJob() {
-	request := protos.QueryTasksInfoRequest{QueryAll: true}
-	//过滤：
+	request := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: true}
 
-	//FlagSetStartTime   string 加一列starttime
-	//FlagSetEndTime     string 加一列endtime
 	timeFormat := "2006-01-02T15:04:05"
 	if FlagSetStartTime != "" {
 		t, err := time.Parse(timeFormat, FlagSetStartTime)
@@ -47,12 +43,11 @@ func QueryJob() {
 		request.FilterEndTime = timestamppb.New(t)
 	}
 
-	//FlagFilterAccounts string
 	if FlagFilterAccounts != "" {
 		filterAccountList := strings.Split(FlagFilterAccounts, ",")
 		request.FilterAccounts = filterAccountList
 	}
-	//FlagFilterJobIDs   string
+
 	if FlagFilterJobIDs != "" {
 		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
 		request.NumLimit = int32(len(filterJobIdList))
@@ -67,12 +62,12 @@ func QueryJob() {
 		}
 		request.FilterTaskIds = filterJobIdListInt
 	}
-	//FlagFilterUsers    string
+
 	if FlagFilterUsers != "" {
 		filterUserList := strings.Split(FlagFilterUsers, ",")
 		request.FilterUsers = filterUserList
 	}
-	//FlagFilterJobNames string
+
 	if FlagFilterJobNames != "" {
 		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
 		request.FilterTaskNames = filterJobNameList
