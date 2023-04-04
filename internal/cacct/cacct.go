@@ -43,11 +43,12 @@ func QueryJob() {
 		request.FilterEndTime = timestamppb.New(t)
 	}
 
+	//FlagFilterAccounts string
 	if FlagFilterAccounts != "" {
 		filterAccountList := strings.Split(FlagFilterAccounts, ",")
 		request.FilterAccounts = filterAccountList
 	}
-
+	//FlagFilterJobIDs   string
 	if FlagFilterJobIDs != "" {
 		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
 		request.NumLimit = int32(len(filterJobIdList))
@@ -62,12 +63,12 @@ func QueryJob() {
 		}
 		request.FilterTaskIds = filterJobIdListInt
 	}
-
+	//FlagFilterUsers    string
 	if FlagFilterUsers != "" {
 		filterUserList := strings.Split(FlagFilterUsers, ",")
 		request.FilterUsers = filterUserList
 	}
-
+	//FlagFilterJobNames string
 	if FlagFilterJobNames != "" {
 		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
 		request.FilterTaskNames = filterJobNameList
@@ -107,6 +108,21 @@ func QueryJob() {
 	if FlagFormat != "" {
 		header, tableData = FormatData(reply)
 	}
+
+	if FlagSetStartTime != "" {
+		header = append(header, "StartTime")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].StartTime.AsTime().String())
+		}
+	}
+
+	if FlagSetEndTime != "" {
+		header = append(header, "EndTime")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].EndTime.AsTime().String())
+		}
+	}
+
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}

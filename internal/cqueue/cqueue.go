@@ -84,10 +84,10 @@ func Query() {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetTableStyle(table)
-	header := []string{"TaskId", "Name", "Status", "Partition", "User", "Account", "Type", "NodeIndex"}
+	header := []string{"TaskId", "Name", "Status", "Partition", "User", "Account", "Type", "NodeIndex"} //nodes，timelimit
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
-		tableData = append(tableData, []string{
+		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Status.String(),
@@ -95,7 +95,7 @@ func Query() {
 			reply.TaskInfoList[i].Username,
 			reply.TaskInfoList[i].Account,
 			reply.TaskInfoList[i].Type.String(),
-			reply.TaskInfoList[i].CranedList})
+			reply.TaskInfoList[i].CranedList}
 	}
 
 	if FlagFormat != "" {
