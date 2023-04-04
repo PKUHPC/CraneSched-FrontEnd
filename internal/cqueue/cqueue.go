@@ -84,7 +84,7 @@ func Query() {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetTableStyle(table)
-	header := []string{"TaskId", "Name", "Status", "Partition", "User", "Account", "Type", "NodeIndex"} //nodes，timelimit
+	header := []string{"TaskId", "Name", "Status", "Partition", "User", "Account", "Type", "NodeIndex", "Nodes", "TimeLimit"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		tableData[i] = []string{
@@ -95,7 +95,9 @@ func Query() {
 			reply.TaskInfoList[i].Username,
 			reply.TaskInfoList[i].Account,
 			reply.TaskInfoList[i].Type.String(),
-			reply.TaskInfoList[i].CranedList}
+			reply.TaskInfoList[i].CranedList,
+			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
+			reply.TaskInfoList[i].TimeLimit.String()}
 	}
 
 	if FlagFormat != "" {
@@ -144,7 +146,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		}
 		tableOutputHeader[i] = formatReq[i][len(formatReq[i])-1:]
 		switch tableOutputHeader[i] {
-		//j-TaskId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, N-NodeIndex
+		//j-TaskId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, I-NodeIndex,l-TimeLimit,N-Nodes
 		case "j":
 			tableOutputHeader[i] = "TaskId"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -180,10 +182,20 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Type.String())
 			}
-		case "N":
+		case "I":
 			tableOutputHeader[i] = "NodeIndex"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].CranedList)
+			}
+		case "l":
+			tableOutputHeader[i] = "TimeLimit"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[i].TimeLimit.String())
+			}
+		case "N":
+			tableOutputHeader[i] = "Nodes"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				formatTableData[j] = append(formatTableData[j], strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10))
 			}
 		default:
 			fmt.Println("Invalid format, shorthand reference:\n" +
