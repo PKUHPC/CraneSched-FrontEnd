@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/olekukonko/tablewriter"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -115,6 +116,23 @@ func Query() {
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}
+
+	idx := -1
+	for i, val := range header {
+		if val == "TaskId" {
+			idx = i
+			break
+		}
+	}
+	if idx != -1 {
+		less := func(i, j int) bool {
+			x, _ := strconv.ParseUint(tableData[i][idx], 10, 32)
+			y, _ := strconv.ParseUint(tableData[j][idx], 10, 32)
+			return x < y //Sort by task id column
+		}
+		sort.Slice(tableData, less)
+	}
+
 	table.AppendBulk(tableData)
 	table.Render()
 }

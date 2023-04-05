@@ -8,6 +8,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -94,14 +95,14 @@ func QueryJob() {
 		} else {
 			exitCode = fmt.Sprintf("%d:0", reply.TaskInfoList[i].ExitCode)
 		}
-		tableData = append(tableData, []string{
+		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Partition,
 			reply.TaskInfoList[i].Account,
 			strconv.FormatFloat(reply.TaskInfoList[i].AllocCpus, 'f', 2, 64),
 			reply.TaskInfoList[i].Status.String(),
-			exitCode})
+			exitCode}
 	}
 
 	if FlagFormat != "" {
@@ -125,6 +126,23 @@ func QueryJob() {
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}
+
+	idx := -1
+	for i, val := range header {
+		if val == "TaskId" {
+			idx = i
+			break
+		}
+	}
+	if idx != -1 {
+		less := func(i, j int) bool {
+			x, _ := strconv.ParseUint(tableData[i][idx], 10, 32)
+			y, _ := strconv.ParseUint(tableData[j][idx], 10, 32)
+			return x < y //Sort by task id column
+		}
+		sort.Slice(tableData, less)
+	}
+
 	table.AppendBulk(tableData)
 	table.Render()
 }
