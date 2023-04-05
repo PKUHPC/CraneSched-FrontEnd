@@ -127,6 +127,7 @@ func QueryJob() {
 		table.SetHeader(header)
 	}
 
+	// Get index of "TaskId" column
 	idx := -1
 	for i, val := range header {
 		if val == "TaskId" {
@@ -134,11 +135,13 @@ func QueryJob() {
 			break
 		}
 	}
+
+	// If "TaskId" column exists, sort all rows by descending order of "TaskId".
 	if idx != -1 {
 		less := func(i, j int) bool {
 			x, _ := strconv.ParseUint(tableData[i][idx], 10, 32)
 			y, _ := strconv.ParseUint(tableData[j][idx], 10, 32)
-			return x < y //Sort by task id column
+			return x > y
 		}
 		sort.Slice(tableData, less)
 	}
