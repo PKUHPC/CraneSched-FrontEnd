@@ -13,6 +13,8 @@ var (
 	FlagName       string
 	FlagPartitions []string
 	FlagLevel      string
+	FlagNoHeader   bool
+	FlagFormat     string
 
 	FlagSetDefaultQos  string
 	FlagAllowedQosList []string
@@ -387,6 +389,8 @@ func init() {
 	showCmd.AddCommand(showAccountCmd)
 	showCmd.AddCommand(showUserCmd)
 	showCmd.AddCommand(showQosCmd)
+	showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "no-header", "n", false, "no headers on output")
+	showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	rootCmd.AddCommand(findCmd)
 	findCmd.AddCommand(findAccountCmd)
