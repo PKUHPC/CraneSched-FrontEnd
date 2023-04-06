@@ -389,7 +389,7 @@ func init() {
 	showCmd.AddCommand(showAccountCmd)
 	showCmd.AddCommand(showUserCmd)
 	showCmd.AddCommand(showQosCmd)
-	showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "noHeader", "n", false, "no headers on output")
+	showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "no-header", "n", false, "no headers on output")
 	showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	rootCmd.AddCommand(findCmd)
