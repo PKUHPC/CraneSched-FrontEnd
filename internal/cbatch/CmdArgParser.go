@@ -15,6 +15,7 @@ var (
 	FlagPartition     string
 	FlagJob           string
 	FlagOutput        string
+	FlagAccount       string
 	FlagQos           string
 	FlagCwd           string
 
@@ -41,7 +42,8 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
 	rootCmd.Flags().StringVarP(&FlagOutput, "output", "o", "", "file for batch script's standard output")
 	rootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
-	rootCmd.Flags().StringVarP(&FlagQos, "qos", "Q", "", "QOS used by the job")
+	rootCmd.Flags().StringVarP(&FlagQos, "qos", "Q", "", "QOS used by the task")
+	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
 	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
 
 	if err := rootCmd.Execute(); err != nil {

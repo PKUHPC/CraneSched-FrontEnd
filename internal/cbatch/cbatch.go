@@ -78,6 +78,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 			req.Task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-J", "--job-name":
 			req.Task.Name = arg.val
+		case "-A", "--account":
+			req.Task.Account = arg.val
 		case "--qos", "Q":
 			req.Task.Qos = arg.val
 		case "--chdir":
@@ -122,6 +124,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	}
 	if FlagCwd != "" {
 		req.Task.Cwd = FlagCwd
+	}
+	if FlagAccount != "" {
+		req.Task.Account = FlagAccount
 	}
 
 	if req.Task.CpusPerTask <= 0 || req.Task.NtasksPerNode == 0 || req.Task.NodeNum == 0 {

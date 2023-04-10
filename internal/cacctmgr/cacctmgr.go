@@ -32,11 +32,17 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	//slice to map
 	userMap := make(map[string][]*protos.UserInfo)
 	for _, userInfo := range userList {
-		if list, ok := userMap[userInfo.Account]; ok {
-			userMap[userInfo.Account] = append(list, userInfo)
+		key := ""
+		if userInfo.Account[len(userInfo.Account)-1] == '*' {
+			key = userInfo.Account[:len(userInfo.Account)-1]
+		} else {
+			key = userInfo.Account
+		}
+		if list, ok := userMap[key]; ok {
+			userMap[key] = append(list, userInfo)
 		} else {
 			var list = []*protos.UserInfo{userInfo}
-			userMap[userInfo.Account] = list
+			userMap[key] = list
 		}
 	}
 
@@ -63,7 +69,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 			}
 			for _, allowedPartitionQos := range userInfo.AllowedPartitionQosList {
 				tableData = append(tableData, []string{
-					key,
+					userInfo.Account,
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
 					allowedPartitionQos.PartitionName,
@@ -141,13 +147,14 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
 	util.SetTableStyle(table)
-	header := []string{"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList"}
+	header := []string{"Name", "Description", "AllowedPartition", "Users","DefaultQos", "AllowedQosList"}
 	tableData := make([][]string, len(accountList))
 	for _, accountInfo := range accountList {
 		tableData = append(tableData, []string{
 			accountInfo.Name,
 			accountInfo.Description,
 			strings.Join(accountInfo.AllowedPartitions, ", "),
+			strings.Join(accountInfo.Users, ", "),
 			accountInfo.DefaultQos,
 			strings.Join(accountInfo.AllowedQosList, ", ")})
 	}
@@ -327,19 +334,19 @@ func DeleteAccount(name string) {
 	}
 }
 
-func DeleteUser(name string) {
+func DeleteUser(name string, account string) {
 	var req *protos.DeleteEntityRequest
-	req = &protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name}
+	req = &protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), req)
 	if err != nil {
-		panic("Delete User " + name + " failed: " + err.Error())
+		panic("Remove User " + name + " failed: " + err.Error())
 	}
 	if reply.GetOk() {
-		fmt.Printf("Delete User %s success\n", name)
+		fmt.Printf("Remove User %s success\n", name)
 	} else {
-		fmt.Printf("Delete User %s failed: %s\n", name, reply.GetReason())
+		fmt.Printf("Remove User %s failed: %s\n", name, reply.GetReason())
 	}
 }
 
@@ -367,6 +374,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 		Name:       name,
 		Type:       requestType,
 		EntityType: protos.EntityType_Account,
+		Force:      FlagForce,
 	}
 
 	//fmt.Printf("Req:\n%v\n\n", req)
@@ -381,7 +389,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 	}
 }
 
-func ModifyUser(itemLeft string, itemRight string, name string, partition string, requestType protos.ModifyEntityRequest_OperatorType) {
+func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
 			Error("Unknown admin_level, please enter one of {none, operator, admin}")
@@ -396,6 +404,8 @@ func ModifyUser(itemLeft string, itemRight string, name string, partition string
 		Partition:  partition,
 		Type:       requestType,
 		EntityType: protos.EntityType_User,
+		Account:    account,
+		Force:      FlagForce,
 	}
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
@@ -498,11 +508,11 @@ func FindAccount(name string) {
 	}
 }
 
-func BlockEntity(name string, entityType protos.EntityType, account string) {
-	var req *protos.BlockEntityRequest
-	req = &protos.BlockEntityRequest{Uid: userUid, Block: true, EntityType: entityType, Name: name, Account: account}
+func BlockAccountOrUser(name string, entityType protos.EntityType, account string) {
+	var req *protos.BlockAccountOrUserRequest
+	req = &protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, Name: name, Account: account}
 
-	reply, err := stub.BlockEntity(context.Background(), req)
+	reply, err := stub.BlockAccountOrUser(context.Background(), req)
 	if err != nil {
 		panic("Block entity info failed: " + err.Error())
 	}
@@ -514,11 +524,11 @@ func BlockEntity(name string, entityType protos.EntityType, account string) {
 	}
 }
 
-func UnblockEntity(name string, entityType protos.EntityType, account string) {
-	var req *protos.BlockEntityRequest
-	req = &protos.BlockEntityRequest{Uid: userUid, Block: false, EntityType: entityType, Name: name, Account: account}
+func UnblockAccountOrUser(name string, entityType protos.EntityType, account string) {
+	var req *protos.BlockAccountOrUserRequest
+	req = &protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, Name: name, Account: account}
 
-	reply, err := stub.BlockEntity(context.Background(), req)
+	reply, err := stub.BlockAccountOrUser(context.Background(), req)
 	if err != nil {
 		panic("Unblock entity info failed: " + err.Error())
 	}
