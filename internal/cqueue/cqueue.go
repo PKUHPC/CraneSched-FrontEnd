@@ -50,6 +50,10 @@ func Query() {
 		filterUserList := strings.Split(FlagFilterUsers, ",")
 		req.FilterUsers = filterUserList
 	}
+	if FlagFilterQos != "" {
+		filterJobQosList := strings.Split(FlagFilterQos, ",")
+		req.FilterQos = filterJobQosList
+	}
 	if FlagFilterAccounts != "" {
 		filterAccountList := strings.Split(FlagFilterAccounts, ",")
 		req.FilterAccounts = filterAccountList
@@ -108,6 +112,12 @@ func Query() {
 		header = append(header, "StartTime")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], reply.TaskInfoList[i].StartTime.AsTime().String())
+		}
+	}
+	if FlagFilterQos != "" {
+		header = append(header, "Qos")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
 		}
 	}
 
