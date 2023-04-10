@@ -99,7 +99,7 @@ func Query() {
 			reply.TaskInfoList[i].Type.String(),
 			reply.TaskInfoList[i].CranedList,
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
-			reply.TaskInfoList[i].TimeLimit.String()}
+			util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds)}
 	}
 
 	if FlagFormat != "" {

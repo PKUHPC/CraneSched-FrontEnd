@@ -148,3 +148,19 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 	}
 	return tableHeader, tableData
 }
+
+func SecondTimeFormat(second int64) string {
+	timeFormat := ""
+	dd := second / 24 / 3600
+	second %= 24 * 3600
+	hh := second / 3600
+	second %= 3600
+	mm := second / 60
+	ss := second % 60
+	if dd > 0 {
+		timeFormat = fmt.Sprintf("%d-%02d:%02d:%02d", dd, hh, mm, ss)
+	} else {
+		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
+	}
+	return timeFormat
+}
