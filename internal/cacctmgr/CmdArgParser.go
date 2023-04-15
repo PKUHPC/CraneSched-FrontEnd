@@ -16,8 +16,8 @@ var (
 	FlagQosName     string
 	FlagAccountName string
 	FlagForce       bool
-	FlagNoHeader   bool
-	FlagFormat     string
+	FlagNoHeader    bool
+	FlagFormat      string
 
 	FlagSetDefaultQos  string
 	FlagAllowedQosList []string
@@ -230,7 +230,7 @@ var (
 		Short:   "Display user table",
 		Long:    "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowUser("")
+			ShowUser("", FlagAccountName)
 		},
 	}
 	showQosCmd = &cobra.Command{
@@ -263,7 +263,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowUser(args[0])
+			ShowUser(args[0], FlagAccountName)
 		},
 	}
 	findQosCmd = &cobra.Command{
@@ -442,10 +442,12 @@ func init() {
 	showCmd.AddCommand(showQosCmd)
 	showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "no-header", "n", false, "no headers on output")
 	showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
+	showUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	rootCmd.AddCommand(findCmd)
 	findCmd.AddCommand(findAccountCmd)
 	findCmd.AddCommand(findUserCmd)
+	findUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
 	findCmd.AddCommand(findQosCmd)
 	/* --------------------------------------------------- block ---------------------------------------------------- */
 	rootCmd.AddCommand(blockCmd)

@@ -50,7 +50,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
 	table.SetCenterSeparator("|")
 	table.SetTablePadding("\t")
-	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel"})
+	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "enable"})
 	table.SetAutoFormatHeaders(false)
 	tableData := make([][]string, len(userMap))
 
@@ -75,7 +75,8 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 					allowedPartitionQos.PartitionName,
 					strings.Join(allowedPartitionQos.QosList, ", "),
 					allowedPartitionQos.DefaultQos,
-					fmt.Sprintf("%v", userInfo.AdminLevel)})
+					fmt.Sprintf("%v", userInfo.AdminLevel),
+					strconv.FormatBool(userInfo.Enable)})
 			}
 		}
 	}
@@ -147,7 +148,7 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
 	util.SetTableStyle(table)
-	header := []string{"Name", "Description", "AllowedPartition", "Users","DefaultQos", "AllowedQosList"}
+	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "enable"}
 	tableData := make([][]string, len(accountList))
 	for _, accountInfo := range accountList {
 		tableData = append(tableData, []string{
@@ -156,7 +157,8 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 			strings.Join(accountInfo.AllowedPartitions, ", "),
 			strings.Join(accountInfo.Users, ", "),
 			accountInfo.DefaultQos,
-			strings.Join(accountInfo.AllowedQosList, ", ")})
+			strings.Join(accountInfo.AllowedQosList, ", "),
+			strconv.FormatBool(accountInfo.Enable)})
 	}
 
 	if FlagFormat != "" {
@@ -456,9 +458,9 @@ func ShowAccounts() {
 	}
 }
 
-func ShowUser(name string) {
+func ShowUser(name string, account string) {
 	var req *protos.QueryEntityInfoRequest
-	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name}
+	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
