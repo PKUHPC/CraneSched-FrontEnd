@@ -50,7 +50,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
 	table.SetCenterSeparator("|")
 	table.SetTablePadding("\t")
-	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "enable"})
+	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "blocked"})
 	table.SetAutoFormatHeaders(false)
 	tableData := make([][]string, len(userMap))
 
@@ -76,7 +76,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 					strings.Join(allowedPartitionQos.QosList, ", "),
 					allowedPartitionQos.DefaultQos,
 					fmt.Sprintf("%v", userInfo.AdminLevel),
-					strconv.FormatBool(userInfo.Enable)})
+					strconv.FormatBool(userInfo.Blocked)})
 			}
 		}
 	}
@@ -147,8 +147,8 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 
 func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
-	util.SetTableStyle(table)
-	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "enable"}
+	util.SetBorderTable(table)
+	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "blocked"}
 	tableData := make([][]string, len(accountList))
 	for _, accountInfo := range accountList {
 		tableData = append(tableData, []string{
@@ -158,7 +158,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 			strings.Join(accountInfo.Users, ", "),
 			accountInfo.DefaultQos,
 			strings.Join(accountInfo.AllowedQosList, ", "),
-			strconv.FormatBool(accountInfo.Enable)})
+			strconv.FormatBool(accountInfo.Blocked)})
 	}
 
 	if FlagFormat != "" {
@@ -371,8 +371,8 @@ func DeleteQos(name string) {
 func ModifyAccount(itemLeft string, itemRight string, name string, requestType protos.ModifyEntityRequest_OperatorType) {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
-		Lhs:        itemLeft,
-		Rhs:        itemRight,
+		Item:       itemLeft,
+		Value:      itemRight,
 		Name:       name,
 		Type:       requestType,
 		EntityType: protos.EntityType_Account,
@@ -400,8 +400,8 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
-		Lhs:        itemLeft,
-		Rhs:        itemRight,
+		Item:       itemLeft,
+		Value:      itemRight,
 		Name:       name,
 		Partition:  partition,
 		Type:       requestType,
@@ -424,8 +424,8 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 func ModifyQos(itemLeft string, itemRight string, name string) {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
-		Lhs:        itemLeft,
-		Rhs:        itemRight,
+		Item:       itemLeft,
+		Value:      itemRight,
 		Name:       name,
 		Type:       protos.ModifyEntityRequest_Overwrite,
 		EntityType: protos.EntityType_Qos,

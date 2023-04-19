@@ -84,7 +84,7 @@ func Query() {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	util.SetTableStyle(table)
+	util.SetBorderlessTable(table)
 	header := []string{"TaskId", "Name", "Status", "Partition", "User",
 		"Account", "Type", "NodeIndex", "Nodes", "TimeLimit"}
 	tableData := make([][]string, len(reply.TaskInfoList))

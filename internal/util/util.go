@@ -108,7 +108,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	return stub
 }
 
-func SetTableStyle(table *tablewriter.Table) {
+func SetBorderlessTable(table *tablewriter.Table) {
 	table.SetBorder(false)
 	table.SetTablePadding("\t")
 	table.SetHeaderLine(false)
@@ -120,6 +120,14 @@ func SetTableStyle(table *tablewriter.Table) {
 	table.SetColumnSeparator("")
 	table.SetRowSeparator("")
 	table.SetNoWhiteSpace(true)
+}
+
+func SetBorderTable(table *tablewriter.Table) {
+	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
+	table.SetCenterSeparator("|")
+	table.SetTablePadding("\t")
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 }
 
 func FormatTable(tableOutputWidth []int, tableHeader []string,
