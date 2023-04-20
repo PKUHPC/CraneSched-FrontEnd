@@ -403,7 +403,7 @@ func init() {
 	modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 	err = modifyAccountCmd.MarkFlagRequired("name")
 	if err != nil {
-		Error("Can't mark 'name' flag required")
+		util.Error("Can't mark 'name' flag required")
 	}
 
 	modifyCmd.AddCommand(modifyUserCmd)
@@ -423,7 +423,7 @@ func init() {
 	modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 	err = modifyUserCmd.MarkFlagRequired("name")
 	if err != nil {
-		Error("Can't mark 'name' flag required")
+		util.Error("Can't mark 'name' flag required")
 	}
 
 	modifyCmd.AddCommand(modifyQosCmd)

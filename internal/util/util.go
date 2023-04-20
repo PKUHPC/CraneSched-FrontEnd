@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 )
 
@@ -171,4 +172,10 @@ func SecondTimeFormat(second int64) string {
 		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
 	}
 	return timeFormat
+}
+
+func Error(inf string, args ...interface{}) {
+	out := fmt.Sprintf(inf, args...)
+	fmt.Println(out)
+	os.Exit(1)
 }
