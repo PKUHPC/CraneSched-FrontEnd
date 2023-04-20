@@ -35,8 +35,7 @@ func cinfoFunc() {
 			case "down":
 				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 			default:
-				fmt.Fprintf(os.Stderr, "Invalid state given: %s\n", filterCranedStateList[i])
-				os.Exit(1)
+				util.Error("Invalid state given: %s\n", filterCranedStateList[i])
 			}
 		}
 		req.FilterCranedStates = stateList

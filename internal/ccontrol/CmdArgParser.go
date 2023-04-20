@@ -10,8 +10,9 @@ import (
 var (
 	FlagNodeName      string
 	FlagPartitionName string
-	FlagJobId         uint32
+	FlagTaskId        uint32
 	FlagQueryAll      bool
+	FlagTimeLimit     string
 
 	FlagConfigFilePath string
 
@@ -71,10 +72,18 @@ var (
 				FlagQueryAll = true
 			} else {
 				id, _ := strconv.Atoi(args[0])
-				FlagJobId = uint32(id)
+				FlagTaskId = uint32(id)
 				FlagQueryAll = false
 			}
-			ShowJobs(FlagJobId, FlagQueryAll)
+			ShowJobs(FlagTaskId, FlagQueryAll)
+		},
+	}
+	updateCmd = &cobra.Command{
+		Use:   "update",
+		Short: "Modify job information",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
 		},
 	}
 )
@@ -93,4 +102,11 @@ func init() {
 	showCmd.AddCommand(showNodeCmd)
 	showCmd.AddCommand(showPartitionCmd)
 	showCmd.AddCommand(showJobCmd)
+	rootCmd.AddCommand(updateCmd)
+	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
+	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time_limit", "T", "", "time limit")
+	err := updateCmd.MarkFlagRequired("job")
+	if err != nil {
+		return
+	}
 }
