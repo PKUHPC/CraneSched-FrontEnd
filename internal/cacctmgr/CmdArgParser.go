@@ -18,6 +18,7 @@ var (
 	FlagForce       bool
 	FlagNoHeader    bool
 	FlagFormat      string
+	FlagCoordinate  bool
 
 	FlagSetDefaultQos  string
 	FlagAllowedQosList []string
@@ -59,7 +60,7 @@ var (
 		Short: "Add a new user",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			AddUser(&FlagUser, FlagPartitions, FlagLevel)
+			AddUser(&FlagUser, FlagPartitions, FlagLevel, FlagCoordinate)
 		},
 	}
 	addQosCmd = &cobra.Command{
@@ -355,6 +356,7 @@ func init() {
 	addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Parent account")
 	addUserCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "p", nil, "The partition list which this account has access to")
 	addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level(none/operator/admin)")
+	addUserCmd.Flags().BoolVarP(&FlagCoordinate, "coordinate", "c", false, "Set whether the user is the coordinator of the parent account")
 	err = addUserCmd.MarkFlagRequired("name")
 	if err != nil {
 		return

@@ -264,7 +264,7 @@ func AddAccount(account *protos.AccountInfo) {
 	}
 }
 
-func AddUser(user *protos.UserInfo, partition []string, level string) {
+func AddUser(user *protos.UserInfo, partition []string, level string, coordinate bool) {
 	lu, err := OSUser.Lookup(user.Name)
 	if err != nil {
 		log.Fatal(err)
@@ -288,6 +288,10 @@ func AddUser(user *protos.UserInfo, partition []string, level string) {
 		user.AdminLevel = protos.UserInfo_Operator
 	} else if level == "admin" {
 		user.AdminLevel = protos.UserInfo_Admin
+	}
+
+	if coordinate {
+		user.CoordinatorAccounts = append(user.CoordinatorAccounts, user.Account)
 	}
 
 	//fmt.Printf("Req:\n%v\n\n", req)
