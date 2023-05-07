@@ -104,12 +104,18 @@ func cinfoFunc() {
 					partitionCraned.CranedAbstractNodesRegex,
 				})
 			}
+
 		} else {
 			if FlagFormat != "" {
 				var tableHeader []string
 				var tableRow []string
 				var tableOutputWidth []int
 				var alphabets []string
+				var NodelistInfoSplit []string
+				alphaIndex := make(map[string][]int)
+				for i, alpha := range alphabets {
+					alphaIndex[alpha] = append(alphaIndex[alpha], i)
+				}
 				table.SetHeader(tableHeader)
 
 				pattern := `^%(?:\.(\d+))?([a-zA-Z])(,.*)?$`
@@ -132,41 +138,47 @@ func cinfoFunc() {
 					}
 					letter := match[2]
 					alphabets = append(alphabets, string(letter))
+					alphaIndex[string(letter)] = append(
+						alphaIndex[string(letter)], len(alphabets)-1)
 				}
+
 				for _, partitionCraned := range reply.Partitions {
-					tableRow = []string{}
-					tableHeader = []string{}
-					for i := 0; i < len(alphabets); i++ {
-						switch alphabets[i] {
-						case "P":
-							tableRow = append(tableRow, partitionCraned.Name)
-							tableHeader = append(tableHeader, "PARTITION")
-						case "F":
-							tableRow = append(tableRow, partitionCraned.AbstractInfo)
-							tableHeader = append(tableHeader, "NODES(A/I/O/T)")
-						}
-					}
-					for _, commonCranedStateList := range partitionCraned.CranedLists {
-						if commonCranedStateList.Count > 0 {
-							for i := 0; i < len(alphabets); i++ {
-								switch alphabets[i] {
-								case "a":
-									tableRow = append(tableRow, strings.ToLower(partitionCraned.State.String()[10:]))
-									tableHeader = append(tableHeader, "AVAIL")
-								case "D":
-									tableRow = append(tableRow, strconv.FormatUint(uint64(commonCranedStateList.Count), 10))
-									tableHeader = append(tableHeader, "NODES")
-								case "N":
-									tableRow = append(tableRow, commonCranedStateList.CranedListRegex)
-									tableHeader = append(tableHeader, "NODELIST")
-								case "l":
-									tableRow = append(tableRow, "infinite")
-									tableHeader = append(tableHeader, "TIMELIMIT")
+					tableRow = make([]string, len(alphabets))
+					tableHeader = make([]string, len(alphabets))
+					for _, alpha := range alphabets {
+						for _, idx := range alphaIndex[string(alpha)] {
+							if idx >= len(tableHeader) {
+								break
+							}
+							switch alpha {
+							case "P":
+								tableHeader[idx] = "PARTITION"
+								tableRow[idx] = partitionCraned.Name
+							case "F":
+								tableHeader[idx] = "NODES(A/I/O/T)"
+								tableRow[idx] = partitionCraned.AbstractInfo
+							case "a":
+								tableHeader[idx] = "AVAIL"
+								tableRow[idx] = strings.ToLower(partitionCraned.State.String()[10:])
+							case "D":
+								tableHeader[idx] = "NODES"
+								NodelistInfoSplit = strings.Split(partitionCraned.AbstractInfo, "/")
+								if len(NodelistInfoSplit) > 0 {
+									lastInfo := NodelistInfoSplit[len(NodelistInfoSplit)-1]
+									tableRow[idx] = lastInfo
 								}
+							case "l":
+								tableHeader[idx] = "TIMELIMIT"
+								tableRow[idx] = "infinite"
+							default:
+								fmt.Printf("Invalid alphabet: %s\n", alpha)
+								os.Exit(1)
 							}
 						}
 					}
-					tableData = append(tableData, tableRow)
+					copiedRow := make([]string, len(tableRow))
+					copy(copiedRow, tableRow)
+					tableData = append(tableData, copiedRow)
 				}
 				util.FormatTable(tableOutputWidth, tableHeader, tableData)
 				table.SetHeader(tableHeader)
