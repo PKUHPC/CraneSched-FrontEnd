@@ -10,16 +10,20 @@ import (
 )
 
 var (
-	FlagName       string
-	FlagPartitions []string
-	FlagLevel      string
-	FlagNoHeader   bool
-	FlagFormat     string
+	FlagName        string
+	FlagPartitions  []string
+	FlagLevel       string
+	FlagQosName     string
+	FlagAccountName string
+	FlagForce       bool
+	FlagNoHeader    bool
+	FlagFormat      string
+	FlagCoordinate  bool
 
 	FlagSetDefaultQos  string
 	FlagAllowedQosList []string
 
-	FlagPartitionFilter string
+	FlagPartition string
 
 	FlagAccount protos.AccountInfo
 	FlagUser    protos.UserInfo
@@ -56,7 +60,7 @@ var (
 		Short: "Add a new user",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			AddUser(&FlagUser, FlagPartitions, FlagLevel)
+			AddUser(&FlagUser, FlagPartitions, FlagLevel, FlagCoordinate)
 		},
 	}
 	addQosCmd = &cobra.Command{
@@ -69,8 +73,8 @@ var (
 	}
 	/* --------------------------------------------------- remove --------------------------------------------------- */
 	removeCmd = &cobra.Command{
-		Use:     "remove",
-		Aliases: []string{"delete"},
+		Use:     "delete",
+		Aliases: []string{"remove"},
 		Short:   "Delete entity",
 		Long:    "",
 	}
@@ -89,7 +93,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			DeleteUser(args[0])
+			DeleteUser(args[0], FlagName)
 		},
 	}
 	removeQosCmd = &cobra.Command{
@@ -121,21 +125,21 @@ var (
 			if cmd.Flags().Changed("description") { //See if a flag was set by the user
 				ModifyAccount("description", FlagAccount.Description, FlagName, protos.ModifyEntityRequest_Overwrite)
 			}
-			if cmd.Flags().Changed("parent") {
-				ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
-			}
-			if cmd.Flags().Changed("set_allowed_partitions") {
-				ModifyAccount("allowed_partitions", strings.Join(FlagAccount.AllowedPartitions, ","), FlagName, protos.ModifyEntityRequest_Overwrite)
-			} else if cmd.Flags().Changed("add_allowed_partitions") {
-				ModifyAccount("allowed_partitions", strings.Join(FlagAccount.AllowedPartitions, ","), FlagName, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_allowed_partitions") {
-				ModifyAccount("allowed_partitions", strings.Join(FlagAccount.AllowedPartitions, ","), FlagName, protos.ModifyEntityRequest_Delete)
+			//if cmd.Flags().Changed("parent") {
+			//	ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
+			//}
+			if cmd.Flags().Changed("set_allowed_partition") {
+				ModifyAccount("allowed_partition", strings.Join(FlagAccount.AllowedPartitions, ","), FlagName, protos.ModifyEntityRequest_Overwrite)
+			} else if cmd.Flags().Changed("add_allowed_partition") {
+				ModifyAccount("allowed_partition", FlagPartition, FlagName, protos.ModifyEntityRequest_Add)
+			} else if cmd.Flags().Changed("delete_allowed_partition") {
+				ModifyAccount("allowed_partition", FlagPartition, FlagName, protos.ModifyEntityRequest_Delete)
 			}
 			if cmd.Flags().Changed("set_allowed_qos_list") {
 				ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Overwrite)
 			} else if cmd.Flags().Changed("add_allowed_qos_list") {
 				ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_qos_list") {
+			} else if cmd.Flags().Changed("delete_allowed_qos_list") {
 				ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Delete)
 			}
 			if cmd.Flags().Changed("default_qos") {
@@ -155,28 +159,25 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			if cmd.Flags().Changed("account") { //See if a flag was set by the user
-				ModifyUser("account", FlagUser.Account, FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Overwrite)
+			if cmd.Flags().Changed("admin_level") { //See if a flag was set by the user
+				ModifyUser("admin_level", FlagLevel, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			}
-			if cmd.Flags().Changed("admin_level") {
-				ModifyUser("admin_level", FlagLevel, FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Overwrite)
-			}
-			if cmd.Flags().Changed("set_allowed_partitions") {
-				ModifyUser("allowed_partitions", strings.Join(FlagPartitions, ","), FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Overwrite)
-			} else if cmd.Flags().Changed("add_allowed_partitions") {
-				ModifyUser("allowed_partitions", strings.Join(FlagPartitions, ","), FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_allowed_partitions") {
-				ModifyUser("allowed_partitions", strings.Join(FlagPartitions, ","), FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Delete)
+			if cmd.Flags().Changed("set_allowed_partition") {
+				ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+			} else if cmd.Flags().Changed("add_allowed_partition") {
+				ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Add)
+			} else if cmd.Flags().Changed("delete_allowed_partition") {
+				ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Delete)
 			}
 			if cmd.Flags().Changed("set_allowed_qos_list") {
-				ModifyUser("allowed_qos_list", strings.Join(FlagAllowedQosList, ","), FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Overwrite)
+				ModifyUser("allowed_qos_list", strings.Join(FlagAllowedQosList, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			} else if cmd.Flags().Changed("add_allowed_qos_list") {
-				ModifyUser("allowed_qos_list", strings.Join(FlagAllowedQosList, ","), FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_qos_list") {
-				ModifyUser("allowed_qos_list", strings.Join(FlagAllowedQosList, ","), FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Delete)
+				ModifyUser("allowed_qos_list", FlagQosName, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Add)
+			} else if cmd.Flags().Changed("delete_allowed_qos_list") {
+				ModifyUser("allowed_qos_list", FlagQosName, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Delete)
 			}
 			if cmd.Flags().Changed("default_qos") {
-				ModifyUser("default_qos", FlagSetDefaultQos, FlagName, FlagPartitionFilter, protos.ModifyEntityRequest_Overwrite)
+				ModifyUser("default_qos", FlagSetDefaultQos, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			}
 		},
 	}
@@ -230,7 +231,7 @@ var (
 		Short:   "Display user table",
 		Long:    "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowUser("")
+			ShowUser("", FlagAccountName)
 		},
 	}
 	showQosCmd = &cobra.Command{
@@ -244,7 +245,7 @@ var (
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	findCmd = &cobra.Command{
 		Use:     "find",
-		Aliases: []string{"search"},
+		Aliases: []string{"search", "query"},
 		Short:   "Find a specific entity",
 		Long:    "",
 	}
@@ -263,7 +264,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowUser(args[0])
+			ShowUser(args[0], FlagAccountName)
 		},
 	}
 	findQosCmd = &cobra.Command{
@@ -273,6 +274,54 @@ var (
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowQos(args[0])
+		},
+	}
+	/* --------------------------------------------------- block ---------------------------------------------------- */
+	blockCmd = &cobra.Command{
+		Use:   "block",
+		Short: "Block the entity so that it cannot be used",
+		Long:  "",
+	}
+	blockAccountCmd = &cobra.Command{
+		Use:   "account",
+		Short: "Block an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			BlockAccountOrUser(args[0], protos.EntityType_Account, "")
+		},
+	}
+	blockUserCmd = &cobra.Command{
+		Use:   "user",
+		Short: "Block a user under an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			BlockAccountOrUser(args[0], protos.EntityType_User, FlagName)
+		},
+	}
+	/* -------------------------------------------------- unblock --------------------------------------------------- */
+	unblockCmd = &cobra.Command{
+		Use:   "unblock",
+		Short: "Unblock the entity",
+		Long:  "",
+	}
+	unblockAccountCmd = &cobra.Command{
+		Use:   "account",
+		Short: "Unblock an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			UnblockAccountOrUser(args[0], protos.EntityType_Account, "")
+		},
+	}
+	unblockUserCmd = &cobra.Command{
+		Use:   "user",
+		Short: "Unblock a user under an account",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			UnblockAccountOrUser(args[0], protos.EntityType_User, FlagName)
 		},
 	}
 )
@@ -307,6 +356,7 @@ func init() {
 	addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Parent account")
 	addUserCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "p", nil, "The partition list which this account has access to")
 	addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level(none/operator/admin)")
+	addUserCmd.Flags().BoolVarP(&FlagCoordinate, "coordinate", "c", false, "Set whether the user is the coordinator of the parent account")
 	err = addUserCmd.MarkFlagRequired("name")
 	if err != nil {
 		return
@@ -333,21 +383,23 @@ func init() {
 	removeCmd.AddCommand(removeAccountCmd)
 	removeCmd.AddCommand(removeUserCmd)
 	removeCmd.AddCommand(removeQosCmd)
+	removeUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Remove user from this account")
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
 	rootCmd.AddCommand(modifyCmd)
 
 	modifyCmd.AddCommand(modifyAccountCmd)
 	modifyAccountCmd.Flags().StringVarP(&FlagAccount.Description, "description", "D", "", "Modify information to describe account")
-	modifyAccountCmd.Flags().StringVarP(&FlagAccount.ParentAccount, "parent", "P", "", "Modify parent account")
+	//modifyAccountCmd.Flags().StringVarP(&FlagAccount.ParentAccount, "parent", "P", "", "Modify parent account")
 	modifyAccountCmd.Flags().StringVarP(&FlagAccount.DefaultQos, "default_qos", "Q", "", "Modify default qos of the account")
-	modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set_allowed_partitions", nil, "Set the content of the allowed partition list")
+	modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set_allowed_partition", nil, "Set the content of the allowed partition list")
 	modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set_allowed_qos_list", nil, "Set the content of the allowed qos list")
-	modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "add_allowed_partitions", nil, "Add some new items to the allowed partition list")
+	modifyAccountCmd.Flags().StringVar(&FlagPartition, "add_allowed_partition", "", "Add a new item to the allowed partition list")
 	modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "add_allowed_qos_list", nil, "Add some new items to the allowed qos list")
-	modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "delete_allowed_partitions", nil, "Delete some specific items from allowed partition list")
+	modifyAccountCmd.Flags().StringVar(&FlagPartition, "delete_allowed_partition", "", "Delete a specific item from allowed partition list")
 	modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "delete_allowed_qos_list", nil, "Delete some specific items from allowed qos list")
 	modifyAccountCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Name of the account being modified")
-	modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_partitions", "add_allowed_partitions", "delete_allowed_partitions")
+	modifyAccountCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
+	modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
 	modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 	err = modifyAccountCmd.MarkFlagRequired("name")
 	if err != nil {
@@ -355,18 +407,19 @@ func init() {
 	}
 
 	modifyCmd.AddCommand(modifyUserCmd)
-	modifyUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Modify account")
 	modifyUserCmd.Flags().StringVarP(&FlagSetDefaultQos, "default_qos", "Q", "", "Modify default qos")
 	modifyUserCmd.Flags().StringVarP(&FlagLevel, "admin_level", "L", "", "Modify admin level(none/operator/admin)")
-	modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "set_allowed_partitions", nil, "Set the content of the allowed partition list")
+	modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "set_allowed_partition", nil, "Set the content of the allowed partition list")
 	modifyUserCmd.Flags().StringSliceVar(&FlagAllowedQosList, "set_allowed_qos_list", nil, "Set the content of the allowed qos list")
-	modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "add_allowed_partitions", nil, "Add some new items to the allowed partition list")
-	modifyUserCmd.Flags().StringSliceVar(&FlagAllowedQosList, "add_allowed_qos_list", nil, "Add some new items to the allowed qos list")
-	modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "delete_allowed_partitions", nil, "Delete some specific items from allowed partition list")
-	modifyUserCmd.Flags().StringSliceVar(&FlagAllowedQosList, "delete_allowed_qos_list", nil, "Delete some specific items from allowed qos list")
+	modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "add_allowed_partition", nil, "Add some new items to the allowed partition list")
+	modifyUserCmd.Flags().StringVar(&FlagQosName, "add_allowed_qos_list", "", "Add a new item to the allowed qos list")
+	modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "delete_allowed_partition", nil, "Delete some specific items from allowed partition list")
+	modifyUserCmd.Flags().StringVar(&FlagQosName, "delete_allowed_qos_list", "", "Delete a specific item from allowed qos list")
 	modifyUserCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Name of the user being modified")
-	modifyUserCmd.Flags().StringVarP(&FlagPartitionFilter, "partition", "p", "", "Partition which being modified, if this parameter is not set explicitly, all partitions are modified by default")
-	modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_partitions", "add_allowed_partitions", "delete_allowed_partitions")
+	modifyUserCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition which being modified, if this parameter is not set explicitly, all partitions are modified by default")
+	modifyUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "Set the account used by the user")
+	modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
+	modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
 	modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 	err = modifyUserCmd.MarkFlagRequired("name")
 	if err != nil {
@@ -391,9 +444,29 @@ func init() {
 	showCmd.AddCommand(showQosCmd)
 	showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "no-header", "n", false, "no headers on output")
 	showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
+	showUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	rootCmd.AddCommand(findCmd)
 	findCmd.AddCommand(findAccountCmd)
 	findCmd.AddCommand(findUserCmd)
+	findUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
 	findCmd.AddCommand(findQosCmd)
+	/* --------------------------------------------------- block ---------------------------------------------------- */
+	rootCmd.AddCommand(blockCmd)
+	blockCmd.AddCommand(blockAccountCmd)
+	blockCmd.AddCommand(blockUserCmd)
+	blockUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "The account where the user resides")
+	err = blockUserCmd.MarkFlagRequired("account")
+	if err != nil {
+		return
+	}
+	/* -------------------------------------------------- unblock --------------------------------------------------- */
+	rootCmd.AddCommand(unblockCmd)
+	unblockCmd.AddCommand(unblockAccountCmd)
+	unblockCmd.AddCommand(unblockUserCmd)
+	unblockUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "The account where the user resides")
+	err = unblockCmd.MarkFlagRequired("account")
+	if err != nil {
+		return
+	}
 }

@@ -108,7 +108,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	return stub
 }
 
-func SetTableStyle(table *tablewriter.Table) {
+func SetBorderlessTable(table *tablewriter.Table) {
 	table.SetBorder(false)
 	table.SetTablePadding("\t")
 	table.SetHeaderLine(false)
@@ -120,6 +120,14 @@ func SetTableStyle(table *tablewriter.Table) {
 	table.SetColumnSeparator("")
 	table.SetRowSeparator("")
 	table.SetNoWhiteSpace(true)
+}
+
+func SetBorderTable(table *tablewriter.Table) {
+	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
+	table.SetCenterSeparator("|")
+	table.SetTablePadding("\t")
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 }
 
 func FormatTable(tableOutputWidth []int, tableHeader []string,
@@ -147,4 +155,20 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 		}
 	}
 	return tableHeader, tableData
+}
+
+func SecondTimeFormat(second int64) string {
+	timeFormat := ""
+	dd := second / 24 / 3600
+	second %= 24 * 3600
+	hh := second / 3600
+	second %= 3600
+	mm := second / 60
+	ss := second % 60
+	if dd > 0 {
+		timeFormat = fmt.Sprintf("%d-%02d:%02d:%02d", dd, hh, mm, ss)
+	} else {
+		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
+	}
+	return timeFormat
 }

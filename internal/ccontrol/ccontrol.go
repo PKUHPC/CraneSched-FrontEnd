@@ -2,6 +2,7 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 	"strings"
@@ -129,10 +130,10 @@ func ShowJobs(taskId uint32, queryAll bool) {
 			}
 
 			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
-				"TimeLimit=%v SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
+				"TimeLimit=%s SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
 				"NumNodes=%d\n\tCmdLine=%v Workdir=%v\n",
 				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
-				taskInfo.Account, taskInfo.Status.String(), runTime, taskInfo.TimeLimit.String(),
+				taskInfo.Account, taskInfo.Status.String(), runTime, util.SecondTimeFormat(taskInfo.TimeLimit.Seconds),
 				timeStartStr, timeStartStr, timeEndStr, taskInfo.Partition,
 				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
