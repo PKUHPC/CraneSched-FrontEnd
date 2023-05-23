@@ -167,11 +167,18 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 		util.Error("The second time format error")
 	}
 
-	seconds := strconv.Itoa(int(60*60*24*dd + 60*60*hh + 60*mm + ss))
+	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
 
 	var req *protos.ModifyTaskRequest
 
-	req = &protos.ModifyTaskRequest{Uid: uint32(os.Getuid()), Item: "time_limit", Value: seconds, TaskId: taskId}
+	req = &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskId:    taskId,
+		Attribute: protos.ModifyTaskRequest_TimeLimit,
+		Value: &protos.ModifyTaskRequest_TimeLimitSeconds{
+			TimeLimitSeconds: seconds,
+		},
+	}
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		panic("ModifyTask failed: " + err.Error())
