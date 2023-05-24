@@ -104,7 +104,7 @@ func init() {
 	showCmd.AddCommand(showTaskCmd)
 	rootCmd.AddCommand(updateCmd)
 	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
-	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time_limit", "T", "", "time limit")
+	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
 	err := updateCmd.MarkFlagRequired("job")
 	if err != nil {
 		return
