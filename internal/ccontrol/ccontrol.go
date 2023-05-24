@@ -95,7 +95,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 	}
 }
 
-func ShowJobs(taskId uint32, queryAll bool) {
+func ShowTasks(taskId uint32, queryAll bool) {
 	var req *protos.QueryTasksInfoRequest
 	var taskIdList []uint32
 	taskIdList = append(taskIdList, taskId)
