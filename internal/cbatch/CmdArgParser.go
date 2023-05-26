@@ -18,7 +18,6 @@ var (
 	FlagAccount       string
 	FlagQos           string
 	FlagCwd           string
-	FlagQos           string
 
 	FlagConfigFilePath string
 )
