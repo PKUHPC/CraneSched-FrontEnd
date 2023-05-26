@@ -5,6 +5,9 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
+	"os"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -92,7 +95,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 	}
 }
 
-func ShowJobs(taskId uint32, queryAll bool) {
+func ShowTasks(taskId uint32, queryAll bool) {
 	var req *protos.QueryTasksInfoRequest
 	var taskIdList []uint32
 	taskIdList = append(taskIdList, taskId)
@@ -137,5 +140,53 @@ func ShowJobs(taskId uint32, queryAll bool) {
 				timeStartStr, timeStartStr, timeEndStr, taskInfo.Partition,
 				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
+	}
+}
+
+func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
+	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
+	result := re.FindAllStringSubmatch(timeLimit, -1)
+
+	if result == nil || len(result) != 1 {
+		util.Error("Time format error")
+	}
+	var dd uint64
+	if result[0][2] != "" {
+		dd, _ = strconv.ParseUint(result[0][2], 10, 32)
+	}
+	hh, err := strconv.ParseUint(result[0][3], 10, 32)
+	if err != nil {
+		util.Error("The hour time format error")
+	}
+	mm, err := strconv.ParseUint(result[0][4], 10, 32)
+	if err != nil {
+		util.Error("The minute time format error")
+	}
+	ss, err := strconv.ParseUint(result[0][5], 10, 32)
+	if err != nil {
+		util.Error("The second time format error")
+	}
+
+	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
+
+	var req *protos.ModifyTaskRequest
+
+	req = &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskId:    taskId,
+		Attribute: protos.ModifyTaskRequest_TimeLimit,
+		Value: &protos.ModifyTaskRequest_TimeLimitSeconds{
+			TimeLimitSeconds: seconds,
+		},
+	}
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		panic("ModifyTask failed: " + err.Error())
+	}
+
+	if reply.Ok {
+		fmt.Println("Change time limit success")
+	} else {
+		fmt.Printf("Chang time limit failed: %s\n", reply.GetReason())
 	}
 }

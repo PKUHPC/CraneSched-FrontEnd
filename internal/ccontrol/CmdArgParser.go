@@ -10,8 +10,9 @@ import (
 var (
 	FlagNodeName      string
 	FlagPartitionName string
-	FlagJobId         uint32
+	FlagTaskId        uint32
 	FlagQueryAll      bool
+	FlagTimeLimit     string
 
 	FlagConfigFilePath string
 
@@ -61,9 +62,9 @@ var (
 			ShowPartitions(FlagPartitionName, FlagQueryAll)
 		},
 	}
-	showJobCmd = &cobra.Command{
-		Use:   "job",
-		Short: "display state of the specified job, default is all records",
+	showTaskCmd = &cobra.Command{
+		Use:   "task",
+		Short: "display the state of a specified task or all tasks",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -71,10 +72,18 @@ var (
 				FlagQueryAll = true
 			} else {
 				id, _ := strconv.Atoi(args[0])
-				FlagJobId = uint32(id)
+				FlagTaskId = uint32(id)
 				FlagQueryAll = false
 			}
-			ShowJobs(FlagJobId, FlagQueryAll)
+			ShowTasks(FlagTaskId, FlagQueryAll)
+		},
+	}
+	updateCmd = &cobra.Command{
+		Use:   "update",
+		Short: "Modify job information",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
 		},
 	}
 )
@@ -92,5 +101,12 @@ func init() {
 		"Path to configuration file")
 	showCmd.AddCommand(showNodeCmd)
 	showCmd.AddCommand(showPartitionCmd)
-	showCmd.AddCommand(showJobCmd)
+	showCmd.AddCommand(showTaskCmd)
+	rootCmd.AddCommand(updateCmd)
+	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
+	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
+	err := updateCmd.MarkFlagRequired("job")
+	if err != nil {
+		return
+	}
 }

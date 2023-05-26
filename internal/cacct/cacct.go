@@ -56,8 +56,7 @@ func QueryJob() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Invalid task id given: %s\n", filterJobIdList[i])
-				os.Exit(1)
+				util.Error("Invalid task id given: %s\n", filterJobIdList[i])
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}

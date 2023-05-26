@@ -209,12 +209,6 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table.Render()
 }
 
-func Error(inf string, args ...interface{}) {
-	out := fmt.Sprintf(inf, args...)
-	fmt.Println(out)
-	os.Exit(1)
-}
-
 func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap map[string]*protos.AccountInfo) {
 	if account == "" {
 		return
@@ -231,7 +225,7 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 
 func AddAccount(account *protos.AccountInfo) {
 	if account.Name == "=" {
-		Error("Parameter error : Account name empty")
+		util.Error("Parameter error : Account name empty")
 	}
 	var req *protos.AddAccountRequest
 	req = new(protos.AddAccountRequest)
@@ -249,7 +243,7 @@ func AddAccount(account *protos.AccountInfo) {
 			}
 		}
 		if !find {
-			Error("Parameter error : default qos %s not contain in allowed qos list", account.DefaultQos)
+			util.Error("Parameter error : default qos %s not contain in allowed qos list", account.DefaultQos)
 		}
 	}
 	//fmt.Printf("Req:\n%v\n\n", req)
@@ -398,7 +392,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
-			Error("Unknown admin_level, please enter one of {none, operator, admin}")
+			util.Error("Unknown admin_level, please enter one of {none, operator, admin}")
 		}
 	}
 
