@@ -41,35 +41,44 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 		BatchMeta: &protos.BatchTaskAdditionalMeta{},
 	}
 
+	req.Task.CpusPerTask = 1
+	req.Task.NtasksPerNode = 1
+	req.Task.NodeNum = 1
+
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
 		switch arg.name {
 		case "--nodes", "-N":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
+				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
 			req.Task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
 			num, err := strconv.ParseFloat(arg.val, 10)
 			if err != nil {
+				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
 			req.Task.CpusPerTask = num
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
+				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
 			req.Task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
 			isOk := SetTime(arg.val, req)
 			if isOk == false {
+				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
 		case "--mem":
 			isOk := SetMem(arg.val, req)
 			if isOk == false {
+				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
 		case "-p", "--partition":
@@ -101,12 +110,14 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	if FlagTime != "" {
 		isOk := SetTime(FlagTime, req)
 		if isOk == false {
+			log.Print("Invalid --time")
 			return false, nil
 		}
 	}
 	if FlagMem != "" {
 		isOk := SetMem(FlagMem, req)
 		if isOk == false {
+			log.Print("Invalid --mem")
 			return false, nil
 		}
 	}
@@ -130,6 +141,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	}
 
 	if req.Task.CpusPerTask <= 0 || req.Task.NtasksPerNode == 0 || req.Task.NodeNum == 0 {
+		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 		return false, nil
 	}
 
@@ -252,7 +264,7 @@ func Cbatch(jobFilePath string) {
 
 	ok, req := ProcessCbatchArg(args)
 	if !ok {
-		log.Fatal("Invalid cbatch argument")
+		os.Exit(1)
 	}
 
 	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
