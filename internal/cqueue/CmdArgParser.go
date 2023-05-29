@@ -13,7 +13,7 @@ var (
 	FlagFilterPartitions string
 	FlagFilterJobIDs     string
 	FlagFilterJobNames   string
-	FlagFilterQos        string //to use
+	FlagFilterQos        string
 	FlagFilterStates     string
 	FlagFilterUsers      string
 	FlagFilterAccounts   string

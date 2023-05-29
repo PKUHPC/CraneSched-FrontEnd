@@ -264,7 +264,7 @@ func Cbatch(jobFilePath string) {
 
 	ok, req := ProcessCbatchArg(args)
 	if !ok {
-		os.Exit(1)
+		util.Error("Invalid cbatch argument")
 	}
 
 	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
