@@ -264,7 +264,7 @@ func Cbatch(jobFilePath string) {
 
 	ok, req := ProcessCbatchArg(args)
 	if !ok {
-		log.Fatal("Invalid cbatch argument")
+		util.Error("Invalid cbatch argument")
 	}
 
 	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
@@ -272,6 +272,9 @@ func Cbatch(jobFilePath string) {
 	req.Task.CmdLine = strings.Join(os.Args, " ")
 	req.Task.Env = strings.Join(os.Environ(), "||")
 	req.Task.Type = protos.TaskType_Batch
+	if req.Task.Cwd == "" {
+		req.Task.Cwd, _ = os.Getwd()
+	}
 
 	SendRequest(req)
 }
