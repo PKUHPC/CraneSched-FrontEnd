@@ -8,7 +8,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"os"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,7 +60,7 @@ func cinfoFunc() {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	util.SetTableStyle(table)
+	util.SetBorderlessTable(table)
 	var tableData [][]string
 	if FlagNodesOnCentricFormat {
 		table.SetHeader([]string{"NODELIST", "NODES", "PARTITION", "STATE"})
@@ -107,43 +106,15 @@ func cinfoFunc() {
 
 		} else {
 			if FlagFormat != "" {
-				var tableHeader []string
-				var tableRow []string
-				var tableOutputWidth []int
-				var alphabets []string
-				var NodelistInfoSplit []string
-				alphaIndex := make(map[string][]int)
-				for i, alpha := range alphabets {
-					alphaIndex[alpha] = append(alphaIndex[alpha], i)
+				alphabets, tableOutputWidth, err := util.ParseFormatFlag(FlagFormat)
+				if err != nil {
+					fmt.Printf("Invalid format: %v\n", err)
+					os.Exit(1)
 				}
-				table.SetHeader(tableHeader)
-
-				pattern := `^%(?:\.(\d+))?([a-zA-Z])(,.*)?$`
-				re := regexp.MustCompile(pattern)
-				items := strings.Split(FlagFormat, " ")
-				for _, item := range items {
-					if !re.MatchString(item) {
-						fmt.Printf("Invalid format")
-						os.Exit(1)
-					}
-					match := re.FindStringSubmatch(item)
-					numberStr := match[1]
-					if numberStr != "" {
-						number, err := strconv.Atoi(numberStr)
-						if err == nil {
-							tableOutputWidth = append(tableOutputWidth, number)
-						}
-					} else {
-						tableOutputWidth = append(tableOutputWidth, -1)
-					}
-					letter := match[2]
-					alphabets = append(alphabets, string(letter))
-					alphaIndex[string(letter)] = append(alphaIndex[string(letter)], len(alphabets)-1)
-				}
-
+				alphaIndex := util.InitAlphabetIndex(alphabets)
+				tableHeader := make([]string, len(alphabets))
 				for _, partitionCraned := range reply.Partitions {
-					tableRow = make([]string, len(alphabets))
-					tableHeader = make([]string, len(alphabets))
+					tableRow := make([]string, len(alphabets))
 					for _, alpha := range alphabets {
 						for _, idx := range alphaIndex[string(alpha)] {
 							if idx >= len(tableHeader) {
@@ -161,7 +132,7 @@ func cinfoFunc() {
 								tableRow[idx] = strings.ToLower(partitionCraned.State.String()[10:])
 							case "D":
 								tableHeader[idx] = "NODES"
-								NodelistInfoSplit = strings.Split(partitionCraned.AbstractInfo, "/")
+								NodelistInfoSplit := strings.Split(partitionCraned.AbstractInfo, "/")
 								if len(NodelistInfoSplit) > 0 {
 									lastInfo := NodelistInfoSplit[len(NodelistInfoSplit)-1]
 									tableRow[idx] = lastInfo
@@ -175,9 +146,7 @@ func cinfoFunc() {
 							}
 						}
 					}
-					copiedRow := make([]string, len(tableRow))
-					copy(copiedRow, tableRow)
-					tableData = append(tableData, copiedRow)
+					tableData = append(tableData, tableRow)
 				}
 				util.FormatTable(tableOutputWidth, tableHeader, tableData)
 				table.SetHeader(tableHeader)

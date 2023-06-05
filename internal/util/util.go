@@ -96,3 +96,35 @@ func InitLogger() {
 	log.SetReportCaller(true)
 	log.SetFormatter(&nested.Formatter{})
 }
+
+func InitAlphabetIndex(alphabets []string) map[string][]int {
+	alphaIndex := make(map[string][]int)
+	for i, alpha := range alphabets {
+		alphaIndex[alpha] = append(alphaIndex[alpha], i)
+	}
+	return alphaIndex
+}
+
+func ParseFormatFlag(FlagFormat string) (alphabets []string, tableOutputWidth []int, err error) {
+	pattern := `^%(?:\.(\d+))?([a-zA-Z])(,.*)?$`
+	re := regexp.MustCompile(pattern)
+	items := strings.Split(FlagFormat, " ")
+	for _, item := range items {
+		if !re.MatchString(item) {
+			return nil, nil, fmt.Errorf("Invalid format")
+		}
+		match := re.FindStringSubmatch(item)
+		numberStr := match[1]
+		if numberStr != "" {
+			number, err := strconv.Atoi(numberStr)
+			if err == nil {
+				tableOutputWidth = append(tableOutputWidth, number)
+			}
+		} else {
+			tableOutputWidth = append(tableOutputWidth, -1)
+		}
+		letter := match[2]
+		alphabets = append(alphabets, string(letter))
+	}
+	return alphabets, tableOutputWidth, nil
+}
