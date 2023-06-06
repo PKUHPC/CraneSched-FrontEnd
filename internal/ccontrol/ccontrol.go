@@ -5,6 +5,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 	"strconv"
@@ -106,8 +107,13 @@ func ShowTasks(taskId uint32, queryAll bool) {
 	}
 
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
-	if err != nil || reply.GetOk() {
+	if err != nil {
 		panic("QueryTasksInfo failed: " + err.Error())
+	}
+
+	if !reply.GetOk() {
+		log.Errorf("Failed to retrive the information of job %d", taskId)
+		os.Exit(1)
 	}
 
 	if len(reply.TaskInfoList) == 0 {

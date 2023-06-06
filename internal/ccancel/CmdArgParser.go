@@ -75,9 +75,9 @@ func init() {
 	rootCmd.Flags().StringVarP(&FlagState, "state", "t", "",
 		"cancel tasks of the State. "+
 			"Valid task states are PENDING(PD), RUNNING(R). "+
-			"Task states are case-insensitive.")
+			"Task states are case-insensitive")
 	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
-		"cancel tasks under the FlaAccount")
+		"cancel tasks under an account")
 	rootCmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
 		"cancel tasks run by the user")
 	rootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
