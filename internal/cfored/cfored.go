@@ -230,6 +230,8 @@ CtldClientStateMachineLoop:
 							taskId = ctldReply.GetPayloadTaskCompletionAck().TaskId
 						}
 
+						log.Infof("[Cfored<->Ctld] %s message received. Task Id %d", ctldReply.Type, taskId)
+
 						gVars.ctldReplyChannelMapMtx.Lock()
 
 						toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]

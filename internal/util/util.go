@@ -291,7 +291,7 @@ func getParentProcessID(pid int) (int, error) {
 
 func InvalidDuration() *duration.Duration {
 	return &duration.Duration{
-		Seconds: 630720000000,
+		Seconds: 315576000000,
 		Nanos:   0,
 	}
 }
