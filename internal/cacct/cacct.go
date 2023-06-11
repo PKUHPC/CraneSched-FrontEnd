@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/olekukonko/tablewriter"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"log"
 	"os"
 	"sort"
 	"strconv"
@@ -56,7 +57,7 @@ func QueryJob() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				util.Error("Invalid task id given: %s\n", filterJobIdList[i])
+				log.Fatalf("Invalid task id given: %s\n", filterJobIdList[i])
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}

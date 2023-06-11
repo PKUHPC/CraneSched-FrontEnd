@@ -674,7 +674,8 @@ CforedStateMachineLoop:
 
 			ctldReply := <-ctldReplyChannel
 			if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-				log.Fatal("[Cfored<->Calloc] Expect TASK_COMPLETION_ACK_REPLY")
+				log.Fatalf("[Cfored<->Calloc] Expect TASK_COMPLETION_ACK_REPLY, "+
+					"but %s received.", ctldReply.Type)
 			}
 
 			reply = &protos.StreamCforedReply{

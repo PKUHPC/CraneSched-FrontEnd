@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -296,6 +297,29 @@ func InvalidDuration() *duration.Duration {
 	}
 }
 
+func ParseDuration(time string, duration *duration.Duration) bool {
+	re := regexp.MustCompile(`(.*):(.*):(.*)`)
+	result := re.FindAllStringSubmatch(time, -1)
+	if result == nil || len(result) != 1 {
+		return false
+	}
+	hh, err := strconv.ParseUint(result[0][1], 10, 32)
+	if err != nil {
+		return false
+	}
+	mm, err := strconv.ParseUint(result[0][2], 10, 32)
+	if err != nil {
+		return false
+	}
+	ss, err := strconv.ParseUint(result[0][3], 10, 32)
+	if err != nil {
+		return false
+	}
+
+	duration.Seconds = int64(60*60*hh + 60*mm + ss)
+	return true
+}
+
 func InitLogger() {
 	log.SetLevel(log.TraceLevel)
 	log.SetReportCaller(true)
@@ -326,10 +350,4 @@ func SecondTimeFormat(second int64) string {
 		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
 	}
 	return timeFormat
-}
-
-func Error(inf string, args ...interface{}) {
-	out := fmt.Sprintf(inf, args...)
-	fmt.Println(out)
-	os.Exit(1)
 }

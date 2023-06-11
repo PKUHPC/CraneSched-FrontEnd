@@ -4,6 +4,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"os"
 	"strings"
@@ -403,7 +404,7 @@ func init() {
 	modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 	err = modifyAccountCmd.MarkFlagRequired("name")
 	if err != nil {
-		util.Error("Can't mark 'name' flag required")
+		log.Fatalf("Can't mark 'name' flag required")
 	}
 
 	modifyCmd.AddCommand(modifyUserCmd)
@@ -423,7 +424,7 @@ func init() {
 	modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 	err = modifyUserCmd.MarkFlagRequired("name")
 	if err != nil {
-		util.Error("Can't mark 'name' flag required")
+		log.Fatalf("Can't mark 'name' flag required")
 	}
 
 	modifyCmd.AddCommand(modifyQosCmd)

@@ -338,5 +338,12 @@ func main(cmd *cobra.Command, args []string) {
 		Env:             "",
 	}
 
+	if FlagTime != "" {
+		ok := util.ParseDuration(FlagTime, task.TimeLimit)
+		if !ok {
+			log.Fatalf("Invalid --time format.")
+		}
+	}
+
 	StartCallocStream(task)
 }

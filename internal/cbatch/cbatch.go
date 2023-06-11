@@ -6,7 +6,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 	"strconv"
@@ -62,7 +62,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 			}
 			req.Task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			isOk := SetTime(arg.val, req)
+			isOk := util.ParseDuration(arg.val, req.Task.TimeLimit)
 			if isOk == false {
 				log.Print("Invalid " + arg.name)
 				return false, nil
@@ -100,7 +100,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 		req.Task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if FlagTime != "" {
-		isOk := SetTime(FlagTime, req)
+		isOk := util.ParseDuration(FlagTime, req.Task.TimeLimit)
 		if isOk == false {
 			log.Print("Invalid --time")
 			return false, nil
@@ -140,29 +140,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	req.Task.Resources.AllocatableResource.CpuCoreLimit = req.Task.CpusPerTask * float64(req.Task.NtasksPerNode)
 
 	return true, req
-}
-
-func SetTime(time string, req *protos.SubmitBatchTaskRequest) bool {
-	re := regexp.MustCompile(`(.*):(.*):(.*)`)
-	result := re.FindAllStringSubmatch(time, -1)
-	if result == nil || len(result) != 1 {
-		return false
-	}
-	hh, err := strconv.ParseUint(result[0][1], 10, 32)
-	if err != nil {
-		return false
-	}
-	mm, err := strconv.ParseUint(result[0][2], 10, 32)
-	if err != nil {
-		return false
-	}
-	ss, err := strconv.ParseUint(result[0][3], 10, 32)
-	if err != nil {
-		return false
-	}
-
-	req.Task.TimeLimit.Seconds = int64(60*60*hh + 60*mm + ss)
-	return true
 }
 
 func SetMem(mem string, req *protos.SubmitBatchTaskRequest) bool {
@@ -256,7 +233,7 @@ func Cbatch(jobFilePath string) {
 
 	ok, req := ProcessCbatchArg(args)
 	if !ok {
-		util.Error("Invalid cbatch argument")
+		log.Fatalf("Invalid cbatch argument")
 	}
 
 	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
