@@ -152,18 +152,48 @@ func cinfoFunc() {
 				table.SetHeader(tableHeader)
 
 			} else {
-				table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
-				for _, partitionCraned := range reply.Partitions {
-					for _, commonCranedStateList := range partitionCraned.CranedLists {
-						if commonCranedStateList.Count > 0 {
+				if FlagFilterDownOnly {
+					table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
+					for _, partitionCraned := range reply.Partitions {
+						abstractInfo := strings.Split(partitionCraned.AbstractInfo, "/")
+						if abstractInfo[2] != abstractInfo[3] {
 							tableData = append(tableData, []string{
 								partitionCraned.Name,
 								strings.ToLower(partitionCraned.State.String()[10:]),
 								"infinite",
-								strconv.FormatUint(uint64(commonCranedStateList.Count), 10),
-								strings.ToLower(commonCranedStateList.State.String()[6:]),
-								commonCranedStateList.CranedListRegex,
+								"n/a",
+								"0",
+								"",
 							})
+						}
+						for _, commonCranedStateList := range partitionCraned.CranedLists {
+							if strings.ToLower(commonCranedStateList.State.String()[6:]) == "down" && commonCranedStateList.Count > 0 {
+								tableData = append(tableData, []string{
+									partitionCraned.Name,
+									strings.ToLower(partitionCraned.State.String()[10:]),
+									"infinite",
+									strconv.FormatUint(uint64(commonCranedStateList.Count), 10),
+									strings.ToLower(commonCranedStateList.State.String()[6:]),
+									commonCranedStateList.CranedListRegex,
+								})
+							}
+						}
+					}
+
+				} else {
+					table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
+					for _, partitionCraned := range reply.Partitions {
+						for _, commonCranedStateList := range partitionCraned.CranedLists {
+							if commonCranedStateList.Count > 0 {
+								tableData = append(tableData, []string{
+									partitionCraned.Name,
+									strings.ToLower(partitionCraned.State.String()[10:]),
+									"infinite",
+									strconv.FormatUint(uint64(commonCranedStateList.Count), 10),
+									strings.ToLower(commonCranedStateList.State.String()[6:]),
+									commonCranedStateList.CranedListRegex,
+								})
+							}
 						}
 					}
 				}
