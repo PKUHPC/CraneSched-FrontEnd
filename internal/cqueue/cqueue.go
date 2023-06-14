@@ -69,7 +69,7 @@ func Query() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				util.Error("Invalid task id given: %s\n", filterJobIdList[i])
+				util.Error("Invalid job id given: %s\n", filterJobIdList[i])
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
@@ -87,21 +87,21 @@ func Query() {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"TaskId", "Name", "Status", "Partition", "User",
-		"Account", "Type", "NodeIndex", "Nodes", "TimeLimit"}
+	header := []string{"JobId", "Partition", "Name", "User",
+		"Account", "Status", "Type", "TimeLimit", "Nodes", "NodeList"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-			reply.TaskInfoList[i].Name,
-			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].Partition,
+			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Username,
 			reply.TaskInfoList[i].Account,
+			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].Type.String(),
-			reply.TaskInfoList[i].CranedList,
+			util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds),
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
-			util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds)}
+			reply.TaskInfoList[i].CranedList}
 	}
 
 	if FlagFormat != "" {
@@ -111,11 +111,12 @@ func Query() {
 	if FlagStartTime {
 		header = append(header, "StartTime")
 		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], reply.TaskInfoList[i].StartTime.AsTime().String())
+			tableData[i] = append(tableData[i],
+				reply.TaskInfoList[i].StartTime.AsTime().Format("2006-01-02 15:04:05"))
 		}
 	}
 	if FlagFilterQos != "" {
-		header = append(header, "Qos")
+		header = append(header, "QoS")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
 		}
@@ -125,10 +126,10 @@ func Query() {
 		table.SetHeader(header)
 	}
 
-	// Get index of "TaskId" column
+	// Get index of "JobId" column
 	idx := -1
 	for i, val := range header {
-		if val == "TaskId" {
+		if val == "JobId" {
 			idx = i
 			break
 		}
@@ -178,7 +179,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		switch tableOutputHeader[i] {
 		//j-TaskId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, I-NodeIndex,l-TimeLimit,N-Nodes
 		case "j":
-			tableOutputHeader[i] = "TaskId"
+			tableOutputHeader[i] = "JobId"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
 					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
@@ -214,7 +215,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Type.String())
 			}
 		case "I":
-			tableOutputHeader[i] = "NodeIndex"
+			tableOutputHeader[i] = "NodeList"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].CranedList)
 			}
@@ -231,7 +232,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			}
 		default:
 			fmt.Println("Invalid format, shorthand reference:\n" +
-				"j-TaskId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, N-NodeIndex")
+				"j-JobId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, N-NodeList")
 			os.Exit(1)
 		}
 	}
