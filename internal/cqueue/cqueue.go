@@ -111,7 +111,8 @@ func Query() {
 	if FlagStartTime {
 		header = append(header, "StartTime")
 		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], reply.TaskInfoList[i].StartTime.AsTime().String()[:20])
+			tableData[i] = append(tableData[i],
+				reply.TaskInfoList[i].StartTime.AsTime().Format("2006-01-02 15:04:05"))
 		}
 	}
 	if FlagFilterQos != "" {
