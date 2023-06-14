@@ -87,20 +87,20 @@ func Query() {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"JobId", "Name", "Status", "Partition", "User",
-		"Account", "Type", "Nodes", "TimeLimit", "NodeList"}
+	header := []string{"JobId", "Partition", "Name", "User",
+		"Account", "Status", "Type", "TimeLimit", "Nodes", "NodeList"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-			reply.TaskInfoList[i].Name,
-			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].Partition,
+			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Username,
 			reply.TaskInfoList[i].Account,
+			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].Type.String(),
-			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
 			util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds),
+			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
 			reply.TaskInfoList[i].CranedList}
 	}
 
