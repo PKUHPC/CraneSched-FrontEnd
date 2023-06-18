@@ -46,6 +46,10 @@ type GlobalVariables struct {
 
 	// Used by Calloc <--> Cfored state machine to multiplex messages
 	cforedRequestChannel chan *protos.StreamCforedRequest
+
+	pidTaskIdMapMtx sync.RWMutex
+
+	pidTaskIdMap map[int32]uint32
 }
 
 var gVars GlobalVariables
@@ -391,6 +395,35 @@ func RequestReceiveRoutine(stream protos.CraneForeD_CallocStreamServer, requestC
 	}
 }
 
+func (cforedServer *GrpcCforedServer) QueryTaskIdFromPort(ctx context.Context,
+	request *protos.QueryTaskIdFromPortRequest) (*protos.QueryTaskIdFromPortReply, error) {
+
+	var taskId uint32
+	var ok bool
+
+	pid, err := util.GetPidFromPort(uint16(request.Port))
+	if err != nil {
+		return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
+	}
+
+	for {
+		gVars.pidTaskIdMapMtx.RLock()
+		taskId, ok = gVars.pidTaskIdMap[int32(pid)]
+		gVars.pidTaskIdMapMtx.RUnlock()
+
+		if ok {
+			return &protos.QueryTaskIdFromPortReply{
+				Ok:     true,
+				TaskId: taskId,
+			}, nil
+		}
+
+		pid, err = util.GetParentProcessID(pid)
+		if err != nil || pid == 1 {
+			return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
+		}
+	}
+}
 func (cforedServer *GrpcCforedServer) CallocStream(toCallocStream protos.CraneForeD_CallocStreamServer) error {
 	var callocPid int32
 	var taskId uint32
@@ -508,6 +541,10 @@ CforedStateMachineLoop:
 				delete(gVars.ctldReplyChannelMapByPid, callocPid)
 				if Ok {
 					gVars.ctldReplyChannelMapByTaskId[taskId] = ctldReplyChannel
+
+					gVars.pidTaskIdMapMtx.Lock()
+					gVars.pidTaskIdMap[callocPid] = taskId
+					gVars.pidTaskIdMapMtx.Unlock()
 				}
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
@@ -715,6 +752,10 @@ CforedStateMachineLoop:
 			gVars.ctldReplyChannelMapMtx.Lock()
 			if taskId != math.MaxUint32 {
 				delete(gVars.ctldReplyChannelMapByTaskId, taskId)
+
+				gVars.pidTaskIdMapMtx.Lock()
+				delete(gVars.pidTaskIdMap, callocPid)
+				gVars.pidTaskIdMapMtx.Unlock()
 			} else {
 				delete(gVars.ctldReplyChannelMapByPid, callocPid)
 			}
