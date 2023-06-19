@@ -68,11 +68,13 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 				return false, nil
 			}
 		case "--mem":
-			isOk := SetMem(arg.val, req)
-			if isOk == false {
-				log.Print("Invalid " + arg.name)
+			memInByte, err := util.ParseMemStringAsByte(arg.val)
+			if err != nil {
+				log.Error(err)
 				return false, nil
 			}
+			req.Task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
+			req.Task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			req.Task.PartitionName = arg.val
 		case "-o", "--output":
@@ -100,18 +102,20 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 		req.Task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if FlagTime != "" {
-		isOk := util.ParseDuration(FlagTime, req.Task.TimeLimit)
-		if isOk == false {
+		ok := util.ParseDuration(FlagTime, req.Task.TimeLimit)
+		if ok == false {
 			log.Print("Invalid --time")
 			return false, nil
 		}
 	}
 	if FlagMem != "" {
-		isOk := SetMem(FlagMem, req)
-		if isOk == false {
-			log.Print("Invalid --mem")
+		memInByte, err := util.ParseMemStringAsByte(FlagMem)
+		if err != nil {
+			log.Error(err)
 			return false, nil
 		}
+		req.Task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
+		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 	}
 	if FlagPartition != "" {
 		req.Task.PartitionName = FlagPartition
@@ -140,27 +144,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	req.Task.Resources.AllocatableResource.CpuCoreLimit = req.Task.CpusPerTask * float64(req.Task.NtasksPerNode)
 
 	return true, req
-}
-
-func SetMem(mem string, req *protos.SubmitBatchTaskRequest) bool {
-	re := regexp.MustCompile(`([0-9]+(\.?[0-9]+)?)([MmGg])`)
-	result := re.FindAllStringSubmatch(mem, -1)
-	if result == nil || len(result) != 1 {
-		return false
-	}
-	sz, err := strconv.ParseFloat(result[0][1], 10)
-	if err != nil {
-		return false
-	}
-	switch result[0][len(result[0])-1] {
-	case "M", "m":
-		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = uint64(1024 * 1024 * sz)
-		req.Task.Resources.AllocatableResource.MemoryLimitBytes = uint64(1024 * 1024 * sz)
-	case "G", "g":
-		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = uint64(1024 * 1024 * 1024 * sz)
-		req.Task.Resources.AllocatableResource.MemoryLimitBytes = uint64(1024 * 1024 * 1024 * sz)
-	}
-	return true
 }
 
 func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {

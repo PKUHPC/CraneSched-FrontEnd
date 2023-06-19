@@ -339,11 +339,47 @@ func main(cmd *cobra.Command, args []string) {
 		Env:             "",
 	}
 
+	if FlagNodes != 0 {
+		task.NodeNum = FlagNodes
+	}
+	if FlagCpuPerTask != 0 {
+		task.CpusPerTask = FlagCpuPerTask
+	}
+	if FlagNtasksPerNode != 0 {
+		task.NtasksPerNode = FlagNtasksPerNode
+	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
 			log.Fatalf("Invalid --time format.")
 		}
+	}
+	if FlagMem != "" {
+		memInByte, err := util.ParseMemStringAsByte(FlagMem)
+		if err != nil {
+			log.Fatal(err)
+		}
+		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
+		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+	}
+	if FlagPartition != "" {
+		task.PartitionName = FlagPartition
+	}
+	if FlagJob != "" {
+		task.Name = FlagJob
+	}
+	if FlagQos != "" {
+		task.Qos = FlagQos
+	}
+	if FlagCwd != "" {
+		task.Cwd = FlagCwd
+	}
+	if FlagAccount != "" {
+		task.Account = FlagAccount
+	}
+
+	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
+		log.Fatal("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 	}
 
 	StartCallocStream(task)

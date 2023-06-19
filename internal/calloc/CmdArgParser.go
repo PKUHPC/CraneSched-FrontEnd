@@ -13,7 +13,9 @@ var (
 	FlagMem           string
 	FlagPartition     string
 	FlagJob           string
-	FlagOutput        string
+	FlagAccount       string
+	FlagQos           string
+	FlagCwd           string
 
 	FlagConfigFilePath string
 )
@@ -34,8 +36,10 @@ func CmdArgParser() *cobra.Command {
 	parser.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
 	parser.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
 	parser.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
-	parser.Flags().StringVarP(&FlagOutput, "output", "o", "", "file for batch script's standard output")
 	parser.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
+	parser.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
+	parser.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
+	parser.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
 
 	return parser
 }

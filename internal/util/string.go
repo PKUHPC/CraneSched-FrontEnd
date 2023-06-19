@@ -7,6 +7,27 @@ import (
 	"strconv"
 )
 
+func ParseMemStringAsByte(mem string) (uint64, error) {
+	re := regexp.MustCompile(`([0-9]+(\.?[0-9]+)?)([MmGgKk])`)
+	result := re.FindAllStringSubmatch(mem, -1)
+	if result == nil || len(result) != 1 {
+		return 0, fmt.Errorf("invalid memory format")
+	}
+	sz, err := strconv.ParseFloat(result[0][1], 10)
+	if err != nil {
+		return 0, err
+	}
+	switch result[0][len(result[0])-1] {
+	case "M", "m":
+		return uint64(1024 * 1024 * sz), nil
+	case "G", "g":
+		return uint64(1024 * 1024 * 1024 * sz), nil
+	case "K", "k":
+		return uint64(1024 * sz), nil
+	}
+	return uint64(sz), nil
+}
+
 func ParseDuration(time string, duration *duration.Duration) bool {
 	re := regexp.MustCompile(`(.*):(.*):(.*)`)
 	result := re.FindAllStringSubmatch(time, -1)
