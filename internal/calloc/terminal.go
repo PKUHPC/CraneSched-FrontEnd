@@ -40,7 +40,7 @@ func StartTerminal(shellPath string,
 		log.Fatal(err)
 	}
 
-	process := exec.Command(shellPath)
+	process := exec.Command(shellPath, "-i")
 	process.Stdin = os.Stdin
 	process.Stdout = os.Stdout
 	process.Stderr = os.Stderr
@@ -51,6 +51,7 @@ func StartTerminal(shellPath string,
 		Ctty:       0,
 		Foreground: true,
 	}
+	process.Env = os.Environ()
 
 	err = process.Start()
 	if err != nil {

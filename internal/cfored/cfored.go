@@ -793,7 +793,7 @@ func StartCfored() {
 	gVars.hostName = hostName
 
 	sockDirPath := filepath.Dir(util.DefaultCforedUnixSocketPath)
-	err = os.MkdirAll(sockDirPath, 0700)
+	err = os.MkdirAll(sockDirPath, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -805,6 +805,9 @@ func StartCfored() {
 
 	unixListenSocket, err := net.Listen("unix", util.DefaultCforedUnixSocketPath)
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := os.Chmod(util.DefaultCforedUnixSocketPath, 0777); err != nil {
 		log.Fatal(err)
 	}
 
