@@ -192,12 +192,12 @@ CallocStateMachineLoop:
 					Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
 						PayloadTaskCompleteReq: &protos.StreamCallocRequest_TaskCompleteReq{
 							TaskId: taskId,
-							Status: protos.TaskStatus_Finished,
+							Status: protos.TaskStatus_Completed,
 						},
 					},
 				}
 
-				log.Debug("Sending TASK_COMPLETION_REQUEST with FINISHED state...")
+				log.Debug("Sending TASK_COMPLETION_REQUEST with COMPLETED state...")
 				if err := stream.Send(request); err != nil {
 					log.Errorf("The connection to Cfored was broken: %s. "+
 						"Exiting...", err)

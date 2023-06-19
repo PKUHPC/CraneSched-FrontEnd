@@ -32,10 +32,10 @@ func Query() {
 				stateList = append(stateList, protos.TaskStatus_Running)
 			case "p", "pending":
 				stateList = append(stateList, protos.TaskStatus_Pending)
-			case "cancelled":
+			case "c", "cancelled":
 				stateList = append(stateList, protos.TaskStatus_Cancelled)
-			case "timeout":
-				stateList = append(stateList, protos.TaskStatus_Timeout)
+			case "etl", "exceed-time-limit":
+				stateList = append(stateList, protos.TaskStatus_ExceedTimeLimit)
 			default:
 				log.Fatalf("Invalid state given: %s\n", filterStateList[i])
 			}
