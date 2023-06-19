@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"net"
 	"os"
 )
 
@@ -29,6 +29,50 @@ func ParseConfig(configFilePath string) *Config {
 	return config
 }
 
+func GetListenSocketByConfig(config *Config) (net.Listener, error) {
+	serverAddr := fmt.Sprintf("%s:%s", DefaultCforedServerListenAddress, DefaultCforedServerListenPort)
+
+	if config.UseTls {
+		CaCertContent, err := os.ReadFile(config.ServerCertFilePath)
+		if err != nil {
+			return nil, err
+		}
+
+		caPool := x509.NewCertPool()
+		if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
+			return nil, err
+		}
+
+		cert, err := tls.LoadX509KeyPair(config.ServerCertFilePath, config.ServerKeyFilePath)
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caPool,
+
+			// NextProtos is a list of supported application level protocols, in
+			// order of preference.
+			// It MUST be filled. Otherwise, when c++ clients try to connect this
+			// server, "Cannot check peer: missing selected ALPN property" error
+			// will occur!!!!
+			NextProtos: []string{"h2"},
+		}
+		listen, err := tls.Listen("tcp", serverAddr, tlsConfig)
+		if err != nil {
+			return nil, err
+		}
+		return listen, nil
+	} else {
+		listen, err := net.Listen("tcp", serverAddr)
+		if err != nil {
+			return nil, err
+		}
+		return listen, nil
+	}
+}
+
 func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
@@ -37,17 +81,17 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
 			config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)
 
-		ServerCertContent, err := ioutil.ReadFile(config.ServerCertFilePath)
+		ServerCertContent, err := os.ReadFile(config.ServerCertFilePath)
 		if err != nil {
 			log.Fatal("Read server certificate error: " + err.Error())
 		}
 
-		ServerKeyContent, err := ioutil.ReadFile(config.ServerKeyFilePath)
+		ServerKeyContent, err := os.ReadFile(config.ServerKeyFilePath)
 		if err != nil {
 			log.Fatal("Read server key error: " + err.Error())
 		}
 
-		CaCertContent, err := ioutil.ReadFile(config.CaCertFilePath)
+		CaCertContent, err := os.ReadFile(config.CaCertFilePath)
 		if err != nil {
 			log.Fatal("Read CA certifacate error: " + err.Error())
 		}
@@ -66,6 +110,9 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 			Certificates:       []tls.Certificate{tlsKeyPair},
 			RootCAs:            caPool,
 			InsecureSkipVerify: false,
+			// NextProtos is a list of supported application level protocols, in
+			// order of preference.
+			NextProtos: []string{"h2"},
 		})
 
 		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))

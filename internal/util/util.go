@@ -20,15 +20,19 @@ type Config struct {
 }
 
 var (
-	DefaultConfigPath           string
-	DefaultCforedRuntimeDir     string
-	DefaultCforedUnixSocketPath string
+	DefaultConfigPath                string
+	DefaultCforedRuntimeDir          string
+	DefaultCforedUnixSocketPath      string
+	DefaultCforedServerListenAddress string
+	DefaultCforedServerListenPort    string
 )
 
 func init() {
 	DefaultConfigPath = "/etc/crane/config.yaml"
 	DefaultCforedRuntimeDir = "/tmp/crane/cfored"
 	DefaultCforedUnixSocketPath = DefaultCforedRuntimeDir + "/cfored.sock"
+	DefaultCforedServerListenAddress = "0.0.0.0"
+	DefaultCforedServerListenPort = "10012"
 }
 
 func SetBorderlessTable(table *tablewriter.Table) {

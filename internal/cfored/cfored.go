@@ -577,10 +577,14 @@ CforedStateMachineLoop:
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
 				case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
+					ctldPayload := ctldReply.GetPayloadTaskResAllocReply()
 					reply = &protos.StreamCforedReply{
 						Type: protos.StreamCforedReply_TASK_RES_ALLOC_REPLY,
 						Payload: &protos.StreamCforedReply_PayloadTaskAllocReply{
-							PayloadTaskAllocReply: &protos.StreamCforedReply_TaskResAllocatedReply{Ok: true},
+							PayloadTaskAllocReply: &protos.StreamCforedReply_TaskResAllocatedReply{
+								Ok:                   ctldPayload.Ok,
+								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
+							},
 						},
 					}
 
@@ -780,6 +784,7 @@ func StartCfored() {
 
 	gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
 	gVars.ctldReplyChannelMapByTaskId = make(map[uint32]chan *protos.StreamCtldReply)
+	gVars.pidTaskIdMap = make(map[int32]uint32)
 
 	hostName, err := os.Hostname()
 	if err != nil {
@@ -798,10 +803,13 @@ func StartCfored() {
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	listen, err := net.Listen("unix", util.DefaultCforedUnixSocketPath)
+	unixListenSocket, err := net.Listen("unix", util.DefaultCforedUnixSocketPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	config := util.ParseConfig(FlagConfigFilePath)
+	tcpListenSocket, err := util.GetListenSocketByConfig(config)
 
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
@@ -829,7 +837,6 @@ func StartCfored() {
 		wg.Done()
 	}(sigs, grpcServer, &wgAllRoutines)
 
-	config := util.ParseConfig(util.DefaultConfigPath)
 	ctldClient := &GrpcCtldClient{
 		ctldClientStub:   util.GetStubToCtldByConfig(config),
 		ctldReplyChannel: make(chan *protos.StreamCtldReply, 8),
@@ -839,7 +846,17 @@ func StartCfored() {
 
 	protos.RegisterCraneForeDServer(grpcServer, &cforedServer)
 
-	err = grpcServer.Serve(listen)
+	wgAllRoutines.Add(1)
+	go func(wg *sync.WaitGroup) {
+		err := grpcServer.Serve(tcpListenSocket)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		wgAllRoutines.Done()
+	}(&wgAllRoutines)
+
+	err = grpcServer.Serve(unixListenSocket)
 	if err != nil {
 		log.Fatal(err)
 	}

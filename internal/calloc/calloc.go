@@ -171,10 +171,11 @@ CallocStateMachineLoop:
 			if cforedReply.Type != protos.StreamCforedReply_TASK_RES_ALLOC_REPLY {
 				log.Fatal("Expect TASK_RES_ALLOC_REPLY")
 			}
-			Ok := cforedReply.GetPayloadTaskAllocReply().Ok
+			cforedPayload := cforedReply.GetPayloadTaskAllocReply()
+			Ok := cforedPayload.Ok
 
 			if Ok {
-				fmt.Println("Task resource allocated.")
+				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
 				state = TaskRunning
 			} else {
 				fmt.Println("Failed to allocate task resource. Exiting...")
