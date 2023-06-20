@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"sort"
 	"strconv"
@@ -31,12 +32,12 @@ func Query() {
 				stateList = append(stateList, protos.TaskStatus_Running)
 			case "p", "pending":
 				stateList = append(stateList, protos.TaskStatus_Pending)
-			case "cancelled":
+			case "c", "cancelled":
 				stateList = append(stateList, protos.TaskStatus_Cancelled)
-			case "completing":
-				stateList = append(stateList, protos.TaskStatus_Completing)
+			case "etl", "exceed-time-limit":
+				stateList = append(stateList, protos.TaskStatus_ExceedTimeLimit)
 			default:
-				util.Error("Invalid state given: %s\n", filterStateList[i])
+				log.Fatalf("Invalid state given: %s\n", filterStateList[i])
 			}
 		}
 		req.FilterTaskStates = stateList
@@ -69,7 +70,7 @@ func Query() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				util.Error("Invalid job id given: %s\n", filterJobIdList[i])
+				log.Fatalf("Invalid job id given: %s\n", filterJobIdList[i])
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
@@ -101,7 +102,8 @@ func Query() {
 			reply.TaskInfoList[i].Type.String(),
 			util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds),
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
-			reply.TaskInfoList[i].CranedList}
+			reply.TaskInfoList[i].CranedList,
+		}
 	}
 
 	if FlagFormat != "" {

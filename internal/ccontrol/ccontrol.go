@@ -154,7 +154,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	result := re.FindAllStringSubmatch(timeLimit, -1)
 
 	if result == nil || len(result) != 1 {
-		util.Error("Time format error")
+		log.Fatalf("Time format error")
 	}
 	var dd uint64
 	if result[0][2] != "" {
@@ -162,15 +162,15 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	}
 	hh, err := strconv.ParseUint(result[0][3], 10, 32)
 	if err != nil {
-		util.Error("The hour time format error")
+		log.Fatalf("The hour time format error")
 	}
 	mm, err := strconv.ParseUint(result[0][4], 10, 32)
 	if err != nil {
-		util.Error("The minute time format error")
+		log.Fatalf("The minute time format error")
 	}
 	ss, err := strconv.ParseUint(result[0][5], 10, 32)
 	if err != nil {
-		util.Error("The second time format error")
+		log.Fatalf("The second time format error")
 	}
 
 	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)

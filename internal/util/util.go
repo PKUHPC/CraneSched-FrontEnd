@@ -1,18 +1,10 @@
 package util
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
+	nested "github.com/antonfisher/nested-logrus-formatter"
+	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/olekukonko/tablewriter"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"log"
-	"os"
+	log "github.com/sirupsen/logrus"
 	"strings"
 )
 
@@ -28,85 +20,19 @@ type Config struct {
 }
 
 var (
-	DefaultConfigPath string
+	DefaultConfigPath                string
+	DefaultCforedRuntimeDir          string
+	DefaultCforedUnixSocketPath      string
+	DefaultCforedServerListenAddress string
+	DefaultCforedServerListenPort    string
 )
 
 func init() {
 	DefaultConfigPath = "/etc/crane/config.yaml"
-}
-
-func ParseConfig(configFilePath string) *Config {
-	confFile, err := ioutil.ReadFile(configFilePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	config := &Config{}
-
-	err = yaml.Unmarshal(confFile, config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return config
-}
-
-func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
-	var serverAddr string
-	var stub protos.CraneCtldClient
-
-	if config.UseTls {
-		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)
-
-		ServerCertContent, err := ioutil.ReadFile(config.ServerCertFilePath)
-		if err != nil {
-			log.Fatal("Read server certificate error: " + err.Error())
-		}
-
-		ServerKeyContent, err := ioutil.ReadFile(config.ServerKeyFilePath)
-		if err != nil {
-			log.Fatal("Read server key error: " + err.Error())
-		}
-
-		CaCertContent, err := ioutil.ReadFile(config.CaCertFilePath)
-		if err != nil {
-			log.Fatal("Read CA certifacate error: " + err.Error())
-		}
-
-		tlsKeyPair, err := tls.X509KeyPair(ServerCertContent, ServerKeyContent)
-		if err != nil {
-			log.Fatal("tlsKeyPair error: " + err.Error())
-		}
-
-		caPool := x509.NewCertPool()
-		if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
-			log.Fatal("AppendCertsFromPEM error: " + err.Error())
-		}
-
-		creds := credentials.NewTLS(&tls.Config{
-			Certificates:       []tls.Certificate{tlsKeyPair},
-			RootCAs:            caPool,
-			InsecureSkipVerify: false,
-		})
-
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
-		if err != nil {
-			log.Fatal("Cannot connect to CraneCtld: " + err.Error())
-		}
-
-		stub = protos.NewCraneCtldClient(conn)
-	} else {
-		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			log.Fatal("Cannot connect to CraneCtld: " + err.Error())
-		}
-
-		stub = protos.NewCraneCtldClient(conn)
-	}
-
-	return stub
+	DefaultCforedRuntimeDir = "/tmp/crane/cfored"
+	DefaultCforedUnixSocketPath = DefaultCforedRuntimeDir + "/cfored.sock"
+	DefaultCforedServerListenAddress = "0.0.0.0"
+	DefaultCforedServerListenPort = "10012"
 }
 
 func SetBorderlessTable(table *tablewriter.Table) {
@@ -158,24 +84,15 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 	return tableHeader, tableData
 }
 
-func SecondTimeFormat(second int64) string {
-	timeFormat := ""
-	dd := second / 24 / 3600
-	second %= 24 * 3600
-	hh := second / 3600
-	second %= 3600
-	mm := second / 60
-	ss := second % 60
-	if dd > 0 {
-		timeFormat = fmt.Sprintf("%d-%02d:%02d:%02d", dd, hh, mm, ss)
-	} else {
-		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
+func InvalidDuration() *duration.Duration {
+	return &duration.Duration{
+		Seconds: 315576000000,
+		Nanos:   0,
 	}
-	return timeFormat
 }
 
-func Error(inf string, args ...interface{}) {
-	out := fmt.Sprintf(inf, args...)
-	fmt.Println(out)
-	os.Exit(1)
+func InitLogger() {
+	log.SetLevel(log.TraceLevel)
+	log.SetReportCaller(true)
+	log.SetFormatter(&nested.Formatter{})
 }

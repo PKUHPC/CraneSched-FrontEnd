@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
@@ -35,7 +36,7 @@ func cinfoFunc() {
 			case "down":
 				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 			default:
-				util.Error("Invalid state given: %s\n", filterCranedStateList[i])
+				log.Fatalf("Invalid state given: %s\n", filterCranedStateList[i])
 			}
 		}
 		req.FilterCranedStates = stateList

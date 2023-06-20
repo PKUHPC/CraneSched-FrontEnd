@@ -6,20 +6,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/duration"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 )
-
-func INVALID_DURATION() *duration.Duration {
-	return &duration.Duration{
-		Seconds: 630720000000,
-		Nanos:   0,
-	}
-}
 
 type CbatchArg struct {
 	name string
@@ -29,7 +21,7 @@ type CbatchArg struct {
 func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	req := new(protos.SubmitBatchTaskRequest)
 	req.Task = new(protos.TaskToCtld)
-	req.Task.TimeLimit = INVALID_DURATION()
+	req.Task.TimeLimit = util.InvalidDuration()
 	req.Task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
@@ -70,17 +62,19 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 			}
 			req.Task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			isOk := SetTime(arg.val, req)
+			isOk := util.ParseDuration(arg.val, req.Task.TimeLimit)
 			if isOk == false {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
 		case "--mem":
-			isOk := SetMem(arg.val, req)
-			if isOk == false {
-				log.Print("Invalid " + arg.name)
+			memInByte, err := util.ParseMemStringAsByte(arg.val)
+			if err != nil {
+				log.Error(err)
 				return false, nil
 			}
+			req.Task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
+			req.Task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			req.Task.PartitionName = arg.val
 		case "-o", "--output":
@@ -108,18 +102,20 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 		req.Task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if FlagTime != "" {
-		isOk := SetTime(FlagTime, req)
-		if isOk == false {
+		ok := util.ParseDuration(FlagTime, req.Task.TimeLimit)
+		if ok == false {
 			log.Print("Invalid --time")
 			return false, nil
 		}
 	}
 	if FlagMem != "" {
-		isOk := SetMem(FlagMem, req)
-		if isOk == false {
-			log.Print("Invalid --mem")
+		memInByte, err := util.ParseMemStringAsByte(FlagMem)
+		if err != nil {
+			log.Error(err)
 			return false, nil
 		}
+		req.Task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
+		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 	}
 	if FlagPartition != "" {
 		req.Task.PartitionName = FlagPartition
@@ -148,50 +144,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 	req.Task.Resources.AllocatableResource.CpuCoreLimit = req.Task.CpusPerTask * float64(req.Task.NtasksPerNode)
 
 	return true, req
-}
-
-func SetTime(time string, req *protos.SubmitBatchTaskRequest) bool {
-	re := regexp.MustCompile(`(.*):(.*):(.*)`)
-	result := re.FindAllStringSubmatch(time, -1)
-	if result == nil || len(result) != 1 {
-		return false
-	}
-	hh, err := strconv.ParseUint(result[0][1], 10, 32)
-	if err != nil {
-		return false
-	}
-	mm, err := strconv.ParseUint(result[0][2], 10, 32)
-	if err != nil {
-		return false
-	}
-	ss, err := strconv.ParseUint(result[0][3], 10, 32)
-	if err != nil {
-		return false
-	}
-
-	req.Task.TimeLimit.Seconds = int64(60*60*hh + 60*mm + ss)
-	return true
-}
-
-func SetMem(mem string, req *protos.SubmitBatchTaskRequest) bool {
-	re := regexp.MustCompile(`([0-9]+(\.?[0-9]+)?)([MmGg])`)
-	result := re.FindAllStringSubmatch(mem, -1)
-	if result == nil || len(result) != 1 {
-		return false
-	}
-	sz, err := strconv.ParseFloat(result[0][1], 10)
-	if err != nil {
-		return false
-	}
-	switch result[0][len(result[0])-1] {
-	case "M", "m":
-		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = uint64(1024 * 1024 * sz)
-		req.Task.Resources.AllocatableResource.MemoryLimitBytes = uint64(1024 * 1024 * sz)
-	case "G", "g":
-		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = uint64(1024 * 1024 * 1024 * sz)
-		req.Task.Resources.AllocatableResource.MemoryLimitBytes = uint64(1024 * 1024 * 1024 * sz)
-	}
-	return true
 }
 
 func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
@@ -264,7 +216,7 @@ func Cbatch(jobFilePath string) {
 
 	ok, req := ProcessCbatchArg(args)
 	if !ok {
-		util.Error("Invalid cbatch argument")
+		log.Fatalf("Invalid cbatch argument")
 	}
 
 	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
