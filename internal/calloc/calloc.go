@@ -146,11 +146,17 @@ CallocStateMachineLoop:
 			if cforedReply.Type != protos.StreamCforedReply_TASK_ID_REPLY {
 				log.Fatal("Expect type TASK_ID_REPLY")
 			}
-			taskId = cforedReply.GetPayloadTaskIdReply().TaskId
+			payload := cforedReply.GetPayloadTaskIdReply()
 
-			fmt.Printf("Task id allocated: %d\n", taskId)
+			if payload.Ok {
+				taskId = payload.TaskId
+				fmt.Printf("Task id allocated: %d\n", taskId)
 
-			state = WaitRes
+				state = WaitRes
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+				break CallocStateMachineLoop
+			}
 
 		case WaitRes:
 			item := <-replyChannel
