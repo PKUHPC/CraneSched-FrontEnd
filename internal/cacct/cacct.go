@@ -28,21 +28,56 @@ func QueryJob() {
 	request := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: true}
 
 	timeFormat := "2006-01-02T15:04:05"
-	if FlagSetStartTime != "" {
-		t, err := time.Parse(timeFormat, FlagSetStartTime)
-		if err != nil {
-			fmt.Println("Failed to parse the time string：", err)
-			os.Exit(1)
+	if FlagFilterStartTime != "" {
+		split := strings.Split(FlagFilterStartTime, "~")
+		if split[0] != "" {
+			tl, err := time.Parse(timeFormat, split[0])
+			if err != nil {
+				log.Fatalf("Failed to parse the time string: %s", err)
+			}
+			request.FilterStartTimeLeft = timestamppb.New(tl)
 		}
-		request.FilterStartTime = timestamppb.New(t)
+		if len(split) >= 2 && split[1] != "" {
+			tr, err := time.Parse(timeFormat, split[1])
+			if err != nil {
+				log.Fatalf("Failed to parse the time string: %s", err)
+			}
+			request.FilterStartTimeRight = timestamppb.New(tr)
+		}
 	}
-	if FlagSetEndTime != "" {
-		t, err := time.Parse(timeFormat, FlagSetEndTime)
-		if err != nil {
-			fmt.Println("Failed to parse the time string：", err)
-			os.Exit(1)
+	if FlagFilterEndTime != "" {
+		split := strings.Split(FlagFilterEndTime, "~")
+		if split[0] != "" {
+			tl, err := time.Parse(timeFormat, split[0])
+			if err != nil {
+				log.Fatalf("Failed to parse the time string: %s", err)
+			}
+			request.FilterEndTimeLeft = timestamppb.New(tl)
 		}
-		request.FilterEndTime = timestamppb.New(t)
+		if len(split) >= 2 && split[1] != "" {
+			tr, err := time.Parse(timeFormat, split[1])
+			if err != nil {
+				log.Fatalf("Failed to parse the time string: %s", err)
+			}
+			request.FilterEndTimeRight = timestamppb.New(tr)
+		}
+	}
+	if FlagFilterSubmitTime != "" {
+		split := strings.Split(FlagFilterSubmitTime, "~")
+		if split[0] != "" {
+			tl, err := time.Parse(timeFormat, split[0])
+			if err != nil {
+				log.Fatalf("Failed to parse the time string: %s", err)
+			}
+			request.FilterSubmitTimeLeft = timestamppb.New(tl)
+		}
+		if len(split) >= 2 && split[1] != "" {
+			tr, err := time.Parse(timeFormat, split[1])
+			if err != nil {
+				log.Fatalf("Failed to parse the time string: %s", err)
+			}
+			request.FilterSubmitTimeRight = timestamppb.New(tr)
+		}
 	}
 
 	if FlagFilterAccounts != "" {
@@ -57,7 +92,7 @@ func QueryJob() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				log.Fatalf("Invalid task id given: %s\n", filterJobIdList[i])
+				log.Fatalf("Invalid job id given: %s\n", filterJobIdList[i])
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
@@ -100,7 +135,7 @@ func QueryJob() {
 			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Partition,
 			reply.TaskInfoList[i].Account,
-			strconv.FormatFloat(reply.TaskInfoList[i].AllocCpus, 'f', 2, 64),
+			strconv.FormatFloat(reply.TaskInfoList[i].Alloc_CPU, 'f', 2, 64),
 			reply.TaskInfoList[i].Status.String(),
 			exitCode}
 	}
@@ -109,17 +144,24 @@ func QueryJob() {
 		header, tableData = FormatData(reply)
 	}
 
-	if FlagSetStartTime != "" {
+	if FlagFilterStartTime != "" {
 		header = append(header, "StartTime")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], reply.TaskInfoList[i].StartTime.AsTime().String())
 		}
 	}
 
-	if FlagSetEndTime != "" {
+	if FlagFilterEndTime != "" {
 		header = append(header, "EndTime")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], reply.TaskInfoList[i].EndTime.AsTime().String())
+		}
+	}
+
+	if FlagFilterSubmitTime != "" {
+		header = append(header, "SubmitTime")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].SubmitTime.AsTime().String())
 		}
 	}
 
@@ -195,7 +237,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "AllocCPUs":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
-					strconv.FormatFloat(reply.TaskInfoList[j].AllocCpus, 'f', 2, 64))
+					strconv.FormatFloat(reply.TaskInfoList[j].Alloc_CPU, 'f', 2, 64))
 			}
 		case "State":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
