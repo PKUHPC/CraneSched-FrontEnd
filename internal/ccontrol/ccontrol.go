@@ -6,10 +6,12 @@ import (
 	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -25,16 +27,20 @@ func ShowNodes(nodeName string, queryAll bool) {
 		panic("QueryNodeInfo failed: " + err.Error())
 	}
 
+	var B2MBRatio uint64 = 1024 * 1024
+
 	if queryAll {
 		if len(reply.CranedInfoList) == 0 {
 			fmt.Printf("No node is avalable.\n")
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
-				fmt.Printf("NodeName=%v State=%v CPUs=%.2f AllocCpus=%.2f FreeCpus=%.2f\n"+
-					"\tRealMemory=%d AllocMem=%d FreeMem=%d\n"+
-					"\tPatition=%s RunningTask=%d\n\n",
-					nodeInfo.Hostname, nodeInfo.State.String(), nodeInfo.Cpus, nodeInfo.AllocCpus, nodeInfo.FreeCpus,
-					nodeInfo.RealMem, nodeInfo.AllocMem, nodeInfo.FreeMem,
+				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
+					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tPatition=%s RunningJob=%d\n\n",
+					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu,
+					math.Abs(nodeInfo.AllocCpu),
+					math.Abs(nodeInfo.FreeCpu),
+					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -43,11 +49,11 @@ func ShowNodes(nodeName string, queryAll bool) {
 			fmt.Printf("Node %s not found.\n", nodeName)
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
-				fmt.Printf("NodeName=%v State=%v CPUs=%.2f AllocCpus=%.2f FreeCpus=%.2f\n"+
-					"\tRealMemory=%d AllocMem=%d FreeMem=%d\n"+
-					"\tPatition=%s RunningTask=%d\n\n",
-					nodeInfo.Hostname, nodeInfo.State.String(), nodeInfo.Cpus, nodeInfo.AllocCpus, nodeInfo.FreeCpus,
-					nodeInfo.RealMem, nodeInfo.AllocMem, nodeInfo.FreeMem,
+				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
+					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tPatition=%s RunningJob=%d\n\n",
+					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
+					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -63,6 +69,8 @@ func ShowPartitions(partitionName string, queryAll bool) {
 		panic("QueryPartitionInfo failed: " + err.Error())
 	}
 
+	var B2MBRatio uint64 = 1024 * 1024
+
 	if queryAll {
 		if len(reply.PartitionInfo) == 0 {
 			fmt.Printf("No node is avalable.\n")
@@ -70,12 +78,12 @@ func ShowPartitions(partitionName string, queryAll bool) {
 			for _, partitionInfo := range reply.PartitionInfo {
 				fmt.Printf("PartitionName=%v State=%v\n"+
 					"\tTotalNodes=%d AliveNodes=%d\n"+
-					"\tTotalCpus=%.2f AvailCpus=%.2f AllocCpus=%.2f\n"+
-					"\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n",
-					partitionInfo.Name, partitionInfo.State.String(),
+					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
+					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-					partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus,
-					partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
+					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
+					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
 			}
 		}
 	} else {
@@ -85,12 +93,12 @@ func ShowPartitions(partitionName string, queryAll bool) {
 			for _, partitionInfo := range reply.PartitionInfo {
 				fmt.Printf("PartitionName=%v State=%v\n"+
 					"\tTotalNodes=%d AliveNodes=%d\n"+
-					"\tTotalCpus=%.2f AvailCpus=%.2f AllocCpus=%.2f\n"+
-					"\tTotalMem=%d AvailMem=%d AllocMem=%d\n\tHostList=%v\n",
-					partitionInfo.Name, partitionInfo.State.String(),
+					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
+					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-					partitionInfo.TotalCpus, partitionInfo.AvailCpus, partitionInfo.AllocCpus,
-					partitionInfo.TotalMem, partitionInfo.AvailMem, partitionInfo.AllocMem, partitionInfo.Hostlist)
+					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
+					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
 			}
 		}
 	}
@@ -118,21 +126,27 @@ func ShowTasks(taskId uint32, queryAll bool) {
 
 	if len(reply.TaskInfoList) == 0 {
 		if queryAll {
-			fmt.Printf("No task is running.\n")
+			fmt.Printf("No job is running.\n")
 		} else {
-			fmt.Printf("Task %d is not running.\n", taskId)
+			fmt.Printf("Job %d is not running.\n", taskId)
 		}
 
 	} else {
 		for _, taskInfo := range reply.TaskInfoList {
+			timeSubmit := taskInfo.SubmitTime.AsTime()
+			timeSubmitStr := "unknown"
+			if !timeSubmit.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+				timeSubmitStr = timeSubmit.Local().String()
+			}
 			timeStart := taskInfo.StartTime.AsTime()
 			timeStartStr := "unknown"
-			if !timeStart.IsZero() {
+			runTime := "unknown"
+			if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 				timeStartStr = timeStart.Local().String()
+				runTime = time.Now().Sub(timeStart).String()
 			}
 			timeEnd := taskInfo.EndTime.AsTime()
 			timeEndStr := "unknown"
-			runTime := "unknown"
 			if timeEnd.After(timeStart) {
 				timeEndStr = timeEnd.Local().String()
 				runTime = timeEnd.Sub(timeStart).String()
@@ -143,7 +157,7 @@ func ShowTasks(taskId uint32, queryAll bool) {
 				"NumNodes=%d\n\tCmdLine=%v Workdir=%v\n",
 				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
 				taskInfo.Account, taskInfo.Status.String(), runTime, util.SecondTimeFormat(taskInfo.TimeLimit.Seconds),
-				timeStartStr, timeStartStr, timeEndStr, taskInfo.Partition,
+				timeSubmitStr, timeStartStr, timeEndStr, taskInfo.Partition,
 				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}

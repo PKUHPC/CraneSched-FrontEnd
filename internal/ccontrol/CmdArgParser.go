@@ -63,8 +63,8 @@ var (
 		},
 	}
 	showTaskCmd = &cobra.Command{
-		Use:   "task",
-		Short: "display the state of a specified task or all tasks",
+		Use:   "job",
+		Short: "display the state of a specified job or all jobs",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {

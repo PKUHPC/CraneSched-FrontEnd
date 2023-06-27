@@ -7,16 +7,17 @@ import (
 )
 
 var (
-	FlagConfigFilePath string
-	FlagFormat         string
-	FlagSetStartTime   string
-	FlagSetEndTime     string
-	FlagFilterAccounts string
-	FlagFilterJobIDs   string
-	FlagFilterUsers    string
-	FlagFilterJobNames string
-	FlagNoHeader       bool
-	FlagNumLimit       int32
+	FlagConfigFilePath   string
+	FlagFormat           string
+	FlagFilterSubmitTime string
+	FlagFilterStartTime  string
+	FlagFilterEndTime    string
+	FlagFilterAccounts   string
+	FlagFilterJobIDs     string
+	FlagFilterUsers      string
+	FlagFilterJobNames   string
+	FlagNoHeader         bool
+	FlagNumLimit         int32
 
 	rootCmd = &cobra.Command{
 		Use:   "cacct",
@@ -40,10 +41,12 @@ func ParseCmdArgs() {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	rootCmd.Flags().StringVarP(&FlagSetEndTime, "endtime", "E",
-		"", "Select jobs eligible before this time. ")
-	rootCmd.Flags().StringVarP(&FlagSetStartTime, "startime", "S",
-		"", " Select jobs eligible after this time ")
+	rootCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
+		"", "Select jobs eligible before this time")
+	rootCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
+		"", "Select jobs eligible after this time")
+	rootCmd.Flags().StringVarP(&FlagFilterSubmitTime, "submit-time", "s",
+		"", "Select jobs eligible after this time")
 	rootCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 		"comma separated list of accounts\n"+
 			"to view, default is all accounts")

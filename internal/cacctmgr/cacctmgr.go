@@ -412,7 +412,7 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 		panic("Modify information failed: " + err.Error())
 	}
 	if reply.GetOk() {
-		fmt.Println("Modify information success")
+		fmt.Println("Modify information success!")
 	} else {
 		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
 	}

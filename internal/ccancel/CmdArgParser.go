@@ -18,8 +18,8 @@ var (
 	FlagConfigFilePath string
 
 	rootCmd = &cobra.Command{
-		Use:   "ccancel [<task id>[[,<task id>]...]] [options]",
-		Short: "cancel pending or running tasks",
+		Use:   "ccancel [<job id>[[,<job id>]...]] [options]",
+		Short: "cancel pending or running jobs",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
 			err := cobra.MaximumNArgs(1)(cmd, args)
@@ -40,8 +40,8 @@ var (
 			if len(args) > 0 {
 				matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
 				if !matched {
-					return fmt.Errorf("task id list must follow the format " +
-						"<task id> or '<task id>,<task id>,<task id>...'")
+					return fmt.Errorf("job id list must follow the format " +
+						"<job id> or '<job id>,<job id>,<job id>...'")
 				}
 			}
 
