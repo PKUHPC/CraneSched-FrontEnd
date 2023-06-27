@@ -29,54 +29,57 @@ func QueryJob() {
 
 	timeFormat := "2006-01-02T15:04:05"
 	if FlagFilterStartTime != "" {
+		request.FilterStartTimeInterval = &protos.TimeInterval{}
 		split := strings.Split(FlagFilterStartTime, "~")
 		if split[0] != "" {
 			tl, err := time.Parse(timeFormat, split[0])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
-			request.FilterStartTimeLeft = timestamppb.New(tl)
+			request.FilterStartTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := time.Parse(timeFormat, split[1])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
-			request.FilterStartTimeRight = timestamppb.New(tr)
+			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
 		}
 	}
 	if FlagFilterEndTime != "" {
+		request.FilterEndTimeInterval = &protos.TimeInterval{}
 		split := strings.Split(FlagFilterEndTime, "~")
 		if split[0] != "" {
 			tl, err := time.Parse(timeFormat, split[0])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
-			request.FilterEndTimeLeft = timestamppb.New(tl)
+			request.FilterEndTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := time.Parse(timeFormat, split[1])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
-			request.FilterEndTimeRight = timestamppb.New(tr)
+			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
 		}
 	}
 	if FlagFilterSubmitTime != "" {
+		request.FilterSubmitTimeInterval = &protos.TimeInterval{}
 		split := strings.Split(FlagFilterSubmitTime, "~")
 		if split[0] != "" {
 			tl, err := time.Parse(timeFormat, split[0])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
-			request.FilterSubmitTimeLeft = timestamppb.New(tl)
+			request.FilterSubmitTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := time.Parse(timeFormat, split[1])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
-			request.FilterSubmitTimeRight = timestamppb.New(tr)
+			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
 		}
 	}
 
@@ -135,7 +138,7 @@ func QueryJob() {
 			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Partition,
 			reply.TaskInfoList[i].Account,
-			strconv.FormatFloat(reply.TaskInfoList[i].Alloc_CPU, 'f', 2, 64),
+			strconv.FormatFloat(reply.TaskInfoList[i].AllocCpu, 'f', 2, 64),
 			reply.TaskInfoList[i].Status.String(),
 			exitCode}
 	}
@@ -237,7 +240,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "AllocCPUs":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
-					strconv.FormatFloat(reply.TaskInfoList[j].Alloc_CPU, 'f', 2, 64))
+					strconv.FormatFloat(reply.TaskInfoList[j].AllocCpu, 'f', 2, 64))
 			}
 		case "State":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
