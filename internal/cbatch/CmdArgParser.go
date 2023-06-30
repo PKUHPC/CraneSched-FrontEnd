@@ -18,6 +18,7 @@ var (
 	FlagAccount       string
 	FlagQos           string
 	FlagCwd           string
+	FlagRepeat        uint32
 
 	FlagConfigFilePath string
 )
@@ -45,6 +46,7 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
 	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
 	rootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
+	rootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "submit the task multiple times")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

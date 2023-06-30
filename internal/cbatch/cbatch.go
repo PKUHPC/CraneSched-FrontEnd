@@ -18,24 +18,24 @@ type CbatchArg struct {
 	val  string
 }
 
-func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
-	req := new(protos.SubmitBatchTaskRequest)
-	req.Task = new(protos.TaskToCtld)
-	req.Task.TimeLimit = util.InvalidDuration()
-	req.Task.Resources = &protos.Resources{
+func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
+	task := new(protos.TaskToCtld)
+	task = new(protos.TaskToCtld)
+	task.TimeLimit = util.InvalidDuration()
+	task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
 			MemoryLimitBytes:   0,
 			MemorySwLimitBytes: 0,
 		},
 	}
-	req.Task.Payload = &protos.TaskToCtld_BatchMeta{
+	task.Payload = &protos.TaskToCtld_BatchMeta{
 		BatchMeta: &protos.BatchTaskAdditionalMeta{},
 	}
 
-	req.Task.CpusPerTask = 1
-	req.Task.NtasksPerNode = 1
-	req.Task.NodeNum = 1
+	task.CpusPerTask = 1
+	task.NtasksPerNode = 1
+	task.NodeNum = 1
 
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
@@ -46,23 +46,23 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
-			req.Task.NodeNum = uint32(num)
+			task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
 			num, err := strconv.ParseFloat(arg.val, 10)
 			if err != nil {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
-			req.Task.CpusPerTask = num
+			task.CpusPerTask = num
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
-			req.Task.NtasksPerNode = uint32(num)
+			task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			isOk := util.ParseDuration(arg.val, req.Task.TimeLimit)
+			isOk := util.ParseDuration(arg.val, task.TimeLimit)
 			if isOk == false {
 				log.Print("Invalid " + arg.name)
 				return false, nil
@@ -73,36 +73,36 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 				log.Error(err)
 				return false, nil
 			}
-			req.Task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
-			req.Task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+			task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
+			task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
-			req.Task.PartitionName = arg.val
+			task.PartitionName = arg.val
 		case "-o", "--output":
-			req.Task.GetBatchMeta().OutputFilePattern = arg.val
+			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-J", "--job-name":
-			req.Task.Name = arg.val
+			task.Name = arg.val
 		case "-A", "--account":
-			req.Task.Account = arg.val
+			task.Account = arg.val
 		case "--qos", "Q":
-			req.Task.Qos = arg.val
+			task.Qos = arg.val
 		case "--chdir":
-			req.Task.Cwd = arg.val
+			task.Cwd = arg.val
 		}
 	}
 
 	///*************set parameter values based on the command line*********************///
 	//If the command line argument is set, it replaces the argument read from the file, so the command line has a higher priority
 	if FlagNodes != 0 {
-		req.Task.NodeNum = FlagNodes
+		task.NodeNum = FlagNodes
 	}
 	if FlagCpuPerTask != 0 {
-		req.Task.CpusPerTask = FlagCpuPerTask
+		task.CpusPerTask = FlagCpuPerTask
 	}
 	if FlagNtasksPerNode != 0 {
-		req.Task.NtasksPerNode = FlagNtasksPerNode
+		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if FlagTime != "" {
-		ok := util.ParseDuration(FlagTime, req.Task.TimeLimit)
+		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if ok == false {
 			log.Print("Invalid --time")
 			return false, nil
@@ -114,36 +114,36 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.SubmitBatchTaskRequest) {
 			log.Error(err)
 			return false, nil
 		}
-		req.Task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
-		req.Task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
+		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 	}
 	if FlagPartition != "" {
-		req.Task.PartitionName = FlagPartition
+		task.PartitionName = FlagPartition
 	}
 	if FlagOutput != "" {
-		req.Task.GetBatchMeta().OutputFilePattern = FlagOutput
+		task.GetBatchMeta().OutputFilePattern = FlagOutput
 	}
 	if FlagJob != "" {
-		req.Task.Name = FlagJob
+		task.Name = FlagJob
 	}
 	if FlagQos != "" {
-		req.Task.Qos = FlagQos
+		task.Qos = FlagQos
 	}
 	if FlagCwd != "" {
-		req.Task.Cwd = FlagCwd
+		task.Cwd = FlagCwd
 	}
 	if FlagAccount != "" {
-		req.Task.Account = FlagAccount
+		task.Account = FlagAccount
 	}
 
-	if req.Task.CpusPerTask <= 0 || req.Task.NtasksPerNode == 0 || req.Task.NodeNum == 0 {
+	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
 		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 		return false, nil
 	}
 
-	req.Task.Resources.AllocatableResource.CpuCoreLimit = req.Task.CpusPerTask * float64(req.Task.NtasksPerNode)
+	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
-	return true, req
+	return true, task
 }
 
 func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
@@ -163,9 +163,10 @@ func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
 	return true
 }
 
-func SendRequest(req *protos.SubmitBatchTaskRequest) {
+func SendRequest(task *protos.TaskToCtld) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
+	req := &protos.SubmitBatchTaskRequest{Task: task}
 
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
@@ -179,7 +180,34 @@ func SendRequest(req *protos.SubmitBatchTaskRequest) {
 	}
 }
 
+func SendMultipleRequests(tasks []*protos.TaskToCtld) {
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub := util.GetStubToCtldByConfig(config)
+	req := &protos.SubmitBatchTasksRequest{Tasks: tasks}
+
+	reply, err := stub.SubmitBatchTasks(context.Background(), req)
+	if err != nil {
+		panic("SubmitBatchTask failed: " + err.Error())
+	}
+
+	if len(reply.TaskIdList) > 0 {
+		taskIdListString := make([]string, len(reply.TaskIdList))
+		for i, taskId := range reply.TaskIdList {
+			taskIdListString[i] = strconv.FormatUint(uint64(taskId), 10)
+		}
+		fmt.Printf("Task Id allocated: %s\n", strings.Join(taskIdListString, ", "))
+	}
+
+	if len(reply.ReasonList) > 0 {
+		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
+	}
+}
+
 func Cbatch(jobFilePath string) {
+	if FlagRepeat == 0 {
+		log.Fatal("--repeat must >0")
+	}
+
 	file, err := os.Open(jobFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -214,19 +242,27 @@ func Cbatch(jobFilePath string) {
 	// fmt.Printf("Shell script:\n%s\n\n", strings.Join(sh, "\n"))
 	// fmt.Printf("Cbatch args:\n%v\n\n", args)
 
-	ok, req := ProcessCbatchArg(args)
+	ok, task := ProcessCbatchArg(args)
 	if !ok {
 		log.Fatalf("Invalid cbatch argument")
 	}
 
-	req.Task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
-	req.Task.Uid = uint32(os.Getuid())
-	req.Task.CmdLine = strings.Join(os.Args, " ")
-	req.Task.Env = strings.Join(os.Environ(), "||")
-	req.Task.Type = protos.TaskType_Batch
-	if req.Task.Cwd == "" {
-		req.Task.Cwd, _ = os.Getwd()
+	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
+	task.Uid = uint32(os.Getuid())
+	task.CmdLine = strings.Join(os.Args, " ")
+	task.Env = strings.Join(os.Environ(), "||")
+	task.Type = protos.TaskType_Batch
+	if task.Cwd == "" {
+		task.Cwd, _ = os.Getwd()
 	}
 
-	SendRequest(req)
+	if FlagRepeat == 1 {
+		SendRequest(task)
+	} else {
+		tasks := make([]*protos.TaskToCtld, FlagRepeat)
+		for i := uint32(0); i < FlagRepeat; i++ {
+			tasks[i] = task
+		}
+		SendMultipleRequests(tasks)
+	}
 }
