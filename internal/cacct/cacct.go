@@ -123,7 +123,7 @@ func QueryJob() {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"TaskId", "TaskName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
+	header := []string{"TaskId", "TaskName ", "Partition", "Account ", "AllocCPUs", "State ", "ExitCode"}
 
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {

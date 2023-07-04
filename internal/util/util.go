@@ -46,7 +46,7 @@ func SetBorderlessTable(table *tablewriter.Table) {
 	table.SetCenterSeparator("")
 	table.SetColumnSeparator("")
 	table.SetRowSeparator("")
-	table.SetNoWhiteSpace(true)
+	table.SetNoWhiteSpace(false)
 }
 
 func SetBorderTable(table *tablewriter.Table) {

@@ -58,19 +58,9 @@ func cinfoFunc() {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetBorder(false)
-	table.SetTablePadding("\t")
-	table.SetHeaderLine(false)
-	table.SetAutoWrapText(false)
-	table.SetAutoFormatHeaders(false)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetCenterSeparator("")
-	table.SetColumnSeparator("")
-	table.SetRowSeparator("")
-	table.SetNoWhiteSpace(true)
+	util.SetBorderlessTable(table)
 	var tableData [][]string
-	table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
+	table.SetHeader([]string{"PARTITION", "AVAIL ", "TIMELIMIT ", "NODES ", "STATE ", "NODELIST"})
 	for _, partitionCraned := range reply.Partitions {
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {
