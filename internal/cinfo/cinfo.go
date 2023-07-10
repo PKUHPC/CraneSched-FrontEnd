@@ -60,7 +60,7 @@ func cinfoFunc() {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	var tableData [][]string
-	table.SetHeader([]string{"PARTITION", "AVAIL ", "TIMELIMIT ", "NODES ", "STATE ", "NODELIST"})
+	table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
 	for _, partitionCraned := range reply.Partitions {
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {

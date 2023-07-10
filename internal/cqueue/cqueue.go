@@ -88,8 +88,8 @@ func Query() {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"JobId", "Partition", "Name", "User ",
-		"Account ", "Status  ", "Type  ", "TimeLimit", "Nodes", "NodeList"}
+	header := []string{"JobId", "Partition", "Name", "User",
+		"Account", "Status", "Type", "TimeLimit", "Nodes", "NodeList"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		tableData[i] = []string{
