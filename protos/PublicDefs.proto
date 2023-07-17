@@ -82,7 +82,7 @@ message TaskToCtld {
   string cwd = 32; // Current working directory
   string env = 33;
   repeated string excludes = 34;
-  repeated string clusters = 35;
+  repeated string nodelist = 35;
 }
 
 message TaskInEmbeddedDb {
