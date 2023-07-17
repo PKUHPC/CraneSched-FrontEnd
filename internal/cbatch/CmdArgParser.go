@@ -19,6 +19,8 @@ var (
 	FlagQos           string
 	FlagCwd           string
 	FlagRepeat        uint32
+	FlagClusters      string
+	FlagExcludes      string
 
 	FlagConfigFilePath string
 )
@@ -47,6 +49,8 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
 	rootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
 	rootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "submit the task multiple times")
+	rootCmd.Flags().StringVarP(&FlagClusters, "clusters", "", "", "specify a list of cluster constraints")
+	rootCmd.Flags().StringVarP(&FlagExcludes, "excludes", "x", "", "exclude a specific list of hosts")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

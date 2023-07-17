@@ -87,6 +87,10 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Qos = arg.val
 		case "--chdir":
 			task.Cwd = arg.val
+		case "--excludes", "x": //判断有效性
+			task.Excludes = strings.Split(arg.val, ",")
+		case "--clusters":
+			task.Clusters = strings.Split(arg.val, ",")
 		}
 	}
 
@@ -135,6 +139,14 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagAccount != "" {
 		task.Account = FlagAccount
 	}
+	if FlagClusters != "" { //判断有效性?
+		task.Clusters = strings.Split(FlagClusters, ",")
+	}
+	if FlagExcludes != "" {
+		task.Excludes = strings.Split(FlagExcludes, ",")
+	}
+
+	//判断名字有效性。
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
 		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
