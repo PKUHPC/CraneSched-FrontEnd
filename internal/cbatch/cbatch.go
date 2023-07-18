@@ -87,7 +87,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Qos = arg.val
 		case "--chdir":
 			task.Cwd = arg.val
-		case "--excludes", "x": //判断有效性
+		case "--excludes", "-x":
 			task.Excludes = strings.Split(arg.val, ",")
 		case "--nodelist", "-w":
 			task.Nodelist = strings.Split(arg.val, ",")
