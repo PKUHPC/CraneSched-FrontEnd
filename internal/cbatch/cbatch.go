@@ -88,14 +88,15 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "--chdir":
 			task.Cwd = arg.val
 		case "--exclude", "-x":
-			task.Exclude = strings.Split(arg.val, ",")
+			task.Excludes = strings.Split(arg.val, ",")
 		case "--nodelist", "-w":
 			task.Nodelist = strings.Split(arg.val, ",")
 		}
 	}
 
-	///*************set parameter values based on the command line*********************///
-	//If the command line argument is set, it replaces the argument read from the file, so the command line has a higher priority
+	// ************* set parameter values based on the command line *********************
+	// If the command line argument is set, it replaces the argument read from the file,
+	// so the command line has a higher priority
 	if FlagNodes != 0 {
 		task.NodeNum = FlagNodes
 	}
@@ -143,7 +144,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.Nodelist = strings.Split(FlagNodelist, ",")
 	}
 	if FlagExclude != "" {
-		task.Exclude = strings.Split(FlagExclude, ",")
+		task.Excludes = strings.Split(FlagExclude, ",")
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
