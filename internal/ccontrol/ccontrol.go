@@ -151,6 +151,9 @@ func ShowTasks(taskId uint32, queryAll bool) {
 				timeEndStr = timeEnd.Local().String()
 				runTime = timeEnd.Sub(timeStart).String()
 			}
+			if taskInfo.Status.String() == "Running" {
+				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).String()
+			}
 
 			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
 				"TimeLimit=%s SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
