@@ -154,6 +154,13 @@ func ShowTasks(taskId uint32, queryAll bool) {
 			if taskInfo.Status.String() == "Running" {
 				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).String()
 			}
+			//var timeLimitStr string
+			//if taskInfo.NoTimeLimitConstraint {
+			//	timeLimitStr = "unlimited"
+			//	timeEndStr = "unknown"
+			//} else {
+			//	timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
+			//}
 
 			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
 				"TimeLimit=%s SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
