@@ -86,7 +86,7 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 
 func InvalidDuration() *duration.Duration {
 	return &duration.Duration{
-		Seconds: 0,
+		Seconds: 315576000000,
 		Nanos:   0,
 	}
 }
