@@ -540,8 +540,8 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		Name:          "Interactive",
 		TimeLimit:     util.InvalidDuration(),
 		PartitionName: "",
-		Resources: &protos.Resources{
-			AllocatableResource: &protos.AllocatableResource{
+		Resources: &protos.ResourceView{
+			AllocatableRes: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
 				MemoryLimitBytes:   0,
 				MemorySwLimitBytes: 0,
@@ -591,8 +591,12 @@ func MainCrun(cmd *cobra.Command, args []string) {
 			log.Error(err)
 			return
 		}
-		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		task.Resources.DeviceMap = gresMap
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
@@ -615,9 +619,9 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
-	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
-		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableResource.CpuCoreLimit)
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
+		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
 	}
 	task.GetInteractiveMeta().ShScript = strings.Join(args, " ")
 	term, exits := syscall.Getenv("TERM")

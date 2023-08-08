@@ -17,6 +17,7 @@
 package util
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"fmt"
 	"math"
 	"regexp"
@@ -471,4 +472,51 @@ func RemoveBracketsWithoutDashOrComma(input string) string {
 		}
 	}
 	return output
+}
+
+func ParseGres(gres string) *protos.DeviceMap {
+	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+	if gres == "" {
+		return result
+	}
+	gresList := strings.Split(gres, ",")
+	for _, g := range gresList {
+		parts := strings.Split(g, ":")
+		name := parts[0]
+		if len(parts) == 2 {
+			gresNameCount, err := strconv.ParseUint(parts[1], 10, 64)
+			if err != nil {
+				log.Errorf("Error parsing gres count: %s\n", g)
+			}
+			if gresNameCount == 0 {
+				continue
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: make(map[string]uint64), Total: gresNameCount}
+			} else {
+				result.NameTypeMap[name].Total += gresNameCount
+			}
+		} else if len(parts) == 3 {
+			gresType := parts[1]
+			count, err := strconv.ParseUint(parts[2], 10, 64)
+			if err != nil {
+				fmt.Printf("Error parsing count for %s: %v\n", name, err)
+				continue
+			}
+			if count == 0 {
+				continue
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				typeCountMap := make(map[string]uint64)
+				typeCountMap[gresType] = count
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: 0}
+			} else {
+				result.NameTypeMap[name].TypeCountMap[gresType] = count
+			}
+		} else {
+			log.Errorf("Error parsing gres : %s\n", g)
+		}
+	}
+
+	return result
 }

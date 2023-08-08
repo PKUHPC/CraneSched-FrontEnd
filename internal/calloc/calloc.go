@@ -354,8 +354,8 @@ func main(cmd *cobra.Command, args []string) {
 		Name:          "Interactive",
 		TimeLimit:     util.InvalidDuration(),
 		PartitionName: "",
-		Resources: &protos.Resources{
-			AllocatableResource: &protos.AllocatableResource{
+		Resources: &protos.ResourceView{
+			AllocatableRes: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
 				MemoryLimitBytes:   1024 * 1024 * 128,
 				MemorySwLimitBytes: 1024 * 1024 * 128,
@@ -390,6 +390,10 @@ func main(cmd *cobra.Command, args []string) {
 	} else {
 		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
 	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		task.Resources.DeviceMap = gresMap
+	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
@@ -401,8 +405,8 @@ func main(cmd *cobra.Command, args []string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
@@ -425,9 +429,9 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
-	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
-		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableResource.CpuCoreLimit)
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
+		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
 	}
 
 	StartCallocStream(task)

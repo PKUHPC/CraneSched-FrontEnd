@@ -238,19 +238,21 @@ func QueryJob() util.CraneCmdError {
 
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
+		taskInfo := reply.TaskInfoList[i]
+
 		exitCode := ""
-		if reply.TaskInfoList[i].ExitCode >= kCraneExitCodeBase {
-			exitCode = fmt.Sprintf("0:%d", reply.TaskInfoList[i].ExitCode-kCraneExitCodeBase)
+		if taskInfo.ExitCode >= kCraneExitCodeBase {
+			exitCode = fmt.Sprintf("0:%d", taskInfo.ExitCode-kCraneExitCodeBase)
 		} else {
-			exitCode = fmt.Sprintf("%d:0", reply.TaskInfoList[i].ExitCode)
+			exitCode = fmt.Sprintf("%d:0", taskInfo.ExitCode)
 		}
 		tableData[i] = []string{
-			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-			reply.TaskInfoList[i].Name,
-			reply.TaskInfoList[i].Partition,
-			reply.TaskInfoList[i].Account,
-			strconv.FormatFloat(reply.TaskInfoList[i].AllocCpu, 'f', 2, 64),
-			reply.TaskInfoList[i].Status.String(),
+			strconv.FormatUint(uint64(taskInfo.TaskId), 10),
+			taskInfo.Name,
+			taskInfo.Partition,
+			taskInfo.Account,
+			strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
+			taskInfo.Status.String(),
 			exitCode}
 	}
 
@@ -377,7 +379,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			header = "AllocCPUs"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j],
-					strconv.FormatFloat(reply.TaskInfoList[j].AllocCpu, 'f', 2, 64))
+					strconv.FormatFloat(reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit*
+						float64(reply.TaskInfoList[i].NodeNum), 'f', 2, 64))
 			}
 		case "e":
 			header = "ExitCode"
