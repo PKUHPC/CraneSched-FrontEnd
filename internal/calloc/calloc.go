@@ -390,6 +390,12 @@ func main(cmd *cobra.Command, args []string) {
 	} else {
 		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
 	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		task.Resources.DedicatedResource = &protos.Resources_DedicatedResourceReq{
+			DedicatedResourceReq: gresMap,
+		}
+	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {

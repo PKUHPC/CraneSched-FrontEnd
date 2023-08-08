@@ -37,6 +37,40 @@ var (
 	stub protos.CraneCtldClient
 )
 
+func formatGres(data *protos.DeviceMap) string {
+	var kvStrings []string
+
+	for deviceName, typeCountMap := range data.NameTypeMap {
+		var typeCountPairs []string
+		for deviceType, count := range typeCountMap.TypeCountMap {
+			if count != 0 {
+				typeCountPairs = append(typeCountPairs, fmt.Sprintf("%s:%d", deviceType, count))
+			}
+		}
+		if typeCountMap.Total != 0 {
+			typeCountPairs = append(typeCountPairs, strconv.FormatUint(typeCountMap.Total, 10))
+		}
+		for _, typeCountPair := range typeCountPairs {
+			kvStrings = append(kvStrings, fmt.Sprintf("%s:%s", deviceName, typeCountPair))
+		}
+	}
+
+	kvstring := strings.Join(kvStrings, ", ")
+	if len(kvstring) == 0 {
+		return "0"
+	}
+	return kvstring
+}
+
+func formatMemToMB(data uint64) string {
+	var B2MBRatio uint64 = 1024 * 1024
+	if data == 0 {
+		return "0"
+	} else {
+		return fmt.Sprintf("%vM", data/B2MBRatio)
+	}
+}
+
 func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
@@ -44,8 +78,6 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
 		return util.ErrorNetwork
 	}
-
-	var B2MBRatio uint64 = 1024 * 1024
 
 	if queryAll {
 		if len(reply.CranedInfoList) == 0 {
@@ -57,12 +89,14 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
 				}
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
-					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tRealMemory=%s AllocMem=%s FreeMem=%s\n"+
+					"\tGres=%s AllocGres=%s FreeGres=%s\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
 					nodeInfo.Hostname, stateStr, nodeInfo.Cpu,
 					math.Abs(nodeInfo.AllocCpu),
 					math.Abs(nodeInfo.FreeCpu),
-					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
+					formatMemToMB(nodeInfo.RealMem), formatMemToMB(nodeInfo.AllocMem), formatMemToMB(nodeInfo.FreeMem),
+					formatGres(nodeInfo.Device), formatGres(nodeInfo.AllocDevice), formatGres(nodeInfo.AvailDevice),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -76,10 +110,12 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
 				}
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
-					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tRealMemory=%s AllocMem=%s FreeMem=%s\n"+
+					"\tGres=%s AllocGres=%s FreeGres=%s\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
 					nodeInfo.Hostname, stateStr, nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
-					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
+					formatMemToMB(nodeInfo.RealMem), formatMemToMB(nodeInfo.AllocMem), formatMemToMB(nodeInfo.FreeMem),
+					formatGres(nodeInfo.Device), formatGres(nodeInfo.AllocDevice), formatGres(nodeInfo.AvailDevice),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -95,8 +131,6 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
-	var B2MBRatio uint64 = 1024 * 1024
-
 	if queryAll {
 		if len(reply.PartitionInfo) == 0 {
 			fmt.Println("No node is available.")
@@ -105,11 +139,15 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				fmt.Printf("PartitionName=%v State=%v\n"+
 					"\tTotalNodes=%d AliveNodes=%d\n"+
 					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
+					"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
+					"\tHostList=%v\n\n",
 					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
-					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
+					formatMemToMB(partitionInfo.TotalMem), formatMemToMB(partitionInfo.AvailMem), formatMemToMB(partitionInfo.AllocMem),
+					formatGres(partitionInfo.Device), formatGres(partitionInfo.AvailDevice), formatGres(partitionInfo.AllocDevice),
+					partitionInfo.Hostlist)
 			}
 		}
 	} else {
@@ -120,11 +158,15 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				fmt.Printf("PartitionName=%v State=%v\n"+
 					"\tTotalNodes=%d AliveNodes=%d\n"+
 					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
+					"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
+					"\tHostList=%v\n\n",
 					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
-					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
+					formatMemToMB(partitionInfo.TotalMem), formatMemToMB(partitionInfo.AvailMem), formatMemToMB(partitionInfo.AllocMem),
+					formatGres(partitionInfo.Device), formatGres(partitionInfo.AvailDevice), formatGres(partitionInfo.AllocDevice),
+					partitionInfo.Hostlist)
 			}
 		}
 	}
@@ -182,7 +224,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 			if timeEnd.After(timeStart) {
 				timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
 			}
-
+			var resourcesType = "ReqRes"
 			if taskInfo.Status == protos.TaskStatus_Running {
 				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).In(time.Local).Format("2006-01-02 15:04:05")
 
@@ -194,6 +236,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 				seconds := int(runTimeDuration.Seconds()) % 60
 
 				runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
+				resourcesType = "AllocRes"
 			}
 
 			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
@@ -205,11 +248,13 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 
 			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
 				"TimeLimit=%s SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
-				"NumNodes=%d\n\tCmdLine=\"%v\" Workdir=%v\n",
+				"%s=node=%d cpu=%.2f gres=%s\n\t"+
+				"CmdLine=\"%v\" Workdir=%v\n",
 				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
 				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr,
 				timeSubmitStr, timeStartStr, timeEndStr, taskInfo.Partition,
-				taskInfo.GetCranedList(), taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
+				taskInfo.GetCranedList(), resourcesType, taskInfo.NodeNum, taskInfo.AllocCpu, formatGres(taskInfo.GresPerNode),
+				taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}
 	return util.ErrorSuccess
