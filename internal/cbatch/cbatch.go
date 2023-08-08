@@ -6,11 +6,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type CbatchArg struct {
@@ -27,6 +28,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			CpuCoreLimit:       1,
 			MemoryLimitBytes:   0,
 			MemorySwLimitBytes: 0,
+		},
+		DedicatedResource: &protos.DedicatedResource{
+			devices: map[string]uint64{"gpu": 0},
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
@@ -54,6 +58,13 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 				return false, nil
 			}
 			task.CpusPerTask = num
+		case "--gpus":
+			num, err := strconv.ParseUint(arg.val, 10, 64)
+			if err != nil {
+				log.Print("Invalid " + arg.name)
+				return false, nil
+			}
+			task.Resources.DedicatedResource.devices["gpu"] = num
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -102,6 +113,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagCpuPerTask != 0 {
 		task.CpusPerTask = FlagCpuPerTask
+	}
+	if FlagGpus != 0 {
+		task.Resources.DedicatedResource.devices["gpu"] = FlagGpus
 	}
 	if FlagNtasksPerNode != 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
