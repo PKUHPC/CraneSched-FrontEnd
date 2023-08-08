@@ -30,7 +30,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			MemorySwLimitBytes: 0,
 		},
 		DedicatedResource: &protos.DedicatedResource{
-			devices: map[string]uint64{"gpu": 0},
+			Devices: map[string]uint64{"gpu": 0},
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
@@ -64,7 +64,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
-			task.Resources.DedicatedResource.devices["gpu"] = num
+			task.Resources.DedicatedResource.Devices["gpu"] = num
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -115,7 +115,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.CpusPerTask = FlagCpuPerTask
 	}
 	if FlagGpus != 0 {
-		task.Resources.DedicatedResource.devices["gpu"] = FlagGpus
+		task.Resources.DedicatedResource.Devices["gpu"] = FlagGpus
 	}
 	if FlagNtasksPerNode != 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
