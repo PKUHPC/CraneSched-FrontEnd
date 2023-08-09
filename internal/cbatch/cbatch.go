@@ -30,8 +30,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			MemorySwLimitBytes: 0,
 		},
 		DedicatedResource: &protos.DedicatedResource{
-			Devices:           map[string]uint64{"gpu": 0},
-			ResourceStoreType: protos.DedicatedResource_COUNT,
+			Devices: map[string]uint64{"gpu": 0},
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{

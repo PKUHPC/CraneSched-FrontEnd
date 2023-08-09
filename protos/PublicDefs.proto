@@ -22,14 +22,7 @@ message AllocatableResource {
 
 
 message DedicatedResource {
-  //in TaskToCtld,value is num
-  //in TaskToD,value is bitmap
-  enum ResourceStoreType{
-    BITMAP = 0;
-    COUNT = 1;
-  }
   map <string,uint64> devices=1;
-  ResourceStoreType resource_store_type= 2;
 }
 
 message Resources {
