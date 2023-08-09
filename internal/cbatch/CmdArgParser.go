@@ -41,7 +41,7 @@ func ParseCmdArgs() {
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, " number of nodes on which to run (N = min[-max])")
 	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "number of cpus required per task")
-	rootCmd.Flags().Uint64VarP(&FlagGpus, "gpus", "", 0, "num of gpus required per task")
+	rootCmd.Flags().Uint64Var(&FlagGpus, "gpus", 0, "num of gpus required per task")
 	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "number of tasks to invoke on each node")
 	rootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
 	rootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
