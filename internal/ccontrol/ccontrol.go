@@ -21,10 +21,10 @@ var (
 func mapToKVString(data map[string]uint64) string{
 	var kvStrings []string
 
-	for key,vaule := range data{
+	for key,value := range data{
 		kvStrings = append(kvStrings,fmt.Sprintf("%s:%d",key,value))
 	}
-	return strings.Join(keyValueStrings, ", ")
+	return strings.Join(kvStrings, ", ")
 }
 
 func ShowNodes(nodeName string, queryAll bool) {
