@@ -18,11 +18,11 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func mapToKVString(data map[string]uint64) string{
+func mapToKVString(data map[string]uint64) string {
 	var kvStrings []string
 
-	for key,value := range data{
-		kvStrings = append(kvStrings,fmt.Sprintf("%s:%d",key,value))
+	for key, value := range data {
+		kvStrings = append(kvStrings, fmt.Sprintf("%s:%d", key, value))
 	}
 	return strings.Join(kvStrings, ", ")
 }
@@ -51,7 +51,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 					math.Abs(nodeInfo.AllocCpu),
 					math.Abs(nodeInfo.FreeCpu),
 					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
-					mapToKVString(nodeInfo.Device),mapToKVString(nodeInfo.AllocDevice),mapToKVString(nodeInfo.AvailDevice),
+					mapToKVString(nodeInfo.Device), mapToKVString(nodeInfo.AllocDevice), mapToKVString(nodeInfo.AvailDevice),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -66,7 +66,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 					"\tPatition=%s RunningJob=%d\n\n",
 					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
 					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
-					mapToKVString(nodeInfo.Device),mapToKVString(nodeInfo.AllocDevice),mapToKVString(nodeInfo.AvailDevice),
+					mapToKVString(nodeInfo.Device), mapToKVString(nodeInfo.AllocDevice), mapToKVString(nodeInfo.AvailDevice),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -99,7 +99,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
 					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio,
-					mapToKVString(partitionInfo.Device),mapToKVString(partitionInfo.AvailDevice),mapToKVString(partitionInfo.AllocDevice),
+					mapToKVString(partitionInfo.Device), mapToKVString(partitionInfo.AvailDevice), mapToKVString(partitionInfo.AllocDevice),
 					partitionInfo.Hostlist)
 			}
 		}
@@ -118,7 +118,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
 					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio,
-					mapToKVString(partitionInfo.Device),mapToKVString(partitionInfo.AvailDevice),mapToKVString(partitionInfo.AllocDevice),
+					mapToKVString(partitionInfo.Device), mapToKVString(partitionInfo.AvailDevice), mapToKVString(partitionInfo.AllocDevice),
 					partitionInfo.Hostlist)
 			}
 		}

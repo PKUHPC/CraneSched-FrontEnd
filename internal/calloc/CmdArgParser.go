@@ -8,7 +8,7 @@ import (
 var (
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
-	FlagGpus		  uint64
+	FlagGpus          uint64
 	FlagNtasksPerNode uint32
 	FlagTime          string
 	FlagMem           string

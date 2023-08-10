@@ -332,8 +332,8 @@ func main(cmd *cobra.Command, args []string) {
 				MemoryLimitBytes:   1024 * 1024 * 128,
 				MemorySwLimitBytes: 1024 * 1024 * 128,
 			},
-			DedicatedResource: 	&protos.DedicatedResource{
-			Devices:			    map[string]uint64{"gpu": 0},
+			DedicatedResource: &protos.DedicatedResource{
+				Devices: map[string]uint64{"gpu": 0},
 			},
 		},
 		Type:            protos.TaskType_Interactive,
