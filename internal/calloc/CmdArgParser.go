@@ -8,6 +8,7 @@ import (
 var (
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
+	FlagGpus		  uint64
 	FlagNtasksPerNode uint32
 	FlagTime          string
 	FlagMem           string
@@ -40,6 +41,6 @@ func CmdArgParser() *cobra.Command {
 	parser.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
 	parser.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
 	parser.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
-
+	parser.Flags().Uint64Var(&FlagGpus, "gpus", 0, "num of gpus required per task")
 	return parser
 }

@@ -332,6 +332,9 @@ func main(cmd *cobra.Command, args []string) {
 				MemoryLimitBytes:   1024 * 1024 * 128,
 				MemorySwLimitBytes: 1024 * 1024 * 128,
 			},
+			DedicatedResource: 	&protos.DedicatedResource{
+			Devices:			    map[string]uint64{"gpu": 0},
+		},
 		},
 		Type:            protos.TaskType_Interactive,
 		Uid:             uint32(uid),
@@ -350,6 +353,9 @@ func main(cmd *cobra.Command, args []string) {
 	}
 	if FlagCpuPerTask != 0 {
 		task.CpusPerTask = FlagCpuPerTask
+	}
+	if FlagGpus != 0 {
+		task.Resources.DedicatedResource.Devices["gpu"] = FlagGpus
 	}
 	if FlagNtasksPerNode != 0 {
 		task.NtasksPerNode = FlagNtasksPerNode

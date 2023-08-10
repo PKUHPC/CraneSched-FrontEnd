@@ -18,6 +18,15 @@ var (
 	stub protos.CraneCtldClient
 )
 
+func mapToKVString(data map[string]uint64) string{
+	var kvStrings []string
+
+	for key,vaule := range data{
+		kvStrings = append(kvStrings,fmt.Sprintf("%s:%d",key,value))
+	}
+	return strings.Join(keyValueStrings, ", ")
+}
+
 func ShowNodes(nodeName string, queryAll bool) {
 	var req *protos.QueryCranedInfoRequest
 
@@ -36,11 +45,13 @@ func ShowNodes(nodeName string, queryAll bool) {
 			for _, nodeInfo := range reply.CranedInfoList {
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
 					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tGres={%s} AllocGres={%s} FreeGres={%s}"+
 					"\tPatition=%s RunningJob=%d\n\n",
 					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu,
 					math.Abs(nodeInfo.AllocCpu),
 					math.Abs(nodeInfo.FreeCpu),
 					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
+					mapToKVString(nodeInfo.Device),mapToKVString(nodeInfo.AllocDevice),mapToKVString(nodeInfo.AvailDevice),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -51,9 +62,11 @@ func ShowNodes(nodeName string, queryAll bool) {
 			for _, nodeInfo := range reply.CranedInfoList {
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
 					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tGres={%s} AllocGres={%s} FreeGres={%s}"+
 					"\tPatition=%s RunningJob=%d\n\n",
 					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
 					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
+					mapToKVString(nodeInfo.Device),mapToKVString(nodeInfo.AllocDevice),mapToKVString(nodeInfo.AvailDevice),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -79,11 +92,15 @@ func ShowPartitions(partitionName string, queryAll bool) {
 				fmt.Printf("PartitionName=%v State=%v\n"+
 					"\tTotalNodes=%d AliveNodes=%d\n"+
 					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n"+
+					"\tTotalGres={%s} AvailGres={%s} AllocGres={%s}"+
+					"\tHostList=%v\n\n",
 					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
-					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
+					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio,
+					mapToKVString(partitionInfo.Device),mapToKVString(partitionInfo.AvailDevice),mapToKVString(partitionInfo.AllocDevice),
+					partitionInfo.Hostlist)
 			}
 		}
 	} else {
@@ -94,11 +111,15 @@ func ShowPartitions(partitionName string, queryAll bool) {
 				fmt.Printf("PartitionName=%v State=%v\n"+
 					"\tTotalNodes=%d AliveNodes=%d\n"+
 					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n"+
+					"\tTotalGres={%s} AvailGres={%s} AllocGres={%s}"+
+					"\tHostList=%v\n\n",
 					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
-					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
+					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio,
+					mapToKVString(partitionInfo.Device),mapToKVString(partitionInfo.AvailDevice),mapToKVString(partitionInfo.AllocDevice),
+					partitionInfo.Hostlist)
 			}
 		}
 	}
