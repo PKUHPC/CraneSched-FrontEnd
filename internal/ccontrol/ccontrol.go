@@ -45,7 +45,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 			for _, nodeInfo := range reply.CranedInfoList {
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
 					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
-					"\tGres={%s} AllocGres={%s} FreeGres={%s}"+
+					"\tGres={%s} AllocGres={%s} FreeGres={%s}\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
 					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu,
 					math.Abs(nodeInfo.AllocCpu),
@@ -62,7 +62,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 			for _, nodeInfo := range reply.CranedInfoList {
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
 					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
-					"\tGres={%s} AllocGres={%s} FreeGres={%s}"+
+					"\tGres={%s} AllocGres={%s} FreeGres={%s}\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
 					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
 					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,

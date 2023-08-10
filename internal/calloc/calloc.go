@@ -334,7 +334,7 @@ func main(cmd *cobra.Command, args []string) {
 			},
 			DedicatedResource: 	&protos.DedicatedResource{
 			Devices:			    map[string]uint64{"gpu": 0},
-		},
+			},
 		},
 		Type:            protos.TaskType_Interactive,
 		Uid:             uint32(uid),
