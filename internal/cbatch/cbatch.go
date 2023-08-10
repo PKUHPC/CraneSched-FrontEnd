@@ -6,12 +6,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type CbatchArg struct {
