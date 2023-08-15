@@ -96,6 +96,12 @@ func Query() {
 		"Account", "Status", "Type", "TimeLimit", "Nodes", "NodeList"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
+		var timeLimitStr string
+		if reply.TaskInfoList[i].TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+			timeLimitStr = "unlimited"
+		} else {
+			timeLimitStr = util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds)
+		}
 		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 			reply.TaskInfoList[i].Partition,
@@ -104,7 +110,7 @@ func Query() {
 			reply.TaskInfoList[i].Account,
 			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].Type.String(),
-			util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds),
+			timeLimitStr,
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
 			reply.TaskInfoList[i].CranedList,
 		}

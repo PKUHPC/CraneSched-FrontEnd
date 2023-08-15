@@ -99,13 +99,19 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	table.SetAutoFormatHeaders(false)
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
+		var timeLimitStr string
+		if info.MaxTimeLimitPerTask >= uint64(util.InvalidDuration().Seconds) {
+			timeLimitStr = "unlimited"
+		} else {
+			timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))
+		}
 		tableData = append(tableData, []string{
 			info.Name,
 			info.Description,
 			fmt.Sprintf("%d", info.Priority),
 			fmt.Sprintf("%d", info.MaxJobsPerUser),
 			fmt.Sprintf("%d", info.MaxCpusPerUser),
-			fmt.Sprintf("%d", info.MaxTimeLimitPerTask)})
+			fmt.Sprintf(timeLimitStr)})
 	}
 
 	table.AppendBulk(tableData)
