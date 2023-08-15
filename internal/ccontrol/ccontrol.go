@@ -155,7 +155,7 @@ func ShowTasks(taskId uint32, queryAll bool) {
 				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).String()
 			}
 			var timeLimitStr string
-			if taskInfo.TimeLimit.Seconds == util.InvalidDuration().Seconds {
+			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
 				timeLimitStr = "unlimited"
 				timeEndStr = "unknown"
 			} else {
