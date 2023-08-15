@@ -86,6 +86,10 @@ func Query() {
 		panic("QueryTasksInfo failed: " + err.Error())
 	}
 
+	sort.SliceStable(reply.TaskInfoList, func(i, j int) bool {
+		return reply.TaskInfoList[i].Priority > reply.TaskInfoList[j].Priority
+	})
+
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
@@ -126,25 +130,6 @@ func Query() {
 
 	if !FlagNoHeader {
 		table.SetHeader(header)
-	}
-
-	// Get index of "JobId" column
-	idx := -1
-	for i, val := range header {
-		if val == "JobId" {
-			idx = i
-			break
-		}
-	}
-
-	// If "TaskId" column exists, sort all rows by descending order of "TaskId".
-	if idx != -1 {
-		less := func(i, j int) bool {
-			x, _ := strconv.ParseUint(tableData[i][idx], 10, 32)
-			y, _ := strconv.ParseUint(tableData[j][idx], 10, 32)
-			return x > y
-		}
-		sort.Slice(tableData, less)
 	}
 
 	table.AppendBulk(tableData)
@@ -196,10 +181,17 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Status.String())
 			}
-		case "p":
+		case "P":
 			tableOutputHeader[i] = "Partition"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Partition)
+
+			}
+		case "p":
+			tableOutputHeader[i] = "Priority"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				formatTableData[j] = append(formatTableData[j],
+					strconv.FormatUint(uint64(reply.TaskInfoList[j].Priority), 10))
 			}
 		case "u":
 			tableOutputHeader[i] = "User"
@@ -232,9 +224,22 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				formatTableData[j] = append(formatTableData[j],
 					strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10))
 			}
+		case "s":
+			tableOutputHeader[i] = "SubmitTime"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				formatTableData[j] = append(formatTableData[j],
+					reply.TaskInfoList[j].SubmitTime.AsTime().Format("2006-01-02 15:04:05"))
+			}
+		case "q":
+			tableOutputHeader[i] = "QoS"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				formatTableData[j] = append(formatTableData[j],
+					reply.TaskInfoList[j].Qos)
+			}
 		default:
 			fmt.Println("Invalid format, shorthand reference:\n" +
-				"j-JobId, n-Name, t-State, p-Partition, u-User, a-Account, T-Type, N-NodeList")
+				"j-JobId, n-Name, t-State, P-Partition, p-Priority, " +
+				"s-SubmitTime, -u-User, a-Account, T-Type, N-NodeList, q-QoS")
 			os.Exit(1)
 		}
 	}
