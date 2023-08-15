@@ -132,25 +132,6 @@ func Query() {
 		table.SetHeader(header)
 	}
 
-	// Get index of "JobId" column
-	//idx := -1
-	//for i, val := range header {
-	//	if val == "JobId" {
-	//		idx = i
-	//		break
-	//	}
-	//}
-
-	// If "TaskId" column exists, sort all rows by descending order of "TaskId".
-	//if idx != -1 {
-	//	less := func(i, j int) bool {
-	//		x, _ := strconv.ParseUint(tableData[i][idx], 10, 32)
-	//		y, _ := strconv.ParseUint(tableData[j][idx], 10, 32)
-	//		return x > y
-	//	}
-	//	sort.Slice(tableData, less)
-	//}
-
 	table.AppendBulk(tableData)
 	table.Render()
 }
