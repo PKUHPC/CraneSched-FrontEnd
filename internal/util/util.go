@@ -91,8 +91,8 @@ func InvalidDuration() *duration.Duration {
 	}
 }
 
-func InitLogger() {
-	log.SetLevel(log.TraceLevel)
+func InitLogger(level log.Level) {
+	log.SetLevel(level)
 	log.SetReportCaller(true)
 	log.SetFormatter(&nested.Formatter{})
 }

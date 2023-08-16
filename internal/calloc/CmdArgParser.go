@@ -18,6 +18,7 @@ var (
 	FlagCwd           string
 
 	FlagConfigFilePath string
+	FlagDebugLevel     string
 )
 
 func CmdArgParser() *cobra.Command {
@@ -30,6 +31,8 @@ func CmdArgParser() *cobra.Command {
 	}
 
 	parser.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
+	parser.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
+		"info", "Output level")
 	parser.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
 	parser.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
 	parser.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")
