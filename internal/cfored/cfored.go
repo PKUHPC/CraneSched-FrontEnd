@@ -155,6 +155,8 @@ CtldClientStateMachineLoop:
 					}
 
 					if reply.GetPayloadCforedRegAck().Ok == true {
+						log.Infof("[Cfored<->Ctld] Cfored %s successfully registered.", gVars.hostName)
+
 						gVars.ctldConnected.Store(true)
 						state = WaitChannelReq
 					} else {
@@ -234,7 +236,7 @@ CtldClientStateMachineLoop:
 							taskId = ctldReply.GetPayloadTaskCompletionAck().TaskId
 						}
 
-						log.Infof("[Cfored<->Ctld] %s message received. Task Id %d", ctldReply.Type, taskId)
+						log.Tracef("[Cfored<->Ctld] %s message received. Task Id %d", ctldReply.Type, taskId)
 
 						gVars.ctldReplyChannelMapMtx.Lock()
 
@@ -773,7 +775,16 @@ CforedStateMachineLoop:
 }
 
 func StartCfored() {
-	util.InitLogger()
+	switch FlagDebugLevel {
+	case "trace":
+		util.InitLogger(log.TraceLevel)
+	case "debug":
+		util.InitLogger(log.DebugLevel)
+	case "info":
+		fallthrough
+	default:
+		util.InitLogger(log.InfoLevel)
+	}
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 	defer gVars.globalCtxCancel()
@@ -823,7 +834,7 @@ func StartCfored() {
 	go func(sigs chan os.Signal, server *grpc.Server, wg *sync.WaitGroup) {
 		select {
 		case sig := <-sigs:
-			log.Tracef("Receive signal: %s", sig.String())
+			log.Infof("Receive signal: %s. Exiting...", sig.String())
 
 			switch sig {
 			case syscall.SIGINT:

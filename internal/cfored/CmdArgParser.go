@@ -3,21 +3,29 @@ package cfored
 import (
 	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 var (
 	FlagConfigFilePath string
+	FlagDebugLevel     string
+)
 
-	RootCmd = &cobra.Command{
-		Use:   "calloc",
-		Short: "Allocate resource and start a new shell",
+func ParseCmdArgs() {
+	rootCmd := &cobra.Command{
+		Use:   "cfored",
+		Short: "Daemon for interactive job management",
 		Run: func(cmd *cobra.Command, args []string) {
 			StartCfored()
 		},
 	}
-)
 
-func init() {
-	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
+	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
+	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
+		"info", "Output level")
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
