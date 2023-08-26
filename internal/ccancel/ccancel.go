@@ -38,6 +38,7 @@ func CancelTask(args []string) {
 		FilterAccount:   FlagAccount,
 		FilterTaskName:  FlagTaskName,
 		FilterState:     protos.TaskStatus_Invalid,
+		FilterUsername:  FlagUserName,
 	}
 
 	curUerName, _ := os.Hostname()
@@ -52,7 +53,7 @@ func CancelTask(args []string) {
 		for i := 0; i < len(taskIdStrSplit); i++ {
 			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 			if err != nil {
-				fmt.Println("Invalid task Id: " + taskIdStrSplit[i])
+				fmt.Println("Invalid job Id: " + taskIdStrSplit[i])
 				os.Exit(1)
 			}
 			taskIds = append(taskIds, uint32(taskId64))
@@ -85,12 +86,12 @@ func CancelTask(args []string) {
 			cancelledTasksStr += ","
 			cancelledTasksStr += strconv.FormatUint(uint64(reply.CancelledTasks[i]), 10)
 		}
-		fmt.Printf("Task %s cancelled successfully.\n", cancelledTasksStr)
+		fmt.Printf("Job %s cancelled successfully.\n", cancelledTasksStr)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			fmt.Printf("Failed to cancel task: %d. Reason: %s\n",
+			fmt.Printf("Failed to cancel job: %d. Reason: %s\n",
 				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
 	}

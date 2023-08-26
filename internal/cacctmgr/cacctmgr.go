@@ -252,6 +252,8 @@ func AddAccount(account *protos.AccountInfo) {
 	var req *protos.AddAccountRequest
 	req = new(protos.AddAccountRequest)
 	req.Uid = userUid
+	//req.Account = new(protos.AccountInfo)
+	//req.Account.AllowedQosList = new(protos.AccountInfo.AllowedQosList)
 	req.Account = account
 	if account.DefaultQos == "" && len(account.AllowedQosList) > 0 {
 		account.DefaultQos = account.AllowedQosList[0]

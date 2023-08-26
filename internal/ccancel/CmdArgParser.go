@@ -85,17 +85,17 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.Flags().StringVarP(&FlagTaskName, "name", "n", "",
-		"cancel tasks only with the task name")
+		"cancel jobs only with the job name")
 	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
-		"cancel tasks jobs only in the Partition")
+		"cancel jobs jobs only in the Partition")
 	rootCmd.Flags().StringVarP(&FlagState, "state", "t", "",
-		"cancel tasks of the State. "+
-			"Valid task states are PENDING(PD), RUNNING(R). "+
-			"Task states are case-insensitive")
+		"cancel jobs of the State. "+
+			"Valid job states are PENDING(PD), RUNNING(R). "+
+			"job states are case-insensitive")
 	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
-		"cancel tasks under an account")
+		"cancel jobs under an account")
 	rootCmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
-		"cancel tasks run by the user")
+		"cancel jobs run by the user")
 	rootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
-		"cancel tasks running on the nodes")
+		"cancel jobs running on the nodes")
 }
