@@ -41,12 +41,6 @@ func CancelTask(args []string) {
 		FilterUsername:  FlagUserName,
 	}
 
-	curUerName, _ := os.Hostname()
-	if FlagUserName != "" && FlagUserName != curUerName {
-		fmt.Println("Failed to cancel job: Permission Denied.")
-		os.Exit(1)
-	}
-
 	if len(args) > 0 {
 		taskIdStrSplit := strings.Split(args[0], ",")
 		var taskIds []uint32
