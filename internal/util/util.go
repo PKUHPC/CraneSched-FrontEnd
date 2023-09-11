@@ -17,10 +17,14 @@
 package util
 
 import (
+	"fmt"
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
+	grpccodes "google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"os"
 	"strings"
 )
 
@@ -71,6 +75,17 @@ func SetBorderTable(table *tablewriter.Table) {
 	table.SetTablePadding("\t")
 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
+}
+func ErrPrint(err error, str string) {
+	if rpcErr, ok := grpcstatus.FromError(err); ok {
+		if rpcErr.Code() == grpccodes.Unavailable {
+			fmt.Println(str + "failed: Unable to contact Crane controller.")
+			os.Exit(1)
+		} else {
+			panic(str + " failed: " + err.Error())
+		}
+	}
+
 }
 
 func FormatTable(tableOutputWidth []int, tableHeader []string,

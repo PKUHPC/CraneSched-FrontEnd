@@ -284,7 +284,7 @@ func AddAccount(account *protos.AccountInfo) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
-		panic("Add account failed: " + err.Error())
+		util.ErrPrint(err, "Add account")
 	}
 	if reply.GetOk() {
 		fmt.Println("Add account success!")
@@ -326,7 +326,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddUser(context.Background(), req)
 	if err != nil {
-		panic("Add user failed: " + err.Error())
+		util.ErrPrint(err, "Add user")
 	}
 	if reply.GetOk() {
 		fmt.Println("Add user success!")
@@ -344,7 +344,7 @@ func AddQos(qos *protos.QosInfo) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
-		panic("Add qos failed: " + err.Error())
+		util.ErrPrint(err, "Add qos")
 	}
 	if reply.GetOk() {
 		fmt.Println("Add qos success!")
@@ -360,7 +360,7 @@ func DeleteAccount(name string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), req)
 	if err != nil {
-		panic("Delete account " + name + " failed: " + err.Error())
+		util.ErrPrint(err, "Delete account "+name)
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete account %s success\n", name)
@@ -376,7 +376,7 @@ func DeleteUser(name string, account string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), req)
 	if err != nil {
-		panic("Remove User " + name + " failed: " + err.Error())
+		util.ErrPrint(err, "Remove user "+name)
 	}
 	if reply.GetOk() {
 		fmt.Printf("Remove User %s success\n", name)
@@ -392,7 +392,7 @@ func DeleteQos(name string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), req)
 	if err != nil {
-		panic("Delete Qos " + name + " failed: " + err.Error())
+		util.ErrPrint(err, "Delete qos "+name)
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete Qos %s success\n", name)
@@ -414,7 +414,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
-		panic("Modify information failed: " + err.Error())
+		util.ErrPrint(err, "Modify information")
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
@@ -444,7 +444,7 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
-		panic("Modify information failed: " + err.Error())
+		util.ErrPrint(err, "Modify information")
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
@@ -466,7 +466,7 @@ func ModifyQos(itemLeft string, itemRight string, name string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
-		panic("Modify information failed: " + err.Error())
+		util.ErrPrint(err, "Modify information")
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
@@ -480,7 +480,7 @@ func ShowAccounts() {
 	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Account}
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		panic("Query account info failed: " + err.Error())
+		util.ErrPrint(err, "Query account info")
 	}
 
 	if reply.GetOk() {
@@ -496,7 +496,7 @@ func ShowUser(name string, account string) {
 
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		panic("Query user info failed: " + err.Error())
+		util.ErrPrint(err, "Query user info")
 	}
 
 	if reply.GetOk() {
@@ -512,7 +512,7 @@ func ShowQos(name string) {
 
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		panic("Query qos info failed: " + err.Error())
+		util.ErrPrint(err, "Query qos info")
 	}
 
 	if reply.GetOk() {
@@ -532,7 +532,7 @@ func FindAccount(name string) {
 
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		panic("Query entity info failed: " + err.Error())
+		util.ErrPrint(err, "Query entity info")
 	}
 
 	if reply.GetOk() {
@@ -548,7 +548,7 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 
 	reply, err := stub.BlockAccountOrUser(context.Background(), req)
 	if err != nil {
-		panic("Block entity info failed: " + err.Error())
+		util.ErrPrint(err, "Block entity info")
 	}
 
 	if reply.GetOk() {
@@ -564,7 +564,7 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 
 	reply, err := stub.BlockAccountOrUser(context.Background(), req)
 	if err != nil {
-		panic("Unblock entity info failed: " + err.Error())
+		util.ErrPrint(err, "Unblock entity info")
 	}
 
 	if reply.GetOk() {

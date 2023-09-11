@@ -40,7 +40,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 	req = &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
-		panic("QueryNodeInfo failed: " + err.Error())
+		util.ErrPrint(err, "QueryNodeInfo")
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -82,7 +82,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 	req = &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
-		panic("QueryPartitionInfo failed: " + err.Error())
+		util.ErrPrint(err, "QueryPartitionInfo")
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -132,7 +132,7 @@ func ShowTasks(taskId uint32, queryAll bool) {
 
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
-		panic("QueryTasksInfo failed: " + err.Error())
+		util.ErrPrint(err, "QueryTasksInfo")
 	}
 
 	if !reply.GetOk() {
@@ -227,7 +227,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	}
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		panic("ModifyTask failed: " + err.Error())
+		util.ErrPrint(err, "ModifyTask")
 	}
 
 	if reply.Ok {
