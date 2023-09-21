@@ -37,6 +37,7 @@ var (
 	FlagRepeat        uint32
 	FlagNodelist      string
 	FlagExcludes      string
+	FlagDependency    string
 
 	FlagConfigFilePath string
 )
@@ -67,6 +68,8 @@ func ParseCmdArgs() {
 	rootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "submit the task multiple times")
 	rootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
 	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
+	rootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Defer the start of this job until "+
+		"the specified dependencies have been satisfied.")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
