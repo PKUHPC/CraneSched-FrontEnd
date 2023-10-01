@@ -104,9 +104,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "--chdir":
 			task.Cwd = arg.val
 		case "--exclude", "-x":
-			task.Excludes = strings.Split(arg.val, ",")
+			task.Excludes = arg.val
 		case "--nodelist", "-w":
-			task.Nodelist = strings.Split(arg.val, ",")
+			task.Nodelist = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -159,10 +159,10 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.Account = FlagAccount
 	}
 	if FlagNodelist != "" {
-		task.Nodelist = strings.Split(FlagNodelist, ",")
+		task.Nodelist = FlagNodelist
 	}
-	if FlagExclude != "" {
-		task.Excludes = strings.Split(FlagExclude, ",")
+	if FlagExcludes != "" {
+		task.Excludes = FlagExcludes
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {

@@ -36,7 +36,7 @@ var (
 	FlagCwd           string
 	FlagRepeat        uint32
 	FlagNodelist      string
-	FlagExclude       string
+	FlagExcludes      string
 
 	FlagConfigFilePath string
 )
@@ -66,7 +66,7 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
 	rootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "submit the task multiple times")
 	rootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
-	rootCmd.Flags().StringVarP(&FlagExclude, "exclude", "x", "", "exclude a specific list of hosts")
+	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
