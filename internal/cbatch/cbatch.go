@@ -52,6 +52,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.CpusPerTask = 1
 	task.NtasksPerNode = 1
 	task.NodeNum = 1
+	task.GetUserEnv = false
 
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
@@ -107,6 +108,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Excludes = arg.val
 		case "--nodelist", "-w":
 			task.Nodelist = arg.val
+		case "--get-user-env":
+			task.GetUserEnv = true
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -163,6 +166,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
+	}
+	if FlagGetUserEnv != "" {
+		task.GetUserEnv = true
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
@@ -279,6 +285,9 @@ func Cbatch(jobFilePath string) {
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
 	task.Uid = uint32(os.Getuid())
 	task.CmdLine = strings.Join(os.Args, " ")
+	//if task.GetUserEnv == true {
+	//	task.Env = strings.Join(os.Environ(), "||")
+	//}
 	task.Env = strings.Join(os.Environ(), "||")
 	task.Type = protos.TaskType_Batch
 	if task.Cwd == "" {
