@@ -24,6 +24,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/xlab/treeprint"
+	"math"
 	"os"
 	OSUser "os/user"
 	"strconv"
@@ -121,12 +122,24 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 		} else {
 			timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))
 		}
+		var jobsPerUserStr string
+		if info.MaxJobsPerUser >= math.MaxUint32 {
+			jobsPerUserStr = "unlimited"
+		} else {
+			jobsPerUserStr = strconv.FormatUint(uint64(info.MaxJobsPerUser), 10)
+		}
+		var cpusPerUserStr string
+		if info.MaxCpusPerUser >= math.MaxUint32 {
+			cpusPerUserStr = "unlimited"
+		} else {
+			cpusPerUserStr = strconv.FormatUint(uint64(info.MaxCpusPerUser), 10)
+		}
 		tableData = append(tableData, []string{
 			info.Name,
 			info.Description,
 			fmt.Sprintf("%d", info.Priority),
-			fmt.Sprintf("%d", info.MaxJobsPerUser),
-			fmt.Sprintf("%d", info.MaxCpusPerUser),
+			fmt.Sprintf(jobsPerUserStr),
+			fmt.Sprintf(cpusPerUserStr),
 			fmt.Sprintf(timeLimitStr)})
 	}
 

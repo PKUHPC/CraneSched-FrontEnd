@@ -22,6 +22,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"math"
 	"os"
 	"strings"
 )
@@ -372,7 +373,7 @@ func init() {
 	addUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "The name to identify user")
 	addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Parent account")
 	addUserCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "p", nil, "The partition list which this account has access to")
-	addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level(none/operator/admin)")
+	addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level(none/operator)")
 	addUserCmd.Flags().BoolVarP(&FlagCoordinate, "coordinate", "c", false, "Set whether the user is the coordinator of the parent account")
 	err = addUserCmd.MarkFlagRequired("name")
 	if err != nil {
@@ -386,10 +387,10 @@ func init() {
 	addCmd.AddCommand(addQosCmd)
 	addQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "The name to identify qos")
 	addQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Some information to describe qos")
-	addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 1000, "")
-	addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", 0, "")
-	addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", 10, "")
-	addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", 3600, "time in seconds")
+	addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "")
+	addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", math.MaxUint32, "")
+	addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "")
+	addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "time in seconds")
 	err = addQosCmd.MarkFlagRequired("name")
 	if err != nil {
 		return
@@ -450,10 +451,10 @@ func init() {
 		return
 	}
 	modifyQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Modify information to describe qos")
-	modifyQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 1000, "")
-	modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", 0, "")
-	modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", 10, "")
-	modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", 3600, "time in seconds")
+	modifyQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "")
+	modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", math.MaxUint32, "")
+	modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "")
+	modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "time in seconds")
 	/* ---------------------------------------------------- show ---------------------------------------------------- */
 	rootCmd.AddCommand(showCmd)
 	showCmd.AddCommand(showAccountCmd)
