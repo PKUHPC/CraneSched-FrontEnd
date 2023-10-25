@@ -110,6 +110,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Nodelist = arg.val
 		case "--get-user-env":
 			task.GetUserEnv = true
+		case "--export":
+			task.ExportEnv = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -169,6 +171,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagGetUserEnv != "" {
 		task.GetUserEnv = true
+	}
+	if FlagExport != "" {
+		task.ExportEnv = FlagExport
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
@@ -238,6 +243,68 @@ func SendMultipleRequests(tasks []*protos.TaskToCtld) {
 	}
 }
 
+func EnvironName(env *string) string {
+	eq := strings.IndexByte(*env, '=')
+	if eq == -1 {
+		return *env
+	} else {
+		return (*env)[:eq]
+	}
+}
+
+// PropagatedEnviron --export={[ALL,]<environment_variables>|ALL|NIL|NONE}
+func PropagatedEnviron(ExportEnv *string) string {
+	Environ := os.Environ()
+	Export := strings.Split(*ExportEnv, ",")
+	if len(Export) == 0 {
+		Export = append(Export, "ALL")
+	}
+
+	if Export[0] == "ALL" {
+		for _, str := range Export[1:] {
+			Name := EnvironName(&str)
+			var found = false
+			for _, env := range Environ {
+				if Name == EnvironName(&env) {
+					found = true
+					break
+				}
+			}
+			if found == false && Name != str {
+				Environ = append(Environ, str)
+			}
+		}
+		return strings.Join(Environ, "||")
+	}
+
+	var PropEnv []string
+	for _, env := range Environ {
+		if strings.HasPrefix(env, "CRANE_") {
+			PropEnv = append(PropEnv, env)
+		}
+	}
+
+	if Export[0] == "NONE" || Export[0] == "NIL" {
+		return strings.Join(PropEnv, "||")
+	}
+
+	for _, str := range Export {
+		Name := EnvironName(&str)
+		var found = false
+		for _, env := range Environ {
+			if Name == EnvironName(&env) {
+				found = true
+				PropEnv = append(PropEnv, env)
+				break
+			}
+		}
+		if found == false && Name != str {
+			PropEnv = append(PropEnv, str)
+		}
+	}
+	return strings.Join(PropEnv, "||")
+}
+
 func Cbatch(jobFilePath string) {
 	if FlagRepeat == 0 {
 		log.Fatal("--repeat must >0")
@@ -285,10 +352,7 @@ func Cbatch(jobFilePath string) {
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
 	task.Uid = uint32(os.Getuid())
 	task.CmdLine = strings.Join(os.Args, " ")
-	//if task.GetUserEnv == true {
-	//	task.Env = strings.Join(os.Environ(), "||")
-	//}
-	task.Env = strings.Join(os.Environ(), "||")
+	task.Env = PropagatedEnviron(&task.ExportEnv)
 	task.Type = protos.TaskType_Batch
 	if task.Cwd == "" {
 		task.Cwd, _ = os.Getwd()

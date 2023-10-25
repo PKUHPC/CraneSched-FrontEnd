@@ -38,6 +38,7 @@ var (
 	FlagNodelist      string
 	FlagExcludes      string
 	FlagGetUserEnv    string
+	FlagExport        string
 
 	FlagConfigFilePath string
 )
@@ -69,6 +70,7 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
 	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
 	rootCmd.Flags().StringVar(&FlagGetUserEnv, "getuserenv", "", "get user's environment variables")
+	rootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
