@@ -109,7 +109,7 @@ func Query() {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
-		"Account", "Status", "Type", "TimeLimit", "Nodes", "NodeList"}
+		"Account", "Status", "Type", "TimeLimit", "Nodes", "NodeList(Reason)"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		var timeLimitStr string
@@ -231,7 +231,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Type.String())
 			}
 		case "I":
-			tableOutputHeader[i] = "NodeList"
+			tableOutputHeader[i] = "NodeList(Reason)"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].CranedList)
 			}

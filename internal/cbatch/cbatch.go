@@ -36,7 +36,6 @@ type CbatchArg struct {
 
 func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
-	task = new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
 	task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
@@ -107,6 +106,31 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Excludes = arg.val
 		case "--nodelist", "-w":
 			task.Nodelist = arg.val
+		case "--dependency", "-d":
+			condition := new(protos.DependencyCondition)
+			dependencies := strings.Split(FlagDependency, ":")
+			switch dependencies[0] {
+			case "afterany":
+				*condition = protos.DependencyCondition_AFTER_ANY
+			case "afterok":
+				*condition = protos.DependencyCondition_AFTER_OK
+			case "afternotok":
+				*condition = protos.DependencyCondition_AFTER_NOTOK
+			default:
+				fmt.Println("Dependency Type Does Not Exist")
+				os.Exit(1)
+			}
+			for i := 1; i < len(dependencies); i++ {
+				id, err := strconv.ParseUint(dependencies[i], 10, 32)
+				if err != nil {
+					log.Fatalf("Invalid job id given: %s\n", dependencies[i])
+				}
+				dependency := &protos.Dependency{
+					TaskId:    uint32(id),
+					Condition: *condition,
+				}
+				task.Dependencies = append(task.Dependencies, dependency)
+			}
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -163,6 +187,32 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
+	}
+	if FlagDependency != "" {
+		condition := new(protos.DependencyCondition)
+		dependencies := strings.Split(FlagDependency, ":")
+		switch dependencies[0] {
+		case "afterany":
+			*condition = protos.DependencyCondition_AFTER_ANY
+		case "afterok":
+			*condition = protos.DependencyCondition_AFTER_OK
+		case "afternotok":
+			*condition = protos.DependencyCondition_AFTER_NOTOK
+		default:
+			fmt.Println("Dependency Type Does Not Exist")
+			os.Exit(1)
+		}
+		for i := 1; i < len(dependencies); i++ {
+			id, err := strconv.ParseUint(dependencies[i], 10, 32)
+			if err != nil {
+				log.Fatalf("Invalid job id given: %s\n", dependencies[i])
+			}
+			dependency := &protos.Dependency{
+				TaskId:    uint32(id),
+				Condition: *condition,
+			}
+			task.Dependencies = append(task.Dependencies, dependency)
+		}
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {

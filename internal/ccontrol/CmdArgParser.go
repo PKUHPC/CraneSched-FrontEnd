@@ -29,6 +29,7 @@ var (
 	FlagTaskId        uint32
 	FlagQueryAll      bool
 	FlagTimeLimit     string
+	FlagHoldTime      string
 
 	FlagConfigFilePath string
 
@@ -102,6 +103,34 @@ var (
 			ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
 		},
 	}
+	holdCmd = &cobra.Command{
+		Use:   "hold",
+		Short: "prevent specified job from starting. ",
+		Long:  "",
+	}
+	releaseCmd = &cobra.Command{
+		Use:   "release",
+		Short: "permit specified job to start. ",
+		Long:  "",
+	}
+	holdJobCmd = &cobra.Command{
+		Use:   "job",
+		Short: "prevent specified job from starting.",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			HoldReleaseJobs(args[0], true)
+		},
+	}
+	releaseJobCmd = &cobra.Command{
+		Use:   "release",
+		Short: "permit specified job to start. ",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			HoldReleaseJobs(args[0], false)
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -113,14 +142,19 @@ func ParseCmdArgs() {
 
 func init() {
 	rootCmd.AddCommand(showCmd)
+	rootCmd.AddCommand(holdCmd)
+	rootCmd.AddCommand(releaseCmd)
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
 	showCmd.AddCommand(showNodeCmd)
 	showCmd.AddCommand(showPartitionCmd)
 	showCmd.AddCommand(showTaskCmd)
+	holdCmd.AddCommand(holdJobCmd)
+	releaseCmd.AddCommand(releaseJobCmd)
 	rootCmd.AddCommand(updateCmd)
 	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
 	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
+	holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration for a job which will be prevented from starting.")
 	err := updateCmd.MarkFlagRequired("job")
 	if err != nil {
 		return

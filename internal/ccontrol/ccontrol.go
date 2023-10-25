@@ -190,8 +190,45 @@ func ShowTasks(taskId uint32, queryAll bool) {
 }
 
 func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
+	seconds := ParseTimeStrToSeconds(timeLimit)
+
+	var req *protos.ModifyTaskRequest
+
+	req = &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskId:    taskId,
+		Attribute: protos.ModifyTaskRequest_TimeLimit,
+		Value: &protos.ModifyTaskRequest_TimeLimitSeconds{
+			TimeLimitSeconds: seconds,
+		},
+	}
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		panic("ModifyTask failed: " + err.Error())
+	}
+
+	if reply.Ok {
+		fmt.Println("Change time limit success")
+	} else {
+		fmt.Printf("Chang time limit failed: %s\n", reply.GetReason())
+	}
+}
+
+func HoldReleaseJobs(jobs string, hold bool) {
+	jobIdStrSplit := strings.Split(jobs, ",")
+	for i := 0; i < len(jobIdStrSplit); i++ {
+		jobId64, err := strconv.ParseUint(jobIdStrSplit[i], 10, 32)
+		if err != nil {
+			fmt.Println("Invalid job Id: " + jobIdStrSplit[i])
+			os.Exit(1)
+		}
+		HoldReleaseJob(uint32(jobId64), hold)
+	}
+}
+
+func ParseTimeStrToSeconds(time string) int64 {
 	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
-	result := re.FindAllStringSubmatch(timeLimit, -1)
+	result := re.FindAllStringSubmatch(time, -1)
 
 	if result == nil || len(result) != 1 {
 		log.Fatalf("Time format error")
@@ -214,25 +251,39 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	}
 
 	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
+	return seconds
+}
 
+func HoldReleaseJob(jobId uint32, hold bool) {
 	var req *protos.ModifyTaskRequest
+	holdType := "Hold"
 
 	req = &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
-		TaskId:    taskId,
-		Attribute: protos.ModifyTaskRequest_TimeLimit,
-		Value: &protos.ModifyTaskRequest_TimeLimitSeconds{
-			TimeLimitSeconds: seconds,
-		},
+		TaskId:    jobId,
+		Attribute: protos.ModifyTaskRequest_Hold,
+	}
+	if hold {
+		req.Value = &protos.ModifyTaskRequest_ManualHold{
+			ManualHold: true,
+		}
+	} else {
+		req.Value = &protos.ModifyTaskRequest_ReleaseJob{
+			ReleaseJob: true,
+		}
+		holdType = "Release"
+	}
+
+	if FlagHoldTime != "" {
+		req.HoldTimeSeconds = ParseTimeStrToSeconds(FlagHoldTime)
 	}
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		panic("ModifyTask failed: " + err.Error())
+		panic("ModifyJob failed: " + err.Error())
 	}
-
 	if reply.Ok {
-		fmt.Println("Change time limit success")
+		fmt.Printf(holdType+" job %v success\n", jobId)
 	} else {
-		fmt.Printf("Chang time limit failed: %s\n", reply.GetReason())
+		fmt.Printf(holdType+" job %v failed: %s\n", jobId, reply.GetReason())
 	}
 }
