@@ -32,6 +32,7 @@ var (
 	FlagFormat               string
 	FlagIterate              uint64
 	FlagConfigFilePath       string
+	FlagListReason           bool
 
 	RootCmd = &cobra.Command{
 		Use:   "cinfo",
@@ -66,8 +67,8 @@ func init() {
 		"Include craned nodes only with certain states. \n"+
 			"The state can take IDLE, MIX, ALLOC and DOWN and is case-insensitive. \n"+
 			"Example: \n"+
-			"\t -t idle,mix \n"+
-			"\t -t=alloc \n")
+			"\t -t IDLE,mIx \n"+
+			"\t -t=Alloc \n")
 	RootCmd.Flags().BoolVarP(&FlagFilterRespondingOnly, "responding", "r", false,
 		"report only responding nodes")
 	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
@@ -76,6 +77,8 @@ func init() {
 		"report state summary only")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		"format specification")
+	RootCmd.Flags().BoolVarP(&FlagListReason, "list-reasons", "R", false,
+		"list reason nodes are down or drained")
 
 	RootCmd.MarkFlagsMutuallyExclusive("states", "responding", "dead")
 }
