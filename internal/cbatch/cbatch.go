@@ -107,6 +107,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Excludes = arg.val
 		case "--nodelist", "-w":
 			task.Nodelist = arg.val
+		case "--container":
+			task.Container = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
