@@ -33,6 +33,8 @@ type Config struct {
 	ServerKeyFilePath  string `yaml:"ServerKeyFilePath"`
 	CaCertFilePath     string `yaml:"CaCertFilePath"`
 	DomainSuffix       string `yaml:"DomainSuffix"`
+
+	Container ContainerConfig `yaml:"Container"`
 }
 
 var (
