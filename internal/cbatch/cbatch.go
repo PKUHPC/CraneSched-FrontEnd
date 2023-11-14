@@ -166,6 +166,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
+	if FlagContainer != "" {
+		task.Container = FlagContainer
+	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
 		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
@@ -276,6 +279,26 @@ func Cbatch(jobFilePath string) {
 	ok, task := ProcessCbatchArg(args)
 	if !ok {
 		log.Fatalf("Invalid cbatch argument")
+	}
+
+	if task.Container != "" {
+		if _, err := util.ValidateOCIBundlePath(task.Container); err != nil {
+			log.Fatalf("Invalid OCI Bundle: %v", err)
+		}
+
+		if err := util.WriteContainerScript(task.Container, jobFilePath, &sh); err != nil {
+			log.Fatalf("Failed to write script for container: %v", err)
+		}
+
+		// Get the container run cmd
+		runCmd, err := util.GetOCIRunCmd(task.Container, FlagConfigFilePath)
+		if err != nil {
+			log.Fatalf("Failed to get OCI runtime config: %v", err)
+		}
+
+		fmt.Println(sh)
+		sh = []string{"#!/bin/sh", runCmd}
+		fmt.Println(sh)
 	}
 
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
