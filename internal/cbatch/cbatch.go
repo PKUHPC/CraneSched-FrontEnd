@@ -243,66 +243,56 @@ func SendMultipleRequests(tasks []*protos.TaskToCtld) {
 	}
 }
 
-func EnvironName(env *string) string {
+func EnvironParser(env *string) (string, string, bool) {
 	eq := strings.IndexByte(*env, '=')
 	if eq == -1 {
-		return *env
+		return *env, "", false
 	} else {
-		return (*env)[:eq]
+		return (*env)[:eq], (*env)[eq+1:], true
 	}
 }
 
-// PropagatedEnviron --export={[ALL,]<environment_variables>|ALL|NIL|NONE}
-func PropagatedEnviron(ExportEnv *string) string {
-	Environ := os.Environ()
+func PropagatedEnviron(ExportEnv *string) map[string]string {
 	Export := strings.Split(*ExportEnv, ",")
 	if len(Export) == 0 {
 		Export = append(Export, "ALL")
 	}
 
-	if Export[0] == "ALL" {
-		for _, str := range Export[1:] {
-			Name := EnvironName(&str)
-			var found = false
-			for _, env := range Environ {
-				if Name == EnvironName(&env) {
-					found = true
-					break
-				}
-			}
-			if found == false && Name != str {
-				Environ = append(Environ, str)
-			}
-		}
-		return strings.Join(Environ, "||")
-	}
+	Mode := Export[0]
+	var Specified []string
 
-	var PropEnv []string
-	for _, env := range Environ {
-		if strings.HasPrefix(env, "CRANE_") {
-			PropEnv = append(PropEnv, env)
+	switch Mode {
+	case "NIL", "NONE":
+	case "ALL":
+		for i := len(Export) - 1; i >= 1; i-- {
+			Specified = append(Specified, Export[i])
+		}
+	default:
+		Mode = ""
+		for i := len(Export) - 1; i >= 0; i-- {
+			Specified = append(Specified, Export[i])
 		}
 	}
 
-	if Export[0] == "NONE" || Export[0] == "NIL" {
-		return strings.Join(PropEnv, "||")
-	}
-
-	for _, str := range Export {
-		Name := EnvironName(&str)
-		var found = false
-		for _, env := range Environ {
-			if Name == EnvironName(&env) {
-				found = true
-				PropEnv = append(PropEnv, env)
-				break
-			}
-		}
-		if found == false && Name != str {
-			PropEnv = append(PropEnv, str)
+	Environ := make(map[string]string)
+	PropEnv := make(map[string]string)
+	for _, str := range os.Environ() {
+		name, value, _ := EnvironParser(&str)
+		Environ[name] = value
+		if Mode == "ALL" || strings.HasPrefix(name, "CRANE_") {
+			PropEnv[name] = value
 		}
 	}
-	return strings.Join(PropEnv, "||")
+	for _, str := range Specified {
+		name, value, exist := EnvironParser(&str)
+		origin, found := Environ[name]
+		if found {
+			PropEnv[name] = origin
+		} else if exist {
+			PropEnv[name] = value
+		}
+	}
+	return PropEnv
 }
 
 func Cbatch(jobFilePath string) {
