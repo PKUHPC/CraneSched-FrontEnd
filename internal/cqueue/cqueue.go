@@ -140,7 +140,8 @@ func Query() {
 		header = append(header, "StartTime")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i],
-				reply.TaskInfoList[i].StartTime.AsTime().Format("2006-01-02 15:04:05"))
+				reply.TaskInfoList[i].StartTime.AsTime().
+					In(time.Local).Format("2006-01-02 15:04:05"))
 		}
 	}
 	if FlagFilterQos != "" {
@@ -250,7 +251,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			tableOutputHeader[i] = "SubmitTime"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
-					reply.TaskInfoList[j].SubmitTime.AsTime().Format("2006-01-02 15:04:05"))
+					reply.TaskInfoList[j].SubmitTime.AsTime().
+						In(time.Local).Format("2006-01-02 15:04:05"))
 			}
 		case "q":
 			tableOutputHeader[i] = "QoS"

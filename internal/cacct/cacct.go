@@ -166,21 +166,24 @@ func QueryJob() {
 	if FlagFilterStartTime != "" {
 		header = append(header, "StartTime")
 		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], reply.TaskInfoList[i].StartTime.AsTime().String())
+			tableData[i] = append(tableData[i],
+				reply.TaskInfoList[i].StartTime.AsTime().In(time.Local).String())
 		}
 	}
 
 	if FlagFilterEndTime != "" {
 		header = append(header, "EndTime")
 		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], reply.TaskInfoList[i].EndTime.AsTime().String())
+			tableData[i] = append(tableData[i],
+				reply.TaskInfoList[i].EndTime.AsTime().In(time.Local).String())
 		}
 	}
 
 	if FlagFilterSubmitTime != "" {
 		header = append(header, "SubmitTime")
 		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], reply.TaskInfoList[i].SubmitTime.AsTime().String())
+			tableData[i] = append(tableData[i],
+				reply.TaskInfoList[i].SubmitTime.AsTime().In(time.Local).String())
 		}
 	}
 
