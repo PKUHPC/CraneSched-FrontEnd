@@ -25,9 +25,9 @@ import (
 var (
 	FlagFilterDownOnly       bool
 	FlagFilterRespondingOnly bool
-	FlagFilterPartitions     string
-	FlagFilterNodes          string
-	FlagFilterCranedStates   string
+	FlagFilterPartitions     []string
+	FlagFilterNodes          []string
+	FlagFilterCranedStates   []string
 	FlagSummarize            bool
 	FlagFormat               string
 	FlagIterate              uint64
@@ -58,16 +58,16 @@ func init() {
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().BoolVarP(&FlagFilterDownOnly, "dead", "d", false,
 		"show only non-responding nodes")
-	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p",
-		"", "report on specific partition")
-	RootCmd.Flags().StringVarP(&FlagFilterNodes, "nodes", "n", "",
+	RootCmd.Flags().StringSliceVarP(&FlagFilterPartitions, "partition", "p",
+		nil, "report on specific partition")
+	RootCmd.Flags().StringSliceVarP(&FlagFilterNodes, "nodes", "n", nil,
 		"report on specific node(s)")
-	RootCmd.Flags().StringVarP(&FlagFilterCranedStates, "states", "t", "",
+	RootCmd.Flags().StringSliceVarP(&FlagFilterCranedStates, "states", "t", nil,
 		"Include craned nodes only with certain states. \n"+
 			"The state can take IDLE, MIX, ALLOC and DOWN and is case-insensitive. \n"+
 			"Example: \n"+
-			"\t -t IDLE,mIx \n"+
-			"\t -t=Alloc \n")
+			"\t -t idle,mix \n"+
+			"\t -t=alloc \n")
 	RootCmd.Flags().BoolVarP(&FlagFilterRespondingOnly, "responding", "r", false,
 		"report only responding nodes")
 	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
@@ -76,4 +76,6 @@ func init() {
 		"report state summary only")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		"format specification")
+
+	RootCmd.MarkFlagsMutuallyExclusive("states", "responding", "dead")
 }

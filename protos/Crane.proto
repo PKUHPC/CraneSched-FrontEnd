@@ -90,27 +90,6 @@ message SrunXStreamReply {
   }
 }
 
-message CranedRegisterRequest {
-  Negotiation header = 1;
-
-  uint32 port = 2;
-
-  /* Todo: Add fields describing what tasks the Craned is still running and the current usage of this craned in case that
-      from Ctld's view, this node is down due to network problem and however this node is still running.
-  */
-}
-
-message CranedRegisterResult {
-  bool ok = 1;
-  oneof payload {
-    // If ok is true
-    CranedId craned_id = 2;
-
-    // If ok is false, reason is set.
-    string reason = 3;
-  }
-}
-
 message TaskStatusChangeRequest {
   uint32 task_id = 1;
   string craned_id = 2;
@@ -120,6 +99,14 @@ message TaskStatusChangeRequest {
 }
 
 message TaskStatusChangeReply {
+  bool ok = 1;
+}
+
+message CranedRegisterRequest {
+  string craned_id = 1;
+}
+
+message CranedRegisterReply {
   bool ok = 1;
 }
 
@@ -173,11 +160,11 @@ message ReleaseCgroupForTaskRequest{
 
 message ReleaseCgroupForTaskReply{}
 
-message TerminateTaskRequest {
-  uint32 task_id = 1;
+message TerminateTasksRequest {
+  repeated uint32 task_id_list = 1;
 }
 
-message TerminateTaskReply {
+message TerminateTasksReply {
   bool ok = 1;
   string reason = 2;
 }
@@ -394,8 +381,6 @@ message QueryClusterInfoRequest {
   repeated string filter_partitions = 1;
   repeated string filter_nodes = 2;
   repeated CranedState filter_craned_states = 3;
-  bool filter_only_down_nodes = 4;
-  bool filter_only_responding_nodes = 5;
 }
 
 message QueryClusterInfoReply {
@@ -582,6 +567,7 @@ message StreamCtldReply {
 service CraneCtld {
   /* RPCs called from Craned */
   rpc TaskStatusChange(TaskStatusChangeRequest) returns (TaskStatusChangeReply);
+  rpc CranedRegister(CranedRegisterRequest) returns (CranedRegisterReply);
 
   /* RPCs called from Cfored */
   rpc CforedStream(stream StreamCforedRequest) returns(stream StreamCtldReply);
@@ -636,7 +622,7 @@ service Craned {
    If there are processes in this interactive task, kill all the processes and deallocate resources.
   If the task is a batch task, just kill it.
   */
-  rpc TerminateTask(TerminateTaskRequest) returns (TerminateTaskReply);
+  rpc TerminateTasks(TerminateTasksRequest) returns (TerminateTasksReply);
   rpc TerminateOrphanedTask(TerminateOrphanedTaskRequest) returns (TerminateOrphanedTaskReply);
   rpc ChangeTaskTimeLimit(ChangeTaskTimeLimitRequest) returns (ChangeTaskTimeLimitReply);
 

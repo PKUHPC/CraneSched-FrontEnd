@@ -34,15 +34,14 @@ func cinfoFunc() {
 	stub := util.GetStubToCtldByConfig(config)
 
 	req := &protos.QueryClusterInfoRequest{
-		FilterOnlyDownNodes:       FlagFilterDownOnly,
-		FilterOnlyRespondingNodes: FlagFilterRespondingOnly,
+		FilterPartitions: FlagFilterPartitions,
+		FilterNodes:      FlagFilterNodes,
 	}
 
 	var stateList []protos.CranedState
-	if FlagFilterCranedStates != "" {
-		filterCranedStateList := strings.Split(strings.ToLower(FlagFilterCranedStates), ",")
-		for i := 0; i < len(filterCranedStateList); i++ {
-			switch filterCranedStateList[i] {
+	if len(FlagFilterCranedStates) != 0 {
+		for i := 0; i < len(FlagFilterCranedStates); i++ {
+			switch strings.ToLower(FlagFilterCranedStates[i]) {
 			case "idle":
 				stateList = append(stateList, protos.CranedState_CRANE_IDLE)
 			case "mix":
@@ -52,21 +51,18 @@ func cinfoFunc() {
 			case "down":
 				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 			default:
-				log.Fatalf("Invalid state given: %s\n", filterCranedStateList[i])
+				log.Fatalf("Invalid state given: %s\n", FlagFilterCranedStates[i])
 			}
 		}
-		req.FilterCranedStates = stateList
+	} else if FlagFilterRespondingOnly {
+		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC)
+	} else if FlagFilterDownOnly {
+		stateList = append(stateList, protos.CranedState_CRANE_DOWN)
+	} else {
+		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN)
 	}
 
-	if FlagFilterPartitions != "" {
-		filterPartitionList := strings.Split(FlagFilterPartitions, ",")
-		req.FilterPartitions = filterPartitionList
-	}
-
-	if FlagFilterNodes != "" {
-		filterNodeList := strings.Split(FlagFilterNodes, ",")
-		req.FilterNodes = filterNodeList
-	}
+	req.FilterCranedStates = stateList
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
