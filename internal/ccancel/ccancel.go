@@ -71,7 +71,7 @@ func CancelTask(args []string) {
 
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorWithMsg(err, "Send TerminateTask gRPC")
+		util.GrpcErrorPrintf(err, "Send TerminateTask gRPC")
 	}
 
 	if len(reply.CancelledTasks) > 0 {

@@ -117,7 +117,7 @@ func InitLogger(level log.Level) {
 	log.SetFormatter(&nested.Formatter{})
 }
 
-func GrpcErrorWithMsg(err error, format string, a ...any) {
+func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
 		if rpcErr.Code() == grpccodes.Unavailable {
