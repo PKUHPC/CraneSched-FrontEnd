@@ -66,7 +66,7 @@ func cinfoFunc() {
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
-		panic("QueryClusterInfo failed: " + err.Error())
+		util.GrpcErrorPrintf(err, "Failed to query cluster information")
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)

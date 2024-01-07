@@ -134,7 +134,7 @@ func QueryJob() {
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
-		panic("QueryJobsInPartition failed: " + err.Error())
+		util.GrpcErrorPrintf(err, "Failed to show tasks")
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)

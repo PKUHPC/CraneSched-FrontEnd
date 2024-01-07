@@ -18,9 +18,9 @@ package ccancel
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -71,7 +71,7 @@ func CancelTask(args []string) {
 
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
-		log.Fatalf("Failed to send TerminateTask gRPC: %s", err.Error())
+		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
 	}
 
 	if len(reply.CancelledTasks) > 0 {

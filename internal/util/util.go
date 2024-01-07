@@ -17,10 +17,14 @@
 package util
 
 import (
+	"fmt"
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
+	grpccodes "google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"os"
 	"strings"
 )
 
@@ -111,4 +115,17 @@ func InitLogger(level log.Level) {
 	log.SetLevel(level)
 	log.SetReportCaller(true)
 	log.SetFormatter(&nested.Formatter{})
+}
+
+func GrpcErrorPrintf(err error, format string, a ...any) {
+	s := fmt.Sprintf(format, a...)
+	if rpcErr, ok := grpcstatus.FromError(err); ok {
+		if rpcErr.Code() == grpccodes.Unavailable {
+			_, _ = fmt.Fprintf(os.Stderr, "%s: Connection to CraneCtld is broken.", s)
+			os.Exit(1)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.", s, rpcErr.String())
+			os.Exit(1)
+		}
+	}
 }
