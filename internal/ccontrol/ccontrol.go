@@ -40,7 +40,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 	req = &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "QueryNodeInfo")
+		util.GrpcErrorPrintf(err, "Failed to show nodes")
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -82,7 +82,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 	req = &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "QueryPartitionInfo")
+		util.GrpcErrorPrintf(err, "Failed to show partition")
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -132,7 +132,7 @@ func ShowTasks(taskId uint32, queryAll bool) {
 
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "QueryTasksInfo")
+		util.GrpcErrorPrintf(err, "Failed to show the task")
 	}
 
 	if !reply.GetOk() {
@@ -227,7 +227,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	}
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "ModifyTask")
+		util.GrpcErrorPrintf(err, "Failed to change task time limit")
 	}
 
 	if reply.Ok {

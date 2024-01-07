@@ -99,7 +99,7 @@ func Query() {
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "QueryClusterInfo")
+		util.GrpcErrorPrintf(err, "Failed to query job queue")
 	}
 
 	sort.SliceStable(reply.TaskInfoList, func(i, j int) bool {

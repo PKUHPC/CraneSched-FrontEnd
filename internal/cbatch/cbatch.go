@@ -199,7 +199,7 @@ func SendRequest(task *protos.TaskToCtld) {
 
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "SubmitBatchTask")
+		util.GrpcErrorPrintf(err, "Failed to submit the task")
 	}
 
 	if reply.GetOk() {
@@ -216,7 +216,7 @@ func SendMultipleRequests(tasks []*protos.TaskToCtld) {
 
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "SubmitBatchTask")
+		util.GrpcErrorPrintf(err, "Failed to submit tasks")
 	}
 
 	if len(reply.TaskIdList) > 0 {

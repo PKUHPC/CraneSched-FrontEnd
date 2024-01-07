@@ -284,7 +284,7 @@ func AddAccount(account *protos.AccountInfo) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Add account")
+		util.GrpcErrorPrintf(err, "Failed to add the account")
 	}
 	if reply.GetOk() {
 		fmt.Println("Add account success!")
@@ -323,10 +323,9 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 		user.CoordinatorAccounts = append(user.CoordinatorAccounts, user.Account)
 	}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddUser(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Add user")
+		util.GrpcErrorPrintf(err, "Failed to add the user")
 	}
 	if reply.GetOk() {
 		fmt.Println("Add user success!")
@@ -344,7 +343,7 @@ func AddQos(qos *protos.QosInfo) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Add qos")
+		util.GrpcErrorPrintf(err, "Failed to add the QoS")
 	}
 	if reply.GetOk() {
 		fmt.Println("Add qos success!")
@@ -360,7 +359,7 @@ func DeleteAccount(name string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Delete account "+name)
+		util.GrpcErrorPrintf(err, "Failed to delete account %s", name)
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete account %s success\n", name)
@@ -376,7 +375,7 @@ func DeleteUser(name string, account string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Remove user "+name)
+		util.GrpcErrorPrintf(err, "Failed to remove user %s", name)
 	}
 	if reply.GetOk() {
 		fmt.Printf("Remove User %s success\n", name)
@@ -392,7 +391,7 @@ func DeleteQos(name string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Delete qos "+name)
+		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", name)
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete Qos %s success\n", name)
@@ -444,7 +443,7 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Modify information")
+		util.GrpcErrorPrintf(err, "Failed to modify the uesr information")
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
@@ -466,7 +465,7 @@ func ModifyQos(itemLeft string, itemRight string, name string) {
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Modify information")
+		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
@@ -480,7 +479,7 @@ func ShowAccounts() {
 	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Account}
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Query account info")
+		util.GrpcErrorPrintf(err, "Failed to show accounts")
 	}
 
 	if reply.GetOk() {
@@ -496,7 +495,7 @@ func ShowUser(name string, account string) {
 
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Query user info")
+		util.GrpcErrorPrintf(err, "Failed to show the user")
 	}
 
 	if reply.GetOk() {
@@ -512,7 +511,7 @@ func ShowQos(name string) {
 
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Query qos info")
+		util.GrpcErrorPrintf(err, "Failed to show the QoS")
 	}
 
 	if reply.GetOk() {
@@ -532,7 +531,7 @@ func FindAccount(name string) {
 
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Query entity info")
+		util.GrpcErrorPrintf(err, "Failed to find the account")
 	}
 
 	if reply.GetOk() {
@@ -548,7 +547,7 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 
 	reply, err := stub.BlockAccountOrUser(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Block entity info")
+		util.GrpcErrorPrintf(err, "Failed to block the entity")
 	}
 
 	if reply.GetOk() {
@@ -564,7 +563,7 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 
 	reply, err := stub.BlockAccountOrUser(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Unblock entity info")
+		util.GrpcErrorPrintf(err, "Failed to unblock the entity")
 	}
 
 	if reply.GetOk() {
