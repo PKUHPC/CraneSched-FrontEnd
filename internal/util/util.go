@@ -76,17 +76,6 @@ func SetBorderTable(table *tablewriter.Table) {
 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
 }
-func ErrPrint(err error, str string) {
-	if rpcErr, ok := grpcstatus.FromError(err); ok {
-		if rpcErr.Code() == grpccodes.Unavailable {
-			fmt.Println(str + "failed: Unable to contact Crane controller.")
-			os.Exit(1)
-		} else {
-			panic(str + " failed: " + err.Error())
-		}
-	}
-
-}
 
 func FormatTable(tableOutputWidth []int, tableHeader []string,
 	tableData [][]string) (formatTableHeader []string, formatTableData [][]string) {
@@ -126,4 +115,17 @@ func InitLogger(level log.Level) {
 	log.SetLevel(level)
 	log.SetReportCaller(true)
 	log.SetFormatter(&nested.Formatter{})
+}
+
+func GrpcErrorWithMsg(err error, format string, a ...any) {
+	s := fmt.Sprintf(format, a)
+	if rpcErr, ok := grpcstatus.FromError(err); ok {
+		if rpcErr.Code() == grpccodes.Unavailable {
+			_, _ = fmt.Fprintf(os.Stderr, "%s: Connection to CraneCtld is broken.", s)
+			os.Exit(1)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.", s, rpcErr.String())
+			os.Exit(1)
+		}
+	}
 }

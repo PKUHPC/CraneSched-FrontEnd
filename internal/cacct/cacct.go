@@ -134,7 +134,7 @@ func QueryJob() {
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
-		util.ErrPrint(err, "QueryJobsInPartition")
+		util.GrpcErrorWithMsg(err, "QueryJobsInPartition")
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
