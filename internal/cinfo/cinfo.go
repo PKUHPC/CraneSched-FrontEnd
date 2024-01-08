@@ -50,6 +50,8 @@ func cinfoFunc() {
 				stateList = append(stateList, protos.CranedState_CRANE_ALLOC)
 			case "down":
 				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
+			case "drain":
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN)
 			default:
 				log.Fatalf("Invalid state given: %s\n", FlagFilterCranedStates[i])
 			}
@@ -59,7 +61,7 @@ func cinfoFunc() {
 	} else if FlagFilterDownOnly {
 		stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 	} else {
-		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN)
+		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN, protos.CranedState_CRANE_DRAIN)
 	}
 
 	req.FilterCranedStates = stateList
