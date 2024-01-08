@@ -25,6 +25,8 @@ import (
 
 var (
 	FlagNodeName      string
+	FlagState         string
+	FlagReason        string
 	FlagPartitionName string
 	FlagTaskId        uint32
 	FlagQueryAll      bool
@@ -102,6 +104,14 @@ var (
 			ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
 		},
 	}
+	updateNodeCmd = &cobra.Command{
+		Use:   "node",
+		Short: "Modify node information",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -119,6 +129,10 @@ func init() {
 	showCmd.AddCommand(showPartitionCmd)
 	showCmd.AddCommand(showTaskCmd)
 	rootCmd.AddCommand(updateCmd)
+	updateCmd.AddCommand(updateNodeCmd)
+	updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "specify a node name")
+	updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "specify the state")
+	updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "set reason")
 	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
 	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
 	err := updateCmd.MarkFlagRequired("job")

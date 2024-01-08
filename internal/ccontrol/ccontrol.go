@@ -236,3 +236,37 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 		fmt.Printf("Chang time limit failed: %s\n", reply.GetReason())
 	}
 }
+
+func ChangeNodeState(nodeName string, state string, reason string) {
+
+	var req = &protos.ModifyNodeRequest{}
+	if nodeName == "" {
+		log.Fatalf("No valid node name in update node command.\nSpecify node names by -n or --name")
+	} else {
+		req.Name = nodeName
+	}
+	switch state {
+	case "drain":
+		if reason == "" {
+			log.Fatalf("You must specify a reason by '-r' or '--reason' when DRAINING a node. Request denied")
+		}
+		req.Drain = true
+		req.Reason = reason
+	case "resume":
+		req.Drain = false
+	default:
+		log.Fatalf("Invalid state given: %s\n Request aborted \n Valid states are: drain, resume", state)
+	}
+
+	reply, err := stub.ModifyNode(context.Background(), req)
+	if err != nil {
+		panic("ModifyNode failed: " + err.Error())
+	}
+
+	if reply.Ok {
+		fmt.Println("Change node state success.")
+	} else {
+		fmt.Printf("Chang node state failed: %s\n", reply.GetReason())
+	}
+
+}
