@@ -379,6 +379,13 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagNtasksPerNode != 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		for gresName, gresType := range gresMap {
+			deviceCountMap := &protos.DeviceCountMap{DeviceCountMap: gresType}
+			task.GresCountMap[gresName] = deviceCountMap
+		}
+	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {

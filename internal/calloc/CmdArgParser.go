@@ -32,6 +32,7 @@ var (
 	FlagAccount       string
 	FlagQos           string
 	FlagCwd           string
+	FlagGres          string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -59,6 +60,6 @@ func CmdArgParser() *cobra.Command {
 	parser.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
 	parser.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
 	parser.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
-
+	parser.Flags().StringVar(&FlagGres, "gres", "", "name,type,num of gres required per task")
 	return parser
 }

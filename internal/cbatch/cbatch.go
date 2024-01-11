@@ -52,7 +52,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.CpusPerTask = 1
 	task.NtasksPerNode = 1
 	task.NodeNum = 1
-
+	task.GresCountMap = make(map[string]*protos.DeviceCountMap)
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
 		switch arg.name {
@@ -70,6 +70,17 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 				return false, nil
 			}
 			task.CpusPerTask = num
+		case "--gres":
+			gresMap := util.ParseGres(arg.val)
+			for gresName, gresType := range gresMap {
+				var total uint64 = 0
+				for _, count := range gresType {
+					total += count
+				}
+				delete(gresType, "UNKNOWN")
+				deviceCountMap := &protos.DeviceCountMap{DeviceCountMap: gresType, Total: total}
+				task.GresCountMap[gresName] = deviceCountMap
+			}
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -120,6 +131,18 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagCpuPerTask != 0 {
 		task.CpusPerTask = FlagCpuPerTask
+	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		for gresName, gresType := range gresMap {
+			var total uint64 = 0
+			for _, count := range gresType {
+				total += count
+			}
+			delete(gresType, "UNKNOWN")
+			deviceCountMap := &protos.DeviceCountMap{DeviceCountMap: gresType, Total: total}
+			task.GresCountMap[gresName] = deviceCountMap
+		}
 	}
 	if FlagNtasksPerNode != 0 {
 		task.NtasksPerNode = FlagNtasksPerNode

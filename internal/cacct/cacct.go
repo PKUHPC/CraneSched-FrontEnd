@@ -154,7 +154,7 @@ func QueryJob() {
 			reply.TaskInfoList[i].Name,
 			reply.TaskInfoList[i].Partition,
 			reply.TaskInfoList[i].Account,
-			strconv.FormatFloat(reply.TaskInfoList[i].AllocCpu, 'f', 2, 64),
+			strconv.FormatFloat(reply.TaskInfoList[i].CpuPerNode, 'f', 2, 64),
 			reply.TaskInfoList[i].Status.String(),
 			exitCode}
 	}
@@ -259,7 +259,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "AllocCPUs":
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
-					strconv.FormatFloat(reply.TaskInfoList[j].AllocCpu, 'f', 2, 64))
+					strconv.FormatFloat(reply.TaskInfoList[j].CpuPerNode, 'f', 2, 64))
 			}
 		case "State":
 			for j := 0; j < len(reply.TaskInfoList); j++ {

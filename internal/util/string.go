@@ -21,6 +21,7 @@ import (
 	"github.com/golang/protobuf/ptypes/duration"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
@@ -81,4 +82,36 @@ func SecondTimeFormat(second int64) string {
 		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
 	}
 	return timeFormat
+}
+
+func ParseGres(gres string) map[string]map[string]uint64 {
+	result := make(map[string]map[string]uint64)
+	if gres == "" {
+		return result
+	}
+	gresList := strings.Split(gres, ",")
+	for _, g := range gresList {
+		parts := strings.Split(g, ":")
+		name := parts[0]
+		var gresType string
+		if len(parts) == 2 {
+			gresType = "UNKNOWN"
+		} else if len(parts) == 3 {
+			gresType = parts[1]
+		} else {
+			fmt.Printf("Error parsing gresType of: %s\n", g)
+		}
+		count, err := strconv.ParseUint(parts[len(parts)-1], 10, 64)
+		if err != nil {
+			fmt.Printf("Error parsing count for %s: %v\n", name, err)
+			continue
+		}
+
+		if _, ok := result[name]; !ok {
+			result[name] = make(map[string]uint64)
+		}
+		result[name][gresType] = count
+	}
+
+	return result
 }

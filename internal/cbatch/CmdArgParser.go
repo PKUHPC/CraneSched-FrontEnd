@@ -18,8 +18,9 @@ package cbatch
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -37,6 +38,7 @@ var (
 	FlagRepeat        uint32
 	FlagNodelist      string
 	FlagExcludes      string
+	FlagGres          string
 
 	FlagConfigFilePath string
 )
@@ -55,6 +57,7 @@ func ParseCmdArgs() {
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, " number of nodes on which to run (N = min[-max])")
 	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "number of cpus required per task")
+	rootCmd.Flags().StringVar(&FlagGres, "gres", "", "name,type,num of gres required per task")
 	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "number of tasks to invoke on each node")
 	rootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
 	rootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
