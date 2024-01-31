@@ -53,6 +53,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.NtasksPerNode = 1
 	task.NodeNum = 1
 	task.GetUserEnv = false
+	task.Env = make(map[string]string)
 
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
@@ -111,7 +112,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "--get-user-env":
 			task.GetUserEnv = true
 		case "--export":
-			task.ExportEnv = arg.val
+			task.Env["CRANE_EXPORT_ENV"] = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -173,7 +174,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.GetUserEnv = true
 	}
 	if FlagExport != "" {
-		task.ExportEnv = FlagExport
+		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
@@ -252,47 +253,50 @@ func EnvironParser(env *string) (string, string, bool) {
 	}
 }
 
-func PropagatedEnviron(ExportEnv *string) map[string]string {
-	Export := strings.Split(*ExportEnv, ",")
-	if len(Export) == 0 {
-		Export = append(Export, "ALL")
+func SetPropagatedEnviron(task *protos.TaskToCtld) {
+	craneExportEnv, found := task.Env["CRANE_EXPORT_ENV"]
+	if found == false {
+		craneExportEnv = ""
 	}
-
-	Mode := Export[0]
-	var Specified []string
-
-	switch Mode {
-	case "NIL", "NONE":
-	case "ALL":
-		for i := len(Export) - 1; i >= 1; i-- {
-			Specified = append(Specified, Export[i])
-		}
-	default:
-		Mode = ""
-		for i := len(Export) - 1; i >= 0; i-- {
-			Specified = append(Specified, Export[i])
-		}
-	}
-
-	Environ := make(map[string]string)
-	PropEnv := make(map[string]string)
+	task.Env = make(map[string]string)
+	osEnv := make(map[string]string)
 	for _, str := range os.Environ() {
 		name, value, _ := EnvironParser(&str)
-		Environ[name] = value
-		if Mode == "ALL" || strings.HasPrefix(name, "CRANE_") {
-			PropEnv[name] = value
+		osEnv[name] = value
+	}
+	for _, str := range os.Environ() {
+		name, value, _ := EnvironParser(&str)
+		if strings.HasPrefix(name, "CRANE_") {
+			task.Env[name] = value
 		}
 	}
-	for _, str := range Specified {
-		name, value, exist := EnvironParser(&str)
-		origin, found := Environ[name]
-		if found {
-			PropEnv[name] = origin
-		} else if exist {
-			PropEnv[name] = value
+	switch craneExportEnv {
+	case "NIL":
+	case "NONE":
+		task.GetUserEnv = true
+	case "ALL", "":
+		task.Env = osEnv
+	default:
+		task.GetUserEnv = true
+		exportEnv := strings.Split(craneExportEnv, ",")
+		for _, str := range exportEnv {
+			if str == "ALL" {
+				for _, str := range os.Environ() {
+					name, value, _ := EnvironParser(&str)
+					task.Env[name] = value
+				}
+			}
+			name, value, exist := EnvironParser(&str)
+			if exist {
+				task.Env[name] = value
+			} else {
+				origin, found := osEnv[name]
+				if found {
+					task.Env[name] = origin
+				}
+			}
 		}
 	}
-	return PropEnv
 }
 
 func Cbatch(jobFilePath string) {
@@ -342,7 +346,7 @@ func Cbatch(jobFilePath string) {
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
 	task.Uid = uint32(os.Getuid())
 	task.CmdLine = strings.Join(os.Args, " ")
-	task.Env = PropagatedEnviron(&task.ExportEnv)
+	SetPropagatedEnviron(task)
 	task.Type = protos.TaskType_Batch
 	if task.Cwd == "" {
 		task.Cwd, _ = os.Getwd()
