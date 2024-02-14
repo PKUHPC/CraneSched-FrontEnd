@@ -43,19 +43,18 @@ const (
 func QueryJob() {
 	request := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: true}
 
-	timeFormat := "2006-01-02T15:04:05"
 	if FlagFilterStartTime != "" {
 		request.FilterStartTimeInterval = &protos.TimeInterval{}
 		split := strings.Split(FlagFilterStartTime, "~")
 		if split[0] != "" {
-			tl, err := time.Parse(timeFormat, split[0])
+			tl, err := util.ParseTime(split[0])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
 			request.FilterStartTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
-			tr, err := time.Parse(timeFormat, split[1])
+			tr, err := util.ParseTime(split[1])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
@@ -66,14 +65,14 @@ func QueryJob() {
 		request.FilterEndTimeInterval = &protos.TimeInterval{}
 		split := strings.Split(FlagFilterEndTime, "~")
 		if split[0] != "" {
-			tl, err := time.Parse(timeFormat, split[0])
+			tl, err := util.ParseTime(split[0])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
 			request.FilterEndTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
-			tr, err := time.Parse(timeFormat, split[1])
+			tr, err := util.ParseTime(split[1])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
@@ -84,14 +83,14 @@ func QueryJob() {
 		request.FilterSubmitTimeInterval = &protos.TimeInterval{}
 		split := strings.Split(FlagFilterSubmitTime, "~")
 		if split[0] != "" {
-			tl, err := time.Parse(timeFormat, split[0])
+			tl, err := util.ParseTime(split[0])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}
 			request.FilterSubmitTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
-			tr, err := time.Parse(timeFormat, split[1])
+			tr, err := util.ParseTime(split[1])
 			if err != nil {
 				log.Fatalf("Failed to parse the time string: %s", err)
 			}

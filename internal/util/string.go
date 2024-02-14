@@ -21,6 +21,7 @@ import (
 	"github.com/golang/protobuf/ptypes/duration"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
@@ -65,6 +66,20 @@ func ParseDuration(time string, duration *duration.Duration) bool {
 
 	duration.Seconds = int64(60*60*hh + 60*mm + ss)
 	return true
+}
+
+func ParseTime(ts string) (time.Time, error) {
+	// Try to parse the timezone at first
+	layout := time.RFC3339
+	parsed, err := time.Parse(layout, ts)
+	if err == nil {
+		return parsed, nil
+	}
+
+	// Fallback to the short layout, assuming local timezone
+	layoutShort := time.RFC3339[:19]
+	parsed, err = time.ParseInLocation(layoutShort, ts, time.Local)
+	return parsed, err
 }
 
 func SecondTimeFormat(second int64) string {
