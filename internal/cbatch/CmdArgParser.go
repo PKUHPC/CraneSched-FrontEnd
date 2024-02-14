@@ -69,7 +69,7 @@ func ParseCmdArgs() {
 	rootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "submit the task multiple times")
 	rootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
 	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
-	rootCmd.Flags().StringVar(&FlagGetUserEnv, "getuserenv", "", "get user's environment variables")
+	rootCmd.Flags().StringVar(&FlagGetUserEnv, "get-user-env", "", "get user's environment variables")
 	rootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
 
 	if err := rootCmd.Execute(); err != nil {

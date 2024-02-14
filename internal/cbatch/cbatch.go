@@ -244,12 +244,12 @@ func SendMultipleRequests(tasks []*protos.TaskToCtld) {
 	}
 }
 
-func EnvironParser(env *string) (string, string, bool) {
+func SplitEnvironEntry(env *string) (string, string) {
 	eq := strings.IndexByte(*env, '=')
 	if eq == -1 {
-		return *env, "", false
+		return *env, ""
 	} else {
-		return (*env)[:eq], (*env)[eq+1:], true
+		return (*env)[:eq], (*env)[eq+1:]
 	}
 }
 
@@ -260,12 +260,14 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	}
 	task.Env = make(map[string]string)
 	osEnv := make(map[string]string)
+
 	for _, str := range os.Environ() {
-		name, value, _ := EnvironParser(&str)
+		name, value := SplitEnvironEntry(&str)
 		osEnv[name] = value
 	}
+
 	for _, str := range os.Environ() {
-		name, value, _ := EnvironParser(&str)
+		name, value := SplitEnvironEntry(&str)
 		if strings.HasPrefix(name, "CRANE_") {
 			task.Env[name] = value
 		}
@@ -282,17 +284,18 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 		for _, str := range exportEnv {
 			if str == "ALL" {
 				for _, str := range os.Environ() {
-					name, value, _ := EnvironParser(&str)
+					name, value := SplitEnvironEntry(&str)
 					task.Env[name] = value
 				}
 			}
-			name, value, exist := EnvironParser(&str)
-			if exist {
+
+			name, value := SplitEnvironEntry(&str)
+			if value != "" {
 				task.Env[name] = value
 			} else {
-				origin, found := osEnv[name]
-				if found {
-					task.Env[name] = origin
+				systemEnvValue, envExist := osEnv[name]
+				if envExist {
+					task.Env[name] = systemEnvValue
 				}
 			}
 		}
@@ -346,7 +349,10 @@ func Cbatch(jobFilePath string) {
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
 	task.Uid = uint32(os.Getuid())
 	task.CmdLine = strings.Join(os.Args, " ")
+
+	// Process the content of --get-user-env
 	SetPropagatedEnviron(task)
+
 	task.Type = protos.TaskType_Batch
 	if task.Cwd == "" {
 		task.Cwd, _ = os.Getwd()
