@@ -254,48 +254,53 @@ func SplitEnvironEntry(env *string) (string, string) {
 }
 
 func SetPropagatedEnviron(task *protos.TaskToCtld) {
-	craneExportEnv, found := task.Env["CRANE_EXPORT_ENV"]
-	if found == false {
-		craneExportEnv = ""
-	}
-	task.Env = make(map[string]string)
-	osEnv := make(map[string]string)
-
+	systemEnv := make(map[string]string)
 	for _, str := range os.Environ() {
 		name, value := SplitEnvironEntry(&str)
-		osEnv[name] = value
-	}
+		systemEnv[name] = value
 
-	for _, str := range os.Environ() {
-		name, value := SplitEnvironEntry(&str)
+		// The CRANE_* environment variables are loaded anyway.
 		if strings.HasPrefix(name, "CRANE_") {
 			task.Env[name] = value
 		}
 	}
-	switch craneExportEnv {
+
+	// This value is used only to carry the value of --export flag.
+	// Delete it once we get it.
+	valueOfExportFlag, haveExportFlag := task.Env["CRANE_EXPORT_ENV"]
+	if haveExportFlag {
+		delete(task.Env, "CRANE_EXPORT_ENV")
+	} else {
+		// Default mode is ALL
+		valueOfExportFlag = "ALL"
+	}
+
+	switch valueOfExportFlag {
 	case "NIL":
 	case "NONE":
 		task.GetUserEnv = true
-	case "ALL", "":
-		task.Env = osEnv
-	default:
-		task.GetUserEnv = true
-		exportEnv := strings.Split(craneExportEnv, ",")
-		for _, str := range exportEnv {
-			if str == "ALL" {
-				for _, str := range os.Environ() {
-					name, value := SplitEnvironEntry(&str)
-					task.Env[name] = value
-				}
-			}
+	case "ALL":
+		task.Env = systemEnv
 
-			name, value := SplitEnvironEntry(&str)
-			if value != "" {
-				task.Env[name] = value
+	default:
+		// The case like "ALL,A=a,B=b", "NIL,C=c"
+		task.GetUserEnv = true
+		splitValueOfExportFlag := strings.Split(valueOfExportFlag, ",")
+		for _, exportValue := range splitValueOfExportFlag {
+			if exportValue == "ALL" {
+				for k, v := range systemEnv {
+					task.Env[k] = v
+				}
 			} else {
-				systemEnvValue, envExist := osEnv[name]
-				if envExist {
-					task.Env[name] = systemEnvValue
+				k, v := SplitEnvironEntry(&exportValue)
+				// If user-specified value is empty, use system value instead.
+				if v != "" {
+					task.Env[k] = v
+				} else {
+					systemEnvValue, envExist := systemEnv[k]
+					if envExist {
+						task.Env[k] = systemEnvValue
+					}
 				}
 			}
 		}
