@@ -367,7 +367,9 @@ func main(cmd *cobra.Command, args []string) {
 		Payload:         &protos.TaskToCtld_InteractiveMeta{InteractiveMeta: nil},
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
-		Env:             "",
+
+		// Todo: Propagate Env here!
+		Env: make(map[string]string),
 	}
 
 	if FlagNodes != 0 {
