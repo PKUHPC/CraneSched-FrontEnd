@@ -187,23 +187,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	return true, task
 }
 
-func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
-	re := regexp.MustCompile(`^#CBATCH`)
-	if re.MatchString(line) {
-		split := strings.Fields(line)
-		if len(split) == 3 {
-			*args = append(*args, CbatchArg{name: split[1], val: split[2]})
-		} else if len(split) == 2 {
-			*args = append(*args, CbatchArg{name: split[1]})
-		} else {
-			return false
-		}
-	} else {
-		*sh = append(*sh, line)
-	}
-	return true
-}
-
 func SendRequest(task *protos.TaskToCtld) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
@@ -331,10 +314,19 @@ func Cbatch(jobFilePath string) {
 
 	for scanner.Scan() {
 		num++
-		success := ProcessLine(scanner.Text(), &sh, &args)
-		if !success {
-			err = fmt.Errorf("grammer error at line %v", num)
-			fmt.Println(err.Error())
+		reC := regexp.MustCompile(`^#CBATCH`)
+		reS := regexp.MustCompile(`^#SBATCH`)
+		var processor LineProcessor
+		if reC.MatchString(scanner.Text()) {
+			processor = &cLineProcessor{}
+		} else if reS.MatchString(scanner.Text()) {
+			processor = &sLineProcessor{}
+		} else {
+			processor = &defaultProcessor{}
+		}
+		err := processor.Process(scanner.Text(), &sh, &args)
+		if err != nil {
+			fmt.Printf("parse error at line %v: %v", num, err.Error())
 			os.Exit(1)
 		}
 	}
