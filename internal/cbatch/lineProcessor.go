@@ -55,8 +55,8 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	} else if len(split) == 2 {
 		parts := strings.Split(split[1], "=")
 		ok, _ := s.supported[parts[0]]
-		if ok {
-			*args = append(*args, CbatchArg{name: split[1]})
+		if ok && len(parts) > 1 {
+			*args = append(*args, CbatchArg{name: parts[0], val: parts[1]})
 		} else {
 			log.Warnf("warning: slurm arg %v is not supported", parts[0])
 		}
