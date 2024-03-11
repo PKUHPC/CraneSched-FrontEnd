@@ -221,10 +221,10 @@ func SendRequest(task *protos.TaskToCtld) {
 	}
 }
 
-func SendMultipleRequests(tasks []*protos.TaskToCtld) {
+func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
-	req := &protos.SubmitBatchTasksRequest{Tasks: tasks}
+	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
 
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
@@ -366,10 +366,6 @@ func Cbatch(jobFilePath string) {
 	if FlagRepeat == 1 {
 		SendRequest(task)
 	} else {
-		tasks := make([]*protos.TaskToCtld, FlagRepeat)
-		for i := uint32(0); i < FlagRepeat; i++ {
-			tasks[i] = task
-		}
-		SendMultipleRequests(tasks)
+		SendMultipleRequests(task, FlagRepeat)
 	}
 }
