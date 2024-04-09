@@ -113,6 +113,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.GetUserEnv = true
 		case "--export":
 			task.Env["CRANE_EXPORT_ENV"] = arg.val
+		case "--error", "-e":
+			task.GetBatchMeta().ErrorFilePattern = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -175,6 +177,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
+	}
+	if FlagErrorPath != "" {
+		task.GetBatchMeta().ErrorFilePattern = FlagErrorPath
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {

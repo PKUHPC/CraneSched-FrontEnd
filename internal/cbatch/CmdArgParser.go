@@ -39,6 +39,7 @@ var (
 	FlagExcludes      string
 	FlagGetUserEnv    string
 	FlagExport        string
+	FlagErrorPath	  string
 
 	FlagConfigFilePath string
 )
@@ -71,6 +72,7 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
 	rootCmd.Flags().StringVar(&FlagGetUserEnv, "get-user-env", "", "get user's environment variables")
 	rootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
+	rootCmd.Flags().StringVarP(&FlagErrorPath, "error", "e", "", "account used by the task")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
