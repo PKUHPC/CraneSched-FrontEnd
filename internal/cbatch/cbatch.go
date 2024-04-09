@@ -113,6 +113,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.GetUserEnv = true
 		case "--export":
 			task.Env["CRANE_EXPORT_ENV"] = arg.val
+		case "--error", "-e":
+			task.ErrorPath = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
