@@ -17,7 +17,6 @@
 package ccontrol
 
 import (
-	"CraneFrontEnd/cmd/wrapper"
 	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
 	"os"
@@ -107,12 +106,8 @@ var (
 
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
-	if useWrapper, err := wrapper.ParseWithWrapper(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
-	} else if !useWrapper {
-		if err := rootCmd.Execute(); err != nil {
-			os.Exit(1)
-		}
 	}
 }
 

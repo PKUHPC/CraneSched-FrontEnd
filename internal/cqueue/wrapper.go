@@ -14,17 +14,34 @@
  * See the Mulan PSL v2 for more details.
  */
 
-package main
+package cqueue
 
 import (
-	cacctmgr "CraneFrontEnd/internal/cacctmgr"
-	"CraneFrontEnd/internal/wrapper"
-	log "github.com/sirupsen/logrus"
+	"os"
+	"strings"
 )
 
-func main() {
-	if _, err := wrapper.ParseWithWrapper(); err != nil {
-		log.Warn(err.Error())
+func ParseSlurm() error {
+	for i := 1; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "-h":
+			os.Args[i] = "-N"
+		case "-S":
+			if i+2 < len(os.Args) {
+				os.Args = append(os.Args[:i], os.Args[i+2])
+			} else {
+				os.Args = os.Args[:i]
+			}
+		default:
+			l := strings.Split(os.Args[i], "=")
+			if len(l) != 2 {
+				continue
+			}
+			switch l[0] {
+			case "--account":
+				os.Args[i] = "--Account" + l[1]
+			}
+		}
 	}
-	cacctmgr.ParseCmdArgs()
+	return nil
 }

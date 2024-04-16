@@ -14,17 +14,36 @@
  * See the Mulan PSL v2 for more details.
  */
 
-package main
+package wrapper
 
 import (
-	cacctmgr "CraneFrontEnd/internal/cacctmgr"
-	"CraneFrontEnd/internal/wrapper"
-	log "github.com/sirupsen/logrus"
+	"CraneFrontEnd/internal/cacctmgr"
+	"CraneFrontEnd/internal/ccancel"
+	"CraneFrontEnd/internal/ccontrol"
+	"CraneFrontEnd/internal/cqueue"
+	"os"
+	"strings"
 )
 
-func main() {
-	if _, err := wrapper.ParseWithWrapper(); err != nil {
-		log.Warn(err.Error())
+type SlurmWrapper struct {
+}
+
+func (s *SlurmWrapper) Parse() error {
+	l := strings.Split(os.Args[0], "/")
+	os.Args[0] = l[len(l)-1]
+	switch os.Args[0] {
+	case "ccontrol":
+		return ccontrol.ParseSlurm()
+	case "cqueue":
+		return cqueue.ParseSlurm()
+	case "cacctmgr":
+		return cacctmgr.ParseSlurm()
+	case "ccancel":
+		return ccancel.ParseSlurm()
 	}
-	cacctmgr.ParseCmdArgs()
+	return nil
+}
+
+func (s *SlurmWrapper) Name() string {
+	return "slurm"
 }

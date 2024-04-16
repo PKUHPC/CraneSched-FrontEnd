@@ -16,8 +16,15 @@
 
 package main
 
-import "CraneFrontEnd/internal/cqueue"
+import (
+	"CraneFrontEnd/internal/cqueue"
+	"CraneFrontEnd/internal/wrapper"
+	log "github.com/sirupsen/logrus"
+)
 
 func main() {
+	if _, err := wrapper.ParseWithWrapper(); err != nil {
+		log.Warn(err.Error())
+	}
 	cqueue.ParseCmdArgs()
 }

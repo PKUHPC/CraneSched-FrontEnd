@@ -16,8 +16,15 @@
 
 package main
 
-import "CraneFrontEnd/internal/ccancel"
+import (
+	"CraneFrontEnd/internal/ccancel"
+	"CraneFrontEnd/internal/wrapper"
+	log "github.com/sirupsen/logrus"
+)
 
 func main() {
+	if _, err := wrapper.ParseWithWrapper(); err != nil {
+		log.Warn(err.Error())
+	}
 	ccancel.ParseCmdArgs()
 }

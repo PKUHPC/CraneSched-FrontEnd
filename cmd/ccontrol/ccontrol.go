@@ -16,8 +16,15 @@
 
 package main
 
-import "CraneFrontEnd/internal/ccontrol"
+import (
+	"CraneFrontEnd/internal/ccontrol"
+	"CraneFrontEnd/internal/wrapper"
+	log "github.com/sirupsen/logrus"
+)
 
 func main() {
+	if _, err := wrapper.ParseWithWrapper(); err != nil {
+		log.Warn(err.Error())
+	}
 	ccontrol.ParseCmdArgs()
 }
