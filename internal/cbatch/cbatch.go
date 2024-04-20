@@ -95,8 +95,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			task.PartitionName = arg.val
-		case "-o", "--output":
-			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-J", "--job-name":
 			task.Name = arg.val
 		case "-A", "--account":
@@ -113,6 +111,10 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.GetUserEnv = true
 		case "--export":
 			task.Env["CRANE_EXPORT_ENV"] = arg.val
+		case "-o", "--output":
+			task.GetBatchMeta().OutputFilePattern = arg.val
+		case "-e", "--error":
+			task.GetBatchMeta().ErrorFilePattern = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -149,9 +151,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
 	}
-	if FlagOutput != "" {
-		task.GetBatchMeta().OutputFilePattern = FlagOutput
-	}
 	if FlagJob != "" {
 		task.Name = FlagJob
 	}
@@ -175,6 +174,12 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
+	}
+	if FlagStdoutPath != "" {
+		task.GetBatchMeta().OutputFilePattern = FlagStdoutPath
+	}
+	if FlagStderrPath != "" {
+		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
