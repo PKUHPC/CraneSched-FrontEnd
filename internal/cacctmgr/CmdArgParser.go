@@ -159,6 +159,7 @@ var (
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
 	modifyCmd = &cobra.Command{
 		Use:           "modify",
+		Aliases: []string{"update"},
 		SilenceErrors: true,
 		Short:         "Modify entity",
 		Long:          "",

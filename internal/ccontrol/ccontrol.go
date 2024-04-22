@@ -375,3 +375,146 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 		return util.ErrorBackend
 	}
 }
+
+func AddNode(name string, cpu float64, mem string, partition []string) {
+	memInByte, err := util.ParseMemStringAsByte(mem)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var req *protos.AddNodeRequest
+	req = &protos.AddNodeRequest{
+		Uid: uint32(os.Getuid()),
+		Node: &protos.CranedInfo{
+			Hostname:       name,
+			Cpu:            cpu,
+			RealMem:        memInByte,
+			PartitionNames: partition,
+		},
+	}
+	reply, err := stub.AddNode(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to add a new node")
+	}
+
+	if reply.Ok {
+		fmt.Println("Add node success!")
+	} else {
+		fmt.Printf("Add node failed: %s\n", reply.GetReason())
+	}
+}
+
+func AddPartition(name string, nodes string, priority uint32, allowlist []string, denylist []string) {
+	var req *protos.AddPartitionRequest
+	req = &protos.AddPartitionRequest{
+		Uid: uint32(os.Getuid()),
+		Partition: &protos.PartitionInfo{
+			Name:      name,
+			Hostlist:  nodes,
+			Priority:  priority,
+			AllowList: allowlist,
+			DenyList:  denylist,
+		},
+	}
+	reply, err := stub.AddPartition(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to add a new partition")
+	}
+
+	if reply.Ok {
+		fmt.Println("Add partition success!")
+	} else {
+		fmt.Printf("Add partition failed: %s\n", reply.GetReason())
+	}
+}
+
+func DeleteNode(name string) {
+	var req *protos.DeleteNodeRequest
+	req = &protos.DeleteNodeRequest{
+		Uid:  uint32(os.Getuid()),
+		Name: name,
+	}
+	reply, err := stub.DeleteNode(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to delete node")
+	}
+
+	if reply.Ok {
+		fmt.Println("Delete node success!")
+	} else {
+		fmt.Printf("Delete node %s failed: %s\n", name, reply.GetReason())
+	}
+}
+
+func DeletePartition(name string) {
+	var req *protos.DeletePartitionRequest
+	req = &protos.DeletePartitionRequest{
+		Uid:  uint32(os.Getuid()),
+		Name: name,
+	}
+	reply, err := stub.DeletePartition(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to delete partition")
+	}
+
+	if reply.Ok {
+		fmt.Println("Delete partition success!")
+	} else {
+		fmt.Printf("Delete partition %s failed: %s\n", name, reply.GetReason())
+	}
+}
+
+func UpdateNode(name string, cpu float64, mem string) {
+	memInByte := uint64(0)
+	if mem != "" {
+		memParsed, err := util.ParseMemStringAsByte(mem)
+		if err != nil {
+			log.Fatal(err)
+		}
+		memInByte = memParsed
+	}
+
+	var req *protos.UpdateNodeRequest
+	req = &protos.UpdateNodeRequest{
+		Uid: uint32(os.Getuid()),
+		Node: &protos.CranedInfo{
+			Hostname: name,
+			Cpu:      cpu,
+			RealMem:  memInByte,
+		},
+	}
+	reply, err := stub.UpdateNode(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to update node")
+	}
+
+	if reply.Ok {
+		fmt.Println("Update node success!")
+	} else {
+		fmt.Printf("Update node failed: %s\n", reply.GetReason())
+	}
+}
+
+func UpdatePartition(name string, nodes string, priority uint32, allowlist []string, denylist []string) {
+	var req *protos.UpdatePartitionRequest
+	req = &protos.UpdatePartitionRequest{
+		Uid: uint32(os.Getuid()),
+		Partition: &protos.PartitionInfo{
+			Name:      name,
+			Hostlist:  nodes,
+			Priority:  priority,
+			AllowList: allowlist,
+			DenyList:  denylist,
+		},
+	}
+	reply, err := stub.UpdatePartition(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to update partition")
+	}
+
+	if reply.Ok {
+		fmt.Println("Update partition success!")
+	} else {
+		fmt.Printf("Update partition failed: %s\n", reply.GetReason())
+	}
+}

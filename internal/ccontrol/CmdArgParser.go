@@ -26,14 +26,20 @@ import (
 )
 
 var (
-	FlagNodeName       string
-	FlagState          string
-	FlagReason         string
-	FlagPartitionName  string
-	FlagTaskId         uint32
-	FlagQueryAll       bool
-	FlagTimeLimit      string
-	FlagPriority       float64
+	FlagName          string
+	FlagCpus          float64
+	FlagMem           string
+	FlagPartitions    []string
+	FlagNodeStr       string
+	FlagPriority      uint32
+	FlagAllowAccounts []string
+	FlagDenyAccounts  []string
+	FlagState         string
+	FlagReason        string
+	FlagJobId         uint32
+	FlagQueryAll      bool
+	FlagTimeLimit     string
+
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
@@ -57,13 +63,13 @@ var (
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				FlagNodeName = ""
+				FlagName = ""
 				FlagQueryAll = true
 			} else {
-				FlagNodeName = args[0]
+				FlagName = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowNodes(FlagNodeName, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowNodes(FlagName, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -75,13 +81,13 @@ var (
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				FlagPartitionName = ""
+				FlagName = ""
 				FlagQueryAll = true
 			} else {
-				FlagPartitionName = args[0]
+				FlagName = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowPartitions(FlagName, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -96,12 +102,55 @@ var (
 				FlagQueryAll = true
 			} else {
 				id, _ := strconv.Atoi(args[0])
-				FlagTaskId = uint32(id)
+				FlagJobId = uint32(id)
 				FlagQueryAll = false
 			}
-			if err := ShowTasks(FlagTaskId, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowTasks(FlagJobId, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+		},
+	}
+	addCmd = &cobra.Command{
+		Use:   "add",
+		Short: "Add a partition or node",
+		Long:  "",
+	}
+	addNodeCmd = &cobra.Command{
+		Use:   "node",
+		Short: "Add a new node",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			AddNode(FlagName, FlagCpus, FlagMem, FlagPartitions)
+		},
+	}
+	addPartitionCmd = &cobra.Command{
+		Use:   "partition",
+		Short: "Add a new partition",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			AddPartition(FlagName, FlagNodeStr, FlagPriority, FlagAllowAccounts, FlagDenyAccounts)
+		},
+	}
+	deleteCmd = &cobra.Command{
+		Use:     "delete",
+		Aliases: []string{"remove"},
+		Short:   "Delete a partition or node",
+		Long:    "",
+	}
+	deleteNodeCmd = &cobra.Command{
+		Use:   "node",
+		Short: "Delete an existing node",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			DeleteNode(FlagName)
+		},
+	}
+	deletePartitionCmd = &cobra.Command{
+		Use:   "partition",
+		Short: "Delete an existing partition",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			DeletePartition(FlagName)
 		},
 	}
 	showConfigCmd = &cobra.Command{
@@ -132,12 +181,12 @@ var (
 			}
 
 			if len(FlagTimeLimit) != 0 {
-				if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
+				if err := ChangeTaskTimeLimit(FlagJobId, FlagTimeLimit); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
 			if cmd.Flags().Changed("priority") {
-				if err := ChangeTaskPriority(FlagTaskId, FlagPriority); err != util.ErrorSuccess {
+				if err := ChangeTaskPriority(FlagJobId, FlagPriority); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
@@ -148,9 +197,18 @@ var (
 		Short: "Modify node attributes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
+			if err := ChangeNodeState(FlagName, FlagState, FlagReason); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+			UpdateNode(FlagName, FlagCpus, FlagMem)
+		},
+	}
+	updatePartitionCmd = &cobra.Command{
+		Use:   "partition",
+		Short: "Modify partition information",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			UpdatePartition(FlagName, FlagNodeStr, FlagPriority, FlagAllowAccounts, FlagDenyAccounts)
 		},
 	}
 )
@@ -174,11 +232,80 @@ func init() {
 		showCmd.AddCommand(showConfigCmd)
 	}
 
+	RootCmd.AddCommand(addCmd)
+	{
+		addCmd.AddCommand(addNodeCmd)
+		{
+			addNodeCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Host name")
+			addNodeCmd.Flags().Float64Var(&FlagCpus, "cpu", 0.0, "Number of CPU cores")
+			addNodeCmd.Flags().StringVarP(&FlagMem, "memory", "M", "", "Memory size, in units of G/M/K/B")
+			addNodeCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "P", nil, "The partition name to which the node belongs")
+			err := addNodeCmd.MarkFlagRequired("name")
+			if err != nil {
+				return
+			}
+			err = addNodeCmd.MarkFlagRequired("cpu")
+			if err != nil {
+				return
+			}
+			err = addNodeCmd.MarkFlagRequired("memory")
+			if err != nil {
+				return
+			}
+		}
+
+		addCmd.AddCommand(addPartitionCmd)
+		{
+			addPartitionCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Partition name")
+			addPartitionCmd.Flags().StringVar(&FlagNodeStr, "nodes", "", "The included nodes can be written individually, abbreviated or mixed, please write them in a string")
+			addPartitionCmd.Flags().Uint32Var(&FlagPriority, "priority", 0, "Partition priority")
+			addPartitionCmd.Flags().StringSliceVar(&FlagAllowAccounts, "allowlist", nil, "List of accounts allowed to use this partition")
+			addPartitionCmd.Flags().StringSliceVar(&FlagDenyAccounts, "denylist", nil, "Prohibit the use of the account list in this partition. The --denylist and the --allowlist parameter can only be selected as either")
+			addPartitionCmd.MarkFlagsMutuallyExclusive("allowlist", "denylist")
+		}
+	}
+
+	RootCmd.AddCommand(deleteCmd)
+	{
+		deleteCmd.AddCommand(deleteNodeCmd)
+		deleteNodeCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Host name")
+
+		deleteCmd.AddCommand(deletePartitionCmd)
+		deletePartitionCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Partition name")
+	}
+
+	updateCmd.AddCommand(updateNodeCmd)
+
+	updateNodeCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Host name")
+	updateNodeCmd.Flags().Float64Var(&FlagCpus, "cpu", 0.0, "Number of CPU cores")
+	updateNodeCmd.Flags().StringVarP(&FlagMem, "memory", "M", "", "Memory size, in units of G/M/K/B")
+	//updateNodeCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "P", nil, "The partition name to which the node belongs")
+	err = updateNodeCmd.MarkFlagRequired("name")
+	if err != nil {
+		return
+	}
+
+	updateCmd.AddCommand(updatePartitionCmd)
+	updatePartitionCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Partition name")
+	updatePartitionCmd.Flags().StringVar(&FlagNodeStr, "nodes", "", "The included nodes can be written individually, abbreviated or mixed, please write them in a string")
+	updatePartitionCmd.Flags().Uint32Var(&FlagPriority, "priority", 0, "Partition priority")
+	updatePartitionCmd.Flags().StringSliceVar(&FlagAllowAccounts, "allowlist", nil, "List of accounts allowed to use this partition")
+	updatePartitionCmd.Flags().StringSliceVar(&FlagDenyAccounts, "denylist", nil, "Prohibit the use of the account list in this partition. The --denylist and the --allowlist parameter can only be selected as either")
+	updatePartitionCmd.MarkFlagsMutuallyExclusive("allowlist", "denylist")
+
+	updateCmd.AddCommand(updateJobCmd)
+	updateJobCmd.Flags().Uint32VarP(&FlagJobId, "job", "J", 0, "Job id")
+	updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
+	err = updateJobCmd.MarkFlagRequired("job")
+	if err != nil {
+		return
+	}
+
 	RootCmd.AddCommand(updateCmd)
 	{
 		updateCmd.AddCommand(updateNodeCmd)
 		{
-			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify name of the node to be modified")
+			updateNodeCmd.Flags().StringVarP(&FlagName, "name", "n", "", "Specify name of the node to be modified")
 			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Set the node state")
 			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set the reason of this state change")
 		}
