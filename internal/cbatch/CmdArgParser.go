@@ -40,8 +40,11 @@ var (
 	FlagExport        string
 	FlagStdoutPath    string
 	FlagStderrPath    string
-
+	
 	FlagConfigFilePath string
+
+	FlagMailType	  string
+	FlagMailUser	  string
 )
 
 func ParseCmdArgs() {
@@ -73,7 +76,8 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
 	rootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "file for batch script's standard output")
 	rootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "file for batch script's standard error output")
-
+	rootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "notify user by email when certain event types occur")
+	rootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "user to receive email notification of state changes")
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

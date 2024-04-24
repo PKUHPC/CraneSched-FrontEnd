@@ -115,6 +115,10 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
+		case "--mail-type":
+			task.MailType = util.MailTypeMapper(arg.val)
+		case "--mail-user":
+			task.MailUser = arg.val
 		default:
 			log.Fatalf("Invalid parameter given: %s\n", arg.name)
 		}
@@ -180,6 +184,12 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagStderrPath != "" {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
+	}
+	if FlagMailType != "" {
+		task.MailType = util.MailTypeMapper(FlagMailType)
+	}
+	if FlagMailUser != "" {
+		task.MailUser = FlagMailUser
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
