@@ -1,0 +1,11 @@
+[Unit]
+Description=CraneFored
+After=network.target nss-lookup.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/cfored
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
