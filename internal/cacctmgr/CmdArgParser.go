@@ -461,7 +461,19 @@ func init() {
 	showCmd.AddCommand(showUserCmd)
 	showCmd.AddCommand(showQosCmd)
 	showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "no-header", "n", false, "no headers on output")
-	showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
+	showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", `Specify the output format for the command. 
+Fields are identified by a percent sign (%) followed by a character. 
+Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
+
+Supported format identifiers:
+		%n: Name              - Displays the name of the account. Optionally, use %.<width>n to specify a fixed width.
+		%d: Description       - Displays the description of the account.
+		%P: AllowedPartition  - Displays allowed partitions, separated by commas.
+		%Q: DefaultQos        - Displays the default Quality of Service (QoS).
+		%q: AllowedQosList    - Displays a list of allowed QoS, separated by commas.
+
+Example: --format "%.5n %.20d %p" will output account's Name with a minimum width of 5, Description with a minimum width of 20, and Partitions.
+`)
 	showUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	rootCmd.AddCommand(findCmd)
