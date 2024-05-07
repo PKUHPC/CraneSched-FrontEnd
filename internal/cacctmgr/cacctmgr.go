@@ -280,33 +280,6 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table.Render()
 }
 
-//func PrintAllEvents(eventList []*protos.EventInfo) {
-//	table := tablewriter.NewWriter(os.Stdout) //table format control
-//	util.SetBorderTable(table)
-//	header := []string{"Node", "StartTime", "EndTime", "State", "Reason", "Uid"}
-//	tableData := make([][]string, len(eventList))
-//	for _, eventInfo := range eventList {
-//		var endTime string
-//		if eventInfo.StartTime == eventInfo.EndTime {
-//			endTime = "Unknown"
-//		} else {
-//			endTime = eventInfo.EndTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05")
-//		}
-//		tableData = append(tableData, []string{
-//			//eventInfo.ClusterName,
-//			eventInfo.NodeName,
-//			eventInfo.StartTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"),
-//			endTime,
-//			eventInfo.State.String(),
-//			eventInfo.Reason,
-//			strconv.FormatUint(uint64(eventInfo.Uid), 10),
-//		})
-//	}
-//	table.SetHeader(header)
-//	table.AppendBulk(tableData)
-//	table.Render()
-//}
-
 func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap map[string]*protos.AccountInfo) {
 	if account == "" {
 		return
@@ -329,10 +302,10 @@ func PrintAllEvents(eventList []*protos.EventInfo) {
 		eventList = eventList[:100]
 	}
 
-	table := tablewriter.NewWriter(os.Stdout) //table format control
+	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	header := []string{"Node", "StartTime", "EndTime", "State", "Reason", "Uid"}
-	tableData := make([][]string, 0, len(eventList)) // 根据实际事件数量初始化
+	tableData := make([][]string, 0, len(eventList))
 	for _, eventInfo := range eventList {
 		var endTime string
 		if eventInfo.EndTime.AsTime().Year() == 1970 {
