@@ -50,7 +50,8 @@ func ParseCmdArgs() {
 		Short: "submit batch jobs",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			Cbatch(args[0])
+			err := Cbatch(args[0])
+			os.Exit(err)
 		},
 	}
 

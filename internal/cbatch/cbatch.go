@@ -312,9 +312,17 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	}
 }
 
-func Cbatch(jobFilePath string) {
+type CraneCmdError = int
+
+const (
+	ErrorSuccess     CraneCmdError = 0
+	ErrorCmdArgError CraneCmdError = 1
+)
+
+func Cbatch(jobFilePath string) CraneCmdError {
 	if FlagRepeat == 0 {
-		log.Fatal("--repeat must >0")
+		log.Error("--repeat must >0")
+		return ErrorCmdArgError
 	}
 
 	file, err := os.Open(jobFilePath)
@@ -373,4 +381,6 @@ func Cbatch(jobFilePath string) {
 	} else {
 		SendMultipleRequests(task, FlagRepeat)
 	}
+
+	return ErrorSuccess
 }
