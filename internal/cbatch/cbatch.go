@@ -209,7 +209,7 @@ func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
 	return true
 }
 
-func SendRequest(task *protos.TaskToCtld) {
+func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
@@ -217,16 +217,19 @@ func SendRequest(task *protos.TaskToCtld) {
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the task")
+		os.Exit(util.ErrorGrpcError)
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Task Id allocated: %d\n", reply.GetTaskId())
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
+		return util.ErrorAllocateError
 	}
 }
 
-func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
+func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
@@ -234,6 +237,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
+		os.Exit(util.ErrorGrpcError)
 	}
 
 	if len(reply.TaskIdList) > 0 {
@@ -246,7 +250,9 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
 
 	if len(reply.ReasonList) > 0 {
 		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
+		return util.ErrorAllocateError
 	}
+	return util.ErrorSuccess
 }
 
 func SplitEnvironEntry(env *string) (string, string) {
@@ -312,22 +318,16 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	}
 }
 
-type CraneCmdError = int
-
-const (
-	ErrorSuccess     CraneCmdError = 0
-	ErrorCmdArgError CraneCmdError = 1
-)
-
-func Cbatch(jobFilePath string) CraneCmdError {
+func Cbatch(jobFilePath string) util.CraneCmdError {
 	if FlagRepeat == 0 {
 		log.Error("--repeat must >0")
-		return ErrorCmdArgError
+		return util.ErrorCmdArgError
 	}
 
 	file, err := os.Open(jobFilePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return util.ErrorCmdArgError
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -353,7 +353,8 @@ func Cbatch(jobFilePath string) CraneCmdError {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return util.ErrorCmdArgError
 	}
 	// fmt.Printf("Invoking UID: %d\n\n", os.Getuid())
 	// fmt.Printf("Shell script:\n%s\n\n", strings.Join(sh, "\n"))
@@ -361,7 +362,8 @@ func Cbatch(jobFilePath string) CraneCmdError {
 
 	ok, task := ProcessCbatchArg(args)
 	if !ok {
-		log.Fatalf("Invalid cbatch argument")
+		log.Errorf("Invalid cbatch argument")
+		return util.ErrorCmdArgError
 	}
 
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
@@ -377,10 +379,8 @@ func Cbatch(jobFilePath string) CraneCmdError {
 	}
 
 	if FlagRepeat == 1 {
-		SendRequest(task)
+		return SendRequest(task)
 	} else {
-		SendMultipleRequests(task, FlagRepeat)
+		return SendMultipleRequests(task, FlagRepeat)
 	}
-
-	return ErrorSuccess
 }
