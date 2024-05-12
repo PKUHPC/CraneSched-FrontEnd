@@ -255,19 +255,19 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	return util.ErrorSuccess
 }
 
-func SplitEnvironEntry(env *string) (string, string) {
+func SplitEnvironEntry(env *string) (string, string, bool) {
 	eq := strings.IndexByte(*env, '=')
 	if eq == -1 {
-		return *env, ""
+		return *env, "", false
 	} else {
-		return (*env)[:eq], (*env)[eq+1:]
+		return (*env)[:eq], (*env)[eq+1:], true
 	}
 }
 
 func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	systemEnv := make(map[string]string)
 	for _, str := range os.Environ() {
-		name, value := SplitEnvironEntry(&str)
+		name, value, _ := SplitEnvironEntry(&str)
 		systemEnv[name] = value
 
 		// The CRANE_* environment variables are loaded anyway.
@@ -303,9 +303,9 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 					task.Env[k] = v
 				}
 			} else {
-				k, v := SplitEnvironEntry(&exportValue)
+				k, v, ok := SplitEnvironEntry(&exportValue)
 				// If user-specified value is empty, use system value instead.
-				if v != "" {
+				if ok {
 					task.Env[k] = v
 				} else {
 					systemEnvValue, envExist := systemEnv[k]
