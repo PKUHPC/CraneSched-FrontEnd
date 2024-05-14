@@ -116,7 +116,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		default:
-			log.Fatalf("Invalid parameter given: %s\n", arg.name)
+			log.Errorf("Invalid parameter given: %s\n", arg.name)
+			os.Exit(util.ErrorCmdArgError)
 		}
 	}
 
