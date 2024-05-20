@@ -18,8 +18,9 @@ package cbatch
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -38,6 +39,8 @@ var (
 	FlagExcludes      string
 	FlagGetUserEnv    string
 	FlagExport        string
+	FlagContainer     string
+	FlagInterpreter   string
 	FlagStdoutPath    string
 	FlagStderrPath    string
 
@@ -55,8 +58,8 @@ func ParseCmdArgs() {
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
-		util.DefaultConfigPath, "Path to configuration file")
-	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, " number of nodes on which to run (N = min[-max])")
+		util.DefaultConfigPath, "path to configuration file")
+	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, "number of nodes on which to run (N = min[-max])")
 	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "number of cpus required per task")
 	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "number of tasks to invoke on each node")
 	rootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
@@ -67,10 +70,12 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
 	rootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
 	rootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "submit the task multiple times")
-	rootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
+	rootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "list of specific nodes to be allocated to the job")
 	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
 	rootCmd.Flags().StringVar(&FlagGetUserEnv, "get-user-env", "", "get user's environment variables")
 	rootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
+	rootCmd.Flags().StringVar(&FlagContainer, "container", "", "OCI bundle path of the container")
+	rootCmd.Flags().StringVar(&FlagInterpreter, "interpreter", "", "interpreter for batch script")
 	rootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "file for batch script's standard output")
 	rootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "file for batch script's standard error output")
 
