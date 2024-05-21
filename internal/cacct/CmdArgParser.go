@@ -74,24 +74,33 @@ func init() {
 		"comma separated list of job names to view")
 	rootCmd.Flags().BoolVarP(&FlagNoHeader, "noHeader", "N", false,
 		"no headers on output")
-	rootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", `Specify the output format for the command. 
+
+	rootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
+		`Specify the output format for the command. 
 Fields are identified by a percent sign (%) followed by a character. 
 Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
 
 Supported format identifiers:
-		%j: JobId     - Displays the ID of the job. Optionally, use %.<width>j to specify a fixed width.
-		%n: JobName   - Displays the name of the job.
-		%P: Partition - Displays the partition associated with the job.
-		%a: Account   - Displays the account associated with the job.
-		%c: AllocCPUs - Displays the number of allocated CPUs, formatted to two decimal places.
-		%t: State     - Displays the state of the job.
-		%e: ExitCode  - Displays the exit code of the job. If the exit code is based on a specific base (e.g., kCraneExitCodeBase), it formats as "0:<code>" or "<code>:0" based on the condition.
+	%j: JobId     - Displays the ID of the job. Optionally, use %.<width>j to specify a fixed width.
+	%n: JobName   - Displays the name of the job.
+	%P: Partition - Displays the partition associated with the job.
+	%a: Account   - Displays the account associated with the job.
+	%c: AllocCPUs - Displays the number of allocated CPUs, formatted to two decimal places.
+	%t: State     - Displays the state of the job.
+	%e: ExitCode  - Displays the exit code of the job. 
+                    If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
+                    it formats as "0:<code>" or "<code>:0" based on the condition.
 		
 Example:
---format "%j %.10n %P %a %.2c %t %e" would output the job’s ID, Name with a minimum width of 10, Partition, Account, Allocated CPUs with two decimal places, State, and Exit Code.
+--format "%j %.10n %P %a %.2c %t %e" would output
+the job’s ID, Name with a minimum width of 10, Partition, Account, 
+Allocated CPUs with two decimal places, State, and Exit Code.
 
-Each part of the format string controls the appearance of the corresponding column in the output table. If the width is specified, the field will be formatted to at least that width. If the format is invalid or unrecognized, the program will terminate with an error message.
+Each part of the format string controls the appearance of the corresponding column in the output table. 
+If the width is specified, the field will be formatted to at least that width. 
+If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
+
 	rootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
 		"print job information for the specified number of lines")
 }

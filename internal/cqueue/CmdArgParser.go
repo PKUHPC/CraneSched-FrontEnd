@@ -84,7 +84,9 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"comma separated list of partitions\n"+
 			"to view, default is all partitions")
-	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", `Specify the output format for the command. 
+
+	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
+		`Specify the output format for the command. 
 Fields are identified by a percent sign (%) followed by a character. 
 Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
 
@@ -104,8 +106,10 @@ Supported format identifiers:
     %q: QoS       - Display the Quality of Service level for the task.
 
 Each format specifier can be modified with a width specifier (e.g., "%.5j").
-Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width of 5, Name with a minimum width of 20, and Status.
+Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width of 5,
+         Name with a minimum width of 20, and Status.
 `)
+
 	RootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
 		"print job information for the specified number of lines")
 }

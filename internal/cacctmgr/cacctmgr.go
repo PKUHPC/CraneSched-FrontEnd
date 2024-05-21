@@ -510,22 +510,6 @@ func ShowAccounts() {
 	}
 }
 
-func ShowEvents() {
-	var req *protos.QueryEntityInfoRequest
-	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Event}
-	reply, err := stub.QueryEntityInfo(context.Background(), req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Fail to show events")
-	}
-
-	if reply.GetOk() {
-		PrintAllEvents(reply.EventList)
-	} else {
-		fmt.Println(reply.Reason)
-	}
-
-}
-
 func ShowUser(name string, account string) {
 	var req *protos.QueryEntityInfoRequest
 	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
