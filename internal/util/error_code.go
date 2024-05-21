@@ -4,7 +4,8 @@ type CraneCmdError = int
 
 const (
 	ErrorSuccess       CraneCmdError = 0
-	ErrorCmdArgError   CraneCmdError = 1
-	ErrorAllocateError CraneCmdError = 2
-	ErrorGrpcError     CraneCmdError = 3
+	ErrorCmdArg        CraneCmdError = 1
+	ErrorAllocation    CraneCmdError = 2
+	ErrorGrpc          CraneCmdError = 3
+	ErrorScriptParsing CraneCmdError = 4
 )

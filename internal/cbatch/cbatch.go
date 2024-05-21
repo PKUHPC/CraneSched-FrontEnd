@@ -116,8 +116,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		default:
-			log.Errorf("Invalid parameter given: %s\n", arg.name)
-			os.Exit(util.ErrorCmdArgError)
+			_, _ = fmt.Fprintf(os.Stderr, "Invalid parameter '%s' given in the script file.", arg.name)
+			return false, nil
 		}
 	}
 
@@ -218,7 +218,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the task")
-		os.Exit(util.ErrorGrpcError)
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
@@ -226,7 +226,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
-		return util.ErrorAllocateError
+		return util.ErrorAllocation
 	}
 }
 
@@ -238,7 +238,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
-		os.Exit(util.ErrorGrpcError)
+		return util.ErrorGrpc
 	}
 
 	if len(reply.TaskIdList) > 0 {
@@ -251,7 +251,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 
 	if len(reply.ReasonList) > 0 {
 		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
-		return util.ErrorAllocateError
+		return util.ErrorAllocation
 	}
 	return util.ErrorSuccess
 }
@@ -322,13 +322,13 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 func Cbatch(jobFilePath string) util.CraneCmdError {
 	if FlagRepeat == 0 {
 		log.Error("--repeat must >0")
-		return util.ErrorCmdArgError
+		return util.ErrorCmdArg
 	}
 
 	file, err := os.Open(jobFilePath)
 	if err != nil {
 		log.Error(err)
-		return util.ErrorCmdArgError
+		return util.ErrorCmdArg
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -349,13 +349,13 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 		if !success {
 			err = fmt.Errorf("grammer error at line %v", num)
 			fmt.Println(err.Error())
-			os.Exit(1)
+			return util.ErrorScriptParsing
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Error(err)
-		return util.ErrorCmdArgError
+		return util.ErrorCmdArg
 	}
 	// fmt.Printf("Invoking UID: %d\n\n", os.Getuid())
 	// fmt.Printf("Shell script:\n%s\n\n", strings.Join(sh, "\n"))
@@ -363,8 +363,7 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 
 	ok, task := ProcessCbatchArg(args)
 	if !ok {
-		log.Errorf("Invalid cbatch argument")
-		return util.ErrorCmdArgError
+		return util.ErrorCmdArg
 	}
 
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
