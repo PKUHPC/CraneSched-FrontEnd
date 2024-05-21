@@ -198,32 +198,54 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 
 	if FlagFormat != "" {
 		formatTableData := make([][]string, len(accountList))
-		formatReq := strings.Split(FlagFormat, ",")
+		formatReq := strings.Split(FlagFormat, " ")
+		tableOutputWidth := make([]int, len(formatReq))
 		tableOutputHeader := make([]string, len(formatReq))
 		for i := 0; i < len(formatReq); i++ {
+			if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
+				fmt.Println("Invalid format.")
+				os.Exit(1)
+			}
+			if formatReq[i][1] == '.' {
+				if len(formatReq[i]) < 4 {
+					fmt.Println("Invalid format.")
+					os.Exit(1)
+				}
+				width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
+				if err != nil {
+					if err != nil {
+						fmt.Println("Invalid format.")
+						os.Exit(1)
+					}
+				}
+				tableOutputWidth[i] = int(width)
+			} else {
+				tableOutputWidth[i] = -1
+			}
+			tableOutputHeader[i] = formatReq[i][len(formatReq[i])-1:]
 			//"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList"
-			switch formatReq[i] {
-			case "Name":
+			switch tableOutputHeader[i] {
+			case "n":
 				tableOutputHeader[i] = "Name"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], accountList[j].Name)
 				}
-			case "Description":
+			case "d":
 				tableOutputHeader[i] = "Description"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], accountList[j].Description)
 				}
-			case "AllowedPartition":
+			case "P":
 				tableOutputHeader[i] = "AllowedPartition"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].AllowedPartitions, ", "))
 				}
-			case "DefaultQos":
+			case "Q":
 				tableOutputHeader[i] = "DefaultQos"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], accountList[j].DefaultQos)
 				}
-			case "AllowedQosList":
+			case "q":
 				tableOutputHeader[i] = "AllowedQosList"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].AllowedQosList, ", "))
@@ -233,8 +255,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 				os.Exit(1)
 			}
 		}
-		header = tableOutputHeader
-		tableData = formatTableData
+		header, tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
 	}
 
 	if !FlagNoHeader {
