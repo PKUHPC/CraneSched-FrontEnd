@@ -51,6 +51,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 
 	task.CpusPerTask = 1
 	task.NtasksPerNode = 1
+	task.Resources.AllocatableResource.MemoryLimitBytes = 1024 * 1024 * 1024 * 16
+	task.Resources.AllocatableResource.MemorySwLimitBytes = 1024 * 1024 * 1024 * 16
 	task.NodeNum = 1
 	task.GetUserEnv = false
 	task.Env = make(map[string]string)
