@@ -30,7 +30,6 @@ var (
 	FlagMem           string
 	FlagPartition     string
 	FlagJob           string
-	FlagOutput        string
 	FlagAccount       string
 	FlagQos           string
 	FlagCwd           string
@@ -39,6 +38,8 @@ var (
 	FlagExcludes      string
 	FlagGetUserEnv    string
 	FlagExport        string
+	FlagStdoutPath    string
+	FlagStderrPath    string
 
 	FlagConfigFilePath string
 )
@@ -49,7 +50,8 @@ func ParseCmdArgs() {
 		Short: "submit batch jobs",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			Cbatch(args[0])
+			err := Cbatch(args[0])
+			os.Exit(err)
 		},
 	}
 
@@ -61,7 +63,6 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
 	rootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
 	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
-	rootCmd.Flags().StringVarP(&FlagOutput, "output", "o", "", "file for batch script's standard output")
 	rootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
 	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
 	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
@@ -71,6 +72,8 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
 	rootCmd.Flags().StringVar(&FlagGetUserEnv, "get-user-env", "", "get user's environment variables")
 	rootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
+	rootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "file for batch script's standard output")
+	rootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "file for batch script's standard error output")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

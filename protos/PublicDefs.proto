@@ -52,6 +52,7 @@ enum CranedState{
   CRANE_MIX = 1;
   CRANE_ALLOC = 2;
   CRANE_DOWN = 3;
+  CRANE_DRAIN = 4;
 }
 
 enum TaskStatus {
@@ -169,6 +170,7 @@ message TaskToD {
 message BatchTaskAdditionalMeta {
   string sh_script = 1;
   string output_file_pattern = 3;
+  string error_file_pattern = 4;
 }
 
 message InteractiveTaskAdditionalMeta{
