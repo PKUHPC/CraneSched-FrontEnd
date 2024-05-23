@@ -95,6 +95,34 @@ func cinfoFunc() {
 	} else {
 		table.Render()
 	}
+	if len(FlagFilterNodes) != 0 {
+		redList := queryRedundancy(FlagFilterNodes, reply.Nodes)
+		if len(redList) > 0 {
+			nodes := strings.Join(redList, ", ")
+			println("The following nodes do not exist: " + nodes)
+		}
+	}
+}
+
+func queryRedundancy(requestList []string, replyList []string) []string {
+	requestSet := make(map[string]bool)
+
+	for _, item := range requestList {
+		requestSet[item] = false
+	}
+
+	for _, item := range replyList {
+		requestSet[item] = true
+	}
+
+	result := []string{}
+	for key, value := range requestSet {
+		if !value {
+			result = append(result, key)
+		}
+	}
+
+	return result
 }
 
 func loopedQuery(iterate uint64) {
