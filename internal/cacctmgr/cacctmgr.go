@@ -69,6 +69,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	table.SetTablePadding("\t")
 	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "blocked"})
 	table.SetAutoFormatHeaders(false)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	tableData := make([][]string, len(userMap))
 
 	for key, value := range userMap {
@@ -114,6 +115,7 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	table.SetTablePadding("\t")
 	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"})
 	table.SetAutoFormatHeaders(false)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -281,8 +283,12 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 
 func AddAccount(account *protos.AccountInfo) {
 	if account.Name == "=" {
-		log.Fatalf("Parameter error : Account name empty")
+		log.Fatalf("Parameter error : account name empty")
 	}
+	if len(account.Name) > 30 {
+		log.Fatalf("Parameter error : name is too long(up to 30)")
+	}
+
 	var req *protos.AddAccountRequest
 	req = new(protos.AddAccountRequest)
 	req.Uid = userUid
@@ -315,6 +321,13 @@ func AddAccount(account *protos.AccountInfo) {
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinate bool) {
+	if user.Name == "=" {
+		log.Fatalf("Parameter error : user name empty")
+	}
+	if len(user.Name) > 30 {
+		log.Fatalf("Parameter error : name is too long(up to 30)")
+	}
+
 	lu, err := OSUser.Lookup(user.Name)
 	if err != nil {
 		log.Fatal(err)
@@ -356,6 +369,13 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 }
 
 func AddQos(qos *protos.QosInfo) {
+	if qos.Name == "=" {
+		log.Fatalf("Parameter error : QOS name empty")
+	}
+	if len(qos.Name) > 30 {
+		log.Fatalf("Parameter error : name is too long(up to 30)")
+	}
+
 	var req *protos.AddQosRequest
 	req = new(protos.AddQosRequest)
 	req.Uid = userUid
@@ -539,7 +559,7 @@ func ShowQos(name string) {
 		PrintAllQos(reply.QosList)
 	} else {
 		if name == "" {
-			fmt.Println("Can't find any qos!")
+			fmt.Printf("Can't find any qos! %s\n", reply.GetReason())
 		} else {
 			fmt.Printf("Can't find qos %s\n", name)
 		}

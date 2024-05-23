@@ -69,6 +69,7 @@ var (
 		Use:   "account",
 		Short: "Add a new account",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			AddAccount(&FlagAccount)
 		},
@@ -77,6 +78,7 @@ var (
 		Use:   "user",
 		Short: "Add a new user",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			AddUser(&FlagUser, FlagPartitions, FlagLevel, FlagCoordinate)
 		},
@@ -85,6 +87,7 @@ var (
 		Use:   "qos",
 		Short: "Add a new qos",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			AddQos(&FlagQos)
 		},
@@ -239,6 +242,7 @@ var (
 		Aliases: []string{"accounts"},
 		Short:   "Display account tree and account details",
 		Long:    "",
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowAccounts()
 		},
@@ -248,6 +252,7 @@ var (
 		Aliases: []string{"users"},
 		Short:   "Display user table",
 		Long:    "",
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowUser("", FlagAccountName)
 		},
@@ -256,6 +261,7 @@ var (
 		Use:   "qos",
 		Short: "Display qos table",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowQos("")
 		},
@@ -402,6 +408,16 @@ func init() {
 	removeCmd.AddCommand(removeUserCmd)
 	removeCmd.AddCommand(removeQosCmd)
 	removeUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Remove user from this account")
+	removeCmd.SetUsageTemplate(`Usage:
+  cacctmgr delete {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
+
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
 	rootCmd.AddCommand(modifyCmd)
 
@@ -485,6 +501,15 @@ Description with a minimum width of 20, and Partitions.
 	findCmd.AddCommand(findUserCmd)
 	findUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
 	findCmd.AddCommand(findQosCmd)
+	findCmd.SetUsageTemplate(`Usage:
+  cacctmgr find {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 	/* --------------------------------------------------- block ---------------------------------------------------- */
 	rootCmd.AddCommand(blockCmd)
 	blockCmd.AddCommand(blockAccountCmd)
@@ -494,7 +519,25 @@ Description with a minimum width of 20, and Partitions.
 	if err != nil {
 		return
 	}
+	blockCmd.SetUsageTemplate(`Usage:
+  cacctmgr block {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 	/* -------------------------------------------------- unblock --------------------------------------------------- */
+	unblockCmd.SetUsageTemplate(`Usage:
+  cacctmgr unblock {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 	rootCmd.AddCommand(unblockCmd)
 	unblockCmd.AddCommand(unblockAccountCmd)
 	unblockCmd.AddCommand(unblockUserCmd)
