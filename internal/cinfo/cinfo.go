@@ -21,12 +21,13 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
 )
 
 func cinfoFunc() {
@@ -69,6 +70,7 @@ func cinfoFunc() {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
+		os.Exit(1)
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)

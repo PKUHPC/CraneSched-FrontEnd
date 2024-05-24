@@ -42,6 +42,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
+		os.Exit(1)
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -84,6 +85,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
+		os.Exit(1)
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -134,6 +136,7 @@ func ShowTasks(taskId uint32, queryAll bool) {
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the task")
+		os.Exit(1)
 	}
 
 	if !reply.GetOk() {
@@ -229,6 +232,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
+		os.Exit(1)
 	}
 
 	if reply.Ok {

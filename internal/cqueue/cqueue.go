@@ -101,7 +101,7 @@ func Query() {
 	reply, err := stub.QueryTasksInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
-		return
+		os.Exit(1)
 	}
 
 	sort.SliceStable(reply.TaskInfoList, func(i, j int) bool {
@@ -178,10 +178,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			}
 			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 			if err != nil {
-				if err != nil {
-					fmt.Println("Invalid format.")
-					os.Exit(1)
-				}
+				fmt.Println("Invalid format.")
+				os.Exit(1)
 			}
 			tableOutputWidth[i] = int(width)
 		} else {

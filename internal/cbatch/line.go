@@ -11,7 +11,7 @@ type LineProcessor interface {
 	Process(line string, sh *[]string, args *[]CbatchArg) error
 }
 
-// for crane args
+// For Crane args
 type cLineProcessor struct {
 }
 
@@ -27,7 +27,7 @@ func (c *cLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	return nil
 }
 
-// for slurm args
+// For Slurm args
 type sLineProcessor struct {
 	supported map[string]bool
 }

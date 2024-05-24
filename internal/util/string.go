@@ -32,7 +32,7 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 	if result == nil || len(result) != 1 {
 		return 0, fmt.Errorf("invalid memory format")
 	}
-	sz, err := strconv.ParseFloat(result[0][1], 10)
+	sz, err := ParseFloatWithPrecision(result[0][1], 10)
 	if err != nil {
 		return 0, err
 	}
