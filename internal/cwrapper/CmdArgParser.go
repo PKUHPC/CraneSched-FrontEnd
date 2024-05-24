@@ -24,9 +24,11 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "cwrapper",
-		Short: "Wrapper of CraneSched commands",
-		Long:  "",
+		Use:   "cwrapper <COMMAND> [OPTIONS] [ARGUMENTS...]",
+		Short: "Wrapper of CraneSched commands.",
+		Long: `Wrapper of CraneSched commands. 
+This is a highly EXPERIMENTAL feature. 
+If any error occurs, please refer to original commands.`,
 	}
 )
 

@@ -18,7 +18,6 @@ package wrapper
 
 import (
 	"CraneFrontEnd/internal/cacctmgr"
-	"CraneFrontEnd/internal/ccancel"
 	"os"
 	"strings"
 )
@@ -32,8 +31,6 @@ func (s *SlurmWrapper) Parse() error {
 	switch os.Args[0] {
 	case "cacctmgr":
 		return cacctmgr.ParseSlurm()
-	case "ccancel":
-		return ccancel.ParseSlurm()
 	}
 	return nil
 }

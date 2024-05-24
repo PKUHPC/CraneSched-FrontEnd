@@ -26,12 +26,12 @@ import (
 )
 
 var (
-	FlagJobName        string   //单个.
-	FlagPartition      string   //单个.
-	FlagState          string   //单个. 默认值
-	FlagAccount        string   //单个.
-	FlagUserName       string   //单个.
-	FlagNodes          []string //多个
+	FlagJobName        string
+	FlagPartition      string
+	FlagState          string
+	FlagAccount        string
+	FlagUserName       string
+	FlagNodes          []string
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
@@ -64,7 +64,7 @@ var (
 
 			return nil
 		},
-		PreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},

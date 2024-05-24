@@ -17,6 +17,14 @@ var slurmGroup = &cobra.Group{
 	Title: "Slurm Commands:",
 }
 
+// func sacct() *cobra.Command {
+
+// }
+
+// func sacctmgr() *cobra.Command {
+
+// }
+
 func squeue() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "squeue",
@@ -65,7 +73,7 @@ func scancel() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
-			// scancel uses spaced argument list
+			// scancel uses spaced arguments,
 			// we need to convert it into a comma-separated list.
 			if len(args) > 0 {
 				args = []string{strings.Join(args, ",")}
@@ -91,7 +99,7 @@ func scancel() *cobra.Command {
 	cmd.Flags().StringVarP(&ccancel.FlagPartition, "partition", "p", "",
 		"Restrict the scancel operation to jobs in this partition.")
 	cmd.Flags().StringVarP(&ccancel.FlagState, "state", "t", "",
-		`Restrict the scancel operation to jobs in this state.`) // TODO: Hints for valid state strings
+		`Restrict the scancel operation to jobs in this state.`) // TODO: Give hints on valid state strings
 	cmd.Flags().StringVarP(&ccancel.FlagUserName, "user", "u", "",
 		"Restrict the scancel operation to jobs owned by the given user.")
 

@@ -21,14 +21,15 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
-	log "github.com/sirupsen/logrus"
-	"github.com/xlab/treeprint"
 	"math"
 	"os"
 	OSUser "os/user"
 	"strconv"
 	"strings"
+
+	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
+	"github.com/xlab/treeprint"
 )
 
 var (
@@ -213,10 +214,8 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 				}
 				width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 				if err != nil {
-					if err != nil {
-						fmt.Println("Invalid format.")
-						os.Exit(1)
-					}
+					fmt.Println("Invalid format.")
+					os.Exit(1)
 				}
 				tableOutputWidth[i] = int(width)
 			} else {
