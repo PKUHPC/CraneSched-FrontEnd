@@ -1,6 +1,7 @@
 package cwrapper
 
 import (
+	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/ccontrol"
 	"CraneFrontEnd/internal/cqueue"
 	"os"
@@ -30,19 +31,69 @@ func squeue() *cobra.Command {
 	// As --noheader will use -h, we need to add the help flag manually
 	cmd.Flags().BoolP("help", "", false, "Help for this command.")
 
-	cmd.Flags().BoolVarP(&cqueue.FlagNoHeader, "noheader", "h", false, "Do not print a header on the output.")
-	cmd.Flags().BoolVarP(&cqueue.FlagStartTime, "start", "S", false, "Report the expected start time and resources to be allocated for pending jobs in order of increasing start time.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterPartitions, "partition", "p", "", "Specify the partitions of the jobs or steps to view. Accepts a comma separated list of partition names.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterJobIDs, "jobs", "j", "", "Specify a comma separated list of job IDs to display. Defaults to all jobs. ")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterJobNames, "name", "n", "", "Request jobs or job steps having one of the specified names. The list consists of a comma separated list of job names.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterQos, "qos", "q", "", "Specify the qos(s) of the jobs or steps to view. Accepts a comma separated list of qos's.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterStates, "states", "t", "", "Specify the states of jobs to view. Accepts a comma separated list of state names or \"all\".")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterUsers, "user", "u", "", "Request jobs or job steps from a comma separated list of users.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterAccounts, "account", "A", "", "Specify the accounts of the jobs to view. Accepts a comma separated list of account names.")
-	cmd.Flags().Uint64VarP(&cqueue.FlagIterate, "iterate", "i", 0, "Repeatedly gather and report the requested information at the interval specified (in seconds). By default, prints a time stamp with the header.")
+	cmd.Flags().BoolVarP(&cqueue.FlagNoHeader, "noheader", "h", false,
+		"Do not print a header on the output.")
+	cmd.Flags().BoolVarP(&cqueue.FlagStartTime, "start", "S", false,
+		"Report the expected start time and resources to be allocated for pending jobs in order of \nincreasing start time.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterPartitions, "partition", "p", "",
+		"Specify the partitions of the jobs or steps to view. Accepts a comma separated list of \npartition names.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterJobIDs, "jobs", "j", "",
+		"Specify a comma separated list of job IDs to display. Defaults to all jobs. ")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterJobNames, "name", "n", "",
+		"Request jobs or job steps having one of the specified names. The list consists of a comma \nseparated list of job names.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterQos, "qos", "q", "",
+		"Specify the qos(s) of the jobs or steps to view. Accepts a comma separated list of qos's.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterStates, "states", "t", "",
+		"Specify the states of jobs to view. Accepts a comma separated list of state names or \"all\".")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterUsers, "user", "u", "",
+		"Request jobs or job steps from a comma separated list of users.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterAccounts, "account", "A", "",
+		"Specify the accounts of the jobs to view. Accepts a comma separated list of account names.")
+	cmd.Flags().Uint64VarP(&cqueue.FlagIterate, "iterate", "i", 0,
+		"Repeatedly gather and report the requested information at the interval specified (in seconds). \nBy default, prints a time stamp with the header.")
 
 	// The following flags are not supported by the wrapper
 	// --format, -o: As the cqueue's output format is very different from squeue, this flag is not supported.
+
+	return cmd
+}
+
+func scancel() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "scancel",
+		Short:   "Wrapper of ccancel command",
+		Long:    "",
+		GroupID: "slurm",
+		Run: func(cmd *cobra.Command, args []string) {
+			// scancel uses spaced argument list
+			// we need to convert it into a comma-separated list.
+			if len(args) > 0 {
+				args = []string{strings.Join(args, ",")}
+			}
+
+			ccancel.RootCmd.PreRun(cmd, args)
+			if err := ccancel.RootCmd.ValidateArgs(args); err != nil {
+				log.Error(err)
+				os.Exit(1)
+			}
+			ccancel.RootCmd.Run(cmd, args)
+		},
+	}
+
+	cmd.Flags().BoolP("help", "", false, "Help for this command.")
+
+	cmd.Flags().StringVarP(&ccancel.FlagAccount, "account", "A", "",
+		"Restrict the scancel operation to jobs under this charge account.")
+	cmd.Flags().StringVarP(&ccancel.FlagJobName, "name", "n", "",
+		"Restrict the scancel operation to jobs with this job name.") // TODO: Alias --jobname
+	cmd.Flags().StringSliceVarP(&ccancel.FlagNodes, "nodelist", "w", nil,
+		"Cancel any jobs using any of the given hosts. (comma-separated list of hosts)") // TODO: Read from file
+	cmd.Flags().StringVarP(&ccancel.FlagPartition, "partition", "p", "",
+		"Restrict the scancel operation to jobs in this partition.")
+	cmd.Flags().StringVarP(&ccancel.FlagState, "state", "t", "",
+		`Restrict the scancel operation to jobs in this state.`) // TODO: Hints for valid state strings
+	cmd.Flags().StringVarP(&ccancel.FlagUserName, "user", "u", "",
+		"Restrict the scancel operation to jobs owned by the given user.")
 
 	return cmd
 }
