@@ -1,11 +1,29 @@
+/**
+ * Copyright (c) 2024 Peking University and Peking University
+ * Changsha Institute for Computing and Digital Economy
+ *
+ * CraneSched is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of
+ * the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS,
+ * WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 package cwrapper
 
 import (
 	"CraneFrontEnd/internal/cacct"
+	"CraneFrontEnd/internal/cbatch"
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/ccontrol"
 	"CraneFrontEnd/internal/cinfo"
 	"CraneFrontEnd/internal/cqueue"
+	"CraneFrontEnd/internal/util"
 	"os"
 	"regexp"
 	"strings"
@@ -13,6 +31,24 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
+
+/*
+Overall, we have two ways to implement the Wrapper.
+- Directly use Cobra to reimplement a command, including all its subcommands and flags,
+  then call the original command.
+- Do not reimplement a new command, but directly call the original command after
+  replacing and modifying the args.
+
+For the first, since we have reimplemented a command, we get a realistic help and command line experience.
+ However, if the wrapped command is too complex, the amount of code will be relatively large.
+
+For the second, we directly call the original command, so the amount of code will be relatively small.
+ However, it requires a series of processing on the args, which is likely to lead to some corner cases
+ not being properly handled.
+
+In this file, ccontrol is too complex, and sbatch and cbatch are almost the same, so we choose the 2nd approach.
+The remaining commands are relatively simple, so we choose the first approach.
+*/
 
 var slurmGroup = &cobra.Group{
 	ID:    "slurm",
@@ -27,6 +63,11 @@ func sacct() *cobra.Command {
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
 			cacct.RootCmd.PersistentPreRun(cmd, args)
+			// Validate the arguments
+			if err := cacct.RootCmd.ValidateArgs(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
 			cacct.RootCmd.Run(cmd, args)
 		},
 	}
@@ -69,7 +110,7 @@ func scancel() *cobra.Command {
 			ccancel.RootCmd.PersistentPreRun(cmd, args)
 			if err := ccancel.RootCmd.ValidateArgs(args); err != nil {
 				log.Error(err)
-				os.Exit(1)
+				os.Exit(util.ErrorCmdArg)
 			}
 			ccancel.RootCmd.Run(cmd, args)
 		},
@@ -89,6 +130,39 @@ func scancel() *cobra.Command {
 		`Restrict the scancel operation to jobs in this state.`) // TODO: Give hints on valid state strings
 	cmd.Flags().StringVarP(&ccancel.FlagUserName, "user", "u", "",
 		"Restrict the scancel operation to jobs owned by the given user.")
+
+	return cmd
+}
+
+func sbatch() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "sbatch",
+		Short:              "Wrapper of cbatch command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Parse flags
+			cbatch.RootCmd.InitDefaultHelpFlag()
+			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			args = cbatch.RootCmd.Flags().Args()
+			if help, err := cbatch.RootCmd.Flags().GetBool("help"); err != nil || help {
+				cbatch.RootCmd.Help()
+				return
+			}
+
+			// Validate the arguments
+			if err := cbatch.RootCmd.ValidateArgs(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			cbatch.RootCmd.Run(cmd, args)
+		},
+	}
 
 	return cmd
 }
@@ -181,19 +255,19 @@ func scontrol() *cobra.Command {
 			subcmd, convertedArgs, err := ccontrol.RootCmd.Traverse(convertedArgs)
 			if err != nil {
 				log.Error(err)
-				os.Exit(1)
+				os.Exit(util.ErrorCmdArg)
 			}
 
 			ccontrol.RootCmd.PersistentPreRun(cmd, convertedArgs)
 			subcmd.InitDefaultHelpFlag()
 			if err = subcmd.ParseFlags(convertedArgs); err != nil {
 				log.Error(err)
-				os.Exit(1)
+				os.Exit(util.ErrorCmdArg)
 			}
 			convertedArgs = subcmd.Flags().Args()
 
 			if subcmd.Runnable() {
-				subcmd.Run(cmd, convertedArgs)
+				subcmd.Run(subcmd, convertedArgs)
 			} else {
 				subcmd.Help()
 			}
@@ -243,6 +317,12 @@ func squeue() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
+			// Validate the arguments
+			if err := cqueue.RootCmd.ValidateArgs(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+
 			cqueue.RootCmd.Run(cmd, args)
 		},
 	}
