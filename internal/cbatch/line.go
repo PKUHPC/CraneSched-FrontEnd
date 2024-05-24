@@ -2,8 +2,9 @@ package cbatch
 
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type LineProcessor interface {
@@ -46,7 +47,7 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	}
 	split := strings.Fields(line)
 	if len(split) == 3 {
-		ok, _ := s.supported[split[1]]
+		ok := s.supported[split[1]]
 		if ok {
 			*args = append(*args, CbatchArg{name: split[1], val: split[2]})
 		} else {
@@ -54,7 +55,7 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 		}
 	} else if len(split) == 2 {
 		parts := strings.Split(split[1], "=")
-		ok, _ := s.supported[parts[0]]
+		ok := s.supported[parts[0]]
 		if ok && len(parts) > 1 {
 			*args = append(*args, CbatchArg{name: parts[0], val: parts[1]})
 		} else {

@@ -18,10 +18,12 @@ package util
 
 import (
 	"fmt"
-	"github.com/golang/protobuf/ptypes/duration"
+	"math"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/golang/protobuf/ptypes/duration"
 )
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
@@ -96,4 +98,15 @@ func SecondTimeFormat(second int64) string {
 		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
 	}
 	return timeFormat
+}
+
+// Parses a string containing a float number with a given precision.
+func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
+	num, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	shift := math.Pow(10, float64(decimalPlaces))
+	return math.Floor(num*shift) / shift, nil
 }

@@ -37,9 +37,10 @@ func ParseCmdArgs() {
 	rootCmd.AddGroup(slurmGroup)
 	{
 		rootCmd.AddCommand(sacct())
-		rootCmd.AddCommand(squeue())
 		rootCmd.AddCommand(scancel())
 		rootCmd.AddCommand(scontrol())
+		rootCmd.AddCommand(sinfo())
+		rootCmd.AddCommand(squeue())
 	}
 
 	if err := rootCmd.Execute(); err != nil {

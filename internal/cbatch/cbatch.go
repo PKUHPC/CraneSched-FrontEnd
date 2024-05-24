@@ -67,7 +67,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			}
 			task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
-			num, err := strconv.ParseFloat(arg.val, 10)
+			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {
 				log.Print("Invalid " + arg.name)
 				return false, nil
@@ -81,8 +81,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			}
 			task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			isOk := util.ParseDuration(arg.val, task.TimeLimit)
-			if isOk == false {
+			ok := util.ParseDuration(arg.val, task.TimeLimit)
+			if !ok {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
@@ -136,7 +136,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if ok == false {
+		if !ok {
 			log.Print("Invalid --time")
 			return false, nil
 		}
