@@ -18,9 +18,10 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
 	"strconv"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -34,7 +35,7 @@ var (
 
 	FlagConfigFilePath string
 
-	rootCmd = &cobra.Command{
+	RootCmd = &cobra.Command{
 		Use:   "ccontrol",
 		Short: "display the state of partitions and nodes",
 		Long:  "",
@@ -80,7 +81,7 @@ var (
 			ShowPartitions(FlagPartitionName, FlagQueryAll)
 		},
 	}
-	showTaskCmd = &cobra.Command{
+	showJobCmd = &cobra.Command{
 		Use:   "job",
 		Short: "display the state of a specified job or all jobs",
 		Long:  "",
@@ -116,27 +117,37 @@ var (
 
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := RootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.AddCommand(showCmd)
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
-	showCmd.AddCommand(showNodeCmd)
-	showCmd.AddCommand(showPartitionCmd)
-	showCmd.AddCommand(showTaskCmd)
-	rootCmd.AddCommand(updateCmd)
-	updateCmd.AddCommand(updateNodeCmd)
-	updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "specify a node name")
-	updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "specify the state")
-	updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "set reason")
-	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
-	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
-	err := updateCmd.MarkFlagRequired("job")
-	if err != nil {
-		return
+
+	RootCmd.AddCommand(showCmd)
+	{
+		showCmd.AddCommand(showNodeCmd)
+		showCmd.AddCommand(showPartitionCmd)
+		showCmd.AddCommand(showJobCmd)
+	}
+
+	RootCmd.AddCommand(updateCmd)
+	{
+		updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
+		updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
+
+		updateCmd.AddCommand(updateNodeCmd)
+		{
+			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "specify a node name")
+			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "specify the state")
+			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "set reason")
+		}
+
+		err := updateCmd.MarkFlagRequired("job")
+		if err != nil {
+			return
+		}
 	}
 }

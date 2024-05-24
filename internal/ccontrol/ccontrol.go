@@ -21,13 +21,14 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -238,13 +239,14 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 }
 
 func ChangeNodeState(nodeName string, state string, reason string) {
-
 	var req = &protos.ModifyCranedStateRequest{}
 	if nodeName == "" {
 		log.Fatalf("No valid node name in update node command.\nSpecify node names by -n or --name")
 	} else {
 		req.CranedId = nodeName
 	}
+
+	state = strings.ToLower(state)
 	switch state {
 	case "drain":
 		if reason == "" {

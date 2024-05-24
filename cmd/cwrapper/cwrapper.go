@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023 Peking University and Peking University
+ * Copyright (c) 2024 Peking University and Peking University
  * Changsha Institute for Computing and Digital Economy
  *
  * CraneSched is licensed under Mulan PSL v2.
@@ -14,20 +14,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-package ccontrol
+package main
 
-import (
-	"os"
-	"strings"
-)
+import "CraneFrontEnd/internal/cwrapper"
 
-func ParseSlurm() error {
-	if len(os.Args) == 3 {
-		l := strings.Split(os.Args[2], "=")
-		if len(l) == 2 {
-			os.Args[2] = l[0]
-			os.Args = append(os.Args, l[1])
-		}
-	}
-	return nil
+func main() {
+	cwrapper.ParseCmdArgs()
 }

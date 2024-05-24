@@ -19,8 +19,6 @@ package wrapper
 import (
 	"CraneFrontEnd/internal/cacctmgr"
 	"CraneFrontEnd/internal/ccancel"
-	"CraneFrontEnd/internal/ccontrol"
-	"CraneFrontEnd/internal/cqueue"
 	"os"
 	"strings"
 )
@@ -32,10 +30,6 @@ func (s *SlurmWrapper) Parse() error {
 	l := strings.Split(os.Args[0], "/")
 	os.Args[0] = l[len(l)-1]
 	switch os.Args[0] {
-	case "ccontrol":
-		return ccontrol.ParseSlurm()
-	case "cqueue":
-		return cqueue.ParseSlurm()
 	case "cacctmgr":
 		return cacctmgr.ParseSlurm()
 	case "ccancel":

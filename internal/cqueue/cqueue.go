@@ -21,13 +21,14 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -100,6 +101,7 @@ func Query() {
 	reply, err := stub.QueryTasksInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
+		return
 	}
 
 	sort.SliceStable(reply.TaskInfoList, func(i, j int) bool {

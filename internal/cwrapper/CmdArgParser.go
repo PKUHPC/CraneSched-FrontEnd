@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023 Peking University and Peking University
+ * Copyright (c) 2024 Peking University and Peking University
  * Changsha Institute for Computing and Digital Economy
  *
  * CraneSched is licensed under Mulan PSL v2.
@@ -14,34 +14,31 @@
  * See the Mulan PSL v2 for more details.
  */
 
-package cqueue
+package cwrapper
 
 import (
 	"os"
-	"strings"
+
+	"github.com/spf13/cobra"
 )
 
-func ParseSlurm() error {
-	for i := 1; i < len(os.Args); i++ {
-		switch os.Args[i] {
-		case "-h":
-			os.Args[i] = "-N"
-		case "-S":
-			if i+2 < len(os.Args) {
-				os.Args = append(os.Args[:i], os.Args[i+2])
-			} else {
-				os.Args = os.Args[:i]
-			}
-		default:
-			l := strings.Split(os.Args[i], "=")
-			if len(l) != 2 {
-				continue
-			}
-			switch l[0] {
-			case "--account":
-				os.Args[i] = "--Account" + l[1]
-			}
-		}
+var (
+	rootCmd = &cobra.Command{
+		Use:   "cwrapper",
+		Short: "Wrapper of CraneSched commands",
+		Long:  "",
 	}
-	return nil
+)
+
+func ParseCmdArgs() {
+	// Slurm Commands
+	rootCmd.AddGroup(slurmGroup)
+	{
+		rootCmd.AddCommand(squeue())
+		rootCmd.AddCommand(scontrol())
+	}
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
