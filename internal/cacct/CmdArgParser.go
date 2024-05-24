@@ -41,7 +41,8 @@ var (
 		Short: "display the recent job information for all queues in the cluster",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			Preparation()
+			config := util.ParseConfig(FlagConfigFilePath)
+			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			QueryJob()
@@ -102,6 +103,6 @@ If the width is specified, the field will be formatted to at least that width.
 If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
 
-	RootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
+	RootCmd.Flags().Int32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"print job information for the specified number of lines")
 }

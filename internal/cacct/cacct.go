@@ -21,14 +21,15 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -49,14 +50,14 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Fatalf("Failed to parse the time string: %s\n", err)
 			}
 			request.FilterStartTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Fatalf("Failed to parse the time string: %s\n", err)
 			}
 			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -67,14 +68,14 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Fatalf("Failed to parse the time string: %s\n", err)
 			}
 			request.FilterEndTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Fatalf("Failed to parse the time string: %s\n", err)
 			}
 			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -85,14 +86,14 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Fatalf("Failed to parse the time string: %s\n", err)
 			}
 			request.FilterSubmitTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Fatalf("Failed to parse the time string: %s\n", err)
 			}
 			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -134,6 +135,7 @@ func QueryJob() {
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show tasks")
+		os.Exit(1)
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -220,20 +222,18 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	tableOutputHeader := make([]string, len(formatReq))
 	for i := 0; i < len(formatReq); i++ {
 		if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
-			fmt.Println("Invalid format.")
+			log.Error("Invalid format.")
 			os.Exit(1)
 		}
 		if formatReq[i][1] == '.' {
 			if len(formatReq[i]) < 4 {
-				fmt.Println("Invalid format.")
+				log.Error("Invalid format.")
 				os.Exit(1)
 			}
 			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 			if err != nil {
-				if err != nil {
-					fmt.Println("Invalid format.")
-					os.Exit(1)
-				}
+				log.Error("Invalid format.")
+				os.Exit(1)
 			}
 			tableOutputWidth[i] = int(width)
 		} else {
@@ -285,14 +285,9 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				formatTableData[j] = append(formatTableData[j], exitCode)
 			}
 		default:
-			fmt.Println("Invalid format.")
+			log.Error("Invalid format.")
 			os.Exit(1)
 		}
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
-}
-
-func Preparation() {
-	config := util.ParseConfig(FlagConfigFilePath)
-	stub = util.GetStubToCtldByConfig(config)
 }

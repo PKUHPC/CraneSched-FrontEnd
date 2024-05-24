@@ -18,8 +18,9 @@ package cqueue
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -110,6 +111,6 @@ Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width 
          Name with a minimum width of 20, and Status.
 `)
 
-	RootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
+	RootCmd.Flags().Int32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"print job information for the specified number of lines")
 }

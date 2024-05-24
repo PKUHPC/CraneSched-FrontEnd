@@ -36,6 +36,7 @@ func ParseCmdArgs() {
 	// Slurm Commands
 	rootCmd.AddGroup(slurmGroup)
 	{
+		rootCmd.AddCommand(sacct())
 		rootCmd.AddCommand(squeue())
 		rootCmd.AddCommand(scancel())
 		rootCmd.AddCommand(scontrol())

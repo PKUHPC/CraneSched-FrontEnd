@@ -1,6 +1,7 @@
 package cwrapper
 
 import (
+	"CraneFrontEnd/internal/cacct"
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/ccontrol"
 	"CraneFrontEnd/internal/cqueue"
@@ -17,9 +18,35 @@ var slurmGroup = &cobra.Group{
 	Title: "Slurm Commands:",
 }
 
-// func sacct() *cobra.Command {
+func sacct() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "sacct",
+		Short:   "Wrapper of cacct command",
+		Long:    "",
+		GroupID: "slurm",
+		Run: func(cmd *cobra.Command, args []string) {
+			cacct.RootCmd.PersistentPreRun(cmd, args)
+			cacct.RootCmd.Run(cmd, args)
+		},
+	}
 
-// }
+	cmd.Flags().StringVarP(&cacct.FlagFilterAccounts, "account", "A", "",
+		"Displays jobs when a comma separated list of accounts are given as the argument.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterJobIDs, "jobs", "j", "",
+		"Displays information about the specified job or list of jobs.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterUsers, "user", "u", "",
+		"Use this comma separated list of user names to select jobs to display.")
+
+	cmd.Flags().StringVarP(&cacct.FlagFilterStartTime, "starttime", "S", "",
+		"Select jobs in any state after the specified time.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterEndTime, "endtime", "E", "",
+		"Select jobs in any state before the specified time.")
+
+	cmd.Flags().BoolVarP(&cacct.FlagNoHeader, "noheader", "n", false,
+		"No heading will be added to the output. The default action is to display a header.")
+
+	return cmd
+}
 
 // func sacctmgr() *cobra.Command {
 
@@ -79,7 +106,7 @@ func scancel() *cobra.Command {
 				args = []string{strings.Join(args, ",")}
 			}
 
-			ccancel.RootCmd.PreRun(cmd, args)
+			ccancel.RootCmd.PersistentPreRun(cmd, args)
 			if err := ccancel.RootCmd.ValidateArgs(args); err != nil {
 				log.Error(err)
 				os.Exit(1)
