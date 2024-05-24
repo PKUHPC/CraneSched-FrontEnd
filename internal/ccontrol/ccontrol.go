@@ -19,6 +19,7 @@ package ccontrol
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"bufio"
 	"context"
 	"fmt"
 	"math"
@@ -404,7 +405,7 @@ func AddNode(name string, cpu float64, mem string, partition []string) {
 	}
 }
 
-func AddPartition(name string, nodes string, priority uint32, allowlist []string, denylist []string) {
+func AddPartition(name string, nodes string, priority int64, allowlist []string, denylist []string) {
 	var req *protos.AddPartitionRequest
 	req = &protos.AddPartitionRequest{
 		Uid: uint32(os.Getuid()),
@@ -429,6 +430,39 @@ func AddPartition(name string, nodes string, priority uint32, allowlist []string
 }
 
 func DeleteNode(name string) {
+	var queryReq *protos.QueryCranedInfoRequest
+	queryReq = &protos.QueryCranedInfoRequest{
+		CranedName: name,
+	}
+	queryReply, err := stub.QueryCranedInfo(context.Background(), queryReq)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query craned info")
+	}
+	if len(queryReply.CranedInfoList) == 0 {
+		fmt.Printf("Node %s not found.\n", name)
+	} else {
+		if queryReply.CranedInfoList[0].RunningTaskNum > 0 {
+			for {
+				fmt.Printf("There are still %d jobs running on this node. Are you sure you want to delete this node? (yes/no) ", queryReply.CranedInfoList[0].RunningTaskNum)
+				reader := bufio.NewReader(os.Stdin)
+				response, err := reader.ReadString('\n')
+				if err != nil {
+					util.GrpcErrorPrintf(err, "Failed to read from stdin")
+				}
+
+				response = strings.TrimSpace(response)
+				if strings.ToLower(response) == "no" || strings.ToLower(response) == "n" {
+					fmt.Println("Operation canceled.")
+					os.Exit(0)
+				} else if strings.ToLower(response) == "yes" || strings.ToLower(response) == "y" {
+					break
+				} else {
+					fmt.Println("Unknown reply, please re-enter!")
+				}
+			}
+		}
+	}
+
 	var req *protos.DeleteNodeRequest
 	req = &protos.DeleteNodeRequest{
 		Uid:  uint32(os.Getuid()),
@@ -454,7 +488,7 @@ func DeletePartition(name string) {
 	}
 	reply, err := stub.DeletePartition(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete partition")
+		util.GrpcErrorPrintf(err, "Failed to delete partition!")
 	}
 
 	if reply.Ok {
@@ -485,7 +519,7 @@ func UpdateNode(name string, cpu float64, mem string) {
 	}
 	reply, err := stub.UpdateNode(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to update node")
+		util.GrpcErrorPrintf(err, "Failed to update node!")
 	}
 
 	if reply.Ok {
@@ -495,7 +529,7 @@ func UpdateNode(name string, cpu float64, mem string) {
 	}
 }
 
-func UpdatePartition(name string, nodes string, priority uint32, allowlist []string, denylist []string) {
+func UpdatePartition(name string, nodes string, priority int64, allowlist []string, denylist []string) {
 	var req *protos.UpdatePartitionRequest
 	req = &protos.UpdatePartitionRequest{
 		Uid: uint32(os.Getuid()),
