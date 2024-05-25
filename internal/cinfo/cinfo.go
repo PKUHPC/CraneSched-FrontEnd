@@ -96,33 +96,36 @@ func cinfoFunc() {
 		table.Render()
 	}
 	if len(FlagFilterNodes) != 0 {
-		redList := queryRedundancy(FlagFilterNodes, reply.Nodes)
+		replyNodes := ""
+		for _, partitionCraned := range reply.Partitions {
+			for _, commonCranedStateList := range partitionCraned.CranedLists {
+				if commonCranedStateList.Count > 0 {
+					if replyNodes != "" {
+						replyNodes += ","
+					}
+					replyNodes += commonCranedStateList.CranedListRegex
+				}
+			}
+		}
+		replyNodes_, _ := util.ParseHostList(replyNodes)
+		requestedNodes_, _ := util.ParseHostList(strings.Join(FlagFilterNodes, ","))
+
+		foundedNodes := make(map[string]bool)
+		for _, node := range replyNodes_ {
+			foundedNodes[node] = true
+		}
+
+		var redList []string
+		for _, node := range requestedNodes_ {
+			if _, exist := foundedNodes[node]; !exist {
+				redList = append(redList, node)
+			}
+		}
+
 		if len(redList) > 0 {
-			nodes := strings.Join(redList, ", ")
-			println("The following nodes do not exist: " + nodes)
+			println("The following nodes do not exist: " + util.HostNameListToStr(redList))
 		}
 	}
-}
-
-func queryRedundancy(requestList []string, replyList []string) []string {
-	requestSet := make(map[string]bool)
-
-	for _, item := range requestList {
-		requestSet[item] = false
-	}
-
-	for _, item := range replyList {
-		requestSet[item] = true
-	}
-
-	result := []string{}
-	for key, value := range requestSet {
-		if !value {
-			result = append(result, key)
-		}
-	}
-
-	return result
 }
 
 func loopedQuery(iterate uint64) {
