@@ -96,28 +96,34 @@ func cinfoFunc() {
 		table.Render()
 	}
 	if len(FlagFilterNodes) != 0 {
-		foundedNodes := make(map[string]bool)
+		replyNodes := ""
 		for _, partitionCraned := range reply.Partitions {
 			for _, commonCranedStateList := range partitionCraned.CranedLists {
 				if commonCranedStateList.Count > 0 {
-					nodes := strings.Split(commonCranedStateList.CranedListRegex, ",")
-					for _, node := range nodes {
-						foundedNodes[node] = true
+					if replyNodes != "" {
+						replyNodes += ","
 					}
+					replyNodes += commonCranedStateList.CranedListRegex
 				}
 			}
 		}
+		replyNodes_, _ := util.ParseHostList(replyNodes)
+		requestedNodes_, _ := util.ParseHostList(strings.Join(FlagFilterNodes, ","))
+
+		foundedNodes := make(map[string]bool)
+		for _, node := range replyNodes_ {
+			foundedNodes[node] = true
+		}
 
 		var redList []string
-		for _, node := range FlagFilterNodes {
+		for _, node := range requestedNodes_ {
 			if _, exist := foundedNodes[node]; !exist {
 				redList = append(redList, node)
 			}
 		}
 
 		if len(redList) > 0 {
-			nodes := strings.Join(redList, ", ")
-			println("The following nodes do not exist: " + nodes)
+			println("The following nodes do not exist: " + util.HostNameListToStr(redList))
 		}
 	}
 }
