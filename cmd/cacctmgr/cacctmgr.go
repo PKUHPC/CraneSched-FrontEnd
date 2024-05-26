@@ -18,13 +18,8 @@ package main
 
 import (
 	cacctmgr "CraneFrontEnd/internal/cacctmgr"
-	"CraneFrontEnd/internal/wrapper"
-	log "github.com/sirupsen/logrus"
 )
 
 func main() {
-	if _, err := wrapper.ParseWithWrapper(); err != nil {
-		log.Warn(err.Error())
-	}
 	cacctmgr.ParseCmdArgs()
 }

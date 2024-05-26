@@ -18,6 +18,7 @@ package cwrapper
 
 import (
 	"CraneFrontEnd/internal/cacct"
+	"CraneFrontEnd/internal/cacctmgr"
 	"CraneFrontEnd/internal/cbatch"
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/ccontrol"
@@ -90,9 +91,88 @@ func sacct() *cobra.Command {
 	return cmd
 }
 
-// func sacctmgr() *cobra.Command {
+func sacctmgr() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "sacctmgr",
+		Short:              "Wrapper of cacctmgr command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Keyword mapping && Convert XXX=YYY into --xxx YYY
+			convertedArgs := make([]string, 0, len(args))
+			re := regexp.MustCompile(`(?i)^(\w+)=(.+)`)
+			for idx, arg := range args {
+				switch arg {
+				case "create":
+					arg = "add"
+				case "remove":
+					arg = "delete"
+				case "show":
+					arg = "find"
+				case "list":
+					arg = "find"
+				case "set":
+					if idx+1 < len(args) {
+						arg = "--" + strings.ToLower(arg)
+					}
+				}
 
-// }
+				if re.MatchString(arg) {
+					matches := re.FindStringSubmatch(arg)
+					// The regex must has 3 matches
+					convertedArgs = append(convertedArgs, strings.ToLower(matches[1]), matches[2])
+				} else {
+					convertedArgs = append(convertedArgs, arg)
+				}
+			}
+
+			// if len(convertedArgs) >= 3 {
+			// 	// Handle subcommands
+			// 	if convertedArgs[0] == "add" || convertedArgs[0] == "modify" || convertedArgs[0] == "update" {
+			// 		if strings.Contains(convertedArgs[2], ",") {
+			// 			log.Fatal("cacctmgr add account allows one account only")
+			// 		} else {
+			// 			convertedArgs[2] = "--name=" + convertedArgs[2]
+			// 		}
+			// 	} else if convertedArgs[0] == "find" {
+			// 		if strings.Contains(convertedArgs[2], "=") && len(convertedArgs) == 3 {
+			// 			convertedArgs = convertedArgs[:3]
+			// 		} else if convertedArgs[2] == "where" && len(convertedArgs) > 3 {
+			// 			convertedArgs = append(convertedArgs[:2], convertedArgs[3])
+			// 			if strings.Contains(convertedArgs[2], "=") {
+			// 				l := strings.Split(convertedArgs[2], "=")
+			// 				convertedArgs[2] = l[1]
+			// 			}
+			// 		}
+			// 	}
+			// }
+
+			// Find the matching subcommand
+			subcmd, convertedArgs, err := cacctmgr.RootCmd.Traverse(convertedArgs)
+			if err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			cacctmgr.RootCmd.PersistentPreRun(cmd, convertedArgs)
+			subcmd.InitDefaultHelpFlag()
+			if err = subcmd.ParseFlags(convertedArgs); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			convertedArgs = subcmd.Flags().Args()
+
+			if subcmd.Runnable() {
+				subcmd.Run(subcmd, convertedArgs)
+			} else {
+				subcmd.Help()
+			}
+		},
+	}
+
+	return cmd
+}
 
 func scancel() *cobra.Command {
 	cmd := &cobra.Command{
@@ -188,7 +268,7 @@ func scontrol() *cobra.Command {
 
 			// Convert XXX=YYY into xxx YYY
 			convertedArgs := make([]string, 0, len(args))
-			re := regexp.MustCompile(`(?i)(\w+)=(.+)`)
+			re := regexp.MustCompile(`(?i)^(\w+)=(.+)`)
 			for _, arg := range args {
 				if re.MatchString(arg) {
 					matches := re.FindStringSubmatch(arg)
