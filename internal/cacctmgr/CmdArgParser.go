@@ -376,7 +376,7 @@ func init() {
 			addUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "The name to identify user")
 			addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Parent account")
 			addUserCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "p", nil, "The partition list which this account has access to")
-			addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level(none/operator)")
+			addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "User power level (none/operator)")
 			addUserCmd.Flags().BoolVarP(&FlagCoordinate, "coordinate", "c", false, "Set whether the user is the coordinator of the parent account")
 			if err := addUserCmd.MarkFlagRequired("name"); err != nil {
 				return
@@ -404,9 +404,12 @@ func init() {
 	RootCmd.AddCommand(removeCmd)
 	{
 		removeCmd.AddCommand(removeAccountCmd)
-		removeCmd.AddCommand(removeUserCmd)
 		removeCmd.AddCommand(removeQosCmd)
-		removeUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Remove user from this account")
+
+		removeCmd.AddCommand(removeUserCmd)
+		{
+			removeUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Remove user from this account")
+		}
 	}
 
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
