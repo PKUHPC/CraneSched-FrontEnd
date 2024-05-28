@@ -29,8 +29,10 @@ var (
 	FlagTaskId        uint32
 	FlagQueryAll      bool
 	FlagTimeLimit     string
-
+	FlagPriority	  uint32
 	FlagConfigFilePath string
+
+	ConfigPath string
 
 	rootCmd = &cobra.Command{
 		Use:   "ccontrol",
@@ -94,12 +96,26 @@ var (
 			ShowTasks(FlagTaskId, FlagQueryAll)
 		},
 	}
+	showConfigCmd = &cobra.Command{
+		Use:   "config",
+		Short: "display the default configuration file",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			ShowConfig(util.DefaultConfigPath)
+		},
+	}
 	updateCmd = &cobra.Command{
 		Use:   "update",
 		Short: "Modify job information",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
+			if len(FlagTimeLimit) != 0 {
+				ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
+			}
+			if FlagPriority != 0 {
+				ChangeTaskPriority(FlagTaskId, FlagPriority)
+			}
 		},
 	}
 )
@@ -118,9 +134,11 @@ func init() {
 	showCmd.AddCommand(showNodeCmd)
 	showCmd.AddCommand(showPartitionCmd)
 	showCmd.AddCommand(showTaskCmd)
+	showCmd.AddCommand(showConfigCmd)
 	rootCmd.AddCommand(updateCmd)
 	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
 	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
+	updateCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Job priority")
 	err := updateCmd.MarkFlagRequired("job")
 	if err != nil {
 		return

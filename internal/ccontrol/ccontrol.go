@@ -28,11 +28,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"gopkg.in/yaml.v2"
 )
 
 var (
 	stub protos.CraneCtldClient
 )
+
 
 func ShowNodes(nodeName string, queryAll bool) {
 	var req *protos.QueryCranedInfoRequest
@@ -189,6 +191,40 @@ func ShowTasks(taskId uint32, queryAll bool) {
 	}
 }
 
+func ShowConfig(ConfigPath string) {
+	yamlFile, err := os.ReadFile(ConfigPath)
+	if err != nil {
+		log.Fatalf("Failed to read configuration YAML file: %v", err)
+	}
+	var yamlData yaml.MapSlice
+	err = yaml.Unmarshal(yamlFile, &yamlData)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal configuration YAML: %v", err)
+	}
+	for _, line := range yamlData {
+		LineKey := line.Key.(string)
+		LineValue := line.Value
+		if slice, ok := LineValue.([]interface{}); !ok {
+			fmt.Printf("%s = %v\n", LineKey, LineValue)
+		} else {
+			fmt.Printf("%s:\n", LineKey)
+			for _, item := range slice {
+				mapItem, ok := item.(yaml.MapSlice)
+				if !ok {
+					log.Fatalf("Item is not a yaml.MapSlice: %v", item)
+				}
+				fmt.Printf("\t- ")
+				for i, mapStruct := range mapItem {
+					if i > 0 {
+						fmt.Printf("\t  ")
+					}
+					fmt.Printf("%s = %v\n", mapStruct.Key, mapStruct.Value)
+				}
+			}
+		}
+	}
+}
+
 func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
 	result := re.FindAllStringSubmatch(timeLimit, -1)
@@ -233,6 +269,28 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	if reply.Ok {
 		fmt.Println("Change time limit success")
 	} else {
-		fmt.Printf("Chang time limit failed: %s\n", reply.GetReason())
+		fmt.Printf("Change time limit failed: %s\n", reply.GetReason())
+	}
+}
+
+func ChangeTaskPriority(taskId uint32, priority uint32) {
+	var req *protos.ModifyTaskRequest
+	req = &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskId:    taskId,
+		Attribute: protos.ModifyTaskRequest_Priority,
+		Value: &protos.ModifyTaskRequest_PriorityValue{
+			PriorityValue: priority,
+		},
+	}
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to change task priority")
+	}
+
+	if reply.Ok {
+		fmt.Println("Change priority success")
+	} else {
+		fmt.Printf("Change priority failed: %s\n", reply.GetReason())
 	}
 }
