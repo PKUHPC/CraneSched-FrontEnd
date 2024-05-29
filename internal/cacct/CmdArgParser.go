@@ -18,8 +18,9 @@ package cacct
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -35,12 +36,13 @@ var (
 	FlagNoHeader         bool
 	FlagNumLimit         int32
 
-	rootCmd = &cobra.Command{
+	RootCmd = &cobra.Command{
 		Use:   "cacct",
 		Short: "display the recent job information for all queues in the cluster",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			Preparation()
+			config := util.ParseConfig(FlagConfigFilePath)
+			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			QueryJob()
@@ -49,33 +51,33 @@ var (
 )
 
 func ParseCmdArgs() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := RootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	rootCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
+	RootCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
 		"", "Select jobs eligible before this time")
-	rootCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
+	RootCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
 		"", "Select jobs eligible after this time")
-	rootCmd.Flags().StringVarP(&FlagFilterSubmitTime, "submit-time", "s",
+	RootCmd.Flags().StringVarP(&FlagFilterSubmitTime, "submit-time", "s",
 		"", "Select jobs eligible after this time")
-	rootCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
+	RootCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 		"comma separated list of accounts\n"+
 			"to view, default is all accounts")
-	rootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
+	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
 		"comma separated list of jobs IDs\nto view, default is all")
-	rootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
+	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 		"comma separated list of users to view")
-	rootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
+	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
 		"comma separated list of job names to view")
-	rootCmd.Flags().BoolVarP(&FlagNoHeader, "noHeader", "N", false,
+	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noHeader", "N", false,
 		"no headers on output")
 
-	rootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
+	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format for the command. 
 Fields are identified by a percent sign (%) followed by a character. 
 Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
@@ -101,6 +103,6 @@ If the width is specified, the field will be formatted to at least that width.
 If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
 
-	rootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
+	RootCmd.Flags().Int32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"print job information for the specified number of lines")
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023 Peking University and Peking University
+ * Copyright (c) 2024 Peking University and Peking University
  * Changsha Institute for Computing and Digital Economy
  *
  * CraneSched is licensed under Mulan PSL v2.
@@ -16,10 +16,8 @@
 
 package main
 
-import (
-	"CraneFrontEnd/internal/ccancel"
-)
+import "CraneFrontEnd/internal/cwrapper"
 
 func main() {
-	ccancel.ParseCmdArgs()
+	cwrapper.ParseCmdArgs()
 }

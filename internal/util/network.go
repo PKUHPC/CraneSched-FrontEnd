@@ -83,7 +83,7 @@ func GetPidFromPort(port uint16) (int, error) {
 		}
 	}
 	if pid == -1 {
-		return -1, fmt.Errorf("No process found for port %d", port)
+		return -1, fmt.Errorf("no process found for port %d", port)
 	}
 	return pid, nil
 }

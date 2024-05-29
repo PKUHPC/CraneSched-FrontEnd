@@ -18,6 +18,7 @@ package util
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -33,7 +34,7 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 	if result == nil || len(result) != 1 {
 		return 0, fmt.Errorf("invalid memory format")
 	}
-	sz, err := strconv.ParseFloat(result[0][1], 10)
+	sz, err := ParseFloatWithPrecision(result[0][1], 10)
 	if err != nil {
 		return 0, err
 	}
@@ -99,6 +100,17 @@ func SecondTimeFormat(second int64) string {
 		timeFormat = fmt.Sprintf("%02d:%02d:%02d", hh, mm, ss)
 	}
 	return timeFormat
+}
+
+// Parses a string containing a float number with a given precision.
+func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
+	num, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	shift := math.Pow(10, float64(decimalPlaces))
+	return math.Floor(num*shift) / shift, nil
 }
 
 func ParseMailType(param string) uint32 {

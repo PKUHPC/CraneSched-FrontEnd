@@ -67,7 +67,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			}
 			task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
-			num, err := strconv.ParseFloat(arg.val, 10)
+			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {
 				log.Print("Invalid " + arg.name)
 				return false, nil
@@ -81,8 +81,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			}
 			task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			isOk := util.ParseDuration(arg.val, task.TimeLimit)
-			if isOk == false {
+			ok := util.ParseDuration(arg.val, task.TimeLimit)
+			if !ok {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
@@ -140,7 +140,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if ok == false {
+		if !ok {
 			log.Print("Invalid --time")
 			return false, nil
 		}
@@ -207,23 +207,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	return true, task
-}
-
-func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
-	re := regexp.MustCompile(`^#CBATCH`)
-	if re.MatchString(line) {
-		split := strings.Fields(line)
-		if len(split) == 3 {
-			*args = append(*args, CbatchArg{name: split[1], val: split[2]})
-		} else if len(split) == 2 {
-			*args = append(*args, CbatchArg{name: split[1]})
-		} else {
-			return false
-		}
-	} else {
-		*sh = append(*sh, line)
-	}
-	return true
 }
 
 func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
@@ -361,10 +344,19 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 
 	for scanner.Scan() {
 		num++
-		success := ProcessLine(scanner.Text(), &sh, &args)
-		if !success {
-			err = fmt.Errorf("grammer error at line %v", num)
-			fmt.Println(err.Error())
+		reC := regexp.MustCompile(`^#CBATCH`)
+		reS := regexp.MustCompile(`^#SBATCH`)
+		var processor LineProcessor
+		if reC.MatchString(scanner.Text()) {
+			processor = &cLineProcessor{}
+		} else if reS.MatchString(scanner.Text()) {
+			processor = &sLineProcessor{}
+		} else {
+			processor = &defaultProcessor{}
+		}
+		err := processor.Process(scanner.Text(), &sh, &args)
+		if err != nil {
+			fmt.Printf("parse error at line %v: %v\n", num, err.Error())
 			return util.ErrorScriptParsing
 		}
 	}

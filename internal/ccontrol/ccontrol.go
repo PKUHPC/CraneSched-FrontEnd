@@ -21,13 +21,14 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -41,6 +42,7 @@ func ShowNodes(nodeName string, queryAll bool) {
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
+		os.Exit(1)
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -83,6 +85,7 @@ func ShowPartitions(partitionName string, queryAll bool) {
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
+		os.Exit(1)
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -133,6 +136,7 @@ func ShowTasks(taskId uint32, queryAll bool) {
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the task")
+		os.Exit(1)
 	}
 
 	if !reply.GetOk() {
@@ -228,6 +232,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
+		os.Exit(1)
 	}
 
 	if reply.Ok {
@@ -238,13 +243,14 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 }
 
 func ChangeNodeState(nodeName string, state string, reason string) {
-
 	var req = &protos.ModifyCranedStateRequest{}
 	if nodeName == "" {
 		log.Fatalf("No valid node name in update node command.\nSpecify node names by -n or --name")
 	} else {
 		req.CranedId = nodeName
 	}
+
+	state = strings.ToLower(state)
 	switch state {
 	case "drain":
 		if reason == "" {

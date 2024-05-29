@@ -122,9 +122,9 @@ func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
 		if rpcErr.Code() == grpccodes.Unavailable {
-			_, _ = fmt.Fprintf(os.Stderr, "%s: Connection to CraneCtld is broken.", s)
+			_, _ = fmt.Fprintf(os.Stderr, "%s: Connection to CraneCtld is broken.\n", s)
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.", s, rpcErr.String())
+			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.\n", s, rpcErr.String())
 		}
 	}
 }

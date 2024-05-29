@@ -19,22 +19,23 @@ package ccancel
 import (
 	"CraneFrontEnd/internal/util"
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
 	"regexp"
+
+	"github.com/spf13/cobra"
 )
 
 var (
-	FlagTaskName       string   //单个.
-	FlagPartition      string   //单个.
-	FlagState          string   //单个. 默认值
-	FlagAccount        string   //单个.
-	FlagUserName       string   //单个.
-	FlagNodes          []string //多个
+	FlagJobName        string
+	FlagPartition      string
+	FlagState          string
+	FlagAccount        string
+	FlagUserName       string
+	FlagNodes          []string
 	FlagConfigFilePath string
 
-	rootCmd = &cobra.Command{
-		Use:   "ccancel [<job id>[[,<job id>]...]] [options]",
+	RootCmd = &cobra.Command{
+		Use:   "ccancel [OPTIONS...] [job_id[,job_id...]]",
 		Short: "cancel pending or running jobs",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -44,7 +45,7 @@ var (
 			}
 
 			if len(args) == 0 &&
-				FlagTaskName == "" &&
+				FlagJobName == "" &&
 				FlagPartition == "" &&
 				FlagState == "" &&
 				FlagAccount == "" &&
@@ -57,13 +58,13 @@ var (
 				matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
 				if !matched {
 					return fmt.Errorf("job id list must follow the format " +
-						"<job id> or '<job id>,<job id>,<job id>...'")
+						"<job_id> or '<job_id>,<job_id>,<job_id>...'")
 				}
 			}
 
 			return nil
 		},
-		PreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},
@@ -76,26 +77,26 @@ var (
 )
 
 func ParseCmdArgs() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := RootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	rootCmd.Flags().StringVarP(&FlagTaskName, "name", "n", "",
+	RootCmd.Flags().StringVarP(&FlagJobName, "name", "n", "",
 		"cancel jobs only with the job name")
-	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
+	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
 		"cancel jobs jobs only in the Partition")
-	rootCmd.Flags().StringVarP(&FlagState, "state", "t", "",
+	RootCmd.Flags().StringVarP(&FlagState, "state", "t", "",
 		"cancel jobs of the State. "+
 			"Valid job states are PENDING(PD), RUNNING(R). "+
 			"job states are case-insensitive")
-	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
+	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
 		"cancel jobs under an account")
-	rootCmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
+	RootCmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
 		"cancel jobs run by the user")
-	rootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
+	RootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
 		"cancel jobs running on the nodes")
 }
