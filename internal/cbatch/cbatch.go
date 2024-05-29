@@ -22,11 +22,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type CbatchArg struct {
@@ -116,7 +117,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		case "--mail-type":
-			task.MailType = util.MailTypeMapper(arg.val)
+			task.MailType = util.ParseMailType(arg.val)
 		case "--mail-user":
 			task.MailUser = arg.val
 		default:
@@ -186,7 +187,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
 	if FlagMailType != "" {
-		task.MailType = util.MailTypeMapper(FlagMailType)
+		task.MailType = util.ParseMailType(FlagMailType)
 	}
 	if FlagMailUser != "" {
 		task.MailUser = FlagMailUser

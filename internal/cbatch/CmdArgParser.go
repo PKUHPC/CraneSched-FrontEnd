@@ -18,8 +18,9 @@ package cbatch
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -40,11 +41,11 @@ var (
 	FlagExport        string
 	FlagStdoutPath    string
 	FlagStderrPath    string
-	
+
 	FlagConfigFilePath string
 
-	FlagMailType	  string
-	FlagMailUser	  string
+	FlagMailType string
+	FlagMailUser string
 )
 
 func ParseCmdArgs() {
@@ -76,8 +77,8 @@ func ParseCmdArgs() {
 	rootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
 	rootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "file for batch script's standard output")
 	rootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "file for batch script's standard error output")
-	rootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "notify user by email when certain event types occur")
-	rootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "user to receive email notification of state changes")
+	rootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "notify user by mail when certain events occur")
+	rootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "mail address of the notification receiver")
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
