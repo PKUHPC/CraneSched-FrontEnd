@@ -69,6 +69,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	table.SetTablePadding("\t")
 	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "blocked"})
 	table.SetAutoFormatHeaders(false)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	tableData := make([][]string, len(userMap))
 
 	for key, value := range userMap {
@@ -114,6 +115,7 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	table.SetTablePadding("\t")
 	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"})
 	table.SetAutoFormatHeaders(false)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -198,32 +200,54 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 
 	if FlagFormat != "" {
 		formatTableData := make([][]string, len(accountList))
-		formatReq := strings.Split(FlagFormat, ",")
+		formatReq := strings.Split(FlagFormat, " ")
+		tableOutputWidth := make([]int, len(formatReq))
 		tableOutputHeader := make([]string, len(formatReq))
 		for i := 0; i < len(formatReq); i++ {
+			if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
+				fmt.Println("Invalid format.")
+				os.Exit(1)
+			}
+			if formatReq[i][1] == '.' {
+				if len(formatReq[i]) < 4 {
+					fmt.Println("Invalid format.")
+					os.Exit(1)
+				}
+				width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
+				if err != nil {
+					if err != nil {
+						fmt.Println("Invalid format.")
+						os.Exit(1)
+					}
+				}
+				tableOutputWidth[i] = int(width)
+			} else {
+				tableOutputWidth[i] = -1
+			}
+			tableOutputHeader[i] = formatReq[i][len(formatReq[i])-1:]
 			//"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList"
-			switch formatReq[i] {
-			case "Name":
+			switch tableOutputHeader[i] {
+			case "n":
 				tableOutputHeader[i] = "Name"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], accountList[j].Name)
 				}
-			case "Description":
+			case "d":
 				tableOutputHeader[i] = "Description"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], accountList[j].Description)
 				}
-			case "AllowedPartition":
+			case "P":
 				tableOutputHeader[i] = "AllowedPartition"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].AllowedPartitions, ", "))
 				}
-			case "DefaultQos":
+			case "Q":
 				tableOutputHeader[i] = "DefaultQos"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], accountList[j].DefaultQos)
 				}
-			case "AllowedQosList":
+			case "q":
 				tableOutputHeader[i] = "AllowedQosList"
 				for j := 0; j < len(accountList); j++ {
 					formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].AllowedQosList, ", "))
@@ -233,8 +257,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 				os.Exit(1)
 			}
 		}
-		header = tableOutputHeader
-		tableData = formatTableData
+		header, tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
 	}
 
 	if !FlagNoHeader {
@@ -260,8 +283,12 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 
 func AddAccount(account *protos.AccountInfo) {
 	if account.Name == "=" {
-		log.Fatalf("Parameter error : Account name empty")
+		log.Fatalf("Parameter error : account name empty")
 	}
+	if len(account.Name) > 30 {
+		log.Fatalf("Parameter error : name is too long(up to 30)")
+	}
+
 	var req *protos.AddAccountRequest
 	req = new(protos.AddAccountRequest)
 	req.Uid = userUid
@@ -294,6 +321,13 @@ func AddAccount(account *protos.AccountInfo) {
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinate bool) {
+	if user.Name == "=" {
+		log.Fatalf("Parameter error : user name empty")
+	}
+	if len(user.Name) > 30 {
+		log.Fatalf("Parameter error : name is too long(up to 30)")
+	}
+
 	lu, err := OSUser.Lookup(user.Name)
 	if err != nil {
 		log.Fatal(err)
@@ -335,6 +369,13 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 }
 
 func AddQos(qos *protos.QosInfo) {
+	if qos.Name == "=" {
+		log.Fatalf("Parameter error : QOS name empty")
+	}
+	if len(qos.Name) > 30 {
+		log.Fatalf("Parameter error : name is too long(up to 30)")
+	}
+
 	var req *protos.AddQosRequest
 	req = new(protos.AddQosRequest)
 	req.Uid = userUid
@@ -518,7 +559,7 @@ func ShowQos(name string) {
 		PrintAllQos(reply.QosList)
 	} else {
 		if name == "" {
-			fmt.Println("Can't find any qos!")
+			fmt.Printf("Can't find any qos! %s\n", reply.GetReason())
 		} else {
 			fmt.Printf("Can't find qos %s\n", name)
 		}

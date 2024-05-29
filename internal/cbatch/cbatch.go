@@ -42,8 +42,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
-			MemoryLimitBytes:   0,
-			MemorySwLimitBytes: 0,
+			MemoryLimitBytes:   1024 * 1024 * 1024 * 16,
+			MemorySwLimitBytes: 1024 * 1024 * 1024 * 16,
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
@@ -121,7 +121,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "--mail-user":
 			task.MailUser = arg.val
 		default:
-			log.Fatalf("Invalid parameter given: %s\n", arg.name)
+			_, _ = fmt.Fprintf(os.Stderr, "Invalid parameter '%s' given in the script file.", arg.name)
+			return false, nil
 		}
 	}
 
@@ -225,7 +226,7 @@ func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
 	return true
 }
 
-func SendRequest(task *protos.TaskToCtld) {
+func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
@@ -233,16 +234,19 @@ func SendRequest(task *protos.TaskToCtld) {
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the task")
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Task Id allocated: %d\n", reply.GetTaskId())
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
+		return util.ErrorAllocation
 	}
 }
 
-func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
+func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
@@ -250,6 +254,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
+		return util.ErrorGrpc
 	}
 
 	if len(reply.TaskIdList) > 0 {
@@ -262,22 +267,24 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
 
 	if len(reply.ReasonList) > 0 {
 		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
+		return util.ErrorAllocation
 	}
+	return util.ErrorSuccess
 }
 
-func SplitEnvironEntry(env *string) (string, string) {
+func SplitEnvironEntry(env *string) (string, string, bool) {
 	eq := strings.IndexByte(*env, '=')
 	if eq == -1 {
-		return *env, ""
+		return *env, "", false
 	} else {
-		return (*env)[:eq], (*env)[eq+1:]
+		return (*env)[:eq], (*env)[eq+1:], true
 	}
 }
 
 func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	systemEnv := make(map[string]string)
 	for _, str := range os.Environ() {
-		name, value := SplitEnvironEntry(&str)
+		name, value, _ := SplitEnvironEntry(&str)
 		systemEnv[name] = value
 
 		// The CRANE_* environment variables are loaded anyway.
@@ -313,9 +320,9 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 					task.Env[k] = v
 				}
 			} else {
-				k, v := SplitEnvironEntry(&exportValue)
+				k, v, ok := SplitEnvironEntry(&exportValue)
 				// If user-specified value is empty, use system value instead.
-				if v != "" {
+				if ok {
 					task.Env[k] = v
 				} else {
 					systemEnvValue, envExist := systemEnv[k]
@@ -328,14 +335,16 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	}
 }
 
-func Cbatch(jobFilePath string) {
+func Cbatch(jobFilePath string) util.CraneCmdError {
 	if FlagRepeat == 0 {
-		log.Fatal("--repeat must >0")
+		log.Error("--repeat must >0")
+		return util.ErrorCmdArg
 	}
 
 	file, err := os.Open(jobFilePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return util.ErrorCmdArg
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -356,12 +365,13 @@ func Cbatch(jobFilePath string) {
 		if !success {
 			err = fmt.Errorf("grammer error at line %v", num)
 			fmt.Println(err.Error())
-			os.Exit(1)
+			return util.ErrorScriptParsing
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return util.ErrorCmdArg
 	}
 	// fmt.Printf("Invoking UID: %d\n\n", os.Getuid())
 	// fmt.Printf("Shell script:\n%s\n\n", strings.Join(sh, "\n"))
@@ -369,7 +379,7 @@ func Cbatch(jobFilePath string) {
 
 	ok, task := ProcessCbatchArg(args)
 	if !ok {
-		log.Fatalf("Invalid cbatch argument")
+		return util.ErrorCmdArg
 	}
 
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
@@ -385,8 +395,8 @@ func Cbatch(jobFilePath string) {
 	}
 
 	if FlagRepeat == 1 {
-		SendRequest(task)
+		return SendRequest(task)
 	} else {
-		SendMultipleRequests(task, FlagRepeat)
+		return SendMultipleRequests(task, FlagRepeat)
 	}
 }

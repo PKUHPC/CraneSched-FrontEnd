@@ -50,6 +50,8 @@ func cinfoFunc() {
 				stateList = append(stateList, protos.CranedState_CRANE_ALLOC)
 			case "down":
 				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
+			case "drain":
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN)
 			default:
 				log.Fatalf("Invalid state given: %s\n", FlagFilterCranedStates[i])
 			}
@@ -59,7 +61,7 @@ func cinfoFunc() {
 	} else if FlagFilterDownOnly {
 		stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 	} else {
-		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN)
+		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN, protos.CranedState_CRANE_DRAIN)
 	}
 
 	req.FilterCranedStates = stateList
@@ -92,6 +94,37 @@ func cinfoFunc() {
 		fmt.Printf("No partition is available.\n")
 	} else {
 		table.Render()
+	}
+	if len(FlagFilterNodes) != 0 {
+		replyNodes := ""
+		for _, partitionCraned := range reply.Partitions {
+			for _, commonCranedStateList := range partitionCraned.CranedLists {
+				if commonCranedStateList.Count > 0 {
+					if replyNodes != "" {
+						replyNodes += ","
+					}
+					replyNodes += commonCranedStateList.CranedListRegex
+				}
+			}
+		}
+		replyNodes_, _ := util.ParseHostList(replyNodes)
+		requestedNodes_, _ := util.ParseHostList(strings.Join(FlagFilterNodes, ","))
+
+		foundedNodes := make(map[string]bool)
+		for _, node := range replyNodes_ {
+			foundedNodes[node] = true
+		}
+
+		var redList []string
+		for _, node := range requestedNodes_ {
+			if _, exist := foundedNodes[node]; !exist {
+				redList = append(redList, node)
+			}
+		}
+
+		if len(redList) > 0 {
+			println("The following nodes do not exist: " + util.HostNameListToStr(redList))
+		}
 	}
 }
 

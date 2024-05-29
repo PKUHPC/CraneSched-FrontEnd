@@ -19,6 +19,7 @@ package util
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -123,4 +124,298 @@ func ParseMailType(param string) uint32 {
 		parsed |= MailTypeMapping[t]
 	}
 	return parsed
+}
+
+func ParseHostList(hostStr string) ([]string, bool) {
+	nameStr := strings.ReplaceAll(hostStr, " ", "")
+	nameStr += ","
+
+	var nameMeta string
+	var strList []string
+	var charQueue string
+
+	for _, c := range nameStr {
+		if c == '[' {
+			if charQueue == "" {
+				charQueue = string(c)
+			} else {
+				fmt.Println("Illegal node name string format: duplicate brackets")
+				return nil, false
+			}
+		} else if c == ']' {
+			if charQueue == "" {
+				fmt.Println("Illegal node name string format: isolated bracket")
+				return nil, false
+			} else {
+				nameMeta += charQueue
+				nameMeta += string(c)
+				charQueue = ""
+			}
+		} else if c == ',' {
+			if charQueue == "" {
+				strList = append(strList, nameMeta)
+				nameMeta = ""
+			} else {
+				charQueue += string(c)
+			}
+		} else {
+			if charQueue == "" {
+				nameMeta += string(c)
+			} else {
+				charQueue += string(c)
+			}
+		}
+	}
+	if charQueue != "" {
+		fmt.Println("Illegal node name string format: isolated bracket")
+		return nil, false
+	}
+
+	regex := regexp.MustCompile(`.*\[(.*)\](\..*)*$`)
+	var hostList []string
+
+	for _, str := range strList {
+		strS := strings.TrimSpace(str)
+		if !regex.MatchString(strS) {
+			hostList = append(hostList, strS)
+		} else {
+			nodes, ok := ParseNodeList(strS)
+			if !ok {
+				return nil, false
+			}
+			hostList = append(hostList, nodes...)
+		}
+	}
+	return hostList, true
+}
+
+func ParseNodeList(nodeStr string) ([]string, bool) {
+	bracketsRegex := regexp.MustCompile(`.*\[(.*)\]`)
+	numRegex := regexp.MustCompile(`^\d+$`)
+	scopeRegex := regexp.MustCompile(`^(\d+)-(\d+)$`)
+
+	if !bracketsRegex.MatchString(nodeStr) {
+		return nil, false
+	}
+
+	unitStrList := strings.Split(nodeStr, "]")
+	endStr := unitStrList[len(unitStrList)-1]
+	unitStrList = unitStrList[:len(unitStrList)-1]
+	resList := []string{""}
+
+	for _, str := range unitStrList {
+		nodeNum := strings.FieldsFunc(str, func(r rune) bool {
+			return r == '[' || r == ','
+		})
+		unitList := []string{}
+		headStr := nodeNum[0]
+
+		for _, numStr := range nodeNum[1:] {
+			if numRegex.MatchString(numStr) {
+				unitList = append(unitList, fmt.Sprintf("%s%s", headStr, numStr))
+			} else if scopeRegex.MatchString(numStr) {
+				locIndex := scopeRegex.FindStringSubmatch(numStr)
+				start, err1 := strconv.Atoi(locIndex[1])
+				end, err2 := strconv.Atoi(locIndex[2])
+				if err1 != nil || err2 != nil {
+					return nil, false
+				}
+				width := len(locIndex[1])
+				for j := start; j <= end; j++ {
+					sNum := fmt.Sprintf("%0*d", width, j)
+					unitList = append(unitList, fmt.Sprintf("%s%s", headStr, sNum))
+				}
+			} else {
+				return nil, false // Format error
+			}
+		}
+
+		tempList := []string{}
+		for _, left := range resList {
+			for _, right := range unitList {
+				tempList = append(tempList, left+right)
+			}
+		}
+		resList = tempList
+	}
+
+	if endStr != "" {
+		for i := range resList {
+			resList[i] += endStr
+		}
+	}
+
+	return resList, true
+}
+
+func HostNameListToStr(hostList []string) string {
+	sourceList := hostList
+
+	for {
+		resList, res := HostNameListToStr_(sourceList)
+		if res {
+			sort.Strings(resList)
+			hostNameStr := strings.Join(resList, ",")
+			return RemoveBracketsWithoutDashOrComma(hostNameStr)
+		}
+		sourceList = resList
+	}
+}
+
+func HostNameListToStr_(hostList []string) ([]string, bool) {
+	hostMap := make(map[string][]string)
+	resList := []string{}
+	res := true
+
+	sz := len(hostList)
+	if sz == 0 {
+		return resList, true
+	} else if sz == 1 {
+		resList = append(resList, hostList[0])
+		return resList, true
+	}
+
+	for _, host := range hostList {
+		if host == "" {
+			continue
+		}
+
+		start, end, found := FoundFirstNumberWithoutBrackets(host)
+		if found {
+			res = false
+			numStr := host[start:end]
+			headStr := host[:start]
+			tailStr := host[end:]
+			keyStr := fmt.Sprintf("%s<%s", headStr, tailStr)
+
+			if _, ok := hostMap[keyStr]; !ok {
+				hostMap[keyStr] = []string{}
+			}
+			hostMap[keyStr] = append(hostMap[keyStr], numStr)
+		} else {
+			resList = append(resList, host)
+		}
+	}
+
+	if res {
+		return resList, true
+	}
+
+	for key, nums := range hostMap {
+		delimiterPos := strings.Index(key, "<")
+		hostNameStr := key[:delimiterPos] + "["
+
+		sort.Slice(nums, func(i, j int) bool {
+			a, b := nums[i], nums[j]
+			if len(a) != len(b) {
+				return len(a) < len(b)
+			}
+			ai, _ := strconv.Atoi(a)
+			bi, _ := strconv.Atoi(b)
+			return ai < bi
+		})
+
+		nums = unique(nums)
+
+		first, last := -1, -1
+		firstStr, lastStr := "", ""
+
+		for _, numStr := range nums {
+			num, _ := strconv.Atoi(numStr)
+			if first == -1 {
+				first, last = num, num
+				firstStr, lastStr = numStr, numStr
+			} else if num == last+1 {
+				last = num
+				lastStr = numStr
+			} else {
+				if first == last {
+					hostNameStr += firstStr
+				} else {
+					hostNameStr += fmt.Sprintf("%s-%s", firstStr, lastStr)
+				}
+				hostNameStr += ","
+				first, last = num, num
+				firstStr, lastStr = numStr, numStr
+			}
+		}
+
+		if first == last {
+			hostNameStr += firstStr
+		} else {
+			hostNameStr += fmt.Sprintf("%s-%s", firstStr, lastStr)
+		}
+
+		hostNameStr += "]" + key[delimiterPos+1:]
+		resList = append(resList, hostNameStr)
+	}
+
+	return resList, res
+}
+
+func FoundFirstNumberWithoutBrackets(input string) (int, int, bool) {
+	start, end := -1, -1
+	opens := 0
+
+	for i, c := range input {
+		switch c {
+		case '[':
+			opens++
+		case ']':
+			opens--
+		default:
+			if opens == 0 {
+				if start == -1 && c >= '0' && c <= '9' {
+					start = i
+				} else if start != -1 && (c < '0' || c > '9') {
+					end = i
+					return start, end, true
+				}
+			}
+		}
+	}
+
+	if start != -1 {
+		return start, len(input), true
+	}
+	return start, end, false
+}
+
+func unique(nums []string) []string {
+	if len(nums) == 0 {
+		return nums
+	}
+	j := 0
+	for i := 1; i < len(nums); i++ {
+		if nums[j] != nums[i] {
+			j++
+			nums[j] = nums[i]
+		}
+	}
+	return nums[:j+1]
+}
+
+func RemoveBracketsWithoutDashOrComma(input string) string {
+	output := input
+	leftBracketPos := strings.Index(output, "[")
+
+	for leftBracketPos != -1 {
+		rightBracketPos := strings.Index(output[leftBracketPos:], "]")
+		if rightBracketPos == -1 {
+			break
+		}
+		rightBracketPos += leftBracketPos
+		betweenBrackets := output[leftBracketPos+1 : rightBracketPos]
+		if !strings.Contains(betweenBrackets, "-") && !strings.Contains(betweenBrackets, ",") {
+			output = output[:rightBracketPos] + output[rightBracketPos+1:]
+			output = output[:leftBracketPos] + output[leftBracketPos+1:]
+		} else {
+			leftBracketPos = rightBracketPos + 1
+		}
+		leftBracketPos = strings.Index(output[leftBracketPos:], "[")
+		if leftBracketPos != -1 {
+			leftBracketPos += leftBracketPos
+		}
+	}
+	return output
 }

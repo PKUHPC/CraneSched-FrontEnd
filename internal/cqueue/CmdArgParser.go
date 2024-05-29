@@ -84,7 +84,32 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"comma separated list of partitions\n"+
 			"to view, default is all partitions")
-	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "", "format specification")
+
+	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
+		`Specify the output format for the command. 
+Fields are identified by a percent sign (%) followed by a character. 
+Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
+
+Supported format identifiers:
+    %j: JobID     - Display the job ID of the task. Use "%.5j" for a width of 5.
+    %n: Name      - Display the name of the task.
+    %t: Status    - Display the current status of the task.
+    %P: Partition - Display the partition the task is running in.
+    %p: Priority  - Display the task's priority.
+    %u: User      - Display the user who submitted the task.
+    %a: Account   - Display the account associated with the task.
+    %T: Type      - Display the task type.
+    %I: NodeList  - Display the list of nodes the task is running on.
+    %l: TimeLimit - Display the time limit for the task.
+    %N: Nodes     - Display the number of nodes assigned to the task.
+    %s: SubmitTime- Display the submission time of the task.
+    %q: QoS       - Display the Quality of Service level for the task.
+
+Each format specifier can be modified with a width specifier (e.g., "%.5j").
+Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width of 5,
+         Name with a minimum width of 20, and Status.
+`)
+
 	RootCmd.Flags().Int32VarP(&FlagNumLimit, "MaxVisibleLines", "m", 0,
 		"print job information for the specified number of lines")
 }
