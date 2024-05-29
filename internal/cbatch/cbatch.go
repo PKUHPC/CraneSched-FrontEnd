@@ -198,6 +198,11 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		return false, nil
 	}
 
+	if task.MailType != 0 && task.MailUser == "" {
+		log.Error("Mail type is set but missing the mail user")
+		return false, nil
+	}
+
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	return true, task
