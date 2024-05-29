@@ -198,6 +198,14 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 		return false, nil
 	}
+	if !CheckNodeList(task.Nodelist) {
+		log.Print("Invalid --nodelist")
+		return false, nil
+	}
+	if !CheckNodeList(task.Excludes) {
+		log.Print("Invalid --exclude")
+		return false, nil
+	}
 
 	if task.MailType != 0 && task.MailUser == "" {
 		log.Error("Mail type is set but missing the mail user")
@@ -207,6 +215,14 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	return true, task
+}
+
+func CheckNodeList(nodeStr string) bool {
+	nameStr := strings.ReplaceAll(nodeStr, " ", "")
+	nodeNamePattern := `^[a-zA-Z][a-zA-Z0-9]*[0-9]$`
+	listPattern := fmt.Sprintf(`^(%s(,%s)*)?$`, nodeNamePattern, nodeNamePattern)
+	re := regexp.MustCompile(listPattern)
+	return re.MatchString(nameStr)
 }
 
 func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
