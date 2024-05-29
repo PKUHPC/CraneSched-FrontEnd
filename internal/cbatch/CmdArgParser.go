@@ -44,6 +44,9 @@ var (
 
 	FlagConfigFilePath string
 
+	FlagMailType string
+	FlagMailUser string
+
 	RootCmd = &cobra.Command{
 		Use:   "cbatch",
 		Short: "submit batch jobs",
@@ -81,4 +84,6 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
 	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "file for batch script's standard output")
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "file for batch script's standard error output")
+	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "notify user by mail when certain events occur")
+	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "mail address of the notification receiver")
 }

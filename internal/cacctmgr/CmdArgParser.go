@@ -70,6 +70,7 @@ var (
 		Use:   "account",
 		Short: "Add a new account",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			AddAccount(&FlagAccount)
 		},
@@ -78,6 +79,7 @@ var (
 		Use:   "user",
 		Short: "Add a new user",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			AddUser(&FlagUser, FlagPartitions, FlagLevel, FlagCoordinate)
 		},
@@ -86,6 +88,7 @@ var (
 		Use:   "qos",
 		Short: "Add a new qos",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			AddQos(&FlagQos)
 		},
@@ -239,6 +242,7 @@ var (
 		Aliases: []string{"accounts"},
 		Short:   "Display account tree and account details",
 		Long:    "",
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowAccounts()
 		},
@@ -248,6 +252,7 @@ var (
 		Aliases: []string{"users"},
 		Short:   "Display user table",
 		Long:    "",
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowUser("", FlagAccountName)
 		},
@@ -256,6 +261,7 @@ var (
 		Use:   "qos",
 		Short: "Display qos table",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			ShowQos("")
 		},
@@ -410,6 +416,16 @@ func init() {
 		{
 			removeUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Remove user from this account")
 		}
+
+		removeCmd.SetUsageTemplate(`Usage:
+  cacctmgr {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 	}
 
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
@@ -509,6 +525,16 @@ Description with a minimum width of 20, and Partitions.`)
 		{
 			findUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
 		}
+
+		findCmd.SetUsageTemplate(`Usage:
+  cacctmgr {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 	}
 
 	/* --------------------------------------------------- block ---------------------------------------------------- */
@@ -522,8 +548,17 @@ Description with a minimum width of 20, and Partitions.`)
 				return
 			}
 		}
-	}
 
+		blockCmd.SetUsageTemplate(`Usage:
+  cacctmgr {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
+	}
 	/* -------------------------------------------------- unblock --------------------------------------------------- */
 	RootCmd.AddCommand(unblockCmd)
 	{
@@ -536,5 +571,15 @@ Description with a minimum width of 20, and Partitions.`)
 		if err := unblockCmd.MarkFlagRequired("account"); err != nil {
 			return
 		}
+
+		unblockCmd.SetUsageTemplate(`Usage:
+  cacctmgr {{.Use}} [name]
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+`)
 	}
 }

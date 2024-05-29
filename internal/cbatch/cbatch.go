@@ -42,8 +42,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
-			MemoryLimitBytes:   0,
-			MemorySwLimitBytes: 0,
+			MemoryLimitBytes:   1024 * 1024 * 1024 * 16,
+			MemorySwLimitBytes: 1024 * 1024 * 1024 * 16,
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
@@ -116,6 +116,10 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
+		case "--mail-type":
+			task.MailType = util.ParseMailType(arg.val)
+		case "--mail-user":
+			task.MailUser = arg.val
 		default:
 			_, _ = fmt.Fprintf(os.Stderr, "Invalid parameter '%s' given in the script file.", arg.name)
 			return false, nil
@@ -183,9 +187,20 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagStderrPath != "" {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
+	if FlagMailType != "" {
+		task.MailType = util.ParseMailType(FlagMailType)
+	}
+	if FlagMailUser != "" {
+		task.MailUser = FlagMailUser
+	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
 		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
+		return false, nil
+	}
+
+	if task.MailType != 0 && task.MailUser == "" {
+		log.Error("Mail type is set but missing the mail user")
 		return false, nil
 	}
 
