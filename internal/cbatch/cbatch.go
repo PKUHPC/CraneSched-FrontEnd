@@ -219,9 +219,10 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 
 func CheckNodeList(nodeStr string) bool {
 	nameStr := strings.ReplaceAll(nodeStr, " ", "")
-	nodeNamePattern := `^[a-zA-Z][a-zA-Z0-9]*[0-9]$`
-	listPattern := fmt.Sprintf(`^(%s(,%s)*)?$`, nodeNamePattern, nodeNamePattern)
-	re := regexp.MustCompile(listPattern)
+	if nameStr == "" {
+		return true
+	}
+	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
 	return re.MatchString(nameStr)
 }
 
