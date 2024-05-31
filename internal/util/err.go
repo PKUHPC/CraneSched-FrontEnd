@@ -15,6 +15,7 @@ const (
 // cacct
 const ()
 
+// cacctmgr
 const (
 	ErrorCacctmgrUserNotFound CraneCmdError = 200
 )
