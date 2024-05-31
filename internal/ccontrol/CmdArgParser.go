@@ -62,7 +62,9 @@ var (
 				FlagNodeName = args[0]
 				FlagQueryAll = false
 			}
-			ShowNodes(FlagNodeName, FlagQueryAll)
+			if err := ShowNodes(FlagNodeName, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	showPartitionCmd = &cobra.Command{
@@ -78,7 +80,9 @@ var (
 				FlagPartitionName = args[0]
 				FlagQueryAll = false
 			}
-			ShowPartitions(FlagPartitionName, FlagQueryAll)
+			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	showJobCmd = &cobra.Command{
@@ -94,7 +98,9 @@ var (
 				FlagTaskId = uint32(id)
 				FlagQueryAll = false
 			}
-			ShowTasks(FlagTaskId, FlagQueryAll)
+			if err := ShowTasks(FlagTaskId, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	updateCmd = &cobra.Command{
@@ -102,7 +108,9 @@ var (
 		Short: "Modify job information",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
+			if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	updateNodeCmd = &cobra.Command{
@@ -110,7 +118,9 @@ var (
 		Short: "Modify node information",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+			if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )
@@ -118,7 +128,7 @@ var (
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorExecuteFailed)
 	}
 }
 

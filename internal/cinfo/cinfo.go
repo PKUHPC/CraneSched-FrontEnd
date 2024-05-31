@@ -30,7 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func cinfoFunc() {
+func cinfoFunc() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
@@ -54,7 +54,8 @@ func cinfoFunc() {
 			case "drain":
 				stateList = append(stateList, protos.CranedState_CRANE_DRAIN)
 			default:
-				log.Fatalf("Invalid state given: %s\n", FlagFilterCranedStates[i])
+				log.Error("Invalid state given: %s\n", FlagFilterCranedStates[i])
+				return util.ErrorCmdArg
 			}
 		}
 	} else if FlagFilterRespondingOnly {
@@ -70,7 +71,7 @@ func cinfoFunc() {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -128,13 +129,17 @@ func cinfoFunc() {
 			println("The following nodes do not exist: " + util.HostNameListToStr(redList))
 		}
 	}
+	return util.ErrorSuccess
 }
 
-func loopedQuery(iterate uint64) {
+func loopedQuery(iterate uint64) util.CraneCmdError {
 	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	for {
 		fmt.Println(time.Now().String()[0:19])
-		cinfoFunc()
+		err := cinfoFunc()
+		if err != util.ErrorSuccess {
+			return err
+		}
 		time.Sleep(time.Duration(interval.Nanoseconds()))
 		fmt.Println()
 	}

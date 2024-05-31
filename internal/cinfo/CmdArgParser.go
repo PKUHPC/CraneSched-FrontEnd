@@ -39,10 +39,14 @@ var (
 		Short: "display the status of all partitions and nodes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
 			if FlagIterate != 0 {
-				loopedQuery(FlagIterate)
+				err = loopedQuery(FlagIterate)
 			} else {
-				cinfoFunc()
+				err = cinfoFunc()
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}
@@ -50,7 +54,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorExecuteFailed)
 	}
 }
 

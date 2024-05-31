@@ -17,6 +17,7 @@
 package cwrapper
 
 import (
+	"CraneFrontEnd/internal/util"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -46,6 +47,6 @@ func ParseCmdArgs() {
 	}
 
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorExecuteFailed)
 	}
 }

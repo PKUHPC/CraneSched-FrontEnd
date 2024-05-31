@@ -52,15 +52,16 @@ var (
 		Short: "submit batch jobs",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := Cbatch(args[0])
-			os.Exit(err)
+			if err := Cbatch(args[0]); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorExecuteFailed)
 	}
 }
 

@@ -206,17 +206,17 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 		for i := 0; i < len(formatReq); i++ {
 			if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
 				fmt.Println("Invalid format.")
-				os.Exit(1)
+				os.Exit(util.ErrorInvalidTableFormat)
 			}
 			if formatReq[i][1] == '.' {
 				if len(formatReq[i]) < 4 {
 					fmt.Println("Invalid format.")
-					os.Exit(1)
+					os.Exit(util.ErrorInvalidTableFormat)
 				}
 				width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 				if err != nil {
 					fmt.Println("Invalid format.")
-					os.Exit(1)
+					os.Exit(util.ErrorInvalidTableFormat)
 				}
 				tableOutputWidth[i] = int(width)
 			} else {
@@ -252,7 +252,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 				}
 			default:
 				fmt.Println("Invalid format.")
-				os.Exit(1)
+				os.Exit(util.ErrorInvalidTableFormat)
 			}
 		}
 		header, tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
@@ -279,12 +279,14 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 	}
 }
 
-func AddAccount(account *protos.AccountInfo) {
+func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	if account.Name == "=" {
-		log.Fatalf("Parameter error : account name empty")
+		log.Errorf("Parameter error : account name empty")
+		return util.ErrorCmdArg
 	}
 	if len(account.Name) > 30 {
-		log.Fatalf("Parameter error : name is too long(up to 30)")
+		log.Errorf("Parameter error : name is too long(up to 30)")
+		return util.ErrorCmdArg
 	}
 
 	req := new(protos.AddAccountRequest)
@@ -302,33 +304,39 @@ func AddAccount(account *protos.AccountInfo) {
 			}
 		}
 		if !find {
-			log.Fatalf("Parameter error : default qos %s not contain in allowed qos list", account.DefaultQos)
+			log.Errorf("Parameter error : default qos %s not contain in allowed qos list", account.DefaultQos)
+			return util.ErrorCmdArg
 		}
 	}
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the account")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Println("Add account success!")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Add account failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func AddUser(user *protos.UserInfo, partition []string, level string, coordinate bool) {
+func AddUser(user *protos.UserInfo, partition []string, level string, coordinate bool) util.CraneCmdError {
 	if user.Name == "=" {
-		log.Fatalf("Parameter error : user name empty")
+		log.Errorf("Parameter error : user name empty")
+		return util.ErrorCmdArg
 	}
 	if len(user.Name) > 30 {
-		log.Fatalf("Parameter error : name is too long(up to 30)")
+		log.Errorf("Parameter error : name is too long(up to 30)")
+		return util.ErrorCmdArg
 	}
 
 	lu, err := OSUser.Lookup(user.Name)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return util.ErrorCacctmgrUserNotFound
 	}
 
 	req := new(protos.AddUserRequest)
@@ -358,21 +366,25 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 	reply, err := stub.AddUser(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the user")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Println("Add user success!")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Add user failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func AddQos(qos *protos.QosInfo) {
+func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	if qos.Name == "=" {
-		log.Fatalf("Parameter error : QOS name empty")
+		log.Errorf("Parameter error : QOS name empty")
+		return util.ErrorCmdArg
 	}
 	if len(qos.Name) > 30 {
-		log.Fatalf("Parameter error : name is too long(up to 30)")
+		log.Errorf("Parameter error : name is too long(up to 30)")
+		return util.ErrorCmdArg
 	}
 
 	req := new(protos.AddQosRequest)
@@ -383,64 +395,72 @@ func AddQos(qos *protos.QosInfo) {
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the QoS")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Println("Add qos success!")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Add qos failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func DeleteAccount(name string) {
+func DeleteAccount(name string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Account, Name: name}
 
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete account %s", name)
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete account %s success\n", name)
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Delete account %s failed: %s\n", name, reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func DeleteUser(name string, account string) {
+func DeleteUser(name string, account string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to remove user %s", name)
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Printf("Remove User %s success\n", name)
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Remove User %s failed: %s\n", name, reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func DeleteQos(name string) {
+func DeleteQos(name string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Qos, Name: name}
 
 	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", name)
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete Qos %s success\n", name)
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Delete Qos %s failed: %s\n", name, reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func ModifyAccount(itemLeft string, itemRight string, name string, requestType protos.ModifyEntityRequest_OperatorType) {
+func ModifyAccount(itemLeft string, itemRight string, name string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
 		Item:       itemLeft,
@@ -454,19 +474,22 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Modify information")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) {
+func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
-			log.Fatalf("Unknown admin_level, please enter one of {none, operator, admin}")
+			log.Errorf("Unknown admin_level, please enter one of {none, operator, admin}")
+			return util.ErrorCmdArg
 		}
 	}
 
@@ -485,16 +508,18 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the uesr information")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func ModifyQos(itemLeft string, itemRight string, name string) {
+func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdError {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
 		Item:       itemLeft,
@@ -508,105 +533,119 @@ func ModifyQos(itemLeft string, itemRight string, name string) {
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information success!")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func ShowAccounts() {
+func ShowAccounts() util.CraneCmdError {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Account}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show accounts")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		PrintAllAccount(reply.AccountList)
+		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
+		return util.ErrorBackEnd
 	}
 }
 
-func ShowUser(name string, account string) {
+func ShowUser(name string, account string) util.CraneCmdError {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the user")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		PrintAllUsers(reply.UserList)
+		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
+		return util.ErrorBackEnd
 	}
 }
 
-func ShowQos(name string) {
+func ShowQos(name string) util.CraneCmdError {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Qos, Name: name}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the QoS")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		PrintAllQos(reply.QosList)
+		return util.ErrorSuccess
 	} else {
 		if name == "" {
 			fmt.Printf("Can't find any qos! %s\n", reply.GetReason())
 		} else {
 			fmt.Printf("Can't find qos %s\n", name)
 		}
+		return util.ErrorBackEnd
 	}
 }
 
-func FindAccount(name string) {
+func FindAccount(name string) util.CraneCmdError {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Account, Name: name}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to find the account")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		PrintAccountTable(reply.AccountList)
+		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
+		return util.ErrorBackEnd
 	}
 }
 
-func BlockAccountOrUser(name string, entityType protos.EntityType, account string) {
+func BlockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, Name: name, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to block the entity")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Block %s success!\n", name)
+		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
+		return util.ErrorBackEnd
 	}
 }
 
-func UnblockAccountOrUser(name string, entityType protos.EntityType, account string) {
+func UnblockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, Name: name, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to unblock the entity")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Unblock %s success!\n", name)
+		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
+		return util.ErrorBackEnd
 	}
 }
