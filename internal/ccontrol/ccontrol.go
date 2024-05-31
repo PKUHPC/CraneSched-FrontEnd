@@ -146,7 +146,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 
 	if len(reply.TaskInfoList) == 0 {
 		if queryAll {
-			fmt.Printf("No job is running.\n")
+			fmt.Println("No job is running.")
 		} else {
 			fmt.Printf("Job %d is not running.\n", taskId)
 		}
@@ -223,7 +223,7 @@ func ShowConfig(path string) util.CraneCmdError {
 	var config map[string]interface{}
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		log.Fatalf("error unmarshalling yaml: %v\n", err)
+		log.Errorf("error unmarshalling yaml: %v\n", err)
 		return util.ErrorCmdArg
 	}
 	PrintFlattenYAML("", config)
@@ -276,10 +276,10 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	}
 
 	if reply.Ok {
-		fmt.Println("Change time limit success")
+		log.Println("Change time limit success.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Change time limit failed: %s\n", reply.GetReason())
+		log.Printf("Change time limit failed: %s\n", reply.GetReason())
 		return util.ErrorBackEnd
 	}
 }
@@ -296,19 +296,20 @@ func ChangeTaskPriority(taskId uint32, priority uint32) {
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task priority")
+		return
 	}
 
 	if reply.Ok {
-		fmt.Println("Change priority success")
+		log.Println("Change priority success.")
 	} else {
-		fmt.Printf("Change priority failed: %s\n", reply.GetReason())
+		log.Printf("Change priority failed: %s\n", reply.GetReason())
 	}
 }
 
 func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
 	var req = &protos.ModifyCranedStateRequest{}
 	if nodeName == "" {
-		log.Errorf("No valid node name in update node command.\nSpecify node names by -n or --name")
+		log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
 		return util.ErrorCmdArg
 	} else {
 		req.CranedId = nodeName
@@ -318,7 +319,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	switch state {
 	case "drain":
 		if reason == "" {
-			log.Errorf("You must specify a reason by '-r' or '--reason' when DRAINING a node. Request denied")
+			log.Errorln("You must specify a reason by '-r' or '--reason' when DRAINING a node.")
 			return util.ErrorCmdArg
 		}
 		req.NewState = protos.CranedState_CRANE_DRAIN
@@ -326,21 +327,21 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	case "resume":
 		req.NewState = protos.CranedState_CRANE_IDLE
 	default:
-		log.Errorf("Invalid state given: %s\n Request aborted \n Valid states are: drain, resume", state)
+		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 		return util.ErrorCmdArg
 	}
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
-		log.Errorf("ModifyNode failed: " + err.Error())
+		log.Errorf("ModifyNode failed: %v\n", err)
 		return util.ErrorGrpc
 	}
 
 	if reply.Ok {
-		fmt.Println("Change node state success.")
+		log.Println("Change node state success.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Change node state failed: %s\n", reply.GetReason())
+		log.Printf("Change node state failed: %s\n", reply.GetReason())
 		return util.ErrorBackEnd
 	}
 }
