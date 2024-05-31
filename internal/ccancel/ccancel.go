@@ -20,23 +20,24 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
 	stub protos.CraneCtldClient
 )
 
-func CancelTask(args []string) {
+func CancelTask(args []string) util.CraneCmdError {
 	req := &protos.CancelTaskRequest{
 		OperatorUid: uint32(os.Getuid()),
 
 		FilterPartition: FlagPartition,
 		FilterAccount:   FlagAccount,
-		FilterTaskName:  FlagTaskName,
+		FilterTaskName:  FlagJobName,
 		FilterState:     protos.TaskStatus_Invalid,
 		FilterUsername:  FlagUserName,
 	}
@@ -47,8 +48,8 @@ func CancelTask(args []string) {
 		for i := 0; i < len(taskIdStrSplit); i++ {
 			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 			if err != nil {
-				fmt.Println("Invalid job Id: " + taskIdStrSplit[i])
-				os.Exit(1)
+				log.Error("Invalid job Id: " + taskIdStrSplit[i])
+				return util.ErrorCmdArg
 			}
 			taskIds = append(taskIds, uint32(taskId64))
 		}
@@ -62,8 +63,8 @@ func CancelTask(args []string) {
 		} else if FlagState == "r" || FlagState == "running" {
 			req.FilterState = protos.TaskStatus_Running
 		} else {
-			fmt.Printf("Invalid FlagState, Valid job states are PENDING, RUNNING.")
-			os.Exit(1)
+			log.Error("Invalid FlagState, Valid job states are PENDING, RUNNING.")
+			return util.ErrorCmdArg
 		}
 	}
 
@@ -72,6 +73,7 @@ func CancelTask(args []string) {
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
+		os.Exit(util.ErrorGrpc)
 	}
 
 	if len(reply.CancelledTasks) > 0 {
@@ -80,13 +82,15 @@ func CancelTask(args []string) {
 			cancelledTasksStr += ","
 			cancelledTasksStr += strconv.FormatUint(uint64(reply.CancelledTasks[i]), 10)
 		}
-		fmt.Printf("Job %s cancelled successfully.\n", cancelledTasksStr)
+		log.Infof("Job %s cancelled successfully.\n", cancelledTasksStr)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			fmt.Printf("Failed to cancel job: %d. Reason: %s\n",
+			log.Errorf("Failed to cancel job: %d. Reason: %s\n",
 				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
+		os.Exit(util.ErrorBackEnd)
 	}
+	return util.ErrorSuccess
 }

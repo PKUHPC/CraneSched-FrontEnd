@@ -52,6 +52,7 @@ enum CranedState{
   CRANE_MIX = 1;
   CRANE_ALLOC = 2;
   CRANE_DOWN = 3;
+  CRANE_DRAIN = 4;
 }
 
 enum TaskStatus {
@@ -94,6 +95,10 @@ message TaskToCtld {
     BatchTaskAdditionalMeta batch_meta = 21;
     InteractiveTaskAdditionalMeta interactive_meta = 22;
   }
+
+  
+  uint32 mail_type = 23;
+  string mail_user = 24;
 
   string cmd_line = 31;
   string cwd = 32; // Current working directory
@@ -169,6 +174,7 @@ message TaskToD {
 message BatchTaskAdditionalMeta {
   string sh_script = 1;
   string output_file_pattern = 3;
+  string error_file_pattern = 4;
 }
 
 message InteractiveTaskAdditionalMeta{
@@ -276,6 +282,7 @@ message UserInfo {
     None = 0;
     Operator = 1;
     Admin = 2;
+    Root = 3;
   };
   message AllowedPartitionQos{
     string partition_name = 1;

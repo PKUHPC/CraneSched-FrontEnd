@@ -21,14 +21,15 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -40,7 +41,7 @@ const (
 )
 
 // QueryJob will query all pending, running and completed tasks
-func QueryJob() {
+func QueryJob() util.CraneCmdError {
 	request := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: true}
 
 	if FlagFilterStartTime != "" {
@@ -49,14 +50,16 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterStartTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -67,14 +70,16 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterEndTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -85,14 +90,16 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterSubmitTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -110,7 +117,8 @@ func QueryJob() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				log.Fatalf("Invalid job id given: %s\n", filterJobIdList[i])
+				log.Errorf("Invalid job id given: %s\n", filterJobIdList[i])
+				return util.ErrorCmdArg
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
@@ -134,6 +142,7 @@ func QueryJob() {
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show tasks")
+		return util.ErrorGrpc
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -211,60 +220,69 @@ func QueryJob() {
 
 	table.AppendBulk(tableData)
 	table.Render()
+	return util.ErrorSuccess
 }
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
 	formatTableData := make([][]string, len(reply.TaskInfoList))
-	formatReq := strings.Split(FlagFormat, ",")
+	formatReq := strings.Split(FlagFormat, " ")
 	tableOutputWidth := make([]int, len(formatReq))
 	tableOutputHeader := make([]string, len(formatReq))
 	for i := 0; i < len(formatReq); i++ {
-		formatLines := strings.Split(formatReq[i], "%")
-		if len(formatLines) > 2 {
-			fmt.Println("Invalid format.")
-			os.Exit(1)
+		if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
+			log.Error("Invalid format.")
+			os.Exit(util.ErrorInvalidTableFormat)
 		}
-		if len(formatLines) == 2 {
-			width, err := strconv.ParseUint(formatLines[1], 10, 32)
+		if formatReq[i][1] == '.' {
+			if len(formatReq[i]) < 4 {
+				log.Error("Invalid format.")
+				os.Exit(util.ErrorInvalidTableFormat)
+			}
+			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 			if err != nil {
-				if err != nil {
-					fmt.Println("Invalid format.")
-					os.Exit(1)
-				}
+				log.Error("Invalid format.")
+				os.Exit(util.ErrorInvalidTableFormat)
 			}
 			tableOutputWidth[i] = int(width)
 		} else {
 			tableOutputWidth[i] = -1
 		}
-		tableOutputHeader[i] = formatLines[0]
+		tableOutputHeader[i] = formatReq[i][len(formatReq[i])-1:]
 		switch tableOutputHeader[i] {
-		case "TaskId":
+		case "j":
+			tableOutputHeader[i] = "JobId"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
 					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
 			}
-		case "TaskName":
+		case "n":
+			tableOutputHeader[i] = "JobName"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Name)
 			}
-		case "Partition":
+		case "P":
+			tableOutputHeader[i] = "Partition"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Partition)
 			}
-		case "Account":
+		case "a":
+			tableOutputHeader[i] = "Account"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Account)
 			}
-		case "AllocCPUs":
+		case "c":
+			tableOutputHeader[i] = "AllocCPUs"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
 					strconv.FormatFloat(reply.TaskInfoList[j].AllocCpu, 'f', 2, 64))
 			}
-		case "State":
+		case "t":
+			tableOutputHeader[i] = "State"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Status.String())
 			}
-		case "ExitCode":
+		case "e":
+			tableOutputHeader[i] = "ExitCode"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				exitCode := ""
 				if reply.TaskInfoList[j].ExitCode >= kCraneExitCodeBase {
@@ -275,14 +293,9 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				formatTableData[j] = append(formatTableData[j], exitCode)
 			}
 		default:
-			fmt.Println("Invalid format.")
-			os.Exit(1)
+			log.Error("Invalid format.")
+			os.Exit(util.ErrorInvalidTableFormat)
 		}
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
-}
-
-func Preparation() {
-	config := util.ParseConfig(FlagConfigFilePath)
-	stub = util.GetStubToCtldByConfig(config)
 }

@@ -16,7 +16,9 @@
 
 package main
 
-import "CraneFrontEnd/internal/ccancel"
+import (
+	"CraneFrontEnd/internal/ccancel"
+)
 
 func main() {
 	ccancel.ParseCmdArgs()

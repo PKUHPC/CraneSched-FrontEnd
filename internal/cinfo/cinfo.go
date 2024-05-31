@@ -21,15 +21,16 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
 )
 
-func cinfoFunc() {
+func cinfoFunc() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
@@ -50,8 +51,11 @@ func cinfoFunc() {
 				stateList = append(stateList, protos.CranedState_CRANE_ALLOC)
 			case "down":
 				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
+			case "drain":
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN)
 			default:
-				log.Fatalf("Invalid state given: %s\n", FlagFilterCranedStates[i])
+				log.Error("Invalid state given: %s\n", FlagFilterCranedStates[i])
+				return util.ErrorCmdArg
 			}
 		}
 	} else if FlagFilterRespondingOnly {
@@ -59,7 +63,7 @@ func cinfoFunc() {
 	} else if FlagFilterDownOnly {
 		stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 	} else {
-		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN)
+		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN, protos.CranedState_CRANE_DRAIN)
 	}
 
 	req.FilterCranedStates = stateList
@@ -67,6 +71,7 @@ func cinfoFunc() {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
+		return util.ErrorGrpc
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -93,13 +98,48 @@ func cinfoFunc() {
 	} else {
 		table.Render()
 	}
+	if len(FlagFilterNodes) != 0 {
+		replyNodes := ""
+		for _, partitionCraned := range reply.Partitions {
+			for _, commonCranedStateList := range partitionCraned.CranedLists {
+				if commonCranedStateList.Count > 0 {
+					if replyNodes != "" {
+						replyNodes += ","
+					}
+					replyNodes += commonCranedStateList.CranedListRegex
+				}
+			}
+		}
+		replyNodes_, _ := util.ParseHostList(replyNodes)
+		requestedNodes_, _ := util.ParseHostList(strings.Join(FlagFilterNodes, ","))
+
+		foundedNodes := make(map[string]bool)
+		for _, node := range replyNodes_ {
+			foundedNodes[node] = true
+		}
+
+		var redList []string
+		for _, node := range requestedNodes_ {
+			if _, exist := foundedNodes[node]; !exist {
+				redList = append(redList, node)
+			}
+		}
+
+		if len(redList) > 0 {
+			println("The following nodes do not exist: " + util.HostNameListToStr(redList))
+		}
+	}
+	return util.ErrorSuccess
 }
 
-func loopedQuery(iterate uint64) {
+func loopedQuery(iterate uint64) util.CraneCmdError {
 	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	for {
 		fmt.Println(time.Now().String()[0:19])
-		cinfoFunc()
+		err := cinfoFunc()
+		if err != util.ErrorSuccess {
+			return err
+		}
 		time.Sleep(time.Duration(interval.Nanoseconds()))
 		fmt.Println()
 	}

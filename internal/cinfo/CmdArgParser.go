@@ -32,16 +32,21 @@ var (
 	FlagFormat               string
 	FlagIterate              uint64
 	FlagConfigFilePath       string
+	FlagListReason           bool
 
 	RootCmd = &cobra.Command{
 		Use:   "cinfo",
 		Short: "display the status of all partitions and nodes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
 			if FlagIterate != 0 {
-				loopedQuery(FlagIterate)
+				err = loopedQuery(FlagIterate)
 			} else {
-				cinfoFunc()
+				err = cinfoFunc()
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}
@@ -49,7 +54,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorExecuteFailed)
 	}
 }
 
@@ -76,6 +81,8 @@ func init() {
 		"report state summary only")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		"format specification")
+	RootCmd.Flags().BoolVarP(&FlagListReason, "list-reasons", "R", false,
+		"list reason nodes are down or drained")
 
 	RootCmd.MarkFlagsMutuallyExclusive("states", "responding", "dead")
 }

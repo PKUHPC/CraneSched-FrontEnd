@@ -22,11 +22,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type CbatchArg struct {
@@ -41,8 +42,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
-			MemoryLimitBytes:   0,
-			MemorySwLimitBytes: 0,
+			MemoryLimitBytes:   1024 * 1024 * 1024 * 16,
+			MemorySwLimitBytes: 1024 * 1024 * 1024 * 16,
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
@@ -66,7 +67,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			}
 			task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
-			num, err := strconv.ParseFloat(arg.val, 10)
+			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {
 				log.Print("Invalid " + arg.name)
 				return false, nil
@@ -80,8 +81,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			}
 			task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			isOk := util.ParseDuration(arg.val, task.TimeLimit)
-			if isOk == false {
+			ok := util.ParseDuration(arg.val, task.TimeLimit)
+			if !ok {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
@@ -95,8 +96,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			task.PartitionName = arg.val
-		case "-o", "--output":
-			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-J", "--job-name":
 			task.Name = arg.val
 		case "-A", "--account":
@@ -113,8 +112,17 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 			task.GetUserEnv = true
 		case "--export":
 			task.Env["CRANE_EXPORT_ENV"] = arg.val
+		case "-o", "--output":
+			task.GetBatchMeta().OutputFilePattern = arg.val
+		case "-e", "--error":
+			task.GetBatchMeta().ErrorFilePattern = arg.val
+		case "--mail-type":
+			task.MailType = util.ParseMailType(arg.val)
+		case "--mail-user":
+			task.MailUser = arg.val
 		default:
-			log.Fatalf("Invalid parameter given: %s\n", arg.name)
+			_, _ = fmt.Fprintf(os.Stderr, "Invalid parameter '%s' given in the script file.", arg.name)
+			return false, nil
 		}
 	}
 
@@ -132,7 +140,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if ok == false {
+		if !ok {
 			log.Print("Invalid --time")
 			return false, nil
 		}
@@ -148,9 +156,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
-	}
-	if FlagOutput != "" {
-		task.GetBatchMeta().OutputFilePattern = FlagOutput
 	}
 	if FlagJob != "" {
 		task.Name = FlagJob
@@ -176,9 +181,34 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+	if FlagStdoutPath != "" {
+		task.GetBatchMeta().OutputFilePattern = FlagStdoutPath
+	}
+	if FlagStderrPath != "" {
+		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
+	}
+	if FlagMailType != "" {
+		task.MailType = util.ParseMailType(FlagMailType)
+	}
+	if FlagMailUser != "" {
+		task.MailUser = FlagMailUser
+	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
 		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
+		return false, nil
+	}
+	if !CheckNodeList(task.Nodelist) {
+		log.Print("Invalid --nodelist")
+		return false, nil
+	}
+	if !CheckNodeList(task.Excludes) {
+		log.Print("Invalid --exclude")
+		return false, nil
+	}
+
+	if task.MailType != 0 && task.MailUser == "" {
+		log.Error("Mail type is set but missing the mail user")
 		return false, nil
 	}
 
@@ -187,24 +217,16 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	return true, task
 }
 
-func ProcessLine(line string, sh *[]string, args *[]CbatchArg) bool {
-	re := regexp.MustCompile(`^#CBATCH`)
-	if re.MatchString(line) {
-		split := strings.Fields(line)
-		if len(split) == 3 {
-			*args = append(*args, CbatchArg{name: split[1], val: split[2]})
-		} else if len(split) == 2 {
-			*args = append(*args, CbatchArg{name: split[1]})
-		} else {
-			return false
-		}
-	} else {
-		*sh = append(*sh, line)
+func CheckNodeList(nodeStr string) bool {
+	nameStr := strings.ReplaceAll(nodeStr, " ", "")
+	if nameStr == "" {
+		return true
 	}
-	return true
+	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
+	return re.MatchString(nameStr)
 }
 
-func SendRequest(task *protos.TaskToCtld) {
+func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
@@ -212,16 +234,19 @@ func SendRequest(task *protos.TaskToCtld) {
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the task")
+		return util.ErrorGrpc
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Task Id allocated: %d\n", reply.GetTaskId())
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
+func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
@@ -229,6 +254,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
+		return util.ErrorGrpc
 	}
 
 	if len(reply.TaskIdList) > 0 {
@@ -241,22 +267,24 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) {
 
 	if len(reply.ReasonList) > 0 {
 		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
+		return util.ErrorBackEnd
 	}
+	return util.ErrorSuccess
 }
 
-func SplitEnvironEntry(env *string) (string, string) {
+func SplitEnvironEntry(env *string) (string, string, bool) {
 	eq := strings.IndexByte(*env, '=')
 	if eq == -1 {
-		return *env, ""
+		return *env, "", false
 	} else {
-		return (*env)[:eq], (*env)[eq+1:]
+		return (*env)[:eq], (*env)[eq+1:], true
 	}
 }
 
 func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	systemEnv := make(map[string]string)
 	for _, str := range os.Environ() {
-		name, value := SplitEnvironEntry(&str)
+		name, value, _ := SplitEnvironEntry(&str)
 		systemEnv[name] = value
 
 		// The CRANE_* environment variables are loaded anyway.
@@ -292,9 +320,9 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 					task.Env[k] = v
 				}
 			} else {
-				k, v := SplitEnvironEntry(&exportValue)
+				k, v, ok := SplitEnvironEntry(&exportValue)
 				// If user-specified value is empty, use system value instead.
-				if v != "" {
+				if ok {
 					task.Env[k] = v
 				} else {
 					systemEnvValue, envExist := systemEnv[k]
@@ -307,14 +335,16 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	}
 }
 
-func Cbatch(jobFilePath string) {
+func Cbatch(jobFilePath string) util.CraneCmdError {
 	if FlagRepeat == 0 {
-		log.Fatal("--repeat must >0")
+		log.Error("--repeat must >0")
+		return util.ErrorCmdArg
 	}
 
 	file, err := os.Open(jobFilePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return util.ErrorCmdArg
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -331,16 +361,26 @@ func Cbatch(jobFilePath string) {
 
 	for scanner.Scan() {
 		num++
-		success := ProcessLine(scanner.Text(), &sh, &args)
-		if !success {
-			err = fmt.Errorf("grammer error at line %v", num)
-			fmt.Println(err.Error())
-			os.Exit(1)
+		reC := regexp.MustCompile(`^#CBATCH`)
+		reS := regexp.MustCompile(`^#SBATCH`)
+		var processor LineProcessor
+		if reC.MatchString(scanner.Text()) {
+			processor = &cLineProcessor{}
+		} else if reS.MatchString(scanner.Text()) {
+			processor = &sLineProcessor{}
+		} else {
+			processor = &defaultProcessor{}
+		}
+		err := processor.Process(scanner.Text(), &sh, &args)
+		if err != nil {
+			fmt.Printf("parse error at line %v: %v\n", num, err.Error())
+			return util.ErrorCbatchScriptParsing
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return util.ErrorCmdArg
 	}
 	// fmt.Printf("Invoking UID: %d\n\n", os.Getuid())
 	// fmt.Printf("Shell script:\n%s\n\n", strings.Join(sh, "\n"))
@@ -348,7 +388,7 @@ func Cbatch(jobFilePath string) {
 
 	ok, task := ProcessCbatchArg(args)
 	if !ok {
-		log.Fatalf("Invalid cbatch argument")
+		return util.ErrorCmdArg
 	}
 
 	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
@@ -364,8 +404,8 @@ func Cbatch(jobFilePath string) {
 	}
 
 	if FlagRepeat == 1 {
-		SendRequest(task)
+		return SendRequest(task)
 	} else {
-		SendMultipleRequests(task, FlagRepeat)
+		return SendMultipleRequests(task, FlagRepeat)
 	}
 }

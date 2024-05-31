@@ -18,23 +18,26 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
 	"strconv"
+
+	"github.com/spf13/cobra"
 )
 
 var (
-	FlagNodeName      string
-	FlagPartitionName string
-	FlagTaskId        uint32
-	FlagQueryAll      bool
-	FlagTimeLimit     string
-	FlagPriority	  uint32
+	FlagNodeName       string
+	FlagState          string
+	FlagReason         string
+	FlagPartitionName  string
+	FlagTaskId         uint32
+	FlagQueryAll       bool
+	FlagTimeLimit      string
+	FlagPriority       uint32
 	FlagConfigFilePath string
 
 	ConfigPath string
 
-	rootCmd = &cobra.Command{
+	RootCmd = &cobra.Command{
 		Use:   "ccontrol",
 		Short: "display the state of partitions and nodes",
 		Long:  "",
@@ -61,7 +64,9 @@ var (
 				FlagNodeName = args[0]
 				FlagQueryAll = false
 			}
-			ShowNodes(FlagNodeName, FlagQueryAll)
+			if err := ShowNodes(FlagNodeName, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	showPartitionCmd = &cobra.Command{
@@ -77,10 +82,12 @@ var (
 				FlagPartitionName = args[0]
 				FlagQueryAll = false
 			}
-			ShowPartitions(FlagPartitionName, FlagQueryAll)
+			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
-	showTaskCmd = &cobra.Command{
+	showJobCmd = &cobra.Command{
 		Use:   "job",
 		Short: "display the state of a specified job or all jobs",
 		Long:  "",
@@ -93,7 +100,9 @@ var (
 				FlagTaskId = uint32(id)
 				FlagQueryAll = false
 			}
-			ShowTasks(FlagTaskId, FlagQueryAll)
+			if err := ShowTasks(FlagTaskId, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	showConfigCmd = &cobra.Command{
@@ -118,29 +127,54 @@ var (
 			}
 		},
 	}
+	updateNodeCmd = &cobra.Command{
+		Use:   "node",
+		Short: "Modify node information",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+	if err := RootCmd.Execute(); err != nil {
+		os.Exit(util.ErrorExecuteFailed)
 	}
 }
 
 func init() {
-	rootCmd.AddCommand(showCmd)
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
-	showCmd.AddCommand(showNodeCmd)
-	showCmd.AddCommand(showPartitionCmd)
-	showCmd.AddCommand(showTaskCmd)
-	showCmd.AddCommand(showConfigCmd)
-	rootCmd.AddCommand(updateCmd)
-	updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
-	updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
-	updateCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Job priority")
-	err := updateCmd.MarkFlagRequired("job")
-	if err != nil {
-		return
+
+	RootCmd.AddCommand(showCmd)
+	{
+		showCmd.AddCommand(showNodeCmd)
+		showCmd.AddCommand(showPartitionCmd)
+		showCmd.AddCommand(showJobCmd)
+		showCmd.AddCommand(showConfigCmd)
+	}
+
+	RootCmd.AddCommand(updateCmd)
+	{
+		updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
+		updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
+		updateCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Job priority")
+
+		updateCmd.AddCommand(updateNodeCmd)
+		{
+			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "specify a node name")
+			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "specify the state")
+			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "set reason")
+		}
+
+		updateCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Job priority")
+		err := updateCmd.MarkFlagRequired("job")
+		if err != nil {
+			return
+		}
 	}
 }

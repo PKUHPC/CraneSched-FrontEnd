@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023 Peking University and Peking University
+ * Copyright (c) 2024 Peking University and Peking University
  * Changsha Institute for Computing and Digital Economy
  *
  * CraneSched is licensed under Mulan PSL v2.
@@ -14,32 +14,37 @@
  * See the Mulan PSL v2 for more details.
  */
 
-package cfored
+package cwrapper
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
-	FlagConfigFilePath string
-	FlagDebugLevel     string
+	rootCmd = &cobra.Command{
+		Use:   "cwrapper <COMMAND> [OPTIONS] [ARGUMENTS...]",
+		Short: "Wrapper of CraneSched commands.",
+		Long: `Wrapper of CraneSched commands. 
+This is a highly EXPERIMENTAL feature. 
+If any error occurs, please refer to original commands.`,
+	}
 )
 
 func ParseCmdArgs() {
-	rootCmd := &cobra.Command{
-		Use:   "cfored",
-		Short: "Daemon for interactive job management",
-		Run: func(cmd *cobra.Command, args []string) {
-			StartCfored()
-		},
+	// Slurm Commands
+	rootCmd.AddGroup(slurmGroup)
+	{
+		rootCmd.AddCommand(sacct())
+		rootCmd.AddCommand(sacctmgr())
+		rootCmd.AddCommand(sbatch())
+		rootCmd.AddCommand(scancel())
+		rootCmd.AddCommand(scontrol())
+		rootCmd.AddCommand(sinfo())
+		rootCmd.AddCommand(squeue())
 	}
-
-	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
-		util.DefaultConfigPath, "Path to configuration file")
-	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
-		"info", "Output level")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorExecuteFailed)

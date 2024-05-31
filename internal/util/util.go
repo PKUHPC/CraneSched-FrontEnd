@@ -18,14 +18,15 @@ package util
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	grpccodes "google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
-	"os"
-	"strings"
 )
 
 type Config struct {
@@ -121,11 +122,9 @@ func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
 		if rpcErr.Code() == grpccodes.Unavailable {
-			_, _ = fmt.Fprintf(os.Stderr, "%s: Connection to CraneCtld is broken.", s)
-			os.Exit(1)
+			_, _ = fmt.Fprintf(os.Stderr, "%s: Connection to CraneCtld is broken.\n", s)
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.", s, rpcErr.String())
-			os.Exit(1)
+			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.\n", s, rpcErr.String())
 		}
 	}
 }

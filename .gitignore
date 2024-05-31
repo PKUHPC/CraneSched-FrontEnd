@@ -1,7 +1,4 @@
 generated
 out
 .idea/
-crane_submit.sh
-test.py
-test.txt
-internal/cbatch/test.sh
+.vscode/
