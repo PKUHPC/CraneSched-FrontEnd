@@ -43,10 +43,14 @@ var (
 		Short: "display the job information for all queues in the cluster",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
 			if FlagIterate != 0 {
-				loopedQuery(FlagIterate)
+				err = loopedQuery(FlagIterate)
 			} else {
-				Query()
+				err = Query()
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}

@@ -35,7 +35,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query() {
+func Query() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
@@ -54,7 +54,8 @@ func Query() {
 			case "etl", "exceed-time-limit":
 				stateList = append(stateList, protos.TaskStatus_ExceedTimeLimit)
 			default:
-				log.Fatalf("Invalid state given: %s\n", filterStateList[i])
+				log.Errorf("Invalid state given: %s\n", filterStateList[i])
+				return util.ErrorCmdArg
 			}
 		}
 		req.FilterTaskStates = stateList
@@ -87,7 +88,8 @@ func Query() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				log.Fatalf("Invalid job id given: %s\n", filterJobIdList[i])
+				log.Errorf("Invalid job id given: %s\n", filterJobIdList[i])
+				return util.ErrorCmdArg
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
@@ -101,7 +103,7 @@ func Query() {
 	reply, err := stub.QueryTasksInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	sort.SliceStable(reply.TaskInfoList, func(i, j int) bool {
@@ -159,6 +161,7 @@ func Query() {
 
 	table.AppendBulk(tableData)
 	table.Render()
+	return util.ErrorSuccess
 }
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
@@ -169,17 +172,17 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	for i := 0; i < len(formatReq); i++ {
 		if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
 			fmt.Println("Invalid format.")
-			os.Exit(1)
+			os.Exit(util.ErrorCqueueInvalidFormat)
 		}
 		if formatReq[i][1] == '.' {
 			if len(formatReq[i]) < 4 {
 				fmt.Println("Invalid format.")
-				os.Exit(1)
+				os.Exit(util.ErrorCqueueInvalidFormat)
 			}
 			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 			if err != nil {
 				fmt.Println("Invalid format.")
-				os.Exit(1)
+				os.Exit(util.ErrorCqueueInvalidFormat)
 			}
 			tableOutputWidth[i] = int(width)
 		} else {
@@ -264,17 +267,20 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			fmt.Println("Invalid format, shorthand reference:\n" +
 				"j-JobId, n-Name, t-State, P-Partition, p-Priority, " +
 				"s-SubmitTime, -u-User, a-Account, T-Type, N-NodeList, q-QoS")
-			os.Exit(1)
+			os.Exit(util.ErrorCqueueInvalidFormat)
 		}
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
 }
 
-func loopedQuery(iterate uint64) {
+func loopedQuery(iterate uint64) util.CraneCmdError {
 	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	for {
 		fmt.Println(time.Now().String()[0:19])
-		Query()
+		err := Query()
+		if err != util.ErrorSuccess {
+			return err
+		}
 		time.Sleep(time.Duration(interval.Nanoseconds()))
 		fmt.Println()
 	}

@@ -24,3 +24,8 @@ const ()
 
 // cinfo
 const ()
+
+// cqueue
+const (
+	ErrorCqueueInvalidFormat CraneCmdError = 100
+)
