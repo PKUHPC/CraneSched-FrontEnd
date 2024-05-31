@@ -73,8 +73,9 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			// args was checked by cobra.ExactArgs(1)
 			// len(args)=1 here.
-			err := CancelTask(args)
-			os.Exit(err)
+			if err := CancelTask(args); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )
