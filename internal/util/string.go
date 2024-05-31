@@ -29,7 +29,7 @@ import (
 )
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
-	re := regexp.MustCompile(`([0-9]+(\.?[0-9]+)?)([MmGgKk])`)
+	re := regexp.MustCompile(`^([0-9]+(\.?[0-9]*))([MmGgKkB]?)$`)
 	result := re.FindAllStringSubmatch(mem, -1)
 	if result == nil || len(result) != 1 {
 		return 0, fmt.Errorf("invalid memory format")
@@ -45,6 +45,8 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 		return uint64(1024 * 1024 * 1024 * sz), nil
 	case "K", "k":
 		return uint64(1024 * sz), nil
+	case "B":
+		return uint64(sz), nil
 	}
 	return uint64(sz), nil
 }
