@@ -42,6 +42,6 @@ func ParseCmdArgs() {
 		"info", "Output level")
 
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorExecuteFailed)
 	}
 }

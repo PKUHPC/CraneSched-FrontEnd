@@ -242,7 +242,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
-		return util.ErrorAllocation
+		return util.ErrorCbatchAllocation
 	}
 }
 
@@ -267,7 +267,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 
 	if len(reply.ReasonList) > 0 {
 		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
-		return util.ErrorAllocation
+		return util.ErrorCbatchAllocation
 	}
 	return util.ErrorSuccess
 }
@@ -374,7 +374,7 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 		err := processor.Process(scanner.Text(), &sh, &args)
 		if err != nil {
 			fmt.Printf("parse error at line %v: %v\n", num, err.Error())
-			return util.ErrorScriptParsing
+			return util.ErrorCbatchScriptParsing
 		}
 	}
 

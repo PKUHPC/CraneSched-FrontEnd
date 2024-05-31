@@ -19,6 +19,7 @@ package calloc
 import (
 	"CraneFrontEnd/internal/util"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 var (
@@ -35,30 +36,34 @@ var (
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
-)
 
-func CmdArgParser() *cobra.Command {
-	parser := &cobra.Command{
+	RootCmd = &cobra.Command{
 		Use:   "calloc",
 		Short: "allocate resource and create terminal",
 		Run: func(cmd *cobra.Command, args []string) {
 			main(cmd, args)
 		},
 	}
+)
 
-	parser.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
-	parser.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
+func ParseCmdArgs() {
+	if err := RootCmd.Execute(); err != nil {
+		os.Exit(util.ErrorExecuteFailed)
+	}
+}
+
+func init() {
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Output level")
-	parser.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
-	parser.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
-	parser.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")
-	parser.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
-	parser.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
-	parser.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
-	parser.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
-	parser.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
-	parser.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
-	parser.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
-
-	return parser
+	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
+	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")
+	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
+	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
+	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
+	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
+	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
+	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
+	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
 }
