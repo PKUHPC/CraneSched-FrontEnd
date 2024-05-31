@@ -21,13 +21,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
+	"os"
+
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"gopkg.in/yaml.v2"
-	"net"
-	"os"
+	"gopkg.in/yaml.v3"
 )
 
 func ParseConfig(configFilePath string) *Config {

@@ -35,11 +35,9 @@ var (
 	FlagPriority       uint32
 	FlagConfigFilePath string
 
-	ConfigPath string
-
 	RootCmd = &cobra.Command{
 		Use:   "ccontrol",
-		Short: "display the state of partitions and nodes",
+		Short: "Display the state of partitions and nodes",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
@@ -48,12 +46,12 @@ var (
 	}
 	showCmd = &cobra.Command{
 		Use:   "show",
-		Short: "display state of identified entity, default is all records",
+		Short: "Display state of identified entity, default is all records",
 		Long:  "",
 	}
 	showNodeCmd = &cobra.Command{
 		Use:   "node",
-		Short: "display state of the specified node, default is all records",
+		Short: "Display state of the specified node, default is all records",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -71,7 +69,7 @@ var (
 	}
 	showPartitionCmd = &cobra.Command{
 		Use:   "partition",
-		Short: "display state of the specified partition, default is all records",
+		Short: "Display state of the specified partition, default is all records",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -89,7 +87,7 @@ var (
 	}
 	showJobCmd = &cobra.Command{
 		Use:   "job",
-		Short: "display the state of a specified job or all jobs",
+		Short: "Display the state of a specified job or all jobs",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -107,11 +105,13 @@ var (
 	}
 	showConfigCmd = &cobra.Command{
 		Use:   "config",
-		Short: "display the default configuration file",
+		Short: "Display the default configuration file",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowConfig(util.DefaultConfigPath)
+			if err := ShowConfig(FlagConfigFilePath); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	updateCmd = &cobra.Command{
@@ -160,18 +160,17 @@ func init() {
 
 	RootCmd.AddCommand(updateCmd)
 	{
-		updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
+		updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "New time limit of the job")
 		updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
-		updateCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Job priority")
+		updateCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "New priority of the job")
 
 		updateCmd.AddCommand(updateNodeCmd)
 		{
-			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "specify a node name")
-			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "specify the state")
-			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "set reason")
+			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify a node name")
+			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Specify the state")
+			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set reason")
 		}
 
-		updateCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Job priority")
 		err := updateCmd.MarkFlagRequired("job")
 		if err != nil {
 			return
