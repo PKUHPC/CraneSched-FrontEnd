@@ -4,21 +4,24 @@ type CraneCmdError = int
 
 // general
 const (
-	ErrorSuccess       CraneCmdError = 0
-	ErrorExecuteFailed CraneCmdError = 1
-	ErrorCmdArg        CraneCmdError = 2
-	ErrorGrpc          CraneCmdError = 3
-	ErrorBackEnd       CraneCmdError = 4
+	ErrorSuccess            CraneCmdError = 0
+	ErrorExecuteFailed      CraneCmdError = 1
+	ErrorCmdArg             CraneCmdError = 2
+	ErrorGrpc               CraneCmdError = 3
+	ErrorBackEnd            CraneCmdError = 4
+	ErrorInvalidTableFormat CraneCmdError = 5
 )
 
 // cacct
+const ()
+
 const (
-	ErrorCacctInvalidFormat CraneCmdError = 100
+	ErrorCacctmgrUserNotFound CraneCmdError = 200
 )
 
 // cbatch
 const (
-	ErrorCbatchScriptParsing CraneCmdError = 200
+	ErrorCbatchScriptParsing CraneCmdError = 300
 )
 
 // ccancel
@@ -31,6 +34,4 @@ const ()
 const ()
 
 // cqueue
-const (
-	ErrorCqueueInvalidFormat CraneCmdError = 300
-)
+const ()

@@ -72,7 +72,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			AddAccount(&FlagAccount)
+			if err := AddAccount(&FlagAccount); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	addUserCmd = &cobra.Command{
@@ -81,7 +83,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			AddUser(&FlagUser, FlagPartitions, FlagLevel, FlagCoordinate)
+			if err := AddUser(&FlagUser, FlagPartitions, FlagLevel, FlagCoordinate); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	addQosCmd = &cobra.Command{
@@ -90,7 +94,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			AddQos(&FlagQos)
+			if err := AddQos(&FlagQos); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	/* --------------------------------------------------- remove --------------------------------------------------- */
@@ -106,7 +112,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			DeleteAccount(args[0])
+			if err := DeleteAccount(args[0]); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	removeUserCmd = &cobra.Command{
@@ -115,7 +123,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			DeleteUser(args[0], FlagName)
+			if err := DeleteUser(args[0], FlagName); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	removeQosCmd = &cobra.Command{
@@ -124,7 +134,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			DeleteQos(args[0])
+			if err := DeleteQos(args[0]); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
@@ -144,28 +156,41 @@ var (
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			err := util.ErrorSuccess
 			if cmd.Flags().Changed("description") { //See if a flag was set by the user
-				ModifyAccount("description", FlagAccount.Description, FlagName, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount("description", FlagAccount.Description, FlagName, protos.ModifyEntityRequest_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 			//if cmd.Flags().Changed("parent") {
 			//	ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
 			//}
 			if cmd.Flags().Changed("set_allowed_partition") {
-				ModifyAccount("allowed_partition", strings.Join(FlagAccount.AllowedPartitions, ","), FlagName, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount("allowed_partition", strings.Join(FlagAccount.AllowedPartitions, ","), FlagName, protos.ModifyEntityRequest_Overwrite)
 			} else if cmd.Flags().Changed("add_allowed_partition") {
-				ModifyAccount("allowed_partition", FlagPartition, FlagName, protos.ModifyEntityRequest_Add)
+				err = ModifyAccount("allowed_partition", FlagPartition, FlagName, protos.ModifyEntityRequest_Add)
 			} else if cmd.Flags().Changed("delete_allowed_partition") {
-				ModifyAccount("allowed_partition", FlagPartition, FlagName, protos.ModifyEntityRequest_Delete)
+				err = ModifyAccount("allowed_partition", FlagPartition, FlagName, protos.ModifyEntityRequest_Delete)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set_allowed_qos_list") {
-				ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Overwrite)
 			} else if cmd.Flags().Changed("add_allowed_qos_list") {
-				ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Add)
+				err = ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Add)
 			} else if cmd.Flags().Changed("delete_allowed_qos_list") {
-				ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Delete)
+				err = ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagName, protos.ModifyEntityRequest_Delete)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default_qos") {
-				ModifyAccount("default_qos", FlagAccount.DefaultQos, FlagName, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount("default_qos", FlagAccount.DefaultQos, FlagName, protos.ModifyEntityRequest_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}
@@ -180,25 +205,38 @@ var (
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			err := util.ErrorSuccess
 			if cmd.Flags().Changed("admin_level") { //See if a flag was set by the user
-				ModifyUser("admin_level", FlagLevel, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser("admin_level", FlagLevel, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set_allowed_partition") {
-				ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			} else if cmd.Flags().Changed("add_allowed_partition") {
-				ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Add)
+				err = ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Add)
 			} else if cmd.Flags().Changed("delete_allowed_partition") {
-				ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Delete)
+				err = ModifyUser("allowed_partition", strings.Join(FlagPartitions, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Delete)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set_allowed_qos_list") {
-				ModifyUser("allowed_qos_list", strings.Join(FlagAllowedQosList, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser("allowed_qos_list", strings.Join(FlagAllowedQosList, ","), FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			} else if cmd.Flags().Changed("add_allowed_qos_list") {
-				ModifyUser("allowed_qos_list", FlagQosName, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Add)
+				err = ModifyUser("allowed_qos_list", FlagQosName, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Add)
 			} else if cmd.Flags().Changed("delete_allowed_qos_list") {
-				ModifyUser("allowed_qos_list", FlagQosName, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Delete)
+				err = ModifyUser("allowed_qos_list", FlagQosName, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Delete)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default_qos") {
-				ModifyUser("default_qos", FlagSetDefaultQos, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser("default_qos", FlagSetDefaultQos, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}
@@ -214,19 +252,29 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("description") {
-				ModifyQos("description", FlagQos.Description, FlagName)
+				if err := ModifyQos("description", FlagQos.Description, FlagName); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 			if cmd.Flags().Changed("priority") {
-				ModifyQos("priority", fmt.Sprint(FlagQos.Priority), FlagName)
+				if err := ModifyQos("priority", fmt.Sprint(FlagQos.Priority), FlagName); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 			if cmd.Flags().Changed("max_jobs_per_user") {
-				ModifyQos("max_jobs_per_user", fmt.Sprint(FlagQos.MaxJobsPerUser), FlagName)
+				if err := ModifyQos("max_jobs_per_user", fmt.Sprint(FlagQos.MaxJobsPerUser), FlagName); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 			if cmd.Flags().Changed("max_cpus_per_user") {
-				ModifyQos("max_cpus_per_user", fmt.Sprint(FlagQos.MaxCpusPerUser), FlagName)
+				if err := ModifyQos("max_cpus_per_user", fmt.Sprint(FlagQos.MaxCpusPerUser), FlagName); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 			if cmd.Flags().Changed("max_time_limit_per_task") {
-				ModifyQos("max_time_limit_per_task", fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagName)
+				if err := ModifyQos("max_time_limit_per_task", fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagName); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -244,7 +292,9 @@ var (
 		Long:    "",
 		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowAccounts()
+			if err := ShowAccounts(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	showUserCmd = &cobra.Command{
@@ -254,7 +304,9 @@ var (
 		Long:    "",
 		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowUser("", FlagAccountName)
+			if err := ShowUser("", FlagAccountName); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	showQosCmd = &cobra.Command{
@@ -263,7 +315,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowQos("")
+			if err := ShowQos(""); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
@@ -279,7 +333,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			FindAccount(args[0])
+			if err := FindAccount(args[0]); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	findUserCmd = &cobra.Command{
@@ -288,7 +344,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowUser(args[0], FlagAccountName)
+			if err := ShowUser(args[0], FlagAccountName); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	findQosCmd = &cobra.Command{
@@ -297,7 +355,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			ShowQos(args[0])
+			if err := ShowQos(args[0]); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	/* --------------------------------------------------- block ---------------------------------------------------- */
@@ -312,7 +372,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			BlockAccountOrUser(args[0], protos.EntityType_Account, "")
+			if err := BlockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	blockUserCmd = &cobra.Command{
@@ -321,7 +383,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			BlockAccountOrUser(args[0], protos.EntityType_User, FlagName)
+			if err := BlockAccountOrUser(args[0], protos.EntityType_User, FlagName); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	/* -------------------------------------------------- unblock --------------------------------------------------- */
@@ -336,7 +400,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			UnblockAccountOrUser(args[0], protos.EntityType_Account, "")
+			if err := UnblockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	unblockUserCmd = &cobra.Command{
@@ -345,7 +411,9 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			UnblockAccountOrUser(args[0], protos.EntityType_User, FlagName)
+			if err := UnblockAccountOrUser(args[0], protos.EntityType_User, FlagName); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )

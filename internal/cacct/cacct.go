@@ -231,17 +231,17 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	for i := 0; i < len(formatReq); i++ {
 		if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
 			log.Error("Invalid format.")
-			os.Exit(util.ErrorCacctInvalidFormat)
+			os.Exit(util.ErrorInvalidTableFormat)
 		}
 		if formatReq[i][1] == '.' {
 			if len(formatReq[i]) < 4 {
 				log.Error("Invalid format.")
-				os.Exit(util.ErrorCacctInvalidFormat)
+				os.Exit(util.ErrorInvalidTableFormat)
 			}
 			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 			if err != nil {
 				log.Error("Invalid format.")
-				os.Exit(util.ErrorCacctInvalidFormat)
+				os.Exit(util.ErrorInvalidTableFormat)
 			}
 			tableOutputWidth[i] = int(width)
 		} else {
@@ -294,7 +294,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			}
 		default:
 			log.Error("Invalid format.")
-			os.Exit(util.ErrorCacctInvalidFormat)
+			os.Exit(util.ErrorInvalidTableFormat)
 		}
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
