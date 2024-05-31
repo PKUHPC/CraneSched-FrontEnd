@@ -11,9 +11,14 @@ const (
 	ErrorBackEnd       CraneCmdError = 4
 )
 
+// cacct
+const (
+	ErrorCacctInvalidFormat CraneCmdError = 100
+)
+
 // cbatch
 const (
-	ErrorCbatchScriptParsing CraneCmdError = 100
+	ErrorCbatchScriptParsing CraneCmdError = 200
 )
 
 // ccancel
@@ -27,5 +32,5 @@ const ()
 
 // cqueue
 const (
-	ErrorCqueueInvalidFormat CraneCmdError = 100
+	ErrorCqueueInvalidFormat CraneCmdError = 300
 )

@@ -45,7 +45,9 @@ var (
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			QueryJob()
+			if err := QueryJob(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )

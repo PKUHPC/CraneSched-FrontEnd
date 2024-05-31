@@ -41,7 +41,7 @@ const (
 )
 
 // QueryJob will query all pending, running and completed tasks
-func QueryJob() {
+func QueryJob() util.CraneCmdError {
 	request := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: true}
 
 	if FlagFilterStartTime != "" {
@@ -50,14 +50,16 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterStartTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -68,14 +70,16 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterEndTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -86,14 +90,16 @@ func QueryJob() {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterSubmitTimeInterval.LowerBound = timestamppb.New(tl)
 		}
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Fatalf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s\n", err)
+				return util.ErrorCmdArg
 			}
 			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
 		}
@@ -111,7 +117,8 @@ func QueryJob() {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				log.Fatalf("Invalid job id given: %s\n", filterJobIdList[i])
+				log.Errorf("Invalid job id given: %s\n", filterJobIdList[i])
+				return util.ErrorCmdArg
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
@@ -135,7 +142,7 @@ func QueryJob() {
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show tasks")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -213,6 +220,7 @@ func QueryJob() {
 
 	table.AppendBulk(tableData)
 	table.Render()
+	return util.ErrorSuccess
 }
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
@@ -223,17 +231,17 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	for i := 0; i < len(formatReq); i++ {
 		if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
 			log.Error("Invalid format.")
-			os.Exit(1)
+			os.Exit(util.ErrorCacctInvalidFormat)
 		}
 		if formatReq[i][1] == '.' {
 			if len(formatReq[i]) < 4 {
 				log.Error("Invalid format.")
-				os.Exit(1)
+				os.Exit(util.ErrorCacctInvalidFormat)
 			}
 			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 			if err != nil {
 				log.Error("Invalid format.")
-				os.Exit(1)
+				os.Exit(util.ErrorCacctInvalidFormat)
 			}
 			tableOutputWidth[i] = int(width)
 		} else {
@@ -286,7 +294,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			}
 		default:
 			log.Error("Invalid format.")
-			os.Exit(1)
+			os.Exit(util.ErrorCacctInvalidFormat)
 		}
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
