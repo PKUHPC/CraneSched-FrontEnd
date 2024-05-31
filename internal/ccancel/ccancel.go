@@ -90,7 +90,7 @@ func CancelTask(args []string) util.CraneCmdError {
 			log.Errorf("Failed to cancel job: %d. Reason: %s\n",
 				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		os.Exit(util.ErrorCcancelFailed)
+		os.Exit(util.ErrorBackEnd)
 	}
 	return util.ErrorSuccess
 }

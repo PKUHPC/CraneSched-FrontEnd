@@ -242,7 +242,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
-		return util.ErrorCbatchAllocation
+		return util.ErrorBackEnd
 	}
 }
 
@@ -267,7 +267,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 
 	if len(reply.ReasonList) > 0 {
 		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
-		return util.ErrorCbatchAllocation
+		return util.ErrorBackEnd
 	}
 	return util.ErrorSuccess
 }

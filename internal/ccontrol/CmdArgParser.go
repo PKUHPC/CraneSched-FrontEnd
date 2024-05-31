@@ -62,7 +62,8 @@ var (
 				FlagNodeName = args[0]
 				FlagQueryAll = false
 			}
-			ShowNodes(FlagNodeName, FlagQueryAll)
+			err := ShowNodes(FlagNodeName, FlagQueryAll)
+			os.Exit(err)
 		},
 	}
 	showPartitionCmd = &cobra.Command{
@@ -78,7 +79,8 @@ var (
 				FlagPartitionName = args[0]
 				FlagQueryAll = false
 			}
-			ShowPartitions(FlagPartitionName, FlagQueryAll)
+			err := ShowPartitions(FlagPartitionName, FlagQueryAll)
+			os.Exit(err)
 		},
 	}
 	showJobCmd = &cobra.Command{
@@ -94,7 +96,8 @@ var (
 				FlagTaskId = uint32(id)
 				FlagQueryAll = false
 			}
-			ShowTasks(FlagTaskId, FlagQueryAll)
+			err := ShowTasks(FlagTaskId, FlagQueryAll)
+			os.Exit(err)
 		},
 	}
 	updateCmd = &cobra.Command{
@@ -102,7 +105,8 @@ var (
 		Short: "Modify job information",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
+			err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
+			os.Exit(err)
 		},
 	}
 	updateNodeCmd = &cobra.Command{
@@ -110,7 +114,8 @@ var (
 		Short: "Modify node information",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+			err := ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+			os.Exit(err)
 		},
 	}
 )

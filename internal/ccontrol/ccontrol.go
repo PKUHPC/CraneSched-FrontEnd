@@ -35,14 +35,14 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func ShowNodes(nodeName string, queryAll bool) {
+func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	var req *protos.QueryCranedInfoRequest
 
 	req = &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -76,16 +76,17 @@ func ShowNodes(nodeName string, queryAll bool) {
 			}
 		}
 	}
+	return util.ErrorSuccess
 }
 
-func ShowPartitions(partitionName string, queryAll bool) {
+func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	var req *protos.QueryPartitionInfoRequest
 
 	req = &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -121,9 +122,10 @@ func ShowPartitions(partitionName string, queryAll bool) {
 			}
 		}
 	}
+	return util.ErrorSuccess
 }
 
-func ShowTasks(taskId uint32, queryAll bool) {
+func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 	var req *protos.QueryTasksInfoRequest
 	var taskIdList []uint32
 	taskIdList = append(taskIdList, taskId)
@@ -136,12 +138,12 @@ func ShowTasks(taskId uint32, queryAll bool) {
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the task")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if !reply.GetOk() {
 		log.Errorf("Failed to retrive the information of job %d", taskId)
-		os.Exit(1)
+		return util.ErrorBackEnd
 	}
 
 	if len(reply.TaskInfoList) == 0 {
@@ -191,14 +193,16 @@ func ShowTasks(taskId uint32, queryAll bool) {
 				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}
+	return util.ErrorSuccess
 }
 
-func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
+func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
 	result := re.FindAllStringSubmatch(timeLimit, -1)
 
 	if result == nil || len(result) != 1 {
-		log.Fatalf("Time format error")
+		log.Errorf("Time format error")
+		return util.ErrorCmdArg
 	}
 	var dd uint64
 	if result[0][2] != "" {
@@ -206,15 +210,18 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	}
 	hh, err := strconv.ParseUint(result[0][3], 10, 32)
 	if err != nil {
-		log.Fatalf("The hour time format error")
+		log.Errorf("The hour time format error")
+		return util.ErrorCmdArg
 	}
 	mm, err := strconv.ParseUint(result[0][4], 10, 32)
 	if err != nil {
-		log.Fatalf("The minute time format error")
+		log.Errorf("The minute time format error")
+		return util.ErrorCmdArg
 	}
 	ss, err := strconv.ParseUint(result[0][5], 10, 32)
 	if err != nil {
-		log.Fatalf("The second time format error")
+		log.Errorf("The second time format error")
+		return util.ErrorCmdArg
 	}
 
 	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
@@ -232,20 +239,23 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) {
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
-		os.Exit(1)
+		return util.ErrorGrpc
 	}
 
 	if reply.Ok {
 		fmt.Println("Change time limit success")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Chang time limit failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
-func ChangeNodeState(nodeName string, state string, reason string) {
+func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
 	var req = &protos.ModifyCranedStateRequest{}
 	if nodeName == "" {
-		log.Fatalf("No valid node name in update node command.\nSpecify node names by -n or --name")
+		log.Errorf("No valid node name in update node command.\nSpecify node names by -n or --name")
+		return util.ErrorCmdArg
 	} else {
 		req.CranedId = nodeName
 	}
@@ -254,25 +264,30 @@ func ChangeNodeState(nodeName string, state string, reason string) {
 	switch state {
 	case "drain":
 		if reason == "" {
-			log.Fatalf("You must specify a reason by '-r' or '--reason' when DRAINING a node. Request denied")
+			log.Errorf("You must specify a reason by '-r' or '--reason' when DRAINING a node. Request denied")
+			return util.ErrorCmdArg
 		}
 		req.NewState = protos.CranedState_CRANE_DRAIN
 		req.Reason = reason
 	case "resume":
 		req.NewState = protos.CranedState_CRANE_IDLE
 	default:
-		log.Fatalf("Invalid state given: %s\n Request aborted \n Valid states are: drain, resume", state)
+		log.Errorf("Invalid state given: %s\n Request aborted \n Valid states are: drain, resume", state)
+		return util.ErrorCmdArg
 	}
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
-		panic("ModifyNode failed: " + err.Error())
+		log.Errorf("ModifyNode failed: " + err.Error())
+		return util.ErrorGrpc
 	}
 
 	if reply.Ok {
 		fmt.Println("Change node state success.")
+		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Chang node state failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 
 }
