@@ -18,7 +18,7 @@ package ccancel
 
 import (
 	"CraneFrontEnd/internal/util"
-	"fmt"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
 
@@ -51,14 +51,16 @@ var (
 				FlagAccount == "" &&
 				FlagUserName == "" &&
 				FlagNodes == nil {
-				return fmt.Errorf("at least one condition should be given")
+				log.Error("at least one condition should be given")
+				os.Exit(util.ErrorCmdArg)
 			}
 
 			if len(args) > 0 {
 				matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
 				if !matched {
-					return fmt.Errorf("job id list must follow the format " +
+					log.Error("job id list must follow the format " +
 						"<job_id> or '<job_id>,<job_id>,<job_id>...'")
+					os.Exit(util.ErrorCmdArg)
 				}
 			}
 
@@ -71,7 +73,8 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			// args was checked by cobra.ExactArgs(1)
 			// len(args)=1 here.
-			CancelTask(args)
+			err := CancelTask(args)
+			os.Exit(err)
 		},
 	}
 )

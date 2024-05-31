@@ -31,7 +31,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func CancelTask(args []string) {
+func CancelTask(args []string) util.CraneCmdError {
 	req := &protos.CancelTaskRequest{
 		OperatorUid: uint32(os.Getuid()),
 
@@ -49,7 +49,7 @@ func CancelTask(args []string) {
 			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 			if err != nil {
 				log.Error("Invalid job Id: " + taskIdStrSplit[i])
-				os.Exit(1)
+				return util.ErrorCmdArg
 			}
 			taskIds = append(taskIds, uint32(taskId64))
 		}
@@ -64,7 +64,7 @@ func CancelTask(args []string) {
 			req.FilterState = protos.TaskStatus_Running
 		} else {
 			log.Error("Invalid FlagState, Valid job states are PENDING, RUNNING.")
-			os.Exit(1)
+			return util.ErrorCmdArg
 		}
 	}
 
@@ -73,7 +73,7 @@ func CancelTask(args []string) {
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
-		os.Exit(1)
+		os.Exit(util.ErrorGrpc)
 	}
 
 	if len(reply.CancelledTasks) > 0 {
@@ -90,6 +90,7 @@ func CancelTask(args []string) {
 			log.Errorf("Failed to cancel job: %d. Reason: %s\n",
 				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		os.Exit(1)
+		os.Exit(util.ErrorCcancelFailed)
 	}
+	return util.ErrorSuccess
 }

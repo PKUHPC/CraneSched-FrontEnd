@@ -15,3 +15,8 @@ const (
 	ErrorCbatchScriptParsing CraneCmdError = 100
 	ErrorCbatchAllocation    CraneCmdError = 101
 )
+
+// ccancel
+const (
+	ErrorCcancelFailed CraneCmdError = 100
+)
