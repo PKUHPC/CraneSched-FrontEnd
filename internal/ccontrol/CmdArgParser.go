@@ -21,6 +21,7 @@ import (
 	"os"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -125,11 +126,20 @@ var (
 		Short: "Modify job attributes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
+			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") {
+				log.Error("No attribute to modify")
+				os.Exit(util.ErrorCmdArg)
+			}
+
 			if len(FlagTimeLimit) != 0 {
-				ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit)
+				if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 			if FlagPriority != 0 {
-				ChangeTaskPriority(FlagTaskId, FlagPriority)
+				if err := ChangeTaskPriority(FlagTaskId, FlagPriority); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -175,7 +185,7 @@ func init() {
 
 		updateCmd.AddCommand(updateJobCmd)
 		{
-			updateJobCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Specify JobID of the job to be modified")
+			updateJobCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Specify job id of the job to be modified")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
 			updateJobCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 

@@ -284,7 +284,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	}
 }
 
-func ChangeTaskPriority(taskId uint32, priority uint32) {
+func ChangeTaskPriority(taskId uint32, priority uint32) util.CraneCmdError {
 	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
 		TaskId:    taskId,
@@ -293,16 +293,19 @@ func ChangeTaskPriority(taskId uint32, priority uint32) {
 			PriorityValue: priority,
 		},
 	}
+
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task priority")
-		return
+		return util.ErrorGrpc
 	}
 
 	if reply.Ok {
 		log.Println("Change priority success.")
+		return util.ErrorSuccess
 	} else {
 		log.Printf("Change priority failed: %s\n", reply.GetReason())
+		return util.ErrorBackEnd
 	}
 }
 
@@ -319,7 +322,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	switch state {
 	case "drain":
 		if reason == "" {
-			log.Errorln("You must specify a reason by '-r' or '--reason' when DRAINING a node.")
+			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
 			return util.ErrorCmdArg
 		}
 		req.NewState = protos.CranedState_CRANE_DRAIN
