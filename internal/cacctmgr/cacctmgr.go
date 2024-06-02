@@ -205,17 +205,17 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 		tableOutputHeader := make([]string, len(formatReq))
 		for i := 0; i < len(formatReq); i++ {
 			if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
-				fmt.Println("Invalid format.")
+				log.Errorln("Invalid format.")
 				os.Exit(util.ErrorInvalidFormat)
 			}
 			if formatReq[i][1] == '.' {
 				if len(formatReq[i]) < 4 {
-					fmt.Println("Invalid format.")
+					log.Errorln("Invalid format.")
 					os.Exit(util.ErrorInvalidFormat)
 				}
 				width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 				if err != nil {
-					fmt.Println("Invalid format.")
+					log.Errorln("Invalid format.")
 					os.Exit(util.ErrorInvalidFormat)
 				}
 				tableOutputWidth[i] = int(width)
@@ -251,7 +251,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 					formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].AllowedQosList, ", "))
 				}
 			default:
-				fmt.Println("Invalid format.")
+				log.Errorln("Invalid format.")
 				os.Exit(util.ErrorInvalidFormat)
 			}
 		}
@@ -586,9 +586,9 @@ func ShowQos(name string) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		if name == "" {
-			fmt.Printf("Can't find any QoS! %s\n", reply.GetReason())
+			fmt.Printf("Can't find any QoS. %s\n", reply.GetReason())
 		} else {
-			fmt.Printf("Can't find QoS %s\n", name)
+			fmt.Printf("Can't find QoS %s.\n", name)
 		}
 		return util.ErrorBackend
 	}

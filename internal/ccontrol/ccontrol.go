@@ -49,7 +49,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 
 	if queryAll {
 		if len(reply.CranedInfoList) == 0 {
-			fmt.Printf("No node is avalable.\n")
+			fmt.Println("No node is available.")
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
@@ -91,7 +91,7 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 
 	if queryAll {
 		if len(reply.PartitionInfo) == 0 {
-			fmt.Printf("No node is avalable.\n")
+			fmt.Println("No node is available.")
 		} else {
 			for _, partitionInfo := range reply.PartitionInfo {
 				fmt.Printf("PartitionName=%v State=%v\n"+

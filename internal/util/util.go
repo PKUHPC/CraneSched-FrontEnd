@@ -18,7 +18,6 @@ package util
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
@@ -122,9 +121,9 @@ func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
 		if rpcErr.Code() == grpccodes.Unavailable {
-			_, _ = fmt.Fprintf(os.Stderr, "%s: Connection to CraneCtld is broken.\n", s)
+			log.Errorf("%s: Connection to CraneCtld is broken.", s)
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.\n", s, rpcErr.String())
+			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
 		}
 	}
 }

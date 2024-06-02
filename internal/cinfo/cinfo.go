@@ -94,7 +94,7 @@ func cinfoFunc() util.CraneCmdError {
 	}
 	table.AppendBulk(tableData)
 	if len(tableData) == 0 {
-		fmt.Printf("No partition is available.\n")
+		fmt.Println("No partition is available.")
 	} else {
 		table.Render()
 	}

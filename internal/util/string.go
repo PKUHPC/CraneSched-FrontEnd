@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/ptypes/duration"
+	log "github.com/sirupsen/logrus"
 )
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
@@ -153,12 +154,12 @@ func ParseHostList(hostStr string) ([]string, bool) {
 			if charQueue == "" {
 				charQueue = string(c)
 			} else {
-				fmt.Println("Illegal node name string format: duplicate brackets")
+				log.Errorln("Illegal node name string format: duplicate brackets")
 				return nil, false
 			}
 		} else if c == ']' {
 			if charQueue == "" {
-				fmt.Println("Illegal node name string format: isolated bracket")
+				log.Errorln("Illegal node name string format: isolated bracket")
 				return nil, false
 			} else {
 				nameMeta += charQueue
@@ -181,7 +182,7 @@ func ParseHostList(hostStr string) ([]string, bool) {
 		}
 	}
 	if charQueue != "" {
-		fmt.Println("Illegal node name string format: isolated bracket")
+		log.Errorln("Illegal node name string format: isolated bracket")
 		return nil, false
 	}
 
