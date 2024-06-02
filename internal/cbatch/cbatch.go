@@ -175,7 +175,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
-	if FlagGetUserEnv != "" {
+	if FlagGetUserEnv {
 		task.GetUserEnv = true
 	}
 	if FlagExport != "" {
