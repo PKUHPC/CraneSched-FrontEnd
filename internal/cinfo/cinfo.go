@@ -54,7 +54,7 @@ func cinfoFunc() util.CraneCmdError {
 			case "drain":
 				stateList = append(stateList, protos.CranedState_CRANE_DRAIN)
 			default:
-				log.Error("Invalid state given: %s\n", FlagFilterCranedStates[i])
+				log.Errorf("Invalid state given: %s\n", FlagFilterCranedStates[i])
 				return util.ErrorCmdArg
 			}
 		}

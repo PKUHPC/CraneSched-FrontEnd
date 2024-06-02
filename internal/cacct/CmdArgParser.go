@@ -68,16 +68,15 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterSubmitTime, "submit-time", "s",
 		"", "Select jobs eligible after this time")
 	RootCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
-		"comma separated list of accounts\n"+
-			"to view, default is all accounts")
-	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"comma separated list of jobs IDs\nto view, default is all")
+		"Select accounts to view (comma separated list)")
 	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
-		"comma separated list of users to view")
+		"Select users to view (comma separated list)")
+	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
+		"Select job ids to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
-		"comma separated list of job names to view")
-	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noHeader", "N", false,
-		"no headers on output")
+		"Select job names to view (comma separated list), default is all")
+	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
+		"Do not print header line in the output")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format for the command. 
@@ -106,5 +105,5 @@ If the format is invalid or unrecognized, the program will terminate with an err
 `)
 
 	RootCmd.Flags().Int32VarP(&FlagNumLimit, "max-lines", "m", 0,
-		"print job information for the specified number of lines")
+		"Limit the number of lines in the output, default is 0 (no limit)")
 }
