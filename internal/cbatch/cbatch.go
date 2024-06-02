@@ -234,7 +234,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the task")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if reply.GetOk() {
@@ -242,7 +242,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
-		return util.ErrorBackEnd
+		return util.ErrorBackend
 	}
 }
 
@@ -254,7 +254,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if len(reply.TaskIdList) > 0 {
@@ -267,7 +267,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 
 	if len(reply.ReasonList) > 0 {
 		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
-		return util.ErrorBackEnd
+		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
 }
@@ -373,8 +373,8 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 		}
 		err := processor.Process(scanner.Text(), &sh, &args)
 		if err != nil {
-			fmt.Printf("parse error at line %v: %v\n", num, err.Error())
-			return util.ErrorCbatchScriptParsing
+			fmt.Printf("Parsing error at line %v: %v\n", num, err.Error())
+			return util.ErrorCmdArg
 		}
 	}
 

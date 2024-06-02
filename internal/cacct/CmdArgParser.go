@@ -37,8 +37,8 @@ var (
 	FlagNumLimit         int32
 
 	RootCmd = &cobra.Command{
-		Use:   "cacct",
-		Short: "display the recent job information for all queues in the cluster",
+		Use:   "cacct [flags]",
+		Short: "Display the recent job information",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
@@ -54,7 +54,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 

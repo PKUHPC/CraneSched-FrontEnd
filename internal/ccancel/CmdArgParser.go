@@ -36,8 +36,8 @@ var (
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
-		Use:   "ccancel [OPTIONS...] [job_id[,job_id...]]",
-		Short: "cancel pending or running jobs",
+		Use:   "ccancel [flags] job_id[,job_id...]",
+		Short: "Cancel pending or running jobs",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
 			err := cobra.MaximumNArgs(1)(cmd, args)
@@ -83,7 +83,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 

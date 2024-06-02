@@ -2,28 +2,26 @@ package util
 
 type CraneCmdError = int
 
+// Do not use error code bigger than 127
+
 // general
 const (
-	ErrorSuccess            CraneCmdError = 0
-	ErrorExecuteFailed      CraneCmdError = 1
-	ErrorCmdArg             CraneCmdError = 2
-	ErrorGrpc               CraneCmdError = 3
-	ErrorBackEnd            CraneCmdError = 4
-	ErrorInvalidTableFormat CraneCmdError = 5
+	ErrorSuccess       CraneCmdError = 0
+	ErrorGeneric       CraneCmdError = 1
+	ErrorCmdArg        CraneCmdError = 2
+	ErrorNetwork       CraneCmdError = 3
+	ErrorBackend       CraneCmdError = 4
+	ErrorInvalidFormat CraneCmdError = 5
 )
 
 // cacct
 const ()
 
 // cacctmgr
-const (
-	ErrorCacctmgrUserNotFound CraneCmdError = 200
-)
+const ()
 
 // cbatch
-const (
-	ErrorCbatchScriptParsing CraneCmdError = 300
-)
+const ()
 
 // ccancel
 const ()

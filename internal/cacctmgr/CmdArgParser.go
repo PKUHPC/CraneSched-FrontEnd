@@ -52,7 +52,7 @@ var (
 
 	RootCmd = &cobra.Command{
 		Use:   "cacctmgr",
-		Short: "Manage accounts, users, and qos tables",
+		Short: "Manage account, user and QoS tables",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) { //The Persistent*Run functions will be inherited by children if they do not declare their own
 			config := util.ParseConfig(FlagConfigFilePath)
@@ -90,7 +90,7 @@ var (
 	}
 	addQosCmd = &cobra.Command{
 		Use:   "qos",
-		Short: "Add a new qos",
+		Short: "Add a new QoS",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -107,7 +107,7 @@ var (
 		Long:    "",
 	}
 	removeAccountCmd = &cobra.Command{
-		Use:   "account",
+		Use:   "account [flags] name",
 		Short: "Delete an existing account",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -118,7 +118,7 @@ var (
 		},
 	}
 	removeUserCmd = &cobra.Command{
-		Use:   "user",
+		Use:   "user [flags] name",
 		Short: "Delete an existing user",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -129,8 +129,8 @@ var (
 		},
 	}
 	removeQosCmd = &cobra.Command{
-		Use:   "qos",
-		Short: "Delete an existing Qos",
+		Use:   "qos [flags] name",
+		Short: "Delete an existing QoS",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -242,7 +242,7 @@ var (
 	}
 	modifyQosCmd = &cobra.Command{
 		Use:   "qos",
-		Short: "Modify qos information",
+		Short: "Modify QoS information",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().NFlag() < 2 {
@@ -311,7 +311,7 @@ var (
 	}
 	showQosCmd = &cobra.Command{
 		Use:   "qos",
-		Short: "Display qos table",
+		Short: "Display QoS table",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -328,7 +328,7 @@ var (
 		Long:    "",
 	}
 	findAccountCmd = &cobra.Command{
-		Use:   "account",
+		Use:   "account [flags] name",
 		Short: "Find and display information of a specific account",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -339,7 +339,7 @@ var (
 		},
 	}
 	findUserCmd = &cobra.Command{
-		Use:   "user",
+		Use:   "user [flags] name",
 		Short: "Find and display information of a specific user",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -350,7 +350,7 @@ var (
 		},
 	}
 	findQosCmd = &cobra.Command{
-		Use:   "qos",
+		Use:   "qos [flags] name",
 		Short: "Find and display information of a specific qos",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -367,7 +367,7 @@ var (
 		Long:  "",
 	}
 	blockAccountCmd = &cobra.Command{
-		Use:   "account",
+		Use:   "account [flags] name",
 		Short: "Block an account",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -378,7 +378,7 @@ var (
 		},
 	}
 	blockUserCmd = &cobra.Command{
-		Use:   "user",
+		Use:   "user [flags] name",
 		Short: "Block a user under an account",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -395,7 +395,7 @@ var (
 		Long:  "",
 	}
 	unblockAccountCmd = &cobra.Command{
-		Use:   "account",
+		Use:   "account [flags] name",
 		Short: "Unblock an account",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -406,7 +406,7 @@ var (
 		},
 	}
 	unblockUserCmd = &cobra.Command{
-		Use:   "user",
+		Use:   "user [flags] name",
 		Short: "Unblock a user under an account",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -421,7 +421,7 @@ var (
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
@@ -484,16 +484,6 @@ func init() {
 		{
 			removeUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Remove user from this account")
 		}
-
-		removeCmd.SetUsageTemplate(`Usage:
-  cacctmgr {{.Use}} [name]
-
-Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
-
-Global Flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
-`)
 	}
 
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
@@ -616,16 +606,6 @@ Description with a minimum width of 20, and Partitions.`)
 		{
 			findUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "Display the user under the specified account")
 		}
-
-		findCmd.SetUsageTemplate(`Usage:
-  cacctmgr {{.Use}} [name]
-
-Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
-
-Global Flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
-`)
 	}
 
 	/* --------------------------------------------------- block ---------------------------------------------------- */
@@ -639,17 +619,8 @@ Global Flags:
 				return
 			}
 		}
-
-		blockCmd.SetUsageTemplate(`Usage:
-  cacctmgr {{.Use}} [name]
-
-Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
-
-Global Flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
-`)
 	}
+
 	/* -------------------------------------------------- unblock --------------------------------------------------- */
 	RootCmd.AddCommand(unblockCmd)
 	{
@@ -662,15 +633,5 @@ Global Flags:
 		if err := unblockCmd.MarkFlagRequired("account"); err != nil {
 			return
 		}
-
-		unblockCmd.SetUsageTemplate(`Usage:
-  cacctmgr {{.Use}} [name]
-
-Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
-
-Global Flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
-`)
 	}
 }

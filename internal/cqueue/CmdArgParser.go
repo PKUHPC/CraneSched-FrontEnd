@@ -39,9 +39,10 @@ var (
 	FlagNumLimit         int32
 
 	RootCmd = &cobra.Command{
-		Use:   "cqueue",
-		Short: "display the job information for all queues in the cluster",
+		Use:   "cqueue [flags]",
+		Short: "Display the job information and queue status",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
 			if FlagIterate != 0 {
@@ -58,7 +59,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 

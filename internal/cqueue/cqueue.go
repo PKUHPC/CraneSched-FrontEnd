@@ -103,7 +103,7 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryTasksInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	sort.SliceStable(reply.TaskInfoList, func(i, j int) bool {
@@ -172,17 +172,17 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	for i := 0; i < len(formatReq); i++ {
 		if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
 			fmt.Println("Invalid format.")
-			os.Exit(util.ErrorInvalidTableFormat)
+			os.Exit(util.ErrorInvalidFormat)
 		}
 		if formatReq[i][1] == '.' {
 			if len(formatReq[i]) < 4 {
 				fmt.Println("Invalid format.")
-				os.Exit(util.ErrorInvalidTableFormat)
+				os.Exit(util.ErrorInvalidFormat)
 			}
 			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
 			if err != nil {
 				fmt.Println("Invalid format.")
-				os.Exit(util.ErrorInvalidTableFormat)
+				os.Exit(util.ErrorInvalidFormat)
 			}
 			tableOutputWidth[i] = int(width)
 		} else {
@@ -267,7 +267,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			fmt.Println("Invalid format, shorthand reference:\n" +
 				"j-JobId, n-Name, t-State, P-Partition, p-Priority, " +
 				"s-SubmitTime, -u-User, a-Account, T-Type, N-NodeList, q-QoS")
-			os.Exit(util.ErrorInvalidTableFormat)
+			os.Exit(util.ErrorInvalidFormat)
 		}
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)

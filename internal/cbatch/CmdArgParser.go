@@ -48,8 +48,8 @@ var (
 	FlagMailUser string
 
 	RootCmd = &cobra.Command{
-		Use:   "cbatch",
-		Short: "submit batch jobs",
+		Use:   "cbatch [flags] file",
+		Short: "Submit batch job",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := Cbatch(args[0]); err != util.ErrorSuccess {
@@ -61,7 +61,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 

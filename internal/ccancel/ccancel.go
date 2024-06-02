@@ -73,7 +73,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
-		os.Exit(util.ErrorGrpc)
+		os.Exit(util.ErrorNetwork)
 	}
 
 	if len(reply.CancelledTasks) > 0 {
@@ -90,7 +90,7 @@ func CancelTask(args []string) util.CraneCmdError {
 			log.Errorf("Failed to cancel job: %d. Reason: %s\n",
 				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		os.Exit(util.ErrorBackEnd)
+		os.Exit(util.ErrorBackend)
 	}
 	return util.ErrorSuccess
 }

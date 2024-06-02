@@ -42,7 +42,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -84,7 +84,7 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -136,12 +136,12 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the task")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if !reply.GetOk() {
 		log.Errorf("Failed to retrive the information of job %d", taskId)
-		return util.ErrorBackEnd
+		return util.ErrorBackend
 	}
 
 	if len(reply.TaskInfoList) == 0 {
@@ -272,7 +272,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if reply.Ok {
@@ -280,7 +280,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		log.Printf("Change time limit failed: %s\n", reply.GetReason())
-		return util.ErrorBackEnd
+		return util.ErrorBackend
 	}
 }
 
@@ -297,7 +297,7 @@ func ChangeTaskPriority(taskId uint32, priority uint32) util.CraneCmdError {
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task priority")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if reply.Ok {
@@ -305,7 +305,7 @@ func ChangeTaskPriority(taskId uint32, priority uint32) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		log.Printf("Change priority failed: %s\n", reply.GetReason())
-		return util.ErrorBackEnd
+		return util.ErrorBackend
 	}
 }
 
@@ -337,7 +337,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
 		log.Errorf("ModifyNode failed: %v\n", err)
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if reply.Ok {
@@ -345,6 +345,6 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 		return util.ErrorSuccess
 	} else {
 		log.Printf("Change node state failed: %s\n", reply.GetReason())
-		return util.ErrorBackEnd
+		return util.ErrorBackend
 	}
 }

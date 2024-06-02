@@ -36,9 +36,10 @@ var (
 	FlagListReason           bool
 
 	RootCmd = &cobra.Command{
-		Use:   "cinfo",
-		Short: "display the status of all partitions and nodes",
+		Use:   "cinfo [flags]",
+		Short: "Display the state of partitions and nodes",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
 			if FlagIterate != 0 {
@@ -55,7 +56,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 

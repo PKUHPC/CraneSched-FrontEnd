@@ -51,8 +51,8 @@ var (
 		Long:  "",
 	}
 	showNodeCmd = &cobra.Command{
-		Use:   "node",
-		Short: "Display details of the nodes, default is all nodes",
+		Use:   "node [flags] [node_name]",
+		Short: "Display details of the nodes, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -69,8 +69,8 @@ var (
 		},
 	}
 	showPartitionCmd = &cobra.Command{
-		Use:   "partition",
-		Short: "Display details of the partitions, default is all partitions",
+		Use:   "partition [flags] [partition_name]",
+		Short: "Display details of the partitions, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -87,8 +87,8 @@ var (
 		},
 	}
 	showJobCmd = &cobra.Command{
-		Use:   "job",
-		Short: "Display details of the jobs, default is all jobs",
+		Use:   "job [flags] [job_id]",
+		Short: "Display details of the jobs, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -108,7 +108,7 @@ var (
 		Use:   "config",
 		Short: "Display the configuration file in key-value format",
 		Long:  "",
-		Args:  cobra.MaximumNArgs(0),
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := ShowConfig(FlagConfigFilePath); err != util.ErrorSuccess {
 				os.Exit(err)
@@ -122,7 +122,7 @@ var (
 		Long:    "",
 	}
 	updateJobCmd = &cobra.Command{
-		Use:   "job",
+		Use:   "job [flags]",
 		Short: "Modify job attributes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -144,7 +144,7 @@ var (
 		},
 	}
 	updateNodeCmd = &cobra.Command{
-		Use:   "node",
+		Use:   "node [flags]",
 		Short: "Modify node attributes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -158,7 +158,7 @@ var (
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
