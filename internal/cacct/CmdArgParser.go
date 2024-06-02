@@ -18,6 +18,7 @@ package cacct
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -45,6 +46,14 @@ var (
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			flag := cmd.Flags().Lookup("max-lines")
+			if flag != nil {
+				if flag.Changed && FlagNumLimit <= 0 {
+					fmt.Println("--max-lines/-m must be greater than 0.")
+					os.Exit(util.ErrorCmdArg)
+				}
+			}
+
 			if err := QueryJob(); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
@@ -62,16 +71,21 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-		"", "Select jobs eligible before this time")
+		"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
+			"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41) or "+
+			"semi open intervals(timeFormat: 2024-01-02T15:04:05~ or ~2024-01-11T11:12:41)")
 	RootCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-		"", "Select jobs eligible after this time")
+		"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
+			"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41) or "+
+			"semi open intervals(timeFormat: 2024-01-02T15:04:05~ or ~2024-01-11T11:12:41)")
 	RootCmd.Flags().StringVarP(&FlagFilterSubmitTime, "submit-time", "s",
-		"", "Select jobs eligible after this time")
+		"", "Filter jobs with a submit time within a certain time period, which can use closed intervals"+
+			"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41) or "+
+			"semi open intervals(timeFormat: 2024-01-02T15:04:05~ or ~2024-01-11T11:12:41)")
 	RootCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
-		"comma separated list of accounts\n"+
-			"to view, default is all accounts")
+		"comma separated list of accounts to view, default is all accounts")
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"comma separated list of jobs IDs\nto view, default is all")
+		"comma separated list of jobs IDs to view, default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 		"comma separated list of users to view")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",

@@ -127,4 +127,5 @@ func GrpcErrorPrintf(err error, format string, a ...any) {
 			_, _ = fmt.Fprintf(os.Stderr, "%s: gRPC Error Code %s.\n", s, rpcErr.String())
 		}
 	}
+	os.Exit(ErrorGrpc)
 }

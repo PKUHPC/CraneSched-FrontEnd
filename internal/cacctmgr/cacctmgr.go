@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	OSUser "os/user"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -47,6 +48,10 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 		fmt.Println("There is no user in crane")
 		return
 	}
+	sort.Slice(userList, func(i, j int) bool {
+		return userList[i].Uid < userList[j].Uid
+	})
+
 	//slice to map
 	userMap := make(map[string][]*protos.UserInfo)
 	for _, userInfo := range userList {
@@ -78,7 +83,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 		for _, userInfo := range value {
 			if len(userInfo.AllowedPartitionQosList) == 0 {
 				tableData = append(tableData, []string{
-					key,
+					userInfo.Account,
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
 					"",
@@ -109,6 +114,9 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 		fmt.Println("There is no qos in crane")
 		return
 	}
+	sort.Slice(qosList, func(i, j int) bool {
+		return qosList[i].Name < qosList[j].Name
+	})
 
 	table := tablewriter.NewWriter(os.Stdout) //table format control
 	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
@@ -155,6 +163,9 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 		fmt.Println("There is no account in crane")
 		return
 	}
+	sort.Slice(accountList, func(i, j int) bool {
+		return accountList[i].Name < accountList[j].Name
+	})
 	//slice to map and find the root account
 	accountMap := make(map[string]*protos.AccountInfo)
 	rootAccount := make([]string, 0)
