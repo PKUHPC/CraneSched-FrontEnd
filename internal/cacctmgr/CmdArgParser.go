@@ -293,48 +293,6 @@ var (
 			}
 		},
 	}
-	///* ---------------------------------------------------- show ---------------------------------------------------- */
-	//showCmd = &cobra.Command{
-	//	Use:     "show",
-	//	Aliases: []string{"list"},
-	//	Short:   "Display all records of an entity",
-	//	Long:    "",
-	//}
-	//showAccountCmd = &cobra.Command{
-	//	Use:     "account",
-	//	Aliases: []string{"accounts"},
-	//	Short:   "Display account tree and account details",
-	//	Long:    "",
-	//	Args:    cobra.ExactArgs(0),
-	//	Run: func(cmd *cobra.Command, args []string) {
-	//		if err := ShowAccounts(); err != util.ErrorSuccess {
-	//			os.Exit(err)
-	//		}
-	//	},
-	//}
-	//showUserCmd = &cobra.Command{
-	//	Use:     "user",
-	//	Aliases: []string{"users"},
-	//	Short:   "Display user table",
-	//	Long:    "",
-	//	Args:    cobra.ExactArgs(0),
-	//	Run: func(cmd *cobra.Command, args []string) {
-	//		if err := ShowUser("", FlagAccountName); err != util.ErrorSuccess {
-	//			os.Exit(err)
-	//		}
-	//	},
-	//}
-	//showQosCmd = &cobra.Command{
-	//	Use:   "qos",
-	//	Short: "Display qos table",
-	//	Long:  "",
-	//	Args:  cobra.ExactArgs(0),
-	//	Run: func(cmd *cobra.Command, args []string) {
-	//		if err := ShowQos(""); err != util.ErrorSuccess {
-	//			os.Exit(err)
-	//		}
-	//	},
-	//}
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	findCmd = &cobra.Command{
 		Use:           "show",
@@ -457,7 +415,6 @@ var (
 	}
 )
 
-// ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorExecuteFailed)
@@ -592,36 +549,6 @@ Global Flags:
 			}
 		}
 	}
-
-	//	/* ---------------------------------------------------- show ---------------------------------------------------- */
-	//	RootCmd.AddCommand(showCmd)
-	//	{
-	//		showCmd.AddCommand(showAccountCmd)
-	//		{
-	//			showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "no-header", "n", false, "no headers on output")
-	//			showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-	//				`Specify the output format for the command.
-	//Fields are identified by a percent sign (%) followed by a character.
-	//Use a dot (.) and a number between % and the format character to specify a minimum width for the field.
-	//
-	//Supported format identifiers:
-	//		%n: Name              - Display the name of the account. Optionally, use %.<width>n to specify a fixed width.
-	//		%d: Description       - Display the description of the account.
-	//		%P: AllowedPartition  - Display allowed partitions, separated by commas.
-	//		%Q: DefaultQos        - Display the default Quality of Service (QoS).
-	//		%q: AllowedQosList    - Display a list of allowed QoS, separated by commas.
-	//
-	//Example: --format "%.5n %.20d %p" will output account's Name with a minimum width of 5,
-	//Description with a minimum width of 20, and Partitions.`)
-	//		}
-	//
-	//		showCmd.AddCommand(showUserCmd)
-	//		{
-	//			showUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
-	//		}
-	//
-	//		showCmd.AddCommand(showQosCmd)
-	//	}
 
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	RootCmd.AddCommand(findCmd)
