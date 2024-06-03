@@ -109,7 +109,16 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "--nodelist", "-w":
 			task.Nodelist = arg.val
 		case "--get-user-env":
-			task.GetUserEnv = true
+			if arg.val == "" {
+				task.GetUserEnv = true
+			} else {
+				val, err := strconv.ParseBool(arg.val)
+				if err != nil {
+					log.Print("Invalid " + arg.name)
+					return false, nil
+				}
+				task.GetUserEnv = val
+			}
 		case "--export":
 			task.Env["CRANE_EXPORT_ENV"] = arg.val
 		case "-o", "--output":
