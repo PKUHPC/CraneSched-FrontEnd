@@ -143,6 +143,17 @@ func ParseMailType(param string) (uint32, error) {
 	return parsed, nil
 }
 
+// CheckNodeList check if the node list is comma separated node names.
+// The node name should contain only letters and numbers, and start with a letter, end with a number.
+func CheckNodeList(nodeStr string) bool {
+	nameStr := strings.ReplaceAll(nodeStr, " ", "")
+	if nameStr == "" {
+		return true
+	}
+	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
+	return re.MatchString(nameStr)
+}
+
 func ParseHostList(hostStr string) ([]string, bool) {
 	nameStr := strings.ReplaceAll(hostStr, " ", "")
 	nameStr += ","

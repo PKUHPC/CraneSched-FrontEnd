@@ -217,11 +217,11 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 		return false, nil
 	}
-	if !CheckNodeList(task.Nodelist) {
+	if !util.CheckNodeList(task.Nodelist) {
 		log.Print("Invalid --nodelist")
 		return false, nil
 	}
-	if !CheckNodeList(task.Excludes) {
+	if !util.CheckNodeList(task.Excludes) {
 		log.Print("Invalid --exclude")
 		return false, nil
 	}
@@ -234,15 +234,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	return true, task
-}
-
-func CheckNodeList(nodeStr string) bool {
-	nameStr := strings.ReplaceAll(nodeStr, " ", "")
-	if nameStr == "" {
-		return true
-	}
-	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
-	return re.MatchString(nameStr)
 }
 
 func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
