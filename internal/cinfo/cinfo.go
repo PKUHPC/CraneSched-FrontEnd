@@ -133,7 +133,11 @@ func cinfoFunc() util.CraneCmdError {
 }
 
 func loopedQuery(iterate uint64) util.CraneCmdError {
-	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	if err != nil {
+		log.Error(err)
+		return util.ErrorCmdArg
+	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
 		err := cinfoFunc()
