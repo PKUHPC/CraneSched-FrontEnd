@@ -126,7 +126,12 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		case "--mail-type":
-			task.MailType = util.ParseMailType(arg.val)
+			mailType, err := util.ParseMailType(arg.val)
+			if err != nil {
+				log.Error(err)
+				return false, nil
+			}
+			task.MailType = mailType
 		case "--mail-user":
 			task.MailUser = arg.val
 		default:
@@ -197,7 +202,12 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
 	if FlagMailType != "" {
-		task.MailType = util.ParseMailType(FlagMailType)
+		mailType, err := util.ParseMailType(FlagMailType)
+		if err != nil {
+			log.Error(err)
+			return false, nil
+		}
+		task.MailType = mailType
 	}
 	if FlagMailUser != "" {
 		task.MailUser = FlagMailUser
