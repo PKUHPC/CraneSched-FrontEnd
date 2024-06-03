@@ -34,11 +34,6 @@ func cinfoFunc() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
-	req := &protos.QueryClusterInfoRequest{
-		FilterPartitions: FlagFilterPartitions,
-		FilterNodes:      FlagFilterNodes,
-	}
-
 	var stateList []protos.CranedState
 	if len(FlagFilterCranedStates) != 0 {
 		for i := 0; i < len(FlagFilterCranedStates); i++ {
@@ -66,7 +61,33 @@ func cinfoFunc() util.CraneCmdError {
 		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN, protos.CranedState_CRANE_DRAIN)
 	}
 
-	req.FilterCranedStates = stateList
+	var nodeList []string
+	if len(FlagFilterNodes) != 0 {
+		for _, node := range FlagFilterNodes {
+			if node == "" {
+				log.Warn("Empty node name is ignored.")
+				continue
+			}
+			nodeList = append(nodeList, node)
+		}
+	}
+
+	var partList []string
+	if len(FlagFilterPartitions) != 0 {
+		for _, part := range FlagFilterPartitions {
+			if part == "" {
+				log.Warn("Empty partition name is ignored.")
+				continue
+			}
+			partList = append(partList, part)
+		}
+	}
+
+	req := &protos.QueryClusterInfoRequest{
+		FilterPartitions:   partList,
+		FilterNodes:        nodeList,
+		FilterCranedStates: stateList,
+	}
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
@@ -98,7 +119,7 @@ func cinfoFunc() util.CraneCmdError {
 	} else {
 		table.Render()
 	}
-	if len(FlagFilterNodes) != 0 {
+	if len(nodeList) != 0 {
 		replyNodes := ""
 		for _, partitionCraned := range reply.Partitions {
 			for _, commonCranedStateList := range partitionCraned.CranedLists {
@@ -111,7 +132,7 @@ func cinfoFunc() util.CraneCmdError {
 			}
 		}
 		replyNodes_, _ := util.ParseHostList(replyNodes)
-		requestedNodes_, _ := util.ParseHostList(strings.Join(FlagFilterNodes, ","))
+		requestedNodes_, _ := util.ParseHostList(strings.Join(nodeList, ","))
 
 		foundedNodes := make(map[string]bool)
 		for _, node := range replyNodes_ {
