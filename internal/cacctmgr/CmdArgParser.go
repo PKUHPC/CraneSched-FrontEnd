@@ -54,7 +54,9 @@ var (
 		Use:   "cacctmgr",
 		Short: "Manage accounts, users, and qos tables",
 		Long:  "",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) { //The Persistent*Run functions will be inherited by children if they do not declare their own
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// The PersistentPreRun functions will be inherited and executed by children (sub-commands)
+			// if they do not declare their own.
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 			userUid = uint32(os.Getuid())

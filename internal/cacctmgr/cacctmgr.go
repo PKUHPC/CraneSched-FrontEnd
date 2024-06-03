@@ -319,7 +319,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 			return util.ErrorCmdArg
 		}
 	}
-	//fmt.Printf("Req:\n%v\n\n", req)
+
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the account")
@@ -402,7 +402,6 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	req.Uid = userUid
 	req.Qos = qos
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the QoS")
@@ -420,7 +419,6 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 func DeleteAccount(name string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Account, Name: name}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete account %s", name)
@@ -438,7 +436,6 @@ func DeleteAccount(name string) util.CraneCmdError {
 func DeleteUser(name string, account string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to remove user %s", name)
@@ -456,7 +453,6 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 func DeleteQos(name string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Qos, Name: name}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", name)
@@ -515,7 +511,7 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 		Account:    account,
 		Force:      FlagForce,
 	}
-	//fmt.Printf("Req:\n%v\n\n", req)
+
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the uesr information")
@@ -540,7 +536,6 @@ func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdErro
 		EntityType: protos.EntityType_Qos,
 	}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
