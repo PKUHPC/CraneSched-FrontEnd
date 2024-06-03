@@ -187,7 +187,7 @@ var (
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyAccount("default-qos", FlagAccount.DefaultQos, FlagName, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount("default_qos", FlagAccount.DefaultQos, FlagName, protos.ModifyEntityRequest_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -233,7 +233,7 @@ var (
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyUser("default-qos", FlagSetDefaultQos, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser("default_qos", FlagSetDefaultQos, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -503,8 +503,8 @@ func init() {
 			modifyAccountCmd.Flags().StringVar(&FlagPartition, "add_allowed_partition", "", "Add a single partition to allowed partition list")
 			modifyAccountCmd.Flags().StringVar(&FlagPartition, "delete_allowed_partition", "", "Delete a single partition from allowed partition list")
 
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set_allowed_qos_list", nil, "Overwrite the allowed QoS of the user (comma seperated list)")
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "add_allowed_qos_list", nil, "Add QoS to the allowed QoS list (comma seperated list)")
+			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set_allowed_qos_list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
+			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "add_allowed_qos_list", nil, "Add QoS to allowed QoS list (comma seperated list)")
 			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "delete_allowed_qos_list", nil, "Delete QoS from allowed QoS list (comma seperated list)")
 
 			// Other flags
@@ -533,8 +533,8 @@ func init() {
 			modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "add_allowed_partition", nil, "Add partitions to allowed partition list (comma seperated list)")
 			modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "delete_allowed_partition", nil, "Delete partitions to allowed partition list (comma seperated list)")
 
-			modifyUserCmd.Flags().StringSliceVar(&FlagAllowedQosList, "set_allowed_qos_list", nil, "Overwrite the allowed QoS of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagQosName, "add_allowed_qos_list", "", "Add QoS to the allowed QoS list (comma seperated list)")
+			modifyUserCmd.Flags().StringSliceVar(&FlagAllowedQosList, "set_allowed_qos_list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
+			modifyUserCmd.Flags().StringVar(&FlagQosName, "add_allowed_qos_list", "", "Add QoS to allowed QoS list (comma seperated list)")
 			modifyUserCmd.Flags().StringVar(&FlagQosName, "delete_allowed_qos_list", "", "Delete QoS from allowed QoS list (comma seperated list)")
 
 			// Other flags

@@ -65,10 +65,11 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout) //table format control
+	// FIXME: Replace these with util.SetBorderTable()?
 	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
 	table.SetCenterSeparator("|")
 	table.SetTablePadding("\t")
-	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "blocked"})
+	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "Blocked"})
 	table.SetAutoFormatHeaders(false)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	tableData := make([][]string, len(userMap))
@@ -184,8 +185,9 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 
 func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
+	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "Blocked"}
 	util.SetBorderTable(table)
-	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "blocked"}
+	table.SetAutoFormatHeaders(false)
 	tableData := make([][]string, len(accountList))
 	for _, accountInfo := range accountList {
 		tableData = append(tableData, []string{
@@ -280,12 +282,14 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 }
 
 func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
+	// FIXME: Move name validation to the backend?
+	// FIXME: Seperate this to Args of cobra package?
 	if account.Name == "=" {
-		log.Errorf("Parameter error : account name empty")
+		log.Errorf("Account name empty")
 		return util.ErrorCmdArg
 	}
 	if len(account.Name) > 30 {
-		log.Errorf("Parameter error : name is too long(up to 30)")
+		log.Errorf("Name is too long (up to 30)")
 		return util.ErrorCmdArg
 	}
 
@@ -315,10 +319,10 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Println("Add account success!")
+		fmt.Println("Add account succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Add account failed: %s\n", reply.GetReason())
+		fmt.Printf("Add account failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -369,10 +373,10 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Println("Add user success!")
+		fmt.Println("Add user succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Add user failed: %s\n", reply.GetReason())
+		fmt.Printf("Add user failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -397,10 +401,10 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Println("Add QoS success.")
+		fmt.Println("Add QoS succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Add QoS failed: %s\n", reply.GetReason())
+		fmt.Printf("Add QoS failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -414,10 +418,10 @@ func DeleteAccount(name string) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Printf("Delete account %s success.\n", name)
+		fmt.Printf("Delete account %s succeeded.\n", name)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Delete account %s failed: %s\n", name, reply.GetReason())
+		fmt.Printf("Delete account %s failed: %s.\n", name, reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -431,10 +435,10 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Printf("Remove User %s success.\n", name)
+		fmt.Printf("Remove user %s succeeded.\n", name)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Remove User %s failed: %s\n", name, reply.GetReason())
+		fmt.Printf("Remove user %s failed: %s.\n", name, reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -448,10 +452,10 @@ func DeleteQos(name string) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Printf("Delete Qos %s success\n", name)
+		fmt.Printf("Delete QoS %s succeeded.\n", name)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Delete Qos %s failed: %s\n", name, reply.GetReason())
+		fmt.Printf("Delete QoS %s failed: %s.\n", name, reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -473,10 +477,10 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Println("Modify information success!")
+		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
+		fmt.Printf("Modify information failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -507,10 +511,10 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Println("Modify information success!")
+		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
+		fmt.Printf("Modify information failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -531,10 +535,10 @@ func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdErro
 		return util.ErrorNetwork
 	}
 	if reply.GetOk() {
-		fmt.Println("Modify information success!")
+		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Modify information failed: %s\n", reply.GetReason())
+		fmt.Printf("Modify information failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -586,7 +590,7 @@ func ShowQos(name string) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		if name == "" {
-			fmt.Printf("Can't find any QoS. %s\n", reply.GetReason())
+			fmt.Printf("Can't find any QoS. %s.\n", reply.GetReason())
 		} else {
 			fmt.Printf("Can't find QoS %s.\n", name)
 		}
@@ -620,7 +624,7 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("Block %s success!\n", name)
+		fmt.Printf("Block %s succeeded.\n", name)
 		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
@@ -637,7 +641,7 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("Unblock %s success!\n", name)
+		fmt.Printf("Unblock %s succeeded.\n", name)
 		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
