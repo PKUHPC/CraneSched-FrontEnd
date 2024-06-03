@@ -37,7 +37,7 @@ var (
 	FlagRepeat        uint32
 	FlagNodelist      string
 	FlagExcludes      string
-	FlagGetUserEnv    string
+	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagStdoutPath    string
 	FlagStderrPath    string
@@ -81,7 +81,7 @@ func init() {
 	RootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "Submit the job multiple times")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
-	RootCmd.Flags().StringVar(&FlagGetUserEnv, "get-user-env", "", "Get environment variables of the user")
+	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "Redirection path of standard output of the script")
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")

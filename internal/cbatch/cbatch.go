@@ -109,7 +109,16 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "--nodelist", "-w":
 			task.Nodelist = arg.val
 		case "--get-user-env":
-			task.GetUserEnv = true
+			if arg.val == "" {
+				task.GetUserEnv = true
+			} else {
+				val, err := strconv.ParseBool(arg.val)
+				if err != nil {
+					log.Print("Invalid " + arg.name)
+					return false, nil
+				}
+				task.GetUserEnv = val
+			}
 		case "--export":
 			task.Env["CRANE_EXPORT_ENV"] = arg.val
 		case "-o", "--output":
@@ -117,7 +126,12 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		case "--mail-type":
-			task.MailType = util.ParseMailType(arg.val)
+			mailType, err := util.ParseMailType(arg.val)
+			if err != nil {
+				log.Error(err)
+				return false, nil
+			}
+			task.MailType = mailType
 		case "--mail-user":
 			task.MailUser = arg.val
 		default:
@@ -175,7 +189,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
-	if FlagGetUserEnv != "" {
+	if FlagGetUserEnv {
 		task.GetUserEnv = true
 	}
 	if FlagExport != "" {
@@ -188,7 +202,12 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
 	if FlagMailType != "" {
-		task.MailType = util.ParseMailType(FlagMailType)
+		mailType, err := util.ParseMailType(FlagMailType)
+		if err != nil {
+			log.Error(err)
+			return false, nil
+		}
+		task.MailType = mailType
 	}
 	if FlagMailUser != "" {
 		task.MailUser = FlagMailUser
@@ -198,11 +217,11 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		log.Errorln("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 		return false, nil
 	}
-	if !CheckNodeList(task.Nodelist) {
+	if !util.CheckNodeList(task.Nodelist) {
 		log.Errorln("Invalid --nodelist")
 		return false, nil
 	}
-	if !CheckNodeList(task.Excludes) {
+	if !util.CheckNodeList(task.Excludes) {
 		log.Errorln("Invalid --exclude")
 		return false, nil
 	}
@@ -215,15 +234,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	return true, task
-}
-
-func CheckNodeList(nodeStr string) bool {
-	nameStr := strings.ReplaceAll(nodeStr, " ", "")
-	if nameStr == "" {
-		return true
-	}
-	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
-	return re.MatchString(nameStr)
 }
 
 func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {

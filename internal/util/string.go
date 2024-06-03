@@ -116,7 +116,7 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
-func ParseMailType(param string) uint32 {
+func ParseMailType(param string) (uint32, error) {
 	var MailTypeMapping = map[string]uint32{
 		"NONE":           0,
 		"BEGIN":          1,
@@ -136,9 +136,23 @@ func ParseMailType(param string) uint32 {
 	parsed := uint32(0)
 	types := strings.Split(param, ",")
 	for _, t := range types {
+		if _, ok := MailTypeMapping[t]; !ok {
+			return 0, fmt.Errorf("invalid mail type: %s", t)
+		}
 		parsed |= MailTypeMapping[t]
 	}
-	return parsed
+	return parsed, nil
+}
+
+// CheckNodeList check if the node list is comma separated node names.
+// The node name should contain only letters and numbers, and start with a letter, end with a number.
+func CheckNodeList(nodeStr string) bool {
+	nameStr := strings.ReplaceAll(nodeStr, " ", "")
+	if nameStr == "" {
+		return true
+	}
+	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
+	return re.MatchString(nameStr)
 }
 
 func ParseHostList(hostStr string) ([]string, bool) {
