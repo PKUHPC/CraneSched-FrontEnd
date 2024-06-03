@@ -115,7 +115,7 @@ func cinfoFunc() util.CraneCmdError {
 	}
 	table.AppendBulk(tableData)
 	if len(tableData) == 0 {
-		fmt.Println("No partition is available.")
+		log.Info("No matching partitions were found for the given filter.")
 	} else {
 		table.Render()
 	}
@@ -147,7 +147,8 @@ func cinfoFunc() util.CraneCmdError {
 		}
 
 		if len(redList) > 0 {
-			println("The following nodes do not exist: " + util.HostNameListToStr(redList))
+			log.Infof("Requested nodes do not exist or do not meet the given filter condition: %s.",
+				util.HostNameListToStr(redList))
 		}
 	}
 	return util.ErrorSuccess
