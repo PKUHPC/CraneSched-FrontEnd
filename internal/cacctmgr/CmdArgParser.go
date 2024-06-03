@@ -54,7 +54,9 @@ var (
 		Use:   "cacctmgr",
 		Short: "Manage accounts, users, and qos tables",
 		Long:  "",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) { //The Persistent*Run functions will be inherited by children if they do not declare their own
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// The PersistentPreRun functions will be inherited and executed by children (sub-commands)
+			// if they do not declare their own.
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 			userUid = uint32(os.Getuid())
@@ -62,9 +64,10 @@ var (
 	}
 	/* ---------------------------------------------------- add  ---------------------------------------------------- */
 	addCmd = &cobra.Command{
-		Use:   "add",
-		Short: "Add entity",
-		Long:  "",
+		Use:           "add",
+		Short:         "Add entity",
+		SilenceErrors: true,
+		Long:          "",
 	}
 	addAccountCmd = &cobra.Command{
 		Use:   "account",
@@ -101,10 +104,11 @@ var (
 	}
 	/* --------------------------------------------------- remove --------------------------------------------------- */
 	removeCmd = &cobra.Command{
-		Use:     "delete",
-		Aliases: []string{"remove"},
-		Short:   "Delete entity",
-		Long:    "",
+		Use:           "delete",
+		Aliases:       []string{"remove"},
+		SilenceErrors: true,
+		Short:         "Delete entity",
+		Long:          "",
 	}
 	removeAccountCmd = &cobra.Command{
 		Use:   "account",
@@ -141,15 +145,20 @@ var (
 	}
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
 	modifyCmd = &cobra.Command{
-		Use:   "modify",
-		Short: "Modify entity",
-		Long:  "",
+		Use:           "modify",
+		SilenceErrors: true,
+		Short:         "Modify entity",
+		Long:          "",
 	}
 	modifyAccountCmd = &cobra.Command{
 		Use:   "account",
 		Short: "Modify account information",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
+			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
+				return err
+			}
+
 			if cmd.Flags().NFlag() < 2 {
 				return fmt.Errorf("you must specify at least one modification item")
 			}
@@ -199,6 +208,10 @@ var (
 		Short: "Modify user information",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
+			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
+				return err
+			}
+
 			if cmd.Flags().NFlag() < 2 {
 				return fmt.Errorf("you must specify at least one modification item")
 			}
@@ -245,6 +258,10 @@ var (
 		Short: "Modify qos information",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
+			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
+				return err
+			}
+
 			if cmd.Flags().NFlag() < 2 {
 				return fmt.Errorf("you must specify at least one modification item")
 			}
@@ -278,93 +295,74 @@ var (
 			}
 		},
 	}
-	/* ---------------------------------------------------- show ---------------------------------------------------- */
-	showCmd = &cobra.Command{
-		Use:     "show",
-		Aliases: []string{"list"},
-		Short:   "Display all records of an entity",
-		Long:    "",
-	}
-	showAccountCmd = &cobra.Command{
-		Use:     "account",
-		Aliases: []string{"accounts"},
-		Short:   "Display account tree and account details",
-		Long:    "",
-		Args:    cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowAccounts(); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	showUserCmd = &cobra.Command{
-		Use:     "user",
-		Aliases: []string{"users"},
-		Short:   "Display user table",
-		Long:    "",
-		Args:    cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowUser("", FlagAccountName); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	showQosCmd = &cobra.Command{
-		Use:   "qos",
-		Short: "Display qos table",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowQos(""); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
 	/* ---------------------------------------------------- find ---------------------------------------------------- */
 	findCmd = &cobra.Command{
-		Use:     "find",
-		Aliases: []string{"search", "query"},
-		Short:   "Find a specific entity",
-		Long:    "",
+		Use:           "show",
+		Aliases:       []string{"search", "query", "find"},
+		SilenceErrors: true,
+		Short:         "Find a specific entity",
+		Long:          "",
 	}
 	findAccountCmd = &cobra.Command{
-		Use:   "account",
-		Short: "Find and display information of a specific account",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Use:     "account",
+		Aliases: []string{"accounts"},
+		Short:   "Find and display information of account",
+		Long:    "",
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := FindAccount(args[0]); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := ShowAccounts(); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := FindAccount(args[0]); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
+
 		},
 	}
 	findUserCmd = &cobra.Command{
-		Use:   "user",
-		Short: "Find and display information of a specific user",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Use:     "user",
+		Aliases: []string{"users"},
+		Short:   "Find and display information of user",
+		Long:    "",
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowUser(args[0], FlagAccountName); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := ShowUser("", FlagAccountName); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := ShowUser(args[0], FlagAccountName); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
 	findQosCmd = &cobra.Command{
 		Use:   "qos",
-		Short: "Find and display information of a specific qos",
+		Short: "Find and display information of qos",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowQos(args[0]); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := ShowQos(""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := ShowQos(args[0]); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
 	/* --------------------------------------------------- block ---------------------------------------------------- */
 	blockCmd = &cobra.Command{
-		Use:   "block",
-		Short: "Block the entity so that it cannot be used",
-		Long:  "",
+		Use:           "block",
+		SilenceErrors: true,
+		Short:         "Block the entity so that it cannot be used",
+		Long:          "",
 	}
 	blockAccountCmd = &cobra.Command{
 		Use:   "account",
@@ -390,9 +388,10 @@ var (
 	}
 	/* -------------------------------------------------- unblock --------------------------------------------------- */
 	unblockCmd = &cobra.Command{
-		Use:   "unblock",
-		Short: "Unblock the entity",
-		Long:  "",
+		Use:           "unblock",
+		SilenceErrors: true,
+		Short:         "Unblock the entity",
+		Long:          "",
 	}
 	unblockAccountCmd = &cobra.Command{
 		Use:   "account",
@@ -418,7 +417,6 @@ var (
 	}
 )
 
-// ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorExecuteFailed)
@@ -552,36 +550,6 @@ Global Flags:
 				return
 			}
 		}
-	}
-
-	/* ---------------------------------------------------- show ---------------------------------------------------- */
-	RootCmd.AddCommand(showCmd)
-	{
-		showCmd.AddCommand(showAccountCmd)
-		{
-			showAccountCmd.Flags().BoolVarP(&FlagNoHeader, "no-header", "n", false, "no headers on output")
-			showAccountCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-				`Specify the output format for the command.
-Fields are identified by a percent sign (%) followed by a character. 
-Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
-		
-Supported format identifiers:
-		%n: Name              - Display the name of the account. Optionally, use %.<width>n to specify a fixed width.
-		%d: Description       - Display the description of the account.
-		%P: AllowedPartition  - Display allowed partitions, separated by commas.
-		%Q: DefaultQos        - Display the default Quality of Service (QoS).
-		%q: AllowedQosList    - Display a list of allowed QoS, separated by commas.
-
-Example: --format "%.5n %.20d %p" will output account's Name with a minimum width of 5, 
-Description with a minimum width of 20, and Partitions.`)
-		}
-
-		showCmd.AddCommand(showUserCmd)
-		{
-			showUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "The account where the user resides")
-		}
-
-		showCmd.AddCommand(showQosCmd)
 	}
 
 	/* ---------------------------------------------------- find ---------------------------------------------------- */

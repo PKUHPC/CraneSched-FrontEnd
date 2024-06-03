@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	OSUser "os/user"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -47,6 +48,10 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 		fmt.Println("There is no user in crane")
 		return
 	}
+	sort.Slice(userList, func(i, j int) bool {
+		return userList[i].Uid < userList[j].Uid
+	})
+
 	//slice to map
 	userMap := make(map[string][]*protos.UserInfo)
 	for _, userInfo := range userList {
@@ -78,7 +83,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 		for _, userInfo := range value {
 			if len(userInfo.AllowedPartitionQosList) == 0 {
 				tableData = append(tableData, []string{
-					key,
+					userInfo.Account,
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
 					"",
@@ -109,6 +114,9 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 		fmt.Println("There is no qos in crane")
 		return
 	}
+	sort.Slice(qosList, func(i, j int) bool {
+		return qosList[i].Name < qosList[j].Name
+	})
 
 	table := tablewriter.NewWriter(os.Stdout) //table format control
 	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
@@ -155,6 +163,9 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 		fmt.Println("There is no account in crane")
 		return
 	}
+	sort.Slice(accountList, func(i, j int) bool {
+		return accountList[i].Name < accountList[j].Name
+	})
 	//slice to map and find the root account
 	accountMap := make(map[string]*protos.AccountInfo)
 	rootAccount := make([]string, 0)
@@ -308,7 +319,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 			return util.ErrorCmdArg
 		}
 	}
-	//fmt.Printf("Req:\n%v\n\n", req)
+
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the account")
@@ -391,7 +402,6 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	req.Uid = userUid
 	req.Qos = qos
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the QoS")
@@ -409,7 +419,6 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 func DeleteAccount(name string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Account, Name: name}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete account %s", name)
@@ -427,7 +436,6 @@ func DeleteAccount(name string) util.CraneCmdError {
 func DeleteUser(name string, account string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to remove user %s", name)
@@ -445,7 +453,6 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 func DeleteQos(name string) util.CraneCmdError {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Qos, Name: name}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.DeleteEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", name)
@@ -504,7 +511,7 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 		Account:    account,
 		Force:      FlagForce,
 	}
-	//fmt.Printf("Req:\n%v\n\n", req)
+
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the uesr information")
@@ -529,7 +536,6 @@ func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdErro
 		EntityType: protos.EntityType_Qos,
 	}
 
-	//fmt.Printf("Req:\n%v\n\n", req)
 	reply, err := stub.ModifyEntity(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
