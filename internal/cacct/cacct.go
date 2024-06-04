@@ -46,6 +46,9 @@ func QueryJob() util.CraneCmdError {
 
 	if FlagFilterStartTime != "" {
 		request.FilterStartTimeInterval = &protos.TimeInterval{}
+		if !strings.Contains(FlagFilterStartTime, "~") {
+			log.Fatalf("Failed to parse the time string: char '~' not found in \"%s\"! Please input an interval!", FlagFilterStartTime)
+		}
 		split := strings.Split(FlagFilterStartTime, "~")
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
@@ -62,10 +65,16 @@ func QueryJob() util.CraneCmdError {
 				return util.ErrorCmdArg
 			}
 			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
+			if request.FilterStartTimeInterval.UpperBound.AsTime().Before(request.FilterStartTimeInterval.LowerBound.AsTime()) {
+				log.Fatalf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterStartTime)
+			}
 		}
 	}
 	if FlagFilterEndTime != "" {
 		request.FilterEndTimeInterval = &protos.TimeInterval{}
+		if !strings.Contains(FlagFilterEndTime, "~") {
+			log.Fatalf("Failed to parse the time string: char '~' not found in \"%s\"! Please input an interval!", FlagFilterEndTime)
+		}
 		split := strings.Split(FlagFilterEndTime, "~")
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
@@ -82,10 +91,16 @@ func QueryJob() util.CraneCmdError {
 				return util.ErrorCmdArg
 			}
 			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
+			if request.FilterEndTimeInterval.UpperBound.AsTime().Before(request.FilterEndTimeInterval.LowerBound.AsTime()) {
+				log.Fatalf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterEndTime)
+			}
 		}
 	}
 	if FlagFilterSubmitTime != "" {
 		request.FilterSubmitTimeInterval = &protos.TimeInterval{}
+		if !strings.Contains(FlagFilterSubmitTime, "~") {
+			log.Fatalf("Failed to parse the time string: char '~' not found in '%s'! Please input an interval!", FlagFilterSubmitTime)
+		}
 		split := strings.Split(FlagFilterSubmitTime, "~")
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
@@ -102,6 +117,9 @@ func QueryJob() util.CraneCmdError {
 				return util.ErrorCmdArg
 			}
 			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
+			if request.FilterSubmitTimeInterval.UpperBound.AsTime().Before(request.FilterSubmitTimeInterval.LowerBound.AsTime()) {
+				log.Fatalf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterSubmitTime)
+			}
 		}
 	}
 
@@ -112,7 +130,7 @@ func QueryJob() util.CraneCmdError {
 
 	if FlagFilterJobIDs != "" {
 		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
-		request.NumLimit = int32(len(filterJobIdList))
+
 		var filterJobIdListInt []uint32
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
