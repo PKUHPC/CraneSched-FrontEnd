@@ -604,7 +604,7 @@ func Crun(cmd *cobra.Command, args []string) {
 	if exits {
 		task.GetInteractiveMeta().TermEnv = term
 	}
-	task.GetInteractiveMeta().FrontEndType = protos.InteractiveFrontEndType_CRUN
+	task.GetInteractiveMeta().InteractiveType = protos.InteractiveTaskType_Crun
 
 	StartCrunStream(task)
 

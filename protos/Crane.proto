@@ -21,75 +21,6 @@ option go_package = "/protos";
 
 import "PublicDefs.proto";
 
-message Negotiation {
-  uint32 version = 1;
-}
-
-message StreamRequestNegotiation {
-  uint32 version = 1;
-}
-
-message StreamReplyResult {
-  bool ok = 1;
-  string reason = 2; // Set when failed
-}
-
-message StreamRequestCheckResource {
-  bytes resource_uuid = 1;
-  uint32 task_id = 2;
-}
-
-message StreamRequestExecutiveInfo {
-  string executive_path = 1;
-  repeated string arguments = 2;
-}
-
-message StreamReplyIo {
-  string buf = 1;
-}
-
-message StreamReplyExitStatus {
-  enum ExitReason {
-    Normal = 0;
-    Signal = 1;
-  }
-
-  ExitReason reason = 1;
-  uint32 value = 2;
-}
-
-message SrunXStreamRequest{
-  enum Type {
-    NegotiationType = 0;
-    CheckResourceType = 1;
-    ExecutiveInfoType = 2;
-    SignalType = 3;
-  }
-  Type type = 1;
-
-  oneof payload {
-    StreamRequestNegotiation negotiation = 2;
-    StreamRequestExecutiveInfo exec_info = 3;
-    int32 signum = 4;
-    StreamRequestCheckResource check_resource = 5;
-  }
-}
-
-message SrunXStreamReply {
-  enum Type {
-    IoRedirectionType = 0;
-    ExitStatusType = 1;
-    ResultType = 2;
-  }
-  Type type = 1;
-
-  oneof payload {
-    StreamReplyIo io = 2 ;
-    StreamReplyExitStatus exit_status = 3;
-    StreamReplyResult result = 4;
-  }
-}
-
 message TaskStatusChangeRequest {
   uint32 task_id = 1;
   string craned_id = 2;
@@ -511,7 +442,7 @@ message StreamCforedRequest {
     string cfored_name = 1;
     uint32 task_id = 2;
     TaskStatus status = 3;
-    InteractiveFrontEndType req_front_type = 4;
+    InteractiveTaskType interactive_type = 4;
   }
 
   message GracefulExitReq {
@@ -597,7 +528,7 @@ message StreamCrunRequest{
     TaskStatus status = 2;
   }
 
-  message TaskIOForwardReq{
+  message TaskIOForwardReq {
     uint32 task_id = 1;
     string msg = 2;
   }
@@ -660,24 +591,23 @@ message StreamCforedCrunReply {
   }
 }
 
-message StreamCfroedTaskIORequest{
-
+message StreamCforedTaskIORequest {
   enum CranedRequestType{
     CRANED_REGISTER = 0;
     CRANED_TASK_OUTPUT = 1;
     CRANED_UNREGISTER = 2;
   }
 
-  message CranedRegisterReq{
+  message CranedRegisterReq {
     string craned_id = 1;
   }
 
-  message CranedTaskOutputReq{
+  message CranedTaskOutputReq {
     uint32 task_id = 1;
     string msg = 2;
   }
 
-  message CranedUnRegisterReq{
+  message CranedUnRegisterReq {
     string craned_id = 1;
   }
 
@@ -689,33 +619,33 @@ message StreamCfroedTaskIORequest{
   }
 }
 
-message StreamCfroedTaskIOReply{
-  enum CranedReplyType{
+message StreamCforedTaskIOReply {
+  enum CranedReplyType {
     CRANED_REGISTER_REPLY = 0;
     CRANED_TASK_INPUT = 1;
     CRANED_UNREGISTER_REPLY = 2;
   }
 
-  message CranedRegisterReply{
+  message CranedRegisterReply {
     bool ok = 1;
   }
 
-  message CranedTaskInputReq{
+  message CranedTaskInputReq {
     uint32 task_id = 1;
     string msg = 2;
   }
 
-  message CranedUnregisterReply{
+  message CranedUnregisterReply {
     bool ok = 1;
   }
 
   CranedReplyType type = 1;
-  oneof payload{
+
+  oneof payload {
     CranedRegisterReply payload_craned_register_reply = 2;
     CranedTaskInputReq payload_task_input_req = 3;
     CranedUnregisterReply payload_craned_unregister_reply = 4;
   }
-
 }
 
 // Todo: Divide service into two parts: one for Craned and one for Crun
@@ -791,14 +721,11 @@ service Craned {
   /* ----------------------------------- Called from Pam Module  --------------------------------------------------- */
   rpc QueryTaskIdFromPortForward(QueryTaskIdFromPortForwardRequest) returns (QueryTaskIdFromPortForwardReply);
   rpc MigrateSshProcToCgroup(MigrateSshProcToCgroupRequest) returns (MigrateSshProcToCgroupReply);
-
-  /* ----------------------------------- Called from SrunX --------------------------------------------------------- */
-  rpc SrunXStream(stream SrunXStreamRequest) returns (stream SrunXStreamReply);
 }
 
 service CraneForeD {
   rpc CallocStream(stream StreamCallocRequest) returns(stream StreamCforedReply);
   rpc CrunStream(stream StreamCrunRequest) returns(stream StreamCforedCrunReply);
-  rpc TaskIOStream(stream StreamCfroedTaskIORequest) returns(stream StreamCfroedTaskIOReply);
+  rpc TaskIOStream(stream StreamCforedTaskIORequest) returns(stream StreamCforedTaskIOReply);
   rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
 }
