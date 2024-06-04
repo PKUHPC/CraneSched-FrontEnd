@@ -81,10 +81,10 @@ func init() {
 		"Display at specified intervals (seconds)")
 	RootCmd.Flags().BoolVarP(&FlagSummarize, "summarize", "s", false,
 		"Display state summary only")
-	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-		"Format specification")
-	RootCmd.Flags().BoolVarP(&FlagListReason, "list-reasons", "R", false,
-		"Display reasons if nodes are down or drained")
+	//RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
+	//	"Format specification")
+	//RootCmd.Flags().BoolVarP(&FlagListReason, "list-reasons", "R", false,
+	//	"Display reasons if nodes are down or drained")
 
 	RootCmd.MarkFlagsMutuallyExclusive("states", "responding", "dead")
 }
