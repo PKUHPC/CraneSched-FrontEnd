@@ -1505,6 +1505,14 @@ func StartCfored() {
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
+	if _, err := os.Stat(util.DefaultCforedUnixSocketPath); err == nil {
+		log.Warningf("Removing existing unix sock %s", util.DefaultCforedUnixSocketPath)
+		err := os.Remove(util.DefaultCforedUnixSocketPath)
+		if err != nil {
+			log.Fatalf("Error when removing existing unix sock")
+			return
+		}
+	}
 	unixListenSocket, err := net.Listen("unix", util.DefaultCforedUnixSocketPath)
 	if err != nil {
 		log.Fatal(err)
