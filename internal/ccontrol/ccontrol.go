@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,20 +38,18 @@ var (
 )
 
 func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
-	var req *protos.QueryCranedInfoRequest
-
-	req = &protos.QueryCranedInfoRequest{CranedName: nodeName}
+	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
 
 	if queryAll {
 		if len(reply.CranedInfoList) == 0 {
-			fmt.Printf("No node is avalable.\n")
+			fmt.Println("No node is available.")
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
@@ -80,20 +80,18 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 }
 
 func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
-	var req *protos.QueryPartitionInfoRequest
-
-	req = &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
+	req := &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
 
 	if queryAll {
 		if len(reply.PartitionInfo) == 0 {
-			fmt.Printf("No node is avalable.\n")
+			fmt.Println("No node is available.")
 		} else {
 			for _, partitionInfo := range reply.PartitionInfo {
 				fmt.Printf("PartitionName=%v State=%v\n"+
@@ -138,17 +136,17 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the task")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if !reply.GetOk() {
 		log.Errorf("Failed to retrive the information of job %d", taskId)
-		return util.ErrorBackEnd
+		return util.ErrorBackend
 	}
 
 	if len(reply.TaskInfoList) == 0 {
 		if queryAll {
-			fmt.Printf("No job is running.\n")
+			fmt.Println("No job is running.")
 		} else {
 			fmt.Printf("Job %d is not running.\n", taskId)
 		}
@@ -165,7 +163,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 			runTime := "unknown"
 			if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 				timeStartStr = timeStart.Local().String()
-				runTime = time.Now().Sub(timeStart).String()
+				runTime = time.Since(timeStart).String()
 			}
 			timeEnd := taskInfo.EndTime.AsTime()
 			timeEndStr := "unknown"
@@ -193,6 +191,43 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}
+	return util.ErrorSuccess
+}
+
+func PrintFlattenYAML(prefix string, m interface{}) {
+	switch v := m.(type) {
+	case map[string]interface{}:
+		for key, value := range v {
+			newPrefix := key
+			if prefix != "" {
+				newPrefix = prefix + "." + key
+			}
+			PrintFlattenYAML(newPrefix, value)
+		}
+	case []interface{}:
+		for i, value := range v {
+			PrintFlattenYAML(fmt.Sprintf("%s.%d", prefix, i), value)
+		}
+	default:
+		fmt.Printf("%s = %v\n", prefix, v)
+	}
+}
+
+func ShowConfig(path string) util.CraneCmdError {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Errorf("Failed to read configuration file: %v\n", err)
+		return util.ErrorCmdArg
+	}
+
+	var config map[string]interface{}
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		log.Errorf("error unmarshalling yaml: %v\n", err)
+		return util.ErrorCmdArg
+	}
+	PrintFlattenYAML("", config)
+
 	return util.ErrorSuccess
 }
 
@@ -226,9 +261,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 
 	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
 
-	var req *protos.ModifyTaskRequest
-
-	req = &protos.ModifyTaskRequest{
+	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
 		TaskId:    taskId,
 		Attribute: protos.ModifyTaskRequest_TimeLimit,
@@ -239,22 +272,60 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if reply.Ok {
-		fmt.Println("Change time limit success")
+		log.Println("Change time limit success.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Chang time limit failed: %s\n", reply.GetReason())
-		return util.ErrorBackEnd
+		log.Printf("Change time limit failed: %s\n", reply.GetReason())
+		return util.ErrorBackend
+	}
+}
+
+func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
+	if priority < 0 {
+		log.Errorln("Priority must be greater than or equal to 0.")
+		return util.ErrorCmdArg
+	}
+
+	rounded, _ := util.ParseFloatWithPrecision(strconv.FormatFloat(priority, 'f', 1, 64), 1)
+	if rounded != priority {
+		log.Warnf("Priority will be rounded to %.1f\n", rounded)
+	}
+	if rounded == 0 {
+		log.Warnf("Mandated priority equals 0 means the scheduling priority will be calculated.")
+	}
+
+	req := &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskId:    taskId,
+		Attribute: protos.ModifyTaskRequest_Priority,
+		Value: &protos.ModifyTaskRequest_MandatedPriority{
+			MandatedPriority: rounded,
+		},
+	}
+
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to change task priority")
+		return util.ErrorNetwork
+	}
+
+	if reply.Ok {
+		log.Println("Change priority success.")
+		return util.ErrorSuccess
+	} else {
+		log.Errorf("Change priority failed: %s.\n", reply.GetReason())
+		return util.ErrorBackend
 	}
 }
 
 func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
 	var req = &protos.ModifyCranedStateRequest{}
 	if nodeName == "" {
-		log.Errorf("No valid node name in update node command.\nSpecify node names by -n or --name")
+		log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
 		return util.ErrorCmdArg
 	} else {
 		req.CranedId = nodeName
@@ -264,7 +335,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	switch state {
 	case "drain":
 		if reason == "" {
-			log.Errorf("You must specify a reason by '-r' or '--reason' when DRAINING a node. Request denied")
+			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
 			return util.ErrorCmdArg
 		}
 		req.NewState = protos.CranedState_CRANE_DRAIN
@@ -272,22 +343,21 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	case "resume":
 		req.NewState = protos.CranedState_CRANE_IDLE
 	default:
-		log.Errorf("Invalid state given: %s\n Request aborted \n Valid states are: drain, resume", state)
+		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 		return util.ErrorCmdArg
 	}
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
-		log.Errorf("ModifyNode failed: " + err.Error())
-		return util.ErrorGrpc
+		log.Errorf("ModifyNode failed: %v\n", err)
+		return util.ErrorNetwork
 	}
 
 	if reply.Ok {
-		fmt.Println("Change node state success.")
+		log.Println("Change node state success.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Chang node state failed: %s\n", reply.GetReason())
-		return util.ErrorBackEnd
+		log.Printf("Change node state failed: %s\n", reply.GetReason())
+		return util.ErrorBackend
 	}
-
 }

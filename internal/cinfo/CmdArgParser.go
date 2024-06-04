@@ -18,8 +18,9 @@ package cinfo
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -35,9 +36,10 @@ var (
 	FlagListReason           bool
 
 	RootCmd = &cobra.Command{
-		Use:   "cinfo",
-		Short: "display the status of all partitions and nodes",
+		Use:   "cinfo [flags]",
+		Short: "Display the state of partitions and nodes",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
 			if FlagIterate != 0 {
@@ -54,7 +56,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
@@ -62,27 +64,27 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().BoolVarP(&FlagFilterDownOnly, "dead", "d", false,
-		"show only non-responding nodes")
+		"Display non-responding nodes only")
 	RootCmd.Flags().StringSliceVarP(&FlagFilterPartitions, "partition", "p",
-		nil, "report on specific partition")
+		nil, "Display nodes in the specified partition only")
 	RootCmd.Flags().StringSliceVarP(&FlagFilterNodes, "nodes", "n", nil,
-		"report on specific node(s)")
+		"Display the specified nodes only")
 	RootCmd.Flags().StringSliceVarP(&FlagFilterCranedStates, "states", "t", nil,
-		"Include craned nodes only with certain states. \n"+
-			"The state can take IDLE, MIX, ALLOC and DOWN and is case-insensitive. \n"+
+		"Display nodes with the specified states only. \n"+
+			"The state can take IDLE, MIX, ALLOC and DOWN (case-insensitive). \n"+
 			"Example: \n"+
 			"\t -t idle,mix \n"+
 			"\t -t=alloc \n")
 	RootCmd.Flags().BoolVarP(&FlagFilterRespondingOnly, "responding", "r", false,
-		"report only responding nodes")
+		"Display responding nodes only")
 	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
-		"specify an interval in seconds")
+		"Display at specified intervals (seconds)")
 	RootCmd.Flags().BoolVarP(&FlagSummarize, "summarize", "s", false,
-		"report state summary only")
+		"Display state summary only")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-		"format specification")
+		"Format specification")
 	RootCmd.Flags().BoolVarP(&FlagListReason, "list-reasons", "R", false,
-		"list reason nodes are down or drained")
+		"Display reasons if nodes are down or drained")
 
 	RootCmd.MarkFlagsMutuallyExclusive("states", "responding", "dead")
 }

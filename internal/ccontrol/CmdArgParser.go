@@ -21,23 +21,24 @@ import (
 	"os"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var (
-	FlagNodeName      string
-	FlagState         string
-	FlagReason        string
-	FlagPartitionName string
-	FlagTaskId        uint32
-	FlagQueryAll      bool
-	FlagTimeLimit     string
-
+	FlagNodeName       string
+	FlagState          string
+	FlagReason         string
+	FlagPartitionName  string
+	FlagTaskId         uint32
+	FlagQueryAll       bool
+	FlagTimeLimit      string
+	FlagPriority       float64
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
 		Use:   "ccontrol",
-		Short: "display the state of partitions and nodes",
+		Short: "Display and modify the specified entity",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
@@ -46,12 +47,12 @@ var (
 	}
 	showCmd = &cobra.Command{
 		Use:   "show",
-		Short: "display state of identified entity, default is all records",
+		Short: "Display details of the specified entity",
 		Long:  "",
 	}
 	showNodeCmd = &cobra.Command{
-		Use:   "node",
-		Short: "display state of the specified node, default is all records",
+		Use:   "node [flags] [node_name]",
+		Short: "Display details of the nodes, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -68,8 +69,8 @@ var (
 		},
 	}
 	showPartitionCmd = &cobra.Command{
-		Use:   "partition",
-		Short: "display state of the specified partition, default is all records",
+		Use:   "partition [flags] [partition_name]",
+		Short: "Display details of the partitions, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -86,8 +87,8 @@ var (
 		},
 	}
 	showJobCmd = &cobra.Command{
-		Use:   "job",
-		Short: "display the state of a specified job or all jobs",
+		Use:   "job [flags] [job_id]",
+		Short: "Display details of the jobs, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -103,19 +104,48 @@ var (
 			}
 		},
 	}
-	updateCmd = &cobra.Command{
-		Use:   "update",
-		Short: "Modify job information",
+	showConfigCmd = &cobra.Command{
+		Use:   "config",
+		Short: "Display the configuration file in key-value format",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
+			if err := ShowConfig(FlagConfigFilePath); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
 	}
+	updateCmd = &cobra.Command{
+		Use:     "update",
+		Aliases: []string{"modify"},
+		Short:   "Modify attributes of the specified entity",
+		Long:    "",
+	}
+	updateJobCmd = &cobra.Command{
+		Use:   "job [flags]",
+		Short: "Modify job attributes",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") {
+				log.Error("No attribute to modify")
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			if len(FlagTimeLimit) != 0 {
+				if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("priority") {
+				if err := ChangeTaskPriority(FlagTaskId, FlagPriority); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+		},
+	}
 	updateNodeCmd = &cobra.Command{
-		Use:   "node",
-		Short: "Modify node information",
+		Use:   "node [flags]",
+		Short: "Modify node attributes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
@@ -128,7 +158,7 @@ var (
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
@@ -141,23 +171,28 @@ func init() {
 		showCmd.AddCommand(showNodeCmd)
 		showCmd.AddCommand(showPartitionCmd)
 		showCmd.AddCommand(showJobCmd)
+		showCmd.AddCommand(showConfigCmd)
 	}
 
 	RootCmd.AddCommand(updateCmd)
 	{
-		updateCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
-		updateCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Job id")
-
 		updateCmd.AddCommand(updateNodeCmd)
 		{
-			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "specify a node name")
-			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "specify the state")
-			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "set reason")
+			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify name of the node to be modified")
+			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Set the node state")
+			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set the reason of this state change")
 		}
 
-		err := updateCmd.MarkFlagRequired("job")
-		if err != nil {
-			return
+		updateCmd.AddCommand(updateJobCmd)
+		{
+			updateJobCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Specify job id of the job to be modified")
+			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
+			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
+
+			err := updateJobCmd.MarkFlagRequired("job")
+			if err != nil {
+				return
+			}
 		}
 	}
 }

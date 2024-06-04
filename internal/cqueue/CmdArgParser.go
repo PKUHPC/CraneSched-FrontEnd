@@ -39,9 +39,10 @@ var (
 	FlagNumLimit         int32
 
 	RootCmd = &cobra.Command{
-		Use:   "cqueue",
-		Short: "display the job information for all queues in the cluster",
+		Use:   "cqueue [flags]",
+		Short: "Display the job information and queue status",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
 			if FlagIterate != 0 {
@@ -58,40 +59,40 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noHeader", "N", false,
-		"no headers on output")
-	RootCmd.Flags().BoolVarP(&FlagStartTime, "start", "S", false,
-		"print expected start times of pending jobs")
+
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"comma separated list of jobs IDs\nto view, default is all")
+		"Specify job ids to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
-		"comma separated list of job names to view")
+		"Specify job names to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterQos, "qos", "q", "",
-		"comma separated list of qos's\nto view, default is all qos's")
+		"Specify QoS of jobs to view (comma separated list), \ndefault is all QoS")
 	RootCmd.Flags().StringVarP(&FlagFilterStates, "state", "t", "",
-		"comma separated list of states to view,\n"+
+		"Specify job states to view,\n"+
 			"default is pending and running, \n"+
 			"'--states=all' reports all states ")
 	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
-		"comma separated list of users to view")
+		"Specify users to view (comma separated list), default is all users")
 	RootCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
-		"comma separated list of accounts\n"+
-			"to view, default is all accounts")
-	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
-		"specify an interval in seconds")
+		"Specify accounts to view (comma separated list), \ndefault is all accounts")
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
-		"comma separated list of partitions\n"+
-			"to view, default is all partitions")
+		"Specify partitions to view (comma separated list), \ndefault is all partitions")
+
+	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
+		"Display at specified intervals (seconds), default is 0 (no iteration)")
+	RootCmd.Flags().BoolVarP(&FlagStartTime, "start", "S", false,
+		"Display expected start time of pending jobs")
+	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
+		"Do not print header line in the output")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-		`Specify the output format for the command. 
+		`Specify the output format. 
 Fields are identified by a percent sign (%) followed by a character. 
 Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
 
@@ -116,5 +117,5 @@ Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width 
 `)
 
 	RootCmd.Flags().Int32VarP(&FlagNumLimit, "max-lines", "m", 0,
-		"print job information for the specified number of lines")
+		"Limit the number of lines in the output, default is 0 (no limit)")
 }

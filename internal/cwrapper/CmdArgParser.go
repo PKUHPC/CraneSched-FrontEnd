@@ -25,9 +25,9 @@ import (
 
 var (
 	rootCmd = &cobra.Command{
-		Use:   "cwrapper <COMMAND> [OPTIONS] [ARGUMENTS...]",
-		Short: "Wrapper of CraneSched commands.",
-		Long: `Wrapper of CraneSched commands. 
+		Use:   "cwrapper",
+		Short: "Wrapper of CraneSched commands",
+		Long: `Wrapper of CraneSched commands.
 This is a highly EXPERIMENTAL feature. 
 If any error occurs, please refer to original commands.`,
 	}
@@ -47,6 +47,6 @@ func ParseCmdArgs() {
 	}
 
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }

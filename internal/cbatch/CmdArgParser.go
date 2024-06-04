@@ -48,8 +48,8 @@ var (
 	FlagMailUser string
 
 	RootCmd = &cobra.Command{
-		Use:   "cbatch",
-		Short: "submit batch jobs",
+		Use:   "cbatch [flags] file",
+		Short: "Submit batch job",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := Cbatch(args[0]); err != util.ErrorSuccess {
@@ -61,30 +61,30 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, " number of nodes on which to run (N = min[-max])")
-	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "number of cpus required per task")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "number of tasks to invoke on each node")
-	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
-	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory, default unit is Byte(B), support GB(G, g), MB(M, m), KB(K, k)")
-	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
-	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
-	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
-	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
-	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
-	RootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "submit the task multiple times")
-	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job, separated by commas")
-	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts, separated by commas")
-	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "load login environment variables")
-	RootCmd.Flags().StringVar(&FlagExport, "export", "", "propagate environment variables")
-	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "file for batch script's standard output")
-	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "file for batch script's standard error output")
-	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "notify user by mail when certain events occur")
-	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "mail address of the notification receiver")
+	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, "Number of nodes on which to run (N = min[-max])")
+	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "Number of cpus required per job")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Number of tasks to invoke on each node")
+	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit")
+	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Minimum amount of real memory, default unit is Byte(B), support GB(G, g), MB(M, m), KB(K, k)")
+	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
+	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "Name of job")
+	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
+	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "Working directory of the job")
+	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
+	RootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "Submit the job multiple times")
+	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
+	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
+	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "Redirection path of standard output of the script")
+	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
+	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur")
+	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 }

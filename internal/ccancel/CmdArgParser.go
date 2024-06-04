@@ -18,9 +18,10 @@ package ccancel
 
 import (
 	"CraneFrontEnd/internal/util"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"regexp"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
@@ -35,8 +36,8 @@ var (
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
-		Use:   "ccancel [OPTIONS...] [job_id[,job_id...]]",
-		Short: "cancel pending or running jobs",
+		Use:   "ccancel [flags] job_id[,job_id...]",
+		Short: "Cancel pending or running jobs",
 		Long:  "",
 		Args: func(cmd *cobra.Command, args []string) error {
 			err := cobra.MaximumNArgs(1)(cmd, args)
@@ -82,7 +83,7 @@ var (
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
@@ -90,17 +91,17 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().StringVarP(&FlagJobName, "name", "n", "",
-		"cancel jobs only with the job name")
+		"Cancel jobs with the specified job name")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
-		"cancel jobs jobs only in the Partition")
+		"Cancel jobs in the specified partition")
 	RootCmd.Flags().StringVarP(&FlagState, "state", "t", "",
-		"cancel jobs of the State. "+
+		"Cancel jobs of the specified states"+
 			"Valid job states are PENDING(PD), RUNNING(R). "+
 			"job states are case-insensitive")
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
-		"cancel jobs under an account")
+		"Cancel jobs under the specified account")
 	RootCmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
-		"cancel jobs run by the user")
+		"Cancel jobs submitted by the specified user")
 	RootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
-		"cancel jobs running on the nodes")
+		"Cancel jobs running on the specified nodes")
 }

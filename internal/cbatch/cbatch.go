@@ -135,7 +135,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		case "--mail-user":
 			task.MailUser = arg.val
 		default:
-			_, _ = fmt.Fprintf(os.Stderr, "Invalid parameter '%s' given in the script file.", arg.name)
+			log.Errorf("Invalid parameter '%s' given in the script file.\n", arg.name)
 			return false, nil
 		}
 	}
@@ -155,14 +155,14 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
-			log.Print("Invalid --time")
+			log.Errorln("Invalid --time")
 			return false, nil
 		}
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			log.Error(err)
+			log.Errorln(err)
 			return false, nil
 		}
 		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
@@ -214,20 +214,20 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
-		log.Print("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
+		log.Errorln("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 		return false, nil
 	}
 	if !util.CheckNodeList(task.Nodelist) {
-		log.Print("Invalid --nodelist")
+		log.Errorln("Invalid --nodelist")
 		return false, nil
 	}
 	if !util.CheckNodeList(task.Excludes) {
-		log.Print("Invalid --exclude")
+		log.Errorln("Invalid --exclude")
 		return false, nil
 	}
 
 	if task.MailType != 0 && task.MailUser == "" {
-		log.Error("Mail type is set but missing the mail user")
+		log.Errorln("Mail type is set but missing the mail user")
 		return false, nil
 	}
 
@@ -243,16 +243,16 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to submit the task")
-		return util.ErrorGrpc
+		util.GrpcErrorPrintf(err, "Failed to submit the job")
+		return util.ErrorNetwork
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("Task Id allocated: %d\n", reply.GetTaskId())
+		fmt.Printf("Job id allocated: %d\n", reply.GetTaskId())
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Task allocation failed: %s\n", reply.GetReason())
-		return util.ErrorBackEnd
+		log.Errorf("Job allocation failed: %s\n", reply.GetReason())
+		return util.ErrorBackend
 	}
 }
 
@@ -264,7 +264,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	if len(reply.TaskIdList) > 0 {
@@ -272,12 +272,12 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 		for i, taskId := range reply.TaskIdList {
 			taskIdListString[i] = strconv.FormatUint(uint64(taskId), 10)
 		}
-		fmt.Printf("Task Id allocated: %s\n", strings.Join(taskIdListString, ", "))
+		fmt.Printf("Job id allocated: %s\n", strings.Join(taskIdListString, ", "))
 	}
 
 	if len(reply.ReasonList) > 0 {
-		fmt.Printf("Failed reasons: %s\n", strings.Join(reply.ReasonList, ", "))
-		return util.ErrorBackEnd
+		log.Errorf("Job allocation failed: %s\n", strings.Join(reply.ReasonList, ", "))
+		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
 }
@@ -359,7 +359,7 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			log.Printf("Failed to close %s\n", file.Name())
+			log.Errorf("Failed to close %s\n", file.Name())
 		}
 	}(file)
 
@@ -383,8 +383,8 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 		}
 		err := processor.Process(scanner.Text(), &sh, &args)
 		if err != nil {
-			fmt.Printf("parse error at line %v: %v\n", num, err.Error())
-			return util.ErrorCbatchScriptParsing
+			log.Errorf("Parsing error at line %v: %v\n", num, err.Error())
+			return util.ErrorCmdArg
 		}
 	}
 
@@ -392,9 +392,6 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 		log.Error(err)
 		return util.ErrorCmdArg
 	}
-	// fmt.Printf("Invoking UID: %d\n\n", os.Getuid())
-	// fmt.Printf("Shell script:\n%s\n\n", strings.Join(sh, "\n"))
-	// fmt.Printf("Cbatch args:\n%v\n\n", args)
 
 	ok, task := ProcessCbatchArg(args)
 	if !ok {

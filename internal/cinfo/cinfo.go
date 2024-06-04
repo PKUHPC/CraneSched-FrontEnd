@@ -34,11 +34,6 @@ func cinfoFunc() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
-	req := &protos.QueryClusterInfoRequest{
-		FilterPartitions: FlagFilterPartitions,
-		FilterNodes:      FlagFilterNodes,
-	}
-
 	var stateList []protos.CranedState
 	if len(FlagFilterCranedStates) != 0 {
 		for i := 0; i < len(FlagFilterCranedStates); i++ {
@@ -54,7 +49,7 @@ func cinfoFunc() util.CraneCmdError {
 			case "drain":
 				stateList = append(stateList, protos.CranedState_CRANE_DRAIN)
 			default:
-				log.Error("Invalid state given: %s\n", FlagFilterCranedStates[i])
+				log.Errorf("Invalid state given: %s\n", FlagFilterCranedStates[i])
 				return util.ErrorCmdArg
 			}
 		}
@@ -66,12 +61,38 @@ func cinfoFunc() util.CraneCmdError {
 		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN, protos.CranedState_CRANE_DRAIN)
 	}
 
-	req.FilterCranedStates = stateList
+	var nodeList []string
+	if len(FlagFilterNodes) != 0 {
+		for _, node := range FlagFilterNodes {
+			if node == "" {
+				log.Warn("Empty node name is ignored.")
+				continue
+			}
+			nodeList = append(nodeList, node)
+		}
+	}
+
+	var partList []string
+	if len(FlagFilterPartitions) != 0 {
+		for _, part := range FlagFilterPartitions {
+			if part == "" {
+				log.Warn("Empty partition name is ignored.")
+				continue
+			}
+			partList = append(partList, part)
+		}
+	}
+
+	req := &protos.QueryClusterInfoRequest{
+		FilterPartitions:   partList,
+		FilterNodes:        nodeList,
+		FilterCranedStates: stateList,
+	}
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		return util.ErrorGrpc
+		return util.ErrorNetwork
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -94,11 +115,11 @@ func cinfoFunc() util.CraneCmdError {
 	}
 	table.AppendBulk(tableData)
 	if len(tableData) == 0 {
-		fmt.Printf("No partition is available.\n")
+		log.Info("No matching partitions were found for the given filter.")
 	} else {
 		table.Render()
 	}
-	if len(FlagFilterNodes) != 0 {
+	if len(nodeList) != 0 {
 		replyNodes := ""
 		for _, partitionCraned := range reply.Partitions {
 			for _, commonCranedStateList := range partitionCraned.CranedLists {
@@ -111,7 +132,7 @@ func cinfoFunc() util.CraneCmdError {
 			}
 		}
 		replyNodes_, _ := util.ParseHostList(replyNodes)
-		requestedNodes_, _ := util.ParseHostList(strings.Join(FlagFilterNodes, ","))
+		requestedNodes_, _ := util.ParseHostList(strings.Join(nodeList, ","))
 
 		foundedNodes := make(map[string]bool)
 		for _, node := range replyNodes_ {
@@ -126,14 +147,19 @@ func cinfoFunc() util.CraneCmdError {
 		}
 
 		if len(redList) > 0 {
-			println("The following nodes do not exist: " + util.HostNameListToStr(redList))
+			log.Infof("Requested nodes do not exist or do not meet the given filter condition: %s.",
+				util.HostNameListToStr(redList))
 		}
 	}
 	return util.ErrorSuccess
 }
 
 func loopedQuery(iterate uint64) util.CraneCmdError {
-	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	if err != nil {
+		log.Error(err)
+		return util.ErrorCmdArg
+	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
 		err := cinfoFunc()

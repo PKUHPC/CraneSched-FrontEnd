@@ -18,8 +18,9 @@ package cfored
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -42,6 +43,6 @@ func ParseCmdArgs() {
 		"info", "Output level")
 
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorExecuteFailed)
+		os.Exit(util.ErrorGeneric)
 	}
 }
