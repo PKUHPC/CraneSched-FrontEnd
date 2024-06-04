@@ -811,27 +811,14 @@ CforedCrunStateMachineLoop:
 					}
 
 				case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
-					reply = &protos.StreamCforedCrunReply{
-						Type: protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST,
-						Payload: &protos.StreamCforedCrunReply_PayloadTaskCancelRequest{
-							PayloadTaskCancelRequest: &protos.StreamCforedCrunReply_TaskCancelRequest{
-								TaskId: ctldReply.GetPayloadTaskCancelRequest().TaskId,
-							},
-						},
-					}
-
-					if err := toCrunStream.Send(reply); err != nil {
-						log.Debug("[Cfored<->Crun] Connection to crun was broken.")
-						state = CancelTaskOfDeadCrun
-					} else {
-						state = CrunWaitTaskCancel
-					}
+					state = CrunWaitTaskCancel
 
 				default:
 					log.Fatal("[Cfored<->Crun] Expect type " +
 						"TASK_ID_ALLOC_REPLY or TASK_CANCEL_REQUEST")
 				}
 			}
+
 		case CrunWaitIOForward:
 			log.Debug("[Cfored<->Crun] Enter State WAIT_TASK_IO_FORWARD")
 			waiting := atomic.Bool{}
