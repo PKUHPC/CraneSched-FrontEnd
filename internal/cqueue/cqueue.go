@@ -242,13 +242,13 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "l":
 			tableOutputHeader[i] = "TimeLimit"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[i].TimeLimit.String())
+				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].TimeLimit.String())
 			}
 		case "N":
 			tableOutputHeader[i] = "Nodes"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j],
-					strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10))
+					strconv.FormatUint(uint64(reply.TaskInfoList[j].NodeNum), 10))
 			}
 		case "s":
 			tableOutputHeader[i] = "SubmitTime"
