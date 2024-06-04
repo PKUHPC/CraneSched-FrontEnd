@@ -33,7 +33,7 @@ var (
 	FlagTaskId         uint32
 	FlagQueryAll       bool
 	FlagTimeLimit      string
-	FlagPriority       uint32
+	FlagPriority       float64
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
@@ -136,7 +136,7 @@ var (
 					os.Exit(err)
 				}
 			}
-			if FlagPriority != 0 {
+			if cmd.Flags().Changed("priority") {
 				if err := ChangeTaskPriority(FlagTaskId, FlagPriority); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
@@ -187,7 +187,7 @@ func init() {
 		{
 			updateJobCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Specify job id of the job to be modified")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
-			updateJobCmd.Flags().Uint32VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
+			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 
 			err := updateJobCmd.MarkFlagRequired("job")
 			if err != nil {

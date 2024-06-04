@@ -284,13 +284,26 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	}
 }
 
-func ChangeTaskPriority(taskId uint32, priority uint32) util.CraneCmdError {
+func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
+	if priority < 0 {
+		log.Errorln("Priority must be greater than or equal to 0.")
+		return util.ErrorCmdArg
+	}
+
+	rounded, _ := util.ParseFloatWithPrecision(strconv.FormatFloat(priority, 'f', 1, 64), 1)
+	if rounded != priority {
+		log.Warnf("Priority will be rounded to %.1f\n", rounded)
+	}
+	if rounded == 0 {
+		log.Warnf("Mandated priority equals 0 means the scheduling priority will be calculated.")
+	}
+
 	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
 		TaskId:    taskId,
 		Attribute: protos.ModifyTaskRequest_Priority,
-		Value: &protos.ModifyTaskRequest_PriorityValue{
-			PriorityValue: priority,
+		Value: &protos.ModifyTaskRequest_MandatedPriority{
+			MandatedPriority: rounded,
 		},
 	}
 
@@ -304,7 +317,7 @@ func ChangeTaskPriority(taskId uint32, priority uint32) util.CraneCmdError {
 		log.Println("Change priority success.")
 		return util.ErrorSuccess
 	} else {
-		log.Printf("Change priority failed: %s\n", reply.GetReason())
+		log.Errorf("Change priority failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
