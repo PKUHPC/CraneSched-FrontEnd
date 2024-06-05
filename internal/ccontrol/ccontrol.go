@@ -346,6 +346,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 		return util.ErrorCmdArg
 	}
+	req.Uid = uint32(os.Geteuid())
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {

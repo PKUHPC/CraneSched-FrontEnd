@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 
+	"time"
+
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/xlab/treeprint"
@@ -274,6 +276,33 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}
+	table.AppendBulk(tableData)
+	table.Render()
+}
+
+func PrintAllEvents(eventList []*protos.EventInfo) {
+	table := tablewriter.NewWriter(os.Stdout) //table format control
+	util.SetBorderTable(table)
+	header := []string{"Cluster", "Node", "StartTime", "EndTime", "State", "Reason", "Uid"}
+	tableData := make([][]string, len(eventList))
+	for _, eventInfo := range eventList {
+		var endTime string
+		if eventInfo.StartTime == eventInfo.EndTime {
+			endTime = "Unknown"
+		} else {
+			endTime = eventInfo.EndTime.AsTime().In(time.Local).String()
+		}
+		tableData = append(tableData, []string{
+			eventInfo.ClusterName,
+			eventInfo.NodeName,
+			eventInfo.StartTime.AsTime().In(time.Local).String(),
+			endTime,
+			eventInfo.State.String(),
+			eventInfo.Reason,
+			strconv.FormatUint(uint64(eventInfo.Uid), 10),
+		})
+	}
+	table.SetHeader(header)
 	table.AppendBulk(tableData)
 	table.Render()
 }
@@ -569,6 +598,22 @@ func ShowAccounts() util.CraneCmdError {
 		fmt.Println(reply.Reason)
 		return util.ErrorBackend
 	}
+}
+
+func ShowEvents() {
+	var req *protos.QueryEntityInfoRequest
+	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Event}
+	reply, err := stub.QueryEntityInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Fail to show events")
+	}
+
+	if reply.GetOk() {
+		PrintAllEvents(reply.EventList)
+	} else {
+		fmt.Println(reply.Reason)
+	}
+
 }
 
 func ShowUser(name string, account string) util.CraneCmdError {

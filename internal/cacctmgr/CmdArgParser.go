@@ -341,6 +341,7 @@ var (
 					os.Exit(err)
 				}
 			}
+			ShowUser("", FlagAccountName)
 		},
 	}
 	findQosCmd = &cobra.Command{
@@ -360,6 +361,15 @@ var (
 			}
 		},
 	}
+	showEventCmd = &cobra.Command{
+		Use:   "event",
+		Short: "Display event table",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			ShowEvents()
+		},
+	}
+
 	/* --------------------------------------------------- block ---------------------------------------------------- */
 	blockCmd = &cobra.Command{
 		Use:           "block",
