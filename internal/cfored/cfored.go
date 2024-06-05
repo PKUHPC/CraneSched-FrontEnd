@@ -504,10 +504,14 @@ func (cforedServer *GrpcCforedServer) QueryTaskIdFromPort(ctx context.Context,
 func (cforedServer *GrpcCforedServer) TaskIOStream(toCranedStream protos.CraneForeD_TaskIOStreamServer) error {
 	var cranedId string
 	var reply *protos.StreamCforedTaskIOReply
+
 	requestChannel := make(chan RequestReceiveItem[protos.StreamCforedTaskIORequest], 8)
 	go TaskIOFWDRequestReceiveRoutine(toCranedStream, requestChannel)
+
 	crunRequestChannel := make(chan *protos.StreamCrunRequest, 2)
+
 	state := CranedReg
+
 CforedCranedStateMachineLoop:
 	for {
 		switch state {
@@ -524,11 +528,14 @@ CforedCranedStateMachineLoop:
 					return nil
 				}
 			}
+
 			cranedId = cranedReq.GetPayloadRegisterReq().GetCranedId()
 			log.Debugf("[Cfored<->Craned] Receive CranedReg from %s", cranedId)
+
 			if cranedReq.Type != protos.StreamCforedTaskIORequest_CRANED_REGISTER {
 				log.Fatal("[Cfored<->Craned] Expect CRANED_REGISTER")
 			}
+
 			gVars.crunRequestChannelMtx.Lock()
 			gVars.crunRequestChannelMapByCranedId[cranedId] = crunRequestChannel
 			gVars.crunRequestChannelCV.Broadcast()
@@ -567,6 +574,7 @@ CforedCranedStateMachineLoop:
 							break cranedIOFrowarding
 						}
 					}
+
 					log.Tracef("[Cfored<->Craned] Receive type %s", cranedReq.Type.String())
 					switch cranedReq.Type {
 					case protos.StreamCforedTaskIORequest_CRANED_TASK_OUTPUT:
@@ -578,6 +586,7 @@ CforedCranedStateMachineLoop:
 							channel <- cranedReq
 						}
 						gVars.taskIORequestChannelMtx.Unlock()
+
 					case protos.StreamCforedTaskIORequest_CRANED_UNREGISTER:
 						reply = &protos.StreamCforedTaskIOReply{
 							Type: protos.StreamCforedTaskIOReply_CRANED_UNREGISTER_REPLY,
@@ -593,12 +602,14 @@ CforedCranedStateMachineLoop:
 							log.Debug("[Cfored<->Craned] Connection to craned was broken.")
 						}
 						break cranedIOFrowarding
+
 					default:
 						log.Fatal("[Cfored<->Craned] Receive Unexpected %s", cranedReq.Type.String())
 						state = CranedUnReg
 						break cranedIOFrowarding
 					}
 					// msg from crun
+
 				case crunReq := <-crunRequestChannel:
 					switch crunReq.Type {
 					case protos.StreamCrunRequest_TASK_IO_FORWARD:
@@ -625,6 +636,7 @@ CforedCranedStateMachineLoop:
 					}
 				}
 			}
+
 		case CranedUnReg:
 			log.Debugf("[Cfored<->Craned] Enter State CranedUnReg")
 			gVars.crunRequestChannelMtx.Lock()
