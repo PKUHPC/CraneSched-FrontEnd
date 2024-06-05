@@ -371,7 +371,7 @@ message QueryEntityInfoReply {
   repeated UserInfo user_list = 3;
   repeated AccountInfo account_list = 4;
   repeated QosInfo qos_list = 5;
-  repeated EventInfo event_list  =6;
+  repeated EventInfo event_list = 6;
 }
 
 message BlockAccountOrUserRequest {

@@ -101,11 +101,11 @@ func cinfoFunc() util.CraneCmdError {
 	table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST(REASON)"})
 	for _, partitionCraned := range reply.Partitions {
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
-			var nodelistReason string
-			if commonCranedStateList.State == protos.CranedState_CRANE_DRAIN {
-				nodelistReason = commonCranedStateList.Reason
+			nodeListReason := ""
+			if commonCranedStateList.Reason != "" {
+				nodeListReason = fmt.Sprintf("%s(%s)", commonCranedStateList.CranedListRegex, commonCranedStateList.Reason)
 			} else {
-				nodelistReason = commonCranedStateList.CranedListRegex
+				nodeListReason = commonCranedStateList.CranedListRegex
 			}
 			if commonCranedStateList.Count > 0 {
 				tableData = append(tableData, []string{
@@ -114,7 +114,7 @@ func cinfoFunc() util.CraneCmdError {
 					"infinite",
 					strconv.FormatUint(uint64(commonCranedStateList.Count), 10),
 					strings.ToLower(commonCranedStateList.State.String()[6:]),
-					nodelistReason,
+					nodeListReason,
 				})
 			}
 		}

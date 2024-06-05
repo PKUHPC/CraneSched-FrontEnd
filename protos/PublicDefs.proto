@@ -241,7 +241,7 @@ message TrimmedPartitionInfo {
     CranedState state = 1;
     uint32 count = 2;
     string craned_list_regex = 3;
-    string reason =4;
+    string reason = 4;
   }
 
   string name = 1;
@@ -316,7 +316,7 @@ message EventInfo {
   string cluster_name =4;
   string reason = 5;
   CranedState state = 6;
-  uint32 uid =7;
+  uint32 uid = 7;
 }
 
 message TimeInterval {

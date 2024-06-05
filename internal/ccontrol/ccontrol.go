@@ -323,7 +323,10 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 }
 
 func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
-	var req = &protos.ModifyCranedStateRequest{}
+	req := &protos.ModifyCranedStateRequest{
+		Uid: uint32(os.Getuid()),
+	}
+
 	if nodeName == "" {
 		log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
 		return util.ErrorCmdArg
@@ -346,7 +349,6 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 		return util.ErrorCmdArg
 	}
-	req.Uid = uint32(os.Geteuid())
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {

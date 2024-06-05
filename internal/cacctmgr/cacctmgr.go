@@ -606,20 +606,21 @@ func ShowAccounts() util.CraneCmdError {
 	}
 }
 
-func ShowEvents() {
-	var req *protos.QueryEntityInfoRequest
-	req = &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Event}
+func ShowEvents() util.CraneCmdError {
+	req := &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Event}
 	reply, err := stub.QueryEntityInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Fail to show events")
+		return util.ErrorNetwork
 	}
 
 	if reply.GetOk() {
 		PrintAllEvents(reply.EventList)
+		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
+		return util.ErrorBackend
 	}
-
 }
 
 func ShowUser(name string, account string) util.CraneCmdError {

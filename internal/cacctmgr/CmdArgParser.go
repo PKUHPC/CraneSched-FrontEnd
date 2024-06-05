@@ -299,15 +299,15 @@ var (
 		},
 	}
 
-	/* ---------------------------------------------------- find ---------------------------------------------------- */
-	findCmd = &cobra.Command{
+	/* ---------------------------------------------------- show/find ---------------------------------------------------- */
+	showCmd = &cobra.Command{
 		Use:           "show",
 		Aliases:       []string{"search", "query", "find"},
 		SilenceErrors: true,
-		Short:         "Find a specific entity",
+		Short:         "Show or find information of entities",
 		Long:          "",
 	}
-	findAccountCmd = &cobra.Command{
+	showAccountCmd = &cobra.Command{
 		Use:     "account",
 		Aliases: []string{"accounts"},
 		Short:   "Find and display information of account",
@@ -325,7 +325,7 @@ var (
 			}
 		},
 	}
-	findUserCmd = &cobra.Command{
+	showUserCmd = &cobra.Command{
 		Use:     "user",
 		Aliases: []string{"users"},
 		Short:   "Find and display information of user",
@@ -344,7 +344,7 @@ var (
 			ShowUser("", FlagAccountName)
 		},
 	}
-	findQosCmd = &cobra.Command{
+	showQosCmd = &cobra.Command{
 		Use:   "qos [flags] name",
 		Short: "Find and display information of a specific QoS",
 		Long:  "",
@@ -578,14 +578,15 @@ func init() {
 		}
 	}
 
-	/* ---------------------------------------------------- find ---------------------------------------------------- */
-	RootCmd.AddCommand(findCmd)
+	/* ---------------------------------------------------- show/find ---------------------------------------------------- */
+	RootCmd.AddCommand(showCmd)
 	{
-		findCmd.AddCommand(findAccountCmd)
-		findCmd.AddCommand(findQosCmd)
-		findCmd.AddCommand(findUserCmd)
+		showCmd.AddCommand(showAccountCmd)
+		showCmd.AddCommand(showQosCmd)
+		showCmd.AddCommand(showEventCmd)
+		showCmd.AddCommand(showUserCmd)
 		{
-			findUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "Display the user under the specified account")
+			showUserCmd.Flags().StringVarP(&FlagAccountName, "account", "A", "", "Display the user under the specified account")
 		}
 	}
 
