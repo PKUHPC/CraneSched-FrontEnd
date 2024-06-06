@@ -21,11 +21,11 @@ import (
 	"strings"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
-	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	grpccodes "google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type Config struct {
@@ -104,8 +104,8 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 	return tableHeader, tableData
 }
 
-func InvalidDuration() *duration.Duration {
-	return &duration.Duration{
+func InvalidDuration() *durationpb.Duration {
+	return &durationpb.Duration{
 		Seconds: 315576000000,
 		Nanos:   0,
 	}

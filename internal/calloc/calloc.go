@@ -22,15 +22,16 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"os"
 	"os/user"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type GlobalVariables struct {
@@ -297,7 +298,7 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY {
-				log.Fatal("Expect TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
+				log.Fatalf("Expect TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
 			}
 
 			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {

@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
-	github.com/golang/protobuf v1.5.4
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/term v1.1.0
 	github.com/sirupsen/logrus v1.9.3
