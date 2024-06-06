@@ -551,12 +551,18 @@ func Crun(cmd *cobra.Command, args []string) {
 
 	if FlagNodes != 0 {
 		task.NodeNum = FlagNodes
+	} else {
+		log.Fatalf("Invalid --nodes %d", FlagNodes)
 	}
 	if FlagCpuPerTask != 0 {
 		task.CpusPerTask = FlagCpuPerTask
+	} else {
+		log.Fatalf("Invalid --cpus-per-task %f", FlagCpuPerTask)
 	}
 	if FlagNtasksPerNode != 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
+	} else {
+		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
 	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
