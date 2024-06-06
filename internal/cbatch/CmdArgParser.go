@@ -72,7 +72,7 @@ func init() {
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "Number of cpus required per job")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit")
-	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Minimum amount of real memory, default unit is Byte(B), support GB(G, g), MB(M, m), KB(K, k)")
+	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Minimum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
 	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "Name of job")
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")

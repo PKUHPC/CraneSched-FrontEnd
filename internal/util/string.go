@@ -49,7 +49,8 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 	case "B":
 		return uint64(sz), nil
 	}
-	return uint64(sz), nil
+	// default unit is MB
+	return uint64(1024 * 1024 * sz), nil
 }
 
 func ParseDuration(time string, duration *duration.Duration) bool {
