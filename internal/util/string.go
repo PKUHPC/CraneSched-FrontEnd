@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/duration"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
@@ -53,7 +53,7 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 	return uint64(1024 * 1024 * sz), nil
 }
 
-func ParseDuration(time string, duration *duration.Duration) bool {
+func ParseDuration(time string, duration *durationpb.Duration) bool {
 	re := regexp.MustCompile(`(.*):(.*):(.*)`)
 	result := re.FindAllStringSubmatch(time, -1)
 	if result == nil || len(result) != 1 {
