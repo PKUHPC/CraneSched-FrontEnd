@@ -322,13 +322,15 @@ CforedCrunStateMachineLoop:
 				gVars.ctldReplyChannelMapByPid[crunPid] = ctldReplyChannel
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
+				task := crunRequest.GetPayloadTaskReq().Task
+				task.GetInteractiveMeta().CforedName = gVars.hostName
 				cforedRequest := &protos.StreamCforedRequest{
 					Type: protos.StreamCforedRequest_TASK_REQUEST,
 					Payload: &protos.StreamCforedRequest_PayloadTaskReq{
 						PayloadTaskReq: &protos.StreamCforedRequest_TaskReq{
 							CforedName: gVars.hostName,
 							Pid:        crunPid,
-							Task:       crunRequest.GetPayloadTaskReq().Task,
+							Task:       task,
 						},
 					},
 				}
@@ -798,13 +800,15 @@ CforedStateMachineLoop:
 				gVars.ctldReplyChannelMapByPid[callocPid] = ctldReplyChannel
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
+				task := callocRequest.GetPayloadTaskReq().Task
+				task.GetInteractiveMeta().CforedName = gVars.hostName
 				cforedRequest := &protos.StreamCforedRequest{
 					Type: protos.StreamCforedRequest_TASK_REQUEST,
 					Payload: &protos.StreamCforedRequest_PayloadTaskReq{
 						PayloadTaskReq: &protos.StreamCforedRequest_TaskReq{
 							CforedName: gVars.hostName,
 							Pid:        callocPid,
-							Task:       callocRequest.GetPayloadTaskReq().Task,
+							Task:       task,
 						},
 					},
 				}
