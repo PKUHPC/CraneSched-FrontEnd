@@ -67,6 +67,7 @@ type GlobalVariables struct {
 
 	pidTaskIdMap map[int32]uint32
 
+	// TODO: Remove this to CranedChannelKeeper
 	taskIORequestChannelMtx sync.Mutex
 	// IO foward messsage form craned to crun
 	taskIORequestChannelMapByTaskId map[uint32]chan *protos.StreamCforedTaskIORequest
