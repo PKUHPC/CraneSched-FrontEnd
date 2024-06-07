@@ -248,10 +248,10 @@ CrunStateMachineLoop:
 			}
 
 		case Forwarding:
-			taskFinishCtx, taskFinishFunc := context.WithCancel(context.Background())
-			msgToTask := make(chan string, 5)
-			msgToCrun := make(chan string, 5)
-			go CrunIOForward(taskFinishCtx, taskFinishFunc, msgToTask, msgToCrun)
+			taskFinishCtx, taskFinishCb := context.WithCancel(context.Background())
+			chanInputFromTerm := make(chan string, 5)
+			chanOutputFromRemote := make(chan string, 5)
+			go IOForward(taskFinishCtx, taskFinishCb, chanInputFromTerm, chanOutputFromRemote)
 
 			go func(msgToTask chan string) {
 			forwardToCfored:
@@ -277,7 +277,7 @@ CrunStateMachineLoop:
 						break forwardToCfored
 					}
 				}
-			}(msgToTask)
+			}(chanInputFromTerm)
 
 			for state == Forwarding {
 				select {
@@ -318,7 +318,7 @@ CrunStateMachineLoop:
 						switch cforedReply.Type {
 						case protos.StreamCforedCrunReply_TASK_IO_FORWARD:
 							{
-								msgToCrun <- cforedReply.GetPayloadTaskIoForwardReply().Msg
+								chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
 							}
 						case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
 							{
@@ -392,108 +392,109 @@ CrunStateMachineLoop:
 	}
 }
 
-func CrunIOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
-	msgToTask chan string, msgToCrun chan string) {
+func sigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
 
-	var sigsListenerWg sync.WaitGroup
-	sigsListenerWg.Add(1)
+	lastSigint := time.Now().Add(-2 * time.Second)
+loop:
+	for {
+		select {
 
-	var ioReaderWg sync.WaitGroup
-	ioReaderWg.Add(1)
-	var ioWriterWg sync.WaitGroup
-	ioWriterWg.Add(1)
+		case sig := <-sigs:
+			log.Tracef("Signal received: %v", sig)
+			switch sig {
 
-	go func(wg *sync.WaitGroup) {
-		defer wg.Done()
-		lastSigint := time.Now().Add(-2 * time.Second)
-	loop:
-		for {
-			select {
-
-			case sig := <-sigs:
-				log.Tracef("Signal received: %v", sig)
-				switch sig {
-
-				/*
-					multiple sigint will cancel this job
-				*/
-				case syscall.SIGINT:
-					log.Tracef("Recv signal: %v", sig)
-					now := time.Now()
-					if lastSigint.Add(time.Second).After(now) {
-						taskFinishFunc()
-						break loop
-					} else {
-						lastSigint = now
-						fmt.Printf("one more interrupt within 1 sec to abort")
-					}
-
-				default:
-					log.Tracef("Ignored signal: %v", sig)
+			/*
+				multiple sigint will cancel this job
+			*/
+			case syscall.SIGINT:
+				log.Tracef("Recv signal: %v", sig)
+				now := time.Now()
+				if lastSigint.Add(time.Second).After(now) {
+					sigintCb()
+					break loop
+				} else {
+					lastSigint = now
+					fmt.Println("Send interrupt once more in 1s to abort.")
 				}
-			}
-		}
-		log.Tracef("Signal processing goroutine exit.")
-	}(&sigsListenerWg)
 
-	go func(wg *sync.WaitGroup, fd uintptr) {
-		defer wg.Done()
-		file := os.NewFile(fd, "crun input")
-		reader := bufio.NewReader(file)
-	reading:
-		for {
-			select {
-			case <-taskFinishCtx.Done():
-				break reading
 			default:
-				line, err := reader.ReadString('\n')
-				if err != nil {
-					if err == io.EOF {
-						break reading
-					}
-					fmt.Printf("Failed to read from fd: %v\n", err)
-					break reading
-				}
-				msgToTask <- line
+				log.Tracef("Ignored signal: %v", sig)
 			}
 		}
-
-	}(&ioReaderWg, os.Stdin.Fd())
-
-	go func(wg *sync.WaitGroup, fd uintptr) {
-		defer wg.Done()
-		file := os.NewFile(fd, "crun output")
-		writer := bufio.NewWriter(file)
-	writing:
-		for {
-			select {
-			case msg := <-msgToCrun:
-				_, err := writer.WriteString(msg)
-
-				if err != nil {
-					fmt.Printf("Failed to write to fd: %v\n", err)
-					break writing
-				}
-				err = writer.Flush()
-				if err != nil {
-					fmt.Printf("Failed to flush to fd: %v\n", err)
-					break writing
-				}
-
-			case <-taskFinishCtx.Done():
-				break writing
-			}
-		}
-	}(&ioWriterWg, os.Stdout.Fd())
-
-	sigsListenerWg.Wait()
-	ioReaderWg.Wait()
-	ioWriterWg.Wait()
+	}
+	log.Tracef("Signal processing goroutine exit.")
 }
 
-func Crun(cmd *cobra.Command, args []string) {
+func fileWriterRoutine(fd uintptr, chanOutputFromTask chan string, ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	file := os.NewFile(fd, "stdout")
+	writer := bufio.NewWriter(file)
+
+writing:
+	for {
+		select {
+		case msg := <-chanOutputFromTask:
+			_, err := writer.WriteString(msg)
+
+			if err != nil {
+				fmt.Printf("Failed to write to fd: %v\n", err)
+				break writing
+			}
+			err = writer.Flush()
+			if err != nil {
+				fmt.Printf("Failed to flush to fd: %v\n", err)
+				break writing
+			}
+
+		case <-ctx.Done():
+			break writing
+		}
+	}
+}
+
+func fileReaderRoutine(fd uintptr, chanInputFromTerm chan string, ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	file := os.NewFile(fd, "stdin")
+	reader := bufio.NewReader(file)
+reading:
+	for {
+		select {
+		case <-ctx.Done():
+			break reading
+
+		default:
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break reading
+				}
+				fmt.Printf("Failed to read from fd: %v\n", err)
+				break reading
+			}
+			chanInputFromTerm <- line
+		}
+	}
+}
+
+func IOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
+	chanInputFromTerm chan string, chanOutputFromTask chan string) {
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go sigintHandlerRoutine(taskFinishFunc, &wg)
+	go fileReaderRoutine(os.Stdin.Fd(), chanInputFromTerm, taskFinishCtx, &wg)
+	go fileWriterRoutine(os.Stdout.Fd(), chanOutputFromTask, taskFinishCtx, &wg)
+
+	wg.Wait()
+}
+
+func MainCrun(cmd *cobra.Command, args []string) {
 	var err error
 
 	switch FlagDebugLevel {
@@ -545,7 +546,7 @@ func Crun(cmd *cobra.Command, args []string) {
 		CmdLine: strings.Join(os.Args, " "),
 		Cwd:     gVars.cwd,
 
-		// Todo: Propagate Env here!
+		// Todo: use --export here!
 		Env: make(map[string]string),
 	}
 
@@ -613,5 +614,4 @@ func Crun(cmd *cobra.Command, args []string) {
 	task.GetInteractiveMeta().InteractiveType = protos.InteractiveTaskType_Crun
 
 	StartCrunStream(task)
-
 }

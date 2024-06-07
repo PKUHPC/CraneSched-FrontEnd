@@ -18,11 +18,24 @@ package util
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
 )
+
+func DetectNetworkProxy() {
+	envHttpProxy, ok := os.LookupEnv("http_proxy")
+	if ok && envHttpProxy != "" {
+		log.Warningf("http_proxy is set: %s", envHttpProxy)
+	}
+
+	envHttpsProxy, ok := os.LookupEnv("https_proxy")
+	if ok && envHttpsProxy != "" {
+		log.Warningf("https_proxy is set: %s", envHttpsProxy)
+	}
+}
 
 func GetPidFromPort(port uint16) (int, error) {
 	// 1. Find inode number for the port

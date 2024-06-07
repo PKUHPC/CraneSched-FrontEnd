@@ -143,7 +143,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			log.Fatal("Cannot connect to CraneCtld: " + err.Error())
+			log.Fatalf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
 		}
 
 		stub = protos.NewCraneCtldClient(conn)

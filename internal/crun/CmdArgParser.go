@@ -45,16 +45,16 @@ func CmdArgParser() {
 		Use:   "crun",
 		Short: "allocate resource and create terminal",
 		Run: func(cmd *cobra.Command, args []string) {
-			Crun(cmd, args)
+			MainCrun(cmd, args)
 		},
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Output level")
-	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, " number of nodes on which to run (N = min[-max])")
-	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "number of cpus required per task")
-	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "number of tasks to invoke on each node")
+	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
+	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
+	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")
 	rootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
 	rootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
 	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
