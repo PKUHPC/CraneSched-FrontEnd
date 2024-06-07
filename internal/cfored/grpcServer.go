@@ -20,8 +20,73 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"sync"
+	"sync/atomic"
 )
+
+type CranedChannelKeeper struct {
+	crunRequestChannelMtx sync.Mutex
+	crunRequestChannelCV  *sync.Cond
+
+	// Request message from crun to craned
+	crunRequestChannelMapByCranedId map[string]chan *protos.StreamCrunRequest
+}
+
+var gCranedChanKeeper *CranedChannelKeeper
+
+func NewCranedChannelKeeper() *CranedChannelKeeper {
+	keeper := &CranedChannelKeeper{}
+	keeper.crunRequestChannelCV = sync.NewCond(&keeper.crunRequestChannelMtx)
+	keeper.crunRequestChannelMapByCranedId = make(map[string]chan *protos.StreamCrunRequest)
+	return keeper
+}
+
+func (keeper *CranedChannelKeeper) cranedChannelIsUp(cranedId string, msgChannel chan *protos.StreamCrunRequest) {
+	keeper.crunRequestChannelMtx.Lock()
+	keeper.crunRequestChannelMapByCranedId[cranedId] = msgChannel
+	keeper.crunRequestChannelCV.Broadcast()
+	keeper.crunRequestChannelMtx.Unlock()
+}
+
+func (keeper *CranedChannelKeeper) craneChannelIsDown(cranedId string) {
+	keeper.crunRequestChannelMtx.Lock()
+	delete(keeper.crunRequestChannelMapByCranedId, cranedId)
+	keeper.crunRequestChannelMtx.Unlock()
+}
+
+func (keeper *CranedChannelKeeper) waitCranedChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool) {
+	keeper.crunRequestChannelMtx.Lock()
+	defer keeper.crunRequestChannelMtx.Unlock()
+	for !stopWaiting.Load() {
+		allReady := true
+		for _, node := range cranedIds {
+			_, exits := keeper.crunRequestChannelMapByCranedId[node]
+			if !exits {
+				allReady = false
+				break
+			}
+		}
+
+		if !allReady {
+			keeper.crunRequestChannelCV.Wait() // gVars.crunRequestChannelMtx is unlocked.
+			// Once Wait() returns, the lock is held again.
+		} else {
+			log.Debug("[Cfored<->Crun] All related craned up now")
+			readyChan <- true
+			break
+		}
+	}
+}
+
+func (keeper *CranedChannelKeeper) sendRequestToCranedChannel(request *protos.StreamCrunRequest, cranedIds []string) {
+	keeper.crunRequestChannelMtx.Lock()
+	for _, node := range cranedIds {
+		keeper.crunRequestChannelMapByCranedId[node] <- request
+	}
+	keeper.crunRequestChannelMtx.Unlock()
+}
 
 type GrpcCforedServer struct {
 	protos.CraneForeDServer
