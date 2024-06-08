@@ -69,16 +69,10 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 		}
 	}
 
-	table := tablewriter.NewWriter(os.Stdout) //table format control
-	// FIXME: Replace these with util.SetBorderTable()?
-	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
-	table.SetCenterSeparator("|")
-	table.SetTablePadding("\t")
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
 	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "Blocked"})
-	table.SetAutoFormatHeaders(false)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	tableData := make([][]string, len(userMap))
-
 	for key, value := range userMap {
 		tableData = append(tableData, []string{key})
 		for _, userInfo := range value {
@@ -90,7 +84,9 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 					"",
 					"",
 					"",
-					fmt.Sprintf("%v", userInfo.AdminLevel)})
+					fmt.Sprintf("%v", userInfo.AdminLevel),
+					strconv.FormatBool(userInfo.Blocked),
+				})
 			}
 			for _, allowedPartitionQos := range userInfo.AllowedPartitionQosList {
 				tableData = append(tableData, []string{
@@ -101,7 +97,8 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 					strings.Join(allowedPartitionQos.QosList, ", "),
 					allowedPartitionQos.DefaultQos,
 					fmt.Sprintf("%v", userInfo.AdminLevel),
-					strconv.FormatBool(userInfo.Blocked)})
+					strconv.FormatBool(userInfo.Blocked),
+				})
 			}
 		}
 	}
@@ -120,12 +117,8 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	})
 
 	table := tablewriter.NewWriter(os.Stdout) //table format control
-	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
-	table.SetCenterSeparator("|")
-	table.SetTablePadding("\t")
+	util.SetBorderTable(table)
 	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"})
-	table.SetAutoFormatHeaders(false)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -198,7 +191,6 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
 	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "Blocked"}
 	util.SetBorderTable(table)
-	table.SetAutoFormatHeaders(false)
 	tableData := make([][]string, len(accountList))
 	for _, accountInfo := range accountList {
 		tableData = append(tableData, []string{
@@ -208,7 +200,8 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 			strings.Join(accountInfo.Users, ", "),
 			accountInfo.DefaultQos,
 			strings.Join(accountInfo.AllowedQosList, ", "),
-			strconv.FormatBool(accountInfo.Blocked)})
+			strconv.FormatBool(accountInfo.Blocked),
+		})
 	}
 
 	if FlagFormat != "" {
