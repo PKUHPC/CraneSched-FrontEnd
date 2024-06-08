@@ -279,7 +279,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 		log.Println("Change time limit success.")
 		return util.ErrorSuccess
 	} else {
-		log.Printf("Change time limit failed: %s\n", reply.GetReason())
+		log.Printf("Change time limit failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -357,7 +357,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 		log.Println("Change node state success.")
 		return util.ErrorSuccess
 	} else {
-		log.Printf("Change node state failed: %s\n", reply.GetReason())
+		log.Printf("Change node state failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }

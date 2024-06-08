@@ -87,7 +87,7 @@ func CancelTask(args []string) util.CraneCmdError {
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			log.Errorf("Failed to cancel job: %d. Reason: %s\n",
+			log.Errorf("Failed to cancel job: %d. Reason: %s.\n",
 				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
 		os.Exit(util.ErrorBackend)

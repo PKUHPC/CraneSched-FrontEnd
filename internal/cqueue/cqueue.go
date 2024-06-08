@@ -54,7 +54,7 @@ func Query() util.CraneCmdError {
 			case "etl", "exceed-time-limit":
 				stateList = append(stateList, protos.TaskStatus_ExceedTimeLimit)
 			default:
-				log.Errorf("Invalid state given: %s\n", filterStateList[i])
+				log.Errorf("Invalid state given: %s.\n", filterStateList[i])
 				return util.ErrorCmdArg
 			}
 		}
@@ -88,7 +88,7 @@ func Query() util.CraneCmdError {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				log.Errorf("Invalid job id given: %s\n", filterJobIdList[i])
+				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
 				return util.ErrorCmdArg
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))

@@ -53,7 +53,7 @@ func QueryJob() util.CraneCmdError {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Errorf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s.\n", err)
 				return util.ErrorCmdArg
 			}
 			request.FilterStartTimeInterval.LowerBound = timestamppb.New(tl)
@@ -61,7 +61,7 @@ func QueryJob() util.CraneCmdError {
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Errorf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s.\n", err)
 				return util.ErrorCmdArg
 			}
 			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
@@ -79,7 +79,7 @@ func QueryJob() util.CraneCmdError {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Errorf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s.\n", err)
 				return util.ErrorCmdArg
 			}
 			request.FilterEndTimeInterval.LowerBound = timestamppb.New(tl)
@@ -87,7 +87,7 @@ func QueryJob() util.CraneCmdError {
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Errorf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s.\n", err)
 				return util.ErrorCmdArg
 			}
 			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
@@ -105,7 +105,7 @@ func QueryJob() util.CraneCmdError {
 		if split[0] != "" {
 			tl, err := util.ParseTime(split[0])
 			if err != nil {
-				log.Errorf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s.\n", err)
 				return util.ErrorCmdArg
 			}
 			request.FilterSubmitTimeInterval.LowerBound = timestamppb.New(tl)
@@ -113,7 +113,7 @@ func QueryJob() util.CraneCmdError {
 		if len(split) >= 2 && split[1] != "" {
 			tr, err := util.ParseTime(split[1])
 			if err != nil {
-				log.Errorf("Failed to parse the time string: %s\n", err)
+				log.Errorf("Failed to parse the time string: %s.\n", err)
 				return util.ErrorCmdArg
 			}
 			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
@@ -135,7 +135,7 @@ func QueryJob() util.CraneCmdError {
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
-				log.Errorf("Invalid job id given: %s\n", filterJobIdList[i])
+				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
 				return util.ErrorCmdArg
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))

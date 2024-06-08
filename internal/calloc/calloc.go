@@ -171,7 +171,7 @@ CallocStateMachineLoop:
 
 				state = WaitRes
 			} else {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s.\n", payload.FailureReason)
 				break CallocStateMachineLoop
 			}
 
@@ -198,7 +198,7 @@ CallocStateMachineLoop:
 			Ok := cforedPayload.Ok
 
 			if Ok {
-				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+				fmt.Printf("Allocated craned nodes: %s.\n", cforedPayload.AllocatedCranedRegex)
 				state = TaskRunning
 			} else {
 				fmt.Println("Failed to allocate task resource. Exiting...")
