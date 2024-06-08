@@ -41,6 +41,7 @@ var (
 		Use:   "cacct [flags]",
 		Short: "Display the recent job information",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
