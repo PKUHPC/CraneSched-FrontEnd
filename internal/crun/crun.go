@@ -71,10 +71,12 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient,
 }
 
 func StartCrunStream(task *protos.TaskToCtld) {
+	config := util.ParseConfig(FlagConfigFilePath)
+
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	unixSocketPath := "unix:///" + util.DefaultCforedUnixSocketPath
+	unixSocketPath := "unix:///" + config.CranedGoUnixSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to local unix socket %s: %s",

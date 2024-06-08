@@ -17,10 +17,10 @@
 package util
 
 import (
-	"fmt"
 	"strings"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
+	"github.com/golang/protobuf/ptypes/duration"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	grpccodes "google.golang.org/grpc/codes"
@@ -37,20 +37,19 @@ type Config struct {
 	ServerKeyFilePath  string `yaml:"ServerKeyFilePath"`
 	CaCertFilePath     string `yaml:"CaCertFilePath"`
 	DomainSuffix       string `yaml:"DomainSuffix"`
+
+	CraneBaseDir         string `yaml:"CraneBaseDir"`
+	CranedGoUnixSockPath string `yaml:"CranedGoUnixSockPath"`
 }
 
 var (
 	DefaultConfigPath                string
-	DefaultCforedRuntimeDir          string
-	DefaultCforedUnixSocketPath      string
 	DefaultCforedServerListenAddress string
 	DefaultCforedServerListenPort    string
 )
 
 func init() {
 	DefaultConfigPath = "/etc/crane/config.yaml"
-	DefaultCforedRuntimeDir = "/tmp/crane/cfored"
-	DefaultCforedUnixSocketPath = DefaultCforedRuntimeDir + "/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort = "10012"
 }
@@ -116,15 +115,4 @@ func InitLogger(level log.Level) {
 	log.SetLevel(level)
 	log.SetReportCaller(true)
 	log.SetFormatter(&nested.Formatter{})
-}
-
-func GrpcErrorPrintf(err error, format string, a ...any) {
-	s := fmt.Sprintf(format, a...)
-	if rpcErr, ok := grpcstatus.FromError(err); ok {
-		if rpcErr.Code() == grpccodes.Unavailable {
-			log.Errorf("%s: Connection to CraneCtld is broken.", s)
-		} else {
-			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
-		}
-	}
 }

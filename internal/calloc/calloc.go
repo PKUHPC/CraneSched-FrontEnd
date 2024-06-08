@@ -83,10 +83,12 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CallocStreamClient,
 }
 
 func StartCallocStream(task *protos.TaskToCtld) {
+	config := util.ParseConfig(FlagConfigFilePath)
+
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	unixSocketPath := "unix:///" + util.DefaultCforedUnixSocketPath
+	unixSocketPath := "unix:///" + config.CranedGoUnixSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to local unix socket %s: %s",
@@ -369,7 +371,7 @@ func main(cmd *cobra.Command, args []string) {
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
 
-		// Todo: Propagate Env here!
+		// Todo: Propagate Env by --export here!
 		Env: make(map[string]string),
 	}
 

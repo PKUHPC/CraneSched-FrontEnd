@@ -21,16 +21,11 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"io"
 	"math"
-	"net"
 	"os"
-	"os/signal"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
-	"syscall"
 )
 
 type GlobalVariables struct {
@@ -66,11 +61,6 @@ type GlobalVariables struct {
 	pidTaskIdMapMtx sync.RWMutex
 
 	pidTaskIdMap map[int32]uint32
-
-	// TODO: Remove this to CranedChannelKeeper
-	taskIORequestChannelMtx sync.Mutex
-	// IO foward messsage form craned to crun
-	taskIORequestChannelMapByTaskId map[uint32]chan *protos.StreamCforedTaskIORequest
 }
 
 var gVars GlobalVariables
@@ -100,161 +90,14 @@ const (
 	CancelTaskOfDeadCrun    StateOfCrunServer = 7
 )
 
-const (
-	CranedReg    StateOfCranedServer = 0
-	IOForwarding StateOfCranedServer = 1
-	CranedUnReg  StateOfCranedServer = 2
-)
-
-func (cforedServer *GrpcCforedServer) TaskIOStream(toCranedStream protos.CraneForeD_TaskIOStreamServer) error {
-	var cranedId string
-	var reply *protos.StreamCforedTaskIOReply
-
-	requestChannel := make(chan grpcMessage[protos.StreamCforedTaskIORequest], 8)
-	go grpcStreamReceiver[protos.StreamCforedTaskIORequest](toCranedStream, requestChannel)
-
-	crunRequestChannel := make(chan *protos.StreamCrunRequest, 2)
-
-	state := CranedReg
-
-CforedCranedStateMachineLoop:
-	for {
-		switch state {
-		case CranedReg:
-			log.Debugf("[Cfored<->Craned] Enter State CranedReg")
-			item := <-requestChannel
-			cranedReq, err := item.message, item.err
-			if err != nil { // Failure Edge
-				switch err {
-				case io.EOF:
-					fallthrough
-				default:
-					log.Fatal(err)
-					return nil
-				}
-			}
-
-			if cranedReq.Type != protos.StreamCforedTaskIORequest_CRANED_REGISTER {
-				log.Fatal("[Cfored<->Craned] Expect CRANED_REGISTER")
-			}
-			log.Debugf("[Cfored<->Craned] Receive CranedReg from %s", cranedId)
-
-			cranedId = cranedReq.GetPayloadRegisterReq().GetCranedId()
-			gCranedChanKeeper.cranedChannelIsUp(cranedId, crunRequestChannel)
-
-			reply = &protos.StreamCforedTaskIOReply{
-				Type: protos.StreamCforedTaskIOReply_CRANED_REGISTER_REPLY,
-				Payload: &protos.StreamCforedTaskIOReply_PayloadCranedRegisterReply{
-					PayloadCranedRegisterReply: &protos.StreamCforedTaskIOReply_CranedRegisterReply{
-						Ok: true,
-					},
-				},
-			}
-			err = toCranedStream.Send(reply)
-			if err != nil {
-				log.Debug("[Cfored<->Craned] Connection to craned was broken.")
-				state = CranedUnReg
-			} else {
-				state = IOForwarding
-			}
-
-		case IOForwarding:
-			log.Debugf("[Cfored<->Craned] Enter State IOForwarding to craned %s", cranedId)
-		cranedIOFrowarding:
-			for {
-				select {
-				// msg from craned
-				case item := <-requestChannel:
-					cranedReq, err := item.message, item.err
-					if err != nil { // Failure Edge
-						//todo: do someting when craned down
-						switch err {
-						case io.EOF:
-							fallthrough
-						default:
-							state = CranedUnReg
-							break cranedIOFrowarding
-						}
-					}
-
-					log.Tracef("[Cfored<->Craned] Receive type %s", cranedReq.Type.String())
-					switch cranedReq.Type {
-					case protos.StreamCforedTaskIORequest_CRANED_TASK_OUTPUT:
-						payload := cranedReq.GetPayloadTaskOutputReq()
-
-						gVars.taskIORequestChannelMtx.Lock()
-						channel, exist := gVars.taskIORequestChannelMapByTaskId[payload.GetTaskId()]
-						if exist {
-							channel <- cranedReq
-						}
-						gVars.taskIORequestChannelMtx.Unlock()
-
-					case protos.StreamCforedTaskIORequest_CRANED_UNREGISTER:
-						reply = &protos.StreamCforedTaskIOReply{
-							Type: protos.StreamCforedTaskIOReply_CRANED_UNREGISTER_REPLY,
-							Payload: &protos.StreamCforedTaskIOReply_PayloadCranedUnregisterReply{
-								PayloadCranedUnregisterReply: &protos.StreamCforedTaskIOReply_CranedUnregisterReply{
-									Ok: true,
-								},
-							},
-						}
-						state = CranedUnReg
-						err := toCranedStream.Send(reply)
-						if err != nil {
-							log.Debug("[Cfored<->Craned] Connection to craned was broken.")
-						}
-						break cranedIOFrowarding
-
-					default:
-						log.Fatal("[Cfored<->Craned] Receive Unexpected %s", cranedReq.Type.String())
-						state = CranedUnReg
-						break cranedIOFrowarding
-					}
-					// msg from crun
-
-				case crunReq := <-crunRequestChannel:
-					switch crunReq.Type {
-					case protos.StreamCrunRequest_TASK_IO_FORWARD:
-						payload := crunReq.GetPayloadTaskIoForwardReq()
-						taskId := payload.GetTaskId()
-						msg := payload.GetMsg()
-						log.Debugf("[Cfored<->Craned] forwarding task %d input %s to craned %s", taskId, msg, cranedId)
-						reply = &protos.StreamCforedTaskIOReply{
-							Type: protos.StreamCforedTaskIOReply_CRANED_TASK_INPUT,
-							Payload: &protos.StreamCforedTaskIOReply_PayloadTaskInputReq{
-								PayloadTaskInputReq: &protos.StreamCforedTaskIOReply_CranedTaskInputReq{
-									TaskId: taskId,
-									Msg:    msg,
-								},
-							},
-						}
-						if err := toCranedStream.Send(reply); err != nil {
-							log.Debug("[Cfored<->Craned] Connection to craned was broken.")
-							state = CranedUnReg
-						}
-					default:
-						log.Fatal("[Cfored<->Craned] Receive Unexpected %s", crunReq.Type.String())
-						break cranedIOFrowarding
-					}
-				}
-			}
-
-		case CranedUnReg:
-			log.Debugf("[Cfored<->Craned] Enter State CranedUnReg")
-			gCranedChanKeeper.craneChannelIsDown(cranedId)
-			break CforedCranedStateMachineLoop
-		}
-	}
-	return nil
-}
-
 func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_CrunStreamServer) error {
 	var crunPid int32
 	var taskId uint32
 	var reply *protos.StreamCforedCrunReply
+
 	var execCranedIds []string
-	requestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
-	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, requestChannel)
+	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
+	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
 	TaskIoRequestChannel := make(chan *protos.StreamCforedTaskIORequest, 2)
@@ -269,7 +112,7 @@ CforedCrunStateMachineLoop:
 		case CrunWaitTaskIdAllocReq:
 			log.Debug("[Cfored<->Crun] Enter State WAIT_TASK_ID_ALLOC_REQ")
 
-			item := <-requestChannel
+			item := <-crunRequestChannel
 			crunRequest, err := item.message, item.err
 			if err != nil { // Failure Edge
 				switch err {
@@ -335,7 +178,7 @@ CforedCrunStateMachineLoop:
 			log.Debug("[Cfored<->Crun] Enter State WAIT_CTLD_ALLOC_TASK_ID")
 
 			select {
-			case item := <-requestChannel:
+			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
 				if crunRequest != nil || err == nil {
 					log.Fatal("[Cfored<->Crun] Expect only nil (calloc connection broken) here!")
@@ -372,9 +215,7 @@ CforedCrunStateMachineLoop:
 					gVars.pidTaskIdMapMtx.Unlock()
 
 					// TODO: Difference
-					gVars.taskIORequestChannelMtx.Lock()
-					gVars.taskIORequestChannelMapByTaskId[taskId] = TaskIoRequestChannel
-					gVars.taskIORequestChannelMtx.Unlock()
+					gCranedChanKeeper.setRemoteIoToCrunChannel(taskId, TaskIoRequestChannel)
 				}
 
 				gVars.ctldReplyChannelMapMtx.Unlock()
@@ -395,7 +236,7 @@ CforedCrunStateMachineLoop:
 			log.Debug("[Cfored<->Crun] Enter State WAIT_CTLD_ALLOC_RES")
 
 			select {
-			case item := <-requestChannel:
+			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
 				if crunRequest != nil || err == nil {
 					log.Fatal("[Cfored<->Crun] Expect only nil (crun connection broken) here!")
@@ -454,7 +295,7 @@ CforedCrunStateMachineLoop:
 
 				state = CrunWaitTaskCancel
 
-			case item := <-requestChannel:
+			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
 				if err != nil {
 					switch err {
@@ -523,7 +364,7 @@ CforedCrunStateMachineLoop:
 						break forwarding
 					}
 
-				case item := <-requestChannel:
+				case item := <-crunRequestChannel:
 					crunRequest, err := item.message, item.err
 					if err != nil {
 						switch err {
@@ -538,7 +379,7 @@ CforedCrunStateMachineLoop:
 						switch crunRequest.Type {
 						case protos.StreamCrunRequest_TASK_IO_FORWARD:
 							log.Debug("[Crun->Cfored->Craned] Receive TASK_IO_FORWARD Request")
-							gCranedChanKeeper.sendRequestToCranedChannel(crunRequest, execCranedIds)
+							gCranedChanKeeper.forwardCrunRequestToCranedChannels(crunRequest, execCranedIds)
 
 						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
 							log.Debug("[Cfored<->Crun] Receive TaskCompletionRequest")
@@ -603,7 +444,7 @@ CforedCrunStateMachineLoop:
 					"The connection to calloc was broken.", err.Error())
 				state = CancelTaskOfDeadCrun
 			} else {
-				item := <-requestChannel
+				item := <-crunRequestChannel
 				crunRequest, err := item.message, item.err
 				if err != nil { // Failure Edge
 					switch err {
@@ -655,11 +496,10 @@ CforedCrunStateMachineLoop:
 			}
 
 			gVars.ctldReplyChannelMapMtx.Lock()
-			gVars.taskIORequestChannelMtx.Lock()
-			delete(gVars.taskIORequestChannelMapByTaskId, taskId)
 			delete(gVars.ctldReplyChannelMapByTaskId, taskId)
-			gVars.taskIORequestChannelMtx.Unlock()
 			gVars.ctldReplyChannelMapMtx.Unlock()
+
+			gCranedChanKeeper.removeRemoteIoToCrunChannel(taskId)
 
 			if err := toCrunStream.Send(reply); err != nil {
 				log.Errorf("[Cfored<->Crun] The stream to crun executing "+
@@ -690,9 +530,8 @@ CforedCrunStateMachineLoop:
 				gVars.pidTaskIdMapMtx.Lock()
 				delete(gVars.pidTaskIdMap, crunPid)
 				gVars.pidTaskIdMapMtx.Unlock()
-				gVars.taskIORequestChannelMtx.Lock()
-				delete(gVars.taskIORequestChannelMapByTaskId, taskId)
-				gVars.taskIORequestChannelMtx.Unlock()
+
+				gCranedChanKeeper.removeRemoteIoToCrunChannel(taskId)
 			} else {
 				delete(gVars.ctldReplyChannelMapByPid, crunPid)
 			}
@@ -1071,6 +910,8 @@ func StartCfored() {
 		util.InitLogger(log.InfoLevel)
 	}
 
+	config := util.ParseConfig(FlagConfigFilePath)
+
 	util.DetectNetworkProxy()
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -1083,7 +924,6 @@ func StartCfored() {
 	gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
 	gVars.ctldReplyChannelMapByTaskId = make(map[uint32]chan *protos.StreamCtldReply)
 	gVars.pidTaskIdMap = make(map[int32]uint32)
-	gVars.taskIORequestChannelMapByTaskId = make(map[uint32]chan *protos.StreamCforedTaskIORequest)
 
 	gCranedChanKeeper = NewCranedChannelKeeper()
 
@@ -1093,63 +933,7 @@ func StartCfored() {
 	}
 	gVars.hostName = hostName
 
-	sockDirPath := filepath.Dir(util.DefaultCforedUnixSocketPath)
-	err = os.MkdirAll(sockDirPath, 0755)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	var wgAllRoutines sync.WaitGroup
-
-	sigs := make(chan os.Signal, 2)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	if _, err := os.Stat(util.DefaultCforedUnixSocketPath); err == nil {
-		log.Warningf("Removing existing unix sock %s", util.DefaultCforedUnixSocketPath)
-		err := os.Remove(util.DefaultCforedUnixSocketPath)
-		if err != nil {
-			log.Fatalf("Error when removing existing unix sock")
-			return
-		}
-	}
-
-	log.Tracef("Listening on unix socket %s", util.DefaultCforedUnixSocketPath)
-	unixListenSocket, err := net.Listen("unix", util.DefaultCforedUnixSocketPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := os.Chmod(util.DefaultCforedUnixSocketPath, 0777); err != nil {
-		log.Fatal(err)
-	}
-
-	config := util.ParseConfig(FlagConfigFilePath)
-	tcpListenSocket, err := util.GetListenSocketByConfig(config)
-
-	var opts []grpc.ServerOption
-	grpcServer := grpc.NewServer(opts...)
-
-	cforedServer := GrpcCforedServer{}
-
-	wgAllRoutines.Add(1)
-	go func(sigs chan os.Signal, server *grpc.Server, wg *sync.WaitGroup) {
-		select {
-		case sig := <-sigs:
-			log.Infof("Receive signal: %s. Exiting...", sig.String())
-
-			switch sig {
-			case syscall.SIGINT:
-				gVars.globalCtxCancel()
-				server.GracefulStop()
-				break
-			case syscall.SIGTERM:
-				server.Stop()
-				break
-			}
-		case <-gVars.globalCtx.Done():
-			break
-		}
-		wg.Done()
-	}(sigs, grpcServer, &wgAllRoutines)
 
 	ctldClient := &GrpcCtldClient{
 		ctldClientStub:   util.GetStubToCtldByConfig(config),
@@ -1158,24 +942,8 @@ func StartCfored() {
 	wgAllRoutines.Add(1)
 	go ctldClient.StartCtldClientStream(&wgAllRoutines)
 
-	protos.RegisterCraneForeDServer(grpcServer, &cforedServer)
-
-	wgAllRoutines.Add(1)
-	go func(wg *sync.WaitGroup) {
-		err := grpcServer.Serve(tcpListenSocket)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		wgAllRoutines.Done()
-	}(&wgAllRoutines)
-
-	err = grpcServer.Serve(unixListenSocket)
-	if err != nil {
-		log.Fatal(err)
-	}
+	startGrpcServer(config, &wgAllRoutines)
 
 	log.Debug("Waiting all go routines to exit...")
-
 	wgAllRoutines.Wait()
 }
