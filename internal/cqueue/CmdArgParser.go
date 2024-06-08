@@ -20,6 +20,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +37,7 @@ var (
 	FlagFilterAccounts   string
 	FlagFormat           string
 	FlagIterate          uint64
-	FlagNumLimit         int32
+	FlagNumLimit         uint32
 
 	RootCmd = &cobra.Command{
 		Use:   "cqueue [flags]",
@@ -44,15 +45,20 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			var err util.CraneCmdError
+			if cmd.Flags().Changed("max-lines") {
+				if FlagNumLimit == 0 {
+					log.Error("Output line number limit must be greater than 0.")
+					os.Exit(util.ErrorCmdArg)
+				}
+			}
+
+			err := util.ErrorSuccess
 			if FlagIterate != 0 {
 				err = loopedQuery(FlagIterate)
 			} else {
 				err = Query()
 			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			os.Exit(err)
 		},
 	}
 )
@@ -116,6 +122,6 @@ Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width 
          Name with a minimum width of 20, and Status.
 `)
 
-	RootCmd.Flags().Int32VarP(&FlagNumLimit, "max-lines", "m", 0,
+	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"Limit the number of lines in the output, default is 0 (no limit)")
 }
