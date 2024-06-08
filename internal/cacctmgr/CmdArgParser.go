@@ -599,10 +599,9 @@ func init() {
 		unblockCmd.AddCommand(unblockUserCmd)
 		{
 			unblockUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Unblock the user under the specified account")
-		}
-
-		if err := unblockCmd.MarkFlagRequired("account"); err != nil {
-			return
+			if err := unblockUserCmd.MarkFlagRequired("account"); err != nil {
+				return
+			}
 		}
 	}
 }
