@@ -30,7 +30,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func CancelTask(args []string) util.CraneCmdError {
+func CancelTask(args []string) util.CraneErrorType {
 	req := &protos.CancelTaskRequest{
 		OperatorUid: uint32(os.Getuid()),
 

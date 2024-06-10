@@ -302,7 +302,7 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 	}
 }
 
-func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
+func AddAccount(account *protos.AccountInfo) util.CraneErrorType {
 	// FIXME: Move name validation to the backend?
 	// FIXME: Seperate this to Args of cobra package?
 	if account.Name == "=" {
@@ -348,7 +348,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	}
 }
 
-func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
+func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneErrorType {
 	if user.Name == "=" {
 		log.Errorf("User name empty")
 		return util.ErrorCmdArg
@@ -405,7 +405,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	}
 }
 
-func AddQos(qos *protos.QosInfo) util.CraneCmdError {
+func AddQos(qos *protos.QosInfo) util.CraneErrorType {
 	if qos.Name == "=" {
 		log.Errorln("QoS name empty.")
 		return util.ErrorCmdArg
@@ -433,7 +433,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	}
 }
 
-func DeleteAccount(name string) util.CraneCmdError {
+func DeleteAccount(name string) util.CraneErrorType {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Account, Name: name}
 
 	reply, err := stub.DeleteEntity(context.Background(), &req)
@@ -450,7 +450,7 @@ func DeleteAccount(name string) util.CraneCmdError {
 	}
 }
 
-func DeleteUser(name string, account string) util.CraneCmdError {
+func DeleteUser(name string, account string) util.CraneErrorType {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 
 	reply, err := stub.DeleteEntity(context.Background(), &req)
@@ -467,7 +467,7 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 	}
 }
 
-func DeleteQos(name string) util.CraneCmdError {
+func DeleteQos(name string) util.CraneErrorType {
 	req := protos.DeleteEntityRequest{Uid: userUid, EntityType: protos.EntityType_Qos, Name: name}
 
 	reply, err := stub.DeleteEntity(context.Background(), &req)
@@ -484,7 +484,7 @@ func DeleteQos(name string) util.CraneCmdError {
 	}
 }
 
-func ModifyAccount(itemLeft string, itemRight string, name string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
+func ModifyAccount(itemLeft string, itemRight string, name string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneErrorType {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
 		Item:       itemLeft,
@@ -509,7 +509,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 	}
 }
 
-func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
+func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneErrorType {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
 			log.Errorf("Unknown admin_level, valid values: none, operator, admin.")
@@ -543,7 +543,7 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 	}
 }
 
-func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdError {
+func ModifyQos(itemLeft string, itemRight string, name string) util.CraneErrorType {
 	req := protos.ModifyEntityRequest{
 		Uid:        userUid,
 		Item:       itemLeft,
@@ -567,7 +567,7 @@ func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdErro
 	}
 }
 
-func ShowAccounts() util.CraneCmdError {
+func ShowAccounts() util.CraneErrorType {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Account}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
@@ -584,7 +584,7 @@ func ShowAccounts() util.CraneCmdError {
 	}
 }
 
-func ShowUser(name string, account string) util.CraneCmdError {
+func ShowUser(name string, account string) util.CraneErrorType {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_User, Name: name, Account: account}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
@@ -601,7 +601,7 @@ func ShowUser(name string, account string) util.CraneCmdError {
 	}
 }
 
-func ShowQos(name string) util.CraneCmdError {
+func ShowQos(name string) util.CraneErrorType {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Qos, Name: name}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
@@ -622,7 +622,7 @@ func ShowQos(name string) util.CraneCmdError {
 	}
 }
 
-func FindAccount(name string) util.CraneCmdError {
+func FindAccount(name string) util.CraneErrorType {
 	req := protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Account, Name: name}
 	reply, err := stub.QueryEntityInfo(context.Background(), &req)
 	if err != nil {
@@ -639,7 +639,7 @@ func FindAccount(name string) util.CraneCmdError {
 	}
 }
 
-func BlockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
+func BlockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneErrorType {
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, Name: name, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
@@ -656,7 +656,7 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 	}
 }
 
-func UnblockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
+func UnblockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneErrorType {
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, Name: name, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {

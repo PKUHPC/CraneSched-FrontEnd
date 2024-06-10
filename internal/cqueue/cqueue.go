@@ -34,7 +34,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query() util.CraneCmdError {
+func Query() util.CraneErrorType {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
@@ -289,7 +289,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
 }
 
-func loopedQuery(iterate uint64) util.CraneCmdError {
+func loopedQuery(iterate uint64) util.CraneErrorType {
 	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	for {
 		fmt.Println(time.Now().String()[0:19])

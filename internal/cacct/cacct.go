@@ -41,7 +41,7 @@ const (
 )
 
 // QueryJob will query all pending, running and completed tasks
-func QueryJob() util.CraneCmdError {
+func QueryJob() util.CraneErrorType {
 	request := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: true}
 
 	if FlagFilterStartTime != "" {
