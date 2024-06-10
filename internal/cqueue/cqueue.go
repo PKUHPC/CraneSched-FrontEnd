@@ -271,7 +271,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].TimeLimit.String())
 			}
 		case "L":
-			header = "NodeList"
+			header = "NodeList(Reason)"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].GetCranedList())
 			}

@@ -253,35 +253,11 @@ func ShowConfig(path string) util.CraneCmdError {
 }
 
 func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
-	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
-	result := re.FindAllStringSubmatch(timeLimit, -1)
-
-	if result == nil || len(result) != 1 {
-		log.Errorf("Time format error")
-		return util.ErrorCmdArg
-	}
-	var dd uint64
-	if result[0][2] != "" {
-		dd, _ = strconv.ParseUint(result[0][2], 10, 32)
-	}
-	hh, err := strconv.ParseUint(result[0][3], 10, 32)
+	seconds, err := ParseTimeStrToSeconds(timeLimit)
 	if err != nil {
-		log.Errorf("The hour time format error")
+		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
-	mm, err := strconv.ParseUint(result[0][4], 10, 32)
-	if err != nil {
-		log.Errorf("The minute time format error")
-		return util.ErrorCmdArg
-	}
-	ss, err := strconv.ParseUint(result[0][5], 10, 32)
-	if err != nil {
-		log.Errorf("The second time format error")
-		return util.ErrorCmdArg
-	}
-
-	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
-
 	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
 		TaskId:    taskId,
@@ -301,6 +277,104 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		log.Printf("Change time limit failed: %s.\n", reply.GetReason())
+		return util.ErrorBackend
+	}
+}
+
+func ParseTimeStrToSeconds(time string) (int64, error) {
+	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
+	result := re.FindAllStringSubmatch(time, -1)
+
+	if result == nil || len(result) != 1 {
+		return 0, fmt.Errorf("Time format error")
+	}
+	var dd uint64
+	if result[0][2] != "" {
+		dd, _ = strconv.ParseUint(result[0][2], 10, 32)
+	}
+	hh, err := strconv.ParseUint(result[0][3], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("The hour time format error")
+	}
+	mm, err := strconv.ParseUint(result[0][4], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("The minute time format error")
+	}
+	ss, err := strconv.ParseUint(result[0][5], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("The second time format error")
+	}
+	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
+	return seconds, nil
+}
+
+func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
+	jobIdStrSplit := strings.Split(jobs, ",")
+	craneError := util.ErrorSuccess
+	var job_list []uint64
+	for i := 0; i < len(jobIdStrSplit); i++ {
+		jobId64, err := strconv.ParseUint(jobIdStrSplit[i], 10, 32)
+		if err != nil {
+			fmt.Println("Invalid job Id: " + jobIdStrSplit[i])
+			craneError = util.ErrorCmdArg
+		} else {
+			job_list = append(job_list, jobId64)
+		}
+	}
+	if craneError != util.ErrorSuccess {
+		return craneError
+	}
+	for _, jobId := range job_list {
+		err := HoldReleaseJob(uint32(jobId), hold)
+		if err != util.ErrorSuccess {
+			craneError = err
+		}
+	}
+	return craneError
+}
+
+func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
+	var req *protos.ModifyTaskRequest
+	holdType := "Hold"
+
+	req = &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskId:    jobId,
+		Attribute: protos.ModifyTaskRequest_Hold,
+	}
+	if hold {
+		req.Value = &protos.ModifyTaskRequest_ManualHold{
+			ManualHold: true,
+		}
+	} else {
+		req.Value = &protos.ModifyTaskRequest_ReleaseJob{
+			ReleaseJob: true,
+		}
+		holdType = "Release"
+	}
+
+	if FlagHoldTime != "" {
+		seconds, err := ParseTimeStrToSeconds(FlagHoldTime)
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
+		if seconds == 0 {
+			log.Errorln("Hold time must be greater than 0.")
+			return util.ErrorCmdArg
+		}
+		req.HoldTimeSeconds = seconds
+	}
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		log.Errorf("ModifyJob failed: " + err.Error())
+		return util.ErrorNetwork
+	}
+	if reply.Ok {
+		fmt.Printf(holdType+" job %v success.\n", jobId)
+		return util.ErrorSuccess
+	} else {
+		fmt.Printf(holdType+" job %v failed: %s\n", jobId, reply.GetReason())
 		return util.ErrorBackend
 	}
 }

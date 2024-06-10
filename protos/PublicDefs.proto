@@ -99,6 +99,7 @@ message TaskToCtld {
 
   bool requeue_if_failed = 12;
   bool get_user_env = 13;
+  bool held = 14;
 
   oneof payload {
     BatchTaskAdditionalMeta batch_meta = 21;
@@ -214,6 +215,7 @@ message TaskInfo {
   string qos = 16;
 
   // Dynamic task information
+  bool held = 30;
   TaskStatus status = 31;
   double alloc_cpu = 32;
   uint32 exit_code = 33;
