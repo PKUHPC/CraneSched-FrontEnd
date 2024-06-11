@@ -156,23 +156,37 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 			timeSubmit := taskInfo.SubmitTime.AsTime()
 			timeSubmitStr := "unknown"
 			if !timeSubmit.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-				timeSubmitStr = timeSubmit.Local().String()
+				timeSubmitStr = timeSubmit.In(time.Local).Format("2006-01-02 15:04:05")
 			}
 			timeStart := taskInfo.StartTime.AsTime()
 			timeStartStr := "unknown"
-			runTime := "unknown"
+			runTimeStr := "unknown"
 			if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-				timeStartStr = timeStart.Local().String()
-				runTime = time.Since(timeStart).String()
+				timeStartStr = timeStart.In(time.Local).Format("2006-01-02 15:04:05")
+				runTimeDuration := time.Since(timeStart)
+
+				days := int(runTimeDuration.Hours()) / 24
+				hours := int(runTimeDuration.Hours()) % 24
+				minutes := int(runTimeDuration.Minutes()) % 60
+				seconds := int(runTimeDuration.Seconds()) % 60
+
+				runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
 			}
 			timeEnd := taskInfo.EndTime.AsTime()
 			timeEndStr := "unknown"
 			if timeEnd.After(timeStart) {
-				timeEndStr = timeEnd.Local().String()
-				runTime = timeEnd.Sub(timeStart).String()
+				timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
+				runTimeDuration := timeEnd.Sub(timeStart)
+
+				days := int(runTimeDuration.Hours()) / 24
+				hours := int(runTimeDuration.Hours()) % 24
+				minutes := int(runTimeDuration.Minutes()) % 60
+				seconds := int(runTimeDuration.Seconds()) % 60
+
+				runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
 			}
 			if taskInfo.Status.String() == "Running" {
-				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).String()
+				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).In(time.Local).Format("2006-01-02 15:04:05")
 			}
 			var timeLimitStr string
 			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
@@ -184,9 +198,9 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 
 			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
 				"TimeLimit=%s SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
-				"NumNodes=%d\n\tCmdLine=%v Workdir=%v\n",
+				"NumNodes=%d\n\tCmdLine=\"%v\" Workdir=%v\n",
 				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
-				taskInfo.Account, taskInfo.Status.String(), runTime, timeLimitStr,
+				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr,
 				timeSubmitStr, timeStartStr, timeEndStr, taskInfo.Partition,
 				taskInfo.CranedList, taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
 		}
