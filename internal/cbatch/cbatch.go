@@ -248,10 +248,10 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("Job id allocated: %d\n", reply.GetTaskId())
+		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
 		return util.ErrorSuccess
 	} else {
-		log.Errorf("Job allocation failed: %s\n", reply.GetReason())
+		log.Errorf("Job allocation failed: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -272,11 +272,11 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 		for i, taskId := range reply.TaskIdList {
 			taskIdListString[i] = strconv.FormatUint(uint64(taskId), 10)
 		}
-		fmt.Printf("Job id allocated: %s\n", strings.Join(taskIdListString, ", "))
+		fmt.Printf("Job id allocated: %s.\n", strings.Join(taskIdListString, ", "))
 	}
 
 	if len(reply.ReasonList) > 0 {
-		log.Errorf("Job allocation failed: %s\n", strings.Join(reply.ReasonList, ", "))
+		log.Errorf("Job allocation failed: %s.\n", strings.Join(reply.ReasonList, ", "))
 		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
@@ -359,7 +359,7 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			log.Errorf("Failed to close %s\n", file.Name())
+			log.Errorf("Failed to close %s.\n", file.Name())
 		}
 	}(file)
 

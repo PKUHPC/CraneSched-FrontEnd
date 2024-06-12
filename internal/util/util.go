@@ -57,24 +57,25 @@ func init() {
 
 func SetBorderlessTable(table *tablewriter.Table) {
 	table.SetBorder(false)
-	table.SetTablePadding(" ")
-	table.SetHeaderLine(false)
 	table.SetAutoWrapText(false)
-	table.SetAutoFormatHeaders(false)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoFormatHeaders(true)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetHeaderLine(false)
 	table.SetCenterSeparator("")
 	table.SetColumnSeparator("")
 	table.SetRowSeparator("")
+	table.SetTablePadding(" ")
 	table.SetNoWhiteSpace(true)
 }
 
 func SetBorderTable(table *tablewriter.Table) {
 	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
+	table.SetAutoFormatHeaders(true)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	table.SetCenterSeparator("|")
 	table.SetTablePadding("\t")
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
 }
 
 func FormatTable(tableOutputWidth []int, tableHeader []string,
