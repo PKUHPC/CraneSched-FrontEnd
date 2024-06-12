@@ -28,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 
+	"time"
+
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/xlab/treeprint"
@@ -290,6 +292,39 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 			PraseAccountTree(branch, child, accountMap)
 		}
 	}
+}
+
+func PrintAllEvents(eventList []*protos.EventInfo) {
+	sort.Slice(eventList, func(i, j int) bool {
+		return eventList[i].StartTime.AsTime().After(eventList[j].StartTime.AsTime())
+	})
+	if len(eventList) > 100 {
+		eventList = eventList[:100]
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	header := []string{"Node", "StartTime", "EndTime", "State", "Reason", "Uid"}
+	tableData := make([][]string, 0, len(eventList))
+	for _, eventInfo := range eventList {
+		var endTime string
+		if eventInfo.EndTime.AsTime().Year() == 1970 {
+			endTime = "Unknown"
+		} else {
+			endTime = eventInfo.EndTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05")
+		}
+		tableData = append(tableData, []string{
+			eventInfo.NodeName,
+			eventInfo.StartTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"),
+			endTime,
+			eventInfo.State.String(),
+			eventInfo.Reason,
+			strconv.FormatUint(uint64(eventInfo.Uid), 10),
+		})
+	}
+	table.SetHeader(header)
+	table.AppendBulk(tableData)
+	table.Render()
 }
 
 func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
@@ -564,6 +599,23 @@ func ShowAccounts() util.CraneCmdError {
 
 	if reply.GetOk() {
 		PrintAllAccount(reply.AccountList)
+		return util.ErrorSuccess
+	} else {
+		fmt.Println(reply.Reason)
+		return util.ErrorBackend
+	}
+}
+
+func ShowEvents() util.CraneCmdError {
+	req := &protos.QueryEntityInfoRequest{Uid: userUid, EntityType: protos.EntityType_Event}
+	reply, err := stub.QueryEntityInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Fail to show events")
+		return util.ErrorNetwork
+	}
+
+	if reply.GetOk() {
+		PrintAllEvents(reply.EventList)
 		return util.ErrorSuccess
 	} else {
 		fmt.Println(reply.Reason)
