@@ -50,9 +50,6 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		BatchMeta: &protos.BatchTaskAdditionalMeta{},
 	}
 
-	task.CpusPerTask = 1
-	task.NtasksPerNode = 1
-	task.NodeNum = 1
 	task.GetUserEnv = false
 	task.Env = make(map[string]string)
 
@@ -143,15 +140,9 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	// ************* set parameter values based on the command line *********************
 	// If the command line argument is set, it replaces the argument read from the file,
 	// so the command line has a higher priority
-	if FlagNodes != 0 {
-		task.NodeNum = FlagNodes
-	}
-	if FlagCpuPerTask != 0 {
-		task.CpusPerTask = FlagCpuPerTask
-	}
-	if FlagNtasksPerNode != 0 {
-		task.NtasksPerNode = FlagNtasksPerNode
-	}
+	task.NodeNum = FlagNodes
+	task.CpusPerTask = FlagCpuPerTask
+	task.NtasksPerNode = FlagNtasksPerNode
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
