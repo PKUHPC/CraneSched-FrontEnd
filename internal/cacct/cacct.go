@@ -165,7 +165,7 @@ func QueryJob() util.CraneCmdError {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"TaskId", "TaskName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
+	header := []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
 
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
@@ -217,16 +217,16 @@ func QueryJob() util.CraneCmdError {
 		table.SetHeader(header)
 	}
 
-	// Get index of "TaskId" column
+	// Get index of "JobId" column
 	idx := -1
 	for i, val := range header {
-		if val == "TaskId" {
+		if val == "JobId" {
 			idx = i
 			break
 		}
 	}
 
-	// If "TaskId" column exists, sort all rows by descending order of "TaskId".
+	// If "JobId" column exists, sort all rows by descending order of "JobId".
 	if idx != -1 {
 		less := func(i, j int) bool {
 			x, _ := strconv.ParseUint(tableData[i][idx], 10, 32)
