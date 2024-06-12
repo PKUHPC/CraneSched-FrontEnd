@@ -18,9 +18,9 @@ package cacct
 
 import (
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -35,21 +35,21 @@ var (
 	FlagFilterUsers      string
 	FlagFilterJobNames   string
 	FlagNoHeader         bool
-	FlagNumLimit         int32
+	FlagNumLimit         uint32
 
 	RootCmd = &cobra.Command{
 		Use:   "cacct [flags]",
 		Short: "Display the recent job information",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			flag := cmd.Flags().Lookup("max-lines")
-			if flag != nil {
-				if flag.Changed && FlagNumLimit <= 0 {
-					fmt.Println("--max-lines/-m must be greater than 0.")
+			if cmd.Flags().Changed("max-lines") {
+				if FlagNumLimit == 0 {
+					log.Error("Output line number limit must be greater than 0.")
 					os.Exit(util.ErrorCmdArg)
 				}
 			}
@@ -119,6 +119,6 @@ If the width is specified, the field will be formatted to at least that width.
 If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
 
-	RootCmd.Flags().Int32VarP(&FlagNumLimit, "max-lines", "m", 0,
+	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"Limit the number of lines in the output, default is 0 (no limit)")
 }

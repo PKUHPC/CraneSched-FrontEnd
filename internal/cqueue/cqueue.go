@@ -83,7 +83,7 @@ func Query() util.CraneCmdError {
 	}
 	if FlagFilterJobIDs != "" {
 		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
-		req.NumLimit = int32(len(filterJobIdList))
+		req.NumLimit = uint32(len(filterJobIdList))
 		var filterJobIdListInt []uint32
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
