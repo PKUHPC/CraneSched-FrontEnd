@@ -34,6 +34,8 @@ var (
 	FlagAccount       string
 	FlagQos           string
 	FlagCwd           string
+	FlagNodelist      string
+	FlagExcludes      string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -56,7 +58,7 @@ func ParseCmdArgs() {
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
-		"info", "Available debug level: trace,debug,info")
+		"info", " Available debug level: trace,debug,info (default \"info\")")
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, " number of nodes on which to run")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "number of cpus required per task")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "number of tasks to invoke on each node")
@@ -67,4 +69,6 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
 	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
+	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
+	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
 }

@@ -51,7 +51,7 @@ func CmdArgParser() {
 
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
-		"info", "Output level")
+		"info", " Available debug level: trace,debug,info (default \"info\")")
 	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run (N = min[-max])")
 	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
 	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")

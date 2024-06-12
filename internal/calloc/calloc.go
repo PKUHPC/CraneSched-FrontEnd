@@ -419,6 +419,12 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagAccount != "" {
 		task.Account = FlagAccount
 	}
+	if FlagNodelist != "" {
+		task.Nodelist = FlagNodelist
+	}
+	if FlagExcludes != "" {
+		task.Excludes = FlagExcludes
+	}
 
 	StartCallocStream(task)
 }

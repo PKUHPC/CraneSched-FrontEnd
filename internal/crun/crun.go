@@ -158,7 +158,7 @@ CrunStateMachineLoop:
 
 			if payload.Ok {
 				taskId = payload.TaskId
-				fmt.Printf("Task id allocated: %d\n", taskId)
+				log.Debugf("Task id allocated: %d\n", taskId)
 
 				state = WaitRes
 			} else {
@@ -191,7 +191,7 @@ CrunStateMachineLoop:
 				Ok := cforedPayload.Ok
 
 				if Ok {
-					fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+					log.Debugf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
 					state = WaitForward
 				} else {
 					fmt.Println("Failed to allocate task resource. Exiting...")
@@ -329,7 +329,7 @@ CrunStateMachineLoop:
 							}
 						case protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY:
 							{
-								println("Task completed.")
+								log.Debug("Task completed.")
 								break CrunStateMachineLoop
 							}
 						}
@@ -384,7 +384,7 @@ CrunStateMachineLoop:
 			}
 
 			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
-				println("Task completed.")
+				log.Debug("Task completed.")
 			} else {
 				log.Fatal("Failed to notify server of task completion")
 			}
