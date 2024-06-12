@@ -143,9 +143,14 @@ func Query() util.CraneCmdError {
 	if FlagStartTime {
 		header = append(header, "StartTime")
 		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i],
-				reply.TaskInfoList[i].StartTime.AsTime().
-					In(time.Local).Format("2006-01-02 15:04:05"))
+			startTime := reply.TaskInfoList[i].StartTime
+			if startTime.Seconds != 0 {
+				tableData[i] = append(tableData[i],
+					startTime.AsTime().In(time.Local).
+						Format("2006-01-02 15:04:05"))
+			} else {
+				tableData[i] = append(tableData[i], "")
+			}
 		}
 	}
 	if FlagFilterQos != "" {
