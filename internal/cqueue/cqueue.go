@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -105,10 +104,6 @@ func Query() util.CraneCmdError {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
 		return util.ErrorNetwork
 	}
-
-	sort.SliceStable(reply.TaskInfoList, func(i, j int) bool {
-		return reply.TaskInfoList[i].Priority > reply.TaskInfoList[j].Priority
-	})
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
