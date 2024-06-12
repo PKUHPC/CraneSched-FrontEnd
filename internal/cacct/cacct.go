@@ -243,7 +243,7 @@ func QueryJob() util.CraneCmdError {
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
 	formatTableData := make([][]string, len(reply.TaskInfoList))
-	formatReq := strings.Split(FlagFormat, " ")
+	formatReq := strings.Fields(FlagFormat)
 	tableOutputWidth := make([]int, len(formatReq))
 	tableOutputHeader := make([]string, len(formatReq))
 	for i := 0; i < len(formatReq); i++ {
