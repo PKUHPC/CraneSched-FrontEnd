@@ -204,7 +204,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.MailUser = FlagMailUser
 	}
 
-	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
+	if task.CpusPerTask <= 0 || task.NtasksPerNode <= 0 || task.NodeNum <= 0 {
 		log.Errorln("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 		return false, nil
 	}
