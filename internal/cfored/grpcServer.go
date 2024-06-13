@@ -347,8 +347,6 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 		log.Fatal(err)
 	}
 
-	tcpListenSocket, err := util.GetListenSocketByConfig(config)
-
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 
@@ -382,7 +380,12 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 
 	wgAllRoutines.Add(1)
 	go func(wg *sync.WaitGroup) {
-		err := grpcServer.Serve(tcpListenSocket)
+		tcpListenSocket, err := util.GetListenSocketByConfig(config)
+		if err != nil {
+			log.Fatalf("Failed to listen on tcp socket: %s", err.Error())
+		}
+
+		err = grpcServer.Serve(tcpListenSocket)
 		if err != nil {
 			log.Fatal(err)
 		}
