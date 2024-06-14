@@ -164,7 +164,7 @@ func QueryJob() util.CraneCmdError {
 			case "r", "running":
 				stateList = append(stateList, protos.TaskStatus_Running)
 			case "c", "completed":
-				stateList = append(stateList, protos.TaskStatus_Cancelled)
+				stateList = append(stateList, protos.TaskStatus_Completed)
 			case "f", "failed":
 				stateList = append(stateList, protos.TaskStatus_Failed)
 			case "t", "tle", "time-limit-exceeded", "timelimitexceeded":
