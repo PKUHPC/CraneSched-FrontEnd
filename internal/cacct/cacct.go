@@ -157,7 +157,7 @@ func QueryJob() util.CraneCmdError {
 		var stateList []protos.TaskStatus
 		has_all := false
 		filterStateList := strings.Split(strings.ToLower(FlagFilterStates), ",")
-		for i := 0; i < len(filterStateList) && !has_all; i++ {
+		for i := 0; i < len(filterStateList); i++ {
 			switch filterStateList[i] {
 			case "p", "pending":
 				stateList = append(stateList, protos.TaskStatus_Pending)
