@@ -153,6 +153,48 @@ func QueryJob() util.CraneCmdError {
 		request.FilterTaskNames = filterJobNameList
 	}
 
+	if FlagFilterStates != "" {
+		var stateList []protos.TaskStatus
+		has_all := false
+		filterStateList := strings.Split(strings.ToLower(FlagFilterStates), ",")
+		for i := 0; i < len(filterStateList) && !has_all; i++ {
+			switch filterStateList[i] {
+			case "p", "pending":
+				stateList = append(stateList, protos.TaskStatus_Pending)
+			case "r", "running":
+				stateList = append(stateList, protos.TaskStatus_Running)
+			case "c", "completed":
+				stateList = append(stateList, protos.TaskStatus_Cancelled)
+			case "f", "failed":
+				stateList = append(stateList, protos.TaskStatus_Failed)
+			case "t", "tle", "time-limit-exceeded", "timelimitexceeded":
+				stateList = append(stateList, protos.TaskStatus_ExceedTimeLimit)
+			case "x", "canceled", "cancelled":
+				stateList = append(stateList, protos.TaskStatus_Cancelled)
+			case "i", "invalid":
+				stateList = append(stateList, protos.TaskStatus_Invalid)
+			case "all":
+				has_all = true
+			default:
+				log.Errorf("Invalid state given: %s.\n", filterStateList[i])
+				return util.ErrorCmdArg
+			}
+		}
+		if !has_all {
+			request.FilterTaskStates = stateList
+		}
+	}
+
+	if FlagFilterQos != "" {
+		filterJobQosList := strings.Split(FlagFilterQos, ",")
+		request.FilterQos = filterJobQosList
+	}
+
+	if FlagFilterPartitions != "" {
+		filterPartitionList := strings.Split(FlagFilterPartitions, ",")
+		request.FilterPartitions = filterPartitionList
+	}
+
 	if FlagNumLimit != 0 {
 		request.NumLimit = FlagNumLimit
 	}

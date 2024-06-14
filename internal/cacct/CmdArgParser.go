@@ -34,6 +34,9 @@ var (
 	FlagFilterJobIDs     string
 	FlagFilterUsers      string
 	FlagFilterJobNames   string
+	FlagFilterStates     string
+	FlagFilterPartitions string
+	FlagFilterQos        string
 	FlagNoHeader         bool
 	FlagNumLimit         uint32
 
@@ -92,6 +95,14 @@ func init() {
 		"Select job names to view (comma separated list), default is all")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
 		"Do not print header line in the output")
+	RootCmd.Flags().StringVarP(&FlagFilterQos, "qos", "q", "",
+		"Specify QoS of jobs to view (comma separated list), \ndefault is all QoS")
+	RootCmd.Flags().StringVarP(&FlagFilterStates, "state", "t", "",
+		"Specify job states to view,\n"+
+			"default is pending and running, \n"+
+			"'--states=all' reports all states ")
+	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
+		"Specify partitions to view (comma separated list), \ndefault is all partitions")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format for the command. 
