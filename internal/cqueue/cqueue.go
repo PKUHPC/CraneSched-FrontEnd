@@ -39,8 +39,9 @@ func Query() util.CraneCmdError {
 	stub = util.GetStubToCtldByConfig(config)
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
 
-	var stateList []protos.TaskStatus
 	if FlagFilterStates != "" {
+		var stateList []protos.TaskStatus
+		has_all := false
 		filterStateList := strings.Split(strings.ToLower(FlagFilterStates), ",")
 		for i := 0; i < len(filterStateList); i++ {
 			switch filterStateList[i] {
@@ -48,16 +49,16 @@ func Query() util.CraneCmdError {
 				stateList = append(stateList, protos.TaskStatus_Running)
 			case "p", "pending":
 				stateList = append(stateList, protos.TaskStatus_Pending)
-			case "c", "cancelled":
-				stateList = append(stateList, protos.TaskStatus_Cancelled)
-			case "etl", "exceed-time-limit":
-				stateList = append(stateList, protos.TaskStatus_ExceedTimeLimit)
+			case "all":
+				has_all = true
 			default:
 				log.Errorf("Invalid state given: %s.\n", filterStateList[i])
 				return util.ErrorCmdArg
 			}
 		}
-		req.FilterTaskStates = stateList
+		if !has_all {
+			req.FilterTaskStates = stateList
+		}
 	}
 
 	if FlagFilterJobNames != "" {
