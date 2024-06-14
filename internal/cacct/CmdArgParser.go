@@ -96,13 +96,13 @@ func init() {
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
 		"Do not print header line in the output")
 	RootCmd.Flags().StringVarP(&FlagFilterQos, "qos", "q", "",
-		"Specify QoS of jobs to view (comma separated list), \ndefault is all QoS")
-	RootCmd.Flags().StringVarP(&FlagFilterStates, "state", "t", "",
-		"Specify job states to view,\n"+
-			"default is pending and running, \n"+
-			"'--states=all' reports all states ")
+		"Specify QoS of jobs to view (comma separated list), default is all")
+	RootCmd.Flags().StringVarP(&FlagFilterStates, "state", "t",
+		"", "Specify job states to view, supported states: "+
+			"pending(p), running(r), completed(c), failed(f), cancelled(x), time-limit-exceeded(t), "+
+			", default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
-		"Specify partitions to view (comma separated list), \ndefault is all partitions")
+		"Specify partitions to view (comma separated list), default is all")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format for the command. 
