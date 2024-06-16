@@ -365,6 +365,9 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 		user.AdminLevel = protos.UserInfo_Operator
 	} else if level == "admin" {
 		user.AdminLevel = protos.UserInfo_Admin
+	} else {
+		log.Errorf("Unknown admin level, valid value: none, operator, admin.")
+		return util.ErrorCmdArg
 	}
 
 	if coordinate {
