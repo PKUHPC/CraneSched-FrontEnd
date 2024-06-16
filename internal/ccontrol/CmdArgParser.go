@@ -19,11 +19,9 @@ package ccontrol
 import (
 	"CraneFrontEnd/internal/util"
 	"errors"
+	"github.com/spf13/cobra"
 	"os"
 	"strconv"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -49,6 +47,7 @@ var (
 		Short: "Display and modify the specified entity",
 		Long:  "",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			//cmd.SilenceUsage = true	// If no error occurred here, this flag should not be set because it will silence the flag requirement check for all subcommands.
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},
@@ -126,7 +125,7 @@ var (
 		Long:  "",
 	}
 	addNodeCmd = &cobra.Command{
-		Use:   "node",
+		Use:   "node [flags]",
 		Short: "Add a new node",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
@@ -135,7 +134,7 @@ var (
 		},
 	}
 	addPartitionCmd = &cobra.Command{
-		Use:   "partition",
+		Use:   "partition [flags]",
 		Short: "Add a new partition",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
@@ -152,7 +151,7 @@ var (
 		Long:    "",
 	}
 	deleteNodeCmd = &cobra.Command{
-		Use:   "node",
+		Use:   "node [node_name]",
 		Short: "Delete an existing node",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -161,7 +160,7 @@ var (
 		},
 	}
 	deletePartitionCmd = &cobra.Command{
-		Use:   "partition",
+		Use:   "partition [partition_name]",
 		Short: "Delete an existing partition",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
@@ -181,6 +180,7 @@ var (
 		Use:   "job [flags]",
 		Short: "Modify job attributes",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") {
 				return &util.CraneError{
@@ -207,15 +207,28 @@ var (
 		Short: "Modify node attributes",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ChangeNodeState(FlagName, FlagState, FlagReason)
-			//TODO 合并两个接口
-			return UpdateNode(FlagName, FlagCpus, FlagMem)
+			flagStateSet := cmd.Flags().Changed("state")
+			flagReasonSet := cmd.Flags().Changed("reason")
+			flagMemorySet := cmd.Flags().Changed("memory")
+			flagCpuSet := cmd.Flags().Changed("cpu")
+
+			if flagStateSet && flagReasonSet && !flagMemorySet && !flagCpuSet {
+				return ChangeNodeState(FlagName, FlagState, FlagReason)
+			} else if !flagStateSet && !flagReasonSet && flagMemorySet && flagCpuSet {
+				return UpdateNode(FlagName, FlagCpus, FlagMem)
+			} else {
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "Either --state&&--reason or --cpu&&--mem should be set",
+				}
+			}
 		},
 	}
 	updatePartitionCmd = &cobra.Command{
-		Use:   "partition",
+		Use:   "partition [flags]",
 		Short: "Modify partition information",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return UpdatePartition(FlagName, FlagNodeStr, FlagPartitionPriority, FlagAllowAccounts, FlagDenyAccounts)
 		},
@@ -224,13 +237,15 @@ var (
 
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
+	// Silence usage info output when RunE() returns a non-nil error
+	util.RunEWrapperForLeafCommand(RootCmd)
+
 	if err := RootCmd.Execute(); err != nil {
 		var craneErr *util.CraneError
 		if errors.As(err, &craneErr) {
-			if craneErr.Error() != "" {
-				log.Error(craneErr.Error())
-			}
 			os.Exit(craneErr.Code)
+		} else {
+			os.Exit(util.ErrorGeneric)
 		}
 	}
 	os.Exit(util.ErrorSuccess)
@@ -294,11 +309,11 @@ func init() {
 	{
 		updateCmd.AddCommand(updateNodeCmd)
 		{
-			updateNodeCmd.Flags().StringVarP(&FlagName, "name", "n", "", "Specify name of the node to be modified")
-			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Set the node state")
-			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set the reason of this state change")
+			updateNodeCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Specify name of the node to be modified")
+			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "S", "", "Set the node state")
+			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "R", "", "Set the reason of this state change")
 
-			updateNodeCmd.Flags().Float64Var(&FlagCpus, "cpu", 0.0, "Number of CPU cores")
+			updateNodeCmd.Flags().Float64VarP(&FlagCpus, "cpu", "c", 0.0, "Number of CPU cores")
 			updateNodeCmd.Flags().StringVarP(&FlagMem, "memory", "M", "", "Memory size, in units of G/M/K/B")
 			//updateNodeCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "P", nil, "The partition name to which the node belongs")
 			err := updateNodeCmd.MarkFlagRequired("name")
@@ -327,14 +342,6 @@ func init() {
 			updatePartitionCmd.Flags().StringSliceVar(&FlagAllowAccounts, "allowlist", nil, "List of accounts allowed to use this partition")
 			updatePartitionCmd.Flags().StringSliceVar(&FlagDenyAccounts, "denylist", nil, "Prohibit the use of the account list in this partition. The --denylist and the --allowlist parameter can only be selected as either")
 			updatePartitionCmd.MarkFlagsMutuallyExclusive("allowlist", "denylist")
-
-			updateCmd.AddCommand(updateJobCmd)
-			updateJobCmd.Flags().Uint32VarP(&FlagJobId, "job", "J", 0, "Job id")
-			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "time limit")
-			err := updateJobCmd.MarkFlagRequired("job")
-			if err != nil {
-				return
-			}
 		}
 	}
 }

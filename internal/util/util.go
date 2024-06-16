@@ -17,6 +17,10 @@
 package util
 
 import (
+	"errors"
+	"github.com/spf13/cobra"
+	"strings"
+
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
 )
@@ -51,4 +55,32 @@ func InitLogger(level log.Level) {
 	log.SetLevel(level)
 	log.SetReportCaller(true)
 	log.SetFormatter(&nested.Formatter{})
+}
+
+func RunEWrapperForLeafCommand(cmd *cobra.Command) {
+	for _, c := range cmd.Commands() {
+		RunEWrapperForLeafCommand(c) // bfs
+	}
+
+	if len(cmd.Commands()) == 0 {
+		originalRunE := cmd.RunE
+		cmd.RunE = func(cmd *cobra.Command, args []string) error {
+			if originalRunE != nil {
+				err := originalRunE(cmd, args)
+				var craneErr *CraneError
+				if errors.As(err, &craneErr) {
+					if craneErr != nil {
+						if craneErr.Error() == "" {
+							cmd.SilenceErrors = true
+						}
+						if craneErr.Code != ErrorCmdArg {
+							cmd.SilenceUsage = true // Silence usage info output
+						}
+					}
+				}
+				return err
+			}
+			return nil
+		}
+	}
 }
