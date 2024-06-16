@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023 Peking University and Peking University
+ * Copyright (c) 2024 Peking University and Peking University
  * Changsha Institute for Computing and Digital Economy
  *
  * CraneSched is licensed under Mulan PSL v2.
@@ -14,18 +14,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-package util
+package main
 
-type CraneCmdError = int
+import "CraneFrontEnd/internal/crun"
 
-// Do not use error code bigger than 127
-
-// general
-const (
-	ErrorSuccess       CraneCmdError = 0
-	ErrorGeneric       CraneCmdError = 1
-	ErrorCmdArg        CraneCmdError = 2
-	ErrorNetwork       CraneCmdError = 3
-	ErrorBackend       CraneCmdError = 4
-	ErrorInvalidFormat CraneCmdError = 5
-)
+func main() {
+	crun.CmdArgParser()
+}

@@ -20,11 +20,10 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -48,7 +47,7 @@ func CancelTask(args []string) util.CraneCmdError {
 		for i := 0; i < len(taskIdStrSplit); i++ {
 			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 			if err != nil {
-				log.Error("Invalid job Id: " + taskIdStrSplit[i])
+				_, _ = fmt.Fprintf(os.Stderr, "Invalid job Id: "+taskIdStrSplit[i])
 				return util.ErrorCmdArg
 			}
 			taskIds = append(taskIds, uint32(taskId64))
@@ -63,7 +62,7 @@ func CancelTask(args []string) util.CraneCmdError {
 		} else if FlagState == "r" || FlagState == "running" {
 			req.FilterState = protos.TaskStatus_Running
 		} else {
-			log.Error("Invalid FlagState, Valid job states are PENDING, RUNNING.")
+			_, _ = fmt.Fprintf(os.Stderr, "Invalid FlagState, Valid job states are PENDING, RUNNING.")
 			return util.ErrorCmdArg
 		}
 	}
@@ -82,12 +81,12 @@ func CancelTask(args []string) util.CraneCmdError {
 			cancelledTasksStr += ","
 			cancelledTasksStr += strconv.FormatUint(uint64(reply.CancelledTasks[i]), 10)
 		}
-		log.Infof("Job %s cancelled successfully.\n", cancelledTasksStr)
+		fmt.Printf("Job %s cancelled successfully.\n", cancelledTasksStr)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			log.Errorf("Failed to cancel job: %d. Reason: %s.\n",
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel job: %d. Reason: %s.\n",
 				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
 		os.Exit(util.ErrorBackend)

@@ -16,16 +16,18 @@
 
 package util
 
-type CraneCmdError = int
-
-// Do not use error code bigger than 127
-
-// general
-const (
-	ErrorSuccess       CraneCmdError = 0
-	ErrorGeneric       CraneCmdError = 1
-	ErrorCmdArg        CraneCmdError = 2
-	ErrorNetwork       CraneCmdError = 3
-	ErrorBackend       CraneCmdError = 4
-	ErrorInvalidFormat CraneCmdError = 5
+import (
+	log "github.com/sirupsen/logrus"
+	"os"
 )
+
+func RemoveFileIfExists(path string) bool {
+	if _, err := os.Stat(path); err == nil {
+		err := os.Remove(path)
+		if err != nil {
+			log.Fatalf("Failed to remove file %s: %s", path, err.Error())
+			return false
+		}
+	}
+	return true
+}

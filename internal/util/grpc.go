@@ -26,8 +26,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,6 +43,14 @@ func ParseConfig(configFilePath string) *Config {
 	err = yaml.Unmarshal(confFile, config)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if config.CraneBaseDir == "" {
+		config.CraneBaseDir = "/var/crane/"
+	}
+
+	if config.CranedGoUnixSockPath == "" {
+		config.CranedGoUnixSockPath = config.CraneBaseDir + "craned/cfored.sock"
 	}
 
 	return config
@@ -143,11 +153,22 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			log.Fatal("Cannot connect to CraneCtld: " + err.Error())
+			log.Fatalf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
 		}
 
 		stub = protos.NewCraneCtldClient(conn)
 	}
 
 	return stub
+}
+
+func GrpcErrorPrintf(err error, format string, a ...any) {
+	s := fmt.Sprintf(format, a...)
+	if rpcErr, ok := grpcstatus.FromError(err); ok {
+		if rpcErr.Code() == grpccodes.Unavailable {
+			log.Errorf("%s: Connection to CraneCtld is broken.", s)
+		} else {
+			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
+		}
+	}
 }

@@ -83,10 +83,12 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CallocStreamClient,
 }
 
 func StartCallocStream(task *protos.TaskToCtld) {
+	config := util.ParseConfig(FlagConfigFilePath)
+
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	unixSocketPath := "unix:///" + util.DefaultCforedUnixSocketPath
+	unixSocketPath := "unix:///" + config.CranedGoUnixSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to local unix socket %s: %s",
@@ -369,18 +371,24 @@ func main(cmd *cobra.Command, args []string) {
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
 
-		// Todo: Propagate Env here!
+		// Todo: Propagate Env by --export here!
 		Env: make(map[string]string),
 	}
 
 	if FlagNodes != 0 {
 		task.NodeNum = FlagNodes
+	} else {
+		log.Fatalf("Invalid --nodes %d", FlagNodes)
 	}
 	if FlagCpuPerTask != 0 {
 		task.CpusPerTask = FlagCpuPerTask
+	} else {
+		log.Fatalf("Invalid --cpus-per-task %f", FlagCpuPerTask)
 	}
 	if FlagNtasksPerNode != 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
+	} else {
+		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
 	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
@@ -411,9 +419,11 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagAccount != "" {
 		task.Account = FlagAccount
 	}
-
-	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
-		log.Fatal("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
+	if FlagNodelist != "" {
+		task.Nodelist = FlagNodelist
+	}
+	if FlagExcludes != "" {
+		task.Excludes = FlagExcludes
 	}
 
 	StartCallocStream(task)
