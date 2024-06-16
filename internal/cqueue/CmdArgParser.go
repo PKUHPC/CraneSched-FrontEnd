@@ -79,10 +79,9 @@ func init() {
 		"Specify job names to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterQos, "qos", "q", "",
 		"Specify QoS of jobs to view (comma separated list), \ndefault is all QoS")
-	RootCmd.Flags().StringVarP(&FlagFilterStates, "state", "t", "",
-		"Specify job states to view,\n"+
-			"default is pending and running, \n"+
-			"'--states=all' reports all states ")
+	RootCmd.Flags().StringVarP(&FlagFilterStates, "state", "t", "all",
+		"Specify job states to view. Valid value are 'pending(p)', 'running(r)' and 'all'.\n"+
+			"By default, 'all' is specified and all pending and running jobs will be reported")
 	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 		"Specify users to view (comma separated list), default is all users")
 	RootCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
