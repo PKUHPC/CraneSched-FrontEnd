@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+
 	"io"
 	"os"
 	"os/signal"
@@ -22,18 +23,19 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 )
 
 type StateOfCrun int
 
 const (
-	ConnectCfored StateOfCrun = 0
-	ReqTaskId     StateOfCrun = 1
-	WaitRes       StateOfCrun = 2
-	WaitForward   StateOfCrun = 3
-	Forwarding    StateOfCrun = 4
-	TaskKilling   StateOfCrun = 5
-	WaitAck       StateOfCrun = 6
+	ConnectCfored  StateOfCrun = 0
+	ReqProcId      StateOfCrun = 1
+	WaitRes        StateOfCrun = 2
+	WaitForward    StateOfCrun = 3
+	Forwarding     StateOfCrun = 4
+	TaskKilling    StateOfCrun = 5
+	WaitForwardEnd StateOfCrun = 6
 )
 
 type GlobalVariables struct {
@@ -98,6 +100,8 @@ func StartCrunStream(task *protos.TaskToCtld) {
 
 	var request *protos.StreamCrunRequest
 	var taskId uint32
+	var procId uint32
+	nested_task := false
 
 	state := ConnectCfored
 
@@ -127,6 +131,18 @@ CrunStateMachineLoop:
 				},
 			}
 
+			envTaskId, exits := syscall.Getenv("CRANE_JOB_ID")
+			if exits {
+				nested_task = true
+				envTaskId, err := strconv.ParseUint(envTaskId, 10, 32)
+				if err != nil {
+					log.Fatal("Error when parsing CRANE_TASK_ID")
+				} else {
+					taskId = uint32(envTaskId)
+					request.GetPayloadTaskReq().TaskId = proto.Uint32(taskId)
+				}
+			}
+
 			if err := stream.Send(request); err != nil {
 				log.Errorf("Failed to send Task Request to CrunStream: %s. "+
 					"Connection to Crun is broken", err)
@@ -134,10 +150,10 @@ CrunStateMachineLoop:
 				break CrunStateMachineLoop
 			}
 
-			state = ReqTaskId
+			state = ReqProcId
 
-		case ReqTaskId:
-			log.Trace("Waiting TaskId")
+		case ReqProcId:
+			log.Trace("Waiting ProcId")
 			select {
 			case item := <-replyChannel:
 				cforedReply, err := item.reply, item.err
@@ -161,8 +177,13 @@ CrunStateMachineLoop:
 
 				if payload.Ok {
 					taskId = payload.TaskId
-					log.Debugf("Task id allocated: %d\n", taskId)
-					state = WaitRes
+					procId = payload.ProcId
+					log.Debugf("Task id %d, Proc id %d\n", taskId, procId)
+					if nested_task {
+						state = WaitForward
+					} else {
+						state = WaitRes
+					}
 				} else {
 					_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
 					break CrunStateMachineLoop
@@ -275,13 +296,14 @@ CrunStateMachineLoop:
 							Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
 								PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
 									TaskId: taskId,
+									ProcId: procId,
 									Msg:    msg,
 								},
 							},
 						}
 						if err := stream.Send(request); err != nil {
-							log.Errorf("Failed to send Task Request to CrunStream: %s. "+
-								"Connection to Crun is broken", err)
+							log.Errorf("Failed to send Task Request to CforedStream: %s. "+
+								"Connection to Cfored is broken", err)
 							gVars.connectionBroken = true
 							break forwardToCfored
 						}
@@ -300,6 +322,7 @@ CrunStateMachineLoop:
 							PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
 								TaskId: taskId,
 								Status: protos.TaskStatus_Completed,
+								ProcId: procId,
 							},
 						},
 					}
@@ -311,7 +334,7 @@ CrunStateMachineLoop:
 						gVars.connectionBroken = true
 						break CrunStateMachineLoop
 					} else {
-						state = WaitAck
+						state = WaitForwardEnd
 					}
 
 				case item := <-replyChannel:
@@ -338,7 +361,7 @@ CrunStateMachineLoop:
 								log.Trace("Received TASK_CANCEL_REQUEST")
 								state = TaskKilling
 							}
-						case protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY:
+						case protos.StreamCforedCrunReply_Proc_FORWARD_END:
 							{
 								log.Debug("Task completed.")
 								break CrunStateMachineLoop
@@ -369,11 +392,11 @@ CrunStateMachineLoop:
 				gVars.connectionBroken = true
 				break CrunStateMachineLoop
 			} else {
-				state = WaitAck
+				state = WaitForwardEnd
 			}
 
-		case WaitAck:
-			log.Debug("Waiting Ctld TASK_COMPLETION_ACK_REPLY")
+		case WaitForwardEnd:
+			log.Debug("Enter WaitForwardEnd state...")
 			item := <-replyChannel
 			cforedReply, err := item.reply, item.err
 
@@ -389,14 +412,14 @@ CrunStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY {
-				log.Fatalf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
+			if cforedReply.Type != protos.StreamCforedCrunReply_Proc_FORWARD_END {
+				log.Fatalf("Expect Proc_FORWARD_END. bug get %s\n", cforedReply.Type.String())
 			}
 
-			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
+			if cforedReply.GetPayloadProcForwardEndReply().Ok {
 				log.Debug("Task completed.")
 			} else {
-				log.Fatal("Failed to notify server of task completion")
+				log.Fatal("Err waiting Proc Forward End")
 			}
 
 			break CrunStateMachineLoop

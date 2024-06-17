@@ -38,6 +38,7 @@ type GlobalVariables struct {
 	user      *user.User
 	cwd       string
 	shellPath string
+	taskId    uint32
 
 	globalCtx       context.Context
 	globalCtxCancel context.CancelFunc
@@ -107,7 +108,6 @@ func StartCallocStream(task *protos.TaskToCtld) {
 	var replyChannel chan ReplyReceiveItem
 
 	var request *protos.StreamCallocRequest
-	var taskId uint32
 
 	terminalExitChannel := make(chan bool, 1)
 	cancelRequestChannel := make(chan bool, 1)
@@ -168,8 +168,8 @@ CallocStateMachineLoop:
 			payload := cforedReply.GetPayloadTaskIdReply()
 
 			if payload.Ok {
-				taskId = payload.TaskId
-				fmt.Printf("Task id allocated: %d\n", taskId)
+				gVars.taskId = payload.TaskId
+				fmt.Printf("Task id allocated: %d\n", gVars.taskId)
 
 				state = WaitRes
 			} else {
@@ -216,7 +216,7 @@ CallocStateMachineLoop:
 					Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
 					Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
 						PayloadTaskCompleteReq: &protos.StreamCallocRequest_TaskCompleteReq{
-							TaskId: taskId,
+							TaskId: gVars.taskId,
 							Status: protos.TaskStatus_Completed,
 						},
 					},
@@ -263,7 +263,7 @@ CallocStateMachineLoop:
 				Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
 					PayloadTaskCompleteReq: &protos.StreamCallocRequest_TaskCompleteReq{
-						TaskId: taskId,
+						TaskId: gVars.taskId,
 						Status: protos.TaskStatus_Cancelled,
 					},
 				},
