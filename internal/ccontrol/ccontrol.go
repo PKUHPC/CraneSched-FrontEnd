@@ -388,7 +388,7 @@ func ChangeNodeState(nodeName string, state string, reason string) error {
 		}
 	}
 
-	reply, err := stub.ModifyNode(context.Background(), req)
+	reply, err := stub.ModifyNodeState(context.Background(), req)
 	if err != nil {
 		return &util.CraneError{
 			Code:    util.ErrorNetwork,
@@ -443,7 +443,7 @@ func AddNode(name string, cpu float64, mem string, partition []string) error {
 	}
 }
 
-func AddPartition(name string, nodes string, priority uint32, allowlist []string, denylist []string) error {
+func AddPartition(name string, nodes string, priority int64, allowlist []string, denylist []string) error {
 	var req *protos.AddPartitionRequest
 	req = &protos.AddPartitionRequest{
 		Uid: uint32(os.Getuid()),
@@ -597,7 +597,7 @@ func UpdateNode(name string, cpu float64, mem string) error {
 	}
 }
 
-func UpdatePartition(name string, nodes string, priority uint32, allowlist []string, denylist []string) error {
+func UpdatePartition(name string, nodes string, priority int64, allowlist []string, denylist []string) error {
 	var req *protos.UpdatePartitionRequest
 	req = &protos.UpdatePartitionRequest{
 		Uid: uint32(os.Getuid()),

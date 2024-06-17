@@ -31,7 +31,7 @@ var (
 	FlagPartitions        []string
 	FlagNodeStr           string
 	FlagJobPriority       float64
-	FlagPartitionPriority uint32
+	FlagPartitionPriority int64
 	FlagAllowAccounts     []string
 	FlagDenyAccounts      []string
 	FlagState             string
@@ -139,6 +139,12 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("priority") && FlagPartitionPriority < 0 {
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "--priority must be greater than or equal to 0",
+				}
+			}
 			return AddPartition(FlagName, FlagNodeStr, FlagPartitionPriority, FlagAllowAccounts, FlagDenyAccounts)
 		},
 	}
@@ -214,12 +220,12 @@ var (
 
 			if flagStateSet && flagReasonSet && !flagMemorySet && !flagCpuSet {
 				return ChangeNodeState(FlagName, FlagState, FlagReason)
-			} else if !flagStateSet && !flagReasonSet && flagMemorySet && flagCpuSet {
+			} else if !flagStateSet && !flagReasonSet && (flagMemorySet || flagCpuSet) {
 				return UpdateNode(FlagName, FlagCpus, FlagMem)
 			} else {
 				return &util.CraneError{
 					Code:    util.ErrorCmdArg,
-					Message: "Either --state&&--reason or --cpu&&--mem should be set",
+					Message: "Either --state&&--reason or --cpu or --mem should be set",
 				}
 			}
 		},
@@ -230,6 +236,12 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("priority") && FlagPartitionPriority < 0 {
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "--priority must be greater than or equal to 0",
+				}
+			}
 			return UpdatePartition(FlagName, FlagNodeStr, FlagPartitionPriority, FlagAllowAccounts, FlagDenyAccounts)
 		},
 	}
@@ -268,8 +280,8 @@ func init() {
 		addCmd.AddCommand(addNodeCmd)
 		{
 			addNodeCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Host name")
-			addNodeCmd.Flags().Float64Var(&FlagCpus, "cpu", 0.0, "Number of CPU cores")
-			addNodeCmd.Flags().StringVarP(&FlagMem, "memory", "M", "", "Memory size, in units of G/M/K/B")
+			addNodeCmd.Flags().Float64VarP(&FlagCpus, "cpu", "c", 0.0, "Number of CPU cores")
+			addNodeCmd.Flags().StringVarP(&FlagMem, "memory", "M", "", "Memory size, in units of G/M/K/B, default MB")
 			addNodeCmd.Flags().StringSliceVarP(&FlagPartitions, "partition", "P", nil, "The partition name to which the node belongs")
 			err := addNodeCmd.MarkFlagRequired("name")
 			if err != nil {
@@ -289,20 +301,25 @@ func init() {
 		{
 			addPartitionCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Partition name")
 			addPartitionCmd.Flags().StringVar(&FlagNodeStr, "nodes", "", "The included nodes can be written individually, abbreviated or mixed, please write them in a string")
-			addPartitionCmd.Flags().Float64Var(&FlagJobPriority, "priority", 0.0, "Partition priority")
-			addPartitionCmd.Flags().StringSliceVar(&FlagAllowAccounts, "allowlist", nil, "List of accounts allowed to use this partition")
-			addPartitionCmd.Flags().StringSliceVar(&FlagDenyAccounts, "denylist", nil, "Prohibit the use of the account list in this partition. The --denylist and the --allowlist parameter can only be selected as either")
+			addPartitionCmd.Flags().Int64VarP(&FlagPartitionPriority, "priority", "P", -1, "Partition priority")
+			addPartitionCmd.Flags().StringSliceVarP(&FlagAllowAccounts, "allowlist", "A", nil, "List of accounts allowed to use this partition")
+			addPartitionCmd.Flags().StringSliceVarP(&FlagDenyAccounts, "denylist", "D", nil, "Prohibit the use of the account list in this partition. The --denylist and the --allowlist parameter can only be selected as either")
 			addPartitionCmd.MarkFlagsMutuallyExclusive("allowlist", "denylist")
+			err := addPartitionCmd.MarkFlagRequired("name")
+			if err != nil {
+				return
+			}
+			err = addPartitionCmd.MarkFlagRequired("nodes")
+			if err != nil {
+				return
+			}
 		}
 	}
 
 	RootCmd.AddCommand(deleteCmd)
 	{
 		deleteCmd.AddCommand(deleteNodeCmd)
-		deleteNodeCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Host name")
-
 		deleteCmd.AddCommand(deletePartitionCmd)
-		deletePartitionCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Partition name")
 	}
 
 	RootCmd.AddCommand(updateCmd)
@@ -338,9 +355,9 @@ func init() {
 		{
 			updatePartitionCmd.Flags().StringVarP(&FlagName, "name", "N", "", "Partition name")
 			updatePartitionCmd.Flags().StringVar(&FlagNodeStr, "nodes", "", "The included nodes can be written individually, abbreviated or mixed, please write them in a string")
-			updatePartitionCmd.Flags().Float64Var(&FlagJobPriority, "priority", -1, "Partition priority")
-			updatePartitionCmd.Flags().StringSliceVar(&FlagAllowAccounts, "allowlist", nil, "List of accounts allowed to use this partition")
-			updatePartitionCmd.Flags().StringSliceVar(&FlagDenyAccounts, "denylist", nil, "Prohibit the use of the account list in this partition. The --denylist and the --allowlist parameter can only be selected as either")
+			updatePartitionCmd.Flags().Int64VarP(&FlagPartitionPriority, "priority", "P", -1, "Partition priority")
+			updatePartitionCmd.Flags().StringSliceVarP(&FlagAllowAccounts, "allowlist", "A", nil, "List of accounts allowed to use this partition")
+			updatePartitionCmd.Flags().StringSliceVarP(&FlagDenyAccounts, "denylist", "D", nil, "Prohibit the use of the account list in this partition. The --denylist and the --allowlist parameter can only be selected as either")
 			updatePartitionCmd.MarkFlagsMutuallyExclusive("allowlist", "denylist")
 		}
 	}

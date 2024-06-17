@@ -19,7 +19,6 @@ package util
 import (
 	"errors"
 	"github.com/spf13/cobra"
-	"strings"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
