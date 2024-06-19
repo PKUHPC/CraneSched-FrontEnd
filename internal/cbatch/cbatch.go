@@ -204,8 +204,24 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.MailUser = FlagMailUser
 	}
 
-	if task.CpusPerTask <= 0 || task.NtasksPerNode <= 0 || task.NodeNum <= 0 {
-		log.Errorln("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
+	if task.CpusPerTask <= 0 {
+		log.Errorln("Invalid --cpus-per-task")
+		return false, nil
+	}
+	if task.NtasksPerNode <= 0 {
+		log.Errorln("Invalid --ntasks-per-node")
+		return false, nil
+	}
+	if task.NodeNum <= 0 {
+		log.Errorln("Invalid --node-num")
+		return false, nil
+	}
+	if task.TimeLimit.AsDuration() <= 0 {
+		log.Errorln("Invalid --time")
+		return false, nil
+	}
+	if task.Resources.AllocatableResource.MemoryLimitBytes <= 0 {
+		log.Errorln("Invalid --mem")
 		return false, nil
 	}
 	if !util.CheckNodeList(task.Nodelist) {
