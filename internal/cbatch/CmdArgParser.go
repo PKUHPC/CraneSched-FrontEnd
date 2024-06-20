@@ -50,6 +50,8 @@ var (
 	FlagMailType string
 	FlagMailUser string
 
+	FlagDependency string
+
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
 		Short:   "Submit batch job",
@@ -124,4 +126,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
+	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 }

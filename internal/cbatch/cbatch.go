@@ -136,6 +136,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.MailType = mailType
 		case "--mail-user":
 			task.MailUser = arg.val
+		case "--dependency", "-d":
+			err := SetTaskDependencies(task, arg.val)
+			if err != nil {
+				log.Error(err)
+				return false, nil
+			}
 		default:
 			log.Errorf("Invalid parameter '%s' given in the script file.\n", arg.name)
 			return false, nil
@@ -216,6 +222,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagMailUser != "" {
 		task.MailUser = FlagMailUser
 	}
+	if FlagDependency != "" {
+		err := SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			log.Error(err)
+			return false, nil
+		}
+	}
 
 	// Check the validity of the parameters
 	if task.CpusPerTask <= 0 {
@@ -250,6 +263,17 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if task.MailType != 0 && task.MailUser == "" {
 		log.Errorln("Mail type is set but missing the mail user")
 		return false, nil
+	}
+
+	if task.Dependencies != nil {
+		taskIds := make(map[uint32]bool)
+		for _, dep := range task.Dependencies.Dependencies {
+			if taskIds[dep.TaskId] {
+				log.Errorf("Duplicate task #%d in dependencies\n", dep.TaskId)
+				return false, nil
+			}
+			taskIds[dep.TaskId] = true
+		}
 	}
 
 	if len(task.Name) > 30 {
@@ -369,6 +393,58 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 			}
 		}
 	}
+}
+
+func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
+	if strings.Contains(depStr, ",") && strings.Contains(depStr, "?") {
+		return fmt.Errorf("cannot use both ',' and '?' in the dependency string")
+	}
+	sep := ","
+	if strings.Contains(depStr, "?") {
+		sep = "?"
+	}
+	depend_all := (sep == ",")
+	if task.Dependencies != nil && depend_all != task.Dependencies.DependAll {
+		return fmt.Errorf("cannot merge dependency with different dependency types(, and ?)")
+	}
+	if task.Dependencies == nil {
+		task.Dependencies = &protos.Dependencies{
+			DependAll: depend_all,
+		}
+	}
+
+	depStr = strings.TrimSpace(depStr)
+	depStrList := strings.Split(depStr, sep)
+	for _, subDepStr := range depStrList {
+		dependencies := strings.Split(subDepStr, ":")
+		if len(dependencies) < 2 {
+			return fmt.Errorf("unrecognized dependency string: %s", subDepStr)
+		}
+		condition := new(protos.DependencyType)
+		switch dependencies[0] {
+		case "after":
+			*condition = protos.DependencyType_AFTER
+		case "afterok":
+			*condition = protos.DependencyType_AFTER_OK
+		case "afternotok":
+			*condition = protos.DependencyType_AFTER_NOT_OK
+		case "afterany":
+			*condition = protos.DependencyType_AFTER_ANY
+		default:
+			return fmt.Errorf("unrecognized dependency type: %s", dependencies[0])
+		}
+		for _, dep := range dependencies[1:] {
+			taskId, err := strconv.ParseUint(dep, 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid task id: %s", dep)
+			}
+			task.Dependencies.Dependencies = append(task.Dependencies.Dependencies, &protos.DependencyCondition{
+				TaskId: uint32(taskId),
+				Type:   *condition,
+			})
+		}
+	}
+	return nil
 }
 
 // Split the job script into two parts: the arguments and the shell script.
