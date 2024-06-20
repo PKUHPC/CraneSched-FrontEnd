@@ -66,32 +66,9 @@ message ResourceV2 {
   map <string /*craned id*/, ResourceInNode> each_node_res = 1;
 }
 
-// Old implementation
-message DedicatedResource {
-  map <string /*craned id*/, DedicatedResourceInNode> each_node_gres = 1;
-}
-
 message ResourceView {
   AllocatableResource allocatable_res = 1;
   DeviceMap device_map = 2;
-}
-
-// Old implementation
-message Resources {
-  AllocatableResource allocatable_resource = 1;
-
-  oneof dedicated_resource {
-    // After the task is scheduled, some missing device
-    // specification is fulfilled by the scheduler and
-    // a detailed specification of dedicated resources is generated.
-    // Such a detailed form is sent to Craned for actual device allocation.
-    DedicatedResource actual_dedicated_resource = 2;
-
-    // The form of dedicated resource presented by user
-    // is abstracted by DeviceMap.
-    // DeviceMap is used between front end and CraneCtld.
-    DeviceMap dedicated_resource_req = 3;
-  }
 }
 
 enum PartitionState {
@@ -132,6 +109,23 @@ enum InteractiveTaskType {
   Crun = 1;
 }
 
+enum DependencyType {
+  AFTER = 0;
+  AFTER_ANY = 1;
+  AFTER_OK = 2;
+  AFTER_NOT_OK = 3;
+}
+
+message DependencyCondition {
+  uint32 task_id = 1;
+  DependencyType type = 2;
+}
+
+message Dependencies{
+  repeated DependencyCondition dependencies = 1;
+  bool depend_all = 2;
+}
+
 message TaskToCtld {
   /* -------- Fields that are set at the submission time. ------- */
   google.protobuf.Duration time_limit = 1;
@@ -151,6 +145,8 @@ message TaskToCtld {
 
   bool requeue_if_failed = 12;
   bool get_user_env = 13;
+  
+  Dependencies dependencies = 14;
 
   oneof payload {
     BatchTaskAdditionalMeta batch_meta = 21;
@@ -183,13 +179,19 @@ message RuntimeAttrOfTask {
   int32 requeue_count = 11;
   repeated string craned_ids = 12;
   TaskStatus status = 13;
-  uint32 exit_code = 14;
+  uint32 exit_code = 14;;
 
   google.protobuf.Timestamp submit_time = 15;
   google.protobuf.Timestamp start_time = 16;
   google.protobuf.Timestamp end_time = 17;
 
   bool held = 18;
+  ResourceV2 resources = 19;
+  bool dependency_ok = 20;
+  // If this task depends all dependencies, store satisfied dependencies.
+  // If this task depends any dependency, store unsatisfied dependencies.
+  // TaskId must be stored in order to restore.
+  repeated uint32 dependency_ids = 21; 
 }
 
 message TaskToD {
@@ -271,6 +273,7 @@ message TaskInfo {
   string extra_attr = 20;
 
   // Dynamic task information
+  uint32 dependency_state = 29;
   bool held = 30;
   TaskStatus status = 31;
 

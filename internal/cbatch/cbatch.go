@@ -153,6 +153,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.ExtraAttr = extra
+		case "--dependency", "-d":
+			err := util.SetTaskDependencies(task, arg.val)
+			if err != nil {
+				log.Error(err)
+				return false, nil
+			}
 		default:
 			log.Errorf("Invalid parameter '%s' given in the script file.\n", arg.name)
 			return false, nil
@@ -252,6 +258,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		}
 		task.ExtraAttr = extra
 	}
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			log.Error(err)
+			return false, nil
+		}
+	}
 
 	// Check the validity of the parameters
 
@@ -299,6 +312,20 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorln("Invalid --mail-type")
 			return false, nil
 		}
+	}
+	if task.Dependencies != nil {
+		taskIds := make(map[uint32]bool)
+		for _, dep := range task.Dependencies.Dependencies {
+			if taskIds[dep.TaskId] {
+				log.Errorf("Duplicate task #%d in dependencies\n", dep.TaskId)
+				return false, nil
+			}
+			taskIds[dep.TaskId] = true
+		}
+	}
+	if len(task.Name) > 30 {
+		task.Name = task.Name[:30]
+		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
 	}
 
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
