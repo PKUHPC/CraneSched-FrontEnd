@@ -39,7 +39,11 @@ var (
 	FlagFormat      string
 	FlagCoordinate  bool
 
-	FlagSetDefaultQos  string
+	FlagSetDefaultQos string
+	FlagSetLevel      string
+	// Note: FlagSetLevel and FlagLevel are different as
+	// they have different default values!
+
 	FlagAllowedQosList []string
 
 	FlagPartition string
@@ -222,8 +226,9 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			err := util.ErrorSuccess
-			if cmd.Flags().Changed("admin_level") { //See if a flag was set by the user
-				err = ModifyUser("admin_level", FlagLevel, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+			// Check if a flag was set explicitly
+			if cmd.Flags().Changed("admin_level") {
+				err = ModifyUser("admin_level", FlagSetLevel, FlagName, FlagAccountName, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -545,7 +550,7 @@ func init() {
 
 			// Set flags
 			modifyUserCmd.Flags().StringVarP(&FlagSetDefaultQos, "default-qos", "Q", "", "Set default QoS of the user")
-			modifyUserCmd.Flags().StringVarP(&FlagLevel, "admin_level", "L", "", "Set admin level (none/operator/admin) of the user")
+			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin_level", "L", "", "Set admin level (none/operator/admin) of the user")
 
 			modifyUserCmd.Flags().StringSliceVar(&FlagPartitions, "set_allowed_partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
 			modifyUserCmd.Flags().StringVar(&FlagPartition, "add_allowed_partition", "", "Add a single partition to allowed partition list")
