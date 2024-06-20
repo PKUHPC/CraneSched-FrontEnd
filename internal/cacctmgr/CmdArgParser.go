@@ -113,34 +113,34 @@ var (
 		Long:          "",
 	}
 	removeAccountCmd = &cobra.Command{
-		Use:   "account [flags] name",
+		Use:   "account",
 		Short: "Delete an existing account",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteAccount(args[0]); err != util.ErrorSuccess {
+			if err := DeleteAccount(FlagAccount.Name); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
 	}
 	removeUserCmd = &cobra.Command{
-		Use:   "user [flags] name",
+		Use:   "user",
 		Short: "Delete an existing user",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteUser(args[0], FlagName); err != util.ErrorSuccess {
+			if err := DeleteUser(FlagUser.Name, FlagUser.Account); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
 	}
 	removeQosCmd = &cobra.Command{
-		Use:   "qos [flags] name",
+		Use:   "qos",
 		Short: "Delete an existing QoS",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteQos(args[0]); err != util.ErrorSuccess {
+			if err := DeleteQos(FlagQos.Name); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -479,11 +479,28 @@ func init() {
 	RootCmd.AddCommand(removeCmd)
 	{
 		removeCmd.AddCommand(removeAccountCmd)
+		{
+			removeAccountCmd.Flags().StringVarP(&FlagAccount.Name, "name", "N", "", "Remove account with this name")
+			if err := removeAccountCmd.MarkFlagRequired("name"); err != nil {
+				return
+			}
+		}
+
 		removeCmd.AddCommand(removeQosCmd)
+		{
+			removeQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Remove QoS with this name")
+			if err := removeQosCmd.MarkFlagRequired("name"); err != nil {
+				return
+			}
+		}
 
 		removeCmd.AddCommand(removeUserCmd)
 		{
-			removeUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Remove user from this account")
+			removeUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Remove user with this name")
+			removeUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Remove user from this account")
+			if err := removeUserCmd.MarkFlagRequired("name"); err != nil {
+				return
+			}
 		}
 	}
 
