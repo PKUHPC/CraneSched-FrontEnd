@@ -288,7 +288,7 @@ func sacctmgr() *cobra.Command {
 					whereMap := make(map[string]string)
 					for i := 2; i < len(convertedArgs); i++ {
 						if strings.Contains(convertedArgs[i], ",") {
-							log.Error("cacctmgr modify allows only one entity at a time")
+							log.Error("cacctmgr show allows only one entity at a time")
 							os.Exit(util.ErrorCmdArg)
 						}
 
