@@ -238,6 +238,11 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		return false, nil
 	}
 
+	if len(task.Name) > 30 {
+		log.Infoln("Trim name length to 30")
+		task.Name = task.Name[:30]
+	}
+
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	return true, task
