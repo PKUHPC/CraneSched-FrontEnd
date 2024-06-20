@@ -26,6 +26,7 @@ import (
 
 var (
 	FlagConfigFilePath   string
+	FlagFull             bool
 	FlagNoHeader         bool
 	FlagStartTime        bool
 	FlagFilterPartitions string
@@ -120,7 +121,7 @@ Each format specifier can be modified with a width specifier (e.g., "%.5j").
 Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width of 5,
          Name with a minimum width of 20, and Status.
 `)
-
+	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"Limit the number of lines in the output, default is 0 (no limit)")
 }

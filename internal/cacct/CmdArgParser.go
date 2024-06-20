@@ -38,6 +38,7 @@ var (
 	FlagFilterPartitions string
 	FlagFilterQos        string
 	FlagNoHeader         bool
+	FlagFull             bool
 	FlagNumLimit         uint32
 
 	RootCmd = &cobra.Command{
@@ -128,7 +129,7 @@ Each part of the format string controls the appearance of the corresponding colu
 If the width is specified, the field will be formatted to at least that width. 
 If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
-
+	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"Limit the number of lines in the output, default is 0 (no limit)")
 }
