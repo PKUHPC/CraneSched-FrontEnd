@@ -442,7 +442,7 @@ func init() {
 			addAccountCmd.Flags().StringVarP(&FlagAccount.DefaultQos, "default-qos", "Q", "", "Set default QoS of the account")
 			addAccountCmd.Flags().StringSliceVarP(&FlagAccount.AllowedQosList, "qos", "q", nil, "Set allowed QoS of the account (comma seperated list)")
 			if err := addAccountCmd.MarkFlagRequired("name"); err != nil {
-				return
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 
@@ -454,10 +454,10 @@ func init() {
 			addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "Set admin level (none/operator) of the user")
 			addUserCmd.Flags().BoolVarP(&FlagCoordinate, "coordinate", "c", false, "Set the user as a coordinator of the account")
 			if err := addUserCmd.MarkFlagRequired("name"); err != nil {
-				return
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 			if err := addUserCmd.MarkFlagRequired("account"); err != nil {
-				return
+				log.Fatalln("Can't mark 'account' flag required")
 			}
 		}
 
@@ -470,7 +470,7 @@ func init() {
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
 			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
-				return
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 	}
@@ -482,7 +482,7 @@ func init() {
 		{
 			removeAccountCmd.Flags().StringVarP(&FlagAccount.Name, "name", "N", "", "Remove account with this name")
 			if err := removeAccountCmd.MarkFlagRequired("name"); err != nil {
-				return
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 
@@ -490,7 +490,7 @@ func init() {
 		{
 			removeQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Remove QoS with this name")
 			if err := removeQosCmd.MarkFlagRequired("name"); err != nil {
-				return
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 
@@ -499,7 +499,7 @@ func init() {
 			removeUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Remove user with this name")
 			removeUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Remove user from this account")
 			if err := removeUserCmd.MarkFlagRequired("name"); err != nil {
-				return
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 	}
@@ -532,7 +532,7 @@ func init() {
 			modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
 			modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 			if err := modifyAccountCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalf("Can't mark 'name' flag required")
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 
@@ -562,7 +562,7 @@ func init() {
 			modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
 			modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
 			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalf("Can't mark 'name' flag required")
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 
@@ -580,7 +580,7 @@ func init() {
 
 			// Rules
 			if err := modifyQosCmd.MarkFlagRequired("name"); err != nil {
-				return
+				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 	}
@@ -604,7 +604,7 @@ func init() {
 		{
 			blockUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Block the user under the specified account")
 			if err := blockUserCmd.MarkFlagRequired("account"); err != nil {
-				return
+				log.Fatalln("Can't mark 'account' flag required")
 			}
 		}
 	}
@@ -617,7 +617,7 @@ func init() {
 		{
 			unblockUserCmd.Flags().StringVarP(&FlagName, "account", "A", "", "Unblock the user under the specified account")
 			if err := unblockUserCmd.MarkFlagRequired("account"); err != nil {
-				return
+				log.Fatalln("Can't mark 'account' flag required")
 			}
 		}
 	}
