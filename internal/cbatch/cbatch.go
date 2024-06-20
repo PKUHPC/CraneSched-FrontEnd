@@ -213,7 +213,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		return false, nil
 	}
 	if task.NodeNum <= 0 {
-		log.Errorln("Invalid --node-num")
+		log.Errorln("Invalid --nodes")
 		return false, nil
 	}
 	if task.TimeLimit.AsDuration() <= 0 {
@@ -239,7 +239,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 
 	if len(task.Name) > 30 {
-		log.Infoln("Trim name length to 30")
+		log.Infoln("Job name exceeds 30 characters, trimmed to %v", task.Name)
 		task.Name = task.Name[:30]
 	}
 
