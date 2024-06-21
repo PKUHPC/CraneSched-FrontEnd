@@ -32,6 +32,10 @@ import (
 	"syscall"
 )
 
+type void struct{}
+
+var voidMember void
+
 type CranedChannelKeeper struct {
 	crunRequestChannelMtx sync.Mutex
 	crunRequestChannelCV  *sync.Cond
@@ -42,6 +46,10 @@ type CranedChannelKeeper struct {
 	taskIORequestChannelMtx sync.Mutex
 	// I/O message from Craned to Crun
 	taskIORequestChannelMapByTaskId map[uint32]chan *protos.StreamCforedTaskIORequest
+
+	//for error handle
+	taskIdProcIdMapMtx sync.Mutex
+	taskIdMapByCraned  map[string] /*cranedId*/ map[uint32] /*taskId*/ void
 }
 
 var gCranedChanKeeper *CranedChannelKeeper
@@ -51,6 +59,8 @@ func NewCranedChannelKeeper() *CranedChannelKeeper {
 	keeper.crunRequestChannelCV = sync.NewCond(&keeper.crunRequestChannelMtx)
 	keeper.crunRequestChannelMapByCranedId = make(map[string]chan *protos.StreamCrunRequest)
 	keeper.taskIORequestChannelMapByTaskId = make(map[uint32]chan *protos.StreamCforedTaskIORequest)
+	keeper.taskIORequestChannelMapByTaskId = make(map[uint32]chan *protos.StreamCforedTaskIORequest)
+	keeper.taskIdMapByCraned = make(map[string]map[uint32]void)
 	return keeper
 }
 
@@ -67,7 +77,7 @@ func (keeper *CranedChannelKeeper) cranedDownAndRemoveChannelToCraned(cranedId s
 	keeper.crunRequestChannelMtx.Unlock()
 }
 
-func (keeper *CranedChannelKeeper) waitCranedChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool) {
+func (keeper *CranedChannelKeeper) waitCranedChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool, taskId uint32) {
 	keeper.crunRequestChannelMtx.Lock()
 	defer keeper.crunRequestChannelMtx.Unlock()
 	for !stopWaiting.Load() {
@@ -85,10 +95,38 @@ func (keeper *CranedChannelKeeper) waitCranedChannelsReady(cranedIds []string, r
 			// Once Wait() returns, the lock is held again.
 		} else {
 			log.Debug("[Cfored<->Crun] All related craned up now")
+			keeper.taskIdProcIdMapMtx.Lock()
+			for _, cranedId := range cranedIds {
+				if _, exist := keeper.taskIdMapByCraned[cranedId]; !exist {
+					keeper.taskIdMapByCraned[cranedId] = make(map[uint32]void)
+				}
+				keeper.taskIdMapByCraned[cranedId][taskId] = voidMember
+			}
+			keeper.taskIdProcIdMapMtx.Unlock()
 			readyChan <- true
 			break
 		}
 	}
+}
+
+func (keeper *CranedChannelKeeper) unexpectedCranedDown(cranedId string) {
+	keeper.taskIdProcIdMapMtx.Lock()
+	defer keeper.taskIdProcIdMapMtx.Unlock()
+	if _, exist := keeper.taskIdMapByCraned[cranedId]; !exist {
+		log.Errorf("Ignoring unexist craned %s unexpect down", cranedId)
+	} else {
+		keeper.taskIORequestChannelMtx.Lock()
+		for taskId, _ := range keeper.taskIdMapByCraned[cranedId] {
+			channel, exist := keeper.taskIORequestChannelMapByTaskId[taskId]
+			if exist {
+				channel <- nil
+			} else {
+				log.Warningf("Trying forward to I/O to an unknown crun of task #%d", taskId)
+			}
+		}
+		keeper.taskIORequestChannelMtx.Unlock()
+	}
+
 }
 
 func (keeper *CranedChannelKeeper) forwardCrunRequestToCranedChannels(request *protos.StreamCrunRequest, cranedIds []string) {
@@ -116,9 +154,18 @@ func (keeper *CranedChannelKeeper) forwardRemoteIoToCrun(taskId uint32, ioToCrun
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
-func (keeper *CranedChannelKeeper) removeRemoteIoToCrunChannel(taskId uint32) {
+func (keeper *CranedChannelKeeper) crunEnd(taskId uint32, cranedIds []string) {
 	keeper.taskIORequestChannelMtx.Lock()
 	delete(keeper.taskIORequestChannelMapByTaskId, taskId)
+	keeper.taskIdProcIdMapMtx.Lock()
+	for _, cranedId := range cranedIds {
+		if _, exist := keeper.taskIdMapByCraned[cranedId]; !exist {
+			log.Errorf("CranedId %s should exist in CranedChannelKeeper", cranedId)
+		} else {
+			delete(keeper.taskIdMapByCraned[cranedId], taskId)
+		}
+	}
+	keeper.taskIdProcIdMapMtx.Unlock()
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
@@ -216,9 +263,10 @@ CforedCranedStateMachineLoop:
 			if cranedReq.Type != protos.StreamCforedTaskIORequest_CRANED_REGISTER {
 				log.Fatal("[Cfored<->Craned] Expect CRANED_REGISTER")
 			}
-			log.Debugf("[Cfored<->Craned] Receive CranedReg from %s", cranedId)
 
 			cranedId = cranedReq.GetPayloadRegisterReq().GetCranedId()
+			log.Debugf("[Cfored<->Craned] Receive CranedReg from %s", cranedId)
+
 			gCranedChanKeeper.cranedUpAndSetMsgToCranedChannel(cranedId, pendingCrunReqToCranedChannel)
 
 			reply = &protos.StreamCforedTaskIOReply{
@@ -251,6 +299,8 @@ CforedCranedStateMachineLoop:
 						case io.EOF:
 							fallthrough
 						default:
+							log.Errorf("[Cfored<->Craned] Craned %s unexpected down", cranedId)
+							gCranedChanKeeper.unexpectedCranedDown(cranedId)
 							state = CranedUnReg
 							break cranedIOForwarding
 						}
