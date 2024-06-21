@@ -214,7 +214,6 @@ CforedCrunStateMachineLoop:
 					gVars.pidTaskIdMap[crunPid] = taskId
 					gVars.pidTaskIdMapMtx.Unlock()
 
-					// TODO: Difference
 					gCranedChanKeeper.setRemoteIoToCrunChannel(taskId, TaskIoRequestChannel)
 				}
 
@@ -404,11 +403,12 @@ CforedCrunStateMachineLoop:
 
 				case taskMsg := <-TaskIoRequestChannel:
 					if taskMsg == nil {
-						log.Errorf("[Cfored<->Crun] One of task #%d Craneds down,cancel task", taskId)
-						//connection err
+						log.Errorf("[Cfored<->Crun] One of task #%d Craneds down. Cancelling the task...", taskId)
+						// IO Channel from Craned was shut down unexpectedly.
 						state = CrunWaitTaskCancel
 						break forwarding
 					}
+
 					if taskMsg.Type == protos.StreamCforedTaskIORequest_CRANED_TASK_OUTPUT {
 						reply = &protos.StreamCforedCrunReply{
 							Type: protos.StreamCforedCrunReply_TASK_IO_FORWARD,
@@ -433,8 +433,7 @@ CforedCrunStateMachineLoop:
 			}
 
 		case CrunWaitTaskCancel:
-			log.Debug("[Cfored<->Crun] Enter State WAIT_CRUN_CANCEL. " +
-				"Sending TASK_CANCEL_REQUEST...")
+			log.Debug("[Cfored<->Crun] Enter State WAIT_CRUN_CANCEL. Sending TASK_CANCEL_REQUEST...")
 
 			reply = &protos.StreamCforedCrunReply{
 				Type: protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST,
@@ -505,7 +504,7 @@ CforedCrunStateMachineLoop:
 			delete(gVars.ctldReplyChannelMapByTaskId, taskId)
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
-			gCranedChanKeeper.crunEnd(taskId, execCranedIds)
+			gCranedChanKeeper.crunTaskStopAndRemoveChannel(taskId, execCranedIds)
 
 			if err := toCrunStream.Send(reply); err != nil {
 				log.Errorf("[Cfored<->Crun] The stream to crun executing "+
@@ -537,7 +536,7 @@ CforedCrunStateMachineLoop:
 				delete(gVars.pidTaskIdMap, crunPid)
 				gVars.pidTaskIdMapMtx.Unlock()
 
-				gCranedChanKeeper.crunEnd(taskId, execCranedIds)
+				gCranedChanKeeper.crunTaskStopAndRemoveChannel(taskId, execCranedIds)
 			} else {
 				delete(gVars.ctldReplyChannelMapByPid, crunPid)
 			}
