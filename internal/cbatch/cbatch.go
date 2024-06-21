@@ -239,8 +239,8 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	}
 
 	if len(task.Name) > 30 {
-		log.Infoln("Job name exceeds 30 characters, trimmed to %v", task.Name)
 		task.Name = task.Name[:30]
+		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
 	}
 
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
