@@ -48,11 +48,12 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 		fmt.Println("There is no user in crane.")
 		return
 	}
+
 	sort.Slice(userList, func(i, j int) bool {
 		return userList[i].Uid < userList[j].Uid
 	})
 
-	//slice to map
+	// Slice to map
 	userMap := make(map[string][]*protos.UserInfo)
 	for _, userInfo := range userList {
 		key := ""
@@ -103,6 +104,10 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 		}
 	}
 
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
 	table.AppendBulk(tableData)
 	table.Render()
 }
@@ -112,11 +117,13 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 		fmt.Println("There is no QoS in crane")
 		return
 	}
+
 	sort.Slice(qosList, func(i, j int) bool {
 		return qosList[i].Name < qosList[j].Name
 	})
 
-	table := tablewriter.NewWriter(os.Stdout) //table format control
+	// Table format control
+	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"})
 	tableData := make([][]string, len(qosList))
@@ -148,6 +155,10 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 			fmt.Sprint(timeLimitStr)})
 	}
 
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
 	table.AppendBulk(tableData)
 	table.Render()
 }
@@ -157,10 +168,12 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 		fmt.Println("There is no account in crane")
 		return
 	}
+
 	sort.Slice(accountList, func(i, j int) bool {
 		return accountList[i].Name < accountList[j].Name
 	})
-	//slice to map and find the root account
+
+	// Slice to map and find the root account
 	accountMap := make(map[string]*protos.AccountInfo)
 	rootAccount := make([]string, 0)
 	for _, accountInfo := range accountList {
@@ -175,15 +188,14 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 		}
 	}
 
-	//print account tree
+	// Print account tree
 	tree := treeprint.NewWithRoot("AccountTree")
 	for _, account := range rootAccount {
-		PraseAccountTree(tree, account, accountMap)
+		PrintAccountTree(tree, account, accountMap)
 	}
-
 	fmt.Println(tree.String())
 
-	//print account table
+	// Print account table
 	PrintAccountTable(accountList)
 }
 
@@ -267,11 +279,16 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}
+
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
 	table.AppendBulk(tableData)
 	table.Render()
 }
 
-func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap map[string]*protos.AccountInfo) {
+func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap map[string]*protos.AccountInfo) {
 	if account == "" {
 		return
 	}
@@ -280,7 +297,7 @@ func PraseAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 	} else {
 		branch := parentTreeRoot.AddBranch(account)
 		for _, child := range accountMap[account].ChildAccounts {
-			PraseAccountTree(branch, child, accountMap)
+			PrintAccountTree(branch, child, accountMap)
 		}
 	}
 }

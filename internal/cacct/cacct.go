@@ -278,6 +278,10 @@ func QueryJob() util.CraneCmdError {
 		sort.Slice(tableData, less)
 	}
 
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
 	table.AppendBulk(tableData)
 	table.Render()
 	return util.ErrorSuccess

@@ -278,6 +278,13 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 	return resList, true
 }
 
+func InvalidDuration() *durationpb.Duration {
+	return &durationpb.Duration{
+		Seconds: 315576000000,
+		Nanos:   0,
+	}
+}
+
 func HostNameListToStr(hostList []string) string {
 	sourceList := hostList
 

@@ -160,6 +160,10 @@ func Query() util.CraneCmdError {
 		table.SetHeader(header)
 	}
 
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
 	table.AppendBulk(tableData)
 	table.Render()
 	return util.ErrorSuccess

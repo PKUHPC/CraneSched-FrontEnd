@@ -52,6 +52,7 @@ var (
 	FlagUserQosList     []string
 
 	FlagForce          bool
+	FlagFull           bool
 	FlagConfigFilePath string
 
 	// These flags are implemented,
@@ -604,6 +605,8 @@ func init() {
 		{
 			findUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Display the user under the specified account")
 		}
+
+		findCmd.PersistentFlags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	}
 
 	/* --------------------------------------------------- block ---------------------------------------------------- */
