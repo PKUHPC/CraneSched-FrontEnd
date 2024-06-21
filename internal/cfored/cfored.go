@@ -245,7 +245,20 @@ CforedCrunStateMachineLoop:
 				} else {
 					log.Debug("[Cfored<->Crun] Connection to crun was broken.")
 				}
-				state = CancelTaskOfDeadCrun
+
+				log.Debug("[Cfored<->Crun] Receive TaskCompletionRequest")
+				toCtldRequest := &protos.StreamCforedRequest{
+					Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
+					Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
+						PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+							CforedName:      gVars.hostName,
+							TaskId:          taskId,
+							InteractiveType: protos.InteractiveTaskType_Crun,
+						},
+					},
+				}
+				gVars.cforedRequestCtldChannel <- toCtldRequest
+				state = CrunWaitCtldAck
 
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
@@ -490,8 +503,12 @@ CforedCrunStateMachineLoop:
 
 			ctldReply := <-ctldReplyChannel
 			if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-				log.Fatalf("[Cfored<->Crun] Expect TASK_COMPLETION_ACK_REPLY, "+
-					"but %s received.", ctldReply.Type)
+				log.Warningf("[Cfored<->Crun] Expect TASK_COMPLETION_ACK_REPLY, "+
+					"but %s received. Ignoring it...", ctldReply.Type)
+				break
+			} else {
+				log.Tracef("[Cfored<->Crun] TASK_COMPLETION_ACK_REPLY of task #%d received",
+					ctldReply.GetPayloadTaskCompletionAck().GetTaskId())
 			}
 
 			reply = &protos.StreamCforedCrunReply{
@@ -501,6 +518,10 @@ CforedCrunStateMachineLoop:
 						Ok: true,
 					},
 				},
+			}
+			if err := toCrunStream.Send(reply); err != nil {
+				log.Errorf("[Cfored<->Crun] Failed to send CompletionAck to crun: %s. "+
+					"The connection to calloc was broken.", err.Error())
 			}
 
 			gVars.ctldReplyChannelMapMtx.Lock()
@@ -530,6 +551,16 @@ CforedCrunStateMachineLoop:
 				},
 			}
 			gVars.cforedRequestCtldChannel <- toCtldRequest
+
+			for {
+				ctldReply := <-ctldReplyChannel
+				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
+					log.Tracef("[Cfored<->Crun] Expect TASK_COMPLETION_ACK_REPLY, "+
+						"but %s received. Just ignore it...", ctldReply.Type)
+				} else {
+					break
+				}
+			}
 
 			gVars.ctldReplyChannelMapMtx.Lock()
 			if taskId != math.MaxUint32 {

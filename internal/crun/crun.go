@@ -1,6 +1,7 @@
 package crun
 
 import "C"
+
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
@@ -18,21 +19,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
-
-type GlobalVariables struct {
-	user *user.User
-	cwd  string
-
-	globalCtx       context.Context
-	globalCtxCancel context.CancelFunc
-
-	connectionBroken bool
-}
-
-var gVars GlobalVariables
 
 type StateOfCrun int
 
@@ -45,6 +35,20 @@ const (
 	TaskKilling   StateOfCrun = 5
 	WaitAck       StateOfCrun = 6
 )
+
+type GlobalVariables struct {
+	user *user.User
+	cwd  string
+
+	globalCtx       context.Context
+	globalCtxCancel context.CancelFunc
+
+	connectionBroken bool
+
+	cachedCrunState atomic.Value
+}
+
+var gVars GlobalVariables
 
 type ReplyReceiveItem struct {
 	reply *protos.StreamCforedCrunReply
@@ -133,6 +137,7 @@ CrunStateMachineLoop:
 			}
 
 			state = ReqTaskId
+			gVars.cachedCrunState.Store(state)
 
 		case ReqTaskId:
 			log.Trace("Waiting TaskId")
@@ -165,9 +170,10 @@ CrunStateMachineLoop:
 				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
 				break CrunStateMachineLoop
 			}
+			gVars.cachedCrunState.Store(state)
 
 		case WaitRes:
-			log.Trace("Waiting Res Al")
+			log.Trace("Waiting Res Alloc")
 			select {
 			case item := <-replyChannel:
 				cforedReply, err := item.reply, item.err
@@ -199,12 +205,14 @@ CrunStateMachineLoop:
 				}
 			case sig := <-sigs:
 				if sig == syscall.SIGINT {
+					log.Tracef("SIGINT Received. Cancelling the task...")
 					state = TaskKilling
 				} else {
 					log.Tracef("Unhanled sig %s", sig.String())
 					state = TaskKilling
 				}
 			}
+			gVars.cachedCrunState.Store(state)
 
 		case WaitForward:
 
@@ -248,6 +256,7 @@ CrunStateMachineLoop:
 					state = TaskKilling
 				}
 			}
+			gVars.cachedCrunState.Store(state)
 
 		case Forwarding:
 			taskFinishCtx, taskFinishCb := context.WithCancel(context.Background())
@@ -336,6 +345,7 @@ CrunStateMachineLoop:
 					}
 				}
 			}
+			gVars.cachedCrunState.Store(state)
 
 		case TaskKilling:
 			request = &protos.StreamCrunRequest{
@@ -354,13 +364,13 @@ CrunStateMachineLoop:
 
 			log.Debug("Sending TASK_COMPLETION_REQUEST with CANCELLED state...")
 			if err := stream.Send(request); err != nil {
-				log.Errorf("The connection to Cfored was broken: %s. "+
-					"Exiting...", err)
+				log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
 				gVars.connectionBroken = true
 				break CrunStateMachineLoop
 			} else {
 				state = WaitAck
 			}
+			gVars.cachedCrunState.Store(state)
 
 		case WaitAck:
 			log.Debug("Waiting Ctld TASK_COMPLETION_REQUEST with CANCELLED state...")
@@ -388,6 +398,7 @@ CrunStateMachineLoop:
 			} else {
 				log.Fatal("Failed to notify server of task completion")
 			}
+			gVars.cachedCrunState.Store(state)
 
 			break CrunStateMachineLoop
 		}
@@ -407,6 +418,11 @@ loop:
 
 		case sig := <-sigs:
 			log.Tracef("Signal received: %v", sig)
+			if gVars.cachedCrunState.Load().(StateOfCrun) == ReqTaskId {
+				fmt.Println("Ignore Ctrl+C during job id allocation.")
+				break
+			}
+
 			switch sig {
 
 			/*
@@ -510,6 +526,7 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		util.InitLogger(log.InfoLevel)
 	}
 
+	gVars.cachedCrunState.Store(ConnectCfored)
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {

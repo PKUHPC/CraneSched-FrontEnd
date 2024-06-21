@@ -198,11 +198,11 @@ CtldClientStateMachineLoop:
 
 						gVars.ctldReplyChannelMapMtx.Lock()
 
-						toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]
+						toFeCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]
 						if ok {
-							toCallocCtlReplyChannel <- ctldReply
+							toFeCtlReplyChannel <- ctldReply
 						} else {
-							log.Fatalf("[Cfored<->Ctld] Task Id %d shall exist in "+
+							log.Warningf("[Cfored<->Ctld] Task Id %d shall exist in "+
 								"ctldReplyChannelMapByTaskId!", taskId)
 						}
 
