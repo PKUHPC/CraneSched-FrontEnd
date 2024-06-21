@@ -238,10 +238,13 @@ CforedCrunStateMachineLoop:
 			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
 				if crunRequest != nil || err == nil {
-					log.Fatal("[Cfored<->Crun] Expect only nil (crun connection broken) here!")
+					if crunRequest.Type != protos.StreamCrunRequest_TASK_COMPLETION_REQUEST {
+						log.Fatal("[Cfored<--Crun] Expect only nil (crun connection broken) here!")
+					}
+					log.Debug("[Cfored<->Crun] Crun exited too early with TASK_COMPLETION_REQUEST. Cancelling it...")
+				} else {
+					log.Debug("[Cfored<->Crun] Connection to crun was broken.")
 				}
-				log.Debug("[Cfored<->Crun] Connection to calloc was broken.")
-
 				state = CancelTaskOfDeadCrun
 
 			case ctldReply := <-ctldReplyChannel:
@@ -426,7 +429,7 @@ CforedCrunStateMachineLoop:
 							break forwarding
 						}
 					} else {
-						log.Fatal("[Cfored<->Crun] Expect Type CRANED_TASK_OUTPUTT")
+						log.Fatal("[Cfored<->Crun] Expect Type CRANED_TASK_OUTPUT")
 						break forwarding
 					}
 				}
