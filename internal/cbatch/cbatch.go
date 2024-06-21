@@ -204,8 +204,24 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.MailUser = FlagMailUser
 	}
 
-	if task.CpusPerTask <= 0 || task.NtasksPerNode <= 0 || task.NodeNum <= 0 {
-		log.Errorln("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
+	if task.CpusPerTask <= 0 {
+		log.Errorln("Invalid --cpus-per-task")
+		return false, nil
+	}
+	if task.NtasksPerNode <= 0 {
+		log.Errorln("Invalid --ntasks-per-node")
+		return false, nil
+	}
+	if task.NodeNum <= 0 {
+		log.Errorln("Invalid --nodes")
+		return false, nil
+	}
+	if task.TimeLimit.AsDuration() <= 0 {
+		log.Errorln("Invalid --time")
+		return false, nil
+	}
+	if task.Resources.AllocatableResource.MemoryLimitBytes <= 0 {
+		log.Errorln("Invalid --mem")
 		return false, nil
 	}
 	if !util.CheckNodeList(task.Nodelist) {
@@ -220,6 +236,11 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	if task.MailType != 0 && task.MailUser == "" {
 		log.Errorln("Mail type is set but missing the mail user")
 		return false, nil
+	}
+
+	if len(task.Name) > 30 {
+		task.Name = task.Name[:30]
+		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
 	}
 
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
