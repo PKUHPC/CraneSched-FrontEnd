@@ -108,7 +108,7 @@ CrunStateMachineLoop:
 			log.Trace("Sending Task Req to Cfored")
 			stream, err = client.CrunStream(gVars.globalCtx)
 			if err != nil {
-				log.Errorf("Failed to create CallocStream: %s.", err)
+				log.Errorf("Failed to create CrunStream: %s.", err)
 				break CrunStateMachineLoop
 			}
 
@@ -525,6 +525,10 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		log.Fatalf("Failed to convert uid to int: %s", err.Error())
 	}
 
+	if len(args) == 0 {
+		log.Fatalf("Please specify program to run")
+	}
+
 	task := &protos.TaskToCtld{
 		Name:          "Interactive",
 		TimeLimit:     util.InvalidDuration(),
@@ -545,7 +549,7 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		Payload: &protos.TaskToCtld_InteractiveMeta{
 			InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 		},
-		CmdLine: strings.Join(os.Args, " "),
+		CmdLine: strings.Join(args, " "),
 		Cwd:     gVars.cwd,
 
 		// Todo: use --export here!
