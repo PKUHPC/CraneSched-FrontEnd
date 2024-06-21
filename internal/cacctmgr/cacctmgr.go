@@ -331,7 +331,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	}
 }
 
-func AddUser(user *protos.UserInfo, partition []string, level string, coordinate bool) util.CraneCmdError {
+func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
 	if user.Name == "=" {
 		log.Errorf("User name empty")
 		return util.ErrorCmdArg
@@ -366,11 +366,11 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinate
 	} else if level == "admin" {
 		user.AdminLevel = protos.UserInfo_Admin
 	} else {
-		log.Errorf("Unknown admin level, valid value: none, operator, admin.")
+		log.Errorf("Unknown admin level, valid values: none, operator, admin.")
 		return util.ErrorCmdArg
 	}
 
-	if coordinate {
+	if coordinator {
 		user.CoordinatorAccounts = append(user.CoordinatorAccounts, user.Account)
 	}
 
@@ -495,7 +495,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
-			log.Errorf("Unknown admin_level, please enter one of {none, operator, admin}")
+			log.Errorf("Unknown admin_level, valid values: none, operator, admin.")
 			return util.ErrorCmdArg
 		}
 	}
