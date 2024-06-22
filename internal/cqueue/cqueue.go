@@ -106,10 +106,11 @@ func Query() util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	now := time.Now()
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
-		"Account", "Status", "Type", "TimeLimit", "Nodes", "NodeList"}
+		"Account", "Status", "Type", "Time", "TimeLimit", "Nodes", "NodeList"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		var timeLimitStr string
@@ -118,6 +119,15 @@ func Query() util.CraneCmdError {
 		} else {
 			timeLimitStr = util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds)
 		}
+
+		var timeElapsedStr string
+		if reply.TaskInfoList[i].Status == protos.TaskStatus_Running {
+			elapsed := now.Sub(reply.TaskInfoList[i].StartTime.AsTime())
+			timeElapsedStr = util.SecondTimeFormat(int64(elapsed.Seconds()))
+		} else {
+			timeElapsedStr = "-"
+		}
+
 		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 			reply.TaskInfoList[i].Partition,
@@ -126,6 +136,7 @@ func Query() util.CraneCmdError {
 			reply.TaskInfoList[i].Account,
 			reply.TaskInfoList[i].Status.String(),
 			reply.TaskInfoList[i].Type.String(),
+			timeElapsedStr,
 			timeLimitStr,
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
 			reply.TaskInfoList[i].CranedList,
