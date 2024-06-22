@@ -32,12 +32,17 @@ import (
 	"syscall"
 )
 
+type CrunRequestCranedChannel struct {
+	valid          *atomic.Bool
+	requestChannel chan *protos.StreamCrunRequest
+}
+
 type CranedChannelKeeper struct {
 	crunRequestChannelMtx sync.Mutex
 	crunRequestChannelCV  *sync.Cond
 
 	// Request message from Crun to craned
-	crunRequestChannelMapByCranedId map[string]chan *protos.StreamCrunRequest
+	crunRequestChannelMapByCranedId map[string]*CrunRequestCranedChannel
 
 	taskIORequestChannelMtx sync.Mutex
 	// I/O message from Craned to Crun
@@ -53,16 +58,16 @@ var gCranedChanKeeper *CranedChannelKeeper
 func NewCranedChannelKeeper() *CranedChannelKeeper {
 	keeper := &CranedChannelKeeper{}
 	keeper.crunRequestChannelCV = sync.NewCond(&keeper.crunRequestChannelMtx)
-	keeper.crunRequestChannelMapByCranedId = make(map[string]chan *protos.StreamCrunRequest)
+	keeper.crunRequestChannelMapByCranedId = make(map[string]*CrunRequestCranedChannel)
 	keeper.taskIORequestChannelMapByTaskId = make(map[uint32]chan *protos.StreamCforedTaskIORequest)
 	keeper.taskIORequestChannelMapByTaskId = make(map[uint32]chan *protos.StreamCforedTaskIORequest)
 	keeper.taskIdSetByCraned = make(map[string]map[uint32]bool)
 	return keeper
 }
 
-func (keeper *CranedChannelKeeper) cranedUpAndSetMsgToCranedChannel(cranedId string, msgChannel chan *protos.StreamCrunRequest) {
+func (keeper *CranedChannelKeeper) cranedUpAndSetMsgToCranedChannel(cranedId string, msgChannel chan *protos.StreamCrunRequest, valid *atomic.Bool) {
 	keeper.crunRequestChannelMtx.Lock()
-	keeper.crunRequestChannelMapByCranedId[cranedId] = msgChannel
+	keeper.crunRequestChannelMapByCranedId[cranedId] = &CrunRequestCranedChannel{requestChannel: msgChannel, valid: valid}
 	keeper.crunRequestChannelCV.Broadcast()
 	keeper.crunRequestChannelMtx.Unlock()
 }
@@ -129,7 +134,25 @@ func (keeper *CranedChannelKeeper) CranedCrashAndRemoveAllChannel(cranedId strin
 func (keeper *CranedChannelKeeper) forwardCrunRequestToCranedChannels(request *protos.StreamCrunRequest, cranedIds []string) {
 	keeper.crunRequestChannelMtx.Lock()
 	for _, node := range cranedIds {
-		keeper.crunRequestChannelMapByCranedId[node] <- request
+		chWrapper, exist := keeper.crunRequestChannelMapByCranedId[node]
+		if !exist {
+			log.Tracef("Ignoring crun request to nonexist craned %s", node)
+			continue
+		}
+		if chWrapper.valid.Load() {
+			select {
+			case chWrapper.requestChannel <- request:
+			default:
+				if len(chWrapper.requestChannel) == cap(chWrapper.requestChannel) {
+					log.Errorf("crunRequestChannel to craned %s is full", node)
+				} else {
+					log.Errorf("crunRequestChannel to craned %s write failed", node)
+				}
+			}
+		} else {
+			log.Tracef("Ignoring crun request to invalid craned %s", node)
+		}
+
 	}
 	keeper.crunRequestChannelMtx.Unlock()
 }
@@ -238,6 +261,8 @@ func (cforedServer *GrpcCforedServer) TaskIOStream(toCranedStream protos.CraneFo
 
 	pendingCrunReqToCranedChannel := make(chan *protos.StreamCrunRequest, 2)
 
+	var valid = &atomic.Bool{}
+	valid.Store(true)
 	state := CranedReg
 
 CforedCranedStateMachineLoop:
@@ -264,7 +289,7 @@ CforedCranedStateMachineLoop:
 			cranedId = cranedReq.GetPayloadRegisterReq().GetCranedId()
 			log.Debugf("[Cfored<->Craned] Receive CranedReg from %s", cranedId)
 
-			gCranedChanKeeper.cranedUpAndSetMsgToCranedChannel(cranedId, pendingCrunReqToCranedChannel)
+			gCranedChanKeeper.cranedUpAndSetMsgToCranedChannel(cranedId, pendingCrunReqToCranedChannel, valid)
 
 			reply = &protos.StreamCforedTaskIOReply{
 				Type: protos.StreamCforedTaskIOReply_CRANED_REGISTER_REPLY,
@@ -319,6 +344,7 @@ CforedCranedStateMachineLoop:
 							},
 						}
 						state = CranedUnReg
+						valid.Store(false)
 						err := toCranedStream.Send(reply)
 						if err != nil {
 							log.Debug("[Cfored<->Craned] Connection to craned was broken.")
@@ -362,6 +388,7 @@ CforedCranedStateMachineLoop:
 		case CranedUnReg:
 			log.Debugf("[Cfored<->Craned] Enter State CranedUnReg")
 			gCranedChanKeeper.cranedDownAndRemoveChannelToCraned(cranedId)
+			log.Debugf("[Cfored<->Craned] Craned %s exit", cranedId)
 			break CforedCranedStateMachineLoop
 		}
 	}
