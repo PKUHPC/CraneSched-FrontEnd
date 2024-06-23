@@ -68,9 +68,9 @@ func ParseCmdArgs() {
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
-	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per job")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, "Number of nodes on which to run (N = min[-max])")
+	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "Number of cpus required per job")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Minimum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
