@@ -17,9 +17,12 @@
 package cbatch
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"os"
+	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -52,9 +55,41 @@ var (
 		Short: "Submit batch job",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := Cbatch(args[0]); err != util.ErrorSuccess {
+			if FlagRepeat == 0 {
+				log.Error("--repeat must > 0.")
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			pArgs := make([]CbatchArg, 0)
+			pSh := make([]string, 0)
+			if err := ParseCbatchScript(args[0], &pArgs, &pSh); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+
+			ok, task := ProcessCbatchArgs(cmd, pArgs)
+			if !ok {
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			task.GetBatchMeta().ShScript = strings.Join(pSh, "\n")
+			task.Uid = uint32(os.Getuid())
+			task.CmdLine = strings.Join(os.Args, " ")
+
+			// Process the content of --get-user-env
+			SetPropagatedEnviron(task)
+
+			task.Type = protos.TaskType_Batch
+			if task.Cwd == "" {
+				task.Cwd, _ = os.Getwd()
+			}
+
+			var err int
+			if FlagRepeat == 1 {
+				err = SendRequest(task)
+			} else {
+				err = SendMultipleRequests(task, FlagRepeat)
+			}
+			os.Exit(err)
 		},
 	}
 )
