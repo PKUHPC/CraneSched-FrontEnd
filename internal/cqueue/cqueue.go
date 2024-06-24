@@ -128,6 +128,13 @@ func Query() util.CraneCmdError {
 			timeElapsedStr = "-"
 		}
 
+		var reasonOrListStr string
+		if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
+			reasonOrListStr = reply.TaskInfoList[i].Reason
+		} else {
+			reasonOrListStr = reply.TaskInfoList[i].CranedList
+		}
+
 		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 			reply.TaskInfoList[i].Partition,
@@ -139,7 +146,7 @@ func Query() util.CraneCmdError {
 			timeElapsedStr,
 			timeLimitStr,
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
-			reply.TaskInfoList[i].CranedList,
+			reasonOrListStr,
 		}
 	}
 
@@ -251,7 +258,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Type.String())
 			}
 		case "I":
-			tableOutputHeader[i] = "NodeList/Reason"
+			tableOutputHeader[i] = "NodeList"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].CranedList)
 			}
