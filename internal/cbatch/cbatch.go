@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 type CbatchArg struct {
@@ -35,7 +36,9 @@ type CbatchArg struct {
 	val  string
 }
 
-func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
+// Merge and validate arguments from the file and the command line,
+// then return the constructed TaskToCtld.
+func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
 	task = new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
@@ -143,15 +146,17 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	// ************* set parameter values based on the command line *********************
 	// If the command line argument is set, it replaces the argument read from the file,
 	// so the command line has a higher priority
-	if RootCmd.Flags().Changed("nodes") {
+	if cmd.Flags().Changed("nodes") {
 		task.NodeNum = FlagNodes
 	}
-	if RootCmd.Flags().Changed("cpus-per-task") {
+	if cmd.Flags().Changed("cpus-per-task") {
 		task.CpusPerTask = FlagCpuPerTask
 	}
-	if RootCmd.Flags().Changed("ntasks-per-node") {
+	if cmd.Flags().Changed("ntasks-per-node") {
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
+
+	// TODO: Should use Changed() to check if the flag is set.
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
@@ -213,6 +218,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 		task.MailUser = FlagMailUser
 	}
 
+	// Check the validity of the parameters
 	if task.CpusPerTask <= 0 {
 		log.Errorln("Invalid --cpus-per-task")
 		return false, nil
@@ -366,13 +372,9 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	}
 }
 
-func Cbatch(jobFilePath string) util.CraneCmdError {
-	if FlagRepeat == 0 {
-		log.Error("--repeat must >0")
-		return util.ErrorCmdArg
-	}
-
-	file, err := os.Open(jobFilePath)
+// Split the job script into two parts: the arguments and the shell script.
+func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneCmdError {
+	file, err := os.Open(path)
 	if err != nil {
 		log.Error(err)
 		return util.ErrorCmdArg
@@ -387,8 +389,6 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 	scanner := bufio.NewScanner(file)
 	// optionally, resize scanner's capacity for lines over 64K, see next example
 	num := 0
-	sh := make([]string, 0)
-	args := make([]CbatchArg, 0)
 
 	for scanner.Scan() {
 		num++
@@ -402,7 +402,7 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 		} else {
 			processor = &defaultProcessor{}
 		}
-		err := processor.Process(scanner.Text(), &sh, &args)
+		err := processor.Process(scanner.Text(), sh, args)
 		if err != nil {
 			log.Errorf("Parsing error at line %v: %v\n", num, err.Error())
 			return util.ErrorCmdArg
@@ -414,26 +414,5 @@ func Cbatch(jobFilePath string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-	ok, task := ProcessCbatchArg(args)
-	if !ok {
-		return util.ErrorCmdArg
-	}
-
-	task.GetBatchMeta().ShScript = strings.Join(sh, "\n")
-	task.Uid = uint32(os.Getuid())
-	task.CmdLine = strings.Join(os.Args, " ")
-
-	// Process the content of --get-user-env
-	SetPropagatedEnviron(task)
-
-	task.Type = protos.TaskType_Batch
-	if task.Cwd == "" {
-		task.Cwd, _ = os.Getwd()
-	}
-
-	if FlagRepeat == 1 {
-		return SendRequest(task)
-	} else {
-		return SendMultipleRequests(task, FlagRepeat)
-	}
+	return util.ErrorSuccess
 }

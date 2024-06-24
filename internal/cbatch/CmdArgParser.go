@@ -17,9 +17,12 @@
 package cbatch
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"os"
+	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -52,9 +55,41 @@ var (
 		Short: "Submit batch job",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := Cbatch(args[0]); err != util.ErrorSuccess {
+			if FlagRepeat == 0 {
+				log.Error("--repeat must > 0.")
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			pArgs := make([]CbatchArg, 0)
+			pSh := make([]string, 0)
+			if err := ParseCbatchScript(args[0], &pArgs, &pSh); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+
+			ok, task := ProcessCbatchArgs(cmd, pArgs)
+			if !ok {
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			task.GetBatchMeta().ShScript = strings.Join(pSh, "\n")
+			task.Uid = uint32(os.Getuid())
+			task.CmdLine = strings.Join(os.Args, " ")
+
+			// Process the content of --get-user-env
+			SetPropagatedEnviron(task)
+
+			task.Type = protos.TaskType_Batch
+			if task.Cwd == "" {
+				task.Cwd, _ = os.Getwd()
+			}
+
+			var err int
+			if FlagRepeat == 1 {
+				err = SendRequest(task)
+			} else {
+				err = SendMultipleRequests(task, FlagRepeat)
+			}
+			os.Exit(err)
 		},
 	}
 )
@@ -68,9 +103,9 @@ func ParseCmdArgs() {
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, "Number of nodes on which to run (N = min[-max])")
-	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 0, "Number of cpus required per job")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Number of tasks to invoke on each node")
+	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
+	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per job")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Minimum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
