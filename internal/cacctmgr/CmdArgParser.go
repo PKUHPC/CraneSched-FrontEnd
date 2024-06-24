@@ -114,15 +114,15 @@ var (
 		},
 	}
 
-	/* --------------------------------------------------- remove --------------------------------------------------- */
-	removeCmd = &cobra.Command{
+	/* --------------------------------------------------- delete --------------------------------------------------- */
+	deleteCmd = &cobra.Command{
 		Use:           "delete",
 		Aliases:       []string{"remove"},
 		SilenceErrors: true,
 		Short:         "Delete entity",
 		Long:          "",
 	}
-	removeAccountCmd = &cobra.Command{
+	deleteAccountCmd = &cobra.Command{
 		Use:   "account",
 		Short: "Delete an existing account",
 		Long:  "",
@@ -133,7 +133,7 @@ var (
 			}
 		},
 	}
-	removeUserCmd = &cobra.Command{
+	deleteUserCmd = &cobra.Command{
 		Use:   "user",
 		Short: "Delete an existing user",
 		Long:  "",
@@ -144,7 +144,7 @@ var (
 			}
 		},
 	}
-	removeQosCmd = &cobra.Command{
+	deleteQosCmd = &cobra.Command{
 		Use:   "qos",
 		Short: "Delete an existing QoS",
 		Long:  "",
@@ -159,6 +159,7 @@ var (
 	/* --------------------------------------------------- modify  -------------------------------------------------- */
 	modifyCmd = &cobra.Command{
 		Use:           "modify",
+		Aliases:       []string{"update"},
 		SilenceErrors: true,
 		Short:         "Modify entity",
 		Long:          "",
@@ -476,7 +477,7 @@ func init() {
 		{
 			addQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Set the name of the QoS")
 			addQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set the description of the QoS")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 1000, "Set job priority of the QoS")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
 			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
@@ -487,29 +488,29 @@ func init() {
 	}
 
 	/* --------------------------------------------------- remove --------------------------------------------------- */
-	RootCmd.AddCommand(removeCmd)
+	RootCmd.AddCommand(deleteCmd)
 	{
-		removeCmd.AddCommand(removeAccountCmd)
+		deleteCmd.AddCommand(deleteAccountCmd)
 		{
-			removeAccountCmd.Flags().StringVarP(&FlagAccount.Name, "name", "N", "", "Remove account with this name")
-			if err := removeAccountCmd.MarkFlagRequired("name"); err != nil {
+			deleteAccountCmd.Flags().StringVarP(&FlagAccount.Name, "name", "N", "", "Remove account with this name")
+			if err := deleteAccountCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 
-		removeCmd.AddCommand(removeQosCmd)
+		deleteCmd.AddCommand(deleteQosCmd)
 		{
-			removeQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Remove QoS with this name")
-			if err := removeQosCmd.MarkFlagRequired("name"); err != nil {
+			deleteQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Remove QoS with this name")
+			if err := deleteQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
 
-		removeCmd.AddCommand(removeUserCmd)
+		deleteCmd.AddCommand(deleteUserCmd)
 		{
-			removeUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Remove user with this name")
-			removeUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Remove user from this account")
-			if err := removeUserCmd.MarkFlagRequired("name"); err != nil {
+			deleteUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Remove user with this name")
+			deleteUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Remove user from this account")
+			if err := deleteUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}

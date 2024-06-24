@@ -248,7 +248,7 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	return true, task
 }
 
-func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
+func SendRequest(task *protos.TaskToCtld) util.CraneErrorType {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
@@ -268,7 +268,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	}
 }
 
-func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdError {
+func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneErrorType {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
@@ -357,7 +357,7 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 	}
 }
 
-func Cbatch(jobFilePath string) util.CraneCmdError {
+func Cbatch(jobFilePath string) util.CraneErrorType {
 	if FlagRepeat == 0 {
 		log.Error("--repeat must >0")
 		return util.ErrorCmdArg

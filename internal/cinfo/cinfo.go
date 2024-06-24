@@ -30,7 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func cinfoFunc() util.CraneCmdError {
+func cinfoFunc() util.CraneErrorType {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
@@ -154,7 +154,7 @@ func cinfoFunc() util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func loopedQuery(iterate uint64) util.CraneCmdError {
+func loopedQuery(iterate uint64) util.CraneErrorType {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
 		log.Error(err)
