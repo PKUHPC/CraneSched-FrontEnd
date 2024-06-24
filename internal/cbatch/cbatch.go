@@ -143,13 +143,13 @@ func ProcessCbatchArg(args []CbatchArg) (bool, *protos.TaskToCtld) {
 	// ************* set parameter values based on the command line *********************
 	// If the command line argument is set, it replaces the argument read from the file,
 	// so the command line has a higher priority
-	if FlagNodes != 0 {
+	if RootCmd.Flags().Changed("nodes") {
 		task.NodeNum = FlagNodes
 	}
-	if FlagCpuPerTask != 0 {
+	if RootCmd.Flags().Changed("cpus-per-task") {
 		task.CpusPerTask = FlagCpuPerTask
 	}
-	if FlagNtasksPerNode != 0 {
+	if RootCmd.Flags().Changed("ntasks-per-node") {
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if FlagTime != "" {
