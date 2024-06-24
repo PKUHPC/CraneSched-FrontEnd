@@ -54,25 +54,33 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 }
 
 func ParseDuration(time string, duration *durationpb.Duration) bool {
-	re := regexp.MustCompile(`(.*):(.*):(.*)`)
+	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
 	result := re.FindAllStringSubmatch(time, -1)
 	if result == nil || len(result) != 1 {
 		return false
 	}
-	hh, err := strconv.ParseUint(result[0][1], 10, 32)
+	var dd uint64 = 0
+	if result[0][1] != "" {
+		day, err := strconv.ParseUint(result[0][2], 10, 32)
+		if err != nil {
+			return false
+		}
+		dd = day
+	}
+	hh, err := strconv.ParseUint(result[0][3], 10, 32)
 	if err != nil {
 		return false
 	}
-	mm, err := strconv.ParseUint(result[0][2], 10, 32)
+	mm, err := strconv.ParseUint(result[0][4], 10, 32)
 	if err != nil {
 		return false
 	}
-	ss, err := strconv.ParseUint(result[0][3], 10, 32)
+	ss, err := strconv.ParseUint(result[0][5], 10, 32)
 	if err != nil {
 		return false
 	}
 
-	duration.Seconds = int64(60*60*hh + 60*mm + ss)
+	duration.Seconds = int64(24*60*60*dd + 60*60*hh + 60*mm + ss)
 	return true
 }
 

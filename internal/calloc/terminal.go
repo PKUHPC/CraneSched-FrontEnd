@@ -18,12 +18,15 @@ package calloc
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"github.com/pkg/term/termios"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 )
@@ -67,7 +70,21 @@ func StartTerminal(shellPath string,
 		Ctty:       0,
 		Foreground: true,
 	}
-	process.Env = os.Environ()
+
+	env := os.Environ()
+	envMap := make(map[string]string, len(env))
+	for _, envVar := range env {
+		parts := strings.SplitN(envVar, "=", 2)
+		if len(parts) == 2 {
+			envMap[parts[0]] = parts[1]
+		}
+	}
+	envMap["CRANE_JOB_ID"] = strconv.Itoa(int(gVars.taskId))
+	processEnv := make([]string, 0, len(envMap))
+	for key, value := range envMap {
+		processEnv = append(processEnv, fmt.Sprintf("%s=%s", key, value))
+	}
+	process.Env = processEnv
 
 	err = process.Start()
 	if err != nil {

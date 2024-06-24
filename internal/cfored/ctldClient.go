@@ -133,6 +133,7 @@ CtldClientStateMachineLoop:
 			log.Tracef("[Cfored<->Ctld] Enter WAIT_CHANNEL_REQ state.")
 
 			var taskId uint32
+			var procId uint32
 
 		WaitChannelReqLoop:
 			for {
@@ -188,22 +189,25 @@ CtldClientStateMachineLoop:
 						switch ctldReply.Type {
 						case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
 							taskId = ctldReply.GetPayloadTaskResAllocReply().TaskId
+							procId = uint32(DefaultProcId)
 						case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
 							taskId = ctldReply.GetPayloadTaskCancelRequest().TaskId
+							procId = ctldReply.GetPayloadTaskCancelRequest().ProcId
 						case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
 							taskId = ctldReply.GetPayloadTaskCompletionAck().TaskId
+							procId = uint32(DefaultProcId)
 						}
 
 						log.Tracef("[Cfored<->Ctld] %s message received. Task Id %d", ctldReply.Type, taskId)
 
 						gVars.ctldReplyChannelMapMtx.Lock()
 
-						toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]
+						toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskIdProcId[taskId][procId]
 						if ok {
 							toCallocCtlReplyChannel <- ctldReply
 						} else {
-							log.Fatalf("[Cfored<->Ctld] Task Id %d shall exist in "+
-								"ctldReplyChannelMapByTaskId!", taskId)
+							log.Fatalf("[Cfored<->Ctld] Task Id %d Proc %d shall exist in "+
+								"ctldReplyChannelMapByTaskId!", taskId, procId)
 						}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
@@ -233,19 +237,24 @@ CtldClientStateMachineLoop:
 
 			gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
 
-			for taskId, c := range gVars.ctldReplyChannelMapByTaskId {
-				reply := &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_TASK_CANCEL_REQUEST,
-					Payload: &protos.StreamCtldReply_PayloadTaskCancelRequest{
-						PayloadTaskCancelRequest: &protos.StreamCtldReply_TaskCancelRequest{
-							TaskId: taskId,
+			num := 0
+			for taskId, procChannelMap := range gVars.ctldReplyChannelMapByTaskIdProcId {
+				num += len(procChannelMap)
+				for procId, c := range procChannelMap {
+					reply := &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_TASK_CANCEL_REQUEST,
+						Payload: &protos.StreamCtldReply_PayloadTaskCancelRequest{
+							PayloadTaskCancelRequest: &protos.StreamCtldReply_TaskCancelRequest{
+								TaskId: taskId,
+								ProcId: procId,
+							},
 						},
-					},
+					}
+					c <- reply
 				}
-				c <- reply
+
 			}
 
-			num := len(gVars.ctldReplyChannelMapByTaskId)
 			count := 0
 
 			if num > 0 {
@@ -256,10 +265,10 @@ CtldClientStateMachineLoop:
 					if request.Type != protos.StreamCforedRequest_TASK_COMPLETION_REQUEST {
 						log.Fatal("[Cfored<->Ctld] Expect type TASK_COMPLETION_REQUEST")
 					}
-
 					taskId := request.GetPayloadTaskCompleteReq().TaskId
+					procId := request.GetPayloadTaskCompleteReq().ProcId
 
-					toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]
+					toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskIdProcId[taskId][procId]
 					if ok {
 						toCallocCtlReplyChannel <- &protos.StreamCtldReply{
 							Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
@@ -270,13 +279,13 @@ CtldClientStateMachineLoop:
 							},
 						}
 					} else {
-						log.Fatalf("[Cfored<->Ctld] Task Id %d shall exist in "+
-							"ctldReplyChannelMapByTaskId!", taskId)
+						log.Fatalf("[Cfored<->Ctld] Task Id %d Proc Id %d shall exist in "+
+							"ctldReplyChannelMapByTaskId!", taskId, procId)
 					}
 
 					count += 1
-					log.Debugf("[Cfored<->Ctld] Receive task completion request of task id %d. "+
-						"%d/%d front ends is cancelled", request.GetPayloadTaskCompleteReq().TaskId, count, num)
+					log.Debugf("[Cfored<->Ctld] Receive task completion request of task id %d prco id %d. "+
+						"%d/%d front ends is cancelled", request.GetPayloadTaskCompleteReq().TaskId, request.GetPayloadTaskCompleteReq().GetProcId(), count, num)
 
 					if count >= num {
 						break
@@ -284,7 +293,7 @@ CtldClientStateMachineLoop:
 				}
 			}
 
-			gVars.ctldReplyChannelMapByTaskId = make(map[uint32]chan *protos.StreamCtldReply)
+			gVars.ctldReplyChannelMapByTaskIdProcId = make(map[uint32]map[uint32]chan *protos.StreamCtldReply)
 
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
