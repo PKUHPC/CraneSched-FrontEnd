@@ -58,11 +58,11 @@ func ParseCmdArgs() {
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
-		"info", " Available debug level: trace,debug,info (default \"info\")")
-	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, " number of nodes on which to run")
+		"info", "Available debug level: trace,debug,info")
+	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "number of nodes on which to run")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")
-	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "time limit")
+	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
 	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
