@@ -526,14 +526,13 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	}
 
 	task := &protos.TaskToCtld{
-		Name:          "Interactive",
-		TimeLimit:     util.InvalidDuration(),
-		PartitionName: "CPU",
+		Name:      "Interactive",
+		TimeLimit: util.InvalidDuration(),
 		Resources: &protos.Resources{
 			AllocatableResource: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
-				MemoryLimitBytes:   1024 * 1024 * 1024 * 16,
-				MemorySwLimitBytes: 1024 * 1024 * 1024 * 16,
+				MemoryLimitBytes:   0,
+				MemorySwLimitBytes: 0,
 			},
 		},
 		Type:            protos.TaskType_Interactive,
