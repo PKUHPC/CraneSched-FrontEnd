@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -44,8 +43,6 @@ type GlobalVariables struct {
 	globalCtxCancel context.CancelFunc
 
 	connectionBroken bool
-
-	cachedCrunState atomic.Value
 }
 
 var gVars GlobalVariables
@@ -137,40 +134,47 @@ CrunStateMachineLoop:
 			}
 
 			state = ReqTaskId
-			gVars.cachedCrunState.Store(state)
 
 		case ReqTaskId:
 			log.Trace("Waiting TaskId")
-			item := <-replyChannel
-			cforedReply, err := item.reply, item.err
+			for state == ReqTaskId {
+				select {
+				case item := <-replyChannel:
+					cforedReply, err := item.reply, item.err
 
-			if err != nil {
-				switch err {
-				case io.EOF:
-					fallthrough
-				default:
-					log.Errorf("Connection to Cfored broken when requesting "+
-						"task id: %s. Exiting...", err)
-					gVars.connectionBroken = true
-					break CrunStateMachineLoop
+					if err != nil {
+						switch err {
+						case io.EOF:
+							fallthrough
+						default:
+							log.Errorf("Connection to Cfored broken when requesting "+
+								"task id: %s. Exiting...", err)
+							gVars.connectionBroken = true
+							break CrunStateMachineLoop
+						}
+					}
+
+					if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
+						log.Fatal("Expect type TASK_ID_REPLY")
+					}
+					payload := cforedReply.GetPayloadTaskIdReply()
+
+					if payload.Ok {
+						taskId = payload.TaskId
+						log.Debugf("Task id allocated: %d\n", taskId)
+						state = WaitRes
+					} else {
+						_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+						break CrunStateMachineLoop
+					}
+				case sig := <-sigs:
+					if sig == syscall.SIGINT {
+						log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskId")
+					} else {
+						log.Tracef("Unhanled sig %s", sig.String())
+					}
 				}
 			}
-
-			if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
-				log.Fatal("Expect type TASK_ID_REPLY")
-			}
-			payload := cforedReply.GetPayloadTaskIdReply()
-
-			if payload.Ok {
-				taskId = payload.TaskId
-				log.Debugf("Task id allocated: %d\n", taskId)
-
-				state = WaitRes
-			} else {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
-				break CrunStateMachineLoop
-			}
-			gVars.cachedCrunState.Store(state)
 
 		case WaitRes:
 			log.Trace("Waiting Res Alloc")
@@ -212,7 +216,6 @@ CrunStateMachineLoop:
 					state = TaskKilling
 				}
 			}
-			gVars.cachedCrunState.Store(state)
 
 		case WaitForward:
 
@@ -256,7 +259,6 @@ CrunStateMachineLoop:
 					state = TaskKilling
 				}
 			}
-			gVars.cachedCrunState.Store(state)
 
 		case Forwarding:
 			taskFinishCtx, taskFinishCb := context.WithCancel(context.Background())
@@ -323,7 +325,7 @@ CrunStateMachineLoop:
 							log.Errorf("The connection to Cfored was broken: %s. "+
 								"Killing task...", err)
 							gVars.connectionBroken = true
-							state = TaskKilling
+							break CrunStateMachineLoop
 						}
 					} else {
 						switch cforedReply.Type {
@@ -333,6 +335,7 @@ CrunStateMachineLoop:
 							}
 						case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
 							{
+								taskFinishCtx.Done()
 								log.Trace("Received TASK_CANCEL_REQUEST")
 								state = TaskKilling
 							}
@@ -345,7 +348,6 @@ CrunStateMachineLoop:
 					}
 				}
 			}
-			gVars.cachedCrunState.Store(state)
 
 		case TaskKilling:
 			request = &protos.StreamCrunRequest{
@@ -370,10 +372,9 @@ CrunStateMachineLoop:
 			} else {
 				state = WaitAck
 			}
-			gVars.cachedCrunState.Store(state)
 
 		case WaitAck:
-			log.Debug("Waiting Ctld TASK_COMPLETION_REQUEST with CANCELLED state...")
+			log.Debug("Waiting Ctld TASK_COMPLETION_ACK_REPLY")
 			item := <-replyChannel
 			cforedReply, err := item.reply, item.err
 
@@ -398,14 +399,13 @@ CrunStateMachineLoop:
 			} else {
 				log.Fatal("Failed to notify server of task completion")
 			}
-			gVars.cachedCrunState.Store(state)
 
 			break CrunStateMachineLoop
 		}
 	}
 }
 
-func sigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
+func forwardingSigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	sigs := make(chan os.Signal, 1)
@@ -415,16 +415,8 @@ func sigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
 loop:
 	for {
 		select {
-
 		case sig := <-sigs:
-			log.Tracef("Signal received: %v", sig)
-			if gVars.cachedCrunState.Load().(StateOfCrun) == ReqTaskId {
-				fmt.Println("Ignore Ctrl+C during job id allocation.")
-				break
-			}
-
 			switch sig {
-
 			/*
 				multiple sigint will cancel this job
 			*/
@@ -505,7 +497,7 @@ func IOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go sigintHandlerRoutine(taskFinishFunc, &wg)
+	go forwardingSigintHandlerRoutine(taskFinishFunc, &wg)
 	go fileReaderRoutine(os.Stdin.Fd(), chanInputFromTerm, taskFinishCtx, &wg)
 	go fileWriterRoutine(os.Stdout.Fd(), chanOutputFromTask, taskFinishCtx, &wg)
 
@@ -526,7 +518,6 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		util.InitLogger(log.InfoLevel)
 	}
 
-	gVars.cachedCrunState.Store(ConnectCfored)
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {
