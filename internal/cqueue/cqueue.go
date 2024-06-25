@@ -130,9 +130,9 @@ func Query() util.CraneCmdError {
 
 		var reasonOrListStr string
 		if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
-			reasonOrListStr = reply.TaskInfoList[i].Reason
+			reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
 		} else {
-			reasonOrListStr = reply.TaskInfoList[i].CranedList
+			reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
 		}
 
 		tableData[i] = []string{
@@ -260,7 +260,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "I":
 			tableOutputHeader[i] = "NodeList"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].CranedList)
+				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].GetCranedList())
 			}
 		case "l":
 			tableOutputHeader[i] = "TimeLimit"
