@@ -110,7 +110,7 @@ func Query() util.CraneCmdError {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
-		"Account", "Status", "Type", "Time", "TimeLimit", "Nodes", "NodeList"}
+		"Account", "Status", "Type", "Time", "TimeLimit", "Nodes", "NodeList/Reason"}
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		var timeLimitStr string
@@ -128,6 +128,13 @@ func Query() util.CraneCmdError {
 			timeElapsedStr = "-"
 		}
 
+		var reasonOrListStr string
+		if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
+			reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
+		} else {
+			reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
+		}
+
 		tableData[i] = []string{
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
 			reply.TaskInfoList[i].Partition,
@@ -139,7 +146,7 @@ func Query() util.CraneCmdError {
 			timeElapsedStr,
 			timeLimitStr,
 			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
-			reply.TaskInfoList[i].CranedList,
+			reasonOrListStr,
 		}
 	}
 
@@ -253,7 +260,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		case "I":
 			tableOutputHeader[i] = "NodeList"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].CranedList)
+				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].GetCranedList())
 			}
 		case "l":
 			tableOutputHeader[i] = "TimeLimit"
