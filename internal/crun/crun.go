@@ -137,42 +137,40 @@ CrunStateMachineLoop:
 
 		case ReqTaskId:
 			log.Trace("Waiting TaskId")
-			for state == ReqTaskId {
-				select {
-				case item := <-replyChannel:
-					cforedReply, err := item.reply, item.err
+			select {
+			case item := <-replyChannel:
+				cforedReply, err := item.reply, item.err
 
-					if err != nil {
-						switch err {
-						case io.EOF:
-							fallthrough
-						default:
-							log.Errorf("Connection to Cfored broken when requesting "+
-								"task id: %s. Exiting...", err)
-							gVars.connectionBroken = true
-							break CrunStateMachineLoop
-						}
-					}
-
-					if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
-						log.Fatal("Expect type TASK_ID_REPLY")
-					}
-					payload := cforedReply.GetPayloadTaskIdReply()
-
-					if payload.Ok {
-						taskId = payload.TaskId
-						log.Debugf("Task id allocated: %d\n", taskId)
-						state = WaitRes
-					} else {
-						_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+				if err != nil {
+					switch err {
+					case io.EOF:
+						fallthrough
+					default:
+						log.Errorf("Connection to Cfored broken when requesting "+
+							"task id: %s. Exiting...", err)
+						gVars.connectionBroken = true
 						break CrunStateMachineLoop
 					}
-				case sig := <-sigs:
-					if sig == syscall.SIGINT {
-						log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskId")
-					} else {
-						log.Tracef("Unhanled sig %s", sig.String())
-					}
+				}
+
+				if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
+					log.Fatal("Expect type TASK_ID_REPLY")
+				}
+				payload := cforedReply.GetPayloadTaskIdReply()
+
+				if payload.Ok {
+					taskId = payload.TaskId
+					log.Debugf("Task id allocated: %d\n", taskId)
+					state = WaitRes
+				} else {
+					_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+					break CrunStateMachineLoop
+				}
+			case sig := <-sigs:
+				if sig == syscall.SIGINT {
+					log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskId")
+				} else {
+					log.Tracef("Unhanled sig %s", sig.String())
 				}
 			}
 
