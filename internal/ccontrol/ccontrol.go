@@ -352,7 +352,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
 			return util.ErrorCmdArg
 		}
-		req.NewState = protos.CranedState_CRANE_DRAIN
+		req.NewState = protos.CranedState_CRANE_DRAIN_IDLE
 		req.Reason = reason
 	case "resume":
 		req.NewState = protos.CranedState_CRANE_IDLE

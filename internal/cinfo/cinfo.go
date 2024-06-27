@@ -46,8 +46,16 @@ func cinfoFunc() util.CraneCmdError {
 				stateList = append(stateList, protos.CranedState_CRANE_ALLOC)
 			case "down":
 				stateList = append(stateList, protos.CranedState_CRANE_DOWN)
+			case "drain_idle":
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN_IDLE)
+			case "drain_mix":
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN_MIX)
+			case "drain_alloc":
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN_ALLOC)
 			case "drain":
-				stateList = append(stateList, protos.CranedState_CRANE_DRAIN)
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN_IDLE)
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN_MIX)
+				stateList = append(stateList, protos.CranedState_CRANE_DRAIN_ALLOC)
 			default:
 				log.Errorf("Invalid state given: %s.\n", FlagFilterCranedStates[i])
 				return util.ErrorCmdArg
@@ -58,7 +66,7 @@ func cinfoFunc() util.CraneCmdError {
 	} else if FlagFilterDownOnly {
 		stateList = append(stateList, protos.CranedState_CRANE_DOWN)
 	} else {
-		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN, protos.CranedState_CRANE_DRAIN)
+		stateList = append(stateList, protos.CranedState_CRANE_IDLE, protos.CranedState_CRANE_MIX, protos.CranedState_CRANE_ALLOC, protos.CranedState_CRANE_DOWN, protos.CranedState_CRANE_DRAIN_IDLE, protos.CranedState_CRANE_DRAIN_MIX, protos.CranedState_CRANE_DRAIN_ALLOC)
 	}
 
 	var nodeList []string
