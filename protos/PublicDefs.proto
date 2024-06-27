@@ -218,6 +218,7 @@ message TaskInfo {
     string pending_reason = 35;
     string craned_list = 36;
   }
+  google.protobuf.Duration elapsed_time = 37;
 }
 
 message PartitionInfo {
