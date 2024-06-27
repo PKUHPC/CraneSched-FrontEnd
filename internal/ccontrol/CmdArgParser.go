@@ -92,14 +92,15 @@ var (
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			var taskId uint32
 			if len(args) == 0 {
 				FlagQueryAll = true
 			} else {
 				id, _ := strconv.Atoi(args[0])
-				FlagTaskId = uint32(id)
+				taskId = uint32(id)
 				FlagQueryAll = false
 			}
-			if err := ShowTasks(FlagTaskId, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowTasks(taskId, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
