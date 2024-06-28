@@ -20,6 +20,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -30,7 +31,7 @@ var (
 	FlagState          string
 	FlagReason         string
 	FlagPartitionName  string
-	FlagTaskId         uint32
+	FlagTaskIds        string
 	FlagQueryAll       bool
 	FlagTimeLimit      string
 	FlagPriority       float64
@@ -132,14 +133,20 @@ var (
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			if len(FlagTimeLimit) != 0 {
-				if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
-					os.Exit(err)
+			taskIds := strings.Split(FlagTaskIds, ",")
+			for i := range taskIds {
+				id, _ := strconv.Atoi(taskIds[i])
+				taskId := uint32(id)
+				log.Tracef("Modifying task ID: %d", taskId)
+				if len(FlagTimeLimit) != 0 {
+					if err := ChangeTaskTimeLimit(taskId, FlagTimeLimit); err != util.ErrorSuccess {
+						os.Exit(err)
+					}
 				}
-			}
-			if cmd.Flags().Changed("priority") {
-				if err := ChangeTaskPriority(FlagTaskId, FlagPriority); err != util.ErrorSuccess {
-					os.Exit(err)
+				if cmd.Flags().Changed("priority") {
+					if err := ChangeTaskPriority(taskId, FlagPriority); err != util.ErrorSuccess {
+						os.Exit(err)
+					}
 				}
 			}
 		},
@@ -186,7 +193,7 @@ func init() {
 
 		updateCmd.AddCommand(updateJobCmd)
 		{
-			updateJobCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Specify job id of the job to be modified")
+			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job id of the job to be modified")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
 			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 
