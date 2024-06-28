@@ -163,7 +163,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 			runTimeStr := "unknown"
 			if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 				timeStartStr = timeStart.In(time.Local).Format("2006-01-02 15:04:05")
-				runTimeDuration := time.Since(timeStart)
+				runTimeDuration := taskInfo.ElapsedTime.AsDuration()
 
 				days := int(runTimeDuration.Hours()) / 24
 				hours := int(runTimeDuration.Hours()) % 24
