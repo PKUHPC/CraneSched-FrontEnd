@@ -18,6 +18,7 @@ package cbatch
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -72,10 +73,14 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	} else if len(split) == 2 {
 		parts := strings.Split(split[1], "=")
 		ok := s.supported[parts[0]]
-		if ok && len(parts) > 1 {
-			*args = append(*args, CbatchArg{name: parts[0], val: parts[1]})
+		if ok {
+			if len(parts) > 1 {
+				*args = append(*args, CbatchArg{name: parts[0], val: parts[1]})
+			} else {
+				*args = append(*args, CbatchArg{name: parts[0]})
+			}
 		} else {
-			log.Warnf("Slurm option %v is not supported", parts[0])
+			return fmt.Errorf("line `%v` is not supported by cwrapper", line)
 		}
 	} else {
 		return errors.New("fields out of bound")
