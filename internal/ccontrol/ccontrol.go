@@ -153,16 +153,31 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 
 	} else {
 		for _, taskInfo := range reply.TaskInfoList {
-			timeSubmit := taskInfo.SubmitTime.AsTime()
 			timeSubmitStr := "unknown"
+			timeStartStr := "unknown"
+			timeEndStr := "unknown"
+			runTimeStr := "unknown"
+
+			var timeLimitStr string
+
+			timeSubmit := taskInfo.SubmitTime.AsTime()
 			if !timeSubmit.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 				timeSubmitStr = timeSubmit.In(time.Local).Format("2006-01-02 15:04:05")
 			}
+
 			timeStart := taskInfo.StartTime.AsTime()
-			timeStartStr := "unknown"
-			runTimeStr := "unknown"
 			if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 				timeStartStr = timeStart.In(time.Local).Format("2006-01-02 15:04:05")
+			}
+
+			timeEnd := taskInfo.EndTime.AsTime()
+			if timeEnd.After(timeStart) {
+				timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
+			}
+
+			if taskInfo.Status == protos.TaskStatus_Running {
+				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).In(time.Local).Format("2006-01-02 15:04:05")
+
 				runTimeDuration := taskInfo.ElapsedTime.AsDuration()
 
 				days := int(runTimeDuration.Hours()) / 24
@@ -172,23 +187,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 
 				runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
 			}
-			timeEnd := taskInfo.EndTime.AsTime()
-			timeEndStr := "unknown"
-			if timeEnd.After(timeStart) {
-				timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
-				runTimeDuration := timeEnd.Sub(timeStart)
 
-				days := int(runTimeDuration.Hours()) / 24
-				hours := int(runTimeDuration.Hours()) % 24
-				minutes := int(runTimeDuration.Minutes()) % 60
-				seconds := int(runTimeDuration.Seconds()) % 60
-
-				runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
-			}
-			if taskInfo.Status.String() == "Running" {
-				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).In(time.Local).Format("2006-01-02 15:04:05")
-			}
-			var timeLimitStr string
 			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
 				timeLimitStr = "unlimited"
 				timeEndStr = "unknown"
