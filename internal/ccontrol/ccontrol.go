@@ -52,10 +52,14 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			fmt.Println("No node is available.")
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
+				stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
+				if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
+					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
+				}
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
 					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
-					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu,
+					nodeInfo.Hostname, stateStr, nodeInfo.Cpu,
 					math.Abs(nodeInfo.AllocCpu),
 					math.Abs(nodeInfo.FreeCpu),
 					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
@@ -67,10 +71,14 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			fmt.Printf("Node %s not found.\n", nodeName)
 		} else {
 			for _, nodeInfo := range reply.CranedInfoList {
+				stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
+				if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
+					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
+				}
 				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
 					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
-					nodeInfo.Hostname, nodeInfo.State.String()[6:], nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
+					nodeInfo.Hostname, stateStr, nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
 					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
@@ -351,10 +359,10 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
 			return util.ErrorCmdArg
 		}
-		req.NewState = protos.CranedState_CRANE_DRAIN
+		req.NewState = protos.CranedControlState_CRANE_DRAIN
 		req.Reason = reason
 	case "resume":
-		req.NewState = protos.CranedState_CRANE_IDLE
+		req.NewState = protos.CranedControlState_CRANE_NONE
 	default:
 		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 		return util.ErrorCmdArg
