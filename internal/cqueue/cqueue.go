@@ -106,7 +106,6 @@ func Query() util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
-	now := time.Now()
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
@@ -122,8 +121,7 @@ func Query() util.CraneCmdError {
 
 		var timeElapsedStr string
 		if reply.TaskInfoList[i].Status == protos.TaskStatus_Running {
-			elapsed := now.Sub(reply.TaskInfoList[i].StartTime.AsTime())
-			timeElapsedStr = util.SecondTimeFormat(int64(elapsed.Seconds()))
+			timeElapsedStr = util.SecondTimeFormat(reply.TaskInfoList[i].ElapsedTime.Seconds)
 		} else {
 			timeElapsedStr = "-"
 		}
