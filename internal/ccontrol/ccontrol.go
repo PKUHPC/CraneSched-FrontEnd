@@ -336,42 +336,72 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 	}
 }
 
-func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
-	var req = &protos.ModifyCranedStateRequest{}
-	if nodeName == "" {
-		log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
-		return util.ErrorCmdArg
-	} else {
-		req.CranedId = nodeName
+func expandRange(pattern string) []string {
+
+	re := regexp.MustCompile(`(.*)\[(\d+)-(\d+)\](.*)`)
+	matches := re.FindStringSubmatch(pattern)
+
+	if len(matches) == 0 {
+		return []string{pattern}
 	}
 
-	state = strings.ToLower(state)
-	switch state {
-	case "drain":
-		if reason == "" {
-			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
+	prefix := matches[1]
+	start, _ := strconv.Atoi(matches[2])
+	end, _ := strconv.Atoi(matches[3])
+	suffix := matches[4]
+
+	var result []string
+	for i := start; i <= end; i++ {
+		result = append(result, fmt.Sprintf("%s%d%s", prefix, i, suffix))
+	}
+
+	return result
+}
+
+func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
+	nodeNames := expandRange(nodeName)
+	var finalError util.CraneCmdError
+
+	for _, node := range nodeNames {
+		var req = &protos.ModifyCranedStateRequest{}
+		if node == "" {
+			log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
+			return util.ErrorCmdArg
+		} else {
+			req.CranedId = node
+		}
+
+		state = strings.ToLower(state)
+		switch state {
+		case "drain":
+			if reason == "" {
+				log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
+				return util.ErrorCmdArg
+			}
+			req.NewState = protos.CranedState_CRANE_DRAIN
+			req.Reason = reason
+		case "resume":
+			req.NewState = protos.CranedState_CRANE_IDLE
+		default:
+			log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 			return util.ErrorCmdArg
 		}
-		req.NewState = protos.CranedState_CRANE_DRAIN
-		req.Reason = reason
-	case "resume":
-		req.NewState = protos.CranedState_CRANE_IDLE
-	default:
-		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
-		return util.ErrorCmdArg
+
+		reply, err := stub.ModifyNode(context.Background(), req)
+		if err != nil {
+			log.Errorf("ModifyNode failed for node %s: %v\n", node, err)
+			finalError = util.ErrorNetwork
+			continue
+		}
+
+		if reply.Ok {
+			log.Printf("Change node state success for node %s.\n", node)
+			finalError = util.ErrorSuccess
+		} else {
+			log.Printf("Change node state failed for node %s: %s.\n", node, reply.GetReason())
+			finalError = util.ErrorBackend
+		}
 	}
 
-	reply, err := stub.ModifyNode(context.Background(), req)
-	if err != nil {
-		log.Errorf("ModifyNode failed: %v\n", err)
-		return util.ErrorNetwork
-	}
-
-	if reply.Ok {
-		log.Println("Change node state success.")
-		return util.ErrorSuccess
-	} else {
-		log.Printf("Change node state failed: %s.\n", reply.GetReason())
-		return util.ErrorBackend
-	}
+	return finalError
 }
