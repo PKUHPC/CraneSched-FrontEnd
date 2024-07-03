@@ -303,12 +303,15 @@ CforedCrunStateMachineLoop:
 
 			select {
 			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_TASK_CANCEL_REQUEST {
-					log.Fatal("[Cfored<->Crun] Expect Type TASK_CANCEL_REQUEST")
+				switch ctldReply.Type {
+				case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
+					state = CrunWaitTaskCancel
+				case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
+					log.Warningf("[Cfored<->Crun] task %d completed and failed to wait craned ready", ctldReply.GetPayloadTaskCompletionAck().TaskId)
+					ctldReplyChannel <- ctldReply
+					state = CrunWaitCtldAck
 				}
 				stopWaiting.Store(true)
-
-				state = CrunWaitTaskCancel
 
 			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
