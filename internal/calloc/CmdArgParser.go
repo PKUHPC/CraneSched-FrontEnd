@@ -41,8 +41,9 @@ var (
 	FlagDebugLevel     string
 
 	RootCmd = &cobra.Command{
-		Use:   "calloc",
-		Short: "allocate resource and create terminal",
+		Use:     "calloc",
+		Short:   "Allocate resource and create terminal",
+		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
 			main(cmd, args)
 		},
@@ -56,6 +57,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Available debug level: trace,debug,info")

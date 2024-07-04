@@ -19,9 +19,10 @@ package cfored
 import (
 	"CraneFrontEnd/generated/protos"
 	"context"
-	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type GrpcCtldClient struct {
@@ -112,13 +113,13 @@ CtldClientStateMachineLoop:
 						log.Fatal("[Cfored<->Ctld] Expect CFORED_REGISTRATION_ACK type.")
 					}
 
-					if reply.GetPayloadCforedRegAck().Ok == true {
+					if reply.GetPayloadCforedRegAck().Ok {
 						log.Infof("[Cfored<->Ctld] Cfored %s successfully registered.", gVars.hostName)
 
 						gVars.ctldConnected.Store(true)
 						state = WaitChannelReq
 					} else {
-						log.Error("[Cfored<->Ctld] Failed to register with CraneCtld: %s. Exiting...",
+						log.Errorf("[Cfored<->Ctld] Failed to register with CraneCtld: %s. Exiting...",
 							reply.GetPayloadCforedRegAck().FailureReason)
 						gVars.globalCtxCancel()
 						break CtldClientStateMachineLoop

@@ -36,10 +36,11 @@ var (
 	FlagListReason           bool
 
 	RootCmd = &cobra.Command{
-		Use:   "cinfo [flags]",
-		Short: "Display the state of partitions and nodes",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
+		Use:     "cinfo [flags]",
+		Short:   "Display the state of partitions and nodes",
+		Long:    "",
+		Version: util.Version(),
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
 			if FlagIterate != 0 {
@@ -61,6 +62,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().BoolVarP(&FlagFilterDownOnly, "dead", "d", false,
