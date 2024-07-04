@@ -93,7 +93,7 @@ var (
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			var taskId uint32
+			var taskId uint32 = 0
 			if len(args) == 0 {
 				FlagQueryAll = true
 			} else {
@@ -137,7 +137,7 @@ var (
 			for i := range taskIds {
 				id, _ := strconv.Atoi(taskIds[i])
 				taskId := uint32(id)
-				log.Tracef("Modifying task ID: %d", taskId)
+				log.Tracef("Modifying job ID: %d", taskId)
 				if len(FlagTimeLimit) != 0 {
 					if err := ChangeTaskTimeLimit(taskId, FlagTimeLimit); err != util.ErrorSuccess {
 						os.Exit(err)
@@ -193,7 +193,7 @@ func init() {
 
 		updateCmd.AddCommand(updateJobCmd)
 		{
-			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job id of the job to be modified")
+			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job ids to be modified (comma separated list)")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
 			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 
