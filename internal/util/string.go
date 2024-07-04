@@ -127,19 +127,19 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 
 func ParseMailType(param string) (uint32, error) {
 	var MailTypeMapping = map[string]uint32{
-		"NONE":           0,
-		"BEGIN":          1,
-		"END":            2,
-		"FAIL":           4,
-		"REQUEUE":        8,
-		"INVALID_DEPEND": 16,
-		"STAGE_OUT":      32,
-		"ALL":            63, // ALL (equivalent to BEGIN, END, FAIL, INVALID_DEPEND, REQUEUE, and STAGE_OUT)
-		"TIME_LIMIT":     64,
-		"TIME_LIMIT_90":  128,
-		"TIME_LIMIT_80":  256,
-		"TIME_LIMIT_50":  512,
-		"ARRAY_TASKS":    1024,
+		"NONE":  0,
+		"BEGIN": 1,
+		"END":   2,
+		"FAIL":  4,
+		// "REQUEUE":        8,
+		// "INVALID_DEPEND": 16,
+		// "STAGE_OUT":      32,
+		"ALL": 63, // ALL (equivalent to BEGIN, END, FAIL, INVALID_DEPEND, REQUEUE, and STAGE_OUT)
+		// "TIME_LIMIT":     64,
+		// "TIME_LIMIT_90":  128,
+		// "TIME_LIMIT_80":  256,
+		// "TIME_LIMIT_50":  512,
+		// "ARRAY_TASKS":    1024,
 	}
 
 	parsed := uint32(0)
