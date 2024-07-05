@@ -186,30 +186,30 @@ var (
 				os.Exit(err)
 			}
 			//if cmd.Flags().Changed("parent") {
-			//	ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
+			//	ModifyAccount("parent-account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest-Overwrite)
 			//}
-			if cmd.Flags().Changed("set_allowed_partition") {
-				err = ModifyAccount("allowed_partition", strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
-			} else if cmd.Flags().Changed("add_allowed_partition") {
-				err = ModifyAccount("allowed_partition", FlagSetPartition, FlagAccount.Name, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_allowed_partition") {
-				err = ModifyAccount("allowed_partition", FlagSetPartition, FlagAccount.Name, protos.ModifyEntityRequest_Delete)
+			if cmd.Flags().Changed("set-allowed-partition") {
+				err = ModifyAccount("allowed-partition", strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
+			} else if cmd.Flags().Changed("add-allowed-partition") {
+				err = ModifyAccount("allowed-partition", FlagSetPartition, FlagAccount.Name, protos.ModifyEntityRequest_Add)
+			} else if cmd.Flags().Changed("delete-allowed-partition") {
+				err = ModifyAccount("allowed-partition", FlagSetPartition, FlagAccount.Name, protos.ModifyEntityRequest_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
-			if cmd.Flags().Changed("set_allowed_qos_list") {
-				err = ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
-			} else if cmd.Flags().Changed("add_allowed_qos_list") {
-				err = ModifyAccount("allowed_qos_list", FlagQos.Name, FlagAccount.Name, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_allowed_qos_list") {
-				err = ModifyAccount("allowed_qos_list", FlagQos.Name, FlagAccount.Name, protos.ModifyEntityRequest_Delete)
+			if cmd.Flags().Changed("set-allowed-qos-list") {
+				err = ModifyAccount("allowed-qos-list", strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
+			} else if cmd.Flags().Changed("add-allowed-qos-list") {
+				err = ModifyAccount("allowed-qos-list", FlagQos.Name, FlagAccount.Name, protos.ModifyEntityRequest_Add)
+			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
+				err = ModifyAccount("allowed-qos-list", FlagQos.Name, FlagAccount.Name, protos.ModifyEntityRequest_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyAccount("default_qos", FlagAccount.DefaultQos, FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount("default-qos", FlagAccount.DefaultQos, FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -233,34 +233,34 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			err := util.ErrorSuccess
 			// Check if a flag was set explicitly
-			if cmd.Flags().Changed("admin_level") {
-				err = ModifyUser("admin_level", FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+			if cmd.Flags().Changed("admin-level") {
+				err = ModifyUser("admin-level", FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
-			if cmd.Flags().Changed("set_allowed_partition") {
-				err = ModifyUser("allowed_partition", strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
-			} else if cmd.Flags().Changed("add_allowed_partition") {
-				err = ModifyUser("allowed_partition", FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_allowed_partition") {
-				err = ModifyUser("allowed_partition", FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Delete)
+			if cmd.Flags().Changed("set-allowed-partition") {
+				err = ModifyUser("allowed-partition", strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+			} else if cmd.Flags().Changed("add-allowed-partition") {
+				err = ModifyUser("allowed-partition", FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Add)
+			} else if cmd.Flags().Changed("delete-allowed-partition") {
+				err = ModifyUser("allowed-partition", FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
-			if cmd.Flags().Changed("set_allowed_qos_list") {
-				err = ModifyUser("allowed_qos_list", strings.Join(FlagUserQosList, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
-			} else if cmd.Flags().Changed("add_allowed_qos_list") {
-				err = ModifyUser("allowed_qos_list", FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Add)
-			} else if cmd.Flags().Changed("delete_allowed_qos_list") {
-				err = ModifyUser("allowed_qos_list", FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Delete)
+			if cmd.Flags().Changed("set-allowed-qos-list") {
+				err = ModifyUser("allowed-qos-list", strings.Join(FlagUserQosList, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+			} else if cmd.Flags().Changed("add-allowed-qos-list") {
+				err = ModifyUser("allowed-qos-list", FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Add)
+			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
+				err = ModifyUser("allowed-qos-list", FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyUser("default_qos", FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser("default-qos", FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -292,18 +292,18 @@ var (
 					os.Exit(err)
 				}
 			}
-			if cmd.Flags().Changed("max_jobs_per_user") {
-				if err := ModifyQos("max_jobs_per_user", fmt.Sprint(FlagQos.MaxJobsPerUser), FlagQos.Name); err != util.ErrorSuccess {
+			if cmd.Flags().Changed("max-jobs-per-user") {
+				if err := ModifyQos("max-jobs-per-user", fmt.Sprint(FlagQos.MaxJobsPerUser), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
-			if cmd.Flags().Changed("max_cpus_per_user") {
-				if err := ModifyQos("max_cpus_per_user", fmt.Sprint(FlagQos.MaxCpusPerUser), FlagQos.Name); err != util.ErrorSuccess {
+			if cmd.Flags().Changed("max-cpus-per-user") {
+				if err := ModifyQos("max-cpus-per-user", fmt.Sprint(FlagQos.MaxCpusPerUser), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
-			if cmd.Flags().Changed("max_time_limit_per_task") {
-				if err := ModifyQos("max_time_limit_per_task", fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagQos.Name); err != util.ErrorSuccess {
+			if cmd.Flags().Changed("max-time-limit-per-task") {
+				if err := ModifyQos("max-time-limit-per-task", fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
@@ -477,9 +477,9 @@ func init() {
 			addQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Set the name of the QoS")
 			addQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set the description of the QoS")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
+			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -528,20 +528,20 @@ func init() {
 			// modifyAccountCmd.Flags().StringVarP(&FlagAccount.ParentAccount, "parent", "P", "", "Modify parent account")
 			modifyAccountCmd.Flags().StringVarP(&FlagAccount.DefaultQos, "default-qos", "Q", "", "Set default QoS of the account")
 
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set_allowed_partition", nil, "Overwrite allowed partitions of the account (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "add_allowed_partition", "", "Add a single partition to allowed partition list")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "delete_allowed_partition", "", "Delete a single partition from allowed partition list")
+			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the account (comma seperated list)")
+			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
+			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete a single partition from allowed partition list")
 
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set_allowed_qos_list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add_allowed_qos_list", "", "Add a single QoS to allowed QoS list")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete_allowed_qos_list", "", "Delete a single QoS from allowed QoS list")
+			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
+			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add a single QoS to allowed QoS list")
+			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete a single QoS from allowed QoS list")
 
 			// Other flags
 			modifyAccountCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced to operate")
 
 			// Rules
-			modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
-			modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
+			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
+			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			if err := modifyAccountCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -556,22 +556,22 @@ func init() {
 
 			// Set flags
 			modifyUserCmd.Flags().StringVarP(&FlagUserDefaultQos, "default-qos", "Q", "", "Set default QoS of the user")
-			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin_level", "L", "", "Set admin level (none/operator/admin) of the user")
+			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin-level", "L", "", "Set admin level (none/operator/admin) of the user")
 
-			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set_allowed_partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add_allowed_partition", "", "Add a single partition to allowed partition list")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "delete_allowed_partition", "", "Delete a single partition to allowed partition list")
+			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
+			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
+			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete a single partition to allowed partition list")
 
-			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set_allowed_qos_list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add_allowed_qos_list", "", "Add a single QoS to allowed QoS list")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete_allowed_qos_list", "", "Delete a single QoS from allowed QoS list")
+			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
+			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add a single QoS to allowed QoS list")
+			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete a single QoS from allowed QoS list")
 
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
 
 			// Rules
-			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
-			modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
+			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
+			modifyUserCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -585,9 +585,9 @@ func init() {
 			// Set flags
 			modifyQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set description of the QoS")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
+			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
 
 			// Rules
 			if err := modifyQosCmd.MarkFlagRequired("name"); err != nil {
