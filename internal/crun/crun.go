@@ -1,6 +1,7 @@
 package crun
 
 import "C"
+
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
@@ -22,18 +23,6 @@ import (
 	"time"
 )
 
-type GlobalVariables struct {
-	user *user.User
-	cwd  string
-
-	globalCtx       context.Context
-	globalCtxCancel context.CancelFunc
-
-	connectionBroken bool
-}
-
-var gVars GlobalVariables
-
 type StateOfCrun int
 
 const (
@@ -45,6 +34,18 @@ const (
 	TaskKilling   StateOfCrun = 5
 	WaitAck       StateOfCrun = 6
 )
+
+type GlobalVariables struct {
+	user *user.User
+	cwd  string
+
+	globalCtx       context.Context
+	globalCtxCancel context.CancelFunc
+
+	connectionBroken bool
+}
+
+var gVars GlobalVariables
 
 type ReplyReceiveItem struct {
 	reply *protos.StreamCforedCrunReply
@@ -108,7 +109,7 @@ CrunStateMachineLoop:
 			log.Trace("Sending Task Req to Cfored")
 			stream, err = client.CrunStream(gVars.globalCtx)
 			if err != nil {
-				log.Errorf("Failed to create CallocStream: %s.", err)
+				log.Errorf("Failed to create CrunStream: %s.", err)
 				break CrunStateMachineLoop
 			}
 
@@ -136,38 +137,45 @@ CrunStateMachineLoop:
 
 		case ReqTaskId:
 			log.Trace("Waiting TaskId")
-			item := <-replyChannel
-			cforedReply, err := item.reply, item.err
+			select {
+			case item := <-replyChannel:
+				cforedReply, err := item.reply, item.err
 
-			if err != nil {
-				switch err {
-				case io.EOF:
-					fallthrough
-				default:
-					log.Errorf("Connection to Cfored broken when requesting "+
-						"task id: %s. Exiting...", err)
-					gVars.connectionBroken = true
+				if err != nil {
+					switch err {
+					case io.EOF:
+						fallthrough
+					default:
+						log.Errorf("Connection to Cfored broken when requesting "+
+							"task id: %s. Exiting...", err)
+						gVars.connectionBroken = true
+						break CrunStateMachineLoop
+					}
+				}
+
+				if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
+					log.Fatal("Expect type TASK_ID_REPLY")
+				}
+				payload := cforedReply.GetPayloadTaskIdReply()
+
+				if payload.Ok {
+					taskId = payload.TaskId
+					log.Debugf("Task id allocated: %d\n", taskId)
+					state = WaitRes
+				} else {
+					_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
 					break CrunStateMachineLoop
+				}
+			case sig := <-sigs:
+				if sig == syscall.SIGINT {
+					log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskId")
+				} else {
+					log.Tracef("Unhanled sig %s", sig.String())
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
-				log.Fatal("Expect type TASK_ID_REPLY")
-			}
-			payload := cforedReply.GetPayloadTaskIdReply()
-
-			if payload.Ok {
-				taskId = payload.TaskId
-				log.Debugf("Task id allocated: %d\n", taskId)
-
-				state = WaitRes
-			} else {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
-				break CrunStateMachineLoop
-			}
-
 		case WaitRes:
-			log.Trace("Waiting Res Al")
+			log.Trace("Waiting Res Alloc")
 			select {
 			case item := <-replyChannel:
 				cforedReply, err := item.reply, item.err
@@ -199,6 +207,7 @@ CrunStateMachineLoop:
 				}
 			case sig := <-sigs:
 				if sig == syscall.SIGINT {
+					log.Tracef("SIGINT Received. Cancelling the task...")
 					state = TaskKilling
 				} else {
 					log.Tracef("Unhanled sig %s", sig.String())
@@ -314,7 +323,7 @@ CrunStateMachineLoop:
 							log.Errorf("The connection to Cfored was broken: %s. "+
 								"Killing task...", err)
 							gVars.connectionBroken = true
-							state = TaskKilling
+							break CrunStateMachineLoop
 						}
 					} else {
 						switch cforedReply.Type {
@@ -324,6 +333,7 @@ CrunStateMachineLoop:
 							}
 						case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
 							{
+								taskFinishCtx.Done()
 								log.Trace("Received TASK_CANCEL_REQUEST")
 								state = TaskKilling
 							}
@@ -354,8 +364,7 @@ CrunStateMachineLoop:
 
 			log.Debug("Sending TASK_COMPLETION_REQUEST with CANCELLED state...")
 			if err := stream.Send(request); err != nil {
-				log.Errorf("The connection to Cfored was broken: %s. "+
-					"Exiting...", err)
+				log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
 				gVars.connectionBroken = true
 				break CrunStateMachineLoop
 			} else {
@@ -363,7 +372,7 @@ CrunStateMachineLoop:
 			}
 
 		case WaitAck:
-			log.Debug("Waiting Ctld TASK_COMPLETION_REQUEST with CANCELLED state...")
+			log.Debug("Waiting Ctld TASK_COMPLETION_ACK_REPLY")
 			item := <-replyChannel
 			cforedReply, err := item.reply, item.err
 
@@ -394,7 +403,7 @@ CrunStateMachineLoop:
 	}
 }
 
-func sigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
+func forwardingSigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	sigs := make(chan os.Signal, 1)
@@ -404,11 +413,8 @@ func sigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
 loop:
 	for {
 		select {
-
 		case sig := <-sigs:
-			log.Tracef("Signal received: %v", sig)
 			switch sig {
-
 			/*
 				multiple sigint will cancel this job
 			*/
@@ -489,7 +495,7 @@ func IOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go sigintHandlerRoutine(taskFinishFunc, &wg)
+	go forwardingSigintHandlerRoutine(taskFinishFunc, &wg)
 	go fileReaderRoutine(os.Stdin.Fd(), chanInputFromTerm, taskFinishCtx, &wg)
 	go fileWriterRoutine(os.Stdout.Fd(), chanOutputFromTask, taskFinishCtx, &wg)
 
@@ -525,6 +531,10 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		log.Fatalf("Failed to convert uid to int: %s", err.Error())
 	}
 
+	if len(args) == 0 {
+		log.Fatalf("Please specify program to run")
+	}
+
 	task := &protos.TaskToCtld{
 		Name:          "Interactive",
 		TimeLimit:     util.InvalidDuration(),
@@ -545,7 +555,7 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		Payload: &protos.TaskToCtld_InteractiveMeta{
 			InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 		},
-		CmdLine: strings.Join(os.Args, " "),
+		CmdLine: strings.Join(args, " "),
 		Cwd:     gVars.cwd,
 
 		// Todo: use --export here!
