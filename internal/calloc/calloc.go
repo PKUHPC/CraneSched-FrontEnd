@@ -353,7 +353,7 @@ func main(cmd *cobra.Command, args []string) {
 	task := &protos.TaskToCtld{
 		Name:          "Interactive",
 		TimeLimit:     util.InvalidDuration(),
-		PartitionName: "CPU",
+		PartitionName: "",
 		Resources: &protos.Resources{
 			AllocatableResource: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
