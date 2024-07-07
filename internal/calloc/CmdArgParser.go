@@ -68,7 +68,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "Name of job")
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account of the task")
 	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "Working directory of the task")
-	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "Quality of service")
+	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude a specific list of hosts")
 }

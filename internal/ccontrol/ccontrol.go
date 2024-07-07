@@ -336,30 +336,20 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 	}
 }
 
-func expandRange(pattern string) []string {
-
-	re := regexp.MustCompile(`(.*)\[(\d+)-(\d+)\](.*)`)
-	matches := re.FindStringSubmatch(pattern)
-
-	if len(matches) == 0 {
-		return []string{pattern}
-	}
-
-	prefix := matches[1]
-	start, _ := strconv.Atoi(matches[2])
-	end, _ := strconv.Atoi(matches[3])
-	suffix := matches[4]
-
-	var result []string
-	for i := start; i <= end; i++ {
-		result = append(result, fmt.Sprintf("%s%d%s", prefix, i, suffix))
-	}
-
-	return result
-}
-
 func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
-	nodeNames := expandRange(nodeName)
+	var nodeNames []string
+
+	if util.CheckNodeList(nodeName) {
+		nodeName := strings.ReplaceAll(nodeName, " ", "")
+		nodeNames = strings.Split(nodeName, ",")
+	} else {
+		var ok bool
+		nodeNames, ok = util.ParseHostList(nodeName)
+		if !ok {
+			log.Errorf("Invalid node name or pattern: %s.\n", nodeName)
+			return util.ErrorCmdArg
+		}
+	}
 	var finalError util.CraneCmdError
 
 	for _, node := range nodeNames {
