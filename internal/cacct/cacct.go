@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -229,6 +230,8 @@ func QueryJob() util.CraneCmdError {
 
 	if FlagFormat != "" {
 		header, tableData = FormatData(reply)
+		table.SetTablePadding("")
+		table.SetAutoFormatHeaders(false)
 	}
 
 	if FlagFilterStartTime != "" {
@@ -288,65 +291,70 @@ func QueryJob() util.CraneCmdError {
 }
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
-	formatTableData := make([][]string, len(reply.TaskInfoList))
-	formatReq := strings.Fields(FlagFormat)
-	tableOutputWidth := make([]int, len(formatReq))
-	tableOutputHeader := make([]string, len(formatReq))
-	for i := 0; i < len(formatReq); i++ {
-		if formatReq[i][0] != '%' || len(formatReq[i]) < 2 {
-			log.Error("Invalid format.")
-			os.Exit(util.ErrorInvalidFormat)
+	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z])`)
+	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
+	if specifiers == nil {
+		log.Errorln("Invalid format specifier.")
+		os.Exit(util.ErrorInvalidFormat)
+	}
+
+	tableOutputWidth := make([]int, 0, len(specifiers))
+	tableOutputHeader := make([]string, 0, len(specifiers))
+	tableOutputCell := make([][]string, len(reply.TaskInfoList))
+
+	// Get the prefix of the format string
+	if specifiers[0][0] != 0 {
+		prefix := FlagFormat[0:specifiers[0][0]]
+		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputHeader = append(tableOutputHeader, prefix)
+		for j := 0; j < len(reply.TaskInfoList); j++ {
+			tableOutputCell[j] = append(tableOutputCell[j], prefix)
 		}
-		if formatReq[i][1] == '.' {
-			if len(formatReq[i]) < 4 {
-				log.Error("Invalid format.")
-				os.Exit(util.ErrorInvalidFormat)
+	}
+
+	for i, spec := range specifiers {
+		// Get the padding string between specifiers
+		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
+			padding := FlagFormat[specifiers[i-1][1]:spec[0]]
+			tableOutputWidth = append(tableOutputWidth, -1)
+			tableOutputHeader = append(tableOutputHeader, padding)
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], padding)
 			}
-			width, err := strconv.ParseUint(formatReq[i][2:len(formatReq[i])-1], 10, 32)
-			if err != nil {
-				log.Error("Invalid format.")
-				os.Exit(util.ErrorInvalidFormat)
-			}
-			tableOutputWidth[i] = int(width)
+		}
+
+		// Parse width specifier
+		if spec[2] == -1 {
+			// w/o width specifier
+			tableOutputWidth = append(tableOutputWidth, -1)
 		} else {
-			tableOutputWidth[i] = -1
+			// with width specifier
+			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
+			if err != nil {
+				log.Errorln("Invalid width specifier.")
+				os.Exit(util.ErrorInvalidFormat)
+			}
+			tableOutputWidth = append(tableOutputWidth, int(width))
 		}
-		tableOutputHeader[i] = formatReq[i][len(formatReq[i])-1:]
-		switch tableOutputHeader[i] {
-		case "j":
-			tableOutputHeader[i] = "JobId"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j],
-					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
-			}
-		case "n":
-			tableOutputHeader[i] = "JobName"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Name)
-			}
-		case "P":
-			tableOutputHeader[i] = "Partition"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Partition)
-			}
+
+		// Parse format specifier
+		header := ""
+		switch FlagFormat[spec[4]:spec[5]] {
+		// a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName
+		// P-Partition, t-State
 		case "a":
-			tableOutputHeader[i] = "Account"
+			header = "Account"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Account)
+				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Account)
 			}
 		case "c":
-			tableOutputHeader[i] = "AllocCPUs"
+			header = "AllocCPUs"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j],
+				tableOutputCell[j] = append(tableOutputCell[j],
 					strconv.FormatFloat(reply.TaskInfoList[j].AllocCpu, 'f', 2, 64))
 			}
-		case "t":
-			tableOutputHeader[i] = "State"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				formatTableData[j] = append(formatTableData[j], reply.TaskInfoList[j].Status.String())
-			}
 		case "e":
-			tableOutputHeader[i] = "ExitCode"
+			header = "ExitCode"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				exitCode := ""
 				if reply.TaskInfoList[j].ExitCode >= kCraneExitCodeBase {
@@ -354,12 +362,48 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				} else {
 					exitCode = fmt.Sprintf("%d:0", reply.TaskInfoList[j].ExitCode)
 				}
-				formatTableData[j] = append(formatTableData[j], exitCode)
+				tableOutputCell[j] = append(tableOutputCell[j], exitCode)
+			}
+		case "j":
+			header = "JobId"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j],
+					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
+			}
+		case "n":
+			header = "JobName"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Name)
+			}
+		case "P":
+			header = "Partition"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Partition)
+			}
+		case "t":
+			header = "State"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Status.String())
 			}
 		default:
-			log.Error("Invalid format.")
+			// a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName
+			// P-Partition, t-State
+			log.Errorln("Invalid format specifier, shorthand reference:\n" +
+				"a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State")
 			os.Exit(util.ErrorInvalidFormat)
 		}
+		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
 	}
-	return util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
+
+	// Get the suffix of the format string
+	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
+		suffix := FlagFormat[specifiers[len(specifiers)-1][1]:]
+		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputHeader = append(tableOutputHeader, suffix)
+		for j := 0; j < len(reply.TaskInfoList); j++ {
+			tableOutputCell[j] = append(tableOutputCell[j], suffix)
+		}
+	}
+
+	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
 }
