@@ -198,11 +198,11 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 
 			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
 				"TimeLimit=%s SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
-				"NumNodes=%d\n\tCmdLine=\"%v\" Workdir=%v\n",
+				"NumNodes=%d AllocCpu=%v\n\tCmdLine=\"%v\" Workdir=%v\n",
 				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
 				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr,
 				timeSubmitStr, timeStartStr, timeEndStr, taskInfo.Partition,
-				taskInfo.GetCranedList(), taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
+				taskInfo.GetCranedList(), taskInfo.NodeNum, taskInfo.AllocCpu, taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}
 	return util.ErrorSuccess
