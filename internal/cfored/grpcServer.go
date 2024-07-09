@@ -20,8 +20,6 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"io"
 	"net"
 	"os"
@@ -30,6 +28,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 type CrunRequestCranedChannel struct {
@@ -352,7 +353,7 @@ CforedCranedStateMachineLoop:
 						break cranedIOForwarding
 
 					default:
-						log.Fatal("[Cfored<->Craned] Receive Unexpected %s", cranedReq.Type.String())
+						log.Fatalf("[Cfored<->Craned] Receive Unexpected %s", cranedReq.Type.String())
 						state = CranedUnReg
 						break cranedIOForwarding
 					}
@@ -379,7 +380,7 @@ CforedCranedStateMachineLoop:
 							state = CranedUnReg
 						}
 					default:
-						log.Fatal("[Cfored<->Craned] Receive Unexpected %s", crunReq.Type.String())
+						log.Fatalf("[Cfored<->Craned] Receive Unexpected %s", crunReq.Type.String())
 						break cranedIOForwarding
 					}
 				}
@@ -439,10 +440,8 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 			case syscall.SIGINT:
 				gVars.globalCtxCancel()
 				server.GracefulStop()
-				break
 			case syscall.SIGTERM:
 				server.Stop()
-				break
 			}
 		case <-gVars.globalCtx.Done():
 			break

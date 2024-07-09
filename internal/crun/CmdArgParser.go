@@ -18,8 +18,9 @@ package crun
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -42,13 +43,15 @@ var (
 
 func CmdArgParser() {
 	rootCmd := &cobra.Command{
-		Use:   "crun",
-		Short: "allocate resource and create terminal",
+		Use:     "crun",
+		Short:   "Allocate resource and create terminal",
+		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
 			MainCrun(cmd, args)
 		},
 	}
 
+	rootCmd.SetVersionTemplate(util.VersionTemplate())
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Available debug level: trace,debug,info")

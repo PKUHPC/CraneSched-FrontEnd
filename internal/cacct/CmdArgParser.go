@@ -37,15 +37,16 @@ var (
 	FlagFilterStates     string
 	FlagFilterPartitions string
 	FlagFilterQos        string
+	FlagNumLimit         uint32
 	FlagNoHeader         bool
 	FlagFull             bool
-	FlagNumLimit         uint32
 
 	RootCmd = &cobra.Command{
-		Use:   "cacct [flags]",
-		Short: "Display the recent job information",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
+		Use:     "cacct [flags]",
+		Short:   "Display the recent job information",
+		Version: util.Version(),
+		Long:    "",
+		Args:    cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
@@ -72,6 +73,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",

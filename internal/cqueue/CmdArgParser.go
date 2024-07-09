@@ -41,10 +41,11 @@ var (
 	FlagNumLimit         uint32
 
 	RootCmd = &cobra.Command{
-		Use:   "cqueue [flags]",
-		Short: "Display the job information and queue status",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
+		Use:     "cqueue [flags]",
+		Short:   "Display the job information and queue status",
+		Long:    "",
+		Version: util.Version(),
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
@@ -71,6 +72,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 

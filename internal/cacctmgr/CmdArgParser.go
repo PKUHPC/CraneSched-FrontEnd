@@ -61,9 +61,10 @@ var (
 	FlagFormat   string
 
 	RootCmd = &cobra.Command{
-		Use:   "cacctmgr",
-		Short: "Manage account, user and QoS tables",
-		Long:  "",
+		Use:     "cacctmgr",
+		Short:   "Manage account, user and QoS tables",
+		Long:    "",
+		Version: util.Version(),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// The PersistentPreRun functions will be inherited and executed by children (sub-commands)
 			// if they do not declare their own.
@@ -438,6 +439,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 

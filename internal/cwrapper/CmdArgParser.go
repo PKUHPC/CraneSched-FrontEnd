@@ -30,11 +30,14 @@ var (
 		Long: `Wrapper of CraneSched commands.
 This is a highly EXPERIMENTAL feature. 
 If any error occurs, please refer to original commands.`,
+		Version: util.Version(),
 	}
 )
 
 func ParseCmdArgs() {
 	// Slurm Commands
+	rootCmd.SetVersionTemplate(util.VersionTemplate())
+
 	rootCmd.AddGroup(slurmGroup)
 	{
 		rootCmd.AddCommand(sacct())

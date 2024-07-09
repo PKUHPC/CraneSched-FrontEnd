@@ -36,9 +36,10 @@ var (
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
-		Use:   "ccancel [flags] job_id[,job_id...]",
-		Short: "Cancel pending or running jobs",
-		Long:  "",
+		Use:     "ccancel [flags] job_id[,job_id...]",
+		Short:   "Cancel pending or running jobs",
+		Long:    "",
+		Version: util.Version(),
 		Args: func(cmd *cobra.Command, args []string) error {
 			err := cobra.MaximumNArgs(1)(cmd, args)
 			if err != nil {
@@ -88,6 +89,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().StringVarP(&FlagJobName, "name", "n", "",

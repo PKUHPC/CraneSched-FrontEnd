@@ -51,9 +51,10 @@ var (
 	FlagMailUser string
 
 	RootCmd = &cobra.Command{
-		Use:   "cbatch [flags] file",
-		Short: "Submit batch job",
-		Args:  cobra.ExactArgs(1),
+		Use:     "cbatch [flags] file",
+		Short:   "Submit batch job",
+		Version: util.Version(),
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if FlagRepeat == 0 {
 				log.Error("--repeat must > 0.")
@@ -101,6 +102,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
