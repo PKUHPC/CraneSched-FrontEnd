@@ -135,7 +135,10 @@ var (
 
 			taskIds := strings.Split(FlagTaskIds, ",")
 			for i := range taskIds {
-				id, _ := strconv.Atoi(taskIds[i])
+				id, err := strconv.Atoi(taskIds[i])
+				if err != nil {
+					log.Fatalf("Failed to convert job ID to int: %s", err.Error())
+				}
 				taskId := uint32(id)
 				log.Tracef("Modifying job ID: %d", taskId)
 				if len(FlagTimeLimit) != 0 {
