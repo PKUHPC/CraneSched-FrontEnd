@@ -46,6 +46,15 @@ func ParseCmdArgs() {
 		rootCmd.AddCommand(squeue())
 	}
 
+	rootCmd.AddGroup(lsfGroup)
+	{
+		rootCmd.AddCommand(bacct())
+		rootCmd.AddCommand(bsub())
+		rootCmd.AddCommand(bjobs())
+		rootCmd.AddCommand(bqueues())
+		rootCmd.AddCommand(bkill())
+	}
+
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorGeneric)
 	}
