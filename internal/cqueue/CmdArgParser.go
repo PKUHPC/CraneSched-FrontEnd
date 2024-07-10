@@ -106,19 +106,19 @@ Use a dot (.) and a number between % and the format character to specify a minim
 
 Supported format identifiers:
 	%a: Account    - Display the account associated with the job.
-    %e: Time       - Display the elapsed time from the start of the job. 
+	%e: Time       - Display the elapsed time from the start of the job. 
 	%j: JobID      - Display the ID of the job.
-    %l: TimeLimit  - Display the time limit for the job.
-    %L: NodeList   - Display the list of nodes the job is running on.
-    %n: Name       - Display the name of the job.
-    %N: Nodes      - Display the number of nodes assigned to the job.
-    %p: Priority   - Display the job's priority.
-    %P: Partition  - Display the partition the job is running in.
-    %q: QoS        - Display the Quality of Service level for the job.
-    %s: SubmitTime - Display the submission time of the job.
-    %t: State      - Display the current state of the job.
-    %T: Type       - Display the job type.
-    %u: User       - Display the user who submitted the job.
+	%l: TimeLimit  - Display the time limit for the job.
+	%L: NodeList   - Display the list of nodes the job is running on.
+	%n: Name       - Display the name of the job.
+	%N: Nodes      - Display the number of nodes assigned to the job.
+	%p: Priority   - Display the job's priority.
+	%P: Partition  - Display the partition the job is running in.
+	%q: QoS        - Display the Quality of Service level for the job.
+	%s: SubmitTime - Display the submission time of the job.
+	%t: State      - Display the current state of the job.
+	%T: Type       - Display the job type.
+	%u: User       - Display the user who submitted the job.
 
 Each format specifier can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
