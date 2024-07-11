@@ -66,32 +66,9 @@ message ResourceV2 {
   map <string /*craned id*/, ResourceInNode> each_node_res = 1;
 }
 
-// Old implementation
-message DedicatedResource {
-  map <string /*craned id*/, DedicatedResourceInNode> each_node_gres = 1;
-}
-
 message ResourceView {
   AllocatableResource allocatable_res = 1;
   DeviceMap device_map = 2;
-}
-
-// Old implementation
-message Resources {
-  AllocatableResource allocatable_resource = 1;
-
-  oneof dedicated_resource {
-    // After the task is scheduled, some missing device
-    // specification is fulfilled by the scheduler and
-    // a detailed specification of dedicated resources is generated.
-    // Such a detailed form is sent to Craned for actual device allocation.
-    DedicatedResource actual_dedicated_resource = 2;
-
-    // The form of dedicated resource presented by user
-    // is abstracted by DeviceMap.
-    // DeviceMap is used between front end and CraneCtld.
-    DeviceMap dedicated_resource_req = 3;
-  }
 }
 
 enum PartitionState {
@@ -190,6 +167,7 @@ message RuntimeAttrOfTask {
   google.protobuf.Timestamp end_time = 17;
 
   bool held = 18;
+  ResourceV2 resources = 19;
 }
 
 message TaskToD {
@@ -259,7 +237,7 @@ message TaskInfo {
   google.protobuf.Timestamp start_time = 8;
   google.protobuf.Timestamp end_time = 9;
   google.protobuf.Timestamp submit_time = 10;
-  
+
   string account = 11;
   uint32 node_num = 12;
   string cmd_line = 13;
@@ -267,8 +245,10 @@ message TaskInfo {
   string username = 15;
   string qos = 16;
   ResourceView res_view = 17;
+  repeated string req_nodes = 19;
+  repeated string exclude_nodes = 20;
 
-  string extra_attr = 20;
+  string extra_attr = 21;
 
   // Dynamic task information
   bool held = 30;
@@ -286,6 +266,7 @@ message TaskInfo {
   // a negative elapsed time might occur.
   // To avoid this, the elapsed time of a task is calculated on the CraneCtld side.
   google.protobuf.Duration elapsed_time = 37;
+  repeated string execution_node = 38;
 }
 
 message PartitionInfo {
@@ -312,6 +293,12 @@ message CranedInfo {
 
   repeated string partition_names = 10;
   uint32 running_task_num = 11;
+
+  string craned_version = 12;
+  string system_name = 13;
+  google.protobuf.Timestamp craned_start_time = 14;
+  google.protobuf.Timestamp system_boot_time = 15;
+  google.protobuf.Timestamp last_busy_time = 16;
 }
 
 message TrimmedPartitionInfo {
