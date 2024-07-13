@@ -19,5 +19,5 @@ package main
 import "CraneFrontEnd/internal/crun"
 
 func main() {
-	crun.CmdArgParser()
+	crun.ParseCmdArgs()
 }

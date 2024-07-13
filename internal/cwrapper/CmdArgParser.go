@@ -47,6 +47,7 @@ func ParseCmdArgs() {
 		rootCmd.AddCommand(scontrol())
 		rootCmd.AddCommand(sinfo())
 		rootCmd.AddCommand(squeue())
+		rootCmd.AddCommand(srun())
 	}
 
 	if err := rootCmd.Execute(); err != nil {

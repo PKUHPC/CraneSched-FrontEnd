@@ -24,6 +24,7 @@ import (
 	"CraneFrontEnd/internal/ccontrol"
 	"CraneFrontEnd/internal/cinfo"
 	"CraneFrontEnd/internal/cqueue"
+	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"os"
@@ -622,6 +623,38 @@ func squeue() *cobra.Command {
 
 	// The following flags are not supported by the wrapper
 	// --format, -o: As the cqueue's output format is very different from squeue, this flag is not supported.
+
+	return cmd
+}
+
+func srun() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "srun",
+		Short:              "Wrapper of crun command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Parse flags
+			crun.RootCmd.InitDefaultHelpFlag()
+			if err := crun.RootCmd.ParseFlags(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			args = crun.RootCmd.Flags().Args()
+			if help, err := crun.RootCmd.Flags().GetBool("help"); err != nil || help {
+				crun.RootCmd.Help()
+				return
+			}
+
+			if err := Validate(crun.RootCmd, args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			crun.RootCmd.Run(cmd, args)
+		},
+	}
 
 	return cmd
 }
