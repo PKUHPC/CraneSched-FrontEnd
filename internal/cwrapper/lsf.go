@@ -39,6 +39,9 @@ var lsfGroup = &cobra.Group{
 }
 
 var (
+	FlagBacct_d bool
+	FlagBacct_e bool
+
 	FlagBsub_B  bool
 	FlagBsub_N  bool
 	FlagBsub_Ne bool
@@ -57,6 +60,18 @@ func bacct() *cobra.Command {
 			cacct.FlagFilterStartTime = ConvertInterval(cacct.FlagFilterStartTime)
 			cacct.FlagFilterEndTime = ConvertInterval(cacct.FlagFilterEndTime)
 			cacct.FlagFilterSubmitTime = ConvertInterval(cacct.FlagFilterSubmitTime)
+			{
+				states := []string{}
+				if FlagBacct_d {
+					states = append(states, "completed")
+				}
+				if FlagBacct_e {
+					states = append(states, "failed", "cancelled", "time-limit-exceeded")
+				}
+				if len(states) > 0 {
+					cacct.FlagFilterStates = strings.Join(states, ",")
+				}
+			}
 			cacct.FlagFilterJobIDs = strings.Join(args, ",")
 			cacct.RootCmd.PersistentPreRun(cmd, []string{})
 			cacct.RootCmd.Run(cmd, []string{})
@@ -68,6 +83,8 @@ func bacct() *cobra.Command {
 	cmd.Flags().StringVar(&cacct.FlagFilterEndTime, "C", "", "Displays accounting statistics for jobs that completed or exited during the specified time interval")
 	cmd.Flags().StringVar(&cacct.FlagFilterSubmitTime, "S", "", "Displays accounting statistics for jobs that are submitted during the specified time interval")
 	cmd.Flags().BoolVar(&cacct.FlagFull, "l", false, "Long format. Displays detailed information for each job in a multiline format")
+	cmd.Flags().BoolVar(&FlagBacct_d, "d", false, "Displays accounting statistics for successfully completed jobs")
+	cmd.Flags().BoolVar(&FlagBacct_e, "e", false, "Displays accounting statistics for exited jobs")
 
 	return cmd
 }
