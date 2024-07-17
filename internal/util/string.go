@@ -85,16 +85,42 @@ func ParseDuration(time string, duration *durationpb.Duration) bool {
 }
 
 func ParseTime(ts string) (time.Time, error) {
+
+	/*Preprocess the time string, making sure parts are two digits
+	  2023-6-1T17:2:1 -> 2023-06-01T17:02:01*/
+	parts := strings.Split(ts, "T")
+	dateParts := strings.Split(parts[0], "-")
+	timeParts := strings.Split(parts[1], ":")
+
+	// Complete the date part
+	if len(dateParts[1]) == 1 {
+		dateParts[1] = "0" + dateParts[1]
+	}
+	if len(dateParts[2]) == 1 {
+		dateParts[2] = "0" + dateParts[2]
+	}
+
+	// Complete the time part
+	for i := 0; i < len(timeParts); i++ {
+		if len(timeParts[i]) == 1 {
+			timeParts[i] = "0" + timeParts[i]
+		}
+	}
+
+	formattedTimeStr := fmt.Sprintf("%s-%s-%sT%s:%s:%s",
+		dateParts[0], dateParts[1], dateParts[2],
+		timeParts[0], timeParts[1], timeParts[2])
+
 	// Try to parse the timezone at first
 	layout := time.RFC3339
-	parsed, err := time.Parse(layout, ts)
+	parsed, err := time.Parse(layout, formattedTimeStr)
 	if err == nil {
 		return parsed, nil
 	}
 
 	// Fallback to the short layout, assuming local timezone
 	layoutShort := time.RFC3339[:19]
-	parsed, err = time.ParseInLocation(layoutShort, ts, time.Local)
+	parsed, err = time.ParseInLocation(layoutShort, formattedTimeStr, time.Local)
 	return parsed, err
 }
 
