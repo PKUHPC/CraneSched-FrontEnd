@@ -88,6 +88,36 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	return nil
 }
 
+// for LSF args
+type lLineProcessor struct {
+	mapping map[string]string
+}
+
+func (l *lLineProcessor) init() {
+	l.mapping = map[string]string{
+		"-J": "-J", "-o": "-o", "-e": "-e", "-nnode": "--nodes",
+		"-n": "--ntasks-per-node", "-W": "--time", "-M": "--mem", "-cwd": "--chdir",
+		"-q": "--partition", "-m": "--nodelist", "-env": "--export",
+	}
+}
+
+func (l *lLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) error {
+	if l.mapping == nil {
+		l.init()
+	}
+	split := strings.Fields(line)
+	if len(split) == 3 {
+		if option, ok := l.mapping[split[1]]; ok {
+			*args = append(*args, CbatchArg{name: option, val: split[2]})
+		} else {
+			log.Warnf("LSF option %v is not supported", split[1])
+		}
+	} else {
+		return fmt.Errorf("line `%v` is not supported by cwrapper", line)
+	}
+	return nil
+}
+
 // for sh commands
 type defaultProcessor struct {
 }

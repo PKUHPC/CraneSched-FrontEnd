@@ -394,11 +394,14 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneC
 		num++
 		reC := regexp.MustCompile(`^#CBATCH`)
 		reS := regexp.MustCompile(`^#SBATCH`)
+		reL := regexp.MustCompile(`^#BSUB`)
 		var processor LineProcessor
 		if reC.MatchString(scanner.Text()) {
 			processor = &cLineProcessor{}
 		} else if reS.MatchString(scanner.Text()) {
 			processor = &sLineProcessor{}
+		} else if reL.MatchString(scanner.Text()) {
+			processor = &lLineProcessor{}
 		} else {
 			processor = &defaultProcessor{}
 		}
