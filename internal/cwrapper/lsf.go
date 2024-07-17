@@ -49,7 +49,7 @@ func bacct() *cobra.Command {
 	// cacct: no args
 	cmd := &cobra.Command{
 		Use:     "bacct [flags] [job_id ...]",
-		Short:   "Wrapper of bacct command",
+		Short:   "Wrapper of cacct command",
 		Long:    "",
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
@@ -75,7 +75,7 @@ func bacct() *cobra.Command {
 func bsub() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "bsub [flags] file",
-		Short:   "Wrapper of bsub command",
+		Short:   "Wrapper of cbatch command",
 		Long:    "",
 		GroupID: "lsf",
 		Args:    cobra.ExactArgs(1),
@@ -121,7 +121,7 @@ func bjobs() *cobra.Command {
 	// cqueue: no args
 	cmd := &cobra.Command{
 		Use:     "bjobs [flags] [job_id ...]",
-		Short:   "Wrapper of bjobs command",
+		Short:   "Wrapper of cqueue command",
 		Long:    "",
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
@@ -143,7 +143,7 @@ func bqueues() *cobra.Command {
 	// cinfo: no args
 	cmd := &cobra.Command{
 		Use:     "bqueues [flags] [queue_name ...]",
-		Short:   "Wrapper of bqueues command",
+		Short:   "Wrapper of cinfo command",
 		Long:    "",
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
@@ -163,7 +163,7 @@ func bkill() *cobra.Command {
 	// ccancel: 1 arg, format "job_id1,job_id2,.."
 	cmd := &cobra.Command{
 		Use:     "bkill [flags] [job_id ...]",
-		Short:   "Wrapper of bkill command",
+		Short:   "Wrapper of ccancel command",
 		Long:    "",
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
