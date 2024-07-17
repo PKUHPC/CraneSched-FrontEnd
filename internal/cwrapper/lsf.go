@@ -22,7 +22,13 @@ import (
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/cinfo"
 	"CraneFrontEnd/internal/cqueue"
+	"errors"
+	"fmt"
+	"log"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -48,25 +54,19 @@ func bacct() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			cacct.RootCmd.PersistentPreRun(cmd, []string{})
+			cacct.FlagFilterStartTime = ConvertInterval(cacct.FlagFilterStartTime)
+			cacct.FlagFilterEndTime = ConvertInterval(cacct.FlagFilterEndTime)
+			cacct.FlagFilterSubmitTime = ConvertInterval(cacct.FlagFilterSubmitTime)
 			cacct.FlagFilterJobIDs = strings.Join(args, ",")
+			cacct.RootCmd.PersistentPreRun(cmd, []string{})
 			cacct.RootCmd.Run(cmd, []string{})
 		},
 	}
 
 	cmd.Flags().StringVar(&cacct.FlagFilterUsers, "u", "", "Displays accounting statistics for jobs that are submitted by the specified users (commas separated list)")
-	cmd.Flags().StringVar(&cacct.FlagFilterStartTime, "D",
-		"", "Displays accounting statistics for jobs that are dispatched during the specified time interval"+
-			"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41) or "+
-			"semi open intervals(timeFormat: 2024-01-02T15:04:05~ or ~2024-01-11T11:12:41)")
-	cmd.Flags().StringVar(&cacct.FlagFilterEndTime, "C",
-		"", "Displays accounting statistics for jobs that completed or exited during the specified time interval"+
-			"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41) or "+
-			"semi open intervals(timeFormat: 2024-01-02T15:04:05~ or ~2024-01-11T11:12:41)")
-	cmd.Flags().StringVar(&cacct.FlagFilterSubmitTime, "S",
-		"", "Displays accounting statistics for jobs that are submitted during the specified time interval"+
-			"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41) or "+
-			"semi open intervals(timeFormat: 2024-01-02T15:04:05~ or ~2024-01-11T11:12:41)")
+	cmd.Flags().StringVar(&cacct.FlagFilterStartTime, "D", "", "Displays accounting statistics for jobs that are dispatched during the specified time interval")
+	cmd.Flags().StringVar(&cacct.FlagFilterEndTime, "C", "", "Displays accounting statistics for jobs that completed or exited during the specified time interval")
+	cmd.Flags().StringVar(&cacct.FlagFilterSubmitTime, "S", "", "Displays accounting statistics for jobs that are submitted during the specified time interval")
 	cmd.Flags().BoolVar(&cacct.FlagFull, "l", false, "Long format. Displays detailed information for each job in a multiline format")
 
 	return cmd
@@ -133,6 +133,7 @@ func bjobs() *cobra.Command {
 
 	cmd.Flags().StringVar(&cqueue.FlagFormat, "o", "", "Sets the customized output format")
 	cmd.Flags().StringVar(&cqueue.FlagFilterJobNames, "J", "", "Displays information about jobs with the specified job name")
+	cmd.Flags().BoolVar(&cqueue.FlagNoHeader, "noheader", false, "Removes the column headings from the output")
 
 	return cmd
 }
@@ -182,4 +183,54 @@ func bkill() *cobra.Command {
 	cmd.Flags().StringVar(&ccancel.FlagState, "stat", "", "Operates only on jobs in the specified status")
 
 	return cmd
+}
+
+func ConvertInterval(t string) string {
+	if t == "" {
+		return t
+	}
+	ts := strings.Split(t, ",")
+	if len(ts) == 1 {
+		log.Fatal("Invalid time format\n")
+	}
+	t1, t2 := ts[0], ts[1]
+	t1, err1 := ConvertTime(t1)
+	if err1 != nil {
+		log.Fatalf("Failed to parse time format: %s\n", err1)
+	}
+	t2, err2 := ConvertTime(t2)
+	if err2 != nil {
+		log.Fatalf("Failed to parse time format: %s\n", err2)
+	}
+	return t1 + "~" + t2
+}
+
+func ConvertTime(t string) (string, error) {
+	curTime := time.Now()
+	if t == "" {
+		return t, nil
+	}
+	// [year/][month/][day][/hour:minute|/hour:]
+	re := regexp.MustCompile(`(?:(\d{4})/)?(?:(\d{2})/)?(\d{2})?(?:/(\d{2})\:(\d{2})?)?`)
+	x := re.FindStringSubmatch(t)
+	if x[0] != t {
+		return t, errors.New("invalid time format: " + t)
+	}
+	y, m, d, H, M := x[1], x[2], x[3], x[4], x[5]
+	if y == "" {
+		y = strconv.Itoa(curTime.Year())
+	}
+	if m == "" {
+		m = strconv.Itoa(int(curTime.Month()))
+	}
+	if d == "" {
+		d = strconv.Itoa(curTime.Day())
+	}
+	if H == "" {
+		H = strconv.Itoa(curTime.Hour())
+	}
+	if M == "" {
+		M = strconv.Itoa(curTime.Hour())
+	}
+	return fmt.Sprintf("%04s-%02s-%02sT%02s:%02s:00", y, m, d, H, M), nil
 }
