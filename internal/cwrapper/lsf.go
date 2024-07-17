@@ -93,7 +93,6 @@ func bsub() *cobra.Command {
 				}
 				cbatch.FlagMailType = strings.Join(mailTypes, ",")
 			}
-			print(cbatch.FlagMailType)
 			cbatch.RootCmd.Run(cmd, args)
 		},
 	}
