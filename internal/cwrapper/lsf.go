@@ -113,7 +113,7 @@ func bsub() *cobra.Command {
 			if cbatch.FlagNodelist != "" {
 				cbatch.FlagNodelist = strings.ReplaceAll(cbatch.FlagNodelist, " ", ",")
 			}
-			cbatch.FlagTime = ConvertRuntimeLimit(cbatch.FlagTime)
+			cbatch.FlagTime = cbatch.ConvertLSFRuntimeLimit(cbatch.FlagTime)
 			cbatch.RootCmd.Run(cmd, args)
 		},
 	}
@@ -254,24 +254,4 @@ func ConvertTime(t string) (string, error) {
 		M = strconv.Itoa(curTime.Hour())
 	}
 	return fmt.Sprintf("%04s-%02s-%02sT%02s:%02s:00", y, m, d, H, M), nil
-}
-
-func ConvertRuntimeLimit(t string) string {
-	if t == "" {
-		return t
-	}
-	// [hour:]minute
-	re := regexp.MustCompile(`(:?(\d+):)(\d+)`)
-	x := re.FindStringSubmatch(t)
-	if x[0] != t {
-		log.Fatalf("Failed to parse time format: %s\n", t)
-	}
-	H, M := x[1], x[2]
-	if H == "" {
-		H = "0"
-	}
-	if M == "" {
-		M = "0"
-	}
-	return fmt.Sprintf("%s:%s:0", H, M)
 }

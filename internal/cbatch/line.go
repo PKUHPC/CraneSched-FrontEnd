@@ -19,6 +19,7 @@ package cbatch
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -107,8 +108,15 @@ func (l *lLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	}
 	split := strings.Fields(line)
 	if len(split) == 3 {
-		if option, ok := l.mapping[split[1]]; ok {
-			*args = append(*args, CbatchArg{name: option, val: split[2]})
+		if name, ok := l.mapping[split[1]]; ok {
+			val := split[2]
+			switch name {
+			case "--time":
+				val = ConvertLSFRuntimeLimit(val)
+			case "--nodelist":
+				val = strings.ReplaceAll(val, " ", ",")
+			}
+			*args = append(*args, CbatchArg{name: name, val: val})
 		} else {
 			log.Warnf("LSF option %v is not supported", split[1])
 		}
@@ -116,6 +124,23 @@ func (l *lLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 		return fmt.Errorf("line `%v` is not supported by cwrapper", line)
 	}
 	return nil
+}
+
+func ConvertLSFRuntimeLimit(t string) string {
+	if t == "" {
+		return t
+	}
+	// [hour:]minute
+	re := regexp.MustCompile(`(:?(\d+):)(\d+)`)
+	x := re.FindStringSubmatch(t)
+	if x[0] != t {
+		log.Fatalf("Failed to parse time format: %s\n", t)
+	}
+	H, M := x[1], x[2]
+	if H == "" {
+		H = "0"
+	}
+	return fmt.Sprintf("%s:%s:0", H, M)
 }
 
 // for sh commands
