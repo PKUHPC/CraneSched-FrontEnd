@@ -189,9 +189,30 @@ func bkill() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) > 0 {
+			ignore_args, ignore_flags := false, false
+			if ccancel.FlagState != "" {
+				ignore_args = true
+				ignore_flags = true
+			}
+			if len(args) == 1 && args[0] == "0" {
+				ignore_args = true
+			} else if len(args) > 0 {
+				ignore_flags = true
+			}
+
+			if ignore_args {
+				args = nil
+			} else {
 				args = []string{strings.Join(args, ",")}
 			}
+
+			if ignore_flags {
+				ccancel.FlagJobName = ""
+				ccancel.FlagUserName = ""
+				ccancel.FlagPartition = ""
+				ccancel.FlagNodes = nil
+			}
+
 			ccancel.RootCmd.PersistentPreRun(cmd, args)
 			ccancel.RootCmd.Run(cmd, args)
 		},
