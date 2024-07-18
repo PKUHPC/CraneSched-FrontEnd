@@ -68,3 +68,19 @@ func TrimTable(rows *[][]string) {
 		}
 	}
 }
+
+// Trim the cell of the table, if the cell is longer than 32 characters,
+// the rest of the characters will be replaced by `...`.
+// partNum means do not trim columns
+func TrimPartTable(rows *[][]string, partNum int) {
+	for i, row := range *rows {
+		for j, cell := range row {
+			if j == partNum {
+				continue
+			}
+			if len(cell) > 30 {
+				(*rows)[i][j] = cell[:30] + "..."
+			}
+		}
+	}
+}
