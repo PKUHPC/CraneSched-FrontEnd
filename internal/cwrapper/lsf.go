@@ -212,16 +212,16 @@ func ConvertInterval(t string) string {
 	}
 	ts := strings.Split(t, ",")
 	if len(ts) == 1 {
-		log.Fatal("Invalid time format\n")
+		log.Fatal("Invalid LSF time format\n")
 	}
 	t1, t2 := ts[0], ts[1]
 	t1, err1 := ConvertTime(t1)
 	if err1 != nil {
-		log.Fatalf("Failed to parse time format: %s\n", err1)
+		log.Fatalf("Failed to parse LSF time format: %s\n", err1)
 	}
 	t2, err2 := ConvertTime(t2)
 	if err2 != nil {
-		log.Fatalf("Failed to parse time format: %s\n", err2)
+		log.Fatalf("Failed to parse LSF time format: %s\n", err2)
 	}
 	return t1 + "~" + t2
 }
@@ -235,7 +235,7 @@ func ConvertTime(t string) (string, error) {
 	re := regexp.MustCompile(`(?:(\d{4})/)?(?:(\d{2})/)?(\d{2})?(?:/(\d{2})\:(\d{2})?)?`)
 	x := re.FindStringSubmatch(t)
 	if x[0] != t {
-		return t, errors.New("invalid time format: " + t)
+		return t, errors.New("invalid LSF time format: " + t)
 	}
 	y, m, d, H, M := x[1], x[2], x[3], x[4], x[5]
 	if y == "" {

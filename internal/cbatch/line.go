@@ -134,7 +134,7 @@ func ConvertLSFRuntimeLimit(t string) string {
 	re := regexp.MustCompile(`(:?(\d+):)(\d+)`)
 	x := re.FindStringSubmatch(t)
 	if x[0] != t {
-		log.Fatalf("Failed to parse time format: %s\n", t)
+		log.Fatalf("Failed to parse LSF time format: %s\n", t)
 	}
 	H, M := x[1], x[2]
 	if H == "" {
