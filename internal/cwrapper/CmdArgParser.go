@@ -46,6 +46,7 @@ func ParseCmdArgs() {
 		rootCmd.AddCommand(squeue())
 	}
 
+	// LSF Commands
 	rootCmd.AddGroup(lsfGroup)
 	{
 		rootCmd.AddCommand(bacct())

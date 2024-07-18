@@ -123,10 +123,10 @@ func bsub() *cobra.Command {
 	cmd.Flags().StringVar(&cbatch.FlagStderrPath, "e", "", "Appends the standard error output of the job to the specified file path")
 	cmd.Flags().Uint32Var(&cbatch.FlagNodes, "nnode", 1, "Specifies the number of compute nodes that are required for the job")
 	cmd.Flags().Uint32Var(&cbatch.FlagNtasksPerNode, "n", 1, "Submits a parallel job and specifies the number of tasks in the job")
-	cmd.Flags().StringVar(&cbatch.FlagTime, "W", "", "Sets the runtime limit of the job")
+	cmd.Flags().StringVar(&cbatch.FlagTime, "W", "", "Sets the runtime limit of the job (timeFormat: [hour:]minute)")
 	cmd.Flags().StringVar(&cbatch.FlagMem, "M", "", "Sets a memory limit for all the processes that belong to the job")
 	cmd.Flags().StringVar(&cbatch.FlagCwd, "cwd", "", "Specifies the current working directory for job execution")
-	cmd.Flags().StringVar(&cbatch.FlagPartition, "q", "", "Submits the job to the specified queue (partition)") // lsf 支持同时指定多个 queue，实现待定
+	cmd.Flags().StringVar(&cbatch.FlagPartition, "q", "", "Submits the job to the specified queue (partition)")
 	cmd.Flags().StringVar(&cbatch.FlagNodelist, "m", "", "Submits a job to be run on specific host")
 	cmd.Flags().StringVar(&cbatch.FlagExport, "env", "", "Controls the propagation of the specified job submission environment variables to the execution hosts")
 	cmd.Flags().StringVar(&cbatch.FlagMailUser, "u", "", "Sends mail to the specified email destination")
