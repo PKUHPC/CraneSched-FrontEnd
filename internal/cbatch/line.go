@@ -131,7 +131,7 @@ func ConvertLSFRuntimeLimit(t string) string {
 		return t
 	}
 	// [hour:]minute
-	re := regexp.MustCompile(`(:?(\d+):)(\d+)`)
+	re := regexp.MustCompile(`(?:(\d+):)(\d+)`)
 	x := re.FindStringSubmatch(t)
 	if x[0] != t {
 		log.Fatalf("Failed to parse LSF time format: %s\n", t)
