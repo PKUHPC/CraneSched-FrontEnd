@@ -98,7 +98,7 @@ func (l *lLineProcessor) init() {
 	l.mapping = map[string]string{
 		"-J": "-J", "-o": "-o", "-e": "-e", "-nnode": "--nodes",
 		"-n": "--ntasks-per-node", "-W": "--time", "-M": "--mem", "-cwd": "--chdir",
-		"-q": "--partition", "-m": "--nodelist", "-env": "--export",
+		"-q": "--partition", "-env": "--export",
 	}
 }
 
@@ -110,11 +110,8 @@ func (l *lLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	if len(split) == 3 {
 		if name, ok := l.mapping[split[1]]; ok {
 			val := split[2]
-			switch name {
-			case "--time":
+			if name == "--time" {
 				val = ConvertLSFRuntimeLimit(val)
-			case "--nodelist":
-				val = strings.ReplaceAll(val, " ", ",")
 			}
 			*args = append(*args, CbatchArg{name: name, val: val})
 		} else {
