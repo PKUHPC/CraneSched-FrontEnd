@@ -46,42 +46,60 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
-
-	if queryAll {
-		if len(reply.CranedInfoList) == 0 {
+	if len(reply.CranedInfoList) == 0 {
+		if queryAll {
 			fmt.Println("No node is available.")
 		} else {
-			for _, nodeInfo := range reply.CranedInfoList {
-				stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
-				if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
-					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
-				}
-				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
-					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
-					"\tPatition=%s RunningJob=%d\n\n",
-					nodeInfo.Hostname, stateStr, nodeInfo.Cpu,
-					math.Abs(nodeInfo.AllocCpu),
-					math.Abs(nodeInfo.FreeCpu),
-					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
-					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
-			}
+			fmt.Printf("Node %s not found.\n", nodeName)
 		}
 	} else {
-		if len(reply.CranedInfoList) == 0 {
-			fmt.Printf("Node %s not found.\n", nodeName)
-		} else {
-			for _, nodeInfo := range reply.CranedInfoList {
-				stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
-				if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
-					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
-				}
-				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
-					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
-					"\tPatition=%s RunningJob=%d\n\n",
-					nodeInfo.Hostname, stateStr, nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
-					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
-					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
+		for _, nodeInfo := range reply.CranedInfoList {
+			stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
+			if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
+				stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
 			}
+
+			nodeFailed := false
+			for _, it := range reply.FailedCranedName {
+				if nodeInfo.Hostname == it {
+					nodeFailed = true
+				}
+			}
+
+			CranedVersion := "N/A"
+			CranedOs := "N/A"
+			SystemBootTimeStr := "N/A"
+			CranedStartTimeStr := "N/A"
+			LastBusyTimeStr := "N/A"
+			if !nodeFailed {
+				CranedVersion = nodeInfo.CranedVersion
+				CranedOs = fmt.Sprintf("%s %s %s", nodeInfo.SystemName, nodeInfo.SystemRelease, nodeInfo.SystemVersion)
+				SystemBootTime := nodeInfo.SystemBootTime.AsTime()
+				if !SystemBootTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+					SystemBootTimeStr = SystemBootTime.In(time.Local).Format("2006-01-02 15:04:05")
+				}
+				CranedStartTime := nodeInfo.CranedStartTime.AsTime()
+				if !CranedStartTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+					CranedStartTimeStr = CranedStartTime.In(time.Local).Format("2006-01-02 15:04:05")
+				}
+				LastBusyTime := nodeInfo.LastBusyTime.AsTime()
+				if !LastBusyTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+					LastBusyTimeStr = LastBusyTime.In(time.Local).Format("2006-01-02 15:04:05")
+				}
+			}
+			fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
+				"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+				"\tPatition=%s RunningJob=%d Version=%s\n"+
+				"\tOs=%s\n"+
+				"\tBootTime=%s CranedStartTime=%s\n"+
+				"\tLastBusyTime=%s\n",
+				nodeInfo.Hostname, stateStr, nodeInfo.Cpu,
+				math.Abs(nodeInfo.AllocCpu),
+				math.Abs(nodeInfo.FreeCpu),
+				nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
+				strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum, CranedVersion,
+				CranedOs, SystemBootTimeStr, CranedStartTimeStr, LastBusyTimeStr,
+			)
 		}
 	}
 	return util.ErrorSuccess
