@@ -57,6 +57,7 @@ func bacct() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
+			cacct.FlagFilterUsers = strings.ReplaceAll(cacct.FlagFilterUsers, " ", ",")
 			cacct.FlagFilterStartTime = ConvertInterval(cacct.FlagFilterStartTime)
 			cacct.FlagFilterEndTime = ConvertInterval(cacct.FlagFilterEndTime)
 			cacct.FlagFilterSubmitTime = ConvertInterval(cacct.FlagFilterSubmitTime)
@@ -78,7 +79,7 @@ func bacct() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&cacct.FlagFilterUsers, "u", "", "Displays accounting statistics for jobs that are submitted by the specified users (commas separated list)")
+	cmd.Flags().StringVar(&cacct.FlagFilterUsers, "u", "", "Displays accounting statistics for jobs that are submitted by the specified users")
 	cmd.Flags().StringVar(&cacct.FlagFilterStartTime, "D", "", "Displays accounting statistics for jobs that are dispatched during the specified time interval")
 	cmd.Flags().StringVar(&cacct.FlagFilterEndTime, "C", "", "Displays accounting statistics for jobs that completed or exited during the specified time interval")
 	cmd.Flags().StringVar(&cacct.FlagFilterSubmitTime, "S", "", "Displays accounting statistics for jobs that are submitted during the specified time interval")
