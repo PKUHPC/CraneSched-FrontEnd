@@ -188,6 +188,13 @@ func QueryJob() util.CraneCmdError {
 
 	if FlagFilterQos != "" {
 		filterJobQosList := strings.Split(FlagFilterQos, ",")
+
+		for i := 0; i < len(filterJobQosList); i++ {
+			if filterJobQosList[i] == "" {
+				log.Errorf("Invalid job Qos given: %s.\n", filterJobQosList[i])
+				return util.ErrorCmdArg
+			}
+		}
 		request.FilterQos = filterJobQosList
 	}
 
