@@ -86,6 +86,7 @@ func bacct() *cobra.Command {
 	cmd.Flags().BoolVar(&cacct.FlagFull, "l", false, "Long format. Displays detailed information for each job in a multiline format")
 	cmd.Flags().BoolVar(&FlagBacct_d, "d", false, "Displays accounting statistics for successfully completed jobs")
 	cmd.Flags().BoolVar(&FlagBacct_e, "e", false, "Displays accounting statistics for exited jobs")
+	cmd.Flags().BoolVar(&cacct.FlagNoHeader, "noheader", false, "Removes the column headings from the output")
 
 	return cmd
 }
