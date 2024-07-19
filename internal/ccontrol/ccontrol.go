@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/user"
 	"regexp"
 	"strconv"
 	"strings"
@@ -66,11 +67,11 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 				}
 			}
 
-			CranedVersion := "N/A"
-			CranedOs := "N/A"
-			SystemBootTimeStr := "N/A"
-			CranedStartTimeStr := "N/A"
-			LastBusyTimeStr := "N/A"
+			CranedVersion := "unknown"
+			CranedOs := "unknown"
+			SystemBootTimeStr := "unknown"
+			CranedStartTimeStr := "unknown"
+			LastBusyTimeStr := "unknown"
 			if !nodeFailed {
 				CranedVersion = nodeInfo.CranedVersion
 				CranedOs = fmt.Sprintf("%s %s %s", nodeInfo.SystemName, nodeInfo.SystemRelease, nodeInfo.SystemVersion)
@@ -178,6 +179,14 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 		}
 
 	} else {
+		var B2MBRatio uint64 = 1024 * 1024
+		checkStringEmpty := func(s string) string {
+			if len(s) == 0 {
+				return "unknown"
+			} else {
+				return s
+			}
+		}
 		for _, taskInfo := range reply.TaskInfoList {
 			timeSubmitStr := "unknown"
 			timeStartStr := "unknown"
@@ -220,14 +229,31 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 			} else {
 				timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
 			}
+			craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
+			if err != nil {
+				log.Errorf("Failed to get username for UID %d: %s\n", taskInfo.Uid, err)
+				return util.ErrorGeneric
+			}
+			group, err := user.LookupGroupId(strconv.Itoa(int(taskInfo.Gid)))
+			if err != nil {
+				log.Errorf("Failed to get groupname for GID %d: %s\n", taskInfo.Gid, err)
+				return util.ErrorGeneric
+			}
 
-			fmt.Printf("JobId=%v JobName=%v\n\tUserId=%d GroupId=%d Account=%v\n\tJobState=%v RunTime=%v "+
-				"TimeLimit=%s SubmitTime=%v\n\tStartTime=%v EndTime=%v Partition=%v NodeList=%v "+
-				"NumNodes=%d\n\tCmdLine=\"%v\" Workdir=%v\n",
-				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
-				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr,
-				timeSubmitStr, timeStartStr, timeEndStr, taskInfo.Partition,
-				taskInfo.GetCranedList(), taskInfo.NodeNum, taskInfo.CmdLine, taskInfo.Cwd)
+			fmt.Printf("JobId=%v JobName=%v\n"+
+				"\tUser=%s(%d) GroupId=%s(%d) Account=%v\n"+
+				"\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
+				"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
+				"\tCmdLine=\"%v\" Workdir=%v\n"+
+				"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%vM NumNodes=%d\n"+
+				"\tReqNodeList=%v ExecludeNodeList=%v \n",
+				taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
+				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
+				timeStartStr, timeEndStr, taskInfo.Partition, checkStringEmpty(taskInfo.GetCranedList()),
+				checkStringEmpty(util.HostNameListToStr(taskInfo.GetExecutionNode())),
+				taskInfo.CmdLine, taskInfo.Cwd,
+				taskInfo.Priority, taskInfo.Qos, taskInfo.Cpu, taskInfo.Mem/B2MBRatio, taskInfo.NodeNum,
+				checkStringEmpty(util.HostNameListToStr(taskInfo.GetReqNodes())), checkStringEmpty(util.HostNameListToStr(taskInfo.GetExcludeNodes())))
 		}
 	}
 	return util.ErrorSuccess
