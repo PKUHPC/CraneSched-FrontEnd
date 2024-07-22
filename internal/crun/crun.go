@@ -7,10 +7,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"os"
 	"os/signal"
@@ -20,6 +16,11 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type GlobalVariables struct {
@@ -508,6 +509,7 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		fallthrough
 	default:
 		util.InitLogger(log.InfoLevel)
+		log.SetReportCaller(false)
 	}
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
