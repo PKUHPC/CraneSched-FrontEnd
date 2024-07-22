@@ -139,14 +139,26 @@ func QueryJob() util.CraneCmdError {
 				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
 				return util.ErrorCmdArg
 			}
+			if id == 0 {
+				log.Errorf("job id must be greater than 0.\n")
+				return util.ErrorCmdArg
+			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
 		request.FilterTaskIds = filterJobIdListInt
 	}
 
+	var userList []string
 	if FlagFilterUsers != "" {
 		filterUserList := strings.Split(FlagFilterUsers, ",")
-		request.FilterUsers = filterUserList
+		for _, user := range filterUserList {
+			if user == "" {
+				log.Warn("Empty user name is ignored.")
+				continue
+			}
+			userList = append(userList, user)
+		}
+		request.FilterUsers = userList
 	}
 
 	if FlagFilterJobNames != "" {
