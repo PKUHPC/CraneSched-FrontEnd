@@ -243,7 +243,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		header := ""
 		switch FlagFormat[spec[4]:spec[5]] {
 		// a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,
-		// p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User
+		// p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User, r-Reason
 		case "a":
 			header = "Account"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -325,12 +325,26 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Username)
 			}
+		case "r":
+			header = "Reason"
+			var reasonOrListStr string
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+
+				if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
+					reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
+				} else {
+					reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
+				}
+
+				tableOutputCell[j] = append(tableOutputCell[j], reasonOrListStr)
+			}
+
 		default:
 			// a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,
-			// p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User
+			// p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User, r-Reason
 			log.Errorln("Invalid format specifier, shorthand reference:\n" +
 				"a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,\n" +
-				"p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User")
+				"p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User, r-Reason")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
