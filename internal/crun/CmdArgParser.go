@@ -43,8 +43,8 @@ var (
 
 func CmdArgParser() {
 	rootCmd := &cobra.Command{
-		Use:     "crun",
-		Short:   "Allocate resource and create terminal",
+		Use:     "crun [flags] executable",
+		Short:   "Allocate resource and run executable interactive",
 		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
 			MainCrun(cmd, args)

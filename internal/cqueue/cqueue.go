@@ -249,6 +249,21 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Account)
 			}
+		case "c":
+			header = "CpuPerNode"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatFloat(reply.TaskInfoList[j].Cpu, 'f', 2, 64))
+			}
+		case "C":
+			header = "AllocCpus"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatFloat(reply.TaskInfoList[j].AllocCpu, 'f', 2, 64))
+			}
+		case "D":
+			header = "NodeNum"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].NodeNum), 10))
+			}
 		case "e":
 			header = "Time"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -274,6 +289,11 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			header = "NodeList"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].GetCranedList())
+			}
+		case "m":
+			header = "MemPerNode"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(reply.TaskInfoList[j].Mem/(1024*1024), 10))
 			}
 		case "n":
 			header = "Name"
@@ -326,11 +346,13 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Username)
 			}
 		default:
-			// a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,
-			// p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User
+			// a-Account, c-AllocCPUs, D-NodeNum, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList,
+			// M-MemPerNode, n-Name, N-Nodes, p-Priority, P-Partition, s-SubmitTime, t-State,
+			// T-Type, u-User
 			log.Errorln("Invalid format specifier, shorthand reference:\n" +
-				"a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,\n" +
-				"p-Priority, P-Partition, s-SubmitTime, t-State, T-Type, u-User")
+				"a-Account, c-CpuPerNode, C-AllocCpus, D-NodeNum, e-ElapsedTime, j-JobId, l-TimeLimit,\n" +
+				"L-NodeList, m-MemPerNode, n-Name, N-Nodes, p-Priority, P-Partition, s-SubmitTime,\n" +
+				"t-State, T-Type, u-User")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))

@@ -175,15 +175,17 @@ func (keeper *CranedChannelKeeper) forwardRemoteIoToCrun(taskId uint32, ioToCrun
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
-func (keeper *CranedChannelKeeper) crunTaskStopAndRemoveChannel(taskId uint32, cranedIds []string) {
+func (keeper *CranedChannelKeeper) crunTaskStopAndRemoveChannel(taskId uint32, cranedIds []string, forwardEstablished bool) {
 	keeper.taskIORequestChannelMtx.Lock()
 	delete(keeper.taskIORequestChannelMapByTaskId, taskId)
 	keeper.taskIdProcIdMapMtx.Lock()
-	for _, cranedId := range cranedIds {
-		if _, exist := keeper.taskIdSetByCraned[cranedId]; !exist {
-			log.Errorf("CranedId %s should exist in CranedChannelKeeper", cranedId)
-		} else {
-			delete(keeper.taskIdSetByCraned[cranedId], taskId)
+	if forwardEstablished {
+		for _, cranedId := range cranedIds {
+			if _, exist := keeper.taskIdSetByCraned[cranedId]; !exist {
+				log.Errorf("CranedId %s should exist in CranedChannelKeeper", cranedId)
+			} else {
+				delete(keeper.taskIdSetByCraned[cranedId], taskId)
+			}
 		}
 	}
 	keeper.taskIdProcIdMapMtx.Unlock()

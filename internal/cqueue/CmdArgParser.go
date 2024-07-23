@@ -106,10 +106,14 @@ Use a dot (.) and a number between % and the format character to specify a minim
 
 Supported format identifiers:
 	%a: Account    - Display the account associated with the job.
+	%c: CpuPerNode - Display the requested cpu per node of the job.
+	%C: AllocCpus  - Display the cpus allocated to the job.
+	%D: NodeNum    - Display the number of nodes requested by the job.
 	%e: Time       - Display the elapsed time from the start of the job. 
 	%j: JobID      - Display the ID of the job.
 	%l: TimeLimit  - Display the time limit for the job.
 	%L: NodeList   - Display the list of nodes the job is running on.
+	%m: MemPerNode - Display the requested mem per node of the job.
 	%n: Name       - Display the name of the job.
 	%N: Nodes      - Display the number of nodes assigned to the job.
 	%p: Priority   - Display the job's priority.
