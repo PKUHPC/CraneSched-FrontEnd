@@ -19,6 +19,7 @@ package cwrapper
 import (
 	"CraneFrontEnd/internal/cacct"
 	"CraneFrontEnd/internal/cacctmgr"
+	"CraneFrontEnd/internal/calloc"
 	"CraneFrontEnd/internal/cbatch"
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/ccontrol"
@@ -49,8 +50,8 @@ For the second, we directly call the original command, so the amount of code wil
  However, it requires a series of processing on the args, which is likely to lead to some corner cases
  not being properly handled.
 
-In this file, ccontrol is too complex, and sbatch and cbatch are almost the same, so we choose the 2nd approach.
-The remaining commands are relatively simple, so we choose the first approach.
+To sum up, ccontrol, cacctmgr, cbatch, calloc and crun are too complex or very same to their
+ slurm counterparts, so we choose the 2nd way. The rest of the commands follow the 1st approach.
 */
 
 var slurmGroup = &cobra.Group{
@@ -358,6 +359,40 @@ func sacctmgr() *cobra.Command {
 	return cmd
 }
 
+func salloc() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "salloc",
+		Short:   "Wrapper of calloc command",
+		Long:    "",
+		GroupID: "slurm",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Add --help from calloc
+			calloc.RootCmd.InitDefaultHelpFlag()
+
+			// Parse flags
+			if err := calloc.RootCmd.ParseFlags(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			args = calloc.RootCmd.Flags().Args()
+			if help, err := calloc.RootCmd.Flags().GetBool("help"); err != nil || help {
+				calloc.RootCmd.Help()
+				return
+			}
+
+			// Validate the arguments
+			if err := Validate(calloc.RootCmd, args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			calloc.RootCmd.Run(cmd, args)
+		},
+	}
+
+	return cmd
+}
+
 func scancel() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "scancel",
@@ -406,8 +441,8 @@ func sbatch() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Parse flags
 			cbatch.RootCmd.InitDefaultHelpFlag()
+
 			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
@@ -635,8 +670,8 @@ func srun() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Parse flags
 			crun.RootCmd.InitDefaultHelpFlag()
+
 			if err := crun.RootCmd.ParseFlags(args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
