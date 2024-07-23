@@ -59,7 +59,7 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 
 // Trim the cell of the table, if the cell is longer than 30 characters,
 // the rest of the characters will be replaced by `...`.
-// partNum means do not trim columns
+// `excepts` means do not trim the specified columns
 func TrimTableExcept(rows *[][]string, excepts ...int) {
 	removal := make(map[int]bool)
 	for _, except := range excepts {
