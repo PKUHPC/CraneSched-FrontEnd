@@ -119,7 +119,7 @@ Supported format identifiers:
 	%t: State      - Display the current state of the job.
 	%T: Type       - Display the job type.
 	%u: User       - Display the user who submitted the job.
-	%r: Reason     - Display the reason of pending or the list of nodes
+	%r: Reason     - Display the reason of pending 
 
 Each format specifier can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
