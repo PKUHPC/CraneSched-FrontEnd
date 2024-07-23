@@ -135,12 +135,8 @@ func QueryJob() util.CraneCmdError {
 		var filterJobIdListInt []uint32
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
-			if err != nil {
+			if err != nil || id == 0 {
 				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
-				return util.ErrorCmdArg
-			}
-			if id == 0 {
-				log.Errorf("job id must be greater than 0.\n")
 				return util.ErrorCmdArg
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
