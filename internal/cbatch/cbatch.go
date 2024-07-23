@@ -40,7 +40,6 @@ type CbatchArg struct {
 // then return the constructed TaskToCtld.
 func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
-	task = new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
 	task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{

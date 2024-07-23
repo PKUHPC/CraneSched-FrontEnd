@@ -42,11 +42,13 @@ func ParseCmdArgs() {
 	{
 		rootCmd.AddCommand(sacct())
 		rootCmd.AddCommand(sacctmgr())
+		rootCmd.AddCommand(salloc())
 		rootCmd.AddCommand(sbatch())
 		rootCmd.AddCommand(scancel())
 		rootCmd.AddCommand(scontrol())
 		rootCmd.AddCommand(sinfo())
 		rootCmd.AddCommand(squeue())
+		rootCmd.AddCommand(srun())
 	}
 
 	if err := rootCmd.Execute(); err != nil {
