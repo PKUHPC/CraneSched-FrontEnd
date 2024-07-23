@@ -85,6 +85,14 @@ func ParseDuration(time string, duration *durationpb.Duration) bool {
 }
 
 func ParseTime(ts string) (time.Time, error) {
+	// Use regex to check if HH:MM:SS exists
+	// This is required as Golang permits `2:03:14` but denies `2:3:14`,
+	// which is undesired.
+	re := regexp.MustCompile(`(\d{2}:\d{2}:\d{2})`)
+	if !re.MatchString(ts) {
+		return time.Time{}, fmt.Errorf("invalid time format")
+	}
+
 	// Try to parse the timezone at first
 	layout := time.RFC3339
 	parsed, err := time.Parse(layout, ts)
