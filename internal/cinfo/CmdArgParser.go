@@ -29,11 +29,11 @@ var (
 	FlagFilterPartitions     []string
 	FlagFilterNodes          []string
 	FlagFilterCranedStates   []string
-	FlagSummarize            bool
-	FlagFormat               string
 	FlagIterate              uint64
 	FlagConfigFilePath       string
-	FlagListReason           bool
+	// FlagSummarize            bool
+	// FlagFormat               string
+	// FlagListReason           bool
 
 	RootCmd = &cobra.Command{
 		Use:     "cinfo [flags]",

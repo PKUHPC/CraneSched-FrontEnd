@@ -115,10 +115,10 @@ Supported format identifiers:
 	%a: Account   - Displays the account associated with the job.
 	%c: AllocCPUs - Displays the number of allocated CPUs, formatted to two decimal places.
 	%e: ExitCode  - Displays the exit code of the job. 
-					If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
-					it formats as "0:<code>" or "<code>:0" based on the condition.
+	                If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
+	                it formats as "0:<code>" or "<code>:0" based on the condition.
 	%j: JobID     - Displays the ID of the job.
-	%n: Name   - Displays the name of the job.
+	%n: Name      - Displays the name of the job.
 	%P: Partition - Displays the partition associated with the job.
 	%t: State     - Displays the state of the job.
 

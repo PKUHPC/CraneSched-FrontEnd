@@ -557,10 +557,10 @@ func sinfo() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
-		"List only a partition state summary with no node state details.")
-	cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
-		"List reasons nodes are in the down, drained, fail or failing state.")
+	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
+	// 	"List only a partition state summary with no node state details.")
+	// cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
+	// 	"List reasons nodes are in the down, drained, fail or failing state.")
 
 	cmd.Flags().BoolVarP(&cinfo.FlagFilterDownOnly, "dead", "d", false,
 		"If set, only report state information for non-responding (dead) nodes.")
