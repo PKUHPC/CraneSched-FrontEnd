@@ -191,7 +191,7 @@ func QueryJob() util.CraneCmdError {
 
 		for i := 0; i < len(filterJobQosList); i++ {
 			if filterJobQosList[i] == "" {
-				log.Errorf("Invalid job Qos given: %s.\n", filterJobQosList[i])
+				log.Errorf("Invalid job QoS given: %s.\n", filterJobQosList[i])
 				return util.ErrorCmdArg
 			}
 		}
