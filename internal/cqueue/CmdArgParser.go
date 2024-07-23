@@ -115,11 +115,12 @@ Supported format identifiers:
 	%p: Priority   - Display the job's priority.
 	%P: Partition  - Display the partition the job is running in.
 	%q: QoS        - Display the Quality of Service level for the job.
+	%r: Reason     - Display the reason of pending
 	%s: SubmitTime - Display the submission time of the job.
 	%t: State      - Display the current state of the job.
 	%T: Type       - Display the job type.
 	%u: User       - Display the user who submitted the job.
-	%r: Reason     - Display the reason of pending 
+	 
 
 Each format specifier can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 

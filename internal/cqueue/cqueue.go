@@ -344,7 +344,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			// p-Priority, P-Partition, r-Reason, s-SubmitTime, t-State, T-Type, u-User
 			log.Errorln("Invalid format specifier, shorthand reference:\n" +
 				"a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,\n" +
-				"p-Priority, P-Partition, s-SubmitTime, r-Reason, t-State, T-Type, u-User")
+				"p-Priority, P-Partition, r-Reason, s-SubmitTime, t-State, T-Type, u-User")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
