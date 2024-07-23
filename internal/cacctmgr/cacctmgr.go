@@ -281,7 +281,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 
 	if !FlagFull && FlagFormat == "" {
 		// The data in the fifth column is AllowedQosList, which is not trim
-		util.TrimPartTable(&tableData, 5)
+		util.TrimTableExcept(&tableData, 5)
 	}
 
 	table.AppendBulk(tableData)
