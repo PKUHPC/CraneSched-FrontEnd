@@ -113,7 +113,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
 	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "Name of job")
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
-	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "D", "Working directory of the job")
+	RootCmd.Flags().StringVarP(&FlagCwd, "chdir", "D", "", "Working directory of the job")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
 	RootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "Submit the job multiple times")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
