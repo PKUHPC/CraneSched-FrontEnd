@@ -35,6 +35,7 @@ var (
 		Long: `Wrapper of CraneSched commands.
 This is a highly EXPERIMENTAL feature. 
 If any error occurs, please refer to original commands.`,
+		Version: util.Version(),
 	}
 	registeredWrappers = []Wrapper{
 		LSFWrapper{},
@@ -44,15 +45,19 @@ If any error occurs, please refer to original commands.`,
 
 func ParseCmdArgs() {
 	// Slurm Commands
+	rootCmd.SetVersionTemplate(util.VersionTemplate())
+
 	rootCmd.AddGroup(slurmGroup)
 	{
 		rootCmd.AddCommand(sacct())
 		rootCmd.AddCommand(sacctmgr())
+		rootCmd.AddCommand(salloc())
 		rootCmd.AddCommand(sbatch())
 		rootCmd.AddCommand(scancel())
 		rootCmd.AddCommand(scontrol())
 		rootCmd.AddCommand(sinfo())
 		rootCmd.AddCommand(squeue())
+		rootCmd.AddCommand(srun())
 	}
 
 	// LSF Commands

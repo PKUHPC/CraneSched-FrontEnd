@@ -14,10 +14,19 @@
  * See the Mulan PSL v2 for more details.
  */
 
-package main
+package util
 
-import "CraneFrontEnd/internal/crun"
+import (
+	"fmt"
+)
 
-func main() {
-	crun.ParseCmdArgs()
+var VERSION = "Unknown"
+var BUILD_TIME = "Unknown"
+
+func VersionTemplate() string {
+	return `{{.Version}}` + "\n"
+}
+
+func Version() string {
+	return fmt.Sprintf("Version: %s\nBuild Time: %s", VERSION, BUILD_TIME)
 }

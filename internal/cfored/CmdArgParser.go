@@ -30,13 +30,15 @@ var (
 
 func ParseCmdArgs() {
 	rootCmd := &cobra.Command{
-		Use:   "cfored",
-		Short: "Daemon for interactive job management",
+		Use:     "cfored",
+		Short:   "Daemon for interactive job management",
+		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
 			StartCfored()
 		},
 	}
 
+	rootCmd.SetVersionTemplate(util.VersionTemplate())
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",

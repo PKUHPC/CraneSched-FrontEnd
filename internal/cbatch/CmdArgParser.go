@@ -51,9 +51,10 @@ var (
 	FlagMailUser string
 
 	RootCmd = &cobra.Command{
-		Use:   "cbatch [flags] file",
-		Short: "Submit batch job",
-		Args:  cobra.ExactArgs(1),
+		Use:     "cbatch [flags] file",
+		Short:   "Submit batch job",
+		Version: util.Version(),
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if FlagRepeat == 0 {
 				log.Error("--repeat must > 0.")
@@ -101,6 +102,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
@@ -111,7 +113,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
 	RootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "Name of job")
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
-	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "Working directory of the job")
+	RootCmd.Flags().StringVar(&FlagCwd, "chdir", "D", "Working directory of the job")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
 	RootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "Submit the job multiple times")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")

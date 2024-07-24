@@ -41,10 +41,11 @@ var (
 	FlagNumLimit         uint32
 
 	RootCmd = &cobra.Command{
-		Use:   "cqueue [flags]",
-		Short: "Display the job information and queue status",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
+		Use:     "cqueue [flags]",
+		Short:   "Display the job information and queue status",
+		Long:    "",
+		Version: util.Version(),
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
@@ -71,6 +72,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 
@@ -103,23 +105,29 @@ Fields are identified by a percent sign (%) followed by a character.
 Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
 
 Supported format identifiers:
-    %j: JobID     - Display the job ID of the task. Use "%.5j" for a width of 5.
-    %n: Name      - Display the name of the task.
-    %t: Status    - Display the current status of the task.
-    %P: Partition - Display the partition the task is running in.
-    %p: Priority  - Display the task's priority.
-    %u: User      - Display the user who submitted the task.
-    %a: Account   - Display the account associated with the task.
-    %T: Type      - Display the task type.
-    %I: NodeList  - Display the list of nodes the task is running on.
-    %l: TimeLimit - Display the time limit for the task.
-    %N: Nodes     - Display the number of nodes assigned to the task.
-    %s: SubmitTime- Display the submission time of the task.
-    %q: QoS       - Display the Quality of Service level for the task.
+	%a: Account    - Display the account associated with the job.
+	%e: Time       - Display the elapsed time from the start of the job. 
+	%j: JobID      - Display the ID of the job.
+	%l: TimeLimit  - Display the time limit for the job.
+	%L: NodeList   - Display the list of nodes the job is running on.
+	%n: Name       - Display the name of the job.
+	%N: Nodes      - Display the number of nodes assigned to the job.
+	%p: Priority   - Display the priority of the job.
+	%P: Partition  - Display the partition the job is running in.
+	%q: QoS        - Display the Quality of Service level for the job.
+	%r: Reason     - Display the reason of pending.
+	%s: SubmitTime - Display the submission time of the job.
+	%t: State      - Display the current state of the job.
+	%T: Type       - Display the job type.
+	%u: User       - Display the user who submitted the job.
+	 
 
 Each format specifier can be modified with a width specifier (e.g., "%.5j").
-Example: --format "%.5j %.20n %t" will output tasks' JobID with a minimum width of 5,
-         Name with a minimum width of 20, and Status.
+If the width is specified, the field will be formatted to at least that width. 
+If the format is invalid or unrecognized, the program will terminate with an error message.
+
+Example: --format "%.5j %.20n %t" would output Jobs' ID with a minimum width of 5,
+         Name with a minimum width of 20, and the State.
 `)
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,

@@ -37,9 +37,10 @@ var (
 	FlagConfigFilePath string
 
 	RootCmd = &cobra.Command{
-		Use:   "ccontrol",
-		Short: "Display and modify the specified entity",
-		Long:  "",
+		Use:     "ccontrol",
+		Short:   "Display and modify the specified entity",
+		Long:    "",
+		Version: util.Version(),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
@@ -163,6 +164,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
 

@@ -37,15 +37,16 @@ var (
 	FlagFilterStates     string
 	FlagFilterPartitions string
 	FlagFilterQos        string
+	FlagNumLimit         uint32
 	FlagNoHeader         bool
 	FlagFull             bool
-	FlagNumLimit         uint32
 
 	RootCmd = &cobra.Command{
-		Use:   "cacct [flags]",
-		Short: "Display the recent job information",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
+		Use:     "cacct [flags]",
+		Short:   "Display the recent job information",
+		Version: util.Version(),
+		Long:    "",
+		Args:    cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
@@ -72,6 +73,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
@@ -105,29 +107,27 @@ func init() {
 		"Specify partitions to view (comma separated list), default is all")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-		`Specify the output format for the command. 
+		`Specify the output format.
 Fields are identified by a percent sign (%) followed by a character. 
 Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
 
 Supported format identifiers:
-	%j: JobId     - Displays the ID of the job. Optionally, use %.<width>j to specify a fixed width.
-	%n: JobName   - Displays the name of the job.
-	%P: Partition - Displays the partition associated with the job.
 	%a: Account   - Displays the account associated with the job.
 	%c: AllocCPUs - Displays the number of allocated CPUs, formatted to two decimal places.
-	%t: State     - Displays the state of the job.
 	%e: ExitCode  - Displays the exit code of the job. 
-                    If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
-                    it formats as "0:<code>" or "<code>:0" based on the condition.
-		
-Example:
---format "%j %.10n %P %a %.2c %t %e" would output
-the job’s ID, Name with a minimum width of 10, Partition, Account, 
-Allocated CPUs with two decimal places, State, and Exit Code.
+	                If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
+	                it formats as "0:<code>" or "<code>:0" based on the condition.
+	%j: JobID     - Displays the ID of the job.
+	%n: Name      - Displays the name of the job.
+	%P: Partition - Displays the partition associated with the job.
+	%t: State     - Displays the state of the job.
 
-Each part of the format string controls the appearance of the corresponding column in the output table. 
+Each format specifier can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
 If the format is invalid or unrecognized, the program will terminate with an error message.
+
+Example: --format "%.5j %.20n %t" would output the job's ID with a minimum width of 5,
+         Name with a minimum width of 20, and the State.
 `)
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
