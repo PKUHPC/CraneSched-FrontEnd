@@ -18,8 +18,9 @@ package crun
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -52,18 +53,18 @@ func CmdArgParser() {
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Available debug level: trace,debug,info")
-	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "number of nodes on which to run (N = min[-max])")
-	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "number of cpus required per task")
-	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "number of tasks to invoke on each node")
+	rootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
+	rootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
+	rootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
 	rootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
-	rootCmd.Flags().StringVar(&FlagMem, "mem", "", "minimum amount of real memory")
-	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "partition requested")
-	rootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "name of job")
-	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "account used by the task")
-	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "working directory of the task")
-	rootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "quality of service")
+	rootCmd.Flags().StringVar(&FlagMem, "mem", "", "Minimum amount of real memory")
+	rootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
+	rootCmd.Flags().StringVarP(&FlagJob, "job-name", "J", "", "Name of job")
+	rootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account of the task")
+	rootCmd.Flags().StringVar(&FlagCwd, "chdir", "", "Working directory of the task")
+	rootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "Quality of service")
 	rootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "List of specific nodes to be allocated to the job")
-	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "exclude a specific list of hosts")
+	rootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude a specific list of hosts")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
