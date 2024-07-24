@@ -104,7 +104,6 @@ func bacct() *cobra.Command {
 			cacct.FlagFilterUsers = strings.ReplaceAll(cacct.FlagFilterUsers, " ", ",")
 			cacct.FlagFilterStartTime = ConvertInterval(cacct.FlagFilterStartTime)
 			cacct.FlagFilterEndTime = ConvertInterval(cacct.FlagFilterEndTime)
-			println(cacct.FlagFilterEndTime)
 			cacct.FlagFilterSubmitTime = ConvertInterval(cacct.FlagFilterSubmitTime)
 			{
 				states := []string{}
