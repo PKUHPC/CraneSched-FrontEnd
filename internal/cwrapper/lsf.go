@@ -288,24 +288,24 @@ func ConvertInterval(t string) string {
 		log.Fatal("Invalid LSF time format\n")
 	}
 	t1, t2 := ts[0], ts[1]
-	t1, err1 := ConvertTime(t1)
+	t1, err1 := ConvertTime(t1, "left")
 	if err1 != nil {
 		log.Fatalf("Failed to parse LSF time format: %s\n", err1)
 	}
-	t2, err2 := ConvertTime(t2)
+	t2, err2 := ConvertTime(t2, "right")
 	if err2 != nil {
 		log.Fatalf("Failed to parse LSF time format: %s\n", err2)
 	}
 	return t1 + "~" + t2
 }
 
-func ConvertTime(t string) (string, error) {
+func ConvertTime(t string, side string) (string, error) {
 	curTime := time.Now()
 	if t == "" {
 		return t, nil
 	}
 	// [year/][month/][day][/hour:minute|/hour:]
-	re := regexp.MustCompile(`(?:(\d{4})/)?(?:(\d{2})/)?(\d{2})?(?:/(\d{2})\:(\d{2})?)?`)
+	re := regexp.MustCompile(`(?:(\d{4})/)?(?:(\d+)/)?(\d+)?(?:/(\d+)\:(\d+)?)?`)
 	x := re.FindStringSubmatch(t)
 	if x[0] != t {
 		return t, errors.New("invalid LSF time format: " + t)
@@ -321,10 +321,18 @@ func ConvertTime(t string) (string, error) {
 		d = strconv.Itoa(curTime.Day())
 	}
 	if H == "" {
-		H = strconv.Itoa(curTime.Hour())
+		if side == "left" {
+			H = "00"
+		} else if side == "right" {
+			H = "23"
+		}
 	}
 	if M == "" {
-		M = strconv.Itoa(curTime.Hour())
+		if side == "left" {
+			M = "00"
+		} else if side == "right" {
+			M = "59"
+		}
 	}
 	return fmt.Sprintf("%04s-%02s-%02sT%02s:%02s:00", y, m, d, H, M), nil
 }
