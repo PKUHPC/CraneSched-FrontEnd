@@ -70,11 +70,12 @@ func ParseCmdArgs() {
 		rootCmd.AddCommand(bkill())
 	}
 
-	for _, wrapper := range registeredWrappers {
-		cmd := os.Args[1]
-		if wrapper.HasCommand(cmd) {
-			wrapper.Preprocess()
-			break
+	if len(os.Args) > 2 {
+		for _, wrapper := range registeredWrappers {
+			if wrapper.HasCommand(os.Args[1]) {
+				wrapper.Preprocess()
+				break
+			}
 		}
 	}
 

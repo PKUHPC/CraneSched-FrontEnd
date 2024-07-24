@@ -52,14 +52,14 @@ func (lsf LSFWrapper) HasCommand(cmd string) bool {
 
 func (lsf LSFWrapper) Preprocess() {
 	/*
-		LSF recognizes single dash option only. Whereas the current CLI library
-		we are using does not support defining a shorthand-only flag.
+		LSF recognizes single dash option only. Whereas the CLI library cobra
+		does not support defining something like `-env`.
 
 		We imitate that behavior by preprocess the `os.Args`, changing all
 		single dash options to double dash.
 	*/
 	for i, v := range os.Args {
-		// skip program name and subcommand
+		// Skip program name and subcommand
 		if i <= 1 {
 			continue
 		}

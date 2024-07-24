@@ -71,7 +71,7 @@ func (slurm SlurmWrapper) HasCommand(cmd string) bool {
 }
 
 func (slurm SlurmWrapper) Preprocess() {
-
+	// Slurm commands do not need any preprocessing for os.Args
 }
 
 var slurmGroup = &cobra.Group{
