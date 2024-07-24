@@ -28,6 +28,7 @@ import (
 	"errors"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -51,6 +52,25 @@ For the second, we directly call the original command, so the amount of code wil
 In this file, ccontrol is too complex, and sbatch and cbatch are almost the same, so we choose the 2nd approach.
 The remaining commands are relatively simple, so we choose the first approach.
 */
+
+type SlurmWrapper struct {
+	commands []string
+}
+
+func (slurm *SlurmWrapper) init() {
+	slurm.commands = []string{"sacct", "sacctmgr", "sbatch", "scancel", "scontrol", "sinfo", "squeue"}
+}
+
+func (slurm SlurmWrapper) HasCommand(cmd string) bool {
+	if slurm.commands == nil {
+		slurm.init()
+	}
+	return slices.Contains(slurm.commands, cmd)
+}
+
+func (slurm SlurmWrapper) Preprocess() {
+
+}
 
 var slurmGroup = &cobra.Group{
 	ID:    "slurm",

@@ -23,6 +23,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type Wrapper interface {
+	HasCommand(string) bool
+	Preprocess()
+}
+
 var (
 	rootCmd = &cobra.Command{
 		Use:   "cwrapper",
@@ -30,6 +35,10 @@ var (
 		Long: `Wrapper of CraneSched commands.
 This is a highly EXPERIMENTAL feature. 
 If any error occurs, please refer to original commands.`,
+	}
+	registeredWrappers = []Wrapper{
+		LSFWrapper{},
+		SlurmWrapper{},
 	}
 )
 
@@ -56,33 +65,11 @@ func ParseCmdArgs() {
 		rootCmd.AddCommand(bkill())
 	}
 
-	/*
-		LSF recognizes single dash option only. Whereas the current CLI library
-		we are using does not support defining a shorthand-only flag, we
-		used a detour approach to imitate that behavior.
-
-		Check the subcommand name in `os.Args` before execute, if the name starts
-		with "b", deem it's a LSF command, and preprocess the arguments,
-		changing all single dash options to double dash.
-
-		This approach still has several issues:
-		- the options in command help info remain in double dash form
-		- the criteria of judging if a command belongs to LSF is unreliable,
-			considering more commands may be added in future
-
-		Need a thorough refactor later.
-	*/
-	if os.Args[1][0] == 'b' {
-		for i, v := range os.Args {
-			// skip program name and subcommand
-			if i <= 1 {
-				continue
-			}
-			if v == "--" {
-				break
-			} else if len(v) >= 2 && v[0] == '-' && v[1] != '-' {
-				os.Args[i] = "-" + v
-			}
+	for _, wrapper := range registeredWrappers {
+		cmd := os.Args[1]
+		if wrapper.HasCommand(cmd) {
+			wrapper.Preprocess()
+			break
 		}
 	}
 

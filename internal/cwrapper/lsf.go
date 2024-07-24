@@ -24,7 +24,9 @@ import (
 	"CraneFrontEnd/internal/cqueue"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +34,42 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
+
+type LSFWrapper struct {
+	commands []string
+}
+
+func (lsf *LSFWrapper) init() {
+	lsf.commands = []string{"bacct", "bsub", "bjobs", "bqueues", "bkill"}
+}
+
+func (lsf LSFWrapper) HasCommand(cmd string) bool {
+	if lsf.commands == nil {
+		lsf.init()
+	}
+	return slices.Contains(lsf.commands, cmd)
+}
+
+func (lsf LSFWrapper) Preprocess() {
+	/*
+		LSF recognizes single dash option only. Whereas the current CLI library
+		we are using does not support defining a shorthand-only flag.
+
+		We imitate that behavior by preprocess the `os.Args`, changing all
+		single dash options to double dash.
+	*/
+	for i, v := range os.Args {
+		// skip program name and subcommand
+		if i <= 1 {
+			continue
+		}
+		if v == "--" || v == "-h" {
+			break
+		} else if len(v) >= 2 && v[0] == '-' && v[1] != '-' {
+			os.Args[i] = "-" + v
+		}
+	}
+}
 
 var lsfGroup = &cobra.Group{
 	ID:    "lsf",
