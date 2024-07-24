@@ -98,6 +98,7 @@ func bacct() *cobra.Command {
 			cacct.FlagFilterUsers = strings.ReplaceAll(cacct.FlagFilterUsers, " ", ",")
 			cacct.FlagFilterStartTime = ConvertInterval(cacct.FlagFilterStartTime)
 			cacct.FlagFilterEndTime = ConvertInterval(cacct.FlagFilterEndTime)
+			println(cacct.FlagFilterEndTime)
 			cacct.FlagFilterSubmitTime = ConvertInterval(cacct.FlagFilterSubmitTime)
 			{
 				states := []string{}
@@ -311,6 +312,14 @@ func ConvertTime(t string, side string) (string, error) {
 		return t, errors.New("invalid LSF time format: " + t)
 	}
 	y, m, d, H, M := x[1], x[2], x[3], x[4], x[5]
+	var S string
+	if side == "left" {
+		S = "00"
+	} else if side == "right" {
+		S = "59"
+	} else {
+		return t, errors.New("invalid side")
+	}
 	if y == "" {
 		y = strconv.Itoa(curTime.Year())
 	}
@@ -334,5 +343,5 @@ func ConvertTime(t string, side string) (string, error) {
 			M = "59"
 		}
 	}
-	return fmt.Sprintf("%04s-%02s-%02sT%02s:%02s:00", y, m, d, H, M), nil
+	return fmt.Sprintf("%04s-%02s-%02sT%02s:%02s:%s", y, m, d, H, M, S), nil
 }
