@@ -509,7 +509,6 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		fallthrough
 	default:
 		util.InitLogger(log.InfoLevel)
-		log.SetReportCaller(false)
 	}
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
