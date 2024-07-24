@@ -477,9 +477,9 @@ func init() {
 			addQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Set the name of the QoS")
 			addQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set the description of the QoS")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
+			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -528,13 +528,13 @@ func init() {
 			// modifyAccountCmd.Flags().StringVarP(&FlagAccount.ParentAccount, "parent", "P", "", "Modify parent account")
 			modifyAccountCmd.Flags().StringVarP(&FlagAccount.DefaultQos, "default-qos", "Q", "", "Set default QoS of the account")
 
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set_allowed_partition", nil, "Overwrite allowed partitions of the account (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "add_allowed_partition", "", "Add a single partition to allowed partition list")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "delete_allowed_partition", "", "Delete a single partition from allowed partition list")
+			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the account (comma seperated list)")
+			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
+			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete a single partition from allowed partition list")
 
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set_allowed_qos_list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add_allowed_qos_list", "", "Add a single QoS to allowed QoS list")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete_allowed_qos_list", "", "Delete a single QoS from allowed QoS list")
+			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
+			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add a single QoS to allowed QoS list")
+			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete a single QoS from allowed QoS list")
 
 			// Other flags
 			modifyAccountCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced to operate")
@@ -556,15 +556,15 @@ func init() {
 
 			// Set flags
 			modifyUserCmd.Flags().StringVarP(&FlagUserDefaultQos, "default-qos", "Q", "", "Set default QoS of the user")
-			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin_level", "L", "", "Set admin level (none/operator/admin) of the user")
+			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin-level", "L", "", "Set admin level (none/operator/admin) of the user")
 
-			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set_allowed_partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add_allowed_partition", "", "Add a single partition to allowed partition list")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "delete_allowed_partition", "", "Delete a single partition to allowed partition list")
+			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
+			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
+			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete a single partition to allowed partition list")
 
-			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set_allowed_qos_list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add_allowed_qos_list", "", "Add a single QoS to allowed QoS list")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete_allowed_qos_list", "", "Delete a single QoS from allowed QoS list")
+			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
+			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add a single QoS to allowed QoS list")
+			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete a single QoS from allowed QoS list")
 
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
@@ -585,9 +585,9 @@ func init() {
 			// Set flags
 			modifyQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set description of the QoS")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max_jobs_per_user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max_cpus_per_user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max_time_limit_per_task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
+			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", uint64(util.InvalidDuration().Seconds), "Set the maximum time limit per job (in seconds)")
 
 			// Rules
 			if err := modifyQosCmd.MarkFlagRequired("name"); err != nil {
