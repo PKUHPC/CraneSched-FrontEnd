@@ -49,6 +49,6 @@ func init() {
 
 func InitLogger(level log.Level) {
 	log.SetLevel(level)
-	log.SetReportCaller(true)
+	log.SetReportCaller(false)
 	log.SetFormatter(&nested.Formatter{})
 }
