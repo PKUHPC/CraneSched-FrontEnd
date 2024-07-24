@@ -36,21 +36,30 @@ import (
 )
 
 type LSFWrapper struct {
-	commands []string
 }
 
-func (lsf *LSFWrapper) init() {
-	lsf.commands = []string{"bacct", "bsub", "bjobs", "bqueues", "bkill"}
+func (w LSFWrapper) Group() *cobra.Group {
+	return &cobra.Group{
+		ID:    "lsf",
+		Title: "LSF Commands:",
+	}
+}
+
+func (w LSFWrapper) SubCommands() []*cobra.Command {
+	return []*cobra.Command{
+		bacct(),
+		bsub(),
+		bjobs(),
+		bqueues(),
+		bkill(),
+	}
 }
 
 func (lsf LSFWrapper) HasCommand(cmd string) bool {
-	if lsf.commands == nil {
-		lsf.init()
-	}
-	return slices.Contains(lsf.commands, cmd)
+	return slices.Contains([]string{"bacct", "bsub", "bjobs", "bqueues", "bkill"}, cmd)
 }
 
-func (lsf LSFWrapper) Preprocess() {
+func (lsf LSFWrapper) Preprocess() error {
 	/*
 		LSF recognizes single dash option only. Whereas the CLI library cobra
 		does not support defining something like `-env`.
@@ -69,11 +78,8 @@ func (lsf LSFWrapper) Preprocess() {
 			os.Args[i] = "-" + v
 		}
 	}
-}
 
-var lsfGroup = &cobra.Group{
-	ID:    "lsf",
-	Title: "LSF Commands:",
+	return nil
 }
 
 var (

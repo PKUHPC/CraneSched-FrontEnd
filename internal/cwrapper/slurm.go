@@ -56,27 +56,36 @@ To sum up, ccontrol, cacctmgr, cbatch, calloc and crun are too complex or very s
 */
 
 type SlurmWrapper struct {
-	commands []string
 }
 
-func (slurm *SlurmWrapper) init() {
-	slurm.commands = []string{"sacct", "sacctmgr", "sbatch", "scancel", "scontrol", "sinfo", "squeue"}
-}
-
-func (slurm SlurmWrapper) HasCommand(cmd string) bool {
-	if slurm.commands == nil {
-		slurm.init()
+func (w SlurmWrapper) Group() *cobra.Group {
+	return &cobra.Group{
+		ID:    "slurm",
+		Title: "Slurm Commands:",
 	}
-	return slices.Contains(slurm.commands, cmd)
 }
 
-func (slurm SlurmWrapper) Preprocess() {
+func (w SlurmWrapper) SubCommands() []*cobra.Command {
+	return []*cobra.Command{
+		sacct(),
+		sacctmgr(),
+		salloc(),
+		sbatch(),
+		scancel(),
+		scontrol(),
+		sinfo(),
+		squeue(),
+		srun(),
+	}
+}
+
+func (w SlurmWrapper) HasCommand(cmd string) bool {
+	return slices.Contains([]string{"sacct", "sacctmgr", "sbatch", "scancel", "scontrol", "sinfo", "squeue"}, cmd)
+}
+
+func (w SlurmWrapper) Preprocess() error {
 	// Slurm commands do not need any preprocessing for os.Args
-}
-
-var slurmGroup = &cobra.Group{
-	ID:    "slurm",
-	Title: "Slurm Commands:",
+	return nil
 }
 
 func sacct() *cobra.Command {
