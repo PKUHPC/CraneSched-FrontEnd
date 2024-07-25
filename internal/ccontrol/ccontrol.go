@@ -38,8 +38,11 @@ var (
 )
 
 func formatGres(data *protos.DeviceMap) string {
-	var kvStrings []string
+	if data == nil {
+		return "None"
+	}
 
+	var kvStrings []string
 	for deviceName, typeCountMap := range data.NameTypeMap {
 		var typeCountPairs []string
 		for deviceType, count := range typeCountMap.TypeCountMap {
@@ -253,7 +256,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
 				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr,
 				timeSubmitStr, timeStartStr, timeEndStr, taskInfo.Partition,
-				taskInfo.GetCranedList(), resourcesType, taskInfo.NodeNum, taskInfo.AllocCpu, formatGres(taskInfo.GresPerNode),
+				taskInfo.GetCranedList(), resourcesType, taskInfo.NodeNum, taskInfo.AllocCpu, formatGres(taskInfo.GresReq),
 				taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}

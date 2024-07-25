@@ -525,7 +525,6 @@ message QueryActualGresRequest{
 message QueryActualGresReply{
   bool ok = 1;
   DedicatedResource dedicated_resource = 2;
-  map <string, string> slot_to_type_map = 3;
 }
 
 message StreamCrunRequest{
