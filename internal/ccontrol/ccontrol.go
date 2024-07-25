@@ -74,7 +74,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			LastBusyTimeStr := "unknown"
 			if !nodeFailed {
 				CranedVersion = nodeInfo.CranedVersion
-				CranedOs = fmt.Sprintf("%s %s %s", nodeInfo.SystemName, nodeInfo.SystemRelease, nodeInfo.SystemVersion)
+				CranedOs = nodeInfo.SystemName
 				SystemBootTime := nodeInfo.SystemBootTime.AsTime()
 				if !SystemBootTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 					SystemBootTimeStr = SystemBootTime.In(time.Local).Format("2006-01-02 15:04:05")
