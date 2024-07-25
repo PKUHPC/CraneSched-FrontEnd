@@ -227,6 +227,11 @@ func QueryJob() util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FormatterJSON.FormatQueryTasksInfoReply(reply))
+		return util.ErrorSuccess
+	}
+
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}

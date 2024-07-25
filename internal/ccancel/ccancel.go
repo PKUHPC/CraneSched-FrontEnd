@@ -75,6 +75,11 @@ func CancelTask(args []string) util.CraneCmdError {
 		os.Exit(util.ErrorNetwork)
 	}
 
+	if FlagJson {
+		fmt.Println(util.FormatterJSON.FormatCancelTaskReply(reply))
+		return util.ErrorSuccess
+	}
+
 	if len(reply.CancelledTasks) > 0 {
 		cancelledTasksStr := strconv.FormatUint(uint64(reply.CancelledTasks[0]), 10)
 		for i := 1; i < len(reply.CancelledTasks); i++ {

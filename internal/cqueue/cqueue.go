@@ -35,7 +35,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query() util.CraneCmdError {
+func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
@@ -54,7 +54,7 @@ func Query() util.CraneCmdError {
 				has_all = true
 			default:
 				log.Errorf("Invalid state given: %s.\n", filterStateList[i])
-				return util.ErrorCmdArg
+				return nil, util.ErrorCmdArg
 			}
 		}
 		if !has_all {
@@ -90,21 +90,33 @@ func Query() util.CraneCmdError {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 			if err != nil {
 				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
-				return util.ErrorCmdArg
+				return nil, util.ErrorCmdArg
 			}
 			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
 		}
 		req.FilterTaskIds = filterJobIdListInt
 	}
-
 	if FlagNumLimit != 0 {
 		req.NumLimit = FlagNumLimit
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query job queue")
-		return util.ErrorNetwork
+	reply, err2 := stub.QueryTasksInfo(context.Background(), &req)
+	if err2 != nil {
+		util.GrpcErrorPrintf(err2, "Failed to query job queue")
+		return nil, util.ErrorNetwork
+	}
+	return reply, util.ErrorSuccess
+}
+
+func Query() util.CraneCmdError {
+	reply, err := QueryTasksInfo()
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	if FlagJson {
+		fmt.Println(util.FormatterJSON.FormatQueryTasksInfoReply(reply))
+		return util.ErrorSuccess
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)

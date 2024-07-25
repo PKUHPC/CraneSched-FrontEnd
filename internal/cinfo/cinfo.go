@@ -134,6 +134,7 @@ func cinfoFunc() util.CraneCmdError {
 	} else {
 		table.Render()
 	}
+
 	if len(nodeList) != 0 {
 		replyNodes := ""
 		for _, partitionCraned := range reply.Partitions {

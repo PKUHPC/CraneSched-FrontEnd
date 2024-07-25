@@ -37,6 +37,7 @@ var (
 	FlagPriority       float64
 	FlagHoldTime       string
 	FlagConfigFilePath string
+	FlagJson           bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -215,6 +216,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
+	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in json format")
 
 	RootCmd.AddCommand(showCmd)
 	{

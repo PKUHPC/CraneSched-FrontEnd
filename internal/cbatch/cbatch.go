@@ -273,6 +273,10 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FormatterJSON.FormatSubmitBatchTaskReply(reply))
+	}
+
 	if reply.GetOk() {
 		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
 		return util.ErrorSuccess
@@ -291,6 +295,10 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FormatterJSON.FormatSubmitBatchTasksReply(reply))
 	}
 
 	if len(reply.TaskIdList) > 0 {
