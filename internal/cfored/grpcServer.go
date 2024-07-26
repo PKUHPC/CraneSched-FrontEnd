@@ -199,19 +199,6 @@ func (keeper *CranedChannelKeeper) crunTaskStopAndRemoveChannel(taskId uint32, p
 		if _, exist := keeper.taskIdProcIdSetByCraned[cranedId]; !exist {
 			log.Errorf("CranedId %s should exist in CranedChannelKeeper", cranedId)
 		} else {
-			delete(keeper.taskIdProcIdSetByCraned[cranedId][taskId], procId)
-			if len(keeper.taskIdProcIdSetByCraned[cranedId][taskId]) == 0 {
-				delete(keeper.taskIdProcIdSetByCraned[cranedId], taskId)
-			}
-		}
-
-	}
-	keeper.taskIdProcIdMapMtx.Unlock()
-	keeper.taskIdProcIdMapMtx.Lock()
-	for _, cranedId := range cranedIds {
-		if _, exist := keeper.taskIdProcIdSetByCraned[cranedId]; !exist {
-			log.Errorf("CranedId %s should exist in CranedChannelKeeper", cranedId)
-		} else {
 			if _, exist := keeper.taskIdProcIdSetByCraned[cranedId][taskId]; !exist {
 				log.Errorf("CranedId %s taskId %d should exist in CranedChannelKeeper", cranedId, taskId)
 			} else {

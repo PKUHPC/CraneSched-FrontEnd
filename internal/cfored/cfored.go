@@ -103,6 +103,7 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 
 	var execCranedIds []string
 	cranedNum := atomic.Uint32{}
+	cranedNum.Store(0)
 	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
@@ -287,6 +288,7 @@ CforedCrunStateMachineLoop:
 						},
 					}
 					gVars.cforedRequestCtldChannel <- toCtldRequest
+					state = CrunWaitForwardEnd
 				} else {
 					log.Debug("[Cfored<->Crun] Connection to crun was broken.")
 				}
