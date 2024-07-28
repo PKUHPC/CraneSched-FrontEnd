@@ -17,17 +17,22 @@
 package util
 
 import (
+	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
-func RemoveFileIfExists(path string) bool {
-	if _, err := os.Stat(path); err == nil {
-		err := os.Remove(path)
-		if err != nil {
-			log.Fatalf("Failed to remove file %s: %s", path, err.Error())
-			return false
-		}
+func InitLogger(level string) {
+	switch level {
+	case "trace":
+		log.SetLevel(log.TraceLevel)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	default:
+		log.Warnf("Invalid log level %s, using info level", level)
+		log.SetLevel(log.InfoLevel)
 	}
-	return true
+	log.SetReportCaller(false)
+	log.SetFormatter(&nested.Formatter{})
 }

@@ -19,6 +19,7 @@ package util
 import (
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -27,7 +28,31 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"gopkg.in/yaml.v3"
 )
+
+func ParseConfig(configFilePath string) *Config {
+	confFile, err := os.ReadFile(configFilePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	config := &Config{}
+
+	err = yaml.Unmarshal(confFile, config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if config.CraneBaseDir == "" {
+		config.CraneBaseDir = "/var/crane/"
+	}
+
+	if config.CranedGoUnixSockPath == "" {
+		config.CranedGoUnixSockPath = config.CraneBaseDir + "craned/cfored.sock"
+	}
+
+	return config
+}
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
 	re := regexp.MustCompile(`^([0-9]+(\.?[0-9]*))([MmGgKkB]?)$`)
