@@ -31,6 +31,7 @@ var RootCmd = &cobra.Command{
 
 		// Parse plugin config
 		if cmd.Flags().Changed("plugin") {
+			log.Tracef("Using plugin config path: %s", FlagPluginConfig)
 			config.PluginConfigPath = FlagPluginConfig
 		}
 
@@ -46,6 +47,8 @@ var RootCmd = &cobra.Command{
 			util.InitLogger(gPluginConfig.LogLevel)
 		}
 
+		// Load plugins
+		log.Info("Loading plugins...")
 		if err := LoadPluginsByConfig(gPluginConfig.Plugins); err != nil {
 			log.Errorf("Failed to load plugins: %v", err)
 			os.Exit(util.ErrorCmdArg)
@@ -67,7 +70,7 @@ var RootCmd = &cobra.Command{
 			os.Exit(util.ErrorGeneric)
 		}
 
-		log.Infof("gRPC server listening on %s", gPluginConfig.SockPath)
+		log.Infof("gRPC server listening on %s.", gPluginConfig.SockPath)
 		if err := pd.Launch(socket); err != nil {
 			log.Fatalf("Failed to launch plugin daemon: %v", err)
 		}
@@ -93,7 +96,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.Flags().StringVarP(&FlagCraneConfig, "config", "c", util.DefaultConfigPath, "Path to CraneSched config file")
 	RootCmd.Flags().StringVarP(&FlagPluginConfig, "plugin", "p", "", "Path to cplugind config file (use path in CraneSched config if not set)")
-	RootCmd.Flags().StringVarP(&FlagDebugLevel, "debug-level", "", "", "Available Debug level (trace, debug, info)")
+	RootCmd.Flags().StringVarP(&FlagDebugLevel, "debug-level", "", "", "Available debug level (trace, debug, info)")
 }
 
 func ParseCmdArgs() {

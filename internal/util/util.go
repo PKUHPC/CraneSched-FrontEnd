@@ -33,27 +33,15 @@ type Config struct {
 }
 
 // Path = BaseDir + Dir + Name
-var (
-	DefaultConfigPath   string
-	DefaultCraneBaseDir string
-
-	DefaultPluginConfigPath string
-	DefaultPluginSocketPath string
-
-	DefaultCforedSocketPath          string
-	DefaultCforedServerListenAddress string
-	DefaultCforedServerListenPort    string
-)
-
-func init() {
-	DefaultConfigPath = "/etc/crane/config.yaml"
-	DefaultPluginConfigPath = "/etc/crane/plugin.yaml"
-
+const (
+	DefaultConfigPath   = "/etc/crane/config.yaml"
 	DefaultCraneBaseDir = "/var/crane/"
 
+	DefaultPluginConfigPath = "/etc/crane/plugin.yaml"
 	DefaultPluginSocketPath = "cranectld/cplugind.sock"
+
 	DefaultCforedSocketPath = "craned/cfored.sock"
 
 	DefaultCforedServerListenAddress = "0.0.0.0"
-	DefaultCforedServerListenPort = "10012"
-}
+	DefaultCforedServerListenPort    = "10012"
+)
