@@ -1,0 +1,7 @@
+# Relative to CraneBaseDir
+PlugindSockPath: "cplugind.sock"
+PlugindDebugLevel: "info"
+
+Plugins:
+  - Name: "dummy"
+    Path: "/path/to/dummy.so"
