@@ -28,18 +28,32 @@ type Config struct {
 
 	CraneBaseDir         string `yaml:"CraneBaseDir"`
 	CranedGoUnixSockPath string `yaml:"CranedGoUnixSockPath"`
+
+	PluginConfigPath string `yaml:"PluginConfigPath"`
 }
 
+// Path = BaseDir + Dir + Name
 var (
-	DefaultConfigPath                string
-	DefaultPluginConfig              string
+	DefaultConfigPath   string
+	DefaultCraneBaseDir string
+
+	DefaultPluginConfigPath string
+	DefaultPluginSocketPath string
+
+	DefaultCforedSocketPath          string
 	DefaultCforedServerListenAddress string
 	DefaultCforedServerListenPort    string
 )
 
 func init() {
 	DefaultConfigPath = "/etc/crane/config.yaml"
-	DefaultPluginConfig = "/etc/crane/plugin.yaml"
+	DefaultPluginConfigPath = "/etc/crane/plugin.yaml"
+
+	DefaultCraneBaseDir = "/var/crane/"
+
+	DefaultPluginSocketPath = "cranectld/cplugind.sock"
+	DefaultCforedSocketPath = "craned/cfored.sock"
+
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort = "10012"
 }

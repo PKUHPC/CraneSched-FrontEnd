@@ -2,6 +2,7 @@ package cplugind
 
 import (
 	"CraneFrontEnd/api"
+	"CraneFrontEnd/internal/util"
 	"fmt"
 	"os"
 	"plugin"
@@ -35,6 +36,12 @@ func ParsePluginConfig(path string) error {
 	gPluginConfig = PluginConfig{}
 	if err = yaml.Unmarshal(config, &gPluginConfig); err != nil {
 		return err
+	}
+
+	if gPluginConfig.SockPath == "" {
+		gPluginConfig.SockPath = util.DefaultCraneBaseDir + util.DefaultPluginSocketPath
+	} else {
+		gPluginConfig.SockPath = util.DefaultCraneBaseDir + gPluginConfig.SockPath
 	}
 
 	return nil

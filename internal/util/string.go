@@ -44,11 +44,17 @@ func ParseConfig(configFilePath string) *Config {
 	}
 
 	if config.CraneBaseDir == "" {
-		config.CraneBaseDir = "/var/crane/"
+		config.CraneBaseDir = DefaultCraneBaseDir
 	}
 
 	if config.CranedGoUnixSockPath == "" {
-		config.CranedGoUnixSockPath = config.CraneBaseDir + "craned/cfored.sock"
+		config.CranedGoUnixSockPath = config.CraneBaseDir + DefaultCforedSocketPath
+	} else {
+		config.CranedGoUnixSockPath = config.CraneBaseDir + config.CranedGoUnixSockPath
+	}
+
+	if config.PluginConfigPath == "" {
+		config.PluginConfigPath = DefaultPluginConfigPath
 	}
 
 	return config
