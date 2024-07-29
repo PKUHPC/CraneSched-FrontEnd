@@ -57,12 +57,12 @@ func formatGres(data *protos.DeviceMap) string {
 			kvStrings = append(kvStrings, fmt.Sprintf("%s:%s", deviceName, typeCountPair))
 		}
 	}
-
-	kvstring := strings.Join(kvStrings, ", ")
-	if len(kvstring) == 0 {
-		return "0"
+	if len(kvStrings) == 0 {
+		return "None"
 	}
-	return kvstring
+	kvString := strings.Join(kvStrings, ", ")
+
+	return kvString
 }
 
 func formatMemToMB(data uint64) string {
