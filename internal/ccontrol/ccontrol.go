@@ -37,7 +37,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func formatGres(data *protos.DeviceMap) string {
+func formatDeviceMap(data *protos.DeviceMap) string {
 	if data == nil {
 		return "None"
 	}
@@ -55,6 +55,35 @@ func formatGres(data *protos.DeviceMap) string {
 		}
 		for _, typeCountPair := range typeCountPairs {
 			kvStrings = append(kvStrings, fmt.Sprintf("%s:%s", deviceName, typeCountPair))
+		}
+	}
+	if len(kvStrings) == 0 {
+		return "None"
+	}
+	kvString := strings.Join(kvStrings, ", ")
+
+	return kvString
+}
+
+func formatDedicatedResource(data *protos.DedicatedResource) string {
+	if data == nil {
+		return "None"
+	}
+
+	var kvStrings []string
+	for _, gres := range data.EachNodeGres {
+
+		for deviceName, typeCountMap := range gres.NameTypeMap {
+			var typeCountPairs []string
+			for deviceType, slots := range typeCountMap.TypeSlotsMap {
+				slotsSize := len(slots.Slots)
+				if slotsSize != 0 {
+					typeCountPairs = append(typeCountPairs, fmt.Sprintf("%s:%d", deviceType, slotsSize))
+				}
+			}
+			for _, typeCountPair := range typeCountPairs {
+				kvStrings = append(kvStrings, fmt.Sprintf("%s:%s", deviceName, typeCountPair))
+			}
 		}
 	}
 	if len(kvStrings) == 0 {
@@ -95,11 +124,15 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 					"\tRealMemory=%s AllocMem=%s FreeMem=%s\n"+
 					"\tGres=%s AllocGres=%s FreeGres=%s\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
-					nodeInfo.Hostname, stateStr, nodeInfo.Cpu,
-					math.Abs(nodeInfo.AllocCpu),
-					math.Abs(nodeInfo.FreeCpu),
-					formatMemToMB(nodeInfo.RealMem), formatMemToMB(nodeInfo.AllocMem), formatMemToMB(nodeInfo.FreeMem),
-					formatGres(nodeInfo.Device), formatGres(nodeInfo.AllocDevice), formatGres(nodeInfo.AvailDevice),
+					nodeInfo.Hostname, stateStr, math.Abs(nodeInfo.ResTotal.AllocatableResource.CpuCoreLimit),
+					math.Abs(nodeInfo.ResAlloc.AllocatableResource.CpuCoreLimit),
+					math.Abs(nodeInfo.ResAvail.AllocatableResource.CpuCoreLimit),
+					formatMemToMB(nodeInfo.ResTotal.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(nodeInfo.ResAlloc.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(nodeInfo.ResAvail.AllocatableResource.MemorySwLimitBytes),
+					formatDedicatedResource(nodeInfo.ResTotal.GetActualDedicatedResource()),
+					formatDedicatedResource(nodeInfo.ResAlloc.GetActualDedicatedResource()),
+					formatDedicatedResource(nodeInfo.ResAvail.GetActualDedicatedResource()),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -116,9 +149,15 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 					"\tRealMemory=%s AllocMem=%s FreeMem=%s\n"+
 					"\tGres=%s AllocGres=%s FreeGres=%s\n"+
 					"\tPatition=%s RunningJob=%d\n\n",
-					nodeInfo.Hostname, stateStr, nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
-					formatMemToMB(nodeInfo.RealMem), formatMemToMB(nodeInfo.AllocMem), formatMemToMB(nodeInfo.FreeMem),
-					formatGres(nodeInfo.Device), formatGres(nodeInfo.AllocDevice), formatGres(nodeInfo.AvailDevice),
+					nodeInfo.Hostname, stateStr, math.Abs(nodeInfo.ResTotal.AllocatableResource.CpuCoreLimit),
+					math.Abs(nodeInfo.ResAlloc.AllocatableResource.CpuCoreLimit),
+					math.Abs(nodeInfo.ResAvail.AllocatableResource.CpuCoreLimit),
+					formatMemToMB(nodeInfo.ResTotal.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(nodeInfo.ResAlloc.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(nodeInfo.ResAvail.AllocatableResource.MemorySwLimitBytes),
+					formatDedicatedResource(nodeInfo.ResTotal.GetActualDedicatedResource()),
+					formatDedicatedResource(nodeInfo.ResAlloc.GetActualDedicatedResource()),
+					formatDedicatedResource(nodeInfo.ResAvail.GetActualDedicatedResource()),
 					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
 		}
@@ -147,9 +186,15 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 					"\tHostList=%v\n\n",
 					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
-					formatMemToMB(partitionInfo.TotalMem), formatMemToMB(partitionInfo.AvailMem), formatMemToMB(partitionInfo.AllocMem),
-					formatGres(partitionInfo.Device), formatGres(partitionInfo.AvailDevice), formatGres(partitionInfo.AllocDevice),
+					math.Abs(partitionInfo.ResTotal.AllocatableResource.CpuCoreLimit),
+					math.Abs(partitionInfo.ResAvail.AllocatableResource.CpuCoreLimit),
+					math.Abs(partitionInfo.ResAlloc.AllocatableResource.CpuCoreLimit),
+					formatMemToMB(partitionInfo.ResTotal.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(partitionInfo.ResAvail.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(partitionInfo.ResAlloc.AllocatableResource.MemoryLimitBytes),
+					formatDedicatedResource(partitionInfo.ResTotal.GetActualDedicatedResource()),
+					formatDedicatedResource(partitionInfo.ResAvail.GetActualDedicatedResource()),
+					formatDedicatedResource(partitionInfo.ResAlloc.GetActualDedicatedResource()),
 					partitionInfo.Hostlist)
 			}
 		}
@@ -166,9 +211,15 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 					"\tHostList=%v\n\n",
 					partitionInfo.Name, partitionInfo.State.String()[10:],
 					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
-					formatMemToMB(partitionInfo.TotalMem), formatMemToMB(partitionInfo.AvailMem), formatMemToMB(partitionInfo.AllocMem),
-					formatGres(partitionInfo.Device), formatGres(partitionInfo.AvailDevice), formatGres(partitionInfo.AllocDevice),
+					math.Abs(partitionInfo.ResTotal.AllocatableResource.CpuCoreLimit),
+					math.Abs(partitionInfo.ResAvail.AllocatableResource.CpuCoreLimit),
+					math.Abs(partitionInfo.ResAlloc.AllocatableResource.CpuCoreLimit),
+					formatMemToMB(partitionInfo.ResTotal.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(partitionInfo.ResAvail.AllocatableResource.MemoryLimitBytes),
+					formatMemToMB(partitionInfo.ResAlloc.AllocatableResource.MemoryLimitBytes),
+					formatDedicatedResource(partitionInfo.ResTotal.GetActualDedicatedResource()),
+					formatDedicatedResource(partitionInfo.ResAvail.GetActualDedicatedResource()),
+					formatDedicatedResource(partitionInfo.ResAlloc.GetActualDedicatedResource()),
 					partitionInfo.Hostlist)
 			}
 		}
@@ -256,7 +307,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 				taskInfo.TaskId, taskInfo.Name, taskInfo.Uid, taskInfo.Gid,
 				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr,
 				timeSubmitStr, timeStartStr, timeEndStr, taskInfo.Partition,
-				taskInfo.GetCranedList(), resourcesType, taskInfo.NodeNum, taskInfo.AllocCpu, formatGres(taskInfo.GresReq),
+				taskInfo.GetCranedList(), resourcesType, taskInfo.NodeNum, taskInfo.AllocCpu, formatDeviceMap(taskInfo.GresReq),
 				taskInfo.CmdLine, taskInfo.Cwd)
 		}
 	}
