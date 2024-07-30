@@ -2,8 +2,10 @@ package cplugind
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
 	"net"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -27,7 +29,8 @@ func NewPluginD(opts []grpc.ServerOption) *PluginDaemon {
 func (pd *PluginDaemon) Launch(socket net.Listener) error {
 	go func() {
 		if err := pd.Server.Serve(socket); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Errorf("Failed to serve: %v", err)
+			os.Exit(util.ErrorGeneric)
 		}
 	}()
 

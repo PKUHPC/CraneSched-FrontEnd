@@ -31,10 +31,10 @@ var RootCmd = &cobra.Command{
 
 		// Parse plugin config
 		if cmd.Flags().Changed("plugin") {
-			log.Tracef("Using plugin config path: %s", FlagPluginConfig)
 			config.PluginConfigPath = FlagPluginConfig
 		}
 
+		log.Tracef("Using plugin config path: %s", config.PluginConfigPath)
 		if err := ParsePluginConfig(config.PluginConfigPath); err != nil {
 			log.Errorf("Failed to parse plugin config: %v", err)
 			os.Exit(util.ErrorCmdArg)
@@ -55,6 +55,7 @@ var RootCmd = &cobra.Command{
 		}
 
 		// Init plugins
+		log.Info("Initializing plugins...")
 		for _, p := range gPluginList {
 			if err := (*p).Init(); err != nil {
 				log.Errorf("Failed to init plugin: %v", err)
@@ -72,7 +73,8 @@ var RootCmd = &cobra.Command{
 
 		log.Infof("gRPC server listening on %s.", gPluginConfig.SockPath)
 		if err := pd.Launch(socket); err != nil {
-			log.Fatalf("Failed to launch plugin daemon: %v", err)
+			log.Errorf("Failed to launch plugin daemon: %v", err)
+			os.Exit(util.ErrorGeneric)
 		}
 
 		// Signal handling

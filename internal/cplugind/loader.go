@@ -51,7 +51,7 @@ func LoadPluginsByConfig(pl []PluginInfo) error {
 	gPluginList = make([]*api.Plugin, 0, len(pl))
 
 	for _, p := range pl {
-		log.Tracef("Loading plugin %s from %s", p.Name, p.Path)
+		log.Infof("Loading plugin %s from %s", p.Name, p.Path)
 
 		// Load by path
 		plg, err := plugin.Open(p.Path)

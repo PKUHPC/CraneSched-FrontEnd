@@ -1,10 +1,10 @@
 [Unit]
-Description=CraneSched-Cfored
+Description=CraneSched-Cplugind
 After=network.target nss-lookup.target
 
 [Service]
 User=root
-ExecStart=/usr/local/bin/cfored
+ExecStart=/usr/local/bin/cplugind
 KillSignal=SIGINT
 
 [Install]

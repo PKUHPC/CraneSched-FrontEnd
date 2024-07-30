@@ -1,7 +1,11 @@
-# Relative to CraneBaseDir
-PlugindSockPath: "cplugind.sock"
-PlugindDebugLevel: "info"
+# Toggle the plugin module in CraneSched
+Enabled: true
 
+# Relative to CraneBaseDir
+PlugindSockPath: "cranectld/cplugind.sock"
+PlugindDebugLevel: "trace"
+
+# Plugins to be loaded in Plugind
 Plugins:
   - Name: "dummy"
     Path: "/path/to/dummy.so"
