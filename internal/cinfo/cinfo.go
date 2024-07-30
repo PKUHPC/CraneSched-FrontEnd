@@ -105,8 +105,8 @@ func cinfoFunc() util.CraneCmdError {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
+	header := []string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"}
 	var tableData [][]string
-	table.SetHeader([]string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"})
 	for _, partitionCraned := range reply.Partitions {
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {
@@ -126,6 +126,9 @@ func cinfoFunc() util.CraneCmdError {
 		}
 	}
 	table.AppendBulk(tableData)
+	if !FlagNoHeader {
+		table.SetHeader(header)
+	}
 	if len(tableData) == 0 {
 		log.Info("No matching partitions were found for the given filter.")
 	} else {

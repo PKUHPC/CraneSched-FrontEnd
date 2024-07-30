@@ -19,6 +19,7 @@ package cbatch
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -86,6 +87,57 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 		return errors.New("fields out of bound")
 	}
 	return nil
+}
+
+// for LSF args
+type lLineProcessor struct {
+	mapping map[string]string
+}
+
+func (l *lLineProcessor) init() {
+	l.mapping = map[string]string{
+		"-J": "-J", "-o": "-o", "-e": "-e", "-nnode": "--nodes",
+		"-n": "--ntasks-per-node", "-W": "--time", "-M": "--mem", "-cwd": "--chdir",
+		"-q": "--partition", "-env": "--export",
+	}
+}
+
+func (l *lLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) error {
+	if l.mapping == nil {
+		l.init()
+	}
+	split := strings.Fields(line)
+	if len(split) == 3 {
+		if name, ok := l.mapping[split[1]]; ok {
+			val := split[2]
+			if name == "--time" {
+				val = ConvertLSFRuntimeLimit(val)
+			}
+			*args = append(*args, CbatchArg{name: name, val: val})
+		} else {
+			log.Warnf("LSF option %v is not supported", split[1])
+		}
+	} else {
+		return fmt.Errorf("line `%v` is not supported by cwrapper", line)
+	}
+	return nil
+}
+
+func ConvertLSFRuntimeLimit(t string) string {
+	if t == "" {
+		return t
+	}
+	// [hour:]minute
+	re := regexp.MustCompile(`(?:(\d+):)(\d+)`)
+	x := re.FindStringSubmatch(t)
+	if x[0] != t {
+		log.Fatalf("Failed to parse LSF time format: %s\n", t)
+	}
+	H, M := x[1], x[2]
+	if H == "" {
+		H = "0"
+	}
+	return fmt.Sprintf("%s:%s:0", H, M)
 }
 
 // for sh commands
