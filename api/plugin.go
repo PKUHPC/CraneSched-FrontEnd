@@ -5,8 +5,8 @@ type Plugin interface {
 	// Init the plugin's basic information
 	Init() error
 
-	PreRunHook()
-	PostRunHook()
+	PreStartHook()
+	PostStartHook()
 	PreCompletionHook()
 	PostCompletionHook()
 }

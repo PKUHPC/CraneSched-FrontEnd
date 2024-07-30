@@ -45,20 +45,20 @@ func (pd *PluginDaemon) GracefulStop() {
 	pd.Server.GracefulStop()
 }
 
-func (pd *PluginDaemon) PreRunHook(context.Context, *protos.PreRunHookRequest) (*protos.PreRunHookReply, error) {
+func (pd *PluginDaemon) PreStartHook(context.Context, *protos.PreStartHookRequest) (*protos.PreStartHookReply, error) {
 	for _, p := range gPluginList {
-		(*p).PreRunHook()
+		(*p).PreStartHook()
 	}
 
-	return &protos.PreRunHookReply{}, nil
+	return &protos.PreStartHookReply{}, nil
 }
 
-func (pd *PluginDaemon) PostRunHook(context.Context, *protos.PostRunHookRequest) (*protos.PostRunHookReply, error) {
+func (pd *PluginDaemon) PostStartHook(context.Context, *protos.PostStartHookRequest) (*protos.PostStartHookReply, error) {
 	for _, p := range gPluginList {
-		(*p).PostRunHook()
+		(*p).PostStartHook()
 	}
 
-	return &protos.PostRunHookReply{}, nil
+	return &protos.PostStartHookReply{}, nil
 }
 
 func (pd *PluginDaemon) PreCompletionHook(context.Context, *protos.PreCompletionHookRequest) (*protos.PreCompletionHookReply, error) {

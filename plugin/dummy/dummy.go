@@ -21,12 +21,12 @@ func (dp DummyPlugin) Init() error {
 	return nil
 }
 
-func (dp DummyPlugin) PreRunHook() {
-	log.Infoln("PreRunHook is called!")
+func (dp DummyPlugin) PreStartHook() {
+	log.Infoln("PreStartHook is called!")
 }
 
-func (dp DummyPlugin) PostRunHook() {
-	log.Infoln("PostRunHook is called!")
+func (dp DummyPlugin) PostStartHook() {
+	log.Infoln("PostStartHook is called!")
 }
 
 func (dp DummyPlugin) PreCompletionHook() {
