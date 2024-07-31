@@ -542,8 +542,8 @@ func init() {
 			modifyAccountCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced to operate")
 
 			// Rules
-			modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
-			modifyAccountCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
+			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
+			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			if err := modifyAccountCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -558,7 +558,7 @@ func init() {
 
 			// Set flags
 			modifyUserCmd.Flags().StringVarP(&FlagUserDefaultQos, "default-qos", "Q", "", "Set default QoS of the user")
-			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin_level", "L", "", "Set admin level (none/operator/admin) of the user")
+			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin-level", "L", "", "Set admin level (none/operator/admin) of the user")
 
 			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
 			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
@@ -572,8 +572,8 @@ func init() {
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
 
 			// Rules
-			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set_allowed_partition", "add_allowed_partition", "delete_allowed_partition")
-			modifyUserCmd.MarkFlagsMutuallyExclusive("set_allowed_qos_list", "add_allowed_qos_list", "delete_allowed_qos_list")
+			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
+			modifyUserCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
