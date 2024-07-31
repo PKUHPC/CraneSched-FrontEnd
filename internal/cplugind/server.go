@@ -1,6 +1,7 @@
 package cplugind
 
 import (
+	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
@@ -45,34 +46,54 @@ func (pd *PluginDaemon) GracefulStop() {
 	pd.Server.GracefulStop()
 }
 
-func (pd *PluginDaemon) PreStartHook(context.Context, *protos.PreStartHookRequest) (*protos.PreStartHookReply, error) {
+func (pd *PluginDaemon) PreStartHook(ctx context.Context, req *protos.PreStartHookRequest) (*protos.PreStartHookReply, error) {
+	reply := &protos.PreStartHookReply{}
+	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		(*p).PreStartHook()
+		hs = append(hs, (*p).PreStartHook)
 	}
 
-	return &protos.PreStartHookReply{}, nil
+	c := api.NewContext(ctx, req, api.PreStartHook, &hs)
+	c.Start()
+
+	return reply, nil
 }
 
-func (pd *PluginDaemon) PostStartHook(context.Context, *protos.PostStartHookRequest) (*protos.PostStartHookReply, error) {
+func (pd *PluginDaemon) PostStartHook(ctx context.Context, req *protos.PostStartHookRequest) (*protos.PostStartHookReply, error) {
+	reply := &protos.PostStartHookReply{}
+	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		(*p).PostStartHook()
+		hs = append(hs, (*p).PostStartHook)
 	}
 
-	return &protos.PostStartHookReply{}, nil
+	c := api.NewContext(ctx, req, api.PostStartHook, &hs)
+	c.Start()
+
+	return reply, nil
 }
 
-func (pd *PluginDaemon) PreCompletionHook(context.Context, *protos.PreCompletionHookRequest) (*protos.PreCompletionHookReply, error) {
+func (pd *PluginDaemon) PreCompletionHook(ctx context.Context, req *protos.PreCompletionHookRequest) (*protos.PreCompletionHookReply, error) {
+	reply := &protos.PreCompletionHookReply{}
+	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		(*p).PreCompletionHook()
+		hs = append(hs, (*p).PreCompletionHook)
 	}
 
-	return &protos.PreCompletionHookReply{}, nil
+	c := api.NewContext(ctx, req, api.PreCompletionHook, &hs)
+	c.Start()
+
+	return reply, nil
 }
 
-func (pd *PluginDaemon) PostCompletionHook(context.Context, *protos.PostCompletionHookRequest) (*protos.PostCompletionHookReply, error) {
+func (pd *PluginDaemon) PostCompletionHook(ctx context.Context, req *protos.PostCompletionHookRequest) (*protos.PostCompletionHookReply, error) {
+	reply := &protos.PostCompletionHookReply{}
+	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		(*p).PostCompletionHook()
+		hs = append(hs, (*p).PostCompletionHook)
 	}
 
-	return &protos.PostCompletionHookReply{}, nil
+	c := api.NewContext(ctx, req, api.PostCompletionHook, &hs)
+	c.Start()
+
+	return reply, nil
 }
