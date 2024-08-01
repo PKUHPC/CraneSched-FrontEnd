@@ -4,7 +4,6 @@ package main
 import (
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
-	"fmt"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -40,7 +39,7 @@ func (dp DummyPlugin) PreStartHook(ctx *api.PluginContext) {
 		return
 	}
 
-	fmt.Printf("PreStartHookReq: \n%v\n", req.String())
+	log.Tracef("PreStartHookReq: \n%v\n", req.String())
 }
 
 func (dp DummyPlugin) PostStartHook(ctx *api.PluginContext) {
@@ -52,7 +51,7 @@ func (dp DummyPlugin) PostStartHook(ctx *api.PluginContext) {
 		return
 	}
 
-	fmt.Printf("PostStartHookReq: \n%v\n", req.String())
+	log.Tracef("PostStartHookReq: \n%v\n", req.String())
 }
 
 func (dp DummyPlugin) PreCompletionHook(ctx *api.PluginContext) {
@@ -64,7 +63,7 @@ func (dp DummyPlugin) PreCompletionHook(ctx *api.PluginContext) {
 		return
 	}
 
-	fmt.Printf("PreCompletionHookReq: \n%v\n", req.String())
+	log.Tracef("PreCompletionHookReq: \n%v\n", req.String())
 }
 
 func (dp DummyPlugin) PostCompletionHook(ctx *api.PluginContext) {
@@ -76,7 +75,7 @@ func (dp DummyPlugin) PostCompletionHook(ctx *api.PluginContext) {
 		return
 	}
 
-	fmt.Printf("PostCompletionHookReq: \n%v\n", req.String())
+	log.Tracef("PostCompletionHookReq: \n%v\n", req.String())
 }
 
 func main() {

@@ -23,11 +23,11 @@ type Plugin interface {
 	Version() string
 
 	/*
-		Hook processing functions, general notes:
-		@param ctx: The context of the plugin, which can store some data.
-					The output of the plugin should be stored in the context.
-		@param req: The original request of the hook.
-		For all the hooks, the plugin should return an error if the hook fails
+		Hook processing functions:
+			@param ctx: The context of the plugin. Request and other data could
+						be accessed from the context.
+			            The output of the plugin should be stored in the context.
+		See PluginContext for details.
 	*/
 	PreStartHook(ctx *PluginContext)
 	PostStartHook(ctx *PluginContext)

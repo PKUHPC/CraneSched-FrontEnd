@@ -48,6 +48,9 @@ func (pd *PluginDaemon) GracefulStop() {
 
 func (pd *PluginDaemon) PreStartHook(ctx context.Context, req *protos.PreStartHookRequest) (*protos.PreStartHookReply, error) {
 	reply := &protos.PreStartHookReply{}
+
+	// TODO: Maybe we should make a slice after loading plugins
+	// instead of generating it every time.
 	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
 		hs = append(hs, (*p).PreStartHook)
