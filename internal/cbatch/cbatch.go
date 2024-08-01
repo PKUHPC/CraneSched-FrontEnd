@@ -261,14 +261,14 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	ofile := task.GetBatchMeta().OutputFilePattern
 	if i := strings.LastIndex(ofile, "/"); len(ofile) > i+FILE_MAX {
 		fname := ofile[i+1:]
-		trimmed := fname[len(fname)-FILE_MAX:]
+		trimmed := ofile[:i+1] + fname[len(fname)-FILE_MAX:]
 		task.GetBatchMeta().OutputFilePattern = trimmed
 		log.Warnf("Output file name exceeds %v characters, trimmed to %v.\n", FILE_MAX, trimmed)
 	}
 	efile := task.GetBatchMeta().ErrorFilePattern
 	if i := strings.LastIndex(efile, "/"); len(efile) > i+FILE_MAX {
 		fname := efile[i+1:]
-		trimmed := fname[len(fname)-FILE_MAX:]
+		trimmed := efile[:i+1] + fname[len(fname)-FILE_MAX:]
 		task.GetBatchMeta().ErrorFilePattern = trimmed
 		log.Warnf("Error file name exceeds %v characters, trimmed to %v.\n", FILE_MAX, trimmed)
 	}
