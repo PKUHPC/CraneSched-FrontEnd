@@ -46,33 +46,48 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
-	var B2MBRatio uint64 = 1024 * 1024
-
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatQueryNodeInfoReply(reply))
+		fmt.Println(util.FormatterJSON.FormatReply(reply))
 		return util.ErrorSuccess
 	}
 
-	if len(reply.CranedInfoList) == 0 {
-		if queryAll {
+	var B2MBRatio uint64 = 1024 * 1024
+
+	if queryAll {
+		if len(reply.CranedInfoList) == 0 {
 			fmt.Println("No node is available.")
 		} else {
-			fmt.Printf("Node %s not found.\n", nodeName)
+			for _, nodeInfo := range reply.CranedInfoList {
+				stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
+				if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
+					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
+				}
+				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
+					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tPatition=%s RunningJob=%d\n\n",
+					nodeInfo.Hostname, stateStr, nodeInfo.Cpu,
+					math.Abs(nodeInfo.AllocCpu),
+					math.Abs(nodeInfo.FreeCpu),
+					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
+					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
+			}
 		}
 	} else {
-		for _, nodeInfo := range reply.CranedInfoList {
-			stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
-			if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
-				stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
+		if len(reply.CranedInfoList) == 0 {
+			fmt.Printf("Node %s not found.\n", nodeName)
+		} else {
+			for _, nodeInfo := range reply.CranedInfoList {
+				stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
+				if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
+					stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
+				}
+				fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
+					"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
+					"\tPatition=%s RunningJob=%d\n\n",
+					nodeInfo.Hostname, stateStr, nodeInfo.Cpu, nodeInfo.AllocCpu, nodeInfo.FreeCpu,
+					nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
+					strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 			}
-			fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
-				"\tRealMemory=%dM AllocMem=%dM FreeMem=%dM\n"+
-				"\tPatition=%s RunningJob=%d\n\n",
-				nodeInfo.Hostname, stateStr, nodeInfo.Cpu,
-				math.Abs(nodeInfo.AllocCpu),
-				math.Abs(nodeInfo.FreeCpu),
-				nodeInfo.RealMem/B2MBRatio, nodeInfo.AllocMem/B2MBRatio, nodeInfo.FreeMem/B2MBRatio,
-				strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum)
 		}
 	}
 	return util.ErrorSuccess
@@ -86,29 +101,42 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
-	var B2MBRatio uint64 = 1024 * 1024
-
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatQueryPartitionInfoReply(reply))
+		fmt.Println(util.FormatterJSON.FormatReply(reply))
 		return util.ErrorSuccess
 	}
 
-	if len(reply.PartitionInfo) == 0 {
-		if queryAll {
+	var B2MBRatio uint64 = 1024 * 1024
+
+	if queryAll {
+		if len(reply.PartitionInfo) == 0 {
 			fmt.Println("No node is available.")
 		} else {
-			fmt.Printf("Partition %s not found.\n", partitionName)
+			for _, partitionInfo := range reply.PartitionInfo {
+				fmt.Printf("PartitionName=%v State=%v\n"+
+					"\tTotalNodes=%d AliveNodes=%d\n"+
+					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
+					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					partitionInfo.Name, partitionInfo.State.String()[10:],
+					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
+					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
+					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
+			}
 		}
 	} else {
-		for _, partitionInfo := range reply.PartitionInfo {
-			fmt.Printf("PartitionName=%v State=%v\n"+
-				"\tTotalNodes=%d AliveNodes=%d\n"+
-				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-				"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
-				partitionInfo.Name, partitionInfo.State.String()[10:],
-				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-				partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
-				partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
+		if len(reply.PartitionInfo) == 0 {
+			fmt.Printf("Partition %s not found.\n", partitionName)
+		} else {
+			for _, partitionInfo := range reply.PartitionInfo {
+				fmt.Printf("PartitionName=%v State=%v\n"+
+					"\tTotalNodes=%d AliveNodes=%d\n"+
+					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
+					"\tTotalMem=%dM AvailMem=%dM AllocMem=%dM\n\tHostList=%v\n\n",
+					partitionInfo.Name, partitionInfo.State.String()[10:],
+					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
+					partitionInfo.TotalCpu, partitionInfo.AvailCpu, partitionInfo.AllocCpu,
+					partitionInfo.TotalMem/B2MBRatio, partitionInfo.AvailMem/B2MBRatio, partitionInfo.AllocMem/B2MBRatio, partitionInfo.Hostlist)
+			}
 		}
 	}
 	return util.ErrorSuccess
@@ -136,7 +164,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatQueryTasksInfoReply(reply))
+		fmt.Println(util.FormatterJSON.FormatReply(reply))
 		return util.ErrorSuccess
 	}
 
@@ -265,8 +293,12 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatModifyTaskReply(reply))
-		return util.ErrorSuccess
+		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 
 	if reply.Ok {
@@ -369,6 +401,16 @@ func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
 		log.Errorf("ModifyJob failed: " + err.Error())
 		return util.ErrorNetwork
 	}
+
+	if FlagJson {
+		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
 	if reply.Ok {
 		fmt.Printf(holdType+" job %v success.\n", jobId)
 		return util.ErrorSuccess
@@ -408,8 +450,12 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatModifyTaskReply(reply))
-		return util.ErrorSuccess
+		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 
 	if reply.Ok {
@@ -453,8 +499,12 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatModifyCranedStateReply(reply))
-		return util.ErrorSuccess
+		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 
 	if reply.Ok {

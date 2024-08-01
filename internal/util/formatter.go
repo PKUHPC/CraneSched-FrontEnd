@@ -1,90 +1,41 @@
 package util
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util/marshal"
-	"encoding/json"
+	"os"
+
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type Formatter interface {
-	FormatQueryTasksInfoReply(*protos.QueryTasksInfoReply) string
-	FormatQueryPartitionInfoReply(*protos.QueryPartitionInfoReply) string
-	FormatQueryCranedInfoReply(*protos.QueryCranedInfoReply) string
-	FormatQueryClusterInfoReply(*protos.QueryClusterInfoReply) string
-
-	FormatModifyTaskReply(*protos.ModifyTaskReply) string
-	FormatModifyCranedStateReply(*protos.ModifyCranedStateReply) string
-	FormatSubmitBatchTaskReply(*protos.SubmitBatchTaskReply) string
-	FormatSubmitBatchTasksReply(*protos.SubmitBatchTasksReply) string
-	FormatCancelTaskReply(*protos.CancelTaskReply) string
+	Name() string
+	FormatReply(reply interface{}) string
 }
+
+// JSON
 
 type formatterJSON struct {
 }
 
-func (f *formatterJSON) FormatQueryTasksInfoReply(reply *protos.QueryTasksInfoReply) string {
-	data := marshal.TasksInfo{}
-	data.Load(reply)
-	output, _ := json.Marshal(data)
-	return string(output)
+func (f formatterJSON) Name() string {
+	return "json"
 }
 
-func (f *formatterJSON) FormatQueryPartitionInfoReply(reply *protos.QueryPartitionInfoReply) string {
-	data := marshal.PartitionInfo{}
-	data.Load(reply)
-	output, _ := json.Marshal(data)
-	return string(output)
+var mo = protojson.MarshalOptions{
+	EmitDefaultValues: true,
+	UseProtoNames:     true,
 }
 
-func (f *formatterJSON) FormatQueryNodeInfoReply(reply *protos.QueryCranedInfoReply) string {
-	data := marshal.NodeInfo{}
-	data.Load(reply)
-	output, _ := json.Marshal(data)
-	return string(output)
-}
-
-func (f *formatterJSON) FormatQueryClusterInfoReply(reply *protos.QueryClusterInfoReply) string {
-	data := marshal.ClusterInfo{}
-	data.Load(reply)
-	output, _ := json.Marshal(data)
-	return string(output)
-}
-
-func (f *formatterJSON) FormatModifyTaskReply(reply *protos.ModifyTaskReply) string {
-	data := marshal.ModifyInfo{}
-	data.Ok = reply.Ok
-	data.Reason = reply.Reason
-	output, _ := json.Marshal(data)
-	return string(output)
-}
-
-func (f *formatterJSON) FormatModifyCranedStateReply(reply *protos.ModifyCranedStateReply) string {
-	data := marshal.ModifyInfo{}
-	data.Ok = reply.Ok
-	data.Reason = reply.Reason
-	output, _ := json.Marshal(data)
-	return string(output)
-}
-
-func (f *formatterJSON) FormatSubmitBatchTaskReply(reply *protos.SubmitBatchTaskReply) string {
-	data := marshal.SubmitBatchTaskInfo{}
-	data.Load(reply)
-	output, _ := json.Marshal(data)
-	return string(output)
-}
-
-func (f *formatterJSON) FormatSubmitBatchTasksReply(reply *protos.SubmitBatchTasksReply) string {
-	data := marshal.SubmitBatchTasksInfo{}
-	data.Load(reply)
-	output, _ := json.Marshal(data)
-	return string(output)
-}
-
-func (f *formatterJSON) FormatCancelTaskReply(reply *protos.CancelTaskReply) string {
-	data := marshal.CancelInfo{}
-	data.Load(reply)
-	output, _ := json.Marshal(data)
-	return string(output)
+func (f formatterJSON) FormatReply(reply interface{}) string {
+	if msg, ok := reply.(protoreflect.ProtoMessage); ok {
+		output, _ := mo.Marshal(msg)
+		return string(output)
+	} else {
+		log.Fatalf("Type %T is not ProtoMessage.\n", reply)
+		os.Exit(ErrorInvalidFormat)
+	}
+	return ""
 }
 
 var FormatterJSON = formatterJSON{}

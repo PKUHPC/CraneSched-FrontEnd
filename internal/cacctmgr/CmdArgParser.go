@@ -53,6 +53,7 @@ var (
 
 	FlagForce          bool
 	FlagFull           bool
+	FlagJson           bool
 	FlagConfigFilePath string
 
 	// These flags are implemented,
@@ -442,6 +443,8 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json",
+		false, "Output in json format")
 
 	/* ---------------------------------------------------- add  ---------------------------------------------------- */
 	RootCmd.AddCommand(addCmd)
