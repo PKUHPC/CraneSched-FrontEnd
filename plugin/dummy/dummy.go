@@ -54,28 +54,28 @@ func (dp DummyPlugin) PostStartHook(ctx *api.PluginContext) {
 	log.Tracef("PostStartHookReq: \n%v\n", req.String())
 }
 
-func (dp DummyPlugin) PreCompletionHook(ctx *api.PluginContext) {
-	log.Infoln("PreCompletionHook is called!")
+func (dp DummyPlugin) PreEndHook(ctx *api.PluginContext) {
+	log.Infoln("PreEndHook is called!")
 
-	req, ok := ctx.Request().(*protos.PreCompletionHookRequest)
+	req, ok := ctx.Request().(*protos.PreEndHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected PreCompletionHookRequest.")
+		log.Errorln("Invalid request type, expected PreEndHookRequest.")
 		return
 	}
 
-	log.Tracef("PreCompletionHookReq: \n%v\n", req.String())
+	log.Tracef("PreEndHookReq: \n%v\n", req.String())
 }
 
-func (dp DummyPlugin) PostCompletionHook(ctx *api.PluginContext) {
-	log.Infoln("PostCompletionHook is called!")
+func (dp DummyPlugin) PostEndHook(ctx *api.PluginContext) {
+	log.Infoln("PostEndHook is called!")
 
-	req, ok := ctx.Request().(*protos.PostCompletionHookRequest)
+	req, ok := ctx.Request().(*protos.PostEndHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected PostCompletionHookRequest.")
+		log.Errorln("Invalid request type, expected PostEndHookRequest.")
 		return
 	}
 
-	log.Tracef("PostCompletionHookReq: \n%v\n", req.String())
+	log.Tracef("PostEndHookReq: \n%v\n", req.String())
 }
 
 func main() {

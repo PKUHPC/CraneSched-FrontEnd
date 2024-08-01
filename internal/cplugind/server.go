@@ -75,27 +75,27 @@ func (pd *PluginDaemon) PostStartHook(ctx context.Context, req *protos.PostStart
 	return reply, nil
 }
 
-func (pd *PluginDaemon) PreCompletionHook(ctx context.Context, req *protos.PreCompletionHookRequest) (*protos.PreCompletionHookReply, error) {
-	reply := &protos.PreCompletionHookReply{}
+func (pd *PluginDaemon) PreEndHook(ctx context.Context, req *protos.PreEndHookRequest) (*protos.PreEndHookReply, error) {
+	reply := &protos.PreEndHookReply{}
 	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		hs = append(hs, (*p).PreCompletionHook)
+		hs = append(hs, (*p).PreEndHook)
 	}
 
-	c := api.NewContext(ctx, req, api.PreCompletionHook, &hs)
+	c := api.NewContext(ctx, req, api.PreEndHook, &hs)
 	c.Start()
 
 	return reply, nil
 }
 
-func (pd *PluginDaemon) PostCompletionHook(ctx context.Context, req *protos.PostCompletionHookRequest) (*protos.PostCompletionHookReply, error) {
-	reply := &protos.PostCompletionHookReply{}
+func (pd *PluginDaemon) PostEndHook(ctx context.Context, req *protos.PostEndHookRequest) (*protos.PostEndHookReply, error) {
+	reply := &protos.PostEndHookReply{}
 	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		hs = append(hs, (*p).PostCompletionHook)
+		hs = append(hs, (*p).PostEndHook)
 	}
 
-	c := api.NewContext(ctx, req, api.PostCompletionHook, &hs)
+	c := api.NewContext(ctx, req, api.PostEndHook, &hs)
 	c.Start()
 
 	return reply, nil

@@ -5,8 +5,8 @@ type HookType uint8
 const (
 	PreStartHook HookType = iota
 	PostStartHook
-	PreCompletionHook
-	PostCompletionHook
+	PreEndHook
+	PostEndHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -31,6 +31,6 @@ type Plugin interface {
 	*/
 	PreStartHook(ctx *PluginContext)
 	PostStartHook(ctx *PluginContext)
-	PreCompletionHook(ctx *PluginContext)
-	PostCompletionHook(ctx *PluginContext)
+	PreEndHook(ctx *PluginContext)
+	PostEndHook(ctx *PluginContext)
 }
