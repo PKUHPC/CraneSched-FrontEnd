@@ -3,10 +3,8 @@ package api
 type HookType uint8
 
 const (
-	PreStartHook HookType = iota
-	PostStartHook
-	PreEndHook
-	PostEndHook
+	StartHook HookType = iota
+	EndHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -29,8 +27,6 @@ type Plugin interface {
 			            The output of the plugin should be stored in the context.
 		See PluginContext for details.
 	*/
-	PreStartHook(ctx *PluginContext)
-	PostStartHook(ctx *PluginContext)
-	PreEndHook(ctx *PluginContext)
-	PostEndHook(ctx *PluginContext)
+	StartHook(ctx *PluginContext)
+	EndHook(ctx *PluginContext)
 }

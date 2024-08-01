@@ -46,56 +46,27 @@ func (pd *PluginDaemon) GracefulStop() {
 	pd.Server.GracefulStop()
 }
 
-func (pd *PluginDaemon) PreStartHook(ctx context.Context, req *protos.PreStartHookRequest) (*protos.PreStartHookReply, error) {
-	reply := &protos.PreStartHookReply{}
-
-	// TODO: Maybe we should make a slice after loading plugins
-	// instead of generating it every time.
+func (pd *PluginDaemon) StartHook(ctx context.Context, req *protos.StartHookRequest) (*protos.StartHookReply, error) {
+	reply := &protos.StartHookReply{}
 	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		hs = append(hs, (*p).PreStartHook)
+		hs = append(hs, (*p).StartHook)
 	}
 
-	c := api.NewContext(ctx, req, api.PreStartHook, &hs)
+	c := api.NewContext(ctx, req, api.StartHook, &hs)
 	c.Start()
 
 	return reply, nil
 }
 
-func (pd *PluginDaemon) PostStartHook(ctx context.Context, req *protos.PostStartHookRequest) (*protos.PostStartHookReply, error) {
-	reply := &protos.PostStartHookReply{}
+func (pd *PluginDaemon) EndHook(ctx context.Context, req *protos.EndHookRequest) (*protos.EndHookReply, error) {
+	reply := &protos.EndHookReply{}
 	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginList {
-		hs = append(hs, (*p).PostStartHook)
+		hs = append(hs, (*p).EndHook)
 	}
 
-	c := api.NewContext(ctx, req, api.PostStartHook, &hs)
-	c.Start()
-
-	return reply, nil
-}
-
-func (pd *PluginDaemon) PreEndHook(ctx context.Context, req *protos.PreEndHookRequest) (*protos.PreEndHookReply, error) {
-	reply := &protos.PreEndHookReply{}
-	hs := make([]api.PluginHandler, 0)
-	for _, p := range gPluginList {
-		hs = append(hs, (*p).PreEndHook)
-	}
-
-	c := api.NewContext(ctx, req, api.PreEndHook, &hs)
-	c.Start()
-
-	return reply, nil
-}
-
-func (pd *PluginDaemon) PostEndHook(ctx context.Context, req *protos.PostEndHookRequest) (*protos.PostEndHookReply, error) {
-	reply := &protos.PostEndHookReply{}
-	hs := make([]api.PluginHandler, 0)
-	for _, p := range gPluginList {
-		hs = append(hs, (*p).PostEndHook)
-	}
-
-	c := api.NewContext(ctx, req, api.PostEndHook, &hs)
+	c := api.NewContext(ctx, req, api.EndHook, &hs)
 	c.Start()
 
 	return reply, nil

@@ -30,52 +30,28 @@ func (dp DummyPlugin) Version() string {
 	return "v0.0.1"
 }
 
-func (dp DummyPlugin) PreStartHook(ctx *api.PluginContext) {
-	log.Infoln("PreStartHook is called!")
+func (dp DummyPlugin) StartHook(ctx *api.PluginContext) {
+	log.Infoln("StartHook is called!")
 
-	req, ok := ctx.Request().(*protos.PreStartHookRequest)
+	req, ok := ctx.Request().(*protos.StartHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected PreStartHookRequest.")
+		log.Errorln("Invalid request type, expected StartHookRequest.")
 		return
 	}
 
-	log.Tracef("PreStartHookReq: \n%v\n", req.String())
+	log.Tracef("StartHookReq: \n%v\n", req.String())
 }
 
-func (dp DummyPlugin) PostStartHook(ctx *api.PluginContext) {
-	log.Infoln("PostStartHook is called!")
+func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
+	log.Infoln("EndHook is called!")
 
-	req, ok := ctx.Request().(*protos.PostStartHookRequest)
+	req, ok := ctx.Request().(*protos.EndHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected PostStartHookRequest.")
+		log.Errorln("Invalid request type, expected EndHookRequest.")
 		return
 	}
 
-	log.Tracef("PostStartHookReq: \n%v\n", req.String())
-}
-
-func (dp DummyPlugin) PreEndHook(ctx *api.PluginContext) {
-	log.Infoln("PreEndHook is called!")
-
-	req, ok := ctx.Request().(*protos.PreEndHookRequest)
-	if !ok {
-		log.Errorln("Invalid request type, expected PreEndHookRequest.")
-		return
-	}
-
-	log.Tracef("PreEndHookReq: \n%v\n", req.String())
-}
-
-func (dp DummyPlugin) PostEndHook(ctx *api.PluginContext) {
-	log.Infoln("PostEndHook is called!")
-
-	req, ok := ctx.Request().(*protos.PostEndHookRequest)
-	if !ok {
-		log.Errorln("Invalid request type, expected PostEndHookRequest.")
-		return
-	}
-
-	log.Tracef("PostEndHookReq: \n%v\n", req.String())
+	log.Tracef("EndHookReq: \n%v\n", req.String())
 }
 
 func main() {
