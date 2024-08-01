@@ -364,7 +364,11 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 }
 
 func loopedQuery(iterate uint64) util.CraneCmdError {
-	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	if err != nil {
+		log.Errorln("Invalid time interval.")
+		return util.ErrorCmdArg
+	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
 		err := Query()
