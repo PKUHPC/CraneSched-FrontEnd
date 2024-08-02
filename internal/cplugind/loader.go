@@ -11,20 +11,21 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-type PluginInfo struct {
-	Name string `yaml:"Name"`
-	Path string `yaml:"Path"`
+type PluginConfig struct {
+	SockPath string           `yaml:"PlugindSockPath"`
+	LogLevel string           `yaml:"PlugindDebugLevel"`
+	Plugins  []api.PluginMeta `yaml:"Plugins"`
 }
 
-type PluginConfig struct {
-	SockPath string       `yaml:"PlugindSockPath"`
-	LogLevel string       `yaml:"PlugindDebugLevel"`
-	Plugins  []PluginInfo `yaml:"Plugins"`
+type PluginLoaded struct {
+	api.Plugin
+
+	Meta api.PluginMeta
 }
 
 var (
 	gPluginConfig PluginConfig
-	gPluginList   []*api.Plugin
+	gPluginMap    map[string]*PluginLoaded
 )
 
 func ParsePluginConfig(path string) error {
@@ -47,8 +48,8 @@ func ParsePluginConfig(path string) error {
 	return nil
 }
 
-func LoadPluginsByConfig(pl []PluginInfo) error {
-	gPluginList = make([]*api.Plugin, 0, len(pl))
+func LoadPluginsByConfig(pl []api.PluginMeta) error {
+	gPluginMap = make(map[string]*PluginLoaded)
 
 	for _, p := range pl {
 		log.Infof("Loading plugin %s from %s", p.Name, p.Path)
@@ -68,9 +69,13 @@ func LoadPluginsByConfig(pl []PluginInfo) error {
 
 		castV, ok := v.(api.Plugin)
 		if !ok {
-			return fmt.Errorf("failed to cast plugin %s", p.Name)
+			return fmt.Errorf("failed to cast plugin instance %v", p.Name)
 		}
-		gPluginList = append(gPluginList, &castV)
+
+		gPluginMap[p.Name] = &PluginLoaded{
+			Plugin: castV,
+			Meta:   p,
+		}
 	}
 
 	return nil

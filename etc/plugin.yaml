@@ -9,3 +9,4 @@ PlugindDebugLevel: "trace"
 Plugins:
   - Name: "dummy"
     Path: "/path/to/dummy.so"
+    Config: "/path/to/dummy.yaml"

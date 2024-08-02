@@ -17,8 +17,8 @@ var PluginInstance = DummyPlugin{}
 type DummyPlugin struct{}
 
 // Init() is used to display plugin info when loading.
-func (dp DummyPlugin) Init() error {
-	log.Infoln("This is a dummy plugin.")
+func (dp DummyPlugin) Init(meta api.PluginMeta) error {
+	log.Infof("This is a dummy plugin. Metadata: %v", meta)
 	return nil
 }
 
@@ -39,7 +39,7 @@ func (dp DummyPlugin) StartHook(ctx *api.PluginContext) {
 		return
 	}
 
-	log.Tracef("StartHookReq: \n%v\n", req.String())
+	log.Tracef("StartHookReq: \n%v", req.String())
 }
 
 func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
@@ -51,7 +51,7 @@ func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
 		return
 	}
 
-	log.Tracef("EndHookReq: \n%v\n", req.String())
+	log.Tracef("EndHookReq: \n%v", req.String())
 }
 
 func main() {

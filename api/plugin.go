@@ -9,10 +9,16 @@ const (
 
 type PluginHandler func(*PluginContext)
 
+type PluginMeta struct {
+	Name   string `yaml:"Name"`
+	Path   string `yaml:"Path"`
+	Config string `yaml:"Config"`
+}
+
 // A plugin is a shared object that implements the Plugin interface
 type Plugin interface {
 	// Init the plugin
-	Init() error
+	Init(meta PluginMeta) error
 
 	// Get the plugin name
 	Name() string

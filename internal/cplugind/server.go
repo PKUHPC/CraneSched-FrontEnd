@@ -49,7 +49,7 @@ func (pd *PluginDaemon) GracefulStop() {
 func (pd *PluginDaemon) StartHook(ctx context.Context, req *protos.StartHookRequest) (*protos.StartHookReply, error) {
 	reply := &protos.StartHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	for _, p := range gPluginList {
+	for _, p := range gPluginMap {
 		hs = append(hs, (*p).StartHook)
 	}
 
@@ -62,7 +62,7 @@ func (pd *PluginDaemon) StartHook(ctx context.Context, req *protos.StartHookRequ
 func (pd *PluginDaemon) EndHook(ctx context.Context, req *protos.EndHookRequest) (*protos.EndHookReply, error) {
 	reply := &protos.EndHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	for _, p := range gPluginList {
+	for _, p := range gPluginMap {
 		hs = append(hs, (*p).EndHook)
 	}
 

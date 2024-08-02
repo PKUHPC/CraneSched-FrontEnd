@@ -56,8 +56,8 @@ var RootCmd = &cobra.Command{
 
 		// Init plugins
 		log.Info("Initializing plugins...")
-		for _, p := range gPluginList {
-			if err := (*p).Init(); err != nil {
+		for _, p := range gPluginMap {
+			if err := (*p).Init(p.Meta); err != nil {
 				log.Errorf("Failed to init plugin: %v", err)
 				os.Exit(util.ErrorGeneric)
 			}
