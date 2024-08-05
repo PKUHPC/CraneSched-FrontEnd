@@ -10,6 +10,7 @@ import (
 	"os/exec"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,9 +28,22 @@ type MailPlugin struct {
 	config
 }
 
+func (p *MailPlugin) parseExtraAttrInTask(t *protos.TaskInfo) (mailtype string, mailuser string, err error) {
+	if !gjson.Valid(t.ExtraAttr) {
+		return "", "", fmt.Errorf("invalid JSON string")
+	}
+
+	mailtype = gjson.Get(t.ExtraAttr, "mail.type").String()
+	mailuser = gjson.Get(t.ExtraAttr, "mail.user").String()
+
+	return mailtype, mailuser, nil
+}
+
 func (p *MailPlugin) subject(t *protos.TaskInfo) string {
+	mailtype := gjson.Get(t.ExtraAttr, "mail.type").String()
+
 	subject := fmt.Sprintf("[CraneSched] JobID=%v, Name=%v, MailType=%v, Status=%v",
-		t.TaskId, t.Name, t.MailType, t.Status.String())
+		t.TaskId, t.Name, mailtype, t.Status.String())
 
 	if t.Status != protos.TaskStatus_Running {
 		subject += fmt.Sprintf(", ElapsedTime=%v, ExitCode=%v", t.ElapsedTime, t.ExitCode)
@@ -111,10 +125,29 @@ func (p *MailPlugin) StartHook(ctx *api.PluginContext) {
 		return
 	}
 
-	// FIXME: Add mailtype filter
+	subject := ""
+	body := ""
 	for _, task := range req.GetTaskInfoList() {
-		if err := p.send(p.subject(task), p.body(task), task.MailUser, "", ""); err != nil {
-			log.Warnf("Failed to send mail: %v", err)
+		mailtype, mailuser, err := p.parseExtraAttrInTask(task)
+		if err != nil {
+			log.Tracef("Failed to parse extra attributes: %v", err)
+			continue
+		}
+
+		if mailtype == "" || mailuser == "" {
+			log.Tracef("Mail type or mail user not specified in job %v", task.TaskId)
+			continue
+		}
+
+		if mailtype == "ALL" || mailtype == "BEGIN" {
+			subject = p.subject(task)
+			if !p.SubjectOnly {
+				body = p.body(task)
+			}
+
+			if err := p.send(subject, body, mailuser, "", ""); err != nil {
+				log.Warnf("Failed to send mail: %v", err)
+			}
 		}
 	}
 }
@@ -126,10 +159,30 @@ func (p *MailPlugin) EndHook(ctx *api.PluginContext) {
 		return
 	}
 
-	// FIXME: Add mailtype filter
+	subject := ""
+	body := ""
 	for _, task := range req.GetTaskInfoList() {
-		if err := p.send(p.subject(task), p.body(task), task.MailUser, "", ""); err != nil {
-			log.Warnf("Failed to send mail: %v", err)
+		mailtype, mailuser, err := p.parseExtraAttrInTask(task)
+		if err != nil {
+			log.Tracef("Failed to parse extra attributes: %v", err)
+			continue
+		}
+
+		if mailtype == "" || mailuser == "" {
+			log.Tracef("Mail type or mail user not specified in job %v", task.TaskId)
+			continue
+		}
+
+		if mailtype == "ALL" || mailtype == "END" ||
+			(task.Status == protos.TaskStatus_Failed && mailtype == "FAIL") {
+			subject = p.subject(task)
+			if !p.SubjectOnly {
+				body = p.body(task)
+			}
+
+			if err := p.send(subject, body, mailuser, "", ""); err != nil {
+				log.Warnf("Failed to send mail: %v", err)
+			}
 		}
 	}
 }
