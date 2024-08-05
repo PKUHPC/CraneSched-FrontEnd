@@ -34,7 +34,6 @@ var RootCmd = &cobra.Command{
 			config.PluginConfigPath = FlagPluginConfig
 		}
 
-		log.Tracef("Using plugin config path: %s", config.PluginConfigPath)
 		if err := ParsePluginConfig(config.PluginConfigPath); err != nil {
 			log.Errorf("Failed to parse plugin config: %v", err)
 			os.Exit(util.ErrorCmdArg)

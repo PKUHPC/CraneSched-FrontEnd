@@ -28,18 +28,18 @@ type MailPlugin struct {
 }
 
 func (p *MailPlugin) subject(t *protos.TaskInfo) string {
-	subject := fmt.Sprintf("[CraneSched] Job_ID=%v, Name=%v, MailType=%v, Status=%v",
+	subject := fmt.Sprintf("[CraneSched] JobID=%v, Name=%v, MailType=%v, Status=%v",
 		t.TaskId, t.Name, t.MailType, t.Status.String())
 
 	if t.Status != protos.TaskStatus_Running {
-		subject += fmt.Sprintf(", Elapsed_Time=%v, Exit_Code=%v", t.ElapsedTime, t.ExitCode)
+		subject += fmt.Sprintf(", ElapsedTime=%v, ExitCode=%v", t.ElapsedTime, t.ExitCode)
 	}
 	return subject
 }
 
 func (p *MailPlugin) body(t *protos.TaskInfo) string {
 	body := fmt.Sprintf(
-		"Job ID: %v\nJob Name: %v\nStatus: %v\nWorking Dir: %v\nStart Time: %v\n",
+		"Job ID: %v\nJob Name: %v\nState: %v\nWorking Dir: %v\nStart Time: %v\n",
 		t.TaskId, t.Name, t.Status.String(), t.Cwd, t.StartTime)
 
 	if t.Status != protos.TaskStatus_Running {
@@ -47,8 +47,8 @@ func (p *MailPlugin) body(t *protos.TaskInfo) string {
 			t.EndTime, t.ElapsedTime, t.ExitCode)
 	}
 
-	// body += fmt.Sprintf("Node Number: %d\nNodes List: %s\n",
-	// 	t.NodeNum, , ", "))
+	body += fmt.Sprintf("Node Number: %d\nNodes List: %s\n",
+		t.NodeNum, t.GetCranedList())
 
 	body += "\nThis mail is automatically sent by CraneSched. Please do not reply.\n"
 

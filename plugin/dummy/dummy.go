@@ -16,14 +16,14 @@ var PluginInstance = DummyPlugin{}
 
 type DummyPlugin struct{}
 
-// Init() is used to display plugin info when loading.
 func (dp DummyPlugin) Init(meta api.PluginMeta) error {
-	log.Infof("This is a dummy plugin. Metadata: %v", meta)
+	log.Infof("Dummy plugin is loaded.")
+	log.Tracef("Metadata: %v", meta)
 	return nil
 }
 
 func (dp DummyPlugin) Name() string {
-	return "DummyPlugin"
+	return "Dummy"
 }
 
 func (dp DummyPlugin) Version() string {
