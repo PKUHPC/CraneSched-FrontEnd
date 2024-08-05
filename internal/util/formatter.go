@@ -9,17 +9,12 @@ import (
 )
 
 type Formatter interface {
-	Name() string
 	FormatReply(reply interface{}) string
 }
 
 // JSON
 
 type formatterJSON struct {
-}
-
-func (f formatterJSON) Name() string {
-	return "json"
 }
 
 var mo = protojson.MarshalOptions{
