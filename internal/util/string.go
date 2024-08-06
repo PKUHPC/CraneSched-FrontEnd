@@ -523,5 +523,8 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 			})
 		}
 	}
+	if len(task.Dependencies.Dependencies) > 50 {
+		return fmt.Errorf("dependency count should be no more than 50")
+	}
 	return nil
 }
