@@ -618,6 +618,13 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
 		log.Fatal("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
 	}
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	task.GetInteractiveMeta().ShScript = strings.Join(args, " ")
 	term, exits := syscall.Getenv("TERM")

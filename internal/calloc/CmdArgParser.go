@@ -36,6 +36,7 @@ var (
 	FlagCwd           string
 	FlagNodelist      string
 	FlagExcludes      string
+	FlagDependency    string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -74,4 +75,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 }

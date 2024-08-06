@@ -137,7 +137,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--mail-user":
 			task.MailUser = arg.val
 		case "--dependency", "-d":
-			err := SetTaskDependencies(task, arg.val)
+			err := util.SetTaskDependencies(task, arg.val)
 			if err != nil {
 				log.Error(err)
 				return false, nil
@@ -223,7 +223,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.MailUser = FlagMailUser
 	}
 	if FlagDependency != "" {
-		err := SetTaskDependencies(task, FlagDependency)
+		err := util.SetTaskDependencies(task, FlagDependency)
 		if err != nil {
 			log.Error(err)
 			return false, nil
@@ -393,58 +393,6 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 			}
 		}
 	}
-}
-
-func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
-	if strings.Contains(depStr, ",") && strings.Contains(depStr, "?") {
-		return fmt.Errorf("cannot use both ',' and '?' in the dependency string")
-	}
-	sep := ","
-	if strings.Contains(depStr, "?") {
-		sep = "?"
-	}
-	depend_all := (sep == ",")
-	if task.Dependencies != nil && depend_all != task.Dependencies.DependAll {
-		return fmt.Errorf("cannot merge dependency with different dependency types(, and ?)")
-	}
-	if task.Dependencies == nil {
-		task.Dependencies = &protos.Dependencies{
-			DependAll: depend_all,
-		}
-	}
-
-	depStr = strings.TrimSpace(depStr)
-	depStrList := strings.Split(depStr, sep)
-	for _, subDepStr := range depStrList {
-		dependencies := strings.Split(subDepStr, ":")
-		if len(dependencies) < 2 {
-			return fmt.Errorf("unrecognized dependency string: %s", subDepStr)
-		}
-		condition := new(protos.DependencyType)
-		switch dependencies[0] {
-		case "after":
-			*condition = protos.DependencyType_AFTER
-		case "afterok":
-			*condition = protos.DependencyType_AFTER_OK
-		case "afternotok":
-			*condition = protos.DependencyType_AFTER_NOT_OK
-		case "afterany":
-			*condition = protos.DependencyType_AFTER_ANY
-		default:
-			return fmt.Errorf("unrecognized dependency type: %s", dependencies[0])
-		}
-		for _, dep := range dependencies[1:] {
-			taskId, err := strconv.ParseUint(dep, 10, 32)
-			if err != nil {
-				return fmt.Errorf("invalid task id: %s", dep)
-			}
-			task.Dependencies.Dependencies = append(task.Dependencies.Dependencies, &protos.DependencyCondition{
-				TaskId: uint32(taskId),
-				Type:   *condition,
-			})
-		}
-	}
-	return nil
 }
 
 // Split the job script into two parts: the arguments and the shell script.
