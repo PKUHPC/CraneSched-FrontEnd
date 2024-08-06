@@ -307,8 +307,8 @@ func ConvertInterval(t string) string {
 
 func ConvertTime(t string, side string) (string, error) {
 	curTime := time.Now()
-	if t == "" {
-		return t, nil
+	if t == "" || t == "." {
+		return "", nil
 	}
 	// [year/][month/][day][/hour:minute|/hour:]
 	re := regexp.MustCompile(`(?:(\d{4})/)?(?:(\d+)/)?(\d+)?(?:/(\d+)\:(\d+)?)?`)
