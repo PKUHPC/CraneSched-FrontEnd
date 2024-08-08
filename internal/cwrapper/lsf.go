@@ -272,18 +272,6 @@ func bkill() *cobra.Command {
 	return cmd
 }
 
-// func bmod() *cobra.Command {
-// 	cmd := &cobra.Command{
-// 		Use:   "bmod [flags] [job_id ...]",
-// 		Short: "Wrapper of ccontrol update job",
-// 		Long:  "",
-// 		Run: func(cmd *cobra.Command, args []string) {
-// 			// todo
-// 		},
-// 	}
-// 	return cmd
-// }
-
 func ConvertInterval(t string) string {
 	if t == "" {
 		return t
