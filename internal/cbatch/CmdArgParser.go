@@ -125,5 +125,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
-	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in json format")
+	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 }

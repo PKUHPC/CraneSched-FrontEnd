@@ -108,5 +108,5 @@ func init() {
 	RootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
 		"Cancel jobs running on the specified nodes")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
-		"Output in json format.")
+		"Output in JSON format")
 }
