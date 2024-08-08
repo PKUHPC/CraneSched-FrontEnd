@@ -195,9 +195,6 @@ CrunStateMachineLoop:
 
 				switch cforedReply.Type {
 				case protos.StreamCforedCrunReply_TASK_RES_ALLOC_REPLY:
-					{
-						log.Fatalf("Expect TASK_RES_ALLOC_REPLY,but get %s\n", cforedReply.Type.String())
-					}
 					cforedPayload := cforedReply.GetPayloadTaskAllocReply()
 					Ok := cforedPayload.Ok
 
