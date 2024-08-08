@@ -248,7 +248,7 @@ func bkill() *cobra.Command {
 
 			if ignore_args {
 				args = nil
-			} else {
+			} else if len(args) > 0 {
 				args = []string{strings.Join(args, ",")}
 			}
 

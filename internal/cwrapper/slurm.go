@@ -149,11 +149,11 @@ func sacctmgr() *cobra.Command {
 		} else if arg == "priority" {
 			return "--priority", nil
 		} else if arg == "maxjobpu" || arg == "maxjobsperuser" {
-			return "--max_jobs_per_user", nil
+			return "--max-jobs-per-user", nil
 		} else if arg == "maxcpupu" || arg == "maxcpuperuser" {
-			return "--max_cpus_per_user", nil
+			return "--max-cpus-per-user", nil
 		} else if arg == "maxwall" || arg == "maxwalldurationperjob" {
-			return "--max_time_limit_per_task", nil
+			return "--max-time-limit-per-task", nil
 		} else {
 			return arg, errors.New("Unsupported arguments: " + arg)
 		}
@@ -193,10 +193,8 @@ func sacctmgr() *cobra.Command {
 				convertedArgs[0] = "delete"
 			case "update":
 				convertedArgs[0] = "modify"
-			case "show":
-				convertedArgs[0] = "find"
 			case "list":
-				convertedArgs[0] = "find"
+				convertedArgs[0] = "show"
 			}
 
 			// Check entities
