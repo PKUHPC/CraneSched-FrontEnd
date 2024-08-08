@@ -30,6 +30,7 @@ import (
 	"errors"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -54,9 +55,37 @@ To sum up, ccontrol, cacctmgr, cbatch, calloc and crun are too complex or very s
  slurm counterparts, so we choose the 2nd way. The rest of the commands follow the 1st approach.
 */
 
-var slurmGroup = &cobra.Group{
-	ID:    "slurm",
-	Title: "Slurm Commands:",
+type SlurmWrapper struct {
+}
+
+func (w SlurmWrapper) Group() *cobra.Group {
+	return &cobra.Group{
+		ID:    "slurm",
+		Title: "Slurm Commands:",
+	}
+}
+
+func (w SlurmWrapper) SubCommands() []*cobra.Command {
+	return []*cobra.Command{
+		sacct(),
+		sacctmgr(),
+		salloc(),
+		sbatch(),
+		scancel(),
+		scontrol(),
+		sinfo(),
+		squeue(),
+		srun(),
+	}
+}
+
+func (w SlurmWrapper) HasCommand(cmd string) bool {
+	return slices.Contains([]string{"sacct", "sacctmgr", "sbatch", "scancel", "scontrol", "sinfo", "squeue"}, cmd)
+}
+
+func (w SlurmWrapper) Preprocess() error {
+	// Slurm commands do not need any preprocessing for os.Args
+	return nil
 }
 
 func sacct() *cobra.Command {
@@ -120,11 +149,11 @@ func sacctmgr() *cobra.Command {
 		} else if arg == "priority" {
 			return "--priority", nil
 		} else if arg == "maxjobpu" || arg == "maxjobsperuser" {
-			return "--max_jobs_per_user", nil
+			return "--max-jobs-per-user", nil
 		} else if arg == "maxcpupu" || arg == "maxcpuperuser" {
-			return "--max_cpus_per_user", nil
+			return "--max-cpus-per-user", nil
 		} else if arg == "maxwall" || arg == "maxwalldurationperjob" {
-			return "--max_time_limit_per_task", nil
+			return "--max-time-limit-per-task", nil
 		} else {
 			return arg, errors.New("Unsupported arguments: " + arg)
 		}
@@ -164,10 +193,8 @@ func sacctmgr() *cobra.Command {
 				convertedArgs[0] = "delete"
 			case "update":
 				convertedArgs[0] = "modify"
-			case "show":
-				convertedArgs[0] = "find"
 			case "list":
-				convertedArgs[0] = "find"
+				convertedArgs[0] = "show"
 			}
 
 			// Check entities

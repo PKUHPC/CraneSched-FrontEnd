@@ -44,6 +44,7 @@ var (
 		Use:     "calloc",
 		Short:   "Allocate resource and create terminal",
 		Version: util.Version(),
+		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			main(cmd, args)
 		},

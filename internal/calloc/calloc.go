@@ -413,6 +413,7 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
+	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	StartCallocStream(task)
 }

@@ -31,6 +31,7 @@ var (
 	FlagFilterCranedStates   []string
 	FlagIterate              uint64
 	FlagConfigFilePath       string
+	FlagNoHeader             bool
 	// FlagSummarize            bool
 	// FlagFormat               string
 	// FlagListReason           bool
@@ -81,6 +82,8 @@ func init() {
 		"Display responding nodes only")
 	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
 		"Display at specified intervals (seconds)")
+	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
+		"Do not print header line in the output")
 	//RootCmd.Flags().BoolVarP(&FlagSummarize, "summarize", "s", false,
 	//	"Display state summary only")
 	//RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
