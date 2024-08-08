@@ -575,7 +575,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
-			log.Errorf("Unknown admin_level, valid values: none, operator, admin.")
+			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
 			return util.ErrorCmdArg
 		}
 	}

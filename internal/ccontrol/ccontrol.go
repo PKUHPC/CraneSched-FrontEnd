@@ -467,51 +467,64 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 	}
 }
 
-func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
-	var req = &protos.ModifyCranedStateRequest{}
-	if nodeName == "" {
-		log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
+func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCmdError {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok {
+		log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
 		return util.ErrorCmdArg
-	} else {
-		req.CranedId = nodeName
 	}
 
-	state = strings.ToLower(state)
-	switch state {
-	case "drain":
-		if reason == "" {
-			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
+	if len(nodeNames) == 0 {
+		log.Errorln("No node provided.")
+		return util.ErrorCmdArg
+	}
+
+	finalError := util.ErrorSuccess
+	for _, node := range nodeNames {
+		var req = &protos.ModifyCranedStateRequest{}
+
+		req.CranedId = node
+		state = strings.ToLower(state)
+		switch state {
+		case "drain":
+			if reason == "" {
+				log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
+				return util.ErrorCmdArg
+			}
+			req.NewState = protos.CranedControlState_CRANE_DRAIN
+			req.Reason = reason
+		case "resume":
+			req.NewState = protos.CranedControlState_CRANE_NONE
+		default:
+			log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 			return util.ErrorCmdArg
 		}
-		req.NewState = protos.CranedControlState_CRANE_DRAIN
-		req.Reason = reason
-	case "resume":
-		req.NewState = protos.CranedControlState_CRANE_NONE
-	default:
-		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
-		return util.ErrorCmdArg
-	}
 
-	reply, err := stub.ModifyNode(context.Background(), req)
-	if err != nil {
-		log.Errorf("ModifyNode failed: %v\n", err)
-		return util.ErrorNetwork
-	}
+		reply, err := stub.ModifyNode(context.Background(), req)
+		if err != nil {
+			log.Errorf("Failed to modify the state of %s: %v.\n", node, err)
+			finalError = util.ErrorNetwork
+			continue
+		}
 
-	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
-			return util.ErrorSuccess
+		if FlagJson {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+			if reply.GetOk() {
+				finalError = util.ErrorSuccess
+			} else {
+				finalError = util.ErrorBackend
+			}
+			continue
+		}
+
+		if reply.Ok {
+			log.Printf("The state of %s is modified.\n", node)
+			finalError = util.ErrorSuccess
 		} else {
-			return util.ErrorBackend
+			log.Printf("Failed to modify the state of %s: %s.\n", node, reply.GetReason())
+			finalError = util.ErrorBackend
 		}
 	}
 
-	if reply.Ok {
-		log.Println("Change node state success.")
-		return util.ErrorSuccess
-	} else {
-		log.Printf("Change node state failed: %s.\n", reply.GetReason())
-		return util.ErrorBackend
-	}
+	return finalError
 }
