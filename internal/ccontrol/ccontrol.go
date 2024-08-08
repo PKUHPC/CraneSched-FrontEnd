@@ -47,7 +47,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		return util.ErrorSuccess
 	}
 
@@ -102,7 +102,7 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		return util.ErrorSuccess
 	}
 
@@ -164,7 +164,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		return util.ErrorSuccess
 	}
 
@@ -293,7 +293,7 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -403,7 +403,7 @@ func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -450,7 +450,7 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -499,7 +499,7 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {

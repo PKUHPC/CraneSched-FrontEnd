@@ -341,7 +341,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -407,7 +407,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -444,7 +444,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -470,7 +470,7 @@ func DeleteAccount(name string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -496,7 +496,7 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -522,7 +522,7 @@ func DeleteQos(name string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -556,7 +556,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -599,7 +599,7 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -632,7 +632,7 @@ func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdErro
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -657,7 +657,7 @@ func ShowAccounts() util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -682,7 +682,7 @@ func ShowUser(name string, account string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -707,7 +707,7 @@ func ShowQos(name string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -736,7 +736,7 @@ func FindAccount(name string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -761,7 +761,7 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -786,7 +786,7 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {

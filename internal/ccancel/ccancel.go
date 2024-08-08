@@ -76,7 +76,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledTasks) > 0 {
 			return util.ErrorBackend
 		} else {

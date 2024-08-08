@@ -14,7 +14,7 @@ type Formatter interface {
 
 // JSON
 
-type formatterJSON struct {
+type FormatterJson struct {
 }
 
 var mo = protojson.MarshalOptions{
@@ -22,7 +22,7 @@ var mo = protojson.MarshalOptions{
 	UseProtoNames:     true,
 }
 
-func (f formatterJSON) FormatReply(reply interface{}) string {
+func (f FormatterJson) FormatReply(reply interface{}) string {
 	if msg, ok := reply.(protoreflect.ProtoMessage); ok {
 		output, _ := mo.Marshal(msg)
 		return string(output)
@@ -33,4 +33,4 @@ func (f formatterJSON) FormatReply(reply interface{}) string {
 	return ""
 }
 
-var FormatterJSON = formatterJSON{}
+var FmtJson = FormatterJson{}

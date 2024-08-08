@@ -274,7 +274,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
@@ -302,7 +302,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.ReasonList) > 0 {
 			return util.ErrorBackend
 		} else {

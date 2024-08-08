@@ -228,7 +228,7 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FormatterJSON.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		return util.ErrorSuccess
 	}
 
