@@ -594,6 +594,12 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
 		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
 	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		task.Resources.DedicatedResource = &protos.Resources_DedicatedResourceReq{
+			DedicatedResourceReq: gresMap,
+		}
+	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
 	}

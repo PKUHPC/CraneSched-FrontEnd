@@ -75,6 +75,11 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.CpusPerTask = num
+		case "--gres":
+			gresMap := util.ParseGres(arg.val)
+			task.Resources.DedicatedResource = &protos.Resources_DedicatedResourceReq{
+				DedicatedResourceReq: gresMap,
+			}
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -151,6 +156,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if cmd.Flags().Changed("cpus-per-task") {
 		task.CpusPerTask = FlagCpuPerTask
 	}
+
 	if cmd.Flags().Changed("ntasks-per-node") {
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
@@ -171,6 +177,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		}
 		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
 		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		task.Resources.DedicatedResource = &protos.Resources_DedicatedResourceReq{
+			DedicatedResourceReq: gresMap,
+		}
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
