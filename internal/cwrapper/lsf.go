@@ -198,7 +198,6 @@ func bjobs() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&cqueue.FlagFormat, "o", "", "Sets the customized output format")
 	cmd.Flags().StringVar(&cqueue.FlagFilterJobNames, "J", "", "Displays information about jobs with the specified job name")
 	cmd.Flags().BoolVar(&cqueue.FlagNoHeader, "noheader", false, "Removes the column headings from the output")
 
