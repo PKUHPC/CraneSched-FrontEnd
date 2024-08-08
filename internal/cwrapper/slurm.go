@@ -394,6 +394,7 @@ func salloc() *cobra.Command {
 		Short:   "Wrapper of calloc command",
 		Long:    "",
 		GroupID: "slurm",
+		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Add --help from calloc
 			calloc.RootCmd.InitDefaultHelpFlag()
