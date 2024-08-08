@@ -258,6 +258,10 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
+		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableResource.CpuCoreLimit)
+		return false, nil
+	}
 
 	return true, task
 }

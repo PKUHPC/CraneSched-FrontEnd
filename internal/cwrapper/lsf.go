@@ -160,7 +160,17 @@ func bsub() *cobra.Command {
 				cbatch.FlagNodelist = strings.ReplaceAll(cbatch.FlagNodelist, " ", ",")
 			}
 			cbatch.FlagTime = cbatch.ConvertLSFRuntimeLimit(cbatch.FlagTime)
-			cbatch.RootCmd.Run(cmd, args)
+
+			// Cbatch use Flags().Changed() to detect if some flag is set by user or default value.
+			// Such flags(nodes, cpus-per-task, ntasks-per-node) need to be set if changed.
+			if cmd.Flags().Changed("nnode") {
+				cbatch.RootCmd.ParseFlags([]string{"--nodes", strconv.Itoa(int(cbatch.FlagNodes))})
+			}
+			if cmd.Flags().Changed("n") {
+				cbatch.RootCmd.ParseFlags([]string{"--ntasks-per-node", strconv.Itoa(int(cbatch.FlagNtasksPerNode))})
+			}
+
+			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
 

@@ -415,7 +415,7 @@ func salloc() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			calloc.RootCmd.Run(cmd, args)
+			calloc.RootCmd.Run(calloc.RootCmd, args)
 		},
 	}
 
@@ -487,7 +487,7 @@ func sbatch() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			cbatch.RootCmd.Run(cmd, args)
+			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
 
@@ -716,7 +716,7 @@ func srun() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			crun.RootCmd.Run(cmd, args)
+			crun.RootCmd.Run(crun.RootCmd, args)
 		},
 	}
 
