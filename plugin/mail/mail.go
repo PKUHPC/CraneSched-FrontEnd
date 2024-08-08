@@ -29,7 +29,8 @@ type MailPlugin struct {
 }
 
 func (p *MailPlugin) parseExtraAttrInTask(t *protos.TaskInfo) (mailtype string, mailuser string, err error) {
-	if !gjson.Valid(t.ExtraAttr) {
+	// We treat "" as a valid JSON string
+	if t.ExtraAttr != "" && !gjson.Valid(t.ExtraAttr) {
 		return "", "", fmt.Errorf("invalid JSON string")
 	}
 
@@ -46,7 +47,7 @@ func (p *MailPlugin) subject(t *protos.TaskInfo) string {
 		t.TaskId, t.Name, mailtype, t.Status.String())
 
 	if t.Status != protos.TaskStatus_Running {
-		subject += fmt.Sprintf(", ElapsedTime=%v, ExitCode=%v", t.ElapsedTime, t.ExitCode)
+		subject += fmt.Sprintf(", ElapsedTime=%v, ExitCode=%v", t.ElapsedTime.AsDuration(), t.ExitCode)
 	}
 	return subject
 }
@@ -54,11 +55,11 @@ func (p *MailPlugin) subject(t *protos.TaskInfo) string {
 func (p *MailPlugin) body(t *protos.TaskInfo) string {
 	body := fmt.Sprintf(
 		"Job ID: %v\nJob Name: %v\nState: %v\nWorking Dir: %v\nStart Time: %v\n",
-		t.TaskId, t.Name, t.Status.String(), t.Cwd, t.StartTime)
+		t.TaskId, t.Name, t.Status.String(), t.Cwd, t.StartTime.AsTime().Local())
 
 	if t.Status != protos.TaskStatus_Running {
 		body += fmt.Sprintf("End Time: %v\nElapsed Time: %v\nExit Code: %v\n",
-			t.EndTime, t.ElapsedTime, t.ExitCode)
+			t.EndTime.AsTime().Local(), t.ElapsedTime.AsDuration(), t.ExitCode)
 	}
 
 	body += fmt.Sprintf("Node Number: %d\nNodes List: %s\n",
