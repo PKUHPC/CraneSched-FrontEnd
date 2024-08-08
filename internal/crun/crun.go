@@ -193,19 +193,26 @@ CrunStateMachineLoop:
 					}
 				}
 
-				if cforedReply.Type != protos.StreamCforedCrunReply_TASK_RES_ALLOC_REPLY {
-					log.Fatalf("Expect TASK_RES_ALLOC_REPLY,but get %s\n", cforedReply.Type.String())
-				}
-				cforedPayload := cforedReply.GetPayloadTaskAllocReply()
-				Ok := cforedPayload.Ok
+				switch cforedReply.Type {
+				case protos.StreamCforedCrunReply_TASK_RES_ALLOC_REPLY:
+					{
+						log.Fatalf("Expect TASK_RES_ALLOC_REPLY,but get %s\n", cforedReply.Type.String())
+					}
+					cforedPayload := cforedReply.GetPayloadTaskAllocReply()
+					Ok := cforedPayload.Ok
 
-				if Ok {
-					log.Debugf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
-					state = WaitForward
-				} else {
-					fmt.Println("Failed to allocate task resource. Exiting...")
-					break CrunStateMachineLoop
+					if Ok {
+						log.Debugf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+						state = WaitForward
+					} else {
+						fmt.Println("Failed to allocate task resource. Exiting...")
+						break CrunStateMachineLoop
+					}
+				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
+					log.Tracef("Received Task Cancel Request when wait res")
+					state = TaskKilling
 				}
+
 			case sig := <-sigs:
 				if sig == syscall.SIGINT {
 					log.Tracef("SIGINT Received. Cancelling the task...")

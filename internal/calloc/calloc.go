@@ -193,18 +193,22 @@ CallocStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedReply_TASK_RES_ALLOC_REPLY {
-				log.Fatal("Expect TASK_RES_ALLOC_REPLY")
-			}
-			cforedPayload := cforedReply.GetPayloadTaskAllocReply()
-			Ok := cforedPayload.Ok
+			switch cforedReply.Type {
+			case protos.StreamCforedReply_TASK_RES_ALLOC_REPLY:
+				cforedPayload := cforedReply.GetPayloadTaskAllocReply()
+				Ok := cforedPayload.Ok
 
-			if Ok {
-				fmt.Printf("Allocated craned nodes: %s.\n", cforedPayload.AllocatedCranedRegex)
-				state = TaskRunning
-			} else {
-				fmt.Println("Failed to allocate task resource. Exiting...")
-				break CallocStateMachineLoop
+				if Ok {
+					fmt.Printf("Allocated craned nodes: %s.\n", cforedPayload.AllocatedCranedRegex)
+					state = TaskRunning
+				} else {
+					fmt.Println("Failed to allocate task resource. Exiting...")
+					break CallocStateMachineLoop
+				}
+
+			case protos.StreamCforedReply_TASK_CANCEL_REQUEST:
+				log.Tracef("Receive cancel request when wait res")
+				state = TaskKilling
 			}
 
 		case TaskRunning:
@@ -253,12 +257,12 @@ CallocStateMachineLoop:
 						state = TaskKilling
 					}
 				}
+				cancelRequestChannel <- true
+				<-terminalExitChannel
 			}
 
 		case TaskKilling:
-			cancelRequestChannel <- true
 
-			<-terminalExitChannel
 			request = &protos.StreamCallocRequest{
 				Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
