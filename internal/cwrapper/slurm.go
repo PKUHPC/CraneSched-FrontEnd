@@ -392,6 +392,7 @@ func salloc() *cobra.Command {
 		Short:   "Wrapper of calloc command",
 		Long:    "",
 		GroupID: "slurm",
+		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Add --help from calloc
 			calloc.RootCmd.InitDefaultHelpFlag()
@@ -413,7 +414,7 @@ func salloc() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			calloc.RootCmd.Run(cmd, args)
+			calloc.RootCmd.Run(calloc.RootCmd, args)
 		},
 	}
 
@@ -485,7 +486,7 @@ func sbatch() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			cbatch.RootCmd.Run(cmd, args)
+			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
 
@@ -714,7 +715,7 @@ func srun() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			crun.RootCmd.Run(cmd, args)
+			crun.RootCmd.Run(crun.RootCmd, args)
 		},
 	}
 
