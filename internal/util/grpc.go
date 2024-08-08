@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -51,6 +52,8 @@ func ParseConfig(configFilePath string) *Config {
 
 	if config.CranedGoUnixSockPath == "" {
 		config.CranedGoUnixSockPath = config.CraneBaseDir + "craned/cfored.sock"
+	} else {
+		config.CranedGoUnixSockPath = filepath.Join(config.CraneBaseDir, config.CranedGoUnixSockPath)
 	}
 
 	return config
