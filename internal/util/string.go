@@ -19,6 +19,7 @@ package util
 import (
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -26,8 +27,40 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"gopkg.in/yaml.v3"
 )
+
+func ParseConfig(configFilePath string) *Config {
+	confFile, err := os.ReadFile(configFilePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	config := &Config{}
+
+	err = yaml.Unmarshal(confFile, config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if config.CraneBaseDir == "" {
+		config.CraneBaseDir = DefaultCraneBaseDir
+	}
+
+	if config.CranedGoUnixSockPath == "" {
+		config.CranedGoUnixSockPath = config.CraneBaseDir + DefaultCforedSocketPath
+	} else {
+		config.CranedGoUnixSockPath = config.CraneBaseDir + config.CranedGoUnixSockPath
+	}
+
+	if config.PluginConfigPath == "" {
+		config.PluginConfigPath = DefaultPluginConfigPath
+	}
+
+	return config
+}
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
 	re := regexp.MustCompile(`^([0-9]+(\.?[0-9]*))([MmGgKkB]?)$`)
@@ -133,32 +166,30 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
-func ParseMailType(param string) (uint32, error) {
-	var MailTypeMapping = map[string]uint32{
-		"NONE":  0,
-		"BEGIN": 1,
-		"END":   2,
-		"FAIL":  4,
-		// "REQUEUE":        8,
-		// "INVALID_DEPEND": 16,
-		// "STAGE_OUT":      32,
-		"ALL": 63, // ALL (equivalent to BEGIN, END, FAIL, INVALID_DEPEND, REQUEUE, and STAGE_OUT)
-		// "TIME_LIMIT":     64,
-		// "TIME_LIMIT_90":  128,
-		// "TIME_LIMIT_80":  256,
-		// "TIME_LIMIT_50":  512,
-		// "ARRAY_TASKS":    1024,
-	}
+func CheckTaskExtraAttr(attr string) bool {
+	return gjson.Valid(attr)
+}
 
-	parsed := uint32(0)
-	types := strings.Split(param, ",")
-	for _, t := range types {
-		if _, ok := MailTypeMapping[t]; !ok {
-			return 0, fmt.Errorf("invalid mail type: %s", t)
-		}
-		parsed |= MailTypeMapping[t]
-	}
-	return parsed, nil
+// Merge two JSON strings.
+// If there are overlapping keys, values from the second JSON take precedence.
+func AmendTaskExtraAttr(origin, new string) string {
+	result := gjson.Parse(new)
+	result.ForEach(func(key, value gjson.Result) bool {
+		var err error
+		// Use sjson to set/override the value in the first JSON
+		origin, err = sjson.Set(origin, key.String(), value.Value())
+		return err == nil
+	})
+
+	return origin
+}
+
+func CheckMailType(mailtype string) bool {
+	return mailtype == "NONE" ||
+		mailtype == "BEGIN" ||
+		mailtype == "END" ||
+		mailtype == "FAIL" ||
+		mailtype == "ALL"
 }
 
 // CheckNodeList check if the node list is comma separated node names.

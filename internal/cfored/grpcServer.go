@@ -20,6 +20,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -453,12 +454,13 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 
 	wgAllRoutines.Add(1)
 	go func(wg *sync.WaitGroup) {
-		tcpListenSocket, err := util.GetListenSocketByConfig(config)
+		bindAddr := fmt.Sprintf("%s:%s", util.DefaultCforedServerListenAddress, util.DefaultCforedServerListenPort)
+		socket, err := util.GetTCPSocket(bindAddr, config)
 		if err != nil {
 			log.Fatalf("Failed to listen on tcp socket: %s", err.Error())
 		}
 
-		err = grpcServer.Serve(tcpListenSocket)
+		err = grpcServer.Serve(socket)
 		if err != nil {
 			log.Fatal(err)
 		}

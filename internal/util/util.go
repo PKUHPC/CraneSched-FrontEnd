@@ -16,11 +16,6 @@
 
 package util
 
-import (
-	nested "github.com/antonfisher/nested-logrus-formatter"
-	log "github.com/sirupsen/logrus"
-)
-
 type Config struct {
 	ControlMachine      string `yaml:"ControlMachine"`
 	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
@@ -33,22 +28,20 @@ type Config struct {
 
 	CraneBaseDir         string `yaml:"CraneBaseDir"`
 	CranedGoUnixSockPath string `yaml:"CranedGoUnixSockPath"`
+
+	PluginConfigPath string `yaml:"PluginConfigPath"`
 }
 
-var (
-	DefaultConfigPath                string
-	DefaultCforedServerListenAddress string
-	DefaultCforedServerListenPort    string
-)
+// Path = BaseDir + Dir + Name
+const (
+	DefaultConfigPath   = "/etc/crane/config.yaml"
+	DefaultCraneBaseDir = "/var/crane/"
 
-func init() {
-	DefaultConfigPath = "/etc/crane/config.yaml"
+	DefaultPluginConfigPath = "/etc/crane/plugin.yaml"
+	DefaultPluginSocketPath = "cranectld/cplugind.sock"
+
+	DefaultCforedSocketPath = "craned/cfored.sock"
+
 	DefaultCforedServerListenAddress = "0.0.0.0"
-	DefaultCforedServerListenPort = "10012"
-}
-
-func InitLogger(level log.Level) {
-	log.SetLevel(level)
-	log.SetReportCaller(false)
-	log.SetFormatter(&nested.Formatter{})
-}
+	DefaultCforedServerListenPort    = "10012"
+)
