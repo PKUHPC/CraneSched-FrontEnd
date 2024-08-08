@@ -20,6 +20,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -43,6 +44,11 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -93,6 +99,11 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -152,13 +163,17 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
+	}
+
 	if len(reply.TaskInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
 			fmt.Printf("Job %d is not running.\n", taskId)
 		}
-
 	} else {
 		for _, taskInfo := range reply.TaskInfoList {
 			timeSubmitStr := "unknown"
@@ -247,7 +262,12 @@ func ShowConfig(path string) util.CraneCmdError {
 		log.Errorf("error unmarshalling yaml: %v\n", err)
 		return util.ErrorCmdArg
 	}
-	PrintFlattenYAML("", config)
+	if FlagJson {
+		output, _ := json.Marshal(config)
+		fmt.Println(string(output))
+	} else {
+		PrintFlattenYAML("", config)
+	}
 
 	return util.ErrorSuccess
 }
@@ -270,6 +290,15 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 
 	if reply.Ok {
@@ -372,6 +401,16 @@ func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
 		log.Errorf("ModifyJob failed: " + err.Error())
 		return util.ErrorNetwork
 	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
 	if reply.Ok {
 		fmt.Printf(holdType+" job %v success.\n", jobId)
 		return util.ErrorSuccess
@@ -410,6 +449,15 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
 	if reply.Ok {
 		log.Println("Change priority success.")
 		return util.ErrorSuccess
@@ -426,16 +474,16 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		return util.ErrorCmdArg
 	}
 
+	if len(nodeNames) == 0 {
+		log.Errorln("No node provided.")
+		return util.ErrorCmdArg
+	}
+
 	finalError := util.ErrorSuccess
 	for _, node := range nodeNames {
 		var req = &protos.ModifyCranedStateRequest{}
-		if node == "" {
-			log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
-			return util.ErrorCmdArg
-		} else {
-			req.CranedId = node
-		}
 
+		req.CranedId = node
 		state = strings.ToLower(state)
 		switch state {
 		case "drain":
@@ -456,6 +504,16 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		if err != nil {
 			log.Errorf("Failed to modify the state of %s: %v.\n", node, err)
 			finalError = util.ErrorNetwork
+			continue
+		}
+
+		if FlagJson {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+			if reply.GetOk() {
+				finalError = util.ErrorSuccess
+			} else {
+				finalError = util.ErrorBackend
+			}
 			continue
 		}
 

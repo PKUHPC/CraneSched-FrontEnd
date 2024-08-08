@@ -32,6 +32,7 @@ var (
 	FlagIterate              uint64
 	FlagConfigFilePath       string
 	FlagNoHeader             bool
+	FlagJson                 bool
 	// FlagSummarize            bool
 	// FlagFormat               string
 	// FlagListReason           bool
@@ -84,6 +85,7 @@ func init() {
 		"Display at specified intervals (seconds)")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
 		"Do not print header line in the output")
+	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	//RootCmd.Flags().BoolVarP(&FlagSummarize, "summarize", "s", false,
 	//	"Display state summary only")
 	//RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",

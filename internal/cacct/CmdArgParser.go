@@ -40,6 +40,7 @@ var (
 	FlagNumLimit         uint32
 	FlagNoHeader         bool
 	FlagFull             bool
+	FlagJson             bool
 
 	RootCmd = &cobra.Command{
 		Use:     "cacct [flags]",
@@ -132,4 +133,5 @@ Example: --format "%.5j %.20n %t" would output the job's ID with a minimum width
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"Limit the number of lines in the output, default is 0 (no limit)")
+	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 }

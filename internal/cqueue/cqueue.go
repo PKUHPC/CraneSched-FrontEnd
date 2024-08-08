@@ -96,7 +96,6 @@ func Query() util.CraneCmdError {
 		}
 		req.FilterTaskIds = filterJobIdListInt
 	}
-
 	if FlagNumLimit != 0 {
 		req.NumLimit = FlagNumLimit
 	}
@@ -105,6 +104,11 @@ func Query() util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)

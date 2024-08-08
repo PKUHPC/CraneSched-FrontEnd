@@ -34,6 +34,7 @@ var (
 	FlagUserName       string
 	FlagNodes          []string
 	FlagConfigFilePath string
+	FlagJson           bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccancel [flags] job_id[,job_id...]",
@@ -106,4 +107,6 @@ func init() {
 		"Cancel jobs submitted by the specified user")
 	RootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
 		"Cancel jobs running on the specified nodes")
+	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
+		"Output in JSON format")
 }
