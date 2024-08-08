@@ -117,7 +117,12 @@ func bacct() *cobra.Command {
 					cacct.FlagFilterStates = strings.Join(states, ",")
 				}
 			}
-			cacct.FlagFilterJobIDs = strings.Join(args, ",")
+			if len(args) == 1 && args[0] == "0" {
+				cacct.FlagFilterJobIDs = ""
+			} else if len(args) > 0 {
+				cacct.FlagFilterJobIDs = strings.Join(args, ",")
+			}
+
 			cacct.RootCmd.PersistentPreRun(cmd, []string{})
 			cacct.RootCmd.Run(cmd, []string{})
 		},
