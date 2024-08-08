@@ -419,22 +419,14 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 	}
 }
 
-func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
-	var nodeNames []string
-
-	if util.CheckNodeList(nodeName) {
-		nodeName := strings.ReplaceAll(nodeName, " ", "")
-		nodeNames = strings.Split(nodeName, ",")
-	} else {
-		var ok bool
-		nodeNames, ok = util.ParseHostList(nodeName)
-		if !ok {
-			log.Errorf("Invalid node name or pattern: %s.\n", nodeName)
-			return util.ErrorCmdArg
-		}
+func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCmdError {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok {
+		log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
+		return util.ErrorCmdArg
 	}
-	var finalError util.CraneCmdError
 
+	finalError := util.ErrorSuccess
 	for _, node := range nodeNames {
 		var req = &protos.ModifyCranedStateRequest{}
 		if node == "" {
@@ -462,16 +454,16 @@ func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmd
 
 		reply, err := stub.ModifyNode(context.Background(), req)
 		if err != nil {
-			log.Errorf("ModifyNode failed for node %s: %v\n", node, err)
+			log.Errorf("Failed to modify the state of %s: %v.\n", node, err)
 			finalError = util.ErrorNetwork
 			continue
 		}
 
 		if reply.Ok {
-			log.Printf("Change node state success for node %s.\n", node)
+			log.Printf("The state of %s is modified.\n", node)
 			finalError = util.ErrorSuccess
 		} else {
-			log.Printf("Change node state failed for node %s: %s.\n", node, reply.GetReason())
+			log.Printf("Failed to modify the state of %s: %s.\n", node, reply.GetReason())
 			finalError = util.ErrorBackend
 		}
 	}
