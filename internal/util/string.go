@@ -36,13 +36,15 @@ import (
 func ParseConfig(configFilePath string) *Config {
 	confFile, err := os.ReadFile(configFilePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
+		os.Exit(ErrorCmdArg)
 	}
-	config := &Config{}
 
+	config := &Config{}
 	err = yaml.Unmarshal(confFile, config)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
+		os.Exit(ErrorCmdArg)
 	}
 
 	if config.CraneBaseDir == "" {
@@ -53,10 +55,6 @@ func ParseConfig(configFilePath string) *Config {
 		config.CranedGoUnixSockPath = config.CraneBaseDir + DefaultCforedSocketPath
 	} else {
 		config.CranedGoUnixSockPath = config.CraneBaseDir + config.CranedGoUnixSockPath
-	}
-
-	if config.PluginConfigPath == "" {
-		config.PluginConfigPath = DefaultPluginConfigPath
 	}
 
 	return config

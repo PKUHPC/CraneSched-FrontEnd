@@ -82,8 +82,5 @@ install:
 	@echo "  - Installing systemd service files to /etc/systemd/system/"
 	@mkdir -p /etc/systemd/system
 	@cp etc/*.service /etc/systemd/system
-	@echo "  - Installing plugin configuration to /etc/crane/"
-	@mkdir -p /etc/crane
-	@cp etc/plugin.yaml /etc/crane
 	@echo "  - You may need to reload systemd daemons: 'systemctl daemon-reload'"
 	@echo "  - Done."

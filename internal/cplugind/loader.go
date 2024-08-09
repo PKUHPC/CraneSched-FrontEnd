@@ -1,3 +1,19 @@
+/**
+ * Copyright (c) 2024 Peking University and Peking University
+ * Changsha Institute for Computing and Digital Economy
+ *
+ * CraneSched is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of
+ * the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS,
+ * WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 package cplugind
 
 import (
@@ -12,9 +28,11 @@ import (
 )
 
 type PluginConfig struct {
-	SockPath string           `yaml:"PlugindSockPath"`
-	LogLevel string           `yaml:"PlugindDebugLevel"`
-	Plugins  []api.PluginMeta `yaml:"Plugins"`
+	Enabled    bool             `yaml:"Enabled"`
+	SockPath   string           `yaml:"PlugindSockPath"`
+	ListenPort string           `yaml:"PlugindListenPort"`
+	LogLevel   string           `yaml:"PlugindDebugLevel"`
+	Plugins    []api.PluginMeta `yaml:"Plugins"`
 }
 
 type PluginLoaded struct {
@@ -34,15 +52,26 @@ func ParsePluginConfig(path string) error {
 		return err
 	}
 
-	gPluginConfig = PluginConfig{}
-	if err = yaml.Unmarshal(config, &gPluginConfig); err != nil {
+	temp := struct {
+		Plugin PluginConfig `yaml:"Plugin"`
+	}{}
+	if err = yaml.Unmarshal(config, &temp); err != nil {
 		return err
 	}
 
+	gPluginConfig = temp.Plugin
+	if gPluginConfig.LogLevel == "" {
+		gPluginConfig.LogLevel = "info"
+	}
+
 	if gPluginConfig.SockPath == "" {
-		gPluginConfig.SockPath = util.DefaultCraneBaseDir + util.DefaultPluginSocketPath
+		gPluginConfig.SockPath = util.DefaultCraneBaseDir + util.DefaultPlugindSocketPath
 	} else {
 		gPluginConfig.SockPath = util.DefaultCraneBaseDir + gPluginConfig.SockPath
+	}
+
+	if gPluginConfig.ListenPort == "" {
+		gPluginConfig.ListenPort = util.DefaultPlugindListenPort
 	}
 
 	return nil

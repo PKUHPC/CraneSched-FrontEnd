@@ -1,7 +1,24 @@
+/**
+ * Copyright (c) 2024 Peking University and Peking University
+ * Changsha Institute for Computing and Digital Economy
+ *
+ * CraneSched is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of
+ * the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS,
+ * WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 package cplugind
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,9 +28,8 @@ import (
 )
 
 var (
-	FlagCraneConfig  string
-	FlagPluginConfig string
-	FlagDebugLevel   string
+	FlagCraneConfig string
+	FlagDebugLevel  string
 )
 
 var RootCmd = &cobra.Command{
@@ -29,13 +45,14 @@ var RootCmd = &cobra.Command{
 			os.Exit(util.ErrorCmdArg)
 		}
 
-		// Parse plugin config
-		if cmd.Flags().Changed("plugin") {
-			config.PluginConfigPath = FlagPluginConfig
+		// Parse plugin part in the config
+		if err := ParsePluginConfig(FlagCraneConfig); err != nil {
+			log.Errorf("Failed to parse plugin part in config: %v", err)
+			os.Exit(util.ErrorCmdArg)
 		}
 
-		if err := ParsePluginConfig(config.PluginConfigPath); err != nil {
-			log.Errorf("Failed to parse plugin config: %v", err)
+		if !gPluginConfig.Enabled {
+			log.Errorf("Plugind is disabled in config.")
 			os.Exit(util.ErrorCmdArg)
 		}
 
@@ -64,14 +81,30 @@ var RootCmd = &cobra.Command{
 
 		// Create and launch PluginDaemon
 		pd := NewPluginD(nil)
-		socket, err := util.GetUnixSocket(gPluginConfig.SockPath)
+
+		// Start server on UNIX socket
+		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath)
 		if err != nil {
-			log.Errorf("Failed to get unix socket: %v", err)
+			log.Errorf("Failed to get UNIX socket: %v", err)
 			os.Exit(util.ErrorGeneric)
 		}
 
 		log.Infof("gRPC server listening on %s.", gPluginConfig.SockPath)
-		if err := pd.Launch(socket); err != nil {
+		if err := pd.Launch(unixSocket); err != nil {
+			log.Errorf("Failed to launch plugin daemon: %v", err)
+			os.Exit(util.ErrorGeneric)
+		}
+
+		// Start server on TCP socket
+		bindAddr := fmt.Sprintf("0.0.0.0:%s", gPluginConfig.ListenPort)
+		tcpSocket, err := util.GetTCPSocket(bindAddr, config)
+		if err != nil {
+			log.Errorf("Failed to get TCP socket: %v", err)
+			os.Exit(util.ErrorGeneric)
+		}
+
+		log.Infof("gRPC server listening on %s.", bindAddr)
+		if err := pd.Launch(tcpSocket); err != nil {
 			log.Errorf("Failed to launch plugin daemon: %v", err)
 			os.Exit(util.ErrorGeneric)
 		}
@@ -95,8 +128,7 @@ var RootCmd = &cobra.Command{
 
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.Flags().StringVarP(&FlagCraneConfig, "config", "c", util.DefaultConfigPath, "Path to CraneSched config file")
-	RootCmd.Flags().StringVarP(&FlagPluginConfig, "plugin", "p", "", "Path to cplugind config file (use path in CraneSched config if not set)")
+	RootCmd.Flags().StringVarP(&FlagCraneConfig, "config", "c", util.DefaultConfigPath, "Path to config file")
 	RootCmd.Flags().StringVarP(&FlagDebugLevel, "debug-level", "", "", "Available debug level (trace, debug, info)")
 }
 
