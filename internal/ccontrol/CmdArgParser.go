@@ -32,6 +32,7 @@ var (
 	FlagReason         string
 	FlagPartitionName  string
 	FlagTaskId         uint32
+	FlagTaskIds        string
 	FlagQueryAll       bool
 	FlagTimeLimit      string
 	FlagPriority       float64
@@ -137,12 +138,12 @@ var (
 			}
 
 			if len(FlagTimeLimit) != 0 {
-				if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
+				if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
 			if cmd.Flags().Changed("priority") {
-				if err := ChangeTaskPriority(FlagTaskId, FlagPriority); err != util.ErrorSuccess {
+				if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
@@ -238,7 +239,7 @@ func init() {
 
 		updateCmd.AddCommand(updateJobCmd)
 		{
-			updateJobCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Specify job id of the job to be modified")
+			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job id of the job to be modified")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
 			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 
