@@ -136,6 +136,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.MailType = mailType
 		case "--mail-user":
 			task.MailUser = arg.val
+		case "--dependency", "-d":
+			err := util.SetTaskDependencies(task, arg.val)
+			if err != nil {
+				log.Error(err)
+				return false, nil
+			}
 		default:
 			log.Errorf("Invalid parameter '%s' given in the script file.\n", arg.name)
 			return false, nil
@@ -216,6 +222,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagMailUser != "" {
 		task.MailUser = FlagMailUser
 	}
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			log.Error(err)
+			return false, nil
+		}
+	}
 
 	// Check the validity of the parameters
 	if task.CpusPerTask <= 0 {
@@ -250,6 +263,17 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if task.MailType != 0 && task.MailUser == "" {
 		log.Errorln("Mail type is set but missing the mail user")
 		return false, nil
+	}
+
+	if task.Dependencies != nil {
+		taskIds := make(map[uint32]bool)
+		for _, dep := range task.Dependencies.Dependencies {
+			if taskIds[dep.TaskId] {
+				log.Errorf("Duplicate task #%d in dependencies\n", dep.TaskId)
+				return false, nil
+			}
+			taskIds[dep.TaskId] = true
+		}
 	}
 
 	if len(task.Name) > 30 {

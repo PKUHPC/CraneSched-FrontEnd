@@ -429,6 +429,13 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
 		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableResource.CpuCoreLimit)
