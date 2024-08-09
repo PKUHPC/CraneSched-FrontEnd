@@ -193,18 +193,22 @@ CallocStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedReply_TASK_RES_ALLOC_REPLY {
-				log.Fatal("Expect TASK_RES_ALLOC_REPLY")
-			}
-			cforedPayload := cforedReply.GetPayloadTaskAllocReply()
-			Ok := cforedPayload.Ok
+			switch cforedReply.Type {
+			case protos.StreamCforedReply_TASK_RES_ALLOC_REPLY:
+				cforedPayload := cforedReply.GetPayloadTaskAllocReply()
+				Ok := cforedPayload.Ok
 
-			if Ok {
-				fmt.Printf("Allocated craned nodes: %s.\n", cforedPayload.AllocatedCranedRegex)
-				state = TaskRunning
-			} else {
-				fmt.Println("Failed to allocate task resource. Exiting...")
-				break CallocStateMachineLoop
+				if Ok {
+					fmt.Printf("Allocated craned nodes: %s.\n", cforedPayload.AllocatedCranedRegex)
+					state = TaskRunning
+				} else {
+					fmt.Println("Failed to allocate task resource. Exiting...")
+					break CallocStateMachineLoop
+				}
+
+			case protos.StreamCforedReply_TASK_CANCEL_REQUEST:
+				log.Tracef("Receive cancel request when wait res")
+				state = TaskKilling
 			}
 
 		case TaskRunning:
@@ -253,12 +257,12 @@ CallocStateMachineLoop:
 						state = TaskKilling
 					}
 				}
+				cancelRequestChannel <- true
+				<-terminalExitChannel
 			}
 
 		case TaskKilling:
-			cancelRequestChannel <- true
 
-			<-terminalExitChannel
 			request = &protos.StreamCallocRequest{
 				Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
@@ -375,17 +379,17 @@ func main(cmd *cobra.Command, args []string) {
 		Env: make(map[string]string),
 	}
 
-	if FlagNodes != 0 {
+	if FlagNodes > 0 {
 		task.NodeNum = FlagNodes
 	} else {
 		log.Fatalf("Invalid --nodes %d", FlagNodes)
 	}
-	if FlagCpuPerTask != 0 {
+	if FlagCpuPerTask > 0 {
 		task.CpusPerTask = FlagCpuPerTask
 	} else {
 		log.Fatalf("Invalid --cpus-per-task %f", FlagCpuPerTask)
 	}
-	if FlagNtasksPerNode != 0 {
+	if FlagNtasksPerNode > 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
 	} else {
 		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
@@ -424,6 +428,10 @@ func main(cmd *cobra.Command, args []string) {
 	}
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
+	}
+	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
+		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableResource.CpuCoreLimit)
 	}
 
 	StartCallocStream(task)

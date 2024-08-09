@@ -1,5 +1,14 @@
-generated
-out
-bin
+# IDE generated files
 .idea/
 .vscode/
+
+# Protobuf generated files
+generated
+
+# Makefile generated files
+build
+out
+bin
+
+# Testing
+testcase

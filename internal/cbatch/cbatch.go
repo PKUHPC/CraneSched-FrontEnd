@@ -40,7 +40,6 @@ type CbatchArg struct {
 // then return the constructed TaskToCtld.
 func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
-	task = new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
 	task.Resources = &protos.Resources{
 		AllocatableResource: &protos.AllocatableResource{
@@ -259,6 +258,10 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
+		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableResource.CpuCoreLimit)
+		return false, nil
+	}
 
 	return true, task
 }
@@ -274,6 +277,14 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
 		return util.ErrorSuccess
@@ -292,6 +303,15 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.ReasonList) > 0 {
+			return util.ErrorBackend
+		} else {
+			return util.ErrorSuccess
+		}
 	}
 
 	if len(reply.TaskIdList) > 0 {
@@ -394,11 +414,14 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneC
 		num++
 		reC := regexp.MustCompile(`^#CBATCH`)
 		reS := regexp.MustCompile(`^#SBATCH`)
+		reL := regexp.MustCompile(`^#BSUB`)
 		var processor LineProcessor
 		if reC.MatchString(scanner.Text()) {
 			processor = &cLineProcessor{}
 		} else if reS.MatchString(scanner.Text()) {
 			processor = &sLineProcessor{}
+		} else if reL.MatchString(scanner.Text()) {
+			processor = &lLineProcessor{}
 		} else {
 			processor = &defaultProcessor{}
 		}

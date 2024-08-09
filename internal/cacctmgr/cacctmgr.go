@@ -215,7 +215,6 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 			strconv.FormatBool(accountInfo.Blocked),
 		})
 	}
-
 	if FlagFormat != "" {
 		formatTableData := make([][]string, len(accountList))
 		formatReq := strings.Split(FlagFormat, " ")
@@ -281,7 +280,8 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 	}
 
 	if !FlagFull && FlagFormat == "" {
-		util.TrimTable(&tableData)
+		// The data in the fifth column is AllowedQosList, which is not trim
+		util.TrimTableExcept(&tableData, 5)
 	}
 
 	table.AppendBulk(tableData)
@@ -338,6 +338,15 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add the account")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 	if reply.GetOk() {
 		fmt.Println("Add account succeeded.")
@@ -396,6 +405,15 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 		util.GrpcErrorPrintf(err, "Failed to add the user")
 		return util.ErrorNetwork
 	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Println("Add user succeeded.")
 		return util.ErrorSuccess
@@ -424,6 +442,15 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 		util.GrpcErrorPrintf(err, "Failed to add the QoS")
 		return util.ErrorNetwork
 	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Println("Add QoS succeeded.")
 		return util.ErrorSuccess
@@ -440,6 +467,15 @@ func DeleteAccount(name string) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete account %s", name)
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete account %s succeeded.\n", name)
@@ -458,6 +494,15 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 		util.GrpcErrorPrintf(err, "Failed to remove user %s", name)
 		return util.ErrorNetwork
 	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Printf("Remove user %s succeeded.\n", name)
 		return util.ErrorSuccess
@@ -474,6 +519,15 @@ func DeleteQos(name string) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", name)
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Delete QoS %s succeeded.\n", name)
@@ -500,6 +554,15 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 		util.GrpcErrorPrintf(err, "Modify information")
 		return util.ErrorNetwork
 	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
@@ -512,7 +575,7 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
 	if itemLeft == "admin_level" {
 		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
-			log.Errorf("Unknown admin_level, valid values: none, operator, admin.")
+			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
 			return util.ErrorCmdArg
 		}
 	}
@@ -533,6 +596,15 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the uesr information")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information succeeded.")
@@ -558,6 +630,15 @@ func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdErro
 		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
 		return util.ErrorNetwork
 	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
@@ -575,6 +656,14 @@ func ShowAccounts() util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		PrintAllAccount(reply.AccountList)
 		return util.ErrorSuccess
@@ -592,6 +681,14 @@ func ShowUser(name string, account string) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		PrintAllUsers(reply.UserList)
 		return util.ErrorSuccess
@@ -609,6 +706,14 @@ func ShowQos(name string) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		PrintAllQos(reply.QosList)
 		return util.ErrorSuccess
@@ -630,6 +735,14 @@ func FindAccount(name string) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		PrintAccountTable(reply.AccountList)
 		return util.ErrorSuccess
@@ -647,6 +760,14 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Printf("Block %s succeeded.\n", name)
 		return util.ErrorSuccess
@@ -664,6 +785,14 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 	if reply.GetOk() {
 		fmt.Printf("Unblock %s succeeded.\n", name)
 		return util.ErrorSuccess

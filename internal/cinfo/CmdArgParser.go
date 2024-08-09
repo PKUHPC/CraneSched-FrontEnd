@@ -29,11 +29,13 @@ var (
 	FlagFilterPartitions     []string
 	FlagFilterNodes          []string
 	FlagFilterCranedStates   []string
-	FlagSummarize            bool
-	FlagFormat               string
 	FlagIterate              uint64
 	FlagConfigFilePath       string
-	FlagListReason           bool
+	FlagNoHeader             bool
+	FlagJson                 bool
+	// FlagSummarize            bool
+	// FlagFormat               string
+	// FlagListReason           bool
 
 	RootCmd = &cobra.Command{
 		Use:     "cinfo [flags]",
@@ -81,6 +83,9 @@ func init() {
 		"Display responding nodes only")
 	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
 		"Display at specified intervals (seconds)")
+	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
+		"Do not print header line in the output")
+	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	//RootCmd.Flags().BoolVarP(&FlagSummarize, "summarize", "s", false,
 	//	"Display state summary only")
 	//RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",

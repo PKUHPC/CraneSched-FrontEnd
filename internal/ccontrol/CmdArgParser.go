@@ -19,6 +19,7 @@ package ccontrol
 import (
 	"CraneFrontEnd/internal/util"
 	"os"
+	"regexp"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
@@ -34,7 +35,9 @@ var (
 	FlagQueryAll       bool
 	FlagTimeLimit      string
 	FlagPriority       float64
+	FlagHoldTime       string
 	FlagConfigFilePath string
+	FlagJson           bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -154,6 +157,52 @@ var (
 			}
 		},
 	}
+	holdCmd = &cobra.Command{
+		Use:   "hold [flags] job_id[,job_id...]",
+		Short: "prevent specified job from starting. ",
+		Long:  "",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
+			if !matched {
+				log.Error("job id list must follow the format " +
+					"<job_id> or '<job_id>,<job_id>,<job_id>...'")
+				os.Exit(util.ErrorCmdArg)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := HoldReleaseJobs(args[0], true); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	releaseCmd = &cobra.Command{
+		Use:   "release [flags] job_id[,job_id...]",
+		Short: "permit specified job to start. ",
+		Long:  "",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
+			if !matched {
+				log.Error("job id list must follow the format " +
+					"<job_id> or '<job_id>,<job_id>,<job_id>...'")
+				os.Exit(util.ErrorCmdArg)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := HoldReleaseJobs(args[0], false); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -167,6 +216,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
+	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 
 	RootCmd.AddCommand(showCmd)
 	{
@@ -197,4 +247,9 @@ func init() {
 			}
 		}
 	}
+	RootCmd.AddCommand(holdCmd)
+	{
+		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration for a job which will be prevented from starting.")
+	}
+	RootCmd.AddCommand(releaseCmd)
 }

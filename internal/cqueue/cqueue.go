@@ -96,7 +96,6 @@ func Query() util.CraneCmdError {
 		}
 		req.FilterTaskIds = filterJobIdListInt
 	}
-
 	if FlagNumLimit != 0 {
 		req.NumLimit = FlagNumLimit
 	}
@@ -105,6 +104,11 @@ func Query() util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -271,7 +275,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].TimeLimit.String())
 			}
 		case "L":
-			header = "NodeList"
+			header = "NodeList(Reason)"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].GetCranedList())
 			}
@@ -364,7 +368,11 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 }
 
 func loopedQuery(iterate uint64) util.CraneCmdError {
-	interval, _ := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	if err != nil {
+		log.Errorln("Invalid time interval.")
+		return util.ErrorCmdArg
+	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
 		err := Query()

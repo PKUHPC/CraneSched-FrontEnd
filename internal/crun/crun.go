@@ -8,10 +8,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"os"
 	"os/signal"
@@ -21,6 +17,11 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type StateOfCrun int
@@ -192,19 +193,23 @@ CrunStateMachineLoop:
 					}
 				}
 
-				if cforedReply.Type != protos.StreamCforedCrunReply_TASK_RES_ALLOC_REPLY {
-					log.Fatalf("Expect TASK_RES_ALLOC_REPLY,but get %s\n", cforedReply.Type.String())
-				}
-				cforedPayload := cforedReply.GetPayloadTaskAllocReply()
-				Ok := cforedPayload.Ok
+				switch cforedReply.Type {
+				case protos.StreamCforedCrunReply_TASK_RES_ALLOC_REPLY:
+					cforedPayload := cforedReply.GetPayloadTaskAllocReply()
+					Ok := cforedPayload.Ok
 
-				if Ok {
-					log.Debugf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
-					state = WaitForward
-				} else {
-					fmt.Println("Failed to allocate task resource. Exiting...")
-					break CrunStateMachineLoop
+					if Ok {
+						log.Debugf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+						state = WaitForward
+					} else {
+						fmt.Println("Failed to allocate task resource. Exiting...")
+						break CrunStateMachineLoop
+					}
+				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
+					log.Tracef("Received Task Cancel Request when wait res")
+					state = TaskKilling
 				}
+
 			case sig := <-sigs:
 				if sig == syscall.SIGINT {
 					log.Tracef("SIGINT Received. Cancelling the task...")
@@ -562,24 +567,24 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		Env: make(map[string]string),
 	}
 
-	if FlagNodes != 0 {
+	if FlagNodes > 0 {
 		task.NodeNum = FlagNodes
 	} else {
 		log.Fatalf("Invalid --nodes %d", FlagNodes)
 	}
-	if FlagCpuPerTask != 0 {
+	if FlagCpuPerTask > 0 {
 		task.CpusPerTask = FlagCpuPerTask
 	} else {
 		log.Fatalf("Invalid --cpus-per-task %f", FlagCpuPerTask)
 	}
-	if FlagNtasksPerNode != 0 {
+	if FlagNtasksPerNode > 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
 	} else {
 		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
 	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if ok == false {
+		if !ok {
 			log.Print("Invalid --time")
 			return
 		}
@@ -614,10 +619,10 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
-	if task.CpusPerTask <= 0 || task.NtasksPerNode == 0 || task.NodeNum == 0 {
-		log.Fatal("Invalid --cpus-per-task, --ntasks-per-node or --node-num")
-	}
 	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
+		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableResource.CpuCoreLimit)
+	}
 	task.GetInteractiveMeta().ShScript = strings.Join(args, " ")
 	term, exits := syscall.Getenv("TERM")
 	if exits {

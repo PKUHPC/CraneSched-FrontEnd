@@ -20,6 +20,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -43,6 +44,11 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -93,6 +99,11 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
 	}
 
 	var B2MBRatio uint64 = 1024 * 1024
@@ -152,13 +163,17 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
+	}
+
 	if len(reply.TaskInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
 			fmt.Printf("Job %d is not running.\n", taskId)
 		}
-
 	} else {
 		for _, taskInfo := range reply.TaskInfoList {
 			timeSubmitStr := "unknown"
@@ -247,41 +262,22 @@ func ShowConfig(path string) util.CraneCmdError {
 		log.Errorf("error unmarshalling yaml: %v\n", err)
 		return util.ErrorCmdArg
 	}
-	PrintFlattenYAML("", config)
+	if FlagJson {
+		output, _ := json.Marshal(config)
+		fmt.Println(string(output))
+	} else {
+		PrintFlattenYAML("", config)
+	}
 
 	return util.ErrorSuccess
 }
 
 func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
-	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
-	result := re.FindAllStringSubmatch(timeLimit, -1)
-
-	if result == nil || len(result) != 1 {
-		log.Errorf("Time format error")
-		return util.ErrorCmdArg
-	}
-	var dd uint64
-	if result[0][2] != "" {
-		dd, _ = strconv.ParseUint(result[0][2], 10, 32)
-	}
-	hh, err := strconv.ParseUint(result[0][3], 10, 32)
+	seconds, err := ParseTimeStrToSeconds(timeLimit)
 	if err != nil {
-		log.Errorf("The hour time format error")
+		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
-	mm, err := strconv.ParseUint(result[0][4], 10, 32)
-	if err != nil {
-		log.Errorf("The minute time format error")
-		return util.ErrorCmdArg
-	}
-	ss, err := strconv.ParseUint(result[0][5], 10, 32)
-	if err != nil {
-		log.Errorf("The second time format error")
-		return util.ErrorCmdArg
-	}
-
-	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
-
 	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
 		TaskId:    taskId,
@@ -296,11 +292,130 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
 	if reply.Ok {
 		log.Println("Change time limit success.")
 		return util.ErrorSuccess
 	} else {
 		log.Printf("Change time limit failed: %s.\n", reply.GetReason())
+		return util.ErrorBackend
+	}
+}
+
+func ParseTimeStrToSeconds(time string) (int64, error) {
+	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
+	result := re.FindAllStringSubmatch(time, -1)
+
+	if result == nil || len(result) != 1 {
+		return 0, fmt.Errorf("time format error")
+	}
+	var dd uint64
+	if result[0][2] != "" {
+		dd, _ = strconv.ParseUint(result[0][2], 10, 32)
+	}
+	hh, err := strconv.ParseUint(result[0][3], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("the hour time format error")
+	}
+	mm, err := strconv.ParseUint(result[0][4], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("the minute time format error")
+	}
+	ss, err := strconv.ParseUint(result[0][5], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("the second time format error")
+	}
+	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
+	return seconds, nil
+}
+
+func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
+	jobIdStrSplit := strings.Split(jobs, ",")
+	craneError := util.ErrorSuccess
+	var jobList []uint64
+	for i := 0; i < len(jobIdStrSplit); i++ {
+		jobId64, err := strconv.ParseUint(jobIdStrSplit[i], 10, 32)
+		if err != nil {
+			fmt.Println("Invalid job Id: " + jobIdStrSplit[i])
+			craneError = util.ErrorCmdArg
+		} else {
+			jobList = append(jobList, jobId64)
+		}
+	}
+	if craneError != util.ErrorSuccess {
+		return craneError
+	}
+	for _, jobId := range jobList {
+		err := HoldReleaseJob(uint32(jobId), hold)
+		if err != util.ErrorSuccess {
+			craneError = err
+		}
+	}
+	return craneError
+}
+
+func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
+	var req *protos.ModifyTaskRequest
+	holdType := "Hold"
+
+	req = &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskId:    jobId,
+		Attribute: protos.ModifyTaskRequest_Hold,
+	}
+
+	if hold {
+		// The default timer value for hold is unlimited.
+		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: math.MaxInt64}
+
+		// If a time limit for hold constraint is specified, parse it.
+		if FlagHoldTime != "" {
+			parsedSeconds, err := ParseTimeStrToSeconds(FlagHoldTime)
+			if err != nil {
+				log.Errorln(err)
+				return util.ErrorCmdArg
+			}
+
+			if parsedSeconds == 0 {
+				log.Errorln("Hold time must be greater than 0.")
+				return util.ErrorCmdArg
+			}
+
+			req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: parsedSeconds}
+		}
+	} else {
+		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: 0}
+		holdType = "Release"
+	}
+
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		log.Errorf("ModifyJob failed: " + err.Error())
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if reply.Ok {
+		fmt.Printf(holdType+" job %v success.\n", jobId)
+		return util.ErrorSuccess
+	} else {
+		fmt.Printf(holdType+" job %v failed: %s\n", jobId, reply.GetReason())
 		return util.ErrorBackend
 	}
 }
@@ -334,6 +449,15 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
 	if reply.Ok {
 		log.Println("Change priority success.")
 		return util.ErrorSuccess
@@ -343,42 +467,64 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 	}
 }
 
-func ChangeNodeState(nodeName string, state string, reason string) util.CraneCmdError {
-	var req = &protos.ModifyCranedStateRequest{}
-	if nodeName == "" {
-		log.Errorln("No valid node name in update node command. Specify node names by -n or --name.")
+func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCmdError {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok {
+		log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
 		return util.ErrorCmdArg
-	} else {
-		req.CranedId = nodeName
 	}
 
-	state = strings.ToLower(state)
-	switch state {
-	case "drain":
-		if reason == "" {
-			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
+	if len(nodeNames) == 0 {
+		log.Errorln("No node provided.")
+		return util.ErrorCmdArg
+	}
+
+	finalError := util.ErrorSuccess
+	for _, node := range nodeNames {
+		var req = &protos.ModifyCranedStateRequest{}
+
+		req.CranedId = node
+		state = strings.ToLower(state)
+		switch state {
+		case "drain":
+			if reason == "" {
+				log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
+				return util.ErrorCmdArg
+			}
+			req.NewState = protos.CranedControlState_CRANE_DRAIN
+			req.Reason = reason
+		case "resume":
+			req.NewState = protos.CranedControlState_CRANE_NONE
+		default:
+			log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
 			return util.ErrorCmdArg
 		}
-		req.NewState = protos.CranedControlState_CRANE_DRAIN
-		req.Reason = reason
-	case "resume":
-		req.NewState = protos.CranedControlState_CRANE_NONE
-	default:
-		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
-		return util.ErrorCmdArg
+
+		reply, err := stub.ModifyNode(context.Background(), req)
+		if err != nil {
+			log.Errorf("Failed to modify the state of %s: %v.\n", node, err)
+			finalError = util.ErrorNetwork
+			continue
+		}
+
+		if FlagJson {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+			if reply.GetOk() {
+				finalError = util.ErrorSuccess
+			} else {
+				finalError = util.ErrorBackend
+			}
+			continue
+		}
+
+		if reply.Ok {
+			log.Printf("The state of %s is modified.\n", node)
+			finalError = util.ErrorSuccess
+		} else {
+			log.Printf("Failed to modify the state of %s: %s.\n", node, reply.GetReason())
+			finalError = util.ErrorBackend
+		}
 	}
 
-	reply, err := stub.ModifyNode(context.Background(), req)
-	if err != nil {
-		log.Errorf("ModifyNode failed: %v\n", err)
-		return util.ErrorNetwork
-	}
-
-	if reply.Ok {
-		log.Println("Change node state success.")
-		return util.ErrorSuccess
-	} else {
-		log.Printf("Change node state failed: %s.\n", reply.GetReason())
-		return util.ErrorBackend
-	}
+	return finalError
 }

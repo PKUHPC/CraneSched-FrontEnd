@@ -48,7 +48,8 @@ func QueryJob() util.CraneCmdError {
 	if FlagFilterStartTime != "" {
 		request.FilterStartTimeInterval = &protos.TimeInterval{}
 		if !strings.Contains(FlagFilterStartTime, "~") {
-			log.Fatalf("Failed to parse the time string: char '~' not found in \"%s\"! Please input an interval!", FlagFilterStartTime)
+			log.Errorf("Failed to parse the time string: char '~' not found in \"%s\". Please input an interval. ", FlagFilterStartTime)
+			return util.ErrorCmdArg
 		}
 		split := strings.Split(FlagFilterStartTime, "~")
 		if split[0] != "" {
@@ -67,14 +68,16 @@ func QueryJob() util.CraneCmdError {
 			}
 			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
 			if request.FilterStartTimeInterval.UpperBound.AsTime().Before(request.FilterStartTimeInterval.LowerBound.AsTime()) {
-				log.Fatalf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterStartTime)
+				log.Errorf("Parameter error: the right time is earlier than the left time in '%s'.", FlagFilterStartTime)
+				return util.ErrorCmdArg
 			}
 		}
 	}
 	if FlagFilterEndTime != "" {
 		request.FilterEndTimeInterval = &protos.TimeInterval{}
 		if !strings.Contains(FlagFilterEndTime, "~") {
-			log.Fatalf("Failed to parse the time string: char '~' not found in \"%s\"! Please input an interval!", FlagFilterEndTime)
+			log.Errorf("Failed to parse the time string: char '~' not found in \"%s\". Please input an interval.", FlagFilterEndTime)
+			return util.ErrorCmdArg
 		}
 		split := strings.Split(FlagFilterEndTime, "~")
 		if split[0] != "" {
@@ -93,14 +96,16 @@ func QueryJob() util.CraneCmdError {
 			}
 			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
 			if request.FilterEndTimeInterval.UpperBound.AsTime().Before(request.FilterEndTimeInterval.LowerBound.AsTime()) {
-				log.Fatalf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterEndTime)
+				log.Errorf("Parameter error: the right time is earlier than the left time in '%s'.", FlagFilterEndTime)
+				return util.ErrorCmdArg
 			}
 		}
 	}
 	if FlagFilterSubmitTime != "" {
 		request.FilterSubmitTimeInterval = &protos.TimeInterval{}
 		if !strings.Contains(FlagFilterSubmitTime, "~") {
-			log.Fatalf("Failed to parse the time string: char '~' not found in '%s'! Please input an interval!", FlagFilterSubmitTime)
+			log.Errorf("Failed to parse the time string: char '~' not found in '%s'. Please input an interval.", FlagFilterSubmitTime)
+			return util.ErrorCmdArg
 		}
 		split := strings.Split(FlagFilterSubmitTime, "~")
 		if split[0] != "" {
@@ -119,7 +124,8 @@ func QueryJob() util.CraneCmdError {
 			}
 			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
 			if request.FilterSubmitTimeInterval.UpperBound.AsTime().Before(request.FilterSubmitTimeInterval.LowerBound.AsTime()) {
-				log.Fatalf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterSubmitTime)
+				log.Errorf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterSubmitTime)
+				return util.ErrorCmdArg
 			}
 		}
 	}
@@ -135,7 +141,7 @@ func QueryJob() util.CraneCmdError {
 		var filterJobIdListInt []uint32
 		for i := 0; i < len(filterJobIdList); i++ {
 			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
-			if err != nil {
+			if err != nil || id == 0 {
 				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
 				return util.ErrorCmdArg
 			}
@@ -144,9 +150,17 @@ func QueryJob() util.CraneCmdError {
 		request.FilterTaskIds = filterJobIdListInt
 	}
 
+	var userList []string
 	if FlagFilterUsers != "" {
 		filterUserList := strings.Split(FlagFilterUsers, ",")
-		request.FilterUsers = filterUserList
+		for _, user := range filterUserList {
+			if user == "" {
+				log.Warn("Empty user name is ignored.")
+				continue
+			}
+			userList = append(userList, user)
+		}
+		request.FilterUsers = userList
 	}
 
 	if FlagFilterJobNames != "" {
@@ -188,6 +202,13 @@ func QueryJob() util.CraneCmdError {
 
 	if FlagFilterQos != "" {
 		filterJobQosList := strings.Split(FlagFilterQos, ",")
+
+		for i := 0; i < len(filterJobQosList); i++ {
+			if filterJobQosList[i] == "" {
+				log.Errorf("Invalid job QoS given: %s.\n", filterJobQosList[i])
+				return util.ErrorCmdArg
+			}
+		}
 		request.FilterQos = filterJobQosList
 	}
 
@@ -204,6 +225,11 @@ func QueryJob() util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show tasks")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)

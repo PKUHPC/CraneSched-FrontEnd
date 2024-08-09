@@ -763,21 +763,7 @@ CforedStateMachineLoop:
 					}
 
 				case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
-					reply = &protos.StreamCforedReply{
-						Type: protos.StreamCforedReply_TASK_CANCEL_REQUEST,
-						Payload: &protos.StreamCforedReply_PayloadTaskCancelRequest{
-							PayloadTaskCancelRequest: &protos.StreamCforedReply_TaskCancelRequest{
-								TaskId: ctldReply.GetPayloadTaskCancelRequest().TaskId,
-							},
-						},
-					}
-
-					if err := toCallocStream.Send(reply); err != nil {
-						log.Debug("[Cfored<->Calloc] Connection to calloc was broken.")
-						state = CancelTaskOfDeadCalloc
-					} else {
-						state = WaitCallocCancel
-					}
+					state = WaitCallocCancel
 
 				default:
 					log.Fatal("[Cfored<->Calloc] Expect type " +

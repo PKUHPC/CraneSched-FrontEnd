@@ -19,15 +19,18 @@ package cwrapper
 import (
 	"CraneFrontEnd/internal/cacct"
 	"CraneFrontEnd/internal/cacctmgr"
+	"CraneFrontEnd/internal/calloc"
 	"CraneFrontEnd/internal/cbatch"
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/ccontrol"
 	"CraneFrontEnd/internal/cinfo"
 	"CraneFrontEnd/internal/cqueue"
+	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -48,13 +51,41 @@ For the second, we directly call the original command, so the amount of code wil
  However, it requires a series of processing on the args, which is likely to lead to some corner cases
  not being properly handled.
 
-In this file, ccontrol is too complex, and sbatch and cbatch are almost the same, so we choose the 2nd approach.
-The remaining commands are relatively simple, so we choose the first approach.
+To sum up, ccontrol, cacctmgr, cbatch, calloc and crun are too complex or very same to their
+ slurm counterparts, so we choose the 2nd way. The rest of the commands follow the 1st approach.
 */
 
-var slurmGroup = &cobra.Group{
-	ID:    "slurm",
-	Title: "Slurm Commands:",
+type SlurmWrapper struct {
+}
+
+func (w SlurmWrapper) Group() *cobra.Group {
+	return &cobra.Group{
+		ID:    "slurm",
+		Title: "Slurm Commands:",
+	}
+}
+
+func (w SlurmWrapper) SubCommands() []*cobra.Command {
+	return []*cobra.Command{
+		sacct(),
+		sacctmgr(),
+		salloc(),
+		sbatch(),
+		scancel(),
+		scontrol(),
+		sinfo(),
+		squeue(),
+		srun(),
+	}
+}
+
+func (w SlurmWrapper) HasCommand(cmd string) bool {
+	return slices.Contains([]string{"sacct", "sacctmgr", "sbatch", "scancel", "scontrol", "sinfo", "squeue"}, cmd)
+}
+
+func (w SlurmWrapper) Preprocess() error {
+	// Slurm commands do not need any preprocessing for os.Args
+	return nil
 }
 
 func sacct() *cobra.Command {
@@ -118,11 +149,11 @@ func sacctmgr() *cobra.Command {
 		} else if arg == "priority" {
 			return "--priority", nil
 		} else if arg == "maxjobpu" || arg == "maxjobsperuser" {
-			return "--max_jobs_per_user", nil
+			return "--max-jobs-per-user", nil
 		} else if arg == "maxcpupu" || arg == "maxcpuperuser" {
-			return "--max_cpus_per_user", nil
+			return "--max-cpus-per-user", nil
 		} else if arg == "maxwall" || arg == "maxwalldurationperjob" {
-			return "--max_time_limit_per_task", nil
+			return "--max-time-limit-per-task", nil
 		} else {
 			return arg, errors.New("Unsupported arguments: " + arg)
 		}
@@ -162,10 +193,8 @@ func sacctmgr() *cobra.Command {
 				convertedArgs[0] = "delete"
 			case "update":
 				convertedArgs[0] = "modify"
-			case "show":
-				convertedArgs[0] = "find"
 			case "list":
-				convertedArgs[0] = "find"
+				convertedArgs[0] = "show"
 			}
 
 			// Check entities
@@ -357,6 +386,41 @@ func sacctmgr() *cobra.Command {
 	return cmd
 }
 
+func salloc() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "salloc",
+		Short:   "Wrapper of calloc command",
+		Long:    "",
+		GroupID: "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Add --help from calloc
+			calloc.RootCmd.InitDefaultHelpFlag()
+
+			// Parse flags
+			if err := calloc.RootCmd.ParseFlags(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			args = calloc.RootCmd.Flags().Args()
+			if help, err := calloc.RootCmd.Flags().GetBool("help"); err != nil || help {
+				calloc.RootCmd.Help()
+				return
+			}
+
+			// Validate the arguments
+			if err := Validate(calloc.RootCmd, args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			calloc.RootCmd.Run(calloc.RootCmd, args)
+		},
+	}
+
+	return cmd
+}
+
 func scancel() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "scancel",
@@ -405,8 +469,8 @@ func sbatch() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Parse flags
 			cbatch.RootCmd.InitDefaultHelpFlag()
+
 			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
@@ -422,7 +486,7 @@ func sbatch() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			cbatch.RootCmd.Run(cmd, args)
+			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
 
@@ -557,10 +621,10 @@ func sinfo() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
-		"List only a partition state summary with no node state details.")
-	cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
-		"List reasons nodes are in the down, drained, fail or failing state.")
+	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
+	// 	"List only a partition state summary with no node state details.")
+	// cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
+	// 	"List reasons nodes are in the down, drained, fail or failing state.")
 
 	cmd.Flags().BoolVarP(&cinfo.FlagFilterDownOnly, "dead", "d", false,
 		"If set, only report state information for non-responding (dead) nodes.")
@@ -622,6 +686,38 @@ func squeue() *cobra.Command {
 
 	// The following flags are not supported by the wrapper
 	// --format, -o: As the cqueue's output format is very different from squeue, this flag is not supported.
+
+	return cmd
+}
+
+func srun() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "srun",
+		Short:              "Wrapper of crun command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			crun.RootCmd.InitDefaultHelpFlag()
+
+			if err := crun.RootCmd.ParseFlags(args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			args = crun.RootCmd.Flags().Args()
+			if help, err := crun.RootCmd.Flags().GetBool("help"); err != nil || help {
+				crun.RootCmd.Help()
+				return
+			}
+
+			if err := Validate(crun.RootCmd, args); err != nil {
+				log.Error(err)
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			crun.RootCmd.Run(crun.RootCmd, args)
+		},
+	}
 
 	return cmd
 }
