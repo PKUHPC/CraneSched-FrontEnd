@@ -21,6 +21,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -31,7 +32,7 @@ var (
 	FlagState          string
 	FlagReason         string
 	FlagPartitionName  string
-	FlagTaskId         uint32
+	FlagTaskIds        string
 	FlagQueryAll       bool
 	FlagTimeLimit      string
 	FlagPriority       float64
@@ -96,14 +97,15 @@ var (
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			var taskId uint32 = 0
 			if len(args) == 0 {
 				FlagQueryAll = true
 			} else {
 				id, _ := strconv.Atoi(args[0])
-				FlagTaskId = uint32(id)
+				taskId = uint32(id)
 				FlagQueryAll = false
 			}
-			if err := ShowTasks(FlagTaskId, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowTasks(taskId, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -135,14 +137,23 @@ var (
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			if len(FlagTimeLimit) != 0 {
-				if err := ChangeTaskTimeLimit(FlagTaskId, FlagTimeLimit); err != util.ErrorSuccess {
-					os.Exit(err)
+			taskIds := strings.Split(FlagTaskIds, ",")
+			for i := range taskIds {
+				id, err := strconv.Atoi(taskIds[i])
+				if err != nil {
+					log.Fatalf("Failed to convert job ID to int: %s", err.Error())
 				}
-			}
-			if cmd.Flags().Changed("priority") {
-				if err := ChangeTaskPriority(FlagTaskId, FlagPriority); err != util.ErrorSuccess {
-					os.Exit(err)
+				taskId := uint32(id)
+				log.Tracef("Modifying job ID: %d", taskId)
+				if len(FlagTimeLimit) != 0 {
+					if err := ChangeTaskTimeLimit(taskId, FlagTimeLimit); err != util.ErrorSuccess {
+						os.Exit(err)
+					}
+				}
+				if cmd.Flags().Changed("priority") {
+					if err := ChangeTaskPriority(taskId, FlagPriority); err != util.ErrorSuccess {
+						os.Exit(err)
+					}
 				}
 			}
 		},
@@ -237,7 +248,7 @@ func init() {
 
 		updateCmd.AddCommand(updateJobCmd)
 		{
-			updateJobCmd.Flags().Uint32VarP(&FlagTaskId, "job", "J", 0, "Specify job id of the job to be modified")
+			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job ids to be modified (comma separated list)")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
 			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 
