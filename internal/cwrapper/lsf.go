@@ -117,7 +117,12 @@ func bacct() *cobra.Command {
 					cacct.FlagFilterStates = strings.Join(states, ",")
 				}
 			}
-			cacct.FlagFilterJobIDs = strings.Join(args, ",")
+			if len(args) == 1 && args[0] == "0" {
+				cacct.FlagFilterJobIDs = ""
+			} else if len(args) > 0 {
+				cacct.FlagFilterJobIDs = strings.Join(args, ",")
+			}
+
 			cacct.RootCmd.PersistentPreRun(cmd, []string{})
 			cacct.RootCmd.Run(cmd, []string{})
 		},
@@ -208,7 +213,6 @@ func bjobs() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&cqueue.FlagFormat, "o", "", "Sets the customized output format")
 	cmd.Flags().StringVar(&cqueue.FlagFilterJobNames, "J", "", "Displays information about jobs with the specified job name")
 	cmd.Flags().BoolVar(&cqueue.FlagNoHeader, "noheader", false, "Removes the column headings from the output")
 
@@ -282,18 +286,6 @@ func bkill() *cobra.Command {
 
 	return cmd
 }
-
-// func bmod() *cobra.Command {
-// 	cmd := &cobra.Command{
-// 		Use:   "bmod [flags] [job_id ...]",
-// 		Short: "Wrapper of ccontrol update job",
-// 		Long:  "",
-// 		Run: func(cmd *cobra.Command, args []string) {
-// 			// todo
-// 		},
-// 	}
-// 	return cmd
-// }
 
 func ConvertInterval(t string) string {
 	if t == "" {
