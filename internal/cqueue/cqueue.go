@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/user"
 	"regexp"
 	"strconv"
 	"strings"
@@ -60,6 +61,15 @@ func Query() util.CraneCmdError {
 		if !has_all {
 			req.FilterTaskStates = stateList
 		}
+	}
+	if FlagSelf {
+		currentUser, err := user.Current()
+		username := currentUser.Username
+		if err != nil {
+			log.Errorf("Failed to get current username: %v\n", err)
+			return util.ErrorCmdArg
+		}
+		req.FilterUsers = []string{username}
 	}
 
 	if FlagFilterJobNames != "" {
