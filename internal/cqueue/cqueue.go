@@ -62,16 +62,15 @@ func Query() util.CraneCmdError {
 			req.FilterTaskStates = stateList
 		}
 	}
+
 	if FlagSelf {
-		currentUser, err := user.Current()
-		username := currentUser.Username
+		cu, err := user.Current()
 		if err != nil {
 			log.Errorf("Failed to get current username: %v\n", err)
 			return util.ErrorCmdArg
 		}
-		req.FilterUsers = []string{username}
+		req.FilterUsers = []string{cu.Username}
 	}
-
 	if FlagFilterJobNames != "" {
 		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
 		req.FilterTaskNames = filterJobNameList
