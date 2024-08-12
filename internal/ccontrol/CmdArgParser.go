@@ -239,7 +239,7 @@ func init() {
 
 		updateCmd.AddCommand(updateJobCmd)
 		{
-			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job id of the job to be modified")
+			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job ids of the job to be modified (comma seperated list)")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
 			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 
