@@ -565,52 +565,51 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		return util.ErrorCmdArg
 	}
 
-	finalError := util.ErrorSuccess
-	for _, node := range nodeNames {
-		var req = &protos.ModifyCranedStateRequest{}
+	var req = &protos.ModifyCranedStateRequest{}
 
-		req.CranedId = node
-		state = strings.ToLower(state)
-		switch state {
-		case "drain":
-			if reason == "" {
-				log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
-				return util.ErrorCmdArg
-			}
-			req.NewState = protos.CranedControlState_CRANE_DRAIN
-			req.Reason = reason
-		case "resume":
-			req.NewState = protos.CranedControlState_CRANE_NONE
-		default:
-			log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
+	req.CranedIds = nodeNames
+	state = strings.ToLower(state)
+	switch state {
+	case "drain":
+		if reason == "" {
+			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
 			return util.ErrorCmdArg
 		}
+		req.NewState = protos.CranedControlState_CRANE_DRAIN
+		req.Reason = reason
+	case "resume":
+		req.NewState = protos.CranedControlState_CRANE_NONE
+	default:
+		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
+		return util.ErrorCmdArg
+	}
 
-		reply, err := stub.ModifyNode(context.Background(), req)
-		if err != nil {
-			log.Errorf("Failed to modify the state of %s: %v.\n", node, err)
-			finalError = util.ErrorNetwork
-			continue
-		}
+	reply, err := stub.ModifyNode(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to modify node state: %v.\n", err)
+		return util.ErrorNetwork
+	}
 
-		if FlagJson {
-			fmt.Println(util.FmtJson.FormatReply(reply))
-			if reply.GetOk() {
-				finalError = util.ErrorSuccess
-			} else {
-				finalError = util.ErrorBackend
-			}
-			continue
-		}
-
-		if reply.Ok {
-			log.Printf("The state of %s is modified.\n", node)
-			finalError = util.ErrorSuccess
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.NotModifiedNodes) == 0 {
+			return util.ErrorSuccess
 		} else {
-			log.Printf("Failed to modify the state of %s: %s.\n", node, reply.GetReason())
-			finalError = util.ErrorBackend
+			return util.ErrorBackend
 		}
 	}
 
-	return finalError
+	if len(reply.ModifiedNodes) > 0 {
+		modifiedNodesStr := strings.Join(reply.ModifiedNodes, ",")
+		fmt.Printf("Node %s modified successfully.\n", modifiedNodesStr)
+	}
+
+	if len(reply.NotModifiedNodes) > 0 {
+		for i := 0; i < len(reply.NotModifiedNodes); i++ {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+		}
+		return util.ErrorBackend
+	}
+	return util.ErrorSuccess
 }
