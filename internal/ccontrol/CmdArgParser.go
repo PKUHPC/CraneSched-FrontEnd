@@ -232,7 +232,7 @@ func init() {
 	{
 		updateCmd.AddCommand(updateNodeCmd)
 		{
-			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify name of the node to be modified")
+			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify names of the node to be modified (comma seperated list)")
 			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Set the node state")
 			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set the reason of this state change")
 		}
