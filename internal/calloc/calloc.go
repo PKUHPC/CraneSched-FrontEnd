@@ -319,21 +319,9 @@ CallocStateMachineLoop:
 }
 
 func main(cmd *cobra.Command, args []string) {
+	util.InitLogger(FlagDebugLevel)
+
 	var err error
-
-	switch FlagDebugLevel {
-	case "trace":
-		util.InitLogger(log.TraceLevel)
-	case "debug":
-		util.InitLogger(log.DebugLevel)
-	case "info":
-		fallthrough
-	default:
-		util.InitLogger(log.InfoLevel)
-	}
-
-	log.Tracef("Positional args: %v\n", args)
-
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {

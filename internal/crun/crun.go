@@ -508,21 +508,11 @@ func IOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
 }
 
 func MainCrun(cmd *cobra.Command, args []string) {
-	var err error
-
-	switch FlagDebugLevel {
-	case "trace":
-		util.InitLogger(log.TraceLevel)
-	case "debug":
-		util.InitLogger(log.DebugLevel)
-	case "info":
-		fallthrough
-	default:
-		util.InitLogger(log.InfoLevel)
-	}
+	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
+	var err error
 	if gVars.cwd, err = os.Getwd(); err != nil {
 		log.Fatalf("Failed to get working directory: %s", err.Error())
 	}

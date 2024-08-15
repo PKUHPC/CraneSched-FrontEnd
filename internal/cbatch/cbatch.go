@@ -29,6 +29,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type CbatchArg struct {
@@ -130,15 +132,27 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
-		case "--mail-type":
-			mailType, err := util.ParseMailType(arg.val)
-			if err != nil {
-				log.Error(err)
+		case "--extra-attr":
+			// Merge the extra attributes read from the file with the existing ones.
+			if !util.CheckTaskExtraAttr(arg.val) {
+				log.Errorln("Invalid extra attributes: invalid JSON string.")
 				return false, nil
 			}
-			task.MailType = mailType
+			task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, arg.val)
+		case "--mail-type":
+			extra, err := sjson.Set(task.ExtraAttr, "mail.type", arg.val)
+			if err != nil {
+				log.Errorf("Invalid mail type: %v.\n", err)
+				return false, nil
+			}
+			task.ExtraAttr = extra
 		case "--mail-user":
-			task.MailUser = arg.val
+			extra, err := sjson.Set(task.ExtraAttr, "mail.user", arg.val)
+			if err != nil {
+				log.Errorf("Invalid mail user: %v.\n", err)
+				return false, nil
+			}
+			task.ExtraAttr = extra
 		default:
 			log.Errorf("Invalid parameter '%s' given in the script file.\n", arg.name)
 			return false, nil
@@ -213,19 +227,38 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagStderrPath != "" {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
-	if FlagMailType != "" {
-		mailType, err := util.ParseMailType(FlagMailType)
-		if err != nil {
-			log.Error(err)
+
+	if FlagExtraAttr != "" {
+		// Merge the extra attributes read from the file with the existing ones.
+		if !util.CheckTaskExtraAttr(FlagExtraAttr) {
+			log.Errorln("Invalid extra attributes: invalid JSON string.")
 			return false, nil
 		}
-		task.MailType = mailType
+		task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, FlagExtraAttr)
+	}
+	if FlagMailType != "" {
+		extra, err := sjson.Set(task.ExtraAttr, "mail.type", FlagMailType)
+		if err != nil {
+			log.Errorf("Invalid mail type: %v.\n", err)
+			return false, nil
+		}
+		task.ExtraAttr = extra
 	}
 	if FlagMailUser != "" {
-		task.MailUser = FlagMailUser
+		extra, err := sjson.Set(task.ExtraAttr, "mail.user", FlagMailUser)
+		if err != nil {
+			log.Errorf("Invalid mail user: %v.\n", err)
+			return false, nil
+		}
+		task.ExtraAttr = extra
 	}
 
 	// Check the validity of the parameters
+
+	if len(task.Name) > 30 {
+		task.Name = task.Name[:30]
+		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
+	}
 	if task.CpusPerTask <= 0 {
 		log.Errorln("Invalid --cpus-per-task")
 		return false, nil
@@ -254,15 +287,18 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorln("Invalid --exclude")
 		return false, nil
 	}
-
-	if task.MailType != 0 && task.MailUser == "" {
-		log.Errorln("Mail type is set but missing the mail user")
-		return false, nil
-	}
-
-	if len(task.Name) > 30 {
-		task.Name = task.Name[:30]
-		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
+	if task.ExtraAttr != "" {
+		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
+		mailtype := gjson.Get(task.ExtraAttr, "mail.type")
+		mailuser := gjson.Get(task.ExtraAttr, "mail.user")
+		if mailtype.Exists() != mailuser.Exists() {
+			log.Errorln("Incomplete mail arguments")
+			return false, nil
+		}
+		if mailtype.Exists() && !util.CheckMailType(mailtype.String()) {
+			log.Errorln("Invalid --mail-type")
+			return false, nil
+		}
 	}
 
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)

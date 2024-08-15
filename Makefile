@@ -14,7 +14,11 @@
 # See the Mulan PSL v2 for more details. 
 #
 
-# Build with protobuf and version injection
+# Makefile for Golang components of CraneSched.
+# This file will generate protobuf files, build executables and plugins. 
+
+# Notes for developer: 
+# - Please use proper indentation for neater output.
 
 # Variables
 GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
@@ -24,43 +28,59 @@ BUILD_TIME := $(shell date +'%a, %d %b %Y %H:%M:%S %z')
 LDFLAGS := -ldflags \
 			"-X 'CraneFrontEnd/internal/util.VERSION=$(VERSION)' \
 			-X 'CraneFrontEnd/internal/util.BUILD_TIME=$(BUILD_TIME)'"
-BIN_DIR := bin
+BIN_DIR := build/bin
+PLUGIN_DIR := build/plugin
 
 # Targets
-.PHONY: all protos build clean install
+.PHONY: all protos build clean install plugin
 
-all: protos build
+all: protos build plugin
 
 protos: 
-	@echo "Generating Protobuf files..."
+	@echo "- Generating Protobuf files..."
 	@mkdir -p ./generated/protos
 	@protoc --go_out=generated --go-grpc_out=generated --proto_path=protos protos/*.proto
+	@echo "  - Summary:"
+	@echo "    - Protobuf files generated in ./generated/protos/"
 
 build:
-	@echo "Building CraneSched Frontend with version $(VERSION)..."
+	@echo "- Building executables..."
 	@mkdir -p $(BIN_DIR)
 	@for dir in cmd/*/ ; do \
-		echo "  Building $$dir"; \
+		echo "  - Building $$dir"; \
 		(cd $$dir && go build $(LDFLAGS) -o ../../$(BIN_DIR)/$$(basename $$dir)) || exit 1; \
 	done
-	@echo "============ Build Summary ============"
-	@echo "  Version: $(VERSION)"
-	@echo "  Build time: $(BUILD_TIME)"
-	@echo "  Commit hash: $(GIT_COMMIT_HASH)"
-	@echo "  Binaries are in ./$(BIN_DIR)/ ,"
-	@echo "  use 'make install' to install them. "
-	@echo "======================================="
+	@echo "  - Summary:"
+	@echo "    - Version: $(VERSION)"
+	@echo "    - Build time: $(BUILD_TIME)"
+	@echo "    - Commit hash: $(GIT_COMMIT_HASH)"
+	@echo "    - Binaries are in ./$(BIN_DIR)/"
+
+plugin:
+	@echo "- Building plugins..."
+	@mkdir -p $(PLUGIN_DIR)
+	@for dir in plugin/*/ ; do \
+		echo "  - Building: $$(basename $$dir).so"; \
+		(cd $$dir && go build $(LDFLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/$$(basename $$dir).so) || exit 1; \
+	done
+	@echo "  - Summary:"
+	@echo "    - Plugins are in ./$(PLUGIN_DIR)/"
 
 clean:
 	@echo "Cleaning up..."
-	@rm -rf $(BIN_DIR)
+	@rm -rf build
 
 install: 
+	@echo "- Installing executables, plugins and auxiliary files..."
 	@if [ ! -d "$(BIN_DIR)" ]; then \
-		echo "Error: $(BIN_DIR) does not exist. Please build the binaries first."; \
+		echo "Error: $(BIN_DIR) does not exist. Please build first."; \
 		exit 1; \
 	fi
-	@echo "Installing binaries to /usr/local/bin/"
+	@echo "  - Installing binaries to /usr/local/bin/"
 	@mkdir -p /usr/local/bin
 	@cp $(BIN_DIR)/* /usr/local/bin
-	@echo "Done."
+	@echo "  - Installing systemd service files to /etc/systemd/system/"
+	@mkdir -p /etc/systemd/system
+	@cp etc/*.service /etc/systemd/system
+	@echo "  - You may need to reload systemd daemons: 'systemctl daemon-reload'"
+	@echo "  - Done."

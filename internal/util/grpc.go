@@ -31,37 +31,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	grpcstatus "google.golang.org/grpc/status"
-	"gopkg.in/yaml.v3"
 )
 
-func ParseConfig(configFilePath string) *Config {
-	confFile, err := os.ReadFile(configFilePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	config := &Config{}
-
-	err = yaml.Unmarshal(confFile, config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if config.CraneBaseDir == "" {
-		config.CraneBaseDir = "/var/crane/"
-	}
-
-	if config.CranedGoUnixSockPath == "" {
-		config.CranedGoUnixSockPath = config.CraneBaseDir + "craned/cfored.sock"
-	} else {
-		config.CranedGoUnixSockPath = filepath.Join(config.CraneBaseDir, config.CranedGoUnixSockPath)
-	}
-
-	return config
-}
-
-func GetListenSocketByConfig(config *Config) (net.Listener, error) {
-	serverAddr := fmt.Sprintf("%s:%s", DefaultCforedServerListenAddress, DefaultCforedServerListenPort)
-
+func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 	if config.UseTls {
 		CaCertContent, err := os.ReadFile(config.ServerCertFilePath)
 		if err != nil {
@@ -89,18 +61,47 @@ func GetListenSocketByConfig(config *Config) (net.Listener, error) {
 			// will occur!!!!
 			NextProtos: []string{"h2"},
 		}
-		listen, err := tls.Listen("tcp", serverAddr, tlsConfig)
+		listen, err := tls.Listen("tcp", bindAddr, tlsConfig)
 		if err != nil {
 			return nil, err
 		}
 		return listen, nil
 	} else {
-		listen, err := net.Listen("tcp", serverAddr)
+		listen, err := net.Listen("tcp", bindAddr)
 		if err != nil {
 			return nil, err
 		}
 		return listen, nil
 	}
+}
+
+func GetUnixSocket(path string) (net.Listener, error) {
+	dir, err := filepath.Abs(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	ok := RemoveFileIfExists(path)
+	if !ok {
+		return nil, fmt.Errorf("error when removing existing unix socket")
+	}
+
+	socket, err := net.Listen("unix", path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only root can access the socket, so we don't need TLS
+	if err = os.Chmod(path, 0600); err != nil {
+		return nil, err
+	}
+
+	return socket, nil
 }
 
 func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {

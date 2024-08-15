@@ -20,12 +20,13 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"math"
 	"os"
 	"sync"
 	"sync/atomic"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type GlobalVariables struct {
@@ -932,16 +933,7 @@ CforedStateMachineLoop:
 }
 
 func StartCfored() {
-	switch FlagDebugLevel {
-	case "trace":
-		util.InitLogger(log.TraceLevel)
-	case "debug":
-		util.InitLogger(log.DebugLevel)
-	case "info":
-		fallthrough
-	default:
-		util.InitLogger(log.InfoLevel)
-	}
+	util.InitLogger(FlagDebugLevel)
 
 	config := util.ParseConfig(FlagConfigFilePath)
 
