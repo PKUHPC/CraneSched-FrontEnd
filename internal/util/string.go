@@ -331,7 +331,7 @@ func ParseTaskIds(taskStr string) ([]uint32, bool) {
 	for i := 0; i < len(taskIdStrSplit); i++ {
 		taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 		if err != nil {
-			fmt.Println("Invalid job Id: " + taskIdStrSplit[i])
+			fmt.Errorf("Invalid job Id: %s", taskIdStrSplit[i])
 			return nil, false
 		} else {
 			taskList = append(taskList, uint32(taskId64))
