@@ -105,7 +105,7 @@ func cinfoFunc() util.CraneCmdError {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"PARTITION", "AVAIL", "TIMELIMIT", "NODES", "STATE", "NODELIST"}
+	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var tableData [][]string
 	for _, partitionCraned := range reply.Partitions {
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
@@ -117,7 +117,6 @@ func cinfoFunc() util.CraneCmdError {
 				tableData = append(tableData, []string{
 					partitionCraned.Name,
 					strings.ToLower(partitionCraned.State.String()[10:]),
-					"infinite",
 					strconv.FormatUint(uint64(commonCranedStateList.Count), 10),
 					stateStr,
 					commonCranedStateList.CranedListRegex,
