@@ -374,12 +374,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
 		if len(reply.ModifiedTasks) > 0 {
-			modifiedTasksStr := strconv.FormatUint(uint64(reply.ModifiedTasks[0]), 10)
-			for i := 1; i < len(reply.ModifiedTasks); i++ {
-				modifiedTasksStr += ","
-				modifiedTasksStr += strconv.FormatUint(uint64(reply.ModifiedTasks[i]), 10)
-			}
-			fmt.Printf("Job %s modified successfully.\n", modifiedTasksStr)
+			fmt.Printf("Job %v modified successfully.\n", reply.ModifiedTasks)
 		}
 		if len(reply.NotModifiedTasks) > 0 {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
@@ -392,8 +387,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
-			modifiedNodesStr := strings.Join(reply.ModifiedNodes, ",")
-			fmt.Printf("Node %s modified successfully.\n", modifiedNodesStr)
+			fmt.Printf("Node %v modified successfully.\n", reply.ModifiedNodes)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
