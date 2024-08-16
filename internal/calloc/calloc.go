@@ -88,7 +88,7 @@ func StartCallocStream(task *protos.TaskToCtld) {
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	unixSocketPath := "unix:///" + config.CranedGoUnixSockPath
+	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to local unix socket %s: %s",
@@ -319,21 +319,9 @@ CallocStateMachineLoop:
 }
 
 func main(cmd *cobra.Command, args []string) {
+	util.InitLogger(FlagDebugLevel)
+
 	var err error
-
-	switch FlagDebugLevel {
-	case "trace":
-		util.InitLogger(log.TraceLevel)
-	case "debug":
-		util.InitLogger(log.DebugLevel)
-	case "info":
-		fallthrough
-	default:
-		util.InitLogger(log.InfoLevel)
-	}
-
-	log.Tracef("Positional args: %v\n", args)
-
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {

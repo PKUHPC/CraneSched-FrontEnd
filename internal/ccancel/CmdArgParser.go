@@ -70,12 +70,11 @@ var (
 			return nil
 		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			// args was checked by cobra.ExactArgs(1)
-			// len(args)=1 here.
 			if err := CancelTask(args); err != util.ErrorSuccess {
 				os.Exit(err)
 			}

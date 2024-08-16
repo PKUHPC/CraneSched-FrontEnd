@@ -46,6 +46,9 @@ var (
 		Short:   "Allocate resource and create terminal",
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			main(cmd, args)
 		},

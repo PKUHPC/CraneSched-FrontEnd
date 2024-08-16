@@ -45,6 +45,7 @@ var (
 		Long:    "",
 		Version: util.Version(),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},

@@ -18,12 +18,24 @@ package util
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
 )
+
+func RemoveFileIfExists(path string) bool {
+	if _, err := os.Stat(path); err == nil {
+		err := os.Remove(path)
+		if err != nil {
+			log.Errorf("Failed to remove file %s: %v", path, err)
+			return false
+		}
+	}
+	return true
+}
 
 func DetectNetworkProxy() {
 	envHttpProxy, ok := os.LookupEnv("http_proxy")
