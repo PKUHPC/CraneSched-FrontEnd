@@ -85,7 +85,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		fmt.Printf("Job %v cancelled successfully.\n", reply.CancelledTasks)
+		fmt.Printf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
