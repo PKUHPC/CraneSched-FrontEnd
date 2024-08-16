@@ -29,6 +29,7 @@ var (
 	FlagFull             bool
 	FlagNoHeader         bool
 	FlagStartTime        bool
+	FlagSelf             bool
 	FlagFilterPartitions string
 	FlagFilterJobIDs     string
 	FlagFilterJobNames   string
@@ -47,6 +48,9 @@ var (
 		Long:    "",
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
@@ -99,6 +103,7 @@ func init() {
 		"Display expected start time of pending jobs")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
 		"Do not print header line in the output")
+	RootCmd.Flags().BoolVar(&FlagSelf, "self", false, "Display only the jobs submitted by current user")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format. 

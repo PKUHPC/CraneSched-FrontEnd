@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/user"
 	"regexp"
 	"strconv"
 	"strings"
@@ -62,6 +63,14 @@ func Query() util.CraneCmdError {
 		}
 	}
 
+	if FlagSelf {
+		cu, err := user.Current()
+		if err != nil {
+			log.Errorf("Failed to get current username: %v\n", err)
+			return util.ErrorCmdArg
+		}
+		req.FilterUsers = []string{cu.Username}
+	}
 	if FlagFilterJobNames != "" {
 		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
 		req.FilterTaskNames = filterJobNameList
@@ -334,8 +343,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			var reasonOrListStr string
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 
-				if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
-					reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
+				if reply.TaskInfoList[j].Status == protos.TaskStatus_Pending {
+					reasonOrListStr = reply.TaskInfoList[j].GetPendingReason()
 				} else {
 					reasonOrListStr = " "
 				}

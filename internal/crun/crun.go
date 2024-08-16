@@ -78,7 +78,7 @@ func StartCrunStream(task *protos.TaskToCtld) {
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	unixSocketPath := "unix:///" + config.CranedGoUnixSockPath
+	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to local unix socket %s: %s",
@@ -508,21 +508,11 @@ func IOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
 }
 
 func MainCrun(cmd *cobra.Command, args []string) {
-	var err error
-
-	switch FlagDebugLevel {
-	case "trace":
-		util.InitLogger(log.TraceLevel)
-	case "debug":
-		util.InitLogger(log.DebugLevel)
-	case "info":
-		fallthrough
-	default:
-		util.InitLogger(log.InfoLevel)
-	}
+	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
+	var err error
 	if gVars.cwd, err = os.Getwd(); err != nil {
 		log.Fatalf("Failed to get working directory: %s", err.Error())
 	}
@@ -544,8 +534,8 @@ func MainCrun(cmd *cobra.Command, args []string) {
 		Name:          "Interactive",
 		TimeLimit:     util.InvalidDuration(),
 		PartitionName: "",
-		Resources: &protos.Resources{
-			AllocatableResource: &protos.AllocatableResource{
+		Resources: &protos.ResourceView{
+			AllocatableRes: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
 				MemoryLimitBytes:   0,
 				MemorySwLimitBytes: 0,
@@ -595,8 +585,12 @@ func MainCrun(cmd *cobra.Command, args []string) {
 			log.Error(err)
 			return
 		}
-		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+	}
+	if FlagGres != "" {
+		gresMap := util.ParseGres(FlagGres)
+		task.Resources.DeviceMap = gresMap
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
@@ -619,9 +613,9 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
-	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
-		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableResource.CpuCoreLimit)
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
+		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
 	}
 	task.GetInteractiveMeta().ShScript = strings.Join(args, " ")
 	term, exits := syscall.Getenv("TERM")

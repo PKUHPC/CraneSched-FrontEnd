@@ -17,8 +17,11 @@
 package util
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -26,8 +29,38 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"gopkg.in/yaml.v3"
 )
+
+func ParseConfig(configFilePath string) *Config {
+	confFile, err := os.ReadFile(configFilePath)
+	if err != nil {
+		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
+		os.Exit(ErrorCmdArg)
+	}
+
+	config := &Config{}
+	err = yaml.Unmarshal(confFile, config)
+	if err != nil {
+		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
+		os.Exit(ErrorCmdArg)
+	}
+
+	if config.CraneBaseDir == "" {
+		config.CraneBaseDir = DefaultCraneBaseDir
+	}
+
+	if config.CranedCforedSockPath == "" {
+		config.CranedCforedSockPath = filepath.Join(config.CraneBaseDir, DefaultCforedSocketPath)
+	} else {
+		config.CranedCforedSockPath = filepath.Join(config.CraneBaseDir, config.CranedCforedSockPath)
+	}
+
+	return config
+}
 
 func ParseMemStringAsByte(mem string) (uint64, error) {
 	re := regexp.MustCompile(`^([0-9]+(\.?[0-9]*))([MmGgKkB]?)$`)
@@ -133,32 +166,30 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
-func ParseMailType(param string) (uint32, error) {
-	var MailTypeMapping = map[string]uint32{
-		"NONE":  0,
-		"BEGIN": 1,
-		"END":   2,
-		"FAIL":  4,
-		// "REQUEUE":        8,
-		// "INVALID_DEPEND": 16,
-		// "STAGE_OUT":      32,
-		"ALL": 63, // ALL (equivalent to BEGIN, END, FAIL, INVALID_DEPEND, REQUEUE, and STAGE_OUT)
-		// "TIME_LIMIT":     64,
-		// "TIME_LIMIT_90":  128,
-		// "TIME_LIMIT_80":  256,
-		// "TIME_LIMIT_50":  512,
-		// "ARRAY_TASKS":    1024,
-	}
+func CheckTaskExtraAttr(attr string) bool {
+	return gjson.Valid(attr)
+}
 
-	parsed := uint32(0)
-	types := strings.Split(param, ",")
-	for _, t := range types {
-		if _, ok := MailTypeMapping[t]; !ok {
-			return 0, fmt.Errorf("invalid mail type: %s", t)
-		}
-		parsed |= MailTypeMapping[t]
-	}
-	return parsed, nil
+// Merge two JSON strings.
+// If there are overlapping keys, values from the second JSON take precedence.
+func AmendTaskExtraAttr(origin, new string) string {
+	result := gjson.Parse(new)
+	result.ForEach(func(key, value gjson.Result) bool {
+		var err error
+		// Use sjson to set/override the value in the first JSON
+		origin, err = sjson.Set(origin, key.String(), value.Value())
+		return err == nil
+	})
+
+	return origin
+}
+
+func CheckMailType(mailtype string) bool {
+	return mailtype == "NONE" ||
+		mailtype == "BEGIN" ||
+		mailtype == "END" ||
+		mailtype == "FAIL" ||
+		mailtype == "ALL"
 }
 
 // CheckNodeList check if the node list is comma separated node names.
@@ -471,4 +502,51 @@ func RemoveBracketsWithoutDashOrComma(input string) string {
 		}
 	}
 	return output
+}
+
+func ParseGres(gres string) *protos.DeviceMap {
+	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+	if gres == "" {
+		return result
+	}
+	gresList := strings.Split(gres, ",")
+	for _, g := range gresList {
+		parts := strings.Split(g, ":")
+		name := parts[0]
+		if len(parts) == 2 {
+			gresNameCount, err := strconv.ParseUint(parts[1], 10, 64)
+			if err != nil {
+				log.Errorf("Error parsing gres count: %s\n", g)
+			}
+			if gresNameCount == 0 {
+				continue
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: make(map[string]uint64), Total: gresNameCount}
+			} else {
+				result.NameTypeMap[name].Total += gresNameCount
+			}
+		} else if len(parts) == 3 {
+			gresType := parts[1]
+			count, err := strconv.ParseUint(parts[2], 10, 64)
+			if err != nil {
+				fmt.Printf("Error parsing count for %s: %v\n", name, err)
+				continue
+			}
+			if count == 0 {
+				continue
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				typeCountMap := make(map[string]uint64)
+				typeCountMap[gresType] = count
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: 0}
+			} else {
+				result.NameTypeMap[name].TypeCountMap[gresType] = count
+			}
+		} else {
+			log.Errorf("Error parsing gres : %s\n", g)
+		}
+	}
+
+	return result
 }

@@ -34,6 +34,7 @@ var (
 	FlagAccount       string
 	FlagQos           string
 	FlagCwd           string
+	FlagGres          string
 	FlagNodelist      string
 	FlagExcludes      string
 
@@ -45,6 +46,9 @@ var (
 		Short:   "Allocate resource and create terminal",
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			main(cmd, args)
 		},
@@ -72,6 +76,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
 	RootCmd.Flags().StringVarP(&FlagCwd, "chdir", "D", "", "Working directory of the job")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
+	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 }

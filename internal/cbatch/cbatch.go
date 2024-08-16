@@ -29,6 +29,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type CbatchArg struct {
@@ -41,8 +43,8 @@ type CbatchArg struct {
 func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
-	task.Resources = &protos.Resources{
-		AllocatableResource: &protos.AllocatableResource{
+	task.Resources = &protos.ResourceView{
+		AllocatableRes: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
 			MemoryLimitBytes:   1024 * 1024 * 1024 * 16,
 			MemorySwLimitBytes: 1024 * 1024 * 1024 * 16,
@@ -75,6 +77,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.CpusPerTask = num
+		case "--gres":
+			gresMap := util.ParseGres(arg.val)
+			task.Resources.DeviceMap = gresMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -94,8 +99,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				log.Error(err)
 				return false, nil
 			}
-			task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
-			task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+			task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
+			task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			task.PartitionName = arg.val
 		case "-J", "--job-name":
@@ -127,15 +132,27 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
-		case "--mail-type":
-			mailType, err := util.ParseMailType(arg.val)
-			if err != nil {
-				log.Error(err)
+		case "--extra-attr":
+			// Merge the extra attributes read from the file with the existing ones.
+			if !util.CheckTaskExtraAttr(arg.val) {
+				log.Errorln("Invalid extra attributes: invalid JSON string.")
 				return false, nil
 			}
-			task.MailType = mailType
+			task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, arg.val)
+		case "--mail-type":
+			extra, err := sjson.Set(task.ExtraAttr, "mail.type", arg.val)
+			if err != nil {
+				log.Errorf("Invalid mail type: %v.\n", err)
+				return false, nil
+			}
+			task.ExtraAttr = extra
 		case "--mail-user":
-			task.MailUser = arg.val
+			extra, err := sjson.Set(task.ExtraAttr, "mail.user", arg.val)
+			if err != nil {
+				log.Errorf("Invalid mail user: %v.\n", err)
+				return false, nil
+			}
+			task.ExtraAttr = extra
 		default:
 			log.Errorf("Invalid parameter '%s' given in the script file.\n", arg.name)
 			return false, nil
@@ -151,8 +168,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if cmd.Flags().Changed("cpus-per-task") {
 		task.CpusPerTask = FlagCpuPerTask
 	}
+
 	if cmd.Flags().Changed("ntasks-per-node") {
 		task.NtasksPerNode = FlagNtasksPerNode
+	}
+	if cmd.Flags().Changed("gres") {
+		task.Resources.DeviceMap = util.ParseGres(FlagGres)
 	}
 
 	// TODO: Should use Changed() to check if the flag is set.
@@ -169,9 +190,10 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorln(err)
 			return false, nil
 		}
-		task.Resources.AllocatableResource.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableResource.MemorySwLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
+		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
 	}
+
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
 	}
@@ -205,19 +227,38 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagStderrPath != "" {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
-	if FlagMailType != "" {
-		mailType, err := util.ParseMailType(FlagMailType)
-		if err != nil {
-			log.Error(err)
+
+	if FlagExtraAttr != "" {
+		// Merge the extra attributes read from the file with the existing ones.
+		if !util.CheckTaskExtraAttr(FlagExtraAttr) {
+			log.Errorln("Invalid extra attributes: invalid JSON string.")
 			return false, nil
 		}
-		task.MailType = mailType
+		task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, FlagExtraAttr)
+	}
+	if FlagMailType != "" {
+		extra, err := sjson.Set(task.ExtraAttr, "mail.type", FlagMailType)
+		if err != nil {
+			log.Errorf("Invalid mail type: %v.\n", err)
+			return false, nil
+		}
+		task.ExtraAttr = extra
 	}
 	if FlagMailUser != "" {
-		task.MailUser = FlagMailUser
+		extra, err := sjson.Set(task.ExtraAttr, "mail.user", FlagMailUser)
+		if err != nil {
+			log.Errorf("Invalid mail user: %v.\n", err)
+			return false, nil
+		}
+		task.ExtraAttr = extra
 	}
 
 	// Check the validity of the parameters
+
+	if len(task.Name) > 30 {
+		task.Name = task.Name[:30]
+		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
+	}
 	if task.CpusPerTask <= 0 {
 		log.Errorln("Invalid --cpus-per-task")
 		return false, nil
@@ -234,7 +275,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorln("Invalid --time")
 		return false, nil
 	}
-	if task.Resources.AllocatableResource.MemoryLimitBytes <= 0 {
+	if task.Resources.AllocatableRes.MemoryLimitBytes <= 0 {
 		log.Errorln("Invalid --mem")
 		return false, nil
 	}
@@ -246,20 +287,23 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorln("Invalid --exclude")
 		return false, nil
 	}
-
-	if task.MailType != 0 && task.MailUser == "" {
-		log.Errorln("Mail type is set but missing the mail user")
-		return false, nil
+	if task.ExtraAttr != "" {
+		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
+		mailtype := gjson.Get(task.ExtraAttr, "mail.type")
+		mailuser := gjson.Get(task.ExtraAttr, "mail.user")
+		if mailtype.Exists() != mailuser.Exists() {
+			log.Errorln("Incomplete mail arguments")
+			return false, nil
+		}
+		if mailtype.Exists() && !util.CheckMailType(mailtype.String()) {
+			log.Errorln("Invalid --mail-type")
+			return false, nil
+		}
 	}
 
-	if len(task.Name) > 30 {
-		task.Name = task.Name[:30]
-		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
-	}
-
-	task.Resources.AllocatableResource.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableResource.CpuCoreLimit > 1e6 {
-		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableResource.CpuCoreLimit)
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
+		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableRes.CpuCoreLimit)
 		return false, nil
 	}
 
