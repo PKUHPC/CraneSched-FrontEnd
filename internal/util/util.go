@@ -27,7 +27,7 @@ type Config struct {
 	DomainSuffix       string `yaml:"DomainSuffix"`
 
 	CraneBaseDir         string `yaml:"CraneBaseDir"`
-	CranedGoUnixSockPath string `yaml:"CranedGoUnixSockPath"`
+	CranedCforedSockPath string `yaml:"CranedCforedSockPath"`
 }
 
 // Path = BaseDir + Dir + Name

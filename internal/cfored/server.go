@@ -398,7 +398,7 @@ CforedCranedStateMachineLoop:
 }
 
 func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
-	unixSockPath := config.CranedGoUnixSockPath
+	unixSockPath := config.CranedCforedSockPath
 	dir, err := filepath.Abs(filepath.Dir(unixSockPath))
 	if err != nil {
 		log.Fatalf("Failed to parse directory from %s: %s", unixSockPath, err.Error())

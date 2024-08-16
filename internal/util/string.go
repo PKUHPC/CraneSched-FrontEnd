@@ -53,10 +53,10 @@ func ParseConfig(configFilePath string) *Config {
 		config.CraneBaseDir = DefaultCraneBaseDir
 	}
 
-	if config.CranedGoUnixSockPath == "" {
-		config.CranedGoUnixSockPath = filepath.Join(config.CraneBaseDir, DefaultCforedSocketPath)
+	if config.CranedCforedSockPath == "" {
+		config.CranedCforedSockPath = filepath.Join(config.CraneBaseDir, DefaultCforedSocketPath)
 	} else {
-		config.CranedGoUnixSockPath = filepath.Join(config.CraneBaseDir, config.CranedGoUnixSockPath)
+		config.CranedCforedSockPath = filepath.Join(config.CraneBaseDir, config.CranedCforedSockPath)
 	}
 
 	return config

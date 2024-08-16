@@ -78,7 +78,7 @@ func StartCrunStream(task *protos.TaskToCtld) {
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	unixSocketPath := "unix:///" + config.CranedGoUnixSockPath
+	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to local unix socket %s: %s",
