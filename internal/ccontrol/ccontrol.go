@@ -370,24 +370,42 @@ func ShowConfig(path string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func SummarizeModification(reply *protos.ModifyTaskReply) util.CraneCmdError {
-	if len(reply.ModifiedTasks) > 0 {
-		modifiedTasksStr := strconv.FormatUint(uint64(reply.ModifiedTasks[0]), 10)
-		for i := 1; i < len(reply.ModifiedTasks); i++ {
-			modifiedTasksStr += ","
-			modifiedTasksStr += strconv.FormatUint(uint64(reply.ModifiedTasks[i]), 10)
+func SummarizeReply(proto interface{}) util.CraneCmdError {
+	switch reply := proto.(type) {
+	case *protos.ModifyTaskReply:
+		if len(reply.ModifiedTasks) > 0 {
+			modifiedTasksStr := strconv.FormatUint(uint64(reply.ModifiedTasks[0]), 10)
+			for i := 1; i < len(reply.ModifiedTasks); i++ {
+				modifiedTasksStr += ","
+				modifiedTasksStr += strconv.FormatUint(uint64(reply.ModifiedTasks[i]), 10)
+			}
+			fmt.Printf("Job %s modified successfully.\n", modifiedTasksStr)
 		}
-		fmt.Printf("Job %s modified successfully.\n", modifiedTasksStr)
-	}
+		if len(reply.NotModifiedTasks) > 0 {
+			for i := 0; i < len(reply.NotModifiedTasks); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n",
+					reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+			}
+			return util.ErrorBackend
+		}
+		return util.ErrorSuccess
 
-	if len(reply.NotModifiedTasks) > 0 {
-		for i := 0; i < len(reply.NotModifiedTasks); i++ {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n",
-				reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+	case *protos.ModifyCranedStateReply:
+		if len(reply.ModifiedNodes) > 0 {
+			modifiedNodesStr := strings.Join(reply.ModifiedNodes, ",")
+			fmt.Printf("Node %s modified successfully.\n", modifiedNodesStr)
 		}
-		return util.ErrorBackend
+		if len(reply.NotModifiedNodes) > 0 {
+			for i := 0; i < len(reply.NotModifiedNodes); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+					reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+			}
+			return util.ErrorBackend
+		}
+		return util.ErrorSuccess
+	default:
+		return util.ErrorGeneric
 	}
-	return util.ErrorSuccess
 }
 
 func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
@@ -425,7 +443,7 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
 		}
 	}
 
-	return SummarizeModification(reply)
+	return SummarizeReply(reply)
 }
 
 func ParseTimeStrToSeconds(time string) (int64, error) {
@@ -504,7 +522,7 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 		}
 	}
 
-	return SummarizeModification(reply)
+	return SummarizeReply(reply)
 }
 
 func ChangeTaskPriority(taskStr string, priority float64) util.CraneCmdError {
@@ -550,7 +568,7 @@ func ChangeTaskPriority(taskStr string, priority float64) util.CraneCmdError {
 		}
 	}
 
-	return SummarizeModification(reply)
+	return SummarizeReply(reply)
 }
 
 func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCmdError {
@@ -599,17 +617,5 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		}
 	}
 
-	if len(reply.ModifiedNodes) > 0 {
-		modifiedNodesStr := strings.Join(reply.ModifiedNodes, ",")
-		fmt.Printf("Node %s modified successfully.\n", modifiedNodesStr)
-	}
-
-	if len(reply.NotModifiedNodes) > 0 {
-		for i := 0; i < len(reply.NotModifiedNodes); i++ {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
-				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
-		}
-		return util.ErrorBackend
-	}
-	return util.ErrorSuccess
+	return SummarizeReply(reply)
 }
