@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -75,7 +76,7 @@ func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 	}
 }
 
-func GetUnixSocket(path string) (net.Listener, error) {
+func GetUnixSocket(path string, mode fs.FileMode) (net.Listener, error) {
 	dir, err := filepath.Abs(filepath.Dir(path))
 	if err != nil {
 		return nil, err
@@ -96,8 +97,9 @@ func GetUnixSocket(path string) (net.Listener, error) {
 		return nil, err
 	}
 
-	// Only root can access the socket, so we don't need TLS
-	if err = os.Chmod(path, 0600); err != nil {
+	// 0600 -> only owner can access, no need to use TLS
+	// 0666 -> everyone can access, insecure
+	if err = os.Chmod(path, mode); err != nil {
 		return nil, err
 	}
 

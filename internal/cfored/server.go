@@ -22,10 +22,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -398,30 +396,13 @@ CforedCranedStateMachineLoop:
 }
 
 func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
-	unixSockPath := config.CranedCforedSockPath
-	dir, err := filepath.Abs(filepath.Dir(unixSockPath))
+	socket, err := util.GetUnixSocket(config.CranedCforedSockPath, 0666)
 	if err != nil {
-		log.Fatalf("Failed to parse directory from %s: %s", unixSockPath, err.Error())
+		log.Errorf("Failed to listen on unix socket: %s", err.Error())
+		return
 	}
 
-	err = os.MkdirAll(dir, 0755)
-	if err != nil {
-		log.Fatalf("Failed to create directory for unix socket: %s", err.Error())
-	}
-
-	ok := util.RemoveFileIfExists(unixSockPath)
-	if !ok {
-		log.Fatalf("Error when removing existing unix socket!")
-	}
-
-	log.Tracef("Listening on unix socket %s", unixSockPath)
-	unixListenSocket, err := net.Listen("unix", unixSockPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err = os.Chmod(unixSockPath, 0777); err != nil {
-		log.Fatal(err)
-	}
+	log.Tracef("Listening on unix socket %s", config.CranedCforedSockPath)
 
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
@@ -468,7 +449,7 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 		wgAllRoutines.Done()
 	}(wgAllRoutines)
 
-	err = grpcServer.Serve(unixListenSocket)
+	err = grpcServer.Serve(socket)
 	if err != nil {
 		log.Fatal(err)
 	}

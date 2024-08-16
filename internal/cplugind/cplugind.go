@@ -82,7 +82,7 @@ var RootCmd = &cobra.Command{
 		pd := NewPluginD(nil)
 
 		// Start server on UNIX socket
-		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath)
+		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath, 0600)
 		if err != nil {
 			log.Errorf("Failed to get UNIX socket: %v", err)
 			os.Exit(util.ErrorGeneric)
