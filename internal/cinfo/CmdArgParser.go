@@ -43,12 +43,15 @@ var (
 		Long:    "",
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
 			if FlagIterate != 0 {
 				err = loopedQuery(FlagIterate)
 			} else {
-				err = cinfoFunc()
+				err = Query()
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)

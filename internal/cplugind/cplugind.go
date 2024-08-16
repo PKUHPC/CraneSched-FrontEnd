@@ -37,6 +37,9 @@ var RootCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(0),
 	Version: util.Version(),
 	Run: func(cmd *cobra.Command, args []string) {
+		// Check proxy
+		util.DetectNetworkProxy()
+
 		// Parse config
 		config := util.ParseConfig(FlagCraneConfig)
 		if config == nil {

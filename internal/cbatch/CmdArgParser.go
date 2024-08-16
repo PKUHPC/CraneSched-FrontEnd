@@ -58,6 +58,9 @@ var (
 		Short:   "Submit batch job",
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(1),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if FlagRepeat == 0 {
 				log.Error("--repeat must > 0.")

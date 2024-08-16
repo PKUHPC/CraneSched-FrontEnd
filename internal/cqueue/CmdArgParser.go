@@ -48,6 +48,9 @@ var (
 		Long:    "",
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {

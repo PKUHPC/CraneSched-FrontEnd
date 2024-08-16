@@ -30,7 +30,7 @@ func RemoveFileIfExists(path string) bool {
 	if _, err := os.Stat(path); err == nil {
 		err := os.Remove(path)
 		if err != nil {
-			log.Fatalf("Failed to remove file %s: %s", path, err.Error())
+			log.Errorf("Failed to remove file %s: %v", path, err)
 			return false
 		}
 	}
