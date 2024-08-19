@@ -82,7 +82,7 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CallocStreamClient,
 	}
 }
 
-func StartCallocStream(task *protos.TaskToCtld) {
+func StartCallocStream(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 
 	var opts []grpc.DialOption
@@ -91,13 +91,14 @@ func StartCallocStream(task *protos.TaskToCtld) {
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
-		log.Fatalf("Failed to connect to local unix socket %s: %s",
+		log.Errorf("Failed to connect to local unix socket %s: %s",
 			unixSocketPath, err)
+		return util.ErrorBackend
 	}
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
 		if err != nil {
-			log.Fatalf("Failed to close grpc conn: %s", err)
+			log.Errorf("Failed to close grpc conn: %s", err)
 		}
 	}(conn)
 
@@ -163,7 +164,8 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCforedReply_TASK_ID_REPLY {
-				log.Fatal("Expect type TASK_ID_REPLY")
+				log.Errorln("Expect type TASK_ID_REPLY")
+				return util.ErrorBackend
 			}
 			payload := cforedReply.GetPayloadTaskIdReply()
 
@@ -251,7 +253,8 @@ CallocStateMachineLoop:
 				} else {
 					if cforedReply.Type !=
 						protos.StreamCforedReply_TASK_CANCEL_REQUEST {
-						log.Fatal("Expect TASK_CANCEL_REQUEST")
+						log.Errorln("Expect TASK_CANCEL_REQUEST")
+						return util.ErrorBackend
 					} else {
 						log.Trace("Received TASK_CANCEL_REQUEST")
 						state = TaskKilling
@@ -304,42 +307,53 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY {
-				log.Fatalf("Expect TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
+				log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
+				return util.ErrorBackend
 			}
 
 			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
 				println("Task completed.")
 			} else {
-				log.Fatal("Failed to notify server of task completion")
+				log.Errorln("Failed to notify server of task completion")
+				return util.ErrorBackend
 			}
 
 			break CallocStateMachineLoop
 		}
 	}
+	if state != WaitAck || gVars.connectionBroken {
+		return util.ErrorBackend
+	} else {
+		return util.ErrorSuccess
+	}
 }
 
-func main(cmd *cobra.Command, args []string) {
+func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	util.InitLogger(FlagDebugLevel)
 
 	var err error
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		log.Fatalf("Failed to get working directory: %s", err.Error())
+		log.Errorf("Failed to get working directory: %s", err.Error())
+		return util.ErrorBackend
 	}
 
 	if gVars.user, err = user.Current(); err != nil {
-		log.Fatalf("Failed to get current user: %s", err.Error())
+		log.Errorf("Failed to get current user: %s", err.Error())
+		return util.ErrorBackend
 	}
 
 	uid, err := strconv.Atoi(gVars.user.Uid)
 	if err != nil {
-		log.Fatalf("Failed to convert uid to int: %s", err.Error())
+		log.Errorf("Failed to convert uid to int: %s", err.Error())
+		return util.ErrorInvalidFormat
 	}
 
 	if gVars.shellPath, err = util.NixShell(gVars.user.Uid); err != nil {
-		log.Fatalf("Failed to get default shell of user %s: %s",
+		log.Errorf("Failed to get default shell of user %s: %s",
 			gVars.user.Name, err.Error())
+		return util.ErrorBackend
 	}
 
 	task := &protos.TaskToCtld{
@@ -370,17 +384,20 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagNodes > 0 {
 		task.NodeNum = FlagNodes
 	} else {
-		log.Fatalf("Invalid --nodes %d", FlagNodes)
+		log.Errorf("Invalid --nodes %d", FlagNodes)
+		return util.ErrorCmdArg
 	}
 	if FlagCpuPerTask > 0 {
 		task.CpusPerTask = FlagCpuPerTask
 	} else {
-		log.Fatalf("Invalid --cpus-per-task %f", FlagCpuPerTask)
+		log.Errorf("Invalid --cpus-per-task %f", FlagCpuPerTask)
+		return util.ErrorCmdArg
 	}
 	if FlagNtasksPerNode > 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
 	} else {
-		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
+		log.Errorf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
+		return util.ErrorCmdArg
 	}
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
@@ -389,13 +406,15 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
-			log.Fatalf("Invalid --time format.")
+			log.Errorln("Invalid --time format.")
+			return util.ErrorCmdArg
 		}
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			log.Fatal(err)
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
 		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -423,8 +442,9 @@ func main(cmd *cobra.Command, args []string) {
 	}
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
+		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableRes.CpuCoreLimit)
+		return util.ErrorCmdArg
 	}
 
-	StartCallocStream(task)
+	return StartCallocStream(task)
 }
