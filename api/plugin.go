@@ -35,4 +35,5 @@ type Plugin interface {
 	*/
 	StartHook(ctx *PluginContext)
 	EndHook(ctx *PluginContext)
+	JobCheckHook(ctx *PluginContext)
 }

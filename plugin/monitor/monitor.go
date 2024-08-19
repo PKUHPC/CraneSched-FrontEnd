@@ -1,4 +1,4 @@
-// This is a dummy plugin for testing and demonstration purposes.
+// This is a MonitorPlugin for XXXXX.
 package main
 
 import (
@@ -8,29 +8,29 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Compile-time check to ensure DummyPlugin implements api.Plugin
-var _ api.Plugin = DummyPlugin{}
+// Compile-time check to ensure MonitorPlugin implements api.Plugin
+var _ api.Plugin = &MonitorPlugin{}
 
 // PluginD will call plugin's method thru this variable
-var PluginInstance = DummyPlugin{}
+var PluginInstance = MonitorPlugin{}
 
-type DummyPlugin struct{}
+type MonitorPlugin struct{}
 
-func (dp DummyPlugin) Init(meta api.PluginMeta) error {
-	log.Infof("Dummy plugin is loaded.")
+func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
+	log.Infof("Monitor plugin is loaded.")
 	log.Tracef("Metadata: %v", meta)
 	return nil
 }
 
-func (dp DummyPlugin) Name() string {
-	return "Dummy"
+func (dp *MonitorPlugin) Name() string {
+	return "Monitor"
 }
 
-func (dp DummyPlugin) Version() string {
+func (dp *MonitorPlugin) Version() string {
 	return "v0.0.1"
 }
 
-func (dp DummyPlugin) StartHook(ctx *api.PluginContext) {
+func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {
 	log.Infoln("StartHook is called!")
 
 	req, ok := ctx.Request().(*protos.StartHookRequest)
@@ -42,7 +42,7 @@ func (dp DummyPlugin) StartHook(ctx *api.PluginContext) {
 	log.Tracef("StartHookReq: \n%v", req.String())
 }
 
-func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
+func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext) {
 	log.Infoln("EndHook is called!")
 
 	req, ok := ctx.Request().(*protos.EndHookRequest)
@@ -54,7 +54,7 @@ func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
 	log.Tracef("EndHookReq: \n%v", req.String())
 }
 
-func (dp DummyPlugin) JobCheckHook(ctx *api.PluginContext) {
+func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 	log.Infoln("JobCheckHook is called!")
 
 	req, ok := ctx.Request().(*protos.JobCheckHookRequest)

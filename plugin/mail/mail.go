@@ -186,3 +186,15 @@ func (p *MailPlugin) EndHook(ctx *api.PluginContext) {
 		}
 	}
 }
+
+func (p *MailPlugin) JobCheckHook(ctx *api.PluginContext) {
+	log.Infoln("JobCheckHook is called!")
+
+	req, ok := ctx.Request().(*protos.JobCheckHookRequest)
+	if !ok {
+		log.Errorln("Invalid request type, expected JobCheckHookRequest.")
+		return
+	}
+
+	log.Tracef("JobCheckHookReq: \n%v", req.String())
+}
