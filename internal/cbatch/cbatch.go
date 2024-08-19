@@ -137,6 +137,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			task.Account = arg.val
 		case "--qos", "Q":
 			task.Qos = arg.val
+		case "--licenses", "-L":
+			lic_count_map, err := util.ParseLicensesString(arg.val)
+			if err != nil {
+				log.Error(err)
+				return false, nil
+			}
+			task.LicensesCount = lic_count_map
 		case "--chdir":
 			task.Cwd = arg.val
 		case "--exclude", "-x":
@@ -237,6 +244,14 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if FlagQos != "" {
 		task.Qos = FlagQos
+	}
+	if FlagLicenses != "" {
+		lic_count_map, err := util.ParseLicensesString(FlagLicenses)
+		if err != nil {
+			log.Error(err)
+			return false, nil
+		}
+		task.LicensesCount = lic_count_map
 	}
 	if FlagCwd != "" {
 		task.Cwd = FlagCwd

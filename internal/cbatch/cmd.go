@@ -38,6 +38,7 @@ var (
 	FlagJob           string
 	FlagAccount       string
 	FlagQos           string
+	FlagLicenses      string
 	FlagCwd           string
 	FlagRepeat        uint32
 	FlagNodelist      string
@@ -92,6 +93,7 @@ var (
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
 			}
+			// TODO: 阻止使用module但没申请license的任务
 
 			task.Uid = uint32(os.Getuid())
 			task.Gid = uint32(os.Getgid())
@@ -134,6 +136,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
 	RootCmd.Flags().StringVarP(&FlagCwd, "chdir", "D", "", "Working directory of the job")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
+	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
 	RootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "Submit the job multiple times")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
