@@ -192,6 +192,35 @@ func CheckMailType(mailtype string) bool {
 		mailtype == "ALL"
 }
 
+func ParseLicensesString(val string) (map[string]uint32, error) {
+	tmp_str := strings.ReplaceAll(val, " ", "")
+
+	license_vec := strings.Split(tmp_str, ",")
+	lic_count_map := make(map[string]uint32)
+	pattern := regexp.MustCompile(`(\w+):(\d+)`)
+
+	for _, license_count := range license_vec {
+		if !pattern.MatchString(license_count) {
+			return nil, fmt.Errorf("invalid licenses string format")
+		}
+		matches := pattern.FindStringSubmatch(license_count)
+		if len(matches) != 3 {
+			return nil, fmt.Errorf("invalid licenses string format")
+		}
+		name := matches[1]
+		count, err := strconv.ParseUint(matches[2], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		if count <= 0 {
+			return nil, fmt.Errorf("license count must > 0")
+		}
+		lic_count_map[name] = uint32(count)
+	}
+
+	return lic_count_map, nil
+}
+
 // CheckNodeList check if the node list is comma separated node names.
 // The node name should contain only letters and numbers, and start with a letter, end with a number.
 func CheckNodeList(nodeStr string) bool {

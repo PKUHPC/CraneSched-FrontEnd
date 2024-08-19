@@ -91,6 +91,10 @@ func Query() util.CraneCmdError {
 		filterPartitionList := strings.Split(FlagFilterPartitions, ",")
 		req.FilterPartitions = filterPartitionList
 	}
+	if FlagFilterLicenses != "" {
+		filterLicenseList := strings.Split(FlagFilterLicenses, ",")
+		req.FilterLicenses = filterLicenseList
+	}
 	if FlagFilterJobIDs != "" {
 		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
 		req.NumLimit = uint32(len(filterJobIdList))
@@ -185,6 +189,13 @@ func Query() util.CraneCmdError {
 		header = append(header, "QoS")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
+		}
+	}
+
+	if FlagFilterLicenses != "" {
+		header = append(header, "Licenses")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Licenses)
 		}
 	}
 
