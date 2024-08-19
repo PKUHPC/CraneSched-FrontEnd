@@ -215,7 +215,7 @@ CrunStateMachineLoop:
 					log.Tracef("SIGINT Received. Cancelling the task...")
 					state = TaskKilling
 				} else {
-					log.Tracef("Unhanled sig %s", sig.String())
+					log.Tracef("Unhandled sig %s", sig.String())
 					state = TaskKilling
 				}
 			}
