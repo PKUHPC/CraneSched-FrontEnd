@@ -101,7 +101,10 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 		}
 		req.FilterPartitions = filterPartitionList
 	}
-
+	if FlagFilterLicenses != "" {
+		filterLicenseList := strings.Split(FlagFilterLicenses, ",")
+		req.FilterLicenses = filterLicenseList
+	}
 	if FlagFilterJobIDs != "" {
 		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
 		if err != nil {
@@ -195,6 +198,13 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 		header = append(header, "QoS")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
+		}
+	}
+
+	if FlagFilterLicenses != "" {
+		header = append(header, "Licenses")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Licenses)
 		}
 	}
 
