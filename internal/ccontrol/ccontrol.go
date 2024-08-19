@@ -576,3 +576,28 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 
 	return nil
 }
+
+func ShowLicenses(licenseName string, queryAll bool) util.CraneCmdError {
+	req := &protos.QueryLicensesInfoRequest{LicenseName: licenseName}
+	reply, err := stub.QueryLicensesInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show license")
+		return util.ErrorNetwork
+	}
+
+	if len(reply.LicenseInfoList) == 0 {
+		if queryAll {
+			fmt.Println("No license is available.")
+		} else {
+			fmt.Printf("license %s not found.\n", licenseName)
+		}
+	}
+
+	for _, licenseInfo := range reply.LicenseInfoList {
+		fmt.Printf("LicenseName=%v \n"+
+			"\tTotal=%v Used=%d Free=%d\n",
+			licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free)
+	}
+
+	return util.ErrorSuccess
+}
