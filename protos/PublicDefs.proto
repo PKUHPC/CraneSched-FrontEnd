@@ -146,6 +146,8 @@ message TaskToCtld {
 
   string excludes = 34;
   string nodelist = 35;
+
+  map<string, uint32> licenses_count = 36;
 }
 
 message TaskInEmbeddedDb {
@@ -255,11 +257,12 @@ message TaskInfo {
 
   string account = 11;
   uint32 node_num = 12;
-  string cmd_line = 13;
+  string cmd_line = 13; 
   string cwd = 14;
   string username = 15;
   string qos = 16;
   ResourceView res_view = 17;
+  string licenses = 18;
   repeated string req_nodes = 19;
   repeated string exclude_nodes = 20;
 
@@ -491,4 +494,10 @@ message CranedRemoteMeta {
   string craned_version = 3;
   google.protobuf.Timestamp craned_start_time = 4;
   google.protobuf.Timestamp system_boot_time = 5;
+}
+message LicenseInfo {
+  string name = 1;
+  uint32 total = 2;
+  uint32 used = 3;
+  uint32 free = 4;
 }

@@ -32,6 +32,7 @@ var (
 	FlagState          string
 	FlagReason         string
 	FlagPartitionName  string
+	FlagLicenseName    string
 	FlagTaskIds        string
 	FlagQueryAll       bool
 	FlagTimeLimit      string
@@ -88,6 +89,24 @@ var (
 				FlagQueryAll = false
 			}
 			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	showLicenseCmd = &cobra.Command{
+		Use:   "lic [flags] [license_name]",
+		Short: "Display details of the licenses, default is all",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				FlagLicenseName = ""
+				FlagQueryAll = true
+			} else {
+				FlagLicenseName = args[0]
+				FlagQueryAll = false
+			}
+			if err := ShowLicenses(FlagLicenseName, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -225,6 +244,7 @@ func init() {
 	{
 		showCmd.AddCommand(showNodeCmd)
 		showCmd.AddCommand(showPartitionCmd)
+		showCmd.AddCommand(showLicenseCmd)
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
 	}
