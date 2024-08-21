@@ -209,6 +209,12 @@ func bjobs() *cobra.Command {
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cqueue.FlagFilterJobIDs = strings.Join(args, ",")
+			if !cqueue.FlagNoHeader {
+				fmt.Printf("%s %s %s %s %s %s %s %s\n",
+					"JOBID", "USER", "STAT", "QUEUE", "FROM_HOST", "EXEC_HOST", "JOB_NAME", "SUBMIT_TIME")
+				cqueue.FlagNoHeader = true
+			}
+			cqueue.FlagFormat = "%j %u %t %P %L %L %n %s"
 			cqueue.RootCmd.Run(cmd, []string{})
 		},
 	}

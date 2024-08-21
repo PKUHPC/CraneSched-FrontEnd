@@ -28,6 +28,7 @@ import (
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
 	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -388,10 +389,10 @@ func sacctmgr() *cobra.Command {
 
 func salloc() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "salloc",
-		Short:   "Wrapper of calloc command",
-		Long:    "",
-		GroupID: "slurm",
+		Use:                "salloc",
+		Short:              "Wrapper of calloc command",
+		Long:               "",
+		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Add --help from calloc
@@ -655,7 +656,12 @@ func squeue() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
+			if !cqueue.FlagNoHeader {
+				fmt.Printf("%s %s %s %s %s %s %s %s\n",
+					"JOBID", "PARTITION", "NAME", "USER", "ST", "TIME", "NODES", "NODELIST(REASON)")
+				cqueue.FlagNoHeader = true
+			}
+			cqueue.FlagFormat = "%j %P %n %u %t %e %N %r"
 			cqueue.RootCmd.Run(cmd, args)
 		},
 	}
