@@ -99,6 +99,7 @@ func StartCallocStream(task *protos.TaskToCtld) util.CraneCmdError {
 		err := conn.Close()
 		if err != nil {
 			log.Errorf("Failed to close grpc conn: %s", err)
+			os.Exit(util.ErrorBackend)
 		}
 	}(conn)
 

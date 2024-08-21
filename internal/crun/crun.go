@@ -89,6 +89,7 @@ func StartCrunStream(task *protos.TaskToCtld) util.CraneCmdError {
 		err := conn.Close()
 		if err != nil {
 			log.Errorf("Failed to close grpc conn: %s", err)
+			os.Exit(util.ErrorBackend)
 		}
 	}(conn)
 
@@ -631,7 +632,7 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	}
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		log.Errorf("request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
+		log.Errorf("Request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
 		return util.ErrorCmdArg
 	}
 	task.GetInteractiveMeta().ShScript = strings.Join(args, " ")
