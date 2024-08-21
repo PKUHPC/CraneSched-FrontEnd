@@ -411,6 +411,7 @@ CrunStateMachineLoop:
 			break CrunStateMachineLoop
 		}
 	}
+	// Check if connection finished normally
 	if state != WaitAck || gVars.connectionBroken {
 		return util.ErrorBackend
 	} else {
