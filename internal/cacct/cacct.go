@@ -38,7 +38,8 @@ var (
 )
 
 const (
-	kCraneExitCodeBase = 320
+	kTerminationSignalBase = 256
+	kCraneExitCodeBase     = 320
 )
 
 // QueryJob will query all pending, running and completed tasks
@@ -241,8 +242,8 @@ func QueryJob() util.CraneCmdError {
 		taskInfo := reply.TaskInfoList[i]
 
 		exitCode := ""
-		if taskInfo.ExitCode >= kCraneExitCodeBase {
-			exitCode = fmt.Sprintf("0:%d", taskInfo.ExitCode-kCraneExitCodeBase)
+		if taskInfo.ExitCode >= kTerminationSignalBase {
+			exitCode = fmt.Sprintf("0:%d", taskInfo.ExitCode-kTerminationSignalBase)
 		} else {
 			exitCode = fmt.Sprintf("%d:0", taskInfo.ExitCode)
 		}
