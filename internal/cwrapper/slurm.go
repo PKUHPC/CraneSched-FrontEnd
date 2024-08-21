@@ -28,6 +28,7 @@ import (
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
 	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -388,10 +389,10 @@ func sacctmgr() *cobra.Command {
 
 func salloc() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "salloc",
-		Short:   "Wrapper of calloc command",
-		Long:    "",
-		GroupID: "slurm",
+		Use:                "salloc",
+		Short:              "Wrapper of calloc command",
+		Long:               "",
+		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Add --help from calloc
@@ -408,12 +409,12 @@ func salloc() *cobra.Command {
 				return
 			}
 
+			calloc.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(calloc.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			calloc.RootCmd.Run(calloc.RootCmd, args)
 		},
 	}
@@ -481,11 +482,11 @@ func sbatch() *cobra.Command {
 				return
 			}
 
+			cbatch.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(cbatch.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
@@ -617,6 +618,7 @@ func sinfo() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
+			cinfo.RootCmd.PersistentPreRun(cmd, args)
 			cinfo.RootCmd.Run(cmd, args)
 		},
 	}
@@ -650,12 +652,18 @@ func squeue() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
+			cqueue.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(cqueue.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
+			if !cqueue.FlagNoHeader {
+				fmt.Printf("%s %s %s %s %s %s %s %s\n",
+					"JOBID", "PARTITION", "NAME", "USER", "ST", "TIME", "NODES", "NODELIST(REASON)")
+				cqueue.FlagNoHeader = true
+			}
+			cqueue.FlagFormat = "%j %P %n %u %t %e %N %r"
 			cqueue.RootCmd.Run(cmd, args)
 		},
 	}
@@ -710,11 +718,11 @@ func srun() *cobra.Command {
 				return
 			}
 
+			crun.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(crun.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			crun.RootCmd.Run(crun.RootCmd, args)
 		},
 	}
