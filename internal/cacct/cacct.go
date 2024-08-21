@@ -38,7 +38,7 @@ var (
 )
 
 const (
-	kCraneExitCodeBase = 256
+	kCraneExitCodeBase = 320
 )
 
 // QueryJob will query all pending, running and completed tasks
