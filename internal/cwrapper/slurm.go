@@ -409,12 +409,12 @@ func salloc() *cobra.Command {
 				return
 			}
 
+			calloc.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(calloc.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			calloc.RootCmd.Run(calloc.RootCmd, args)
 		},
 	}
@@ -482,11 +482,11 @@ func sbatch() *cobra.Command {
 				return
 			}
 
+			cbatch.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(cbatch.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
@@ -618,6 +618,7 @@ func sinfo() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
+			cinfo.RootCmd.PersistentPreRun(cmd, args)
 			cinfo.RootCmd.Run(cmd, args)
 		},
 	}
@@ -651,6 +652,7 @@ func squeue() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
+			cqueue.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(cqueue.RootCmd, args); err != nil {
 				log.Error(err)
@@ -716,11 +718,11 @@ func srun() *cobra.Command {
 				return
 			}
 
+			crun.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(crun.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			crun.RootCmd.Run(crun.RootCmd, args)
 		},
 	}
