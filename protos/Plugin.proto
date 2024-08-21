@@ -50,17 +50,18 @@ message EndHookReply {
 }
 
 message JobCheckHookRequest {
-  repeated TaskInfo task_info_list = 1;
+  message JobCheckInfo{
+    uint32 taskid = 1;
+    string cgroup = 2;
+  }
+  repeated JobCheckInfo jobcheck_info_list = 1;
 }
 
 message JobCheckHookReply {
   message TaskIdReply {
     bool ok = 1;
     uint32 task_id = 2;
-    string monitor_ip = 3;
-    string monitor_port = 4;
-    string username = 5;
-    string userpassword = 6;
+    string failure_reason = 3;
   }
 
   repeated TaskIdReply result = 1;

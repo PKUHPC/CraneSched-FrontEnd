@@ -5,6 +5,7 @@ type HookType uint8
 const (
 	StartHook HookType = iota
 	EndHook
+	JobCheckHook
 )
 
 type PluginHandler func(*PluginContext)

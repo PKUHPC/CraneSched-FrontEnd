@@ -14,7 +14,10 @@ var _ api.Plugin = &MonitorPlugin{}
 // PluginD will call plugin's method thru this variable
 var PluginInstance = MonitorPlugin{}
 
-type MonitorPlugin struct{}
+type MonitorPlugin struct {
+	UserName     string `yaml:"UserName"`
+	UserPassword string `yaml:"UserPassword"`
+}
 
 func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
 	log.Infof("Monitor plugin is loaded.")

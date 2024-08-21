@@ -89,3 +89,17 @@ func (pd *PluginDaemon) EndHook(ctx context.Context, req *protos.EndHookRequest)
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) JobCheckHook(ctx context.Context, req *protos.JobCheckHookRequest) (*protos.JobCheckHookReply, error) {
+	log.Tracef("JobCheckHook request received: %v", req)
+	reply := &protos.JobCheckHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).JobCheckHook)
+	}
+
+	c := api.NewContext(ctx, req, api.JobCheckHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
