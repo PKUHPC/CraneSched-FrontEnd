@@ -99,7 +99,7 @@ func StartCallocStream(task *protos.TaskToCtld) util.CraneCmdError {
 		err := conn.Close()
 		if err != nil {
 			log.Errorf("Failed to close grpc conn: %s", err)
-			os.Exit(util.ErrorBackend)
+			os.Exit(util.ErrorNetwork)
 		}
 	}(conn)
 
@@ -324,7 +324,7 @@ CallocStateMachineLoop:
 	}
 	// Check if connection finished normally
 	if state != WaitAck || gVars.connectionBroken {
-		return util.ErrorBackend
+		return util.ErrorNetwork
 	} else {
 		return util.ErrorSuccess
 	}
