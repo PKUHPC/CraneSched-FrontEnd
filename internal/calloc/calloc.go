@@ -421,6 +421,13 @@ func main(cmd *cobra.Command, args []string) {
 	if FlagExcludes != "" {
 		task.Excludes = FlagExcludes
 	}
+	if FlagGetUserEnv {
+		task.GetUserEnv = true
+	}
+	if FlagExport != "" {
+		task.Env["CRANE_EXPORT_ENV"] = FlagExport
+	}
+	util.SetPropagatedEnviron(task)
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
 		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
