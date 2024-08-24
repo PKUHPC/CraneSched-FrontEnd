@@ -2,8 +2,14 @@
 package main
 
 import (
+	"fmt"
+
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -57,6 +63,61 @@ func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext) {
 	log.Tracef("EndHookReq: \n%v", req.String())
 }
 
+// func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
+// 	log.Infoln("JobCheckHook is called!")
+
+// 	req, ok := ctx.Request().(*protos.JobCheckHookRequest)
+// 	if !ok {
+// 		log.Errorln("Invalid request type, expected JobCheckHookRequest.")
+// 		return
+// 	}
+
+// 	log.Tracef("JobCheckHookReq: \n%v", req.String())
+// }
+
+func getCpuUsage(cgroupPath string) (float64, error) {
+	cpuUsageFile := fmt.Sprintf("%s/cpuacct.usage", cgroupPath)
+	content, err := os.ReadFile(cpuUsageFile) // Use os.ReadFile instead of ioutil.ReadFile
+	if err != nil {
+		return 0, err
+	}
+
+	startUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	time.Sleep(1 * time.Second)
+
+	content, err = os.ReadFile(cpuUsageFile) // Use os.ReadFile instead of ioutil.ReadFile
+	if err != nil {
+		return 0, err
+	}
+
+	endUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	cpuUsage := float64(endUsage-startUsage) / 1e9 * 100
+	return cpuUsage, nil
+}
+
+func getMemoryUsage(cgroupPath string) (uint64, error) {
+	memoryUsageFile := fmt.Sprintf("%s/memory.usage_in_bytes", cgroupPath)
+	content, err := os.ReadFile(memoryUsageFile) // Use os.ReadFile instead of ioutil.ReadFile
+	if err != nil {
+		return 0, err
+	}
+
+	memoryUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return memoryUsage, nil
+}
+
 func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 	log.Infoln("JobCheckHook is called!")
 
@@ -67,6 +128,24 @@ func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 	}
 
 	log.Tracef("JobCheckHookReq: \n%v", req.String())
+
+	for _, jobCheckInfo := range req.JobcheckInfoList {
+		cgroupPath_cpu := fmt.Sprintf("/sys/fs/cgroup/cpu/%s", jobCheckInfo.Cgroup)
+		cpuUsage, err := getCpuUsage(cgroupPath_cpu)
+		if err != nil {
+			log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPath_cpu, err)
+			continue
+		}
+		cgroupPath_mem := fmt.Sprintf("/sys/fs/cgroup/memory/%s", jobCheckInfo.Cgroup)
+		memoryUsage, err := getMemoryUsage(cgroupPath_mem)
+		if err != nil {
+			log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPath_mem, err)
+			continue
+		}
+
+		log.Infof("TaskID: %d, Cgroup: %s, CPU Usage: %.2f%%, Memory Usage: %.2fMB",
+			jobCheckInfo.Taskid, jobCheckInfo.Cgroup, cpuUsage, float64(memoryUsage)/(1024*1024))
+	}
 }
 
 func main() {
