@@ -559,6 +559,7 @@ func scontrol() *cobra.Command {
 				for idx, arg := range convertedArgs {
 					switch arg {
 					case "job":
+						secondSubCmd = "job"
 						convertedArgs[idx] = "--job"
 					case "node":
 						secondSubCmd = "node"
