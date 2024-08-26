@@ -52,7 +52,9 @@ var (
 			util.DetectNetworkProxy()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			main(cmd, args)
+			if err := MainCalloc(cmd, args); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )

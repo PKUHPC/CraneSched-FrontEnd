@@ -51,14 +51,16 @@ var (
 			util.DetectNetworkProxy()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			MainCrun(cmd, args)
+			if err := MainCrun(cmd, args); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 

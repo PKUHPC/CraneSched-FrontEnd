@@ -72,7 +72,7 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient,
 	}
 }
 
-func StartCrunStream(task *protos.TaskToCtld) {
+func StartCrunStream(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 
 	var opts []grpc.DialOption
@@ -81,13 +81,15 @@ func StartCrunStream(task *protos.TaskToCtld) {
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 	conn, err := grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
-		log.Fatalf("Failed to connect to local unix socket %s: %s",
+		log.Errorf("Failed to connect to local unix socket %s: %s",
 			unixSocketPath, err)
+		return util.ErrorBackend
 	}
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
 		if err != nil {
-			log.Fatalf("Failed to close grpc conn: %s", err)
+			log.Errorf("Failed to close grpc conn: %s", err)
+			os.Exit(util.ErrorNetwork)
 		}
 	}(conn)
 
@@ -155,7 +157,8 @@ CrunStateMachineLoop:
 				}
 
 				if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
-					log.Fatal("Expect type TASK_ID_REPLY")
+					log.Errorln("Expect type TASK_ID_REPLY")
+					return util.ErrorBackend
 				}
 				payload := cforedReply.GetPayloadTaskIdReply()
 
@@ -202,7 +205,7 @@ CrunStateMachineLoop:
 						log.Debugf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
 						state = WaitForward
 					} else {
-						fmt.Println("Failed to allocate task resource. Exiting...")
+						log.Errorln("Failed to allocate task resource. Exiting...")
 						break CrunStateMachineLoop
 					}
 				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
@@ -215,7 +218,7 @@ CrunStateMachineLoop:
 					log.Tracef("SIGINT Received. Cancelling the task...")
 					state = TaskKilling
 				} else {
-					log.Tracef("Unhanled sig %s", sig.String())
+					log.Tracef("Unhandled sig %s", sig.String())
 					state = TaskKilling
 				}
 			}
@@ -244,13 +247,13 @@ CrunStateMachineLoop:
 						log.Tracef("Task io forward ready")
 						state = Forwarding
 					} else {
-						fmt.Println("Failed to wait for task io forward ready. Exiting...")
+						log.Errorln("Failed to wait for task io forward ready. Exiting...")
 						break CrunStateMachineLoop
 					}
 				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
 					state = TaskKilling
 				default:
-					log.Fatalf("Received unhandeled msg type %s", cforedReply.Type.String())
+					log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
 					state = TaskKilling
 				}
 
@@ -394,17 +397,25 @@ CrunStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY {
-				log.Fatalf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
+				log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
+				return util.ErrorBackend
 			}
 
 			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
 				log.Debug("Task completed.")
 			} else {
-				log.Fatal("Failed to notify server of task completion")
+				log.Errorln("Failed to notify server of task completion")
+				return util.ErrorBackend
 			}
 
 			break CrunStateMachineLoop
 		}
+	}
+	// Check if connection finished normally
+	if state != WaitAck || gVars.connectionBroken {
+		return util.ErrorNetwork
+	} else {
+		return util.ErrorSuccess
 	}
 }
 
@@ -507,27 +518,31 @@ func IOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
 	wg.Wait()
 }
 
-func MainCrun(cmd *cobra.Command, args []string) {
+func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	var err error
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		log.Fatalf("Failed to get working directory: %s", err.Error())
+		log.Errorf("Failed to get working directory: %s", err.Error())
+		return util.ErrorBackend
 	}
 
 	if gVars.user, err = user.Current(); err != nil {
-		log.Fatalf("Failed to get current user: %s", err.Error())
+		log.Errorf("Failed to get current user: %s", err.Error())
+		return util.ErrorBackend
 	}
 
 	uid, err := strconv.Atoi(gVars.user.Uid)
 	if err != nil {
-		log.Fatalf("Failed to convert uid to int: %s", err.Error())
+		log.Errorf("Failed to convert uid to int: %s", err.Error())
+		return util.ErrorInvalidFormat
 	}
 
 	if len(args) == 0 {
-		log.Fatalf("Please specify program to run")
+		log.Errorf("Please specify program to run")
+		return util.ErrorCmdArg
 	}
 
 	task := &protos.TaskToCtld{
@@ -560,30 +575,33 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	if FlagNodes > 0 {
 		task.NodeNum = FlagNodes
 	} else {
-		log.Fatalf("Invalid --nodes %d", FlagNodes)
+		log.Errorf("Invalid --nodes %d", FlagNodes)
+		return util.ErrorCmdArg
 	}
 	if FlagCpuPerTask > 0 {
 		task.CpusPerTask = FlagCpuPerTask
 	} else {
-		log.Fatalf("Invalid --cpus-per-task %f", FlagCpuPerTask)
+		log.Errorf("Invalid --cpus-per-task %f", FlagCpuPerTask)
+		return util.ErrorCmdArg
 	}
 	if FlagNtasksPerNode > 0 {
 		task.NtasksPerNode = FlagNtasksPerNode
 	} else {
-		log.Fatalf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
+		log.Errorf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
+		return util.ErrorCmdArg
 	}
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
-			log.Print("Invalid --time")
-			return
+			log.Errorln("Invalid --time")
+			return util.ErrorCmdArg
 		}
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			log.Error(err)
-			return
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
 		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -622,7 +640,8 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	util.SetPropagatedEnviron(task)
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		log.Fatalf("request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
+		log.Errorf("Request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
+		return util.ErrorCmdArg
 	}
 	task.GetInteractiveMeta().ShScript = strings.Join(args, " ")
 	term, exits := syscall.Getenv("TERM")
@@ -631,5 +650,5 @@ func MainCrun(cmd *cobra.Command, args []string) {
 	}
 	task.GetInteractiveMeta().InteractiveType = protos.InteractiveTaskType_Crun
 
-	StartCrunStream(task)
+	return StartCrunStream(task)
 }
