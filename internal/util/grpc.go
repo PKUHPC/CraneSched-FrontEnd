@@ -18,6 +18,7 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -116,27 +117,32 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		ServerCertContent, err := os.ReadFile(config.ServerCertFilePath)
 		if err != nil {
-			log.Fatal("Read server certificate error: " + err.Error())
+			log.Errorln("Read server certificate error: " + err.Error())
+			os.Exit(util.ErrorGeneric)
 		}
 
 		ServerKeyContent, err := os.ReadFile(config.ServerKeyFilePath)
 		if err != nil {
-			log.Fatal("Read server key error: " + err.Error())
+			log.Errorln("Read server key error: " + err.Error())
+			os.Exit(util.ErrorGeneric)
 		}
 
 		CaCertContent, err := os.ReadFile(config.CaCertFilePath)
 		if err != nil {
-			log.Fatal("Read CA certifacate error: " + err.Error())
+			log.Errorln("Read CA certifacate error: " + err.Error())
+			os.Exit(util.ErrorGeneric)
 		}
 
 		tlsKeyPair, err := tls.X509KeyPair(ServerCertContent, ServerKeyContent)
 		if err != nil {
-			log.Fatal("tlsKeyPair error: " + err.Error())
+			log.Errorln("tlsKeyPair error: " + err.Error())
+			os.Exit(util.ErrorGeneric)
 		}
 
 		caPool := x509.NewCertPool()
 		if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
-			log.Fatal("AppendCertsFromPEM error: " + err.Error())
+			log.Errorln("AppendCertsFromPEM error: " + err.Error())
+			os.Exit(util.ErrorGeneric)
 		}
 
 		creds := credentials.NewTLS(&tls.Config{
@@ -150,7 +156,8 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
 		if err != nil {
-			log.Fatal("Cannot connect to CraneCtld: " + err.Error())
+			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
+			os.Exit(util.ErrorBackend)
 		}
 
 		stub = protos.NewCraneCtldClient(conn)
@@ -159,7 +166,8 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			log.Fatalf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
+			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
+			os.Exit(util.ErrorBackend)
 		}
 
 		stub = protos.NewCraneCtldClient(conn)
