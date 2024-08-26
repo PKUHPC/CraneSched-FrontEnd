@@ -381,7 +381,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j],
 					strconv.FormatFloat(reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit*
-						float64(reply.TaskInfoList[i].NodeNum), 'f', 2, 64))
+						float64(reply.TaskInfoList[j].NodeNum), 'f', 2, 64))
 			}
 		case "e":
 			header = "ExitCode"
