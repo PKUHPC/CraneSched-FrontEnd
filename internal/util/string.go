@@ -32,6 +32,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -84,6 +85,40 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 	}
 	// default unit is MB
 	return uint64(1024 * 1024 * sz), nil
+}
+
+func ParseInterval(interval string, intervalpb *protos.TimeInterval) (err error) {
+	if !strings.Contains(interval, "~") {
+		err = fmt.Errorf("'~' cannot be omitted")
+		return
+	}
+
+	split := strings.Split(interval, "~")
+	if len(split) > 2 {
+		err = fmt.Errorf("too many '~' found")
+		return
+	}
+
+	var tl, tr time.Time
+	if split[0] != "" {
+		tl, err = ParseTime(strings.TrimSpace(split[0]))
+		if err != nil {
+			return
+		}
+		intervalpb.LowerBound = timestamppb.New(tl)
+	}
+	if len(split) == 2 && split[1] != "" {
+		tr, err = ParseTime(strings.TrimSpace(split[1]))
+		if err != nil {
+			return
+		}
+		if tr.Before(tl) {
+			err = fmt.Errorf("%v is earlier than %v", tr, tl)
+			return
+		}
+		intervalpb.UpperBound = timestamppb.New(tr)
+	}
+	return
 }
 
 func ParseDuration(time string, duration *durationpb.Duration) bool {
