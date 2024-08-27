@@ -56,14 +56,17 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if FlagState != "" {
-		FlagState = strings.ToLower(FlagState)
-		if FlagState == "pd" || FlagState == "pending" {
-			req.FilterState = protos.TaskStatus_Pending
-		} else if FlagState == "r" || FlagState == "running" {
-			req.FilterState = protos.TaskStatus_Running
-		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "Invalid FlagState, Valid job states are PENDING, RUNNING.")
-			return util.ErrorCmdArg
+		taskFlagStatusSplit := strings.Split(FlagState, ",")
+		for i := 0; i < len(taskFlagStatusSplit); i++ {
+			status := strings.ToLower(taskFlagStatusSplit[i])
+			if status == "pd" || status == "pending" {
+				req.FilterState = protos.TaskStatus_Pending
+			} else if status == "r" || status == "running" {
+				req.FilterState = protos.TaskStatus_Running
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Invalid FlagState, Valid job states are PENDING, RUNNING.\n")
+				return util.ErrorCmdArg
+			}
 		}
 	}
 
