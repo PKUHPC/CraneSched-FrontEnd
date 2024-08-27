@@ -21,8 +21,8 @@ jobs:
       with:
         go-version: '1.22'
 
-    - name: Install Protoc
-      uses: arduino/setup-protoc@v3
+    - name: Install Dependencies
+      run: go get .
 
     - name: Build Protos
       run: make protos
