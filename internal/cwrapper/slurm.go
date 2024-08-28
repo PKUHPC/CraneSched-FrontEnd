@@ -172,8 +172,10 @@ func sacctmgr() *cobra.Command {
 			flags := make([]string, 0)
 			convertedArgs := make([]string, 0)
 			for _, arg := range args {
-				// TODO: Add customized --help flag
-				if strings.HasPrefix(arg, "-") {
+				if arg == "--help" || arg == "-h" {
+					fmt.Println("Please refer to the user manual of Slurm.")
+					return
+				} else if strings.HasPrefix(arg, "-") {
 					flags = append(flags, arg)
 				} else {
 					convertedArgs = append(convertedArgs, arg)
