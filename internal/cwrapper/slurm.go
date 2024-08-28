@@ -307,43 +307,35 @@ func sacctmgr() *cobra.Command {
 						convertedArgs = append(convertedArgs, nk, v)
 					}
 				}
-			} else if convertedArgs[0] == "find" {
-				if len(convertedArgs) <= 2 || (len(convertedArgs) == 3 && convertedArgs[2] == "where") {
-					// Without filtering conditions, use `show`
-					convertedArgs[0] = "show"
-					convertedArgs = convertedArgs[:2]
-				} else {
-					// With filtering conditions, use `find`
-					// For `list`, there is `where` but no `set`
-					whereMap := make(map[string]string)
-					for i := 2; i < len(convertedArgs); i++ {
-						if strings.Contains(convertedArgs[i], ",") {
-							log.Error("cacctmgr show allows only one entity at a time")
-							os.Exit(util.ErrorCmdArg)
-						}
-
-						l := strings.Split(convertedArgs[i], "=")
-						if len(l) != 2 {
-							if convertedArgs[i] == "where" {
-								continue
-							}
-							log.Error("Invalid argument: ", convertedArgs[i])
-							os.Exit(util.ErrorCmdArg)
-						}
-
-						whereMap[l[0]] = l[1]
+			} else if convertedArgs[0] == "show" {
+				whereMap := make(map[string]string)
+				for i := 2; i < len(convertedArgs); i++ {
+					if strings.Contains(convertedArgs[i], ",") {
+						log.Error("cacctmgr show allows only one entity at a time")
+						os.Exit(util.ErrorCmdArg)
 					}
 
-					convertedArgs = convertedArgs[:2]
-					for k, v := range whereMap {
-						if k == "name" || k == "names" {
-							convertedArgs = append(convertedArgs, v)
-						} else if k == "account" || k == "accounts" {
-							convertedArgs = append(convertedArgs, "--account="+v)
-						} else {
-							log.Error("Unsupported arguments: ", k)
-							os.Exit(util.ErrorCmdArg)
+					l := strings.Split(convertedArgs[i], "=")
+					if len(l) != 2 {
+						if convertedArgs[i] == "where" {
+							continue
 						}
+						log.Error("Invalid argument: ", convertedArgs[i])
+						os.Exit(util.ErrorCmdArg)
+					}
+
+					whereMap[l[0]] = l[1]
+				}
+
+				convertedArgs = convertedArgs[:2]
+				for k, v := range whereMap {
+					if k == "name" || k == "names" {
+						convertedArgs = append(convertedArgs, v)
+					} else if k == "account" || k == "accounts" {
+						convertedArgs = append(convertedArgs, "--account="+v)
+					} else {
+						log.Error("Unsupported arguments: ", k)
+						os.Exit(util.ErrorCmdArg)
 					}
 				}
 			} else {
