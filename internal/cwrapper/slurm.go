@@ -174,7 +174,7 @@ func sacctmgr() *cobra.Command {
 			for _, arg := range args {
 				// TODO: Add customized --help flag
 				if arg == "--help" || arg == "-h" {
-					fmt.Println("For manual, refer to https://slurm.schedmd.com/sacctmgr.html")
+					fmt.Println("Please refer to user manual of Slurm.")
 					return
 				} else if strings.HasPrefix(arg, "-") {
 					flags = append(flags, arg)
