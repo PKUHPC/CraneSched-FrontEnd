@@ -2,14 +2,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"gopkg.in/yaml.v3"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,14 +26,42 @@ var _ api.Plugin = &MonitorPlugin{}
 // PluginD will call plugin's method thru this variable
 var PluginInstance = MonitorPlugin{}
 
+// cgroup cpu path & memory path
+var (
+	cgroupCpuPathPrefix    = "/sys/fs/cgroup/cpu/"
+	cgroupMemoryPathPrefix = "/sys/fs/cgroup/memory/"
+)
+
+type config struct {
+	UserName string `yaml:"UserName"`
+	Bucket   string `yaml:"Bucket"`
+	Org      string `yaml:"Org"`
+	Token    string `yaml:"Token"`
+	Url      string `yaml:"Url"`
+	Interval uint32 `yaml:"Interval"`
+}
+
 type MonitorPlugin struct {
-	UserName     string `yaml:"UserName"`
-	UserPassword string `yaml:"UserPassword"`
+	config
 }
 
 func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
-	log.Infof("Monitor plugin is loaded.")
-	log.Tracef("Metadata: %v", meta)
+	if meta.Config == "" {
+		return fmt.Errorf("no config file specified")
+	}
+
+	content, err := os.ReadFile(meta.Config)
+	if err != nil {
+		return err
+	}
+
+	if err := yaml.Unmarshal(content, &dp.config); err != nil {
+		return err
+	}
+
+	log.Infoln("Monitor plugin is initialized.")
+	log.Tracef("Monitor plugin config: %v", dp.config)
+
 	return nil
 }
 
@@ -77,7 +111,7 @@ func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext) {
 
 func getCpuUsage(cgroupPath string) (float64, error) {
 	cpuUsageFile := fmt.Sprintf("%s/cpuacct.usage", cgroupPath)
-	content, err := os.ReadFile(cpuUsageFile) // Use os.ReadFile instead of ioutil.ReadFile
+	content, err := os.ReadFile(cpuUsageFile)
 	if err != nil {
 		return 0, err
 	}
@@ -89,7 +123,7 @@ func getCpuUsage(cgroupPath string) (float64, error) {
 
 	time.Sleep(1 * time.Second)
 
-	content, err = os.ReadFile(cpuUsageFile) // Use os.ReadFile instead of ioutil.ReadFile
+	content, err = os.ReadFile(cpuUsageFile)
 	if err != nil {
 		return 0, err
 	}
@@ -105,7 +139,7 @@ func getCpuUsage(cgroupPath string) (float64, error) {
 
 func getMemoryUsage(cgroupPath string) (uint64, error) {
 	memoryUsageFile := fmt.Sprintf("%s/memory.usage_in_bytes", cgroupPath)
-	content, err := os.ReadFile(memoryUsageFile) // Use os.ReadFile instead of ioutil.ReadFile
+	content, err := os.ReadFile(memoryUsageFile)
 	if err != nil {
 		return 0, err
 	}
@@ -118,34 +152,74 @@ func getMemoryUsage(cgroupPath string) (uint64, error) {
 	return memoryUsage, nil
 }
 
+func getHostname() (string, error) {
+	cmd := exec.Command("hostname")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
 func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 	log.Infoln("JobCheckHook is called!")
-
 	req, ok := ctx.Request().(*protos.JobCheckHookRequest)
 	if !ok {
 		log.Errorln("Invalid request type, expected JobCheckHookRequest.")
 		return
 	}
-
 	log.Tracef("JobCheckHookReq: \n%v", req.String())
 
-	for _, jobCheckInfo := range req.JobcheckInfoList {
-		cgroupPath_cpu := fmt.Sprintf("/sys/fs/cgroup/cpu/%s", jobCheckInfo.Cgroup)
-		cpuUsage, err := getCpuUsage(cgroupPath_cpu)
-		if err != nil {
-			log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPath_cpu, err)
-			continue
-		}
-		cgroupPath_mem := fmt.Sprintf("/sys/fs/cgroup/memory/%s", jobCheckInfo.Cgroup)
-		memoryUsage, err := getMemoryUsage(cgroupPath_mem)
-		if err != nil {
-			log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPath_mem, err)
-			continue
-		}
+	jobCheckInfo := req.JobcheckInfoList[0]
+	cgroupPathCpu := fmt.Sprintf("%s%s", cgroupCpuPathPrefix, jobCheckInfo.Cgroup)
+	cgroupPathMem := fmt.Sprintf("%s%s", cgroupMemoryPathPrefix, jobCheckInfo.Cgroup)
 
-		log.Infof("TaskID: %d, Cgroup: %s, CPU Usage: %.2f%%, Memory Usage: %.2fMB",
-			jobCheckInfo.Taskid, jobCheckInfo.Cgroup, cpuUsage, float64(memoryUsage)/(1024*1024))
+	// create influxdb client
+	client := influxdb2.NewClient(dp.Url, dp.Token)
+	// client := influxdb2.NewClientWithOptions(dp.Url, dp.Token, influxdb2.DefaultOptions().SetPrecision(time.Duration(influxdb2.DefaultOptions().Precision().Microseconds())))
+	fmt.Printf("InfluxDB URL: %s\n", dp.Url)
+	defer client.Close()
+	writeAPI := client.WriteAPIBlocking(dp.Org, dp.Bucket)
+	hostname, err := getHostname()
+	if err != nil {
+		log.Errorf("Failed to get hostname: %v", err)
+		return
 	}
+
+	// start to write data into influxdb
+	for {
+		cpuUsage, err := getCpuUsage(cgroupPathCpu)
+		if err != nil {
+			log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPathCpu, err)
+			break
+		}
+		memoryUsage, err := getMemoryUsage(cgroupPathMem)
+		if err != nil {
+			log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPathMem, err)
+			break
+		}
+		currentTime := time.Now()
+		uniqueTag := uuid.New().String()
+
+		p := influxdb2.NewPointWithMeasurement(fmt.Sprintf("%d", jobCheckInfo.Taskid)).
+			AddTag("username", dp.UserName).
+			AddTag("hostname", hostname).
+			AddTag("unique_tag", uniqueTag).
+			AddField("cpu_usage", cpuUsage).
+			AddField("memory_usage", float64(memoryUsage)/(1024*1024)).
+			SetTime(currentTime)
+		err = writeAPI.WritePoint(context.Background(), p)
+		if err != nil {
+			log.Errorf("Failed to write point to InfluxDB: %v", err)
+			break
+		}
+		log.Infof("Recorded TaskID: %d, UserName: %s, Hostname: %s, CPU Usage: %.2f%%, Memory Usage: %.2fMB at %v",
+			jobCheckInfo.Taskid, dp.UserName, hostname, cpuUsage, float64(memoryUsage)/(1024*1024), currentTime)
+
+		time.Sleep(time.Duration(dp.Interval) * time.Second)
+	}
+
+	log.Infoln("Exiting JobCheckHook loop due to an error or end")
 }
 
 func main() {
