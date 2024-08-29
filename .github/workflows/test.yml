@@ -18,56 +18,46 @@ on:
         type: boolean
         default: false
 
-env:
-  PROTOC_VERSION: "23.2"
-  GO_VERSION: "1.22"
-
 jobs:
-
-  build-test:
+  build:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nativu5/cranedev:ci
+      credentials:
+         username: ${{ github.actor }}
+         password: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash -leo pipefail {0}
+
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: Cache Protoc
-      uses: actions/cache@v4
-      with:
-        path: ${{ runner.tool_cache }}/protoc.zip
-        key: ${{ runner.os }}-protoc-${{ env.PROTOC_VERSION }}
-
-    - name: Install Protoc
-      working-directory: ${{ runner.tool_cache }}
-      run: |
-        if ! [[ -e protoc.zip ]]; then
-          echo "Downloading protoc version $PROTOC_VERSION"
-          wget https://github.com/protocolbuffers/protobuf/releases/download/v$PROTOC_VERSION/protoc-$PROTOC_VERSION-linux-x86_64.zip -O protoc.zip
-        else
-          echo "protoc version $PROTOC_VERSION is already cached."
-        fi
-
-        unzip -q protoc.zip -d protoc
-        sudo mv protoc/bin/protoc /usr/local/bin/
-        sudo mv protoc/include/google /usr/local/include/
+          
+      - name: Checkout code
+        uses: actions/checkout@v4
         
-        go install google.golang.org/protobuf/cmd/protoc-gen-go@latest &&
-        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+      - name: Cache Go pkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            /root/go
+            /root/.cache/go-build
+          key: ${{ runner.os }}-gopkg-${{ hashFiles('go.sum') }}
 
-    - name: Build
-      run: make all |& tee build.log
+      # https://github.com/docker-library/golang/issues/452
+      - name: Set workspace as safe
+        run: git config --global --add safe.directory $GITHUB_WORKSPACE
 
-    - name: Upload artifact
-      if: ${{ inputs.upload_artifact }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-output
-        path: |
-          ./build/
-          ./build.log
-        if-no-files-found: error
-        retention-days: 30
-        overwrite: true
+      - name: Build
+        run: make all |& tee build.log
+
+      - name: Upload artifact
+        if: ${{ inputs.upload_artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            ./build/
+            ./build.log
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
