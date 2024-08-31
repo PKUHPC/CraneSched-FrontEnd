@@ -97,18 +97,6 @@ func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext) {
 	log.Tracef("EndHookReq: \n%v", req.String())
 }
 
-// func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
-// 	log.Infoln("JobCheckHook is called!")
-
-// 	req, ok := ctx.Request().(*protos.JobCheckHookRequest)
-// 	if !ok {
-// 		log.Errorln("Invalid request type, expected JobCheckHookRequest.")
-// 		return
-// 	}
-
-// 	log.Tracef("JobCheckHookReq: \n%v", req.String())
-// }
-
 func getCpuUsage(cgroupPath string) (float64, error) {
 	cpuUsageFile := fmt.Sprintf("%s/cpuacct.usage", cgroupPath)
 	content, err := os.ReadFile(cpuUsageFile)
@@ -175,8 +163,8 @@ func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 	cgroupPathMem := fmt.Sprintf("%s%s", cgroupMemoryPathPrefix, jobCheckInfo.Cgroup)
 
 	// create influxdb client
-	client := influxdb2.NewClient(dp.Url, dp.Token)
-	// client := influxdb2.NewClientWithOptions(dp.Url, dp.Token, influxdb2.DefaultOptions().SetPrecision(time.Duration(influxdb2.DefaultOptions().Precision().Microseconds())))
+	// client := influxdb2.NewClient(dp.Url, dp.Token)
+	client := influxdb2.NewClientWithOptions(dp.Url, dp.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
 	fmt.Printf("InfluxDB URL: %s\n", dp.Url)
 	defer client.Close()
 	writeAPI := client.WriteAPIBlocking(dp.Org, dp.Bucket)
@@ -201,13 +189,19 @@ func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 		currentTime := time.Now()
 		uniqueTag := uuid.New().String()
 
-		p := influxdb2.NewPointWithMeasurement(fmt.Sprintf("%d", jobCheckInfo.Taskid)).
-			AddTag("username", dp.UserName).
-			AddTag("hostname", hostname).
-			AddTag("unique_tag", uniqueTag).
-			AddField("cpu_usage", cpuUsage).
-			AddField("memory_usage", float64(memoryUsage)/(1024*1024)).
-			SetTime(currentTime)
+		p := influxdb2.NewPoint(
+			fmt.Sprintf("%d", jobCheckInfo.Taskid),
+			map[string]string{
+				"username":   dp.UserName,
+				"hostname":   hostname,
+				"unique_tag": uniqueTag, // Unique tag to prevent overwriting
+			},
+			map[string]interface{}{
+				"cpu_usage":    cpuUsage,
+				"memory_usage": memoryUsage,
+			},
+			currentTime, // Timestamp
+		)
 		err = writeAPI.WritePoint(context.Background(), p)
 		if err != nil {
 			log.Errorf("Failed to write point to InfluxDB: %v", err)
@@ -219,7 +213,7 @@ func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 		time.Sleep(time.Duration(dp.Interval) * time.Second)
 	}
 
-	log.Infoln("Exiting JobCheckHook loop due to an error or end")
+	log.Infoln("Exiting JobCheckHook loop due to an error or finished")
 }
 
 func main() {
