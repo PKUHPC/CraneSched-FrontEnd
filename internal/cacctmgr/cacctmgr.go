@@ -538,15 +538,15 @@ func DeleteQos(name string) util.CraneCmdError {
 	}
 }
 
-func ModifyAccount(itemLeft string, itemRight string, name string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
+func ModifyAccount(modify_field protos.ModifyEntityRequest_ModifyField, new_value string, name string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
 	req := protos.ModifyEntityRequest{
-		Uid:        userUid,
-		Item:       itemLeft,
-		Value:      itemRight,
-		Name:       name,
-		Type:       requestType,
-		EntityType: protos.EntityType_Account,
-		Force:      FlagForce,
+		Uid:         userUid,
+		ModifyField: modify_field,
+		Value:       new_value,
+		Name:        name,
+		Type:        requestType,
+		EntityType:  protos.EntityType_Account,
+		Force:       FlagForce,
 	}
 
 	reply, err := stub.ModifyEntity(context.Background(), &req)
@@ -572,24 +572,24 @@ func ModifyAccount(itemLeft string, itemRight string, name string, requestType p
 	}
 }
 
-func ModifyUser(itemLeft string, itemRight string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
-	if itemLeft == "admin_level" {
-		if itemRight != "none" && itemRight != "operator" && itemRight != "admin" {
+func ModifyUser(modify_field protos.ModifyEntityRequest_ModifyField, new_value string, name string, account string, partition string, requestType protos.ModifyEntityRequest_OperatorType) util.CraneCmdError {
+	if modify_field == protos.ModifyEntityRequest_AdminLevel {
+		if new_value != "none" && new_value != "operator" && new_value != "admin" {
 			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
 			return util.ErrorCmdArg
 		}
 	}
 
 	req := protos.ModifyEntityRequest{
-		Uid:        userUid,
-		Item:       itemLeft,
-		Value:      itemRight,
-		Name:       name,
-		Partition:  partition,
-		Type:       requestType,
-		EntityType: protos.EntityType_User,
-		Account:    account,
-		Force:      FlagForce,
+		Uid:         userUid,
+		ModifyField: modify_field,
+		Value:       new_value,
+		Name:        name,
+		Partition:   partition,
+		Type:        requestType,
+		EntityType:  protos.EntityType_User,
+		Account:     account,
+		Force:       FlagForce,
 	}
 
 	reply, err := stub.ModifyEntity(context.Background(), &req)
@@ -615,14 +615,14 @@ func ModifyUser(itemLeft string, itemRight string, name string, account string, 
 	}
 }
 
-func ModifyQos(itemLeft string, itemRight string, name string) util.CraneCmdError {
+func ModifyQos(modify_field protos.ModifyEntityRequest_ModifyField, new_value string, name string) util.CraneCmdError {
 	req := protos.ModifyEntityRequest{
-		Uid:        userUid,
-		Item:       itemLeft,
-		Value:      itemRight,
-		Name:       name,
-		Type:       protos.ModifyEntityRequest_Overwrite,
-		EntityType: protos.EntityType_Qos,
+		Uid:         userUid,
+		ModifyField: modify_field,
+		Value:       new_value,
+		Name:        name,
+		Type:        protos.ModifyEntityRequest_Overwrite,
+		EntityType:  protos.EntityType_Qos,
 	}
 
 	reply, err := stub.ModifyEntity(context.Background(), &req)
