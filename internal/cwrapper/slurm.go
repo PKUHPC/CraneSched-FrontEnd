@@ -39,7 +39,7 @@ import (
 )
 
 /*
-Overall, we have two ways to implement the Wrapper.
+We have two ways to implement the Wrapper:
 - Directly use Cobra to reimplement a command, including all its subcommands and flags,
   then call the original command.
 - Do not reimplement a new command, but directly call the original command after
@@ -172,7 +172,6 @@ func sacctmgr() *cobra.Command {
 			flags := make([]string, 0)
 			convertedArgs := make([]string, 0)
 			for _, arg := range args {
-				// TODO: Add customized --help flag
 				if strings.HasPrefix(arg, "-") {
 					flags = append(flags, arg)
 				} else {
@@ -308,6 +307,7 @@ func sacctmgr() *cobra.Command {
 					}
 				}
 			} else if convertedArgs[0] == "show" {
+				// For `list`, there is `where` but no `set`
 				whereMap := make(map[string]string)
 				for i := 2; i < len(convertedArgs); i++ {
 					if strings.Contains(convertedArgs[i], ",") {
