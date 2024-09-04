@@ -38,6 +38,8 @@ type CbatchArg struct {
 	val  string
 }
 
+const FILE_MAX = 30
+
 // Merge and validate arguments from the file and the command line,
 // then return the constructed TaskToCtld.
 func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
@@ -254,7 +256,16 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	// Check the validity of the parameters
-
+	ofile := task.GetBatchMeta().OutputFilePattern
+	if i := strings.LastIndex(ofile, "/"); len(ofile) > i+FILE_MAX {
+		log.Errorf("Output file name exceeds %v characters.\n", FILE_MAX)
+		return false, nil
+	}
+	efile := task.GetBatchMeta().ErrorFilePattern
+	if i := strings.LastIndex(efile, "/"); len(efile) > i+FILE_MAX {
+		log.Errorf("Error file name exceeds %v characters.\n", FILE_MAX)
+		return false, nil
+	}
 	if len(task.Name) > 30 {
 		task.Name = task.Name[:30]
 		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
