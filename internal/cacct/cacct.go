@@ -30,7 +30,6 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -48,86 +47,26 @@ func QueryJob() util.CraneCmdError {
 
 	if FlagFilterStartTime != "" {
 		request.FilterStartTimeInterval = &protos.TimeInterval{}
-		if !strings.Contains(FlagFilterStartTime, "~") {
-			log.Errorf("Failed to parse the time string: char '~' not found in \"%s\". Please input an interval. ", FlagFilterStartTime)
+		err := util.ParseInterval(FlagFilterStartTime, request.FilterStartTimeInterval)
+		if err != nil {
+			log.Errorf("Failed to parse the StartTime filter: %s.\n", err)
 			return util.ErrorCmdArg
-		}
-		split := strings.Split(FlagFilterStartTime, "~")
-		if split[0] != "" {
-			tl, err := util.ParseTime(split[0])
-			if err != nil {
-				log.Errorf("Failed to parse the time string: %s.\n", err)
-				return util.ErrorCmdArg
-			}
-			request.FilterStartTimeInterval.LowerBound = timestamppb.New(tl)
-		}
-		if len(split) >= 2 && split[1] != "" {
-			tr, err := util.ParseTime(split[1])
-			if err != nil {
-				log.Errorf("Failed to parse the time string: %s.\n", err)
-				return util.ErrorCmdArg
-			}
-			request.FilterStartTimeInterval.UpperBound = timestamppb.New(tr)
-			if request.FilterStartTimeInterval.UpperBound.AsTime().Before(request.FilterStartTimeInterval.LowerBound.AsTime()) {
-				log.Errorf("Parameter error: the right time is earlier than the left time in '%s'.", FlagFilterStartTime)
-				return util.ErrorCmdArg
-			}
 		}
 	}
 	if FlagFilterEndTime != "" {
 		request.FilterEndTimeInterval = &protos.TimeInterval{}
-		if !strings.Contains(FlagFilterEndTime, "~") {
-			log.Errorf("Failed to parse the time string: char '~' not found in \"%s\". Please input an interval.", FlagFilterEndTime)
+		err := util.ParseInterval(FlagFilterEndTime, request.FilterEndTimeInterval)
+		if err != nil {
+			log.Errorf("Failed to parse the EndTime filter: %s.\n", err)
 			return util.ErrorCmdArg
-		}
-		split := strings.Split(FlagFilterEndTime, "~")
-		if split[0] != "" {
-			tl, err := util.ParseTime(split[0])
-			if err != nil {
-				log.Errorf("Failed to parse the time string: %s.\n", err)
-				return util.ErrorCmdArg
-			}
-			request.FilterEndTimeInterval.LowerBound = timestamppb.New(tl)
-		}
-		if len(split) >= 2 && split[1] != "" {
-			tr, err := util.ParseTime(split[1])
-			if err != nil {
-				log.Errorf("Failed to parse the time string: %s.\n", err)
-				return util.ErrorCmdArg
-			}
-			request.FilterEndTimeInterval.UpperBound = timestamppb.New(tr)
-			if request.FilterEndTimeInterval.UpperBound.AsTime().Before(request.FilterEndTimeInterval.LowerBound.AsTime()) {
-				log.Errorf("Parameter error: the right time is earlier than the left time in '%s'.", FlagFilterEndTime)
-				return util.ErrorCmdArg
-			}
 		}
 	}
 	if FlagFilterSubmitTime != "" {
 		request.FilterSubmitTimeInterval = &protos.TimeInterval{}
-		if !strings.Contains(FlagFilterSubmitTime, "~") {
-			log.Errorf("Failed to parse the time string: char '~' not found in '%s'. Please input an interval.", FlagFilterSubmitTime)
+		err := util.ParseInterval(FlagFilterSubmitTime, request.FilterSubmitTimeInterval)
+		if err != nil {
+			log.Errorf("Failed to parse the SubmitTime filter: %s.\n", err)
 			return util.ErrorCmdArg
-		}
-		split := strings.Split(FlagFilterSubmitTime, "~")
-		if split[0] != "" {
-			tl, err := util.ParseTime(split[0])
-			if err != nil {
-				log.Errorf("Failed to parse the time string: %s.\n", err)
-				return util.ErrorCmdArg
-			}
-			request.FilterSubmitTimeInterval.LowerBound = timestamppb.New(tl)
-		}
-		if len(split) >= 2 && split[1] != "" {
-			tr, err := util.ParseTime(split[1])
-			if err != nil {
-				log.Errorf("Failed to parse the time string: %s.\n", err)
-				return util.ErrorCmdArg
-			}
-			request.FilterSubmitTimeInterval.UpperBound = timestamppb.New(tr)
-			if request.FilterSubmitTimeInterval.UpperBound.AsTime().Before(request.FilterSubmitTimeInterval.LowerBound.AsTime()) {
-				log.Errorf("Parameter error: the right time is earlier than the left time in '%s'", FlagFilterSubmitTime)
-				return util.ErrorCmdArg
-			}
 		}
 	}
 
@@ -381,7 +320,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j],
 					strconv.FormatFloat(reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit*
-						float64(reply.TaskInfoList[i].NodeNum), 'f', 2, 64))
+						float64(reply.TaskInfoList[j].NodeNum), 'f', 2, 64))
 			}
 		case "e":
 			header = "ExitCode"

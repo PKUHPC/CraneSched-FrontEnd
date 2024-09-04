@@ -36,6 +36,8 @@ var (
 	FlagCwd           string
 	FlagNodelist      string
 	FlagExcludes      string
+	FlagGetUserEnv    bool
+	FlagExport        string
 	FlagGres          string
 
 	FlagConfigFilePath string
@@ -49,14 +51,16 @@ var (
 			util.DetectNetworkProxy()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			MainCrun(cmd, args)
+			if err := MainCrun(cmd, args); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
@@ -78,4 +82,6 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
+	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 }
