@@ -260,7 +260,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorln("Output file name exceeds 30 characters.")
 		return false, nil
 	}
-
 	efilePath := task.GetBatchMeta().ErrorFilePattern
 	errorFileIdx := strings.LastIndex(efilePath, "/")
 	if len(efilePath) > errorFileIdx + 30 {
