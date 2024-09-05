@@ -85,12 +85,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		cancelledTasksStr := strconv.FormatUint(uint64(reply.CancelledTasks[0]), 10)
-		for i := 1; i < len(reply.CancelledTasks); i++ {
-			cancelledTasksStr += ","
-			cancelledTasksStr += strconv.FormatUint(uint64(reply.CancelledTasks[i]), 10)
-		}
-		fmt.Printf("Job %s cancelled successfully.\n", cancelledTasksStr)
+		fmt.Printf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {

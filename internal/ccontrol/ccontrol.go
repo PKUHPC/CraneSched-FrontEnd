@@ -370,15 +370,53 @@ func ShowConfig(path string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
+func SummarizeReply(proto interface{}) util.CraneCmdError {
+	switch reply := proto.(type) {
+	case *protos.ModifyTaskReply:
+		if len(reply.ModifiedTasks) > 0 {
+			fmt.Printf("Jobs %v modified successfully.\n", reply.ModifiedTasks)
+		}
+		if len(reply.NotModifiedTasks) > 0 {
+			for i := 0; i < len(reply.NotModifiedTasks); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n",
+					reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+			}
+			return util.ErrorBackend
+		}
+		return util.ErrorSuccess
+
+	case *protos.ModifyCranedStateReply:
+		if len(reply.ModifiedNodes) > 0 {
+			fmt.Printf("Nodes %v modified successfully.\n", reply.ModifiedNodes)
+		}
+		if len(reply.NotModifiedNodes) > 0 {
+			for i := 0; i < len(reply.NotModifiedNodes); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+					reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+			}
+			return util.ErrorBackend
+		}
+		return util.ErrorSuccess
+	default:
+		return util.ErrorGeneric
+	}
+}
+
+func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
 	seconds, err := ParseTimeStrToSeconds(timeLimit)
 	if err != nil {
 		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
+
+	taskIds, ok := util.ParseTaskIds(taskStr)
+	if !ok {
+		return util.ErrorCmdArg
+	}
+
 	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
-		TaskId:    taskId,
+		TaskIds:   taskIds,
 		Attribute: protos.ModifyTaskRequest_TimeLimit,
 		Value: &protos.ModifyTaskRequest_TimeLimitSeconds{
 			TimeLimitSeconds: seconds,
@@ -392,20 +430,14 @@ func ChangeTaskTimeLimit(taskId uint32, timeLimit string) util.CraneCmdError {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
+		if len(reply.NotModifiedTasks) == 0 {
 			return util.ErrorSuccess
 		} else {
 			return util.ErrorBackend
 		}
 	}
 
-	if reply.Ok {
-		log.Println("Change time limit success.")
-		return util.ErrorSuccess
-	} else {
-		log.Printf("Change time limit failed: %s.\n", reply.GetReason())
-		return util.ErrorBackend
-	}
+	return SummarizeReply(reply)
 }
 
 func ParseTimeStrToSeconds(time string) (int64, error) {
@@ -436,40 +468,16 @@ func ParseTimeStrToSeconds(time string) (int64, error) {
 }
 
 func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
-	jobIdStrSplit := strings.Split(jobs, ",")
-	craneError := util.ErrorSuccess
-	var jobList []uint64
-	for i := 0; i < len(jobIdStrSplit); i++ {
-		jobId64, err := strconv.ParseUint(jobIdStrSplit[i], 10, 32)
-		if err != nil {
-			fmt.Println("Invalid job Id: " + jobIdStrSplit[i])
-			craneError = util.ErrorCmdArg
-		} else {
-			jobList = append(jobList, jobId64)
-		}
+	jobList, ok := util.ParseTaskIds(jobs)
+	if !ok {
+		return util.ErrorCmdArg
 	}
-	if craneError != util.ErrorSuccess {
-		return craneError
-	}
-	for _, jobId := range jobList {
-		err := HoldReleaseJob(uint32(jobId), hold)
-		if err != util.ErrorSuccess {
-			craneError = err
-		}
-	}
-	return craneError
-}
 
-func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
-	var req *protos.ModifyTaskRequest
-	holdType := "Hold"
-
-	req = &protos.ModifyTaskRequest{
+	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
-		TaskId:    jobId,
+		TaskIds:   jobList,
 		Attribute: protos.ModifyTaskRequest_Hold,
 	}
-
 	if hold {
 		// The default timer value for hold is unlimited.
 		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: math.MaxInt64}
@@ -491,7 +499,6 @@ func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
 		}
 	} else {
 		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: 0}
-		holdType = "Release"
 	}
 
 	reply, err := stub.ModifyTask(context.Background(), req)
@@ -502,25 +509,24 @@ func HoldReleaseJob(jobId uint32, hold bool) util.CraneCmdError {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
+		if len(reply.NotModifiedTasks) == 0 {
 			return util.ErrorSuccess
 		} else {
 			return util.ErrorBackend
 		}
 	}
 
-	if reply.Ok {
-		fmt.Printf(holdType+" job %v success.\n", jobId)
-		return util.ErrorSuccess
-	} else {
-		fmt.Printf(holdType+" job %v failed: %s\n", jobId, reply.GetReason())
-		return util.ErrorBackend
-	}
+	return SummarizeReply(reply)
 }
 
-func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
+func ChangeTaskPriority(taskStr string, priority float64) util.CraneCmdError {
 	if priority < 0 {
 		log.Errorln("Priority must be greater than or equal to 0.")
+		return util.ErrorCmdArg
+	}
+
+	taskIds, ok := util.ParseTaskIds(taskStr)
+	if !ok {
 		return util.ErrorCmdArg
 	}
 
@@ -534,7 +540,7 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 
 	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
-		TaskId:    taskId,
+		TaskIds:   taskIds,
 		Attribute: protos.ModifyTaskRequest_Priority,
 		Value: &protos.ModifyTaskRequest_MandatedPriority{
 			MandatedPriority: rounded,
@@ -549,20 +555,14 @@ func ChangeTaskPriority(taskId uint32, priority float64) util.CraneCmdError {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
+		if len(reply.NotModifiedTasks) == 0 {
 			return util.ErrorSuccess
 		} else {
 			return util.ErrorBackend
 		}
 	}
 
-	if reply.Ok {
-		log.Println("Change priority success.")
-		return util.ErrorSuccess
-	} else {
-		log.Errorf("Change priority failed: %s.\n", reply.GetReason())
-		return util.ErrorBackend
-	}
+	return SummarizeReply(reply)
 }
 
 func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCmdError {
@@ -577,52 +577,39 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		return util.ErrorCmdArg
 	}
 
-	finalError := util.ErrorSuccess
-	for _, node := range nodeNames {
-		var req = &protos.ModifyCranedStateRequest{}
+	var req = &protos.ModifyCranedStateRequest{}
 
-		req.CranedId = node
-		state = strings.ToLower(state)
-		switch state {
-		case "drain":
-			if reason == "" {
-				log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
-				return util.ErrorCmdArg
-			}
-			req.NewState = protos.CranedControlState_CRANE_DRAIN
-			req.Reason = reason
-		case "resume":
-			req.NewState = protos.CranedControlState_CRANE_NONE
-		default:
-			log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
+	req.CranedIds = nodeNames
+	state = strings.ToLower(state)
+	switch state {
+	case "drain":
+		if reason == "" {
+			log.Errorln("You must specify a reason by '-r' or '--reason' when draining a node.")
 			return util.ErrorCmdArg
 		}
+		req.NewState = protos.CranedControlState_CRANE_DRAIN
+		req.Reason = reason
+	case "resume":
+		req.NewState = protos.CranedControlState_CRANE_NONE
+	default:
+		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
+		return util.ErrorCmdArg
+	}
 
-		reply, err := stub.ModifyNode(context.Background(), req)
-		if err != nil {
-			log.Errorf("Failed to modify the state of %s: %v.\n", node, err)
-			finalError = util.ErrorNetwork
-			continue
-		}
+	reply, err := stub.ModifyNode(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to modify node state: %v.\n", err)
+		return util.ErrorNetwork
+	}
 
-		if FlagJson {
-			fmt.Println(util.FmtJson.FormatReply(reply))
-			if reply.GetOk() {
-				finalError = util.ErrorSuccess
-			} else {
-				finalError = util.ErrorBackend
-			}
-			continue
-		}
-
-		if reply.Ok {
-			log.Printf("The state of %s is modified.\n", node)
-			finalError = util.ErrorSuccess
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.NotModifiedNodes) == 0 {
+			return util.ErrorSuccess
 		} else {
-			log.Printf("Failed to modify the state of %s: %s.\n", node, reply.GetReason())
-			finalError = util.ErrorBackend
+			return util.ErrorBackend
 		}
 	}
 
-	return finalError
+	return SummarizeReply(reply)
 }
