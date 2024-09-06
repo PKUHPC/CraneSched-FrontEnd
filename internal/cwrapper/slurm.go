@@ -563,16 +563,44 @@ func scontrol() *cobra.Command {
 				}
 
 				if secondSubCmd == "" {
-					convertedArgs = append([]string{"update"}, convertedArgs...)
-				} else {
-					convertedArgs = append([]string{"update", secondSubCmd}, convertedArgs...)
+					log.Error("Only \"job\" and \"node\" could be updated.")
+					os.Exit(util.ErrorCmdArg)
 				}
+				convertedArgs = append([]string{"update", secondSubCmd}, convertedArgs...)
+			case "hold":
+				concatedTaskIds := ""
+				for i := 0; i < len(convertedArgs); i++ {
+					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
+						// If not "job" or "jobid", it should be a job id list
+						// Trim is needed as slurm supports "hold ,1,2,3" but crane doesn't
+						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
+						if _, ok := util.ParseTaskIds(convertedArgs[i]); !ok {
+							log.Error("Invalid job id list: ", convertedArgs[i])
+							os.Exit(util.ErrorCmdArg)
+						}
+						concatedTaskIds += "," + convertedArgs[i]
+					}
+				}
+				convertedArgs = append([]string{"hold"}, strings.Trim(concatedTaskIds, ","))
+			case "release":
+				concatedTaskIds := ""
+				for i := 0; i < len(convertedArgs); i++ {
+					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
+						// If not "job" or "jobid", it should be a job id list
+						// Trim is needed as slurm supports "release ,1,2,3" but crane doesn't
+						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
+						if _, ok := util.ParseTaskIds(convertedArgs[i]); !ok {
+							log.Error("Invalid job id list: ", convertedArgs[i])
+							os.Exit(util.ErrorCmdArg)
+						}
+						concatedTaskIds += "," + convertedArgs[i]
+					}
+				}
+				convertedArgs = append([]string{"release"}, strings.Trim(concatedTaskIds, ","))
 			default:
 				// If no subcommand is found, just fall back to ccontrol.
 				log.Debug("Unknown subcommand: ", firstSubCmd)
 			}
-
-			log.Debug("Converted args: ", convertedArgs)
 
 			// Find the matching subcommand
 			subcmd, convertedArgs, err := ccontrol.RootCmd.Traverse(convertedArgs)

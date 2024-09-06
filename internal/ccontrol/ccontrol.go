@@ -384,7 +384,6 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 		return util.ErrorSuccess
-
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
 			fmt.Printf("Nodes %v modified successfully.\n", reply.ModifiedNodes)
