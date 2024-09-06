@@ -251,7 +251,7 @@ func init() {
 	}
 	RootCmd.AddCommand(holdCmd)
 	{
-		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration for a job which will be prevented from starting.")
+		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
 	}
 	RootCmd.AddCommand(releaseCmd)
 }
