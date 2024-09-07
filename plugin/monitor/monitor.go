@@ -45,6 +45,18 @@ type MonitorPlugin struct {
 	config
 }
 
+type ResourceUsage struct {
+	TaskID      int64
+	CPUUsage    float64
+	MemoryUsage uint64
+	Hostname    string
+	Timestamp   time.Time
+	UniqueTag   string
+}
+
+// Channel for sending resource usage data
+var ResourceUsageChan = make(chan ResourceUsage)
+
 func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
 	if meta.Config == "" {
 		return fmt.Errorf("no config file specified")
@@ -158,62 +170,82 @@ func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
 	}
 	log.Tracef("JobCheckHookReq: \n%v", req.String())
 
-	jobCheckInfo := req.JobcheckInfoList[0]
-	cgroupPathCpu := fmt.Sprintf("%s%s", cgroupCpuPathPrefix, jobCheckInfo.Cgroup)
-	cgroupPathMem := fmt.Sprintf("%s%s", cgroupMemoryPathPrefix, jobCheckInfo.Cgroup)
-
-	// create influxdb client
-	// client := influxdb2.NewClient(dp.Url, dp.Token)
-	client := influxdb2.NewClientWithOptions(dp.Url, dp.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
-	fmt.Printf("InfluxDB URL: %s\n", dp.Url)
-	defer client.Close()
-	writeAPI := client.WriteAPIBlocking(dp.Org, dp.Bucket)
 	hostname, err := getHostname()
 	if err != nil {
 		log.Errorf("Failed to get hostname: %v", err)
 		return
 	}
+	//start consumer
+	go startInfluxDBConsumer(dp)
 
-	// start to write data into influxdb
-	for {
-		cpuUsage, err := getCpuUsage(cgroupPathCpu)
-		if err != nil {
-			log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPathCpu, err)
-			break
-		}
-		memoryUsage, err := getMemoryUsage(cgroupPathMem)
-		if err != nil {
-			log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPathMem, err)
-			break
-		}
-		currentTime := time.Now()
-		uniqueTag := uuid.New().String()
+	// start producer
+	go func(req *protos.JobCheckHookRequest) {
+		jobcheckinfo := req.JobcheckInfoList[0]
+		cgroupPathCpu := fmt.Sprintf("%s%s", cgroupCpuPathPrefix, jobcheckinfo.Cgroup)
+		cgroupPathMem := fmt.Sprintf("%s%s", cgroupMemoryPathPrefix, jobcheckinfo.Cgroup)
 
+		for {
+			cpuUsage, err := getCpuUsage(cgroupPathCpu)
+			if err != nil {
+				log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPathCpu, err)
+				break
+			}
+
+			memoryUsage, err := getMemoryUsage(cgroupPathMem)
+			if err != nil {
+				log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPathMem, err)
+				break
+			}
+
+			currentTime := time.Now()
+			uniqueTag := uuid.New().String()
+
+			ResourceUsageChan <- ResourceUsage{
+				TaskID:      int64(jobcheckinfo.Taskid),
+				CPUUsage:    cpuUsage,
+				MemoryUsage: memoryUsage,
+				Hostname:    hostname,
+				Timestamp:   currentTime,
+				UniqueTag:   uniqueTag,
+			}
+
+			time.Sleep(time.Duration(dp.Interval) * time.Second)
+		}
+	}(req)
+
+	log.Infoln("Monitoring goroutine started.")
+}
+
+func startInfluxDBConsumer(dp *MonitorPlugin) {
+	client := influxdb2.NewClientWithOptions(dp.Url, dp.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
+	fmt.Printf("InfluxDB URL: %s\n", dp.Url)
+	defer client.Close()
+	writeAPI := client.WriteAPIBlocking(dp.Org, dp.Bucket)
+
+	for ResourceUsage := range ResourceUsageChan {
 		p := influxdb2.NewPoint(
-			fmt.Sprintf("%d", jobCheckInfo.Taskid),
+			fmt.Sprintf("%d", ResourceUsage.TaskID),
 			map[string]string{
 				"username":   dp.UserName,
-				"hostname":   hostname,
-				"unique_tag": uniqueTag, // Unique tag to prevent overwriting
+				"hostname":   ResourceUsage.Hostname,
+				"unique_tag": ResourceUsage.UniqueTag,
 			},
 			map[string]interface{}{
-				"cpu_usage":    cpuUsage,
-				"memory_usage": memoryUsage,
+				"cpu_usage":    ResourceUsage.CPUUsage,
+				"memory_usage": ResourceUsage.MemoryUsage,
 			},
-			currentTime, // Timestamp
+			ResourceUsage.Timestamp,
 		)
-		err = writeAPI.WritePoint(context.Background(), p)
+
+		err := writeAPI.WritePoint(context.Background(), p)
 		if err != nil {
 			log.Errorf("Failed to write point to InfluxDB: %v", err)
 			break
 		}
+
 		log.Infof("Recorded TaskID: %d, UserName: %s, Hostname: %s, CPU Usage: %.2f%%, Memory Usage: %.2fMB at %v",
-			jobCheckInfo.Taskid, dp.UserName, hostname, cpuUsage, float64(memoryUsage)/(1024*1024), currentTime)
-
-		time.Sleep(time.Duration(dp.Interval) * time.Second)
+			ResourceUsage.TaskID, dp.UserName, ResourceUsage.Hostname, ResourceUsage.CPUUsage, float64(ResourceUsage.MemoryUsage)/(1024*1024), ResourceUsage.Timestamp)
 	}
-
-	log.Infoln("Exiting JobCheckHook loop due to an error or finished")
 }
 
 func main() {
