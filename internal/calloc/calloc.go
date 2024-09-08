@@ -449,6 +449,14 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
 	util.SetPropagatedEnviron(task)
+
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
 		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableRes.CpuCoreLimit)
