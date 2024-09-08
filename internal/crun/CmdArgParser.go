@@ -24,6 +24,17 @@ import (
 )
 
 var (
+	RootCmd = &cobra.Command{
+		Use:     "crun [flags] executable",
+		Short:   "Allocate resource and run executable interactive",
+		Version: util.Version(),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			MainCrun(cmd, args)
+		},
+	}
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
 	FlagNtasksPerNode uint32
@@ -42,20 +53,6 @@ var (
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
-
-	RootCmd = &cobra.Command{
-		Use:     "crun",
-		Short:   "Allocate resource and create terminal",
-		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.DetectNetworkProxy()
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := MainCrun(cmd, args); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
 )
 
 func ParseCmdArgs() {

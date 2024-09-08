@@ -11,8 +11,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"os/user"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -37,8 +35,7 @@ const (
 )
 
 type GlobalVariables struct {
-	user *user.User
-	cwd  string
+	cwd string
 
 	globalCtx       context.Context
 	globalCtxCancel context.CancelFunc
@@ -164,7 +161,7 @@ CrunStateMachineLoop:
 
 				if payload.Ok {
 					taskId = payload.TaskId
-					log.Debugf("Task id allocated: %d\n", taskId)
+					fmt.Printf("Task id allocated: %d, waiting resources.\n", taskId)
 					state = WaitRes
 				} else {
 					_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
@@ -202,7 +199,7 @@ CrunStateMachineLoop:
 					Ok := cforedPayload.Ok
 
 					if Ok {
-						log.Debugf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+						fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
 						state = WaitForward
 					} else {
 						log.Errorln("Failed to allocate task resource. Exiting...")
@@ -244,7 +241,7 @@ CrunStateMachineLoop:
 					cforedPayload := cforedReply.GetPayloadTaskIoForwardReadyReply()
 					Ok := cforedPayload.Ok
 					if Ok {
-						log.Tracef("Task io forward ready")
+						fmt.Println("Task io forward ready, waiting input.")
 						state = Forwarding
 					} else {
 						log.Errorln("Failed to wait for task io forward ready. Exiting...")
@@ -252,6 +249,9 @@ CrunStateMachineLoop:
 					}
 				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
 					state = TaskKilling
+				case protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY:
+					fmt.Println("Task failed ")
+					break CrunStateMachineLoop
 				default:
 					log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
 					state = TaskKilling
@@ -529,17 +529,6 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 
-	if gVars.user, err = user.Current(); err != nil {
-		log.Errorf("Failed to get current user: %s", err.Error())
-		return util.ErrorBackend
-	}
-
-	uid, err := strconv.Atoi(gVars.user.Uid)
-	if err != nil {
-		log.Errorf("Failed to convert uid to int: %s", err.Error())
-		return util.ErrorInvalidFormat
-	}
-
 	if len(args) == 0 {
 		log.Errorf("Please specify program to run")
 		return util.ErrorCmdArg
@@ -557,7 +546,7 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 			},
 		},
 		Type:            protos.TaskType_Interactive,
-		Uid:             uint32(uid),
+		Uid:             uint32(os.Getuid()),
 		NodeNum:         1,
 		NtasksPerNode:   1,
 		CpusPerTask:     1,

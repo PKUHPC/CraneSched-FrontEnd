@@ -49,6 +49,7 @@ message EndHookReply {
   repeated TaskIdReply result = 1;
 }
 
+
 service CranePluginD {
   /* ----------------------------------- Called from CraneCtld ---------------------------------------------------- */  
   rpc StartHook(StartHookRequest) returns (StartHookReply);
