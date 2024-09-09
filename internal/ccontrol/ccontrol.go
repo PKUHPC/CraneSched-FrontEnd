@@ -153,7 +153,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			}
 
 			fmt.Printf("NodeName=%v State=%v CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f\n"+
-				"\tRealMemory=%sM AllocMem=%sM FreeMem=%sM\n"+
+				"\tRealMemory=%s AllocMem=%s FreeMem=%s\n"+
 				"\tGres=%s AllocGres=%s FreeGres=%s\n"+
 				"\tPatition=%s RunningJob=%d Version=%s\n"+
 				"\tOs=%s\n"+
@@ -195,55 +195,32 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 		return util.ErrorSuccess
 	}
 
-	if queryAll {
-		if len(reply.PartitionInfo) == 0 {
-			fmt.Println("No node is available.")
+	if len(reply.PartitionInfo) == 0 {
+		if queryAll {
+			fmt.Println("No partition is available.")
 		} else {
-			for _, partitionInfo := range reply.PartitionInfo {
-				fmt.Printf("PartitionName=%v State=%v\n"+
-					"\tTotalNodes=%d AliveNodes=%d\n"+
-					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-					"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
-					"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
-					"\tHostList=%v\n\n",
-					partitionInfo.Name, partitionInfo.State.String()[10:],
-					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-					math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
-					math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
-					math.Abs(partitionInfo.ResAlloc.AllocatableRes.CpuCoreLimit),
-					formatMemToMB(partitionInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
-					formatMemToMB(partitionInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
-					formatMemToMB(partitionInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
-					formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
-					formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
-					formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
-					partitionInfo.Hostlist)
-			}
+			fmt.Printf("Partition %s not found.\n", partitionName)
 		}
 	} else {
-		if len(reply.PartitionInfo) == 0 {
-			fmt.Printf("Partition %s not found.\n", partitionName)
-		} else {
-			for _, partitionInfo := range reply.PartitionInfo {
-				fmt.Printf("PartitionName=%v State=%v\n"+
-					"\tTotalNodes=%d AliveNodes=%d\n"+
-					"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-					"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
-					"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
-					"\tHostList=%v\n\n",
-					partitionInfo.Name, partitionInfo.State.String()[10:],
-					partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-					math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
-					math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
-					math.Abs(partitionInfo.ResAlloc.AllocatableRes.CpuCoreLimit),
-					formatMemToMB(partitionInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
-					formatMemToMB(partitionInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
-					formatMemToMB(partitionInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
-					formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
-					formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
-					formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
-					partitionInfo.Hostlist)
-			}
+		for _, partitionInfo := range reply.PartitionInfo {
+			fmt.Printf("PartitionName=%v State=%v\n"+
+				"\tTotalNodes=%d AliveNodes=%d\n"+
+				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
+				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
+				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
+				"\tHostList=%v\n\n",
+				partitionInfo.Name, partitionInfo.State.String()[10:],
+				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
+				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
+				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
+				math.Abs(partitionInfo.ResAlloc.AllocatableRes.CpuCoreLimit),
+				formatMemToMB(partitionInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
+				formatMemToMB(partitionInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
+				formatMemToMB(partitionInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
+				formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
+				formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
+				formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
+				partitionInfo.Hostlist)
 		}
 	}
 	return util.ErrorSuccess
