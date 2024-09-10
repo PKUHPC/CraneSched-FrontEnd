@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -236,6 +238,24 @@ func CheckNodeList(nodeStr string) bool {
 	}
 	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
 	return re.MatchString(nameStr)
+}
+
+// CheckFileLength check if the file length is within the limit.
+func CheckFileLength(filepath string) error {
+	if len(path.Base(filepath)) > MaxJobFileNameLength {
+		return fmt.Errorf("file name length exceeds %v characters", MaxJobFileNameLength)
+	}
+
+	if len(filepath) > MaxJobFilePathLengthForUnix {
+		return fmt.Errorf("file path length exceeds %v characters", MaxJobFilePathLengthForUnix)
+	}
+
+	// Special case for Windows
+	if runtime.GOOS == "windows" && len(filepath) > MaxJobFilePathLengthForWindows {
+		return fmt.Errorf("file path length exceeds %v characters on Windows", MaxJobFilePathLengthForWindows)
+	}
+
+	return nil
 }
 
 func ParseHostList(hostStr string) ([]string, bool) {

@@ -46,6 +46,11 @@ const (
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
+
+	MaxJobNameLength               = 31
+	MaxJobFileNameLength           = 127
+	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength
+	MaxJobFilePathLengthForUnix    = 4096 - MaxJobFileNameLength
 )
 
 func SplitEnvironEntry(env *string) (string, string, bool) {

@@ -254,10 +254,17 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	// Check the validity of the parameters
-
-	if len(task.Name) > 30 {
-		task.Name = task.Name[:30]
-		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
+	if len(task.Name) > util.MaxJobNameLength {
+		log.Errorf("Job name exceeds %v characters.", util.MaxJobNameLength)
+		return false, nil
+	}
+	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
+		log.Errorf("Invalid output file path: %v", err)
+		return false, nil
+	}
+	if err := util.CheckFileLength(task.GetBatchMeta().ErrorFilePattern); err != nil {
+		log.Errorf("Invalid error file path: %v", err)
+		return false, nil
 	}
 	if task.CpusPerTask <= 0 {
 		log.Errorln("Invalid --cpus-per-task")
