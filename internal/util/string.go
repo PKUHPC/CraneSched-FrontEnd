@@ -639,7 +639,7 @@ func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 	case "all":
 		return protos.TaskStatus_Invalid, nil
 	default:
-		return protos.TaskStatus_Invalid, fmt.Errorf("invalid state: %s", state)
+		return protos.TaskStatus_Invalid, fmt.Errorf("unknown state: %s", state)
 	}
 }
 
@@ -672,7 +672,7 @@ func ParseInRamTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
 			return nil, err
 		}
 		if state != protos.TaskStatus_Invalid && state != protos.TaskStatus_Pending && state != protos.TaskStatus_Running {
-			return nil, fmt.Errorf("invalid state: %s", filterStateList[i])
+			return nil, fmt.Errorf("unsupported state: %s", filterStateList[i])
 		}
 		stateSet[state] = true
 	}
