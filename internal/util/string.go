@@ -620,3 +620,70 @@ func ParseGres(gres string) *protos.DeviceMap {
 
 	return result
 }
+
+func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
+	state = strings.ToLower(state)
+	switch state {
+	case "pending", "p":
+		return protos.TaskStatus_Pending, nil
+	case "running", "r":
+		return protos.TaskStatus_Running, nil
+	case "completed", "c":
+		return protos.TaskStatus_Completed, nil
+	case "failed", "f":
+		return protos.TaskStatus_Failed, nil
+	case "tle", "time-limit-exceeded", "timelimitexceeded", "t":
+		return protos.TaskStatus_ExceedTimeLimit, nil
+	case "canceled", "cancelled", "x":
+		return protos.TaskStatus_Cancelled, nil
+	case "all":
+		return protos.TaskStatus_Invalid, nil
+	default:
+		return protos.TaskStatus_Invalid, fmt.Errorf("invalid state: %s", state)
+	}
+}
+
+func ParseTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
+	var stateSet = make(map[protos.TaskStatus]bool)
+	filterStateList := strings.Split(statesStr, ",")
+	for i := 0; i < len(filterStateList); i++ {
+		state, err := ParseTaskStatusName(filterStateList[i])
+		if err != nil {
+			return nil, err
+		}
+		stateSet[state] = true
+	}
+	if _, exists := stateSet[protos.TaskStatus_Invalid]; !exists && len(stateSet) < len(protos.TaskStatus_name)-1 {
+		var stateList []protos.TaskStatus
+		for state := range stateSet {
+			stateList = append(stateList, state)
+		}
+		return stateList, nil
+	}
+	return []protos.TaskStatus{}, nil
+}
+
+func ParseInRamTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
+	var stateSet = make(map[protos.TaskStatus]bool)
+	filterStateList := strings.Split(statesStr, ",")
+	for i := 0; i < len(filterStateList); i++ {
+		state, err := ParseTaskStatusName(filterStateList[i])
+		if err != nil {
+			return nil, err
+		}
+		if state != protos.TaskStatus_Invalid && state != protos.TaskStatus_Pending && state != protos.TaskStatus_Running {
+			return nil, fmt.Errorf("invalid state: %s", filterStateList[i])
+		}
+		stateSet[state] = true
+	}
+	if len(stateSet) == 1 {
+		for state := range stateSet {
+			if state == protos.TaskStatus_Invalid {
+				return []protos.TaskStatus{}, nil
+			} else {
+				return []protos.TaskStatus{state}, nil
+			}
+		}
+	}
+	return []protos.TaskStatus{}, nil
+}
