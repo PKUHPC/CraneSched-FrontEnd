@@ -400,7 +400,7 @@ CforedCrunStateMachineLoop:
 					} else {
 						switch crunRequest.Type {
 						case protos.StreamCrunRequest_TASK_IO_FORWARD:
-							log.Debug("[Crun->Cfored->Craned] Receive TASK_IO_FORWARD Request to task #%d, msg %s", crunRequest.GetPayloadTaskIoForwardReq().GetTaskId(), crunRequest.GetPayloadTaskIoForwardReq().GetMsg())
+							log.Debugf("[Crun->Cfored->Craned] Receive TASK_IO_FORWARD Request to task #%d, msg:\"%s\"", crunRequest.GetPayloadTaskIoForwardReq().GetTaskId(), crunRequest.GetPayloadTaskIoForwardReq().GetMsg())
 							gCranedChanKeeper.forwardCrunRequestToCranedChannels(crunRequest, execCranedIds)
 
 						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
@@ -564,7 +564,7 @@ CforedCrunStateMachineLoop:
 				ctldReply := <-ctldReplyChannel
 				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
 					log.Tracef("[Cfored<->Crun] Expect TASK_COMPLETION_ACK_REPLY, "+
-						"but %s received. Just ignore it...", ctldReply.Type)
+						"but %s received. Just ignore it...", ctldReply.Type.String())
 				} else {
 					break
 				}
