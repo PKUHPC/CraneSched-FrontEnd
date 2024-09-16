@@ -915,6 +915,16 @@ CforedStateMachineLoop:
 			}
 			gVars.cforedRequestCtldChannel <- toCtldRequest
 
+			for {
+				ctldReply := <-ctldReplyChannel
+				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
+					log.Tracef("[Cfored<->Calloc] Expect TASK_COMPLETION_ACK_REPLY, "+
+						"but %s received. Just ignore it...", ctldReply.Type.String())
+				} else {
+					break
+				}
+			}
+
 			gVars.ctldReplyChannelMapMtx.Lock()
 			if taskId != math.MaxUint32 {
 				delete(gVars.ctldReplyChannelMapByTaskId, taskId)
