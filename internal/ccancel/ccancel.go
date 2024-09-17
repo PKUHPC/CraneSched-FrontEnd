@@ -20,11 +20,10 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -48,7 +47,7 @@ func CancelTask(args []string) util.CraneCmdError {
 		for i := 0; i < len(taskIdStrSplit); i++ {
 			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 			if err != nil {
-				log.Errorf("Invalid job Id: " + taskIdStrSplit[i])
+				_, _ = fmt.Fprintf(os.Stderr, "Invalid job Id: "+taskIdStrSplit[i])
 				return util.ErrorCmdArg
 			}
 			taskIds = append(taskIds, uint32(taskId64))
@@ -57,13 +56,27 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if FlagState != "" {
-		stateList, err := util.ParseInRamTaskStatusList(FlagState)
-		if err != nil {
-			log.Errorln(err)
-			return util.ErrorCmdArg
+		taskFlagStatusSplit := strings.Split(FlagState, ",")
+		runningFlag, pendingFlag := false, false
+		for i := 0; i < len(taskFlagStatusSplit); i++ {
+			status := strings.ToLower(taskFlagStatusSplit[i])
+			if status == "pd" || status == "pending" ||
+				status == "r" || status == "running" {
+				if status == "pd" || status == "pending" {
+					pendingFlag = true
+				} else if status == "r" || status == "running" {
+					runningFlag = true
+				}
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Invalid FlagState %v, Valid job states are PENDING, RUNNING.\n", status)
+				return util.ErrorCmdArg
+			}
 		}
-		if len(stateList) == 1 {
-			req.FilterState = stateList[0]
+
+		if pendingFlag && !runningFlag {
+			req.FilterState = protos.TaskStatus_Pending
+		} else if !pendingFlag && runningFlag {
+			req.FilterState = protos.TaskStatus_Running
 		}
 	}
 
@@ -76,7 +89,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		log.Errorln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledTasks) > 0 {
 			return util.ErrorBackend
 		} else {
@@ -85,12 +98,13 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		log.Errorf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
+		fmt.Printf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel job: %d. Reason: %s.\n",
+				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
 		os.Exit(util.ErrorBackend)
 	}

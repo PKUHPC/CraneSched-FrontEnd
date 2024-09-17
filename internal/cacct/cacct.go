@@ -109,12 +109,35 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterStates != "" {
-		stateList, err := util.ParseTaskStatusList(FlagFilterStates)
-		if err != nil {
-			log.Errorf("Failed to parse the state filter: %s.\n", err)
-			return util.ErrorCmdArg
+		var stateList []protos.TaskStatus
+		has_all := false
+		filterStateList := strings.Split(strings.ToLower(FlagFilterStates), ",")
+		for i := 0; i < len(filterStateList); i++ {
+			switch filterStateList[i] {
+			case "p", "pending":
+				stateList = append(stateList, protos.TaskStatus_Pending)
+			case "r", "running":
+				stateList = append(stateList, protos.TaskStatus_Running)
+			case "c", "completed":
+				stateList = append(stateList, protos.TaskStatus_Completed)
+			case "f", "failed":
+				stateList = append(stateList, protos.TaskStatus_Failed)
+			case "t", "tle", "time-limit-exceeded", "timelimitexceeded":
+				stateList = append(stateList, protos.TaskStatus_ExceedTimeLimit)
+			case "x", "canceled", "cancelled":
+				stateList = append(stateList, protos.TaskStatus_Cancelled)
+			case "i", "invalid":
+				stateList = append(stateList, protos.TaskStatus_Invalid)
+			case "all":
+				has_all = true
+			default:
+				log.Errorf("Invalid state given: %s.\n", filterStateList[i])
+				return util.ErrorCmdArg
+			}
 		}
-		request.FilterTaskStates = stateList
+		if !has_all {
+			request.FilterTaskStates = stateList
+		}
 	}
 
 	if FlagFilterQos != "" {

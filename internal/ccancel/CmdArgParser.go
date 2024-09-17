@@ -98,7 +98,7 @@ func init() {
 		"Cancel jobs in the specified partition")
 	RootCmd.Flags().StringVarP(&FlagState, "state", "t", "",
 		"Cancel jobs of the specified states"+
-			"Valid job states are PENDING(P), RUNNING(R), ALL. "+
+			"Valid job states are PENDING(PD), RUNNING(R). "+
 			"job states are case-insensitive")
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
 		"Cancel jobs under the specified account")
