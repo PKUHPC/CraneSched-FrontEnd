@@ -309,6 +309,10 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 		log.Errorf("Account name empty")
 		return util.ErrorCmdArg
 	}
+	if !util.CheckNameValid(account.Name) {
+		log.Errorf("Name can only consist of letters, numbers, or underscores")
+		return util.ErrorCmdArg
+	}
 	if len(account.Name) > 30 {
 		log.Errorf("Name is too long (up to 30)")
 		return util.ErrorCmdArg
@@ -360,6 +364,10 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
 	if user.Name == "=" {
 		log.Errorf("User name empty")
+		return util.ErrorCmdArg
+	}
+	if !util.CheckNameValid(user.Name) {
+		log.Errorf("Name can only consist of letters, numbers, or underscores")
 		return util.ErrorCmdArg
 	}
 	if len(user.Name) > 30 {
@@ -426,6 +434,10 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	if qos.Name == "=" {
 		log.Errorln("QoS name empty.")
+		return util.ErrorCmdArg
+	}
+	if !util.CheckNameValid(qos.Name) {
+		log.Errorf("Name can only consist of letters, numbers, or underscores")
 		return util.ErrorCmdArg
 	}
 	if len(qos.Name) > 30 {
