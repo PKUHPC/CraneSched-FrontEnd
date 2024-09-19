@@ -202,7 +202,7 @@
    }
  
    uint32 uid = 1;
-   uint32 task_id = 2;
+   repeated uint32 task_ids = 2;
  
    TargetAttributes attribute = 3;
  
@@ -218,19 +218,21 @@
  }
  
  message ModifyTaskReply {
-   bool ok = 1;
-   string reason = 2;
+   repeated uint32 modified_tasks = 2;
+   repeated uint32 not_modified_tasks = 3;
+   repeated string not_modified_reasons = 4;
  }
  
  message ModifyCranedStateRequest{
-   string craned_id = 1;
+   repeated string craned_ids = 1;
    CranedControlState new_state = 2;
    string reason = 3;
  }
  
  message ModifyCranedStateReply{
-   bool ok = 1;
-   string reason = 2;
+   repeated string modified_nodes = 2;
+   repeated string not_modified_nodes = 3;
+   repeated string not_modified_reasons = 4;
  }
  
  message AddAccountRequest {
@@ -600,14 +602,14 @@
    }
  }
  
- message QueryActualDresRequest{}
+ message QueryCranedRemoteMetaRequest {}
  
- message QueryActualDresReply{
+ message QueryCranedRemoteMetaReply {
    bool ok = 1;
-   DedicatedResourceInNode dres_in_node = 2;
+   CranedRemoteMeta craned_remote_meta = 2;
  }
  
- message StreamCrunRequest{
+ message StreamCrunRequest {
    enum CrunRequestType {
      TASK_REQUEST = 0;
      TASK_COMPLETION_REQUEST = 1;
@@ -803,7 +805,8 @@
    rpc CreateCgroupForTasks(CreateCgroupForTasksRequest) returns(CreateCgroupForTasksReply);
    rpc ReleaseCgroupForTasks(ReleaseCgroupForTasksRequest) returns(ReleaseCgroupForTasksReply);
  
-   rpc QueryActualDres(QueryActualDresRequest) returns(QueryActualDresReply);
+   rpc QueryCranedRemoteMeta(QueryCranedRemoteMetaRequest) returns(QueryCranedRemoteMetaReply);
+ 
    /*
    If the task is an interactive task, the resource uuid is also revoked.
     If there's no process in this interactive task, just deallocate all the resources.
@@ -813,7 +816,6 @@
    rpc TerminateTasks(TerminateTasksRequest) returns (TerminateTasksReply);
    rpc TerminateOrphanedTask(TerminateOrphanedTaskRequest) returns (TerminateOrphanedTaskReply);
    rpc ChangeTaskTimeLimit(ChangeTaskTimeLimitRequest) returns (ChangeTaskTimeLimitReply);
- 
  
    /* ----------------------------------- Called from Craned  ------------------------------------------------------ */
    rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
@@ -831,4 +833,3 @@
    rpc TaskIOStream(stream StreamCforedTaskIORequest) returns(stream StreamCforedTaskIOReply);
    rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
  }
- 
