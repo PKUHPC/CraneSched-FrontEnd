@@ -20,6 +20,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -76,7 +77,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if FlagJson {
-		log.Errorln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledTasks) > 0 {
 			return util.ErrorBackend
 		} else {
@@ -85,7 +86,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		log.Errorf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
+		fmt.Printf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
