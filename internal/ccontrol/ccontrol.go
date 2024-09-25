@@ -133,7 +133,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			}
 			CranedOs := "unknown"
 			//format "{os.name} {os.release} {os.version}"
-			if len(nodeInfo.SystemDesc) <= 2 {
+			if len(nodeInfo.SystemDesc) > 2 {
 				CranedOs = nodeInfo.SystemDesc
 			}
 			SystemBootTimeStr := "unknown"
