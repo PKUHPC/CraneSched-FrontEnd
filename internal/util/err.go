@@ -18,6 +18,11 @@
 
 package util
 
+import (
+	"CraneFrontEnd/generated/protos"
+	"fmt"
+)
+
 type CraneCmdError = int
 
 // Do not use error code bigger than 127
@@ -31,3 +36,53 @@ const (
 	ErrorBackend       CraneCmdError = 4
 	ErrorInvalidFormat CraneCmdError = 5
 )
+
+func ErrMsg(err_code protos.ErrCode) string {
+	switch err_code {
+	case protos.ErrCode_ERR_INVALID_UID:
+		return "The user UID being operated on does not exist in the system"
+	case protos.ErrCode_ERR_INVALID_OP_USER:
+		return "op user is not a user of Crane"
+	case protos.ErrCode_ERR_INVALID_USER:
+		return "The entered user is not a user of Crane"
+	case protos.ErrCode_ERR_PERMISSION_USER:
+		return "Your permission is insufficient"
+	case protos.ErrCode_ERR_USER_DUPLICATE_ACCOUNT:
+		return "The user already exists in this account"
+	case protos.ErrCode_ERR_USER_ALLOWED_ACCOUNT:
+		return ""
+	case protos.ErrCode_ERR_USER_ALLOWED_USER:
+		return ""
+	case protos.ErrCode_ERR_INVALID_ADMIN_LEVEL:
+		return ""
+	case protos.ErrCode_ERR_USER_ACCOUNT_MISMATCH:
+		return ""
+	default:
+		break
+	}
+
+	switch err_code {
+	case protos.ErrCode_ERR_INVALID_ACCOUNT:
+		return "The entered account does not exist"
+	}
+
+	switch err_code {
+	case protos.ErrCode_ERR_INVALID_PARTITION:
+		return "The entered partition does not exist"
+	case protos.ErrCode_ERR_ALLOWED_PARTITION:
+		return "The account or user does not include this partition"
+	case protos.ErrCode_ERR_PARENT_ALLOWED_PARTITION:
+		return "Parent account does not include the partition"
+	case protos.ErrCode_ERR_DUPLICATE_PARTITION:
+		return "The partition is already in allowed partition list"
+	}
+
+	switch err_code {
+	case protos.ErrCode_ERR_UPDATE_DATABASE:
+		return "Fail to update data in database"
+	default:
+		break
+	}
+
+	return fmt.Sprintf("Unknown Error Occurred: %s", err_code)
+}

@@ -431,7 +431,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 		fmt.Println("Add user succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Add user failed: %s.\n", reply.GetReason())
+		fmt.Printf("Add user failed: %s.\n", util.ErrMsg(reply.GetReason()))
 		return util.ErrorBackend
 	}
 }
