@@ -42,7 +42,7 @@ func ErrMsg(err_code protos.ErrCode) string {
 	case protos.ErrCode_ERR_INVALID_UID:
 		return "The user UID being operated on does not exist in the system"
 	case protos.ErrCode_ERR_INVALID_OP_USER:
-		return "op user is not a user of Crane"
+		return "you are not a user of Crane"
 	case protos.ErrCode_ERR_INVALID_USER:
 		return "The entered user is not a user of Crane"
 	case protos.ErrCode_ERR_PERMISSION_USER:
@@ -50,13 +50,13 @@ func ErrMsg(err_code protos.ErrCode) string {
 	case protos.ErrCode_ERR_USER_DUPLICATE_ACCOUNT:
 		return "The user already exists in this account"
 	case protos.ErrCode_ERR_USER_ALLOWED_ACCOUNT:
-		return ""
-	case protos.ErrCode_ERR_USER_ALLOWED_USER:
-		return ""
+		return "The user is not allowed to access account"
 	case protos.ErrCode_ERR_INVALID_ADMIN_LEVEL:
-		return ""
+		return "Unknown admin level"
 	case protos.ErrCode_ERR_USER_ACCOUNT_MISMATCH:
-		return ""
+		return "The user does not belong to this account"
+	case protos.ErrCode_ERR_NO_ACCOUNT_SPECIFIED:
+		return "No account is specified for the user"
 	default:
 		break
 	}
@@ -64,17 +64,58 @@ func ErrMsg(err_code protos.ErrCode) string {
 	switch err_code {
 	case protos.ErrCode_ERR_INVALID_ACCOUNT:
 		return "The entered account does not exist"
+	case protos.ErrCode_ERR_INVALID_PARENTACCOUNT:
+		return "The parent account of the entered account does not exist"
+	case protos.ErrCode_ERR_DUPLICATE_ACCOUNT:
+		return "The account already exists in the crane"
+	case protos.ErrCode_ERR_DELETE_ACCOUNT:
+		return "The account has child account or users, unable to delete."
 	}
 
 	switch err_code {
 	case protos.ErrCode_ERR_INVALID_PARTITION:
 		return "The entered partition does not exist"
 	case protos.ErrCode_ERR_ALLOWED_PARTITION:
-		return "The account or user does not include this partition"
+		return "The entered account or user does not include this partition"
 	case protos.ErrCode_ERR_PARENT_ALLOWED_PARTITION:
 		return "Parent account does not include the partition"
 	case protos.ErrCode_ERR_DUPLICATE_PARTITION:
-		return "The partition is already in allowed partition list"
+		return "The partition already exists in the account or user"
+	case protos.ErrCode_ERR_USER_EMPTY_PARTITION:
+		return "The user does not contain any partitions, operation cannot be performed."
+	case protos.ErrCode_ERR_CHILD_HAS_PARTITOIN:
+		return "The partition is currently being used by the child accounts or users of the account, operation cannot be performed. You can use a forced operation to ignore this constraint"
+	}
+
+	switch err_code {
+	case protos.ErrCode_ERR_INVALID_QOS:
+		return "The entered qos does not exist"
+	case protos.ErrCode_ERR_DB_DUPLICATE_QOS:
+		return "Qos already exists in the crane"
+	case protos.ErrCode_ERR_DELETE_QOS:
+		return "QoS is still being used by accounts or users, unable to delete"
+	case protos.ErrCode_ERR_CONVERT_TO_INTERGER:
+		return "Failed to convert value to integer"
+	case protos.ErrCode_ERR_TIME_LIMIT:
+		return "Invalid time limit value"
+	case protos.ErrCode_ERR_ALLOWED_QOS:
+		return "The entered account or user does not include this qos"
+	case protos.ErrCode_ERR_DUPLICATE_QOS:
+		return "The Qos already exists in the account or user"
+	case protos.ErrCode_ERR_PARENT_ALLOWED_QOS:
+		return "Parent account does not include the qos"
+	case protos.ErrCode_ERR_SET_ALLOWED_QOS:
+		return "The entered QoS list does not include the default QoS. Ignoring this constraint with forced operation, the default QoS is randomly replaced with one of the items in the new QoS list"
+	case protos.ErrCode_ERR_ALLOWED_DEFAULT_QOS:
+		return "The entered default_qos is not allowed"
+	case protos.ErrCode_ERR_DUPLICATE_DEFAULT_QOS:
+		return "The QoS is already the default QoS for the account or specified partition of the user"
+	case protos.ErrCode_ERR_CHILD_HAS_QOS:
+		return "The Qos is currently being used by the child accounts or users of the account, operation cannot be performed. You can use a forced operation to ignore this constraint"
+	case protos.ErrCode_ERR_CHILD_HAS_DEFAULT_QOS:
+		return "some child accounts or users is using the QoS as the default QoS. By ignoring this constraint with forced deletion, the deleted default QoS is randomly replaced with one of the remaining items in the QoS list"
+	case protos.ErrCode_ERR_SET_DEFAULT_QOS:
+		return "the Qos not allowed or is already the default qos"
 	}
 
 	switch err_code {

@@ -242,7 +242,7 @@
  
  message AddAccountReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message AddUserRequest {
@@ -262,7 +262,7 @@
  
  message AddQosReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message DeleteAccountRequest {
@@ -272,7 +272,7 @@
  
  message DeleteAccountReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message DeleteUserRequest {
@@ -283,7 +283,7 @@
  
  message DeleteUserReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message DeleteQosRequest {
@@ -293,7 +293,7 @@
  
  message DeleteQosReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message ModifyAccountRequest {
@@ -307,7 +307,7 @@
  
  message ModifyAccountReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message ModifyUserRequest {
@@ -323,7 +323,7 @@
  
  message ModifyUserReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message ModifyQosRequest {
@@ -335,7 +335,7 @@
  
  message ModifyQosReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message QueryAccountInfoRequest {
@@ -345,7 +345,7 @@
  
  message QueryAccountInfoReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
    repeated AccountInfo account_list = 3;
  }
  
@@ -357,7 +357,7 @@
  
  message QueryUserInfoReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
    repeated UserInfo user_list = 3; 
  }
  
@@ -368,7 +368,7 @@
  
  message QueryQosInfoReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
    repeated QosInfo qos_list = 5;
  }
  
@@ -382,7 +382,7 @@
  
  message BlockAccountOrUserReply {
    bool ok = 1;
-   string reason = 2;
+   ErrCode reason = 2;
  }
  
  message MigrateSshProcToCgroupRequest {
