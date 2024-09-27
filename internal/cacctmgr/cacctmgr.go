@@ -295,7 +295,9 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 	if account == "" {
 		return
 	}
-	if len(accountMap[account].ChildAccounts) == 0 {
+
+	value, ok := accountMap[account]
+	if !ok || len(value.ChildAccounts) == 0 {
 		parentTreeRoot.AddNode(account)
 	} else {
 		branch := parentTreeRoot.AddBranch(account)
