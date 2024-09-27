@@ -54,16 +54,16 @@ func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
 	log.Tracef("EndHookReq: \n%v", req.String())
 }
 
-func (dp DummyPlugin) JobCheckHook(ctx *api.PluginContext) {
-	log.Infoln("JobCheckHook is called!")
+func (dp DummyPlugin) JobMonitorHook(ctx *api.PluginContext) {
+	log.Infoln("JobMonitorHook is called!")
 
-	req, ok := ctx.Request().(*protos.JobCheckHookRequest)
+	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected JobCheckHookRequest.")
+		log.Errorln("Invalid request type, expected JobMonitorHookRequest.")
 		return
 	}
 
-	log.Tracef("JobCheckHookReq: \n%v", req.String())
+	log.Tracef("JobMonitorHookReq: \n%v", req.String())
 }
 
 func main() {

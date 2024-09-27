@@ -1,16 +1,15 @@
-// This is a MonitorPlugin for XXXXX.
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
 	"os"
-	"os/exec"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,21 +27,22 @@ var PluginInstance = MonitorPlugin{}
 
 // cgroup cpu path & memory path
 var (
-	cgroupCpuPathPrefix    = "/sys/fs/cgroup/cpu/"
+	cgroupCPUPathPrefix    = "/sys/fs/cgroup/cpu/"
 	cgroupMemoryPathPrefix = "/sys/fs/cgroup/memory/"
 )
 
 type config struct {
+	Cgroup struct {
+		CPU    string `yaml:"CPU"`
+		Memory string `yaml:"Memory"`
+	} `yaml: Cgroup`
+
 	UserName string `yaml:"UserName"`
 	Bucket   string `yaml:"Bucket"`
 	Org      string `yaml:"Org"`
 	Token    string `yaml:"Token"`
 	Url      string `yaml:"Url"`
 	Interval uint32 `yaml:"Interval"`
-}
-
-type MonitorPlugin struct {
-	config
 }
 
 type ResourceUsage struct {
@@ -55,59 +55,15 @@ type ResourceUsage struct {
 }
 
 // Channel for sending resource usage data
-var ResourceUsageChan = make(chan ResourceUsage)
+var usageChan = make(chan ResourceUsage)
 
-func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
-	if meta.Config == "" {
-		return fmt.Errorf("no config file specified")
-	}
-
-	content, err := os.ReadFile(meta.Config)
-	if err != nil {
-		return err
-	}
-
-	if err := yaml.Unmarshal(content, &dp.config); err != nil {
-		return err
-	}
-
-	log.Infoln("Monitor plugin is initialized.")
-	log.Tracef("Monitor plugin config: %v", dp.config)
-
-	return nil
+type MonitorPlugin struct {
+	config
 }
 
-func (dp *MonitorPlugin) Name() string {
-	return "Monitor"
-}
-
-func (dp *MonitorPlugin) Version() string {
-	return "v0.0.1"
-}
-
-func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {
-	log.Infoln("StartHook is called!")
-
-	req, ok := ctx.Request().(*protos.StartHookRequest)
-	if !ok {
-		log.Errorln("Invalid request type, expected StartHookRequest.")
-		return
-	}
-
-	log.Tracef("StartHookReq: \n%v", req.String())
-}
-
-func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext) {
-	log.Infoln("EndHook is called!")
-
-	req, ok := ctx.Request().(*protos.EndHookRequest)
-	if !ok {
-		log.Errorln("Invalid request type, expected EndHookRequest.")
-		return
-	}
-
-	log.Tracef("EndHookReq: \n%v", req.String())
-}
+// Dummy implementations
+func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {}
+func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)   {}
 
 func getCpuUsage(cgroupPath string) (float64, error) {
 	cpuUsageFile := fmt.Sprintf("%s/cpuacct.usage", cgroupPath)
@@ -153,67 +109,11 @@ func getMemoryUsage(cgroupPath string) (uint64, error) {
 }
 
 func getHostname() (string, error) {
-	cmd := exec.Command("hostname")
-	output, err := cmd.Output()
+	content, err := os.ReadFile("/etc/hostname")
 	if err != nil {
 		return "", err
 	}
-	return string(output), nil
-}
-
-func (dp *MonitorPlugin) JobCheckHook(ctx *api.PluginContext) {
-	log.Infoln("JobCheckHook is called!")
-	req, ok := ctx.Request().(*protos.JobCheckHookRequest)
-	if !ok {
-		log.Errorln("Invalid request type, expected JobCheckHookRequest.")
-		return
-	}
-	log.Tracef("JobCheckHookReq: \n%v", req.String())
-
-	hostname, err := getHostname()
-	if err != nil {
-		log.Errorf("Failed to get hostname: %v", err)
-		return
-	}
-	//start consumer
-	go startInfluxDBConsumer(dp)
-
-	// start producer
-	go func(req *protos.JobCheckHookRequest) {
-		jobcheckinfo := req.JobcheckInfoList[0]
-		cgroupPathCpu := fmt.Sprintf("%s%s", cgroupCpuPathPrefix, jobcheckinfo.Cgroup)
-		cgroupPathMem := fmt.Sprintf("%s%s", cgroupMemoryPathPrefix, jobcheckinfo.Cgroup)
-
-		for {
-			cpuUsage, err := getCpuUsage(cgroupPathCpu)
-			if err != nil {
-				log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPathCpu, err)
-				break
-			}
-
-			memoryUsage, err := getMemoryUsage(cgroupPathMem)
-			if err != nil {
-				log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPathMem, err)
-				break
-			}
-
-			currentTime := time.Now()
-			uniqueTag := uuid.New().String()
-
-			ResourceUsageChan <- ResourceUsage{
-				TaskID:      int64(jobcheckinfo.Taskid),
-				CPUUsage:    cpuUsage,
-				MemoryUsage: memoryUsage,
-				Hostname:    hostname,
-				Timestamp:   currentTime,
-				UniqueTag:   uniqueTag,
-			}
-
-			time.Sleep(time.Duration(dp.Interval) * time.Second)
-		}
-	}(req)
-
-	log.Infoln("Monitoring goroutine started.")
+	return strings.TrimSpace(string(content)), nil
 }
 
 func startInfluxDBConsumer(dp *MonitorPlugin) {
@@ -222,7 +122,7 @@ func startInfluxDBConsumer(dp *MonitorPlugin) {
 	defer client.Close()
 	writeAPI := client.WriteAPIBlocking(dp.Org, dp.Bucket)
 
-	for ResourceUsage := range ResourceUsageChan {
+	for ResourceUsage := range usageChan {
 		p := influxdb2.NewPoint(
 			fmt.Sprintf("%d", ResourceUsage.TaskID),
 			map[string]string{
@@ -246,6 +146,89 @@ func startInfluxDBConsumer(dp *MonitorPlugin) {
 		log.Infof("Recorded TaskID: %d, UserName: %s, Hostname: %s, CPU Usage: %.2f%%, Memory Usage: %.2fMB at %v",
 			ResourceUsage.TaskID, dp.UserName, ResourceUsage.Hostname, ResourceUsage.CPUUsage, float64(ResourceUsage.MemoryUsage)/(1024*1024), ResourceUsage.Timestamp)
 	}
+}
+
+func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
+	if meta.Config == "" {
+		return errors.New("config file is not specified")
+	}
+
+	content, err := os.ReadFile(meta.Config)
+	if err != nil {
+		return err
+	}
+
+	if err := yaml.Unmarshal(content, &dp.config); err != nil {
+		return err
+	}
+
+	log.Infoln("Monitor plugin is initialized.")
+	log.Tracef("Monitor plugin config: %v", dp.config)
+
+	return nil
+}
+
+func (dp *MonitorPlugin) Name() string {
+	return "Monitor"
+}
+
+func (dp *MonitorPlugin) Version() string {
+	return "v0.0.1"
+}
+
+func (p *MonitorPlugin) JobMonitorHook(ctx *api.PluginContext) {
+	log.Traceln("JobMonitorHook is called!")
+	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
+	if !ok {
+		log.Errorln("Invalid request type, expected JobMonitorHookRequest.")
+		return
+	}
+	log.Tracef("JobMonitorHookReq: \n%v", req.String())
+
+	hostname, err := getHostname()
+	if err != nil {
+		log.Errorf("Failed to get hostname: %v", err)
+		return
+	}
+
+	// Start consumer
+	go startInfluxDBConsumer(p)
+
+	// Start producer
+	go func(req *protos.JobMonitorHookRequest) {
+		cgroupPathCpu := fmt.Sprintf("%s%s", cgroupCPUPathPrefix, req.Cgroup)
+		cgroupPathMem := fmt.Sprintf("%s%s", cgroupMemoryPathPrefix, req.Cgroup)
+
+		for {
+			cpuUsage, err := getCpuUsage(cgroupPathCpu)
+			if err != nil {
+				log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPathCpu, err)
+				break
+			}
+
+			memoryUsage, err := getMemoryUsage(cgroupPathMem)
+			if err != nil {
+				log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPathMem, err)
+				break
+			}
+
+			currentTime := time.Now()
+			uniqueTag := uuid.New().String()
+
+			usageChan <- ResourceUsage{
+				TaskID:      int64(req.TaskId),
+				CPUUsage:    cpuUsage,
+				MemoryUsage: memoryUsage,
+				Hostname:    hostname,
+				Timestamp:   currentTime,
+				UniqueTag:   uniqueTag,
+			}
+
+			time.Sleep(time.Duration(p.Interval) * time.Second)
+		}
+	}(req)
+
+	log.Infoln("Monitoring goroutine started.")
 }
 
 func main() {
