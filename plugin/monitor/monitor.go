@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
@@ -25,23 +26,32 @@ var _ api.Plugin = &MonitorPlugin{}
 // PluginD will call plugin's method thru this variable
 var PluginInstance = MonitorPlugin{}
 
-// cgroup cpu path & memory path
 var (
+	// Cgroup path prefix
 	cgroupCPUPathPrefix    = "/sys/fs/cgroup/cpu/"
 	cgroupMemoryPathPrefix = "/sys/fs/cgroup/memory/"
+
+	// Hostname
+	hostname = ""
 )
 
 type config struct {
+	// Cgroup root directory path
 	Cgroup struct {
 		CPU    string `yaml:"CPU"`
 		Memory string `yaml:"Memory"`
-	} `yaml: Cgroup`
+	} `yaml:"Cgroup"`
 
-	UserName string `yaml:"UserName"`
-	Bucket   string `yaml:"Bucket"`
-	Org      string `yaml:"Org"`
-	Token    string `yaml:"Token"`
-	Url      string `yaml:"Url"`
+	// InfluxDB configuration
+	Database struct {
+		Username string `yaml:"Username"`
+		Bucket   string `yaml:"Bucket"`
+		Org      string `yaml:"Org"`
+		Token    string `yaml:"Token"`
+		Url      string `yaml:"Url"`
+	} `yaml:"Database"`
+
+	// Interval for sampling resource usage, in ms
 	Interval uint32 `yaml:"Interval"`
 }
 
@@ -55,10 +65,12 @@ type ResourceUsage struct {
 }
 
 // Channel for sending resource usage data
-var usageChan = make(chan ResourceUsage)
+var statChan = make(chan ResourceUsage)
 
 type MonitorPlugin struct {
 	config
+	client influxdb2.Client
+	once   sync.Once // Ensure the Singleton of InfluxDB client
 }
 
 // Dummy implementations
@@ -116,39 +128,49 @@ func getHostname() (string, error) {
 	return strings.TrimSpace(string(content)), nil
 }
 
-func startInfluxDBConsumer(dp *MonitorPlugin) {
-	client := influxdb2.NewClientWithOptions(dp.Url, dp.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
-	fmt.Printf("InfluxDB URL: %s\n", dp.Url)
-	defer client.Close()
-	writeAPI := client.WriteAPIBlocking(dp.Org, dp.Bucket)
+func (p *MonitorPlugin) consumer() {
+	dbConfig := p.Database
+	p.client = influxdb2.NewClientWithOptions(dbConfig.Url, dbConfig.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
+	defer p.client.Close()
 
-	for ResourceUsage := range usageChan {
-		p := influxdb2.NewPoint(
-			fmt.Sprintf("%d", ResourceUsage.TaskID),
+	ctx := context.Background()
+	if pong, err := p.client.Ping(ctx); err != nil {
+		log.Errorf("Failed to ping InfluxDB: %v", err)
+		return
+	} else if !pong {
+		log.Error("Failed to ping InfluxDB: not pong")
+		return
+	}
+
+	log.Tracef("InfluxDB client is created: %v", p.client.ServerURL())
+
+	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
+	for stat := range statChan {
+		point := influxdb2.NewPoint(
+			strconv.FormatInt(stat.TaskID, 10),
 			map[string]string{
-				"username":   dp.UserName,
-				"hostname":   ResourceUsage.Hostname,
-				"unique_tag": ResourceUsage.UniqueTag,
+				"username":   dbConfig.Username,
+				"hostname":   stat.Hostname,
+				"unique_tag": stat.UniqueTag,
 			},
 			map[string]interface{}{
-				"cpu_usage":    ResourceUsage.CPUUsage,
-				"memory_usage": ResourceUsage.MemoryUsage,
+				"cpu_usage":    stat.CPUUsage,
+				"memory_usage": stat.MemoryUsage,
 			},
-			ResourceUsage.Timestamp,
+			stat.Timestamp,
 		)
 
-		err := writeAPI.WritePoint(context.Background(), p)
-		if err != nil {
+		if err := writer.WritePoint(ctx, point); err != nil {
 			log.Errorf("Failed to write point to InfluxDB: %v", err)
 			break
 		}
 
 		log.Infof("Recorded TaskID: %d, UserName: %s, Hostname: %s, CPU Usage: %.2f%%, Memory Usage: %.2fMB at %v",
-			ResourceUsage.TaskID, dp.UserName, ResourceUsage.Hostname, ResourceUsage.CPUUsage, float64(ResourceUsage.MemoryUsage)/(1024*1024), ResourceUsage.Timestamp)
+			stat.TaskID, dbConfig.Username, stat.Hostname, stat.CPUUsage, float64(stat.MemoryUsage)/(1024*1024), stat.Timestamp)
 	}
 }
 
-func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
+func (p *MonitorPlugin) Init(meta api.PluginMeta) error {
 	if meta.Config == "" {
 		return errors.New("config file is not specified")
 	}
@@ -158,21 +180,26 @@ func (dp *MonitorPlugin) Init(meta api.PluginMeta) error {
 		return err
 	}
 
-	if err := yaml.Unmarshal(content, &dp.config); err != nil {
+	if err := yaml.Unmarshal(content, &p.config); err != nil {
+		return err
+	}
+
+	hostname, err = getHostname()
+	if err != nil {
 		return err
 	}
 
 	log.Infoln("Monitor plugin is initialized.")
-	log.Tracef("Monitor plugin config: %v", dp.config)
+	log.Tracef("Monitor plugin config: %v", p.config)
 
 	return nil
 }
 
-func (dp *MonitorPlugin) Name() string {
+func (p *MonitorPlugin) Name() string {
 	return "Monitor"
 }
 
-func (dp *MonitorPlugin) Version() string {
+func (p *MonitorPlugin) Version() string {
 	return "v0.0.1"
 }
 
@@ -185,19 +212,17 @@ func (p *MonitorPlugin) JobMonitorHook(ctx *api.PluginContext) {
 	}
 	log.Tracef("JobMonitorHookReq: \n%v", req.String())
 
-	hostname, err := getHostname()
-	if err != nil {
-		log.Errorf("Failed to get hostname: %v", err)
-		return
-	}
-
 	// Start consumer
-	go startInfluxDBConsumer(p)
+	p.once.Do(func() {
+		go p.consumer()
+	})
 
-	// Start producer
+	// Producer goroutine to monitor resource usage
 	go func(req *protos.JobMonitorHookRequest) {
-		cgroupPathCpu := fmt.Sprintf("%s%s", cgroupCPUPathPrefix, req.Cgroup)
-		cgroupPathMem := fmt.Sprintf("%s%s", cgroupMemoryPathPrefix, req.Cgroup)
+		log.Tracef("Monitoring goroutine for job #%v started.", req.TaskId)
+
+		cgroupPathCpu := cgroupCPUPathPrefix + req.Cgroup
+		cgroupPathMem := cgroupMemoryPathPrefix + req.Cgroup
 
 		for {
 			cpuUsage, err := getCpuUsage(cgroupPathCpu)
@@ -215,7 +240,7 @@ func (p *MonitorPlugin) JobMonitorHook(ctx *api.PluginContext) {
 			currentTime := time.Now()
 			uniqueTag := uuid.New().String()
 
-			usageChan <- ResourceUsage{
+			statChan <- ResourceUsage{
 				TaskID:      int64(req.TaskId),
 				CPUUsage:    cpuUsage,
 				MemoryUsage: memoryUsage,
@@ -224,11 +249,9 @@ func (p *MonitorPlugin) JobMonitorHook(ctx *api.PluginContext) {
 				UniqueTag:   uniqueTag,
 			}
 
-			time.Sleep(time.Duration(p.Interval) * time.Second)
+			time.Sleep(time.Duration(p.Interval) * time.Millisecond)
 		}
 	}(req)
-
-	log.Infoln("Monitoring goroutine started.")
 }
 
 func main() {
