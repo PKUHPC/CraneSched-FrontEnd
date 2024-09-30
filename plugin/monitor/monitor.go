@@ -26,17 +26,8 @@ var _ api.Plugin = &MonitorPlugin{}
 // PluginD will call plugin's method thru this variable
 var PluginInstance = MonitorPlugin{}
 
-var (
-	// Cgroup path prefix
-	cgroupCPUPathPrefix    = "/sys/fs/cgroup/cpu/"
-	cgroupMemoryPathPrefix = "/sys/fs/cgroup/memory/"
-
-	// Hostname
-	hostname = ""
-)
-
 type config struct {
-	// Cgroup root directory path
+	// Cgroup pattern
 	Cgroup struct {
 		CPU    string `yaml:"CPU"`
 		Memory string `yaml:"Memory"`
@@ -53,11 +44,14 @@ type config struct {
 
 	// Interval for sampling resource usage, in ms
 	Interval uint32 `yaml:"Interval"`
+
+	// Hostname, set at Init time, not configurable
+	hostname string
 }
 
 type ResourceUsage struct {
 	TaskID      int64
-	CPUUsage    float64
+	CPUUsage    uint64
 	MemoryUsage uint64
 	Hostname    string
 	Timestamp   time.Time
@@ -77,32 +71,19 @@ type MonitorPlugin struct {
 func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {}
 func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)   {}
 
-func getCpuUsage(cgroupPath string) (float64, error) {
+func getCpuUsage(cgroupPath string) (uint64, error) {
 	cpuUsageFile := fmt.Sprintf("%s/cpuacct.usage", cgroupPath)
 	content, err := os.ReadFile(cpuUsageFile)
 	if err != nil {
 		return 0, err
 	}
 
-	startUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
+	usage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
 	if err != nil {
 		return 0, err
 	}
 
-	time.Sleep(1 * time.Second)
-
-	content, err = os.ReadFile(cpuUsageFile)
-	if err != nil {
-		return 0, err
-	}
-
-	endUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	cpuUsage := float64(endUsage-startUsage) / 1e9 * 100
-	return cpuUsage, nil
+	return usage, nil
 }
 
 func getMemoryUsage(cgroupPath string) (uint64, error) {
@@ -128,6 +109,58 @@ func getHostname() (string, error) {
 	return strings.TrimSpace(string(content)), nil
 }
 
+func getRealCgroupPath(pattern string, cgroupName string) string {
+	return strings.ReplaceAll(pattern, "%j", cgroupName)
+}
+
+func validateCgroup(cgroupPath string) bool {
+	_, err := os.Stat(cgroupPath)
+	return !os.IsNotExist(err)
+}
+
+func (p *MonitorPlugin) producer(id int64, cgroup string) {
+	log.Tracef("Monitoring goroutine for job #%v started.", id)
+
+	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, cgroup)
+	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, cgroup)
+
+	for {
+		// If the cgroup is not found, the job is finished, break
+		if !validateCgroup(cgroupCpuPath) {
+			break
+		}
+
+		cpuUsage, err := getCpuUsage(cgroupCpuPath)
+		if err != nil {
+			log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupCpuPath, err)
+			break
+		}
+
+		memoryUsage, err := getMemoryUsage(cgroupMemPath)
+		if err != nil {
+			log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupMemPath, err)
+			break
+		}
+
+		timestamp := time.Now()
+		uniqueTag := uuid.New().String()
+
+		statChan <- ResourceUsage{
+			TaskID:      id,
+			CPUUsage:    cpuUsage,
+			MemoryUsage: memoryUsage,
+			Hostname:    p.hostname,
+			Timestamp:   timestamp,
+			UniqueTag:   uniqueTag,
+		}
+
+		// Sleep for the interval
+		time.Sleep(time.Duration(p.Interval) * time.Millisecond)
+	}
+
+	log.Tracef("Monitoring goroutine for job #%v exited.", id)
+}
+
 func (p *MonitorPlugin) consumer() {
 	dbConfig := p.Database
 	p.client = influxdb2.NewClientWithOptions(dbConfig.Url, dbConfig.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
@@ -141,7 +174,6 @@ func (p *MonitorPlugin) consumer() {
 		log.Error("Failed to ping InfluxDB: not pong")
 		return
 	}
-
 	log.Tracef("InfluxDB client is created: %v", p.client.ServerURL())
 
 	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
@@ -165,8 +197,8 @@ func (p *MonitorPlugin) consumer() {
 			break
 		}
 
-		log.Infof("Recorded TaskID: %d, UserName: %s, Hostname: %s, CPU Usage: %.2f%%, Memory Usage: %.2fMB at %v",
-			stat.TaskID, dbConfig.Username, stat.Hostname, stat.CPUUsage, float64(stat.MemoryUsage)/(1024*1024), stat.Timestamp)
+		log.Infof("Recorded TaskID: %v, Username: %v, Hostname: %s, CPU Usage: %d, Memory Usage: %.2f KB at %v",
+			stat.TaskID, dbConfig.Username, stat.Hostname, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
 	}
 }
 
@@ -184,9 +216,19 @@ func (p *MonitorPlugin) Init(meta api.PluginMeta) error {
 		return err
 	}
 
-	hostname, err = getHostname()
+	p.hostname, err = getHostname()
 	if err != nil {
 		return err
+	}
+
+	// Apply default values, use cgroup v1 path
+	if p.config.Cgroup.CPU == "" {
+		p.config.Cgroup.CPU = "/sys/fs/cgroup/cpuacct/%j/cpuacct.usage"
+		log.Warnf("CPU cgroup path is not specified, using default: %s", p.config.Cgroup.CPU)
+	}
+	if p.config.Cgroup.Memory == "" {
+		p.config.Cgroup.Memory = "/sys/fs/cgroup/memory/%j/memory.usage_in_bytes"
+		log.Warnf("Memory cgroup path is not specified, using default: %s", p.config.Cgroup.Memory)
 	}
 
 	log.Infoln("Monitor plugin is initialized.")
@@ -212,46 +254,13 @@ func (p *MonitorPlugin) JobMonitorHook(ctx *api.PluginContext) {
 	}
 	log.Tracef("JobMonitorHookReq: \n%v", req.String())
 
-	// Start consumer
+	// Start consumer (only once)
 	p.once.Do(func() {
 		go p.consumer()
 	})
 
-	// Producer goroutine to monitor resource usage
-	go func(req *protos.JobMonitorHookRequest) {
-		log.Tracef("Monitoring goroutine for job #%v started.", req.TaskId)
-
-		cgroupPathCpu := cgroupCPUPathPrefix + req.Cgroup
-		cgroupPathMem := cgroupMemoryPathPrefix + req.Cgroup
-
-		for {
-			cpuUsage, err := getCpuUsage(cgroupPathCpu)
-			if err != nil {
-				log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupPathCpu, err)
-				break
-			}
-
-			memoryUsage, err := getMemoryUsage(cgroupPathMem)
-			if err != nil {
-				log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupPathMem, err)
-				break
-			}
-
-			currentTime := time.Now()
-			uniqueTag := uuid.New().String()
-
-			statChan <- ResourceUsage{
-				TaskID:      int64(req.TaskId),
-				CPUUsage:    cpuUsage,
-				MemoryUsage: memoryUsage,
-				Hostname:    hostname,
-				Timestamp:   currentTime,
-				UniqueTag:   uniqueTag,
-			}
-
-			time.Sleep(time.Duration(p.Interval) * time.Millisecond)
-		}
-	}(req)
+	// Start producer goroutine to monitor the resource usage
+	go p.producer(int64(req.TaskId), req.Cgroup)
 }
 
 func main() {
