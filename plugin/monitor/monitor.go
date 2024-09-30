@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,23 +71,21 @@ func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {}
 func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)   {}
 
 func getCpuUsage(cgroupPath string) (uint64, error) {
-	cpuUsageFile := fmt.Sprintf("%s/cpuacct.usage", cgroupPath)
-	content, err := os.ReadFile(cpuUsageFile)
+	content, err := os.ReadFile(cgroupPath)
 	if err != nil {
 		return 0, err
 	}
 
-	usage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
+	cpuUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
 	if err != nil {
 		return 0, err
 	}
 
-	return usage, nil
+	return cpuUsage, nil
 }
 
 func getMemoryUsage(cgroupPath string) (uint64, error) {
-	memoryUsageFile := fmt.Sprintf("%s/memory.usage_in_bytes", cgroupPath)
-	content, err := os.ReadFile(memoryUsageFile)
+	content, err := os.ReadFile(cgroupPath)
 	if err != nil {
 		return 0, err
 	}
@@ -132,13 +129,13 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 
 		cpuUsage, err := getCpuUsage(cgroupCpuPath)
 		if err != nil {
-			log.Errorf("Failed to get CPU usage for cgroup %s: %v", cgroupCpuPath, err)
+			log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
 			break
 		}
 
 		memoryUsage, err := getMemoryUsage(cgroupMemPath)
 		if err != nil {
-			log.Errorf("Failed to get memory usage for cgroup %s: %v", cgroupMemPath, err)
+			log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
 			break
 		}
 
