@@ -72,7 +72,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
-	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "CoordinatorAccounts", "AdminLevel", "Blocked"})
+	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "Coordinated", "AdminLevel", "Blocked"})
 	tableData := make([][]string, len(userMap))
 	for key, value := range userMap {
 		tableData = append(tableData, []string{key})
