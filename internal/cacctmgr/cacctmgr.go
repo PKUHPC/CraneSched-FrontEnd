@@ -72,7 +72,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
-	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "AdminLevel", "Blocked"})
+	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "Coordinated", "AdminLevel", "Blocked"})
 	tableData := make([][]string, len(userMap))
 	for key, value := range userMap {
 		tableData = append(tableData, []string{key})
@@ -82,6 +82,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 					userInfo.Account,
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
+					"",
 					"",
 					"",
 					"",
@@ -97,6 +98,7 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 					allowedPartitionQos.PartitionName,
 					strings.Join(allowedPartitionQos.QosList, ", "),
 					allowedPartitionQos.DefaultQos,
+					strings.Join(userInfo.CoordinatorAccounts, ", "),
 					fmt.Sprintf("%v", userInfo.AdminLevel),
 					strconv.FormatBool(userInfo.Blocked),
 				})
@@ -201,7 +203,7 @@ func PrintAllAccount(accountList []*protos.AccountInfo) {
 
 func PrintAccountTable(accountList []*protos.AccountInfo) {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
-	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "Blocked"}
+	header := []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "Coordinators", "Blocked"}
 	util.SetBorderTable(table)
 	tableData := make([][]string, len(accountList))
 	for _, accountInfo := range accountList {
@@ -212,6 +214,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 			strings.Join(accountInfo.Users, ", "),
 			accountInfo.DefaultQos,
 			strings.Join(accountInfo.AllowedQosList, ", "),
+			strings.Join(accountInfo.Coordinators, ", "),
 			strconv.FormatBool(accountInfo.Blocked),
 		})
 	}
@@ -240,7 +243,7 @@ func PrintAccountTable(accountList []*protos.AccountInfo) {
 				tableOutputWidth[i] = -1
 			}
 			tableOutputHeader[i] = formatReq[i][len(formatReq[i])-1:]
-			//"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList"
+			//"Name", "Description", "AllowedPartition", "DefaultQos", "AllowedQosList, "Coordinators"
 			switch tableOutputHeader[i] {
 			case "n":
 				tableOutputHeader[i] = "Name"
