@@ -43,6 +43,8 @@ type config struct {
 
 	// Interval for sampling resource usage, in ms
 	Interval uint32 `yaml:"Interval"`
+	// Buffer size for storing resource usage data
+	BufferSize uint32 `yaml:"BufferSize"`
 
 	// Hostname, set at Init time, not configurable
 	hostname string
@@ -57,13 +59,11 @@ type ResourceUsage struct {
 	UniqueTag   string
 }
 
-// Channel for sending resource usage data
-var statChan = make(chan ResourceUsage)
-
 type MonitorPlugin struct {
 	config
 	client influxdb2.Client
-	once   sync.Once // Ensure the Singleton of InfluxDB client
+	once   sync.Once          // Ensure the Singleton of InfluxDB client
+	buffer chan ResourceUsage // Buffer channel for processing usage data
 }
 
 // Dummy implementations
@@ -118,6 +118,11 @@ func validateCgroup(cgroupPath string) bool {
 func (p *MonitorPlugin) producer(id int64, cgroup string) {
 	log.Infof("Monitoring goroutine for job #%v started.", id)
 
+	if (p.buffer == nil) || (p.client == nil) {
+		log.Errorf("Buffer channel or InfluxDB client not initialized.")
+		return
+	}
+
 	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, cgroup)
 	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, cgroup)
 
@@ -142,7 +147,7 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 		timestamp := time.Now()
 		uniqueTag := uuid.New().String()
 
-		statChan <- ResourceUsage{
+		p.buffer <- ResourceUsage{
 			TaskID:      id,
 			CPUUsage:    cpuUsage,
 			MemoryUsage: memoryUsage,
@@ -174,7 +179,7 @@ func (p *MonitorPlugin) consumer() {
 	log.Infof("InfluxDB client is created: %v", p.client.ServerURL())
 
 	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
-	for stat := range statChan {
+	for stat := range p.buffer {
 		point := influxdb2.NewPoint(
 			strconv.FormatInt(stat.TaskID, 10),
 			map[string]string{
@@ -217,6 +222,12 @@ func (p *MonitorPlugin) Init(meta api.PluginMeta) error {
 	if err != nil {
 		return err
 	}
+
+	if p.BufferSize <= 0 {
+		p.BufferSize = 32
+		log.Warnf("Buffer size is not specified or invalid, using default: %v", p.BufferSize)
+	}
+	p.buffer = make(chan ResourceUsage, p.BufferSize)
 
 	// Apply default values, use cgroup v1 path
 	if p.config.Cgroup.CPU == "" {
