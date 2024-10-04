@@ -104,6 +104,8 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	TaskIoRequestChannel := make(chan *protos.StreamCforedTaskIORequest, 2)
 	taskId = math.MaxUint32
 	crunPid = -1
+	forwardEstablished := atomic.Bool{}
+	forwardEstablished.Store(false)
 
 	state := CrunWaitTaskIdAllocReq
 
@@ -355,6 +357,7 @@ CforedCrunStateMachineLoop:
 						},
 					},
 				}
+				forwardEstablished.Store(true)
 
 				if err := toCrunStream.Send(reply); err != nil {
 					log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
@@ -397,7 +400,7 @@ CforedCrunStateMachineLoop:
 					} else {
 						switch crunRequest.Type {
 						case protos.StreamCrunRequest_TASK_IO_FORWARD:
-							log.Debug("[Crun->Cfored->Craned] Receive TASK_IO_FORWARD Request")
+							log.Debugf("[Crun->Cfored->Craned] Receive TASK_IO_FORWARD Request to task #%d, msg:\"%s\"", crunRequest.GetPayloadTaskIoForwardReq().GetTaskId(), crunRequest.GetPayloadTaskIoForwardReq().GetMsg())
 							gCranedChanKeeper.forwardCrunRequestToCranedChannels(crunRequest, execCranedIds)
 
 						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
@@ -533,8 +536,7 @@ CforedCrunStateMachineLoop:
 			gVars.ctldReplyChannelMapMtx.Lock()
 			delete(gVars.ctldReplyChannelMapByTaskId, taskId)
 			gVars.ctldReplyChannelMapMtx.Unlock()
-
-			gCranedChanKeeper.crunTaskStopAndRemoveChannel(taskId, execCranedIds)
+			gCranedChanKeeper.crunTaskStopAndRemoveChannel(taskId, execCranedIds, forwardEstablished.Load())
 
 			if err := toCrunStream.Send(reply); err != nil {
 				log.Errorf("[Cfored<->Crun] Failed to send CompletionAck to crun: %s. "+
@@ -562,7 +564,7 @@ CforedCrunStateMachineLoop:
 				ctldReply := <-ctldReplyChannel
 				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
 					log.Tracef("[Cfored<->Crun] Expect TASK_COMPLETION_ACK_REPLY, "+
-						"but %s received. Just ignore it...", ctldReply.Type)
+						"but %s received. Just ignore it...", ctldReply.Type.String())
 				} else {
 					break
 				}
@@ -576,7 +578,7 @@ CforedCrunStateMachineLoop:
 				delete(gVars.pidTaskIdMap, crunPid)
 				gVars.pidTaskIdMapMtx.Unlock()
 
-				gCranedChanKeeper.crunTaskStopAndRemoveChannel(taskId, execCranedIds)
+				gCranedChanKeeper.crunTaskStopAndRemoveChannel(taskId, execCranedIds, forwardEstablished.Load())
 			} else {
 				delete(gVars.ctldReplyChannelMapByPid, crunPid)
 			}
@@ -912,6 +914,16 @@ CforedStateMachineLoop:
 				},
 			}
 			gVars.cforedRequestCtldChannel <- toCtldRequest
+
+			for {
+				ctldReply := <-ctldReplyChannel
+				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
+					log.Tracef("[Cfored<->Calloc] Expect TASK_COMPLETION_ACK_REPLY, "+
+						"but %s received. Just ignore it...", ctldReply.Type.String())
+				} else {
+					break
+				}
+			}
 
 			gVars.ctldReplyChannelMapMtx.Lock()
 			if taskId != math.MaxUint32 {

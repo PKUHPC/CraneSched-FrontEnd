@@ -254,10 +254,17 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	// Check the validity of the parameters
-
-	if len(task.Name) > 30 {
-		task.Name = task.Name[:30]
-		log.Warnf("Job name exceeds 30 characters, trimmed to %v.\n", task.Name)
+	if len(task.Name) > util.MaxJobNameLength {
+		log.Errorf("Job name exceeds %v characters.", util.MaxJobNameLength)
+		return false, nil
+	}
+	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
+		log.Errorf("Invalid output file path: %v", err)
+		return false, nil
+	}
+	if err := util.CheckFileLength(task.GetBatchMeta().ErrorFilePattern); err != nil {
+		log.Errorf("Invalid error file path: %v", err)
+		return false, nil
 	}
 	if task.CpusPerTask <= 0 {
 		log.Errorln("Invalid --cpus-per-task")
@@ -371,69 +378,6 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
-}
-
-func SplitEnvironEntry(env *string) (string, string, bool) {
-	eq := strings.IndexByte(*env, '=')
-	if eq == -1 {
-		return *env, "", false
-	} else {
-		return (*env)[:eq], (*env)[eq+1:], true
-	}
-}
-
-func SetPropagatedEnviron(task *protos.TaskToCtld) {
-	systemEnv := make(map[string]string)
-	for _, str := range os.Environ() {
-		name, value, _ := SplitEnvironEntry(&str)
-		systemEnv[name] = value
-
-		// The CRANE_* environment variables are loaded anyway.
-		if strings.HasPrefix(name, "CRANE_") {
-			task.Env[name] = value
-		}
-	}
-
-	// This value is used only to carry the value of --export flag.
-	// Delete it once we get it.
-	valueOfExportFlag, haveExportFlag := task.Env["CRANE_EXPORT_ENV"]
-	if haveExportFlag {
-		delete(task.Env, "CRANE_EXPORT_ENV")
-	} else {
-		// Default mode is ALL
-		valueOfExportFlag = "ALL"
-	}
-
-	switch valueOfExportFlag {
-	case "NIL":
-	case "NONE":
-		task.GetUserEnv = true
-	case "ALL":
-		task.Env = systemEnv
-
-	default:
-		// The case like "ALL,A=a,B=b", "NIL,C=c"
-		task.GetUserEnv = true
-		splitValueOfExportFlag := strings.Split(valueOfExportFlag, ",")
-		for _, exportValue := range splitValueOfExportFlag {
-			if exportValue == "ALL" {
-				for k, v := range systemEnv {
-					task.Env[k] = v
-				}
-			} else {
-				k, v, ok := SplitEnvironEntry(&exportValue)
-				// If user-specified value is empty, use system value instead.
-				if ok {
-					task.Env[k] = v
-				} else {
-					systemEnvValue, envExist := systemEnv[k]
-					if envExist {
-						task.Env[k] = systemEnvValue
-					}
-				}
-			}
-		}
-	}
 }
 
 // Split the job script into two parts: the arguments and the shell script.

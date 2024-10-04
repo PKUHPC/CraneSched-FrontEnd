@@ -42,7 +42,7 @@ func (f FormatterJson) FormatReply(reply interface{}) string {
 		output, _ := mo.Marshal(msg)
 		return string(output)
 	} else {
-		log.Fatalf("Type %T is not ProtoMessage.\n", reply)
+		log.Errorf("Type %T is not ProtoMessage.\n", reply)
 		os.Exit(ErrorInvalidFormat)
 	}
 	return ""

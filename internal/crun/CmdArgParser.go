@@ -24,6 +24,17 @@ import (
 )
 
 var (
+	RootCmd = &cobra.Command{
+		Use:     "crun [flags] executable",
+		Short:   "Allocate resource and run executable interactive",
+		Version: util.Version(),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			MainCrun(cmd, args)
+		},
+	}
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
 	FlagNtasksPerNode uint32
@@ -36,27 +47,17 @@ var (
 	FlagCwd           string
 	FlagNodelist      string
 	FlagExcludes      string
+	FlagGetUserEnv    bool
+	FlagExport        string
 	FlagGres          string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
-
-	RootCmd = &cobra.Command{
-		Use:     "crun",
-		Short:   "Allocate resource and create terminal",
-		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.DetectNetworkProxy()
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			MainCrun(cmd, args)
-		},
-	}
 )
 
 func ParseCmdArgs() {
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(util.ErrorGeneric)
 	}
 }
 
@@ -78,4 +79,6 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
+	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 }

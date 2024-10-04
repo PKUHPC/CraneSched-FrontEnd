@@ -18,14 +18,15 @@ package calloc
 
 import (
 	"CraneFrontEnd/internal/util"
-	"github.com/pkg/term/termios"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/pkg/term/termios"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 func StartTerminal(shellPath string,
@@ -40,20 +41,22 @@ func StartTerminal(shellPath string,
 	ptyAttr := unix.Termios{}
 	err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
 	if err != nil {
-		log.Fatalf("tcgetattr: %v", err)
-		return
+		log.Errorf("tcgetattr: %v", err)
+		os.Exit(util.ErrorGeneric)
 	}
 
 	log.Tracef("IsForeGround: %v", util.IsForeground())
 
 	err = unix.Setpgid(callocPid, callocPid)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorln(err)
+		os.Exit(util.ErrorGeneric)
 	}
 
 	err = util.TcSetpgrp(0, callocPid)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorln(err)
+		os.Exit(util.ErrorGeneric)
 	}
 
 	process := exec.Command(shellPath, "-i")
@@ -71,14 +74,16 @@ func StartTerminal(shellPath string,
 
 	err = process.Start()
 	if err != nil {
-		log.Fatalf("Failed to call process.Start(): %v", err)
+		log.Errorf("Failed to call process.Start(): %v", err)
+		os.Exit(util.ErrorGeneric)
 	}
 
 	log.Tracef("Proc.Pid: %d", process.Process.Pid)
 
 	processPgid, err := unix.Getpgid(process.Process.Pid)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorln(err)
+		os.Exit(util.ErrorGeneric)
 	}
 	log.Tracef("Proc.Pgid: %d", processPgid)
 
@@ -119,7 +124,8 @@ func StartTerminal(shellPath string,
 
 	err = util.TcSetpgrp(0, process.Process.Pid)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorln(err)
+		os.Exit(util.ErrorGeneric)
 	}
 
 	// Listen to cancel request
@@ -137,7 +143,8 @@ func StartTerminal(shellPath string,
 				log.Tracef("Killing terminal with SIGHUP")
 				err := syscall.Kill(procPid, syscall.SIGHUP)
 				if err != nil {
-					log.Fatal(err)
+					log.Errorln(err)
+					os.Exit(util.ErrorGeneric)
 				}
 
 			case <-done:
@@ -154,7 +161,8 @@ func StartTerminal(shellPath string,
 
 	err = util.TcSetpgrp(0, callocPid)
 	if err != nil {
-		log.Fatal(err)
+		log.Errorln(err)
+		os.Exit(util.ErrorGeneric)
 	}
 
 	if procWaitErr != nil {
@@ -184,8 +192,8 @@ func StartTerminal(shellPath string,
 
 	err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
 	if err != nil {
-		log.Fatalf("tcsetattr: %v", err)
-		return
+		log.Errorf("tcsetattr: %v", err)
+		os.Exit(util.ErrorGeneric)
 	}
 
 	terminalExitChannel <- true

@@ -28,6 +28,7 @@ import (
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
 	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -38,7 +39,7 @@ import (
 )
 
 /*
-Overall, we have two ways to implement the Wrapper.
+We have two ways to implement the Wrapper:
 - Directly use Cobra to reimplement a command, including all its subcommands and flags,
   then call the original command.
 - Do not reimplement a new command, but directly call the original command after
@@ -171,8 +172,10 @@ func sacctmgr() *cobra.Command {
 			flags := make([]string, 0)
 			convertedArgs := make([]string, 0)
 			for _, arg := range args {
-				// TODO: Add customized --help flag
-				if strings.HasPrefix(arg, "-") {
+				if arg == "--help" || arg == "-h" {
+					fmt.Println("Please refer to the user manual of Slurm.")
+					return
+				} else if strings.HasPrefix(arg, "-") {
 					flags = append(flags, arg)
 				} else {
 					convertedArgs = append(convertedArgs, arg)
@@ -306,43 +309,36 @@ func sacctmgr() *cobra.Command {
 						convertedArgs = append(convertedArgs, nk, v)
 					}
 				}
-			} else if convertedArgs[0] == "find" {
-				if len(convertedArgs) <= 2 || (len(convertedArgs) == 3 && convertedArgs[2] == "where") {
-					// Without filtering conditions, use `show`
-					convertedArgs[0] = "show"
-					convertedArgs = convertedArgs[:2]
-				} else {
-					// With filtering conditions, use `find`
-					// For `list`, there is `where` but no `set`
-					whereMap := make(map[string]string)
-					for i := 2; i < len(convertedArgs); i++ {
-						if strings.Contains(convertedArgs[i], ",") {
-							log.Error("cacctmgr show allows only one entity at a time")
-							os.Exit(util.ErrorCmdArg)
-						}
-
-						l := strings.Split(convertedArgs[i], "=")
-						if len(l) != 2 {
-							if convertedArgs[i] == "where" {
-								continue
-							}
-							log.Error("Invalid argument: ", convertedArgs[i])
-							os.Exit(util.ErrorCmdArg)
-						}
-
-						whereMap[l[0]] = l[1]
+			} else if convertedArgs[0] == "show" {
+				// For `list`, there is `where` but no `set`
+				whereMap := make(map[string]string)
+				for i := 2; i < len(convertedArgs); i++ {
+					if strings.Contains(convertedArgs[i], ",") {
+						log.Error("cacctmgr show allows only one entity at a time")
+						os.Exit(util.ErrorCmdArg)
 					}
 
-					convertedArgs = convertedArgs[:2]
-					for k, v := range whereMap {
-						if k == "name" || k == "names" {
-							convertedArgs = append(convertedArgs, v)
-						} else if k == "account" || k == "accounts" {
-							convertedArgs = append(convertedArgs, "--account="+v)
-						} else {
-							log.Error("Unsupported arguments: ", k)
-							os.Exit(util.ErrorCmdArg)
+					l := strings.Split(convertedArgs[i], "=")
+					if len(l) != 2 {
+						if convertedArgs[i] == "where" {
+							continue
 						}
+						log.Error("Invalid argument: ", convertedArgs[i])
+						os.Exit(util.ErrorCmdArg)
+					}
+
+					whereMap[l[0]] = l[1]
+				}
+
+				convertedArgs = convertedArgs[:2]
+				for k, v := range whereMap {
+					if k == "name" || k == "names" {
+						convertedArgs = append(convertedArgs, v)
+					} else if k == "account" || k == "accounts" {
+						convertedArgs = append(convertedArgs, "--account="+v)
+					} else {
+						log.Error("Unsupported arguments: ", k)
+						os.Exit(util.ErrorCmdArg)
 					}
 				}
 			} else {
@@ -388,10 +384,10 @@ func sacctmgr() *cobra.Command {
 
 func salloc() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "salloc",
-		Short:   "Wrapper of calloc command",
-		Long:    "",
-		GroupID: "slurm",
+		Use:                "salloc",
+		Short:              "Wrapper of calloc command",
+		Long:               "",
+		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Add --help from calloc
@@ -408,12 +404,12 @@ func salloc() *cobra.Command {
 				return
 			}
 
+			calloc.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(calloc.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			calloc.RootCmd.Run(calloc.RootCmd, args)
 		},
 	}
@@ -481,11 +477,11 @@ func sbatch() *cobra.Command {
 				return
 			}
 
+			cbatch.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(cbatch.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
@@ -558,6 +554,7 @@ func scontrol() *cobra.Command {
 				for idx, arg := range convertedArgs {
 					switch arg {
 					case "job":
+						secondSubCmd = "job"
 						convertedArgs[idx] = "--job"
 					case "node":
 						secondSubCmd = "node"
@@ -566,16 +563,44 @@ func scontrol() *cobra.Command {
 				}
 
 				if secondSubCmd == "" {
-					convertedArgs = append([]string{"update"}, convertedArgs...)
-				} else {
-					convertedArgs = append([]string{"update", secondSubCmd}, convertedArgs...)
+					log.Error("Only \"job\" and \"node\" could be updated.")
+					os.Exit(util.ErrorCmdArg)
 				}
+				convertedArgs = append([]string{"update", secondSubCmd}, convertedArgs...)
+			case "hold":
+				concatedTaskIds := ""
+				for i := 0; i < len(convertedArgs); i++ {
+					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
+						// If not "job" or "jobid", it should be a job id list
+						// Trim is needed as slurm supports "hold ,1,2,3" but crane doesn't
+						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
+						if _, ok := util.ParseTaskIds(convertedArgs[i]); !ok {
+							log.Error("Invalid job id list: ", convertedArgs[i])
+							os.Exit(util.ErrorCmdArg)
+						}
+						concatedTaskIds += "," + convertedArgs[i]
+					}
+				}
+				convertedArgs = append([]string{"hold"}, strings.Trim(concatedTaskIds, ","))
+			case "release":
+				concatedTaskIds := ""
+				for i := 0; i < len(convertedArgs); i++ {
+					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
+						// If not "job" or "jobid", it should be a job id list
+						// Trim is needed as slurm supports "release ,1,2,3" but crane doesn't
+						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
+						if _, ok := util.ParseTaskIds(convertedArgs[i]); !ok {
+							log.Error("Invalid job id list: ", convertedArgs[i])
+							os.Exit(util.ErrorCmdArg)
+						}
+						concatedTaskIds += "," + convertedArgs[i]
+					}
+				}
+				convertedArgs = append([]string{"release"}, strings.Trim(concatedTaskIds, ","))
 			default:
 				// If no subcommand is found, just fall back to ccontrol.
 				log.Debug("Unknown subcommand: ", firstSubCmd)
 			}
-
-			log.Debug("Converted args: ", convertedArgs)
 
 			// Find the matching subcommand
 			subcmd, convertedArgs, err := ccontrol.RootCmd.Traverse(convertedArgs)
@@ -617,6 +642,7 @@ func sinfo() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
+			cinfo.RootCmd.PersistentPreRun(cmd, args)
 			cinfo.RootCmd.Run(cmd, args)
 		},
 	}
@@ -650,12 +676,18 @@ func squeue() *cobra.Command {
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
+			cqueue.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(cqueue.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
+			if !cqueue.FlagNoHeader {
+				fmt.Printf("%s %s %s %s %s %s %s %s\n",
+					"JOBID", "PARTITION", "NAME", "USER", "ST", "TIME", "NODES", "NODELIST(REASON)")
+				cqueue.FlagNoHeader = true
+			}
+			cqueue.FlagFormat = "%j %P %n %u %t %e %N %r"
 			cqueue.RootCmd.Run(cmd, args)
 		},
 	}
@@ -710,11 +742,11 @@ func srun() *cobra.Command {
 				return
 			}
 
+			crun.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(crun.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-
 			crun.RootCmd.Run(crun.RootCmd, args)
 		},
 	}

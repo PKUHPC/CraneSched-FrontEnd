@@ -24,6 +24,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -47,7 +49,7 @@ func CancelTask(args []string) util.CraneCmdError {
 		for i := 0; i < len(taskIdStrSplit); i++ {
 			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
 			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "Invalid job Id: "+taskIdStrSplit[i])
+				log.Errorf("Invalid job Id: " + taskIdStrSplit[i])
 				return util.ErrorCmdArg
 			}
 			taskIds = append(taskIds, uint32(taskId64))
@@ -56,14 +58,13 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if FlagState != "" {
-		FlagState = strings.ToLower(FlagState)
-		if FlagState == "pd" || FlagState == "pending" {
-			req.FilterState = protos.TaskStatus_Pending
-		} else if FlagState == "r" || FlagState == "running" {
-			req.FilterState = protos.TaskStatus_Running
-		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "Invalid FlagState, Valid job states are PENDING, RUNNING.")
+		stateList, err := util.ParseInRamTaskStatusList(FlagState)
+		if err != nil {
+			log.Errorln(err)
 			return util.ErrorCmdArg
+		}
+		if len(stateList) == 1 {
+			req.FilterState = stateList[0]
 		}
 	}
 
@@ -85,18 +86,12 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		cancelledTasksStr := strconv.FormatUint(uint64(reply.CancelledTasks[0]), 10)
-		for i := 1; i < len(reply.CancelledTasks); i++ {
-			cancelledTasksStr += ","
-			cancelledTasksStr += strconv.FormatUint(uint64(reply.CancelledTasks[i]), 10)
-		}
-		fmt.Printf("Job %s cancelled successfully.\n", cancelledTasksStr)
+		fmt.Printf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to cancel job: %d. Reason: %s.\n",
-				reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
+			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
 		os.Exit(util.ErrorBackend)
 	}

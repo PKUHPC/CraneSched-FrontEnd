@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,6 +34,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -84,6 +87,40 @@ func ParseMemStringAsByte(mem string) (uint64, error) {
 	}
 	// default unit is MB
 	return uint64(1024 * 1024 * sz), nil
+}
+
+func ParseInterval(interval string, intervalpb *protos.TimeInterval) (err error) {
+	if !strings.Contains(interval, "~") {
+		err = fmt.Errorf("'~' cannot be omitted")
+		return
+	}
+
+	split := strings.Split(interval, "~")
+	if len(split) > 2 {
+		err = fmt.Errorf("too many '~' found")
+		return
+	}
+
+	var tl, tr time.Time
+	if split[0] != "" {
+		tl, err = ParseTime(strings.TrimSpace(split[0]))
+		if err != nil {
+			return
+		}
+		intervalpb.LowerBound = timestamppb.New(tl)
+	}
+	if len(split) == 2 && split[1] != "" {
+		tr, err = ParseTime(strings.TrimSpace(split[1]))
+		if err != nil {
+			return
+		}
+		if tr.Before(tl) {
+			err = fmt.Errorf("%v is earlier than %v", tr, tl)
+			return
+		}
+		intervalpb.UpperBound = timestamppb.New(tr)
+	}
+	return
 }
 
 func ParseDuration(time string, duration *durationpb.Duration) bool {
@@ -201,6 +238,24 @@ func CheckNodeList(nodeStr string) bool {
 	}
 	re := regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9]*[0-9])(,([a-zA-Z][a-zA-Z0-9]*[0-9]))*$`)
 	return re.MatchString(nameStr)
+}
+
+// CheckFileLength check if the file length is within the limit.
+func CheckFileLength(filepath string) error {
+	if len(path.Base(filepath)) > MaxJobFileNameLength {
+		return fmt.Errorf("file name length exceeds %v characters", MaxJobFileNameLength)
+	}
+
+	if len(filepath) > MaxJobFilePathLengthForUnix {
+		return fmt.Errorf("file path length exceeds %v characters", MaxJobFilePathLengthForUnix)
+	}
+
+	// Special case for Windows
+	if runtime.GOOS == "windows" && len(filepath) > MaxJobFilePathLengthForWindows {
+		return fmt.Errorf("file path length exceeds %v characters on Windows", MaxJobFilePathLengthForWindows)
+	}
+
+	return nil
 }
 
 func ParseHostList(hostStr string) ([]string, bool) {
@@ -323,6 +378,21 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 	}
 
 	return resList, true
+}
+
+func ParseTaskIds(taskStr string) ([]uint32, bool) {
+	taskIdStrSplit := strings.Split(taskStr, ",")
+	var taskList []uint32
+	for i := 0; i < len(taskIdStrSplit); i++ {
+		taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
+		if err != nil {
+			fmt.Errorf("Invalid job Id: %s", taskIdStrSplit[i])
+			return nil, false
+		} else {
+			taskList = append(taskList, uint32(taskId64))
+		}
+	}
+	return taskList, true
 }
 
 func InvalidDuration() *durationpb.Duration {
@@ -549,4 +619,71 @@ func ParseGres(gres string) *protos.DeviceMap {
 	}
 
 	return result
+}
+
+func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
+	state = strings.ToLower(state)
+	switch state {
+	case "pending", "p":
+		return protos.TaskStatus_Pending, nil
+	case "running", "r":
+		return protos.TaskStatus_Running, nil
+	case "completed", "c":
+		return protos.TaskStatus_Completed, nil
+	case "failed", "f":
+		return protos.TaskStatus_Failed, nil
+	case "tle", "time-limit-exceeded", "timelimitexceeded", "t":
+		return protos.TaskStatus_ExceedTimeLimit, nil
+	case "canceled", "cancelled", "x":
+		return protos.TaskStatus_Cancelled, nil
+	case "all":
+		return protos.TaskStatus_Invalid, nil
+	default:
+		return protos.TaskStatus_Invalid, fmt.Errorf("unknown state: %s", state)
+	}
+}
+
+func ParseTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
+	var stateSet = make(map[protos.TaskStatus]bool)
+	filterStateList := strings.Split(statesStr, ",")
+	for i := 0; i < len(filterStateList); i++ {
+		state, err := ParseTaskStatusName(filterStateList[i])
+		if err != nil {
+			return nil, err
+		}
+		stateSet[state] = true
+	}
+	if _, exists := stateSet[protos.TaskStatus_Invalid]; !exists && len(stateSet) < len(protos.TaskStatus_name)-1 {
+		var stateList []protos.TaskStatus
+		for state := range stateSet {
+			stateList = append(stateList, state)
+		}
+		return stateList, nil
+	}
+	return []protos.TaskStatus{}, nil
+}
+
+func ParseInRamTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
+	var stateSet = make(map[protos.TaskStatus]bool)
+	filterStateList := strings.Split(statesStr, ",")
+	for i := 0; i < len(filterStateList); i++ {
+		state, err := ParseTaskStatusName(filterStateList[i])
+		if err != nil {
+			return nil, err
+		}
+		if state != protos.TaskStatus_Invalid && state != protos.TaskStatus_Pending && state != protos.TaskStatus_Running {
+			return nil, fmt.Errorf("unsupported state: %s", filterStateList[i])
+		}
+		stateSet[state] = true
+	}
+	if len(stateSet) == 1 {
+		for state := range stateSet {
+			if state == protos.TaskStatus_Invalid {
+				return []protos.TaskStatus{}, nil
+			} else {
+				return []protos.TaskStatus{state}, nil
+			}
+		}
+	}
+	return []protos.TaskStatus{}, nil
 }

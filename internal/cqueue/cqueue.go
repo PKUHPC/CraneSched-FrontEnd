@@ -42,25 +42,12 @@ func Query() util.CraneCmdError {
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
 
 	if FlagFilterStates != "" {
-		var stateList []protos.TaskStatus
-		has_all := false
-		filterStateList := strings.Split(strings.ToLower(FlagFilterStates), ",")
-		for i := 0; i < len(filterStateList); i++ {
-			switch filterStateList[i] {
-			case "r", "running":
-				stateList = append(stateList, protos.TaskStatus_Running)
-			case "p", "pending":
-				stateList = append(stateList, protos.TaskStatus_Pending)
-			case "all":
-				has_all = true
-			default:
-				log.Errorf("Invalid state given: %s.\n", filterStateList[i])
-				return util.ErrorCmdArg
-			}
+		stateList, err := util.ParseInRamTaskStatusList(FlagFilterStates)
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
-		if !has_all {
-			req.FilterTaskStates = stateList
-		}
+		req.FilterTaskStates = stateList
 	}
 
 	if FlagSelf {
@@ -255,12 +242,29 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		// Parse format specifier
 		header := ""
 		switch FlagFormat[spec[4]:spec[5]] {
-		// a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,
-		// p-Priority, P-Partition, r-Reason, s-SubmitTime, t-State, T-Type, u-User
+		// a-Account, c-CpuPerNode, C-AllocCpus, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, m-MemPerNode,
+		// n-Name, N-Nodes, p-Priority, P-Partition, r-Reason, s-SubmitTime, t-State, T-Type, u-User
 		case "a":
 			header = "Account"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Account)
+			}
+		case "c":
+			header = "CpuPerNode"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatFloat(
+					reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64))
+			}
+		case "C":
+			header = "AllocCpus"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatFloat(
+					reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit*float64(reply.TaskInfoList[j].NodeNum), 'f', 2, 64))
+			}
+		case "D":
+			header = "NodeNum"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].NodeNum), 10))
 			}
 		case "e":
 			header = "Time"
@@ -287,6 +291,12 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			header = "NodeList(Reason)"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].GetCranedList())
+			}
+		case "m":
+			header = "MemPerNode"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j],
+					strconv.FormatUint(reply.TaskInfoList[j].ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10))
 			}
 		case "n":
 			header = "Name"
@@ -353,11 +363,15 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			}
 
 		default:
-			// a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,
-			// p-Priority, P-Partition, r-Reason, s-SubmitTime, t-State, T-Type, u-User
+			// a-Account, c-AllocCPUs, D-NodeNum, e-ElapsedTime, j-JobId,
+			// l-TimeLimit, L-NodeList, n-Name, N-Nodes,
+			// M-MemPerNode, p-Priority, P-Partition, r-Reason, s-SubmitTime,
+			// t-State,T-Type, u-User
 			log.Errorln("Invalid format specifier, shorthand reference:\n" +
-				"a-Account, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, n-Name, N-Nodes,\n" +
-				"p-Priority, P-Partition, r-Reason, s-SubmitTime, t-State, T-Type, u-User")
+				"a-Account, c-CpuPerNode, C-AllocCpus, D-NodeNum, e-ElapsedTime, j-JobId, \n" +
+				"l-TimeLimit, L-NodeList, m-MemPerNode, n-Name, N-Nodes,\n" +
+				"M-MemPerNode, p-Priority, P-Partition, r-Reason, s-SubmitTime,\n" +
+				"t-State, T-Type, u-User")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))

@@ -175,6 +175,7 @@ func bsub() *cobra.Command {
 				cbatch.RootCmd.ParseFlags([]string{"--ntasks-per-node", strconv.Itoa(int(cbatch.FlagNtasksPerNode))})
 			}
 
+			cbatch.RootCmd.PersistentPreRun(cmd, args)
 			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
@@ -209,6 +210,13 @@ func bjobs() *cobra.Command {
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cqueue.FlagFilterJobIDs = strings.Join(args, ",")
+			cqueue.RootCmd.PersistentPreRun(cmd, []string{})
+			if !cqueue.FlagNoHeader {
+				fmt.Printf("%s %s %s %s %s %s %s %s\n",
+					"JOBID", "USER", "STAT", "QUEUE", "FROM_HOST", "EXEC_HOST", "JOB_NAME", "SUBMIT_TIME")
+				cqueue.FlagNoHeader = true
+			}
+			cqueue.FlagFormat = "%j %u %t %P %L %L %n %s"
 			cqueue.RootCmd.Run(cmd, []string{})
 		},
 	}
@@ -230,6 +238,7 @@ func bqueues() *cobra.Command {
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cinfo.FlagFilterPartitions = args
+			cinfo.RootCmd.PersistentPreRun(cmd, []string{})
 			cinfo.RootCmd.Run(cmd, []string{})
 		},
 	}

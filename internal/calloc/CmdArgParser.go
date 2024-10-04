@@ -37,6 +37,8 @@ var (
 	FlagGres          string
 	FlagNodelist      string
 	FlagExcludes      string
+	FlagGetUserEnv    bool
+	FlagExport        string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -50,7 +52,9 @@ var (
 			util.DetectNetworkProxy()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			main(cmd, args)
+			if err := MainCalloc(cmd, args); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 )
@@ -79,4 +83,6 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
+	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 }
