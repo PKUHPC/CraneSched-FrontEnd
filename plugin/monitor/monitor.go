@@ -134,6 +134,9 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 		return
 	}
 
+	// As Cgroup may be created without any process inside, we need to mark
+	// if the first process is launched.
+	migrated := false
 	cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, cgroup)
 	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, cgroup)
 	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, cgroup)
@@ -150,9 +153,10 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 			log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
 			break
 		}
-		if procCount == 0 {
+		if migrated && procCount == 0 {
 			break
 		}
+		migrated = true
 
 		cpuUsage, err := getCpuUsage(cgroupCpuPath)
 		if err != nil {
