@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"gopkg.in/yaml.v3"
 
@@ -28,17 +27,19 @@ var PluginInstance = MonitorPlugin{}
 type config struct {
 	// Cgroup pattern
 	Cgroup struct {
-		CPU    string `yaml:"CPU"`
-		Memory string `yaml:"Memory"`
+		CPU      string `yaml:"CPU"`
+		Memory   string `yaml:"Memory"`
+		ProcList string `yaml:"ProcList"`
 	} `yaml:"Cgroup"`
 
 	// InfluxDB configuration
 	Database struct {
-		Username string `yaml:"Username"`
-		Bucket   string `yaml:"Bucket"`
-		Org      string `yaml:"Org"`
-		Token    string `yaml:"Token"`
-		Url      string `yaml:"Url"`
+		Username    string `yaml:"Username"`
+		Bucket      string `yaml:"Bucket"`
+		Org         string `yaml:"Org"`
+		Measurement string `yaml:"Measurement"`
+		Token       string `yaml:"Token"`
+		Url         string `yaml:"Url"`
 	} `yaml:"Database"`
 
 	// Interval for sampling resource usage, in ms
@@ -54,9 +55,9 @@ type ResourceUsage struct {
 	TaskID      int64
 	CPUUsage    uint64
 	MemoryUsage uint64
+	ProcCount   uint64
 	Hostname    string
 	Timestamp   time.Time
-	UniqueTag   string
 }
 
 type MonitorPlugin struct {
@@ -69,6 +70,16 @@ type MonitorPlugin struct {
 // Dummy implementations
 func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {}
 func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)   {}
+
+func getProcCount(cgroupPath string) (uint64, error) {
+	content, err := os.ReadFile(cgroupPath)
+	if err != nil {
+		return 0, err
+	}
+
+	// return the line count
+	return uint64(strings.Count(string(content), "\n")), nil
+}
 
 func getCpuUsage(cgroupPath string) (uint64, error) {
 	content, err := os.ReadFile(cgroupPath)
@@ -123,12 +134,23 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 		return
 	}
 
+	cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, cgroup)
 	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, cgroup)
 	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, cgroup)
 
 	for {
 		// If the cgroup is not found, the job is finished, break
 		if !validateCgroup(cgroupCpuPath) {
+			break
+		}
+
+		// If none pid found, the cgroup is empty, break
+		procCount, err := getProcCount(cgroupProcListPath)
+		if err != nil {
+			log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
+			break
+		}
+		if procCount == 0 {
 			break
 		}
 
@@ -144,16 +166,13 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 			break
 		}
 
-		timestamp := time.Now()
-		uniqueTag := uuid.New().String()
-
 		p.buffer <- ResourceUsage{
 			TaskID:      id,
+			ProcCount:   procCount,
 			CPUUsage:    cpuUsage,
 			MemoryUsage: memoryUsage,
 			Hostname:    p.hostname,
-			Timestamp:   timestamp,
-			UniqueTag:   uniqueTag,
+			Timestamp:   time.Now(),
 		}
 
 		// Sleep for the interval
@@ -180,27 +199,24 @@ func (p *MonitorPlugin) consumer() {
 
 	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
 	for stat := range p.buffer {
-		point := influxdb2.NewPoint(
-			strconv.FormatInt(stat.TaskID, 10),
-			map[string]string{
-				"username":   dbConfig.Username,
-				"hostname":   stat.Hostname,
-				"unique_tag": stat.UniqueTag,
-			},
-			map[string]interface{}{
-				"cpu_usage":    stat.CPUUsage,
-				"memory_usage": stat.MemoryUsage,
-			},
-			stat.Timestamp,
-		)
+		tags := map[string]string{
+			"job_id":   strconv.FormatInt(stat.TaskID, 10),
+			"hostname": stat.Hostname,
+		}
+		fields := map[string]interface{}{
+			"proc_count":   stat.ProcCount,
+			"cpu_usage":    stat.CPUUsage,
+			"memory_usage": stat.MemoryUsage,
+		}
+		point := influxdb2.NewPoint(dbConfig.Measurement, tags, fields, stat.Timestamp)
 
 		if err := writer.WritePoint(ctx, point); err != nil {
 			log.Errorf("Failed to write point to InfluxDB: %v", err)
 			break
 		}
 
-		log.Tracef("Recorded TaskID: %v, Username: %v, Hostname: %s, CPU Usage: %d, Memory Usage: %.2f KB at %v",
-			stat.TaskID, dbConfig.Username, stat.Hostname, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
+		log.Tracef("Recorded Job ID: %v, Hostname: %s, Proc Count: %d, CPU Usage: %d, Memory Usage: %.2f KB at %v",
+			stat.TaskID, stat.Hostname, stat.ProcCount, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
 	}
 }
 
