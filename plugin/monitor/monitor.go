@@ -116,7 +116,7 @@ func validateCgroup(cgroupPath string) bool {
 }
 
 func (p *MonitorPlugin) producer(id int64, cgroup string) {
-	log.Tracef("Monitoring goroutine for job #%v started.", id)
+	log.Infof("Monitoring goroutine for job #%v started.", id)
 
 	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, cgroup)
 	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, cgroup)
@@ -155,7 +155,7 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 		time.Sleep(time.Duration(p.Interval) * time.Millisecond)
 	}
 
-	log.Tracef("Monitoring goroutine for job #%v exited.", id)
+	log.Infof("Monitoring goroutine for job #%v exited.", id)
 }
 
 func (p *MonitorPlugin) consumer() {
@@ -171,7 +171,7 @@ func (p *MonitorPlugin) consumer() {
 		log.Error("Failed to ping InfluxDB: not pong")
 		return
 	}
-	log.Tracef("InfluxDB client is created: %v", p.client.ServerURL())
+	log.Infof("InfluxDB client is created: %v", p.client.ServerURL())
 
 	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
 	for stat := range statChan {
@@ -194,7 +194,7 @@ func (p *MonitorPlugin) consumer() {
 			break
 		}
 
-		log.Infof("Recorded TaskID: %v, Username: %v, Hostname: %s, CPU Usage: %d, Memory Usage: %.2f KB at %v",
+		log.Tracef("Recorded TaskID: %v, Username: %v, Hostname: %s, CPU Usage: %d, Memory Usage: %.2f KB at %v",
 			stat.TaskID, dbConfig.Username, stat.Hostname, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
 	}
 }
