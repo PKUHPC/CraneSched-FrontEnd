@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
+	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/term v1.1.0
 	github.com/sirupsen/logrus v1.9.3
@@ -18,9 +19,13 @@ require (
 )
 
 require (
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/oapi-codegen/runtime v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

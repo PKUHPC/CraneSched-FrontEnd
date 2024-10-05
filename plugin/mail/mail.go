@@ -28,6 +28,9 @@ type MailPlugin struct {
 	config
 }
 
+// Dummy implementations
+func (p *MailPlugin) JobMonitorHook(ctx *api.PluginContext) {}
+
 func (p *MailPlugin) parseExtraAttrInTask(t *protos.TaskInfo) (mailtype string, mailuser string, err error) {
 	// We treat "" as a valid JSON string
 	if t.ExtraAttr != "" && !gjson.Valid(t.ExtraAttr) {

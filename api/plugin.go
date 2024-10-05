@@ -5,6 +5,7 @@ type HookType uint8
 const (
 	StartHook HookType = iota
 	EndHook
+	JobMonitorHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -35,4 +36,5 @@ type Plugin interface {
 	*/
 	StartHook(ctx *PluginContext)
 	EndHook(ctx *PluginContext)
+	JobMonitorHook(ctx *PluginContext)
 }

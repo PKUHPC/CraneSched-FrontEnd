@@ -1,0 +1,21 @@
+# Configuration file for the monitor plugin
+
+# Cgroup path pattern (%j is the job's cgroup path, created by Craned)
+Cgroup:
+  CPU: "/sys/fs/cgroup/cpuacct/%j/cpuacct.usage"
+  Memory: "/sys/fs/cgroup/memory/%j/memory.usage_in_bytes"
+  ProcList: "/sys/fs/cgroup/memory/%j/cgroup.procs"
+
+# InfluxDB Configuration
+Database:
+  Username: "your_username"
+  Bucket: "your_bucket_name"
+  Org: "your_organization"
+  Token: "your_token"
+  Measurement: "ResourceUsage"
+  Url: "http://localhost:8086"
+
+# Monitoring interval in milliseconds
+Interval: 1000
+# Buffer size for writing data to InfluxDB
+BufferSize: 32
