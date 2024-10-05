@@ -274,13 +274,11 @@ func (p *MonitorPlugin) Version() string {
 }
 
 func (p *MonitorPlugin) JobMonitorHook(ctx *api.PluginContext) {
-	log.Traceln("JobMonitorHook is called!")
 	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
 	if !ok {
 		log.Errorln("Invalid request type, expected JobMonitorHookRequest.")
 		return
 	}
-	log.Tracef("JobMonitorHookReq: \n%v", req.String())
 
 	// Start consumer (only once)
 	p.once.Do(func() {
