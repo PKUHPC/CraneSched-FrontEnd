@@ -32,7 +32,9 @@ var (
 			util.DetectNetworkProxy()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			MainCrun(cmd, args)
+			if err := MainCrun(cmd, args); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 	}
 	FlagNodes         uint32
