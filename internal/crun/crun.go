@@ -644,6 +644,12 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+
+	if err := util.CheckTaskArgs(task); err != nil {
+		log.Errorln(err)
+		return util.ErrorCmdArg
+	}
+
 	util.SetPropagatedEnviron(task)
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {

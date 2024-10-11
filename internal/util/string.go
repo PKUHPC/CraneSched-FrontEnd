@@ -260,6 +260,28 @@ func CheckFileLength(filepath string) error {
 	return nil
 }
 
+func CheckTaskArgs(task *protos.TaskToCtld) error {
+	if task.CpusPerTask <= 0 {
+		return fmt.Errorf("Invalid --cpus-per-task")
+	}
+	if task.NtasksPerNode <= 0 {
+		return fmt.Errorf("Invalid --ntasks-per-node")
+	}
+	if task.NodeNum <= 0 {
+		return fmt.Errorf("Invalid --nodes")
+	}
+	if task.TimeLimit.AsDuration() <= 0 {
+		return fmt.Errorf("Invalid --time")
+	}
+	if !CheckNodeList(task.Nodelist) {
+		return fmt.Errorf("Invalid --nodelist")
+	}
+	if !CheckNodeList(task.Excludes) {
+		return fmt.Errorf("Invalid --exclude")
+	}
+	return nil
+}
+
 func ParseHostList(hostStr string) ([]string, bool) {
 	nameStr := strings.ReplaceAll(hostStr, " ", "")
 	nameStr += ","
