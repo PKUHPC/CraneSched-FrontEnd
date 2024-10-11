@@ -46,8 +46,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	task.Resources = &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
-			MemoryLimitBytes:   1024 * 1024 * 1024 * 16,
-			MemorySwLimitBytes: 1024 * 1024 * 1024 * 16,
+			MemoryLimitBytes:   0,
+			MemorySwLimitBytes: 0,
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
