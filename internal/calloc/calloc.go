@@ -365,8 +365,8 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		Resources: &protos.ResourceView{
 			AllocatableRes: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
-				MemoryLimitBytes:   1024 * 1024 * 128,
-				MemorySwLimitBytes: 1024 * 1024 * 128,
+				MemoryLimitBytes:   0,
+				MemorySwLimitBytes: 0,
 			},
 		},
 		Type:            protos.TaskType_Interactive,
