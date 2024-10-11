@@ -22,8 +22,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -44,15 +42,10 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(args) > 0 {
-		taskIdStrSplit := strings.Split(args[0], ",")
-		var taskIds []uint32
-		for i := 0; i < len(taskIdStrSplit); i++ {
-			taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
-			if err != nil {
-				log.Errorf("Invalid job Id: " + taskIdStrSplit[i])
-				return util.ErrorCmdArg
-			}
-			taskIds = append(taskIds, uint32(taskId64))
+		taskIds, err := util.ParseJobIdList(args[0], ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
 		req.FilterTaskIds = taskIds
 	}

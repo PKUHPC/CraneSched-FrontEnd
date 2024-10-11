@@ -59,38 +59,54 @@ func Query() util.CraneCmdError {
 		req.FilterUsers = []string{cu.Username}
 	}
 	if FlagFilterJobNames != "" {
-		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
+		filterJobNameList, err := util.ParseParameterList(FlagFilterJobNames, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		req.FilterTaskNames = filterJobNameList
 	}
 	if FlagFilterUsers != "" {
-		filterUserList := strings.Split(FlagFilterUsers, ",")
+		filterUserList, err := util.ParseParameterList(FlagFilterUsers, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		req.FilterUsers = filterUserList
 	}
 	if FlagFilterQos != "" {
-		filterJobQosList := strings.Split(FlagFilterQos, ",")
+		filterJobQosList, err := util.ParseParameterList(FlagFilterQos, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		req.FilterQos = filterJobQosList
 	}
 	if FlagFilterAccounts != "" {
-		filterAccountList := strings.Split(FlagFilterAccounts, ",")
+		filterAccountList, err := util.ParseParameterList(FlagFilterAccounts, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		req.FilterAccounts = filterAccountList
 	}
 	if FlagFilterPartitions != "" {
-		filterPartitionList := strings.Split(FlagFilterPartitions, ",")
+		filterPartitionList, err := util.ParseParameterList(FlagFilterPartitions, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		req.FilterPartitions = filterPartitionList
 	}
+
 	if FlagFilterJobIDs != "" {
-		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
-		req.NumLimit = uint32(len(filterJobIdList))
-		var filterJobIdListInt []uint32
-		for i := 0; i < len(filterJobIdList); i++ {
-			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
-			if err != nil {
-				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
-				return util.ErrorCmdArg
-			}
-			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
+		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
-		req.FilterTaskIds = filterJobIdListInt
+		req.FilterTaskIds = filterJobIdList
+		req.NumLimit = uint32(len(filterJobIdList))
 	}
 	if FlagNumLimit != 0 {
 		req.NumLimit = FlagNumLimit

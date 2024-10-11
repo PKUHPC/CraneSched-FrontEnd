@@ -422,8 +422,9 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-	taskIds, ok := util.ParseTaskIds(taskStr)
-	if !ok {
+	taskIds, err := util.ParseJobIdList(taskStr, ",")
+	if err != nil {
+		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
 
@@ -481,8 +482,9 @@ func ParseTimeStrToSeconds(time string) (int64, error) {
 }
 
 func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
-	jobList, ok := util.ParseTaskIds(jobs)
-	if !ok {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
 
@@ -538,8 +540,9 @@ func ChangeTaskPriority(taskStr string, priority float64) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-	taskIds, ok := util.ParseTaskIds(taskStr)
-	if !ok {
+	taskIds, err := util.ParseJobIdList(taskStr, ",")
+	if err != nil {
+		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
 

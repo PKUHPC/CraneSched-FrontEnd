@@ -71,40 +71,38 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterAccounts != "" {
-		filterAccountList := strings.Split(FlagFilterAccounts, ",")
+		filterAccountList, err := util.ParseParameterList(FlagFilterAccounts, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		request.FilterAccounts = filterAccountList
 	}
 
 	if FlagFilterJobIDs != "" {
-		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
-
-		var filterJobIdListInt []uint32
-		for i := 0; i < len(filterJobIdList); i++ {
-			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
-			if err != nil || id == 0 {
-				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
-				return util.ErrorCmdArg
-			}
-			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
+		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
-		request.FilterTaskIds = filterJobIdListInt
+		request.FilterTaskIds = filterJobIdList
 	}
 
-	var userList []string
 	if FlagFilterUsers != "" {
-		filterUserList := strings.Split(FlagFilterUsers, ",")
-		for _, user := range filterUserList {
-			if user == "" {
-				log.Warn("Empty user name is ignored.")
-				continue
-			}
-			userList = append(userList, user)
+		filterUserList, err := util.ParseParameterList(FlagFilterUsers, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
-		request.FilterUsers = userList
+		request.FilterUsers = filterUserList
 	}
 
 	if FlagFilterJobNames != "" {
-		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
+		filterJobNameList, err := util.ParseParameterList(FlagFilterJobNames, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		request.FilterTaskNames = filterJobNameList
 	}
 
@@ -118,19 +116,20 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterQos != "" {
-		filterJobQosList := strings.Split(FlagFilterQos, ",")
-
-		for i := 0; i < len(filterJobQosList); i++ {
-			if filterJobQosList[i] == "" {
-				log.Errorf("Invalid job QoS given: %s.\n", filterJobQosList[i])
-				return util.ErrorCmdArg
-			}
+		filterJobQosList, err := util.ParseParameterList(FlagFilterQos, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
 		}
 		request.FilterQos = filterJobQosList
 	}
 
 	if FlagFilterPartitions != "" {
-		filterPartitionList := strings.Split(FlagFilterPartitions, ",")
+		filterPartitionList, err := util.ParseParameterList(FlagFilterPartitions, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
 		request.FilterPartitions = filterPartitionList
 	}
 

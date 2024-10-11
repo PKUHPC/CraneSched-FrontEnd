@@ -574,8 +574,9 @@ func scontrol() *cobra.Command {
 						// If not "job" or "jobid", it should be a job id list
 						// Trim is needed as slurm supports "hold ,1,2,3" but crane doesn't
 						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
-						if _, ok := util.ParseTaskIds(convertedArgs[i]); !ok {
-							log.Error("Invalid job id list: ", convertedArgs[i])
+						_, err := util.ParseJobIdList(convertedArgs[i], ",")
+						if err != nil {
+							log.Errorln(err)
 							os.Exit(util.ErrorCmdArg)
 						}
 						concatedTaskIds += "," + convertedArgs[i]
@@ -589,8 +590,9 @@ func scontrol() *cobra.Command {
 						// If not "job" or "jobid", it should be a job id list
 						// Trim is needed as slurm supports "release ,1,2,3" but crane doesn't
 						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
-						if _, ok := util.ParseTaskIds(convertedArgs[i]); !ok {
-							log.Error("Invalid job id list: ", convertedArgs[i])
+						_, err := util.ParseJobIdList(convertedArgs[i], ",")
+						if err != nil {
+							log.Errorln(err)
 							os.Exit(util.ErrorCmdArg)
 						}
 						concatedTaskIds += "," + convertedArgs[i]
