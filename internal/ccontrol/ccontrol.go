@@ -326,8 +326,8 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 				"\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
 				"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
 				"\tCmdLine=\"%v\" Workdir=%v\n"+
-				"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%vM \n"+
-				"\t%s=node=%d cpu=%.2f gres=%s\n\t"+
+				"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
+				"\t%s=node=%d cpu=%.2f gres=%s\n"+
 				"\tReqNodeList=%v ExecludeNodeList=%v \n",
 				taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
