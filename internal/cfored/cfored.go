@@ -779,11 +779,15 @@ CforedStateMachineLoop:
 
 			select {
 			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_TASK_CANCEL_REQUEST {
-					log.Fatal("[Cfored<->Calloc] Expect Type TASK_CANCEL_REQUEST")
-				}
+				log.Tracef("[Cfored<->Calloc] Receive %s from CraneCtld", ctldReply.Type.String())
+				switch ctldReply.Type {
+				case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
+					state = WaitCallocCancel
 
-				state = WaitCallocCancel
+				case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
+					ctldReplyChannel <- ctldReply
+					state = WaitCtldAck
+				}
 
 			case item := <-requestChannel:
 				callocRequest, err := item.message, item.err
