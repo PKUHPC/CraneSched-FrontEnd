@@ -252,17 +252,20 @@ CallocStateMachineLoop:
 						state = TaskKilling
 					}
 				} else {
-					if cforedReply.Type !=
-						protos.StreamCforedReply_TASK_CANCEL_REQUEST {
-						log.Errorln("Expect TASK_CANCEL_REQUEST")
-						return util.ErrorBackend
-					} else {
-						log.Trace("Received TASK_CANCEL_REQUEST")
+					switch cforedReply.Type {
+					case protos.StreamCforedReply_TASK_CANCEL_REQUEST:
 						state = TaskKilling
+
+					case protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY:
+						fmt.Println("Task failed ")
 					}
 				}
+
 				cancelRequestChannel <- true
 				<-terminalExitChannel
+				if cforedReply.Type == protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY {
+					break CallocStateMachineLoop
+				}
 			}
 
 		case TaskKilling:
