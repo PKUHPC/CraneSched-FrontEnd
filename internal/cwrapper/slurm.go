@@ -682,6 +682,12 @@ func squeue() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
+			if !cqueue.FlagNoHeader {
+				fmt.Printf("%-6s %s %-10s %-10s %-10s %-10s %-10s %-10s\n",
+					"JOBID", "PARTITION", "NAME", "USER", "ST", "TIME", "NODES", "NODELIST(REASON)")
+				cqueue.FlagNoHeader = true
+			}
+			cqueue.FlagFormat = "%.6j %.9P %.10n %.10u %.10t %.10e %.10N %.10r"
 			cqueue.RootCmd.Run(cmd, args)
 		},
 	}
