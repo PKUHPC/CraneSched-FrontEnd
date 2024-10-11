@@ -786,7 +786,7 @@ CforedStateMachineLoop:
 
 				case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
 					ctldReplyChannel <- ctldReply
-					state = WaitCallocComplete
+					state = WaitCtldAck
 				}
 
 			case item := <-requestChannel:
