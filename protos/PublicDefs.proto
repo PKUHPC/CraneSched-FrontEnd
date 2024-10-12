@@ -14,309 +14,309 @@
  * See the Mulan PSL v2 for more details.
  */
 
- syntax = "proto3";
+syntax = "proto3";
 
- package crane.grpc;
- option go_package = "/protos";
- 
- import "google/protobuf/timestamp.proto";
- import "google/protobuf/duration.proto";
- 
- // All the definitions in this proto file can be found in PublicHeader.h
- // They are just protobuf version definitions.
- 
- message CranedId {
-   uint32 partition_id = 1;
-   uint32 craned_index = 2;
- }
- 
- message AllocatableResource {
-   double cpu_core_limit = 1;
-   uint64 memory_limit_bytes = 2;
-   uint64 memory_sw_limit_bytes = 3;
- }
- 
- message TypeCountMap{
-   map <string/*Type*/, uint64> type_count_map = 1;
-   uint64 total = 2;
- }
- 
- message DeviceMap{
-   map<string /*name*/, TypeCountMap> name_type_map = 1;
- }
- 
- message Slots{
-   repeated string slots = 1;
- }
- 
- message DeviceTypeSlotsMap{
-   map<string /*Type*/, Slots /*index of slot*/> type_slots_map = 1;
- }
- 
- message DedicatedResourceInNode{
-   map <string /*device name*/, DeviceTypeSlotsMap> name_type_map = 1;
- }
- 
- message ResourceInNode {
-   AllocatableResource allocatable_res_in_node = 1;
-   DedicatedResourceInNode dedicated_res_in_node = 2;
- }
- 
- message ResourceV2 {
-   map <string /*craned id*/, ResourceInNode> each_node_res = 1;
- }
- 
- message ResourceView {
-   AllocatableResource allocatable_res = 1;
-   DeviceMap device_map = 2;
- }
- 
- enum PartitionState {
-   PARTITION_UP = 0;
-   PARTITION_DOWN = 1;
- }
- 
- enum CranedResourceState {
-   CRANE_IDLE = 0;
-   CRANE_MIX = 1;
-   CRANE_ALLOC = 2;
-   CRANE_DOWN = 3;
- }
- 
- enum CranedControlState {
-   CRANE_NONE = 0;
-   CRANE_DRAIN = 1;
- }
- 
- enum TaskStatus {
-   Pending = 0;
-   Running = 1;
-   Completed = 2;
-   Failed = 3;
-   ExceedTimeLimit = 4;
-   Cancelled = 5;
- 
-   Invalid = 15;
- }
- 
- enum TaskType {
-   Interactive = 0;
-   Batch = 1;
- }
- 
- enum InteractiveTaskType {
-   Calloc = 0;
-   Crun = 1;
- }
- 
- message TaskToCtld {
-   /* -------- Fields that are set at the submission time. ------- */
-   google.protobuf.Duration time_limit = 1;
- 
-   string partition_name = 2;
-   ResourceView resources = 3;
- 
-   TaskType type = 4;
- 
-   uint32 uid = 5;
-   string account = 6;
-   string name = 7;
-   string qos = 8;
-   uint32 node_num = 9;
-   uint32 ntasks_per_node = 10;
-   double cpus_per_task = 11;
- 
-   bool requeue_if_failed = 12;
-   bool get_user_env = 13;
- 
-   oneof payload {
-     BatchTaskAdditionalMeta batch_meta = 21;
-     InteractiveTaskAdditionalMeta interactive_meta = 22;
-   }
- 
-   string extra_attr = 23;
- 
-   string cmd_line = 31;
-   string cwd = 32; // Current working directory
-   map<string, string> env = 33;
- 
-   string excludes = 34;
-   string nodelist = 35;
- }
- 
- message TaskInEmbeddedDb {
-   RuntimeAttrOfTask runtime_attr = 1;
-   TaskToCtld task_to_ctld = 2;
- }
- 
- message RuntimeAttrOfTask {
-   // Fields that won't change after this task is accepted.
-   uint32 task_id = 1;
-   int64 task_db_id = 3;
-   int32 gid = 4;
-   string username = 5;
- 
-   // Fields that will change after this task is accepted.
-   int32 requeue_count = 11;
-   repeated string craned_ids = 12;
-   TaskStatus status = 13;
-   uint32 exit_code = 14;
- 
-   google.protobuf.Timestamp submit_time = 15;
-   google.protobuf.Timestamp start_time = 16;
-   google.protobuf.Timestamp end_time = 17;
- 
-   bool held = 18;
-   ResourceV2 resources = 19;
- }
- 
- message TaskToD {
-   uint32 task_id = 1;
-   TaskType type = 2;
-   uint32 partition_id = 3;
- 
-   ResourceInNode resources = 4;
- 
-   // If this task is PENDING, start_time is either not set (default constructed)
-   // or an estimated start time.
-   // If this task is RUNNING, start_time is the actual starting time.
-   google.protobuf.Timestamp start_time = 5; // Currently Only used in CraneCtld
-   google.protobuf.Duration time_limit = 6;
- 
-   string partition = 8;
-   uint32 uid = 9;
- 
-   oneof payload {
-     BatchTaskAdditionalMeta batch_meta = 10;
-     InteractiveTaskAdditionalMeta interactive_meta = 11;
-   }
- 
-   map<string, string> env = 12;
-   string cwd = 13;
- 
-   repeated string allocated_nodes = 14;
- 
-   string name = 15;
-   string account = 16;
-   string qos = 17;
- 
-   repeated string excludes = 19;
-   repeated string nodelist = 20;
- 
-   uint32 node_num = 21;
-   uint32 ntasks_per_node = 22;
-   double cpus_per_task = 23;
- 
-   bool get_user_env = 24;
- }
- 
- message BatchTaskAdditionalMeta {
-   string sh_script = 1;
-   string output_file_pattern = 3;
-   string error_file_pattern = 4;
- }
- 
- message InteractiveTaskAdditionalMeta{
-   string cfored_name = 1;
-   string sh_script = 2;
-   string term_env = 3;
-   InteractiveTaskType interactive_type = 4;
- }
- 
- message TaskInfo {
-   // Static task information
-   TaskType type = 1;
-   uint32 task_id = 2;
-   string name = 3;
-   string partition = 4;
- 
-   uint32 uid = 5;
-   uint32 gid = 6;
- 
-   google.protobuf.Duration time_limit = 7;
-   google.protobuf.Timestamp start_time = 8;
-   google.protobuf.Timestamp end_time = 9;
-   google.protobuf.Timestamp submit_time = 10;
- 
-   string account = 11;
-   uint32 node_num = 12;
-   string cmd_line = 13;
-   string cwd = 14;
-   string username = 15;
-   string qos = 16;
-   ResourceView res_view = 17;
-   repeated string req_nodes = 19;
-   repeated string exclude_nodes = 20;
- 
-   string extra_attr = 21;
- 
-   // Dynamic task information
-   bool held = 30;
-   TaskStatus status = 31;
- 
-   uint32 exit_code = 33;
-   uint32 priority = 34;
-   oneof pending_reason_or_craned_list {
-     string pending_reason = 35;
-     string craned_list = 36;
-   }
- 
-   // The time of different nodes across the whole cluster might not always be synchronized.
-   // If the time on the front end node is more than several seconds ahead of the CraneCtld node,
-   // a negative elapsed time might occur.
-   // To avoid this, the elapsed time of a task is calculated on the CraneCtld side.
-   google.protobuf.Duration elapsed_time = 37;
-   repeated string execution_node = 38;
- }
- 
- message PartitionInfo {
-   string hostlist = 1;
-   PartitionState state = 2;
-   string name = 3;
- 
-   uint32 total_nodes = 4;
-   uint32 alive_nodes = 5;
- 
-   ResourceView res_total = 6;
-   ResourceView res_avail = 7;
-   ResourceView res_alloc = 8;
- }
- 
- message CranedInfo {
-   string hostname = 1;
-   CranedResourceState resource_state = 2;
-   CranedControlState control_state = 3;
- 
-   ResourceInNode res_total = 4;
-   ResourceInNode res_avail = 5;
-   ResourceInNode res_alloc = 6;
- 
-   repeated string partition_names = 10;
-   uint32 running_task_num = 11;
- 
-   string craned_version = 12;
-   string system_desc = 13;
-   google.protobuf.Timestamp craned_start_time = 14;
-   google.protobuf.Timestamp system_boot_time = 15;
-   google.protobuf.Timestamp last_busy_time = 16;
- }
- 
- message TrimmedPartitionInfo {
-   message TrimmedCranedInfo {
-     CranedResourceState resource_state = 1;
-     CranedControlState control_state = 2;
-     uint32 count = 3;
-     string craned_list_regex = 4;
-   }
- 
-   string name = 1;
-   PartitionState state = 2;
-   repeated TrimmedCranedInfo craned_lists = 3;
- }
+package crane.grpc;
+option go_package = "/protos";
 
- enum ErrCode {
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// All the definitions in this proto file can be found in PublicHeader.h
+// They are just protobuf version definitions.
+
+message CranedId {
+  uint32 partition_id = 1;
+  uint32 craned_index = 2;
+}
+
+message AllocatableResource {
+  double cpu_core_limit = 1;
+  uint64 memory_limit_bytes = 2;
+  uint64 memory_sw_limit_bytes = 3;
+}
+
+message TypeCountMap{
+  map <string/*Type*/, uint64> type_count_map = 1;
+  uint64 total = 2;
+}
+
+message DeviceMap{
+  map<string /*name*/, TypeCountMap> name_type_map = 1;
+}
+
+message Slots{
+  repeated string slots = 1;
+}
+
+message DeviceTypeSlotsMap{
+  map<string /*Type*/, Slots /*index of slot*/> type_slots_map = 1;
+}
+
+message DedicatedResourceInNode{
+  map <string /*device name*/, DeviceTypeSlotsMap> name_type_map = 1;
+}
+
+message ResourceInNode {
+  AllocatableResource allocatable_res_in_node = 1;
+  DedicatedResourceInNode dedicated_res_in_node = 2;
+}
+
+message ResourceV2 {
+  map <string /*craned id*/, ResourceInNode> each_node_res = 1;
+}
+
+message ResourceView {
+  AllocatableResource allocatable_res = 1;
+  DeviceMap device_map = 2;
+}
+
+enum PartitionState {
+  PARTITION_UP = 0;
+  PARTITION_DOWN = 1;
+}
+
+enum CranedResourceState {
+  CRANE_IDLE = 0;
+  CRANE_MIX = 1;
+  CRANE_ALLOC = 2;
+  CRANE_DOWN = 3;
+}
+
+enum CranedControlState {
+  CRANE_NONE = 0;
+  CRANE_DRAIN = 1;
+}
+
+enum TaskStatus {
+  Pending = 0;
+  Running = 1;
+  Completed = 2;
+  Failed = 3;
+  ExceedTimeLimit = 4;
+  Cancelled = 5;
+
+  Invalid = 15;
+}
+
+enum TaskType {
+  Interactive = 0;
+  Batch = 1;
+}
+
+enum InteractiveTaskType {
+  Calloc = 0;
+  Crun = 1;
+}
+
+message TaskToCtld {
+  /* -------- Fields that are set at the submission time. ------- */
+  google.protobuf.Duration time_limit = 1;
+
+  string partition_name = 2;
+  ResourceView resources = 3;
+
+  TaskType type = 4;
+
+  uint32 uid = 5;
+  string account = 6;
+  string name = 7;
+  string qos = 8;
+  uint32 node_num = 9;
+  uint32 ntasks_per_node = 10;
+  double cpus_per_task = 11;
+
+  bool requeue_if_failed = 12;
+  bool get_user_env = 13;
+
+  oneof payload {
+    BatchTaskAdditionalMeta batch_meta = 21;
+    InteractiveTaskAdditionalMeta interactive_meta = 22;
+  }
+
+  string extra_attr = 23;
+
+  string cmd_line = 31;
+  string cwd = 32; // Current working directory
+  map<string, string> env = 33;
+
+  string excludes = 34;
+  string nodelist = 35;
+}
+
+message TaskInEmbeddedDb {
+  RuntimeAttrOfTask runtime_attr = 1;
+  TaskToCtld task_to_ctld = 2;
+}
+
+message RuntimeAttrOfTask {
+  // Fields that won't change after this task is accepted.
+  uint32 task_id = 1;
+  int64 task_db_id = 3;
+  int32 gid = 4;
+  string username = 5;
+
+  // Fields that will change after this task is accepted.
+  int32 requeue_count = 11;
+  repeated string craned_ids = 12;
+  TaskStatus status = 13;
+  uint32 exit_code = 14;
+
+  google.protobuf.Timestamp submit_time = 15;
+  google.protobuf.Timestamp start_time = 16;
+  google.protobuf.Timestamp end_time = 17;
+
+  bool held = 18;
+  ResourceV2 resources = 19;
+}
+
+message TaskToD {
+  uint32 task_id = 1;
+  TaskType type = 2;
+  uint32 partition_id = 3;
+
+  ResourceInNode resources = 4;
+
+  // If this task is PENDING, start_time is either not set (default constructed)
+  // or an estimated start time.
+  // If this task is RUNNING, start_time is the actual starting time.
+  google.protobuf.Timestamp start_time = 5; // Currently Only used in CraneCtld
+  google.protobuf.Duration time_limit = 6;
+
+  string partition = 8;
+  uint32 uid = 9;
+
+  oneof payload {
+    BatchTaskAdditionalMeta batch_meta = 10;
+    InteractiveTaskAdditionalMeta interactive_meta = 11;
+  }
+
+  map<string, string> env = 12;
+  string cwd = 13;
+
+  repeated string allocated_nodes = 14;
+
+  string name = 15;
+  string account = 16;
+  string qos = 17;
+
+  repeated string excludes = 19;
+  repeated string nodelist = 20;
+
+  uint32 node_num = 21;
+  uint32 ntasks_per_node = 22;
+  double cpus_per_task = 23;
+
+  bool get_user_env = 24;
+}
+
+message BatchTaskAdditionalMeta {
+  string sh_script = 1;
+  string output_file_pattern = 3;
+  string error_file_pattern = 4;
+}
+
+message InteractiveTaskAdditionalMeta{
+  string cfored_name = 1;
+  string sh_script = 2;
+  string term_env = 3;
+  InteractiveTaskType interactive_type = 4;
+}
+
+message TaskInfo {
+  // Static task information
+  TaskType type = 1;
+  uint32 task_id = 2;
+  string name = 3;
+  string partition = 4;
+
+  uint32 uid = 5;
+  uint32 gid = 6;
+
+  google.protobuf.Duration time_limit = 7;
+  google.protobuf.Timestamp start_time = 8;
+  google.protobuf.Timestamp end_time = 9;
+  google.protobuf.Timestamp submit_time = 10;
+
+  string account = 11;
+  uint32 node_num = 12;
+  string cmd_line = 13;
+  string cwd = 14;
+  string username = 15;
+  string qos = 16;
+  ResourceView res_view = 17;
+  repeated string req_nodes = 19;
+  repeated string exclude_nodes = 20;
+
+  string extra_attr = 21;
+
+  // Dynamic task information
+  bool held = 30;
+  TaskStatus status = 31;
+
+  uint32 exit_code = 33;
+  uint32 priority = 34;
+  oneof pending_reason_or_craned_list {
+    string pending_reason = 35;
+    string craned_list = 36;
+  }
+
+  // The time of different nodes across the whole cluster might not always be synchronized.
+  // If the time on the front end node is more than several seconds ahead of the CraneCtld node,
+  // a negative elapsed time might occur.
+  // To avoid this, the elapsed time of a task is calculated on the CraneCtld side.
+  google.protobuf.Duration elapsed_time = 37;
+  repeated string execution_node = 38;
+}
+
+message PartitionInfo {
+  string hostlist = 1;
+  PartitionState state = 2;
+  string name = 3;
+
+  uint32 total_nodes = 4;
+  uint32 alive_nodes = 5;
+
+  ResourceView res_total = 6;
+  ResourceView res_avail = 7;
+  ResourceView res_alloc = 8;
+}
+
+message CranedInfo {
+  string hostname = 1;
+  CranedResourceState resource_state = 2;
+  CranedControlState control_state = 3;
+
+  ResourceInNode res_total = 4;
+  ResourceInNode res_avail = 5;
+  ResourceInNode res_alloc = 6;
+
+  repeated string partition_names = 10;
+  uint32 running_task_num = 11;
+
+  string craned_version = 12;
+  string system_desc = 13;
+  google.protobuf.Timestamp craned_start_time = 14;
+  google.protobuf.Timestamp system_boot_time = 15;
+  google.protobuf.Timestamp last_busy_time = 16;
+}
+
+message TrimmedPartitionInfo {
+  message TrimmedCranedInfo {
+    CranedResourceState resource_state = 1;
+    CranedControlState control_state = 2;
+    uint32 count = 3;
+    string craned_list_regex = 4;
+  }
+
+  string name = 1;
+  PartitionState state = 2;
+  repeated TrimmedCranedInfo craned_lists = 3;
+}
+
+enum ErrCode {
   SUCCESS = 0;  // Success
-  
+
   ERR_INVALID_UID = 10001;   // Invalid UID passed
   ERR_INVALID_OP_USER = 10002; // Invalid operation user
   ERR_INVALID_USER = 10003;  // Invalid user
@@ -325,134 +325,155 @@
   ERR_USER_ALLOWED_ACCOUNT = 10006;  // User does not have permission for the account
   ERR_INVALID_ADMIN_LEVEL = 10007;  // Invalid permission level
   ERR_USER_ACCOUNT_MISMATCH = 10008; // User does not belong to the account
-  ERR_NO_ACCOUNT_SPECIFIED = 10009; // No account is specified for user
-  
-  ERR_INVALID_ACCOUNT = 20001;  // Invalid account
-  ERR_DUPLICATE_ACCOUNT = 20002;  // Duplicate account insertion
-  ERR_INVALID_PARENTACCOUNT = 20003;  // Invalid parent account
-  ERR_DELETE_ACCOUNT = 20004;   // Account has child nodes
-  
-  ERR_INVALID_PARTITION = 30001;  // Invalid partition, partition does not exist
-  ERR_ALLOWED_PARTITION = 30002; // Account/user does not include this partition
-  ERR_DUPLICATE_PARTITION = 30003; // Account/user duplicate insertion
-  ERR_PARENT_ALLOWED_PARTITION = 30004; // Parent account does not include this partition
-  ERR_USER_EMPTY_PARTITION = 30005; // Cannot add QoS when user has no partition
-  ERR_CHILD_HAS_PARTITOIN = 30006; // Partition '{}' is used by some descendant node of the account '{}'. Ignoring this constraint with forced operation.
-  
-  ERR_INVALID_QOS = 40001;  // Invalid QoS, QoS does not exist
-  ERR_DB_DUPLICATE_QOS = 40004;  // Duplicate QoS insertion in the database.
-  ERR_DELETE_QOS = 40005;  // QoS reference count is not zero.
-  ERR_CONVERT_TO_INTERGER = 40006;  // String to integer conversion failed
-  ERR_TIME_LIMIT = 40007;  // Invalid time value
-  ERR_ALLOWED_QOS = 40008; // Account/user does not include this QoS.
-  ERR_DUPLICATE_QOS = 40009; // Account/user duplicate insertion.
-  ERR_PARENT_ALLOWED_QOS = 40010; // Parent account does not include this QoS.
-  ERR_SET_ALLOWED_QOS = 40011; // QoS '{}' is the default QoS of partition '{}', but not found in the new QoS list.
-  ERR_ALLOWED_DEFAULT_QOS = 40012; // Default QoS is not in the allowed QoS list
-  ERR_DUPLICATE_DEFAULT_QOS = 40013; // Duplicate default QoS setting
-  ERR_CHILD_HAS_DEFAULT_QOS = 40014; // Someone is using QoS '{}' as default QoS. Ignoring this constraint with forced deletion, the deleted default QoS is randomly replaced with one of the remaining items in the QoS list.
-  ERR_CHILD_HAS_QOS = 40015; // QoS '{}' is used by some descendant node or itself of the account '{}'. Ignoring this constraint with forced operation.
-  ERR_SET_DEFAULT_QOS = 40016; // Qos '{}' not in allowed qos list or is already the default qos
+  ERR_NO_ACCOUNT_SPECIFIED = 10009;
 
-  ERR_UPDATE_DATABASE = 50001;  // Database update failed
- }
- 
- enum EntityType {
-   Account = 0;
-   User = 1;
-   // Qos = 2;
- }
- 
- enum OperatorType {
-   Overwrite = 0;
-   Add = 1;
-   Delete = 2;
- }
- 
- enum ModifyField {
-   // user and account
-   Partition = 0;
-   Qos = 1;
-   DefaultQos = 2;
-   // account and qos
-   Description = 3; 
-   // user
-   AdminLevel = 4; 
-   // qos
-   Priority = 5;
-   MaxJobsPerUser = 6;
-   MaxCpusPerUser = 7;
-   MaxTimeLimitPerTask = 8;
- }
- 
- message AccountInfo {
-   string name = 1;
-   string description = 2;
-   repeated string users = 3;
-   repeated string child_accounts = 4;
-   string parent_account = 5;
-   repeated string allowed_partitions = 6;
-   string default_qos = 7;
-   repeated string allowed_qos_list = 8;
-   repeated string coordinators = 9;
-   bool blocked = 10;
- }
- 
- // Note: UserInfo DIFFERS from the `User` struct in C++ code and database representation
- //       and is ONLY used for communication between CraneCtld and cacctmgr command.
- //       If an user belongs to multiple accounts, There will be multiple `UserInfo`
- //       messages with `account` pointing to each account.
- //       For example, if a user (uid=1) belongs to accounts `1,2,3`,
- //       there will be three `UserInfo` messages: (uid=1, account=1), (uid=1, account=2),
- //       (uid=1, account=3).
- //       The c++ code and database representation use a Map<account name, AttrsInAccount> to contain
- //       in ONE UserInfo message all the information belonging to different accounts.
- message UserInfo {
-   enum AdminLevel{
-     None = 0;
-     Operator = 1;
-     Admin = 2;
-     Root = 3;
-   };
-   message AllowedPartitionQos{
-     string partition_name = 1;
-     repeated string qos_list = 2;
-     string default_qos = 3;
-   }
- 
-   uint32 uid = 1;
-   string name = 2;
-   string account = 3;
-   bool blocked = 4;
-   repeated AllowedPartitionQos allowed_partition_qos_list = 5;
-   repeated string coordinator_accounts = 6;
-   AdminLevel admin_level = 7;
- }
- 
- message QosInfo {
-   string name = 1;
-   string description = 2;
-   uint32 priority = 3;
-   uint32 max_jobs_per_user = 4;
-   uint32 max_cpus_per_user = 5;
-   uint64 max_time_limit_per_task = 6;
- }
- 
- message TimeInterval {
-   google.protobuf.Timestamp lower_bound = 1;
-   google.protobuf.Timestamp upper_bound = 2;
- }
- 
- message SystemRelInfo {
-   string name = 1;
-   string release = 2;
-   string version = 3;
- }
- 
- message CranedRemoteMeta {
-   DedicatedResourceInNode dres_in_node = 1;
-   SystemRelInfo sys_rel_info = 2;
-   string craned_version = 3;
-   google.protobuf.Timestamp craned_start_time = 4;
-   google.protobuf.Timestamp system_boot_time = 5;
- }
+  ERR_INVALID_ACCOUNT = 10010;  // Invalid account
+  ERR_DUPLICATE_ACCOUNT = 10011;  // Duplicate account insertion
+  ERR_INVALID_PARENTACCOUNT = 10012;  // Invalid parent account
+  ERR_DELETE_ACCOUNT = 10013;   // Account has child nodes
+
+  ERR_INVALID_PARTITION = 10014;  // Invalid partition, partition does not exist
+  ERR_ALLOWED_PARTITION = 10015; // Account/user does not include this partition
+  ERR_DUPLICATE_PARTITION = 10016; // Account/user duplicate insertion
+  ERR_PARENT_ALLOWED_PARTITION = 10017; // Parent account does not include this partition
+  ERR_USER_EMPTY_PARTITION = 10018; // Cannot add QoS when user has no partition
+  ERR_CHILD_HAS_PARTITION = 10019; // Partition '{}' is used by some descendant node of the account '{}'. Ignoring this constraint with forced operation.
+
+  ERR_INVALID_QOS = 10020;  // Invalid QoS, QoS does not exist
+  ERR_DB_DUPLICATE_QOS = 10021;  // Duplicate QoS insertion in the database.
+  ERR_DELETE_QOS = 10022;  // QoS reference count is not zero.
+  ERR_CONVERT_TO_INTERGER = 10023;  // String to integer conversion failed
+  ERR_TIME_LIMIT = 10024;  // Invalid time value
+  ERR_ALLOWED_QOS = 10025; // Account/user does not include this QoS.
+  ERR_DUPLICATE_QOS = 10026; // Account/user duplicate insertion.
+  ERR_PARENT_ALLOWED_QOS = 10027; // Parent account does not include this QoS.
+  ERR_SET_ALLOWED_QOS = 10028; // QoS '{}' is the default QoS of partition '{}', but not found in the new QoS list.
+  ERR_ALLOWED_DEFAULT_QOS = 10029; // Default QoS is not in the allowed QoS list
+  ERR_DUPLICATE_DEFAULT_QOS = 10030; // Duplicate default QoS setting
+  ERR_CHILD_HAS_DEFAULT_QOS = 10031; // Someone is using QoS '{}' as default QoS. Ignoring this constraint with forced deletion, the deleted default QoS is randomly replaced with one of the remaining items in the QoS list.
+  ERR_CHILD_HAS_QOS = 10032; // QoS '{}' is used by some descendant node or itself of the account '{}'. Ignoring this constraint with forced operation.
+  ERR_SET_DEFAULT_QOS = 10033; // Qos '{}' not in allowed qos list or is already the default qos
+
+  ERR_UPDATE_DATABASE = 10034;  // Database update failed
+
+  ERR_GENERIC_FAILURE = 10100;
+  ERR_NO_RESOURCE = 10101;
+  ERR_NON_EXISTENT = 10102;
+  ERR_INVALID_NODE_NUM = 10103;
+  ERR_SYSTEM_ERR = 10104;
+  ERR_EXISTING_TASK = 10105;
+  ERR_INVALID_PARAM = 10106;
+  ERR_STOP = 10107;
+  ERR_PERMISSION_DENIED = 10108;
+  ERR_CONNECTION_TIMEOUT = 10109;
+  ERR_CONNECTION_ABORTED = 10110;
+  ERR_RPC_FAILURE = 10111;
+  ERR_TOKEN_REQUEST_FAILURE = 10112;
+  ERR_STREAM_BROKEN = 10113;
+  ERR_INVALID_STUB = 10114;
+  ERR_CGROUP = 10115;
+  ERR_PROTOBUF = 10116;
+  ERR_LIB_EVENT = 10117;
+  ERR_NO_AVAIL_NODE = 10118;
+}
+
+
+enum EntityType {
+  Account = 0;
+  User = 1;
+  // Qos = 2;
+}
+
+enum OperatorType {
+  Overwrite = 0;
+  Add = 1;
+  Delete = 2;
+}
+
+enum ModifyField {
+  // user and account
+  Partition = 0;
+  Qos = 1;
+  DefaultQos = 2;
+  // account and qos
+  Description = 3;
+  // user
+  AdminLevel = 4;
+  // qos
+  Priority = 5;
+  MaxJobsPerUser = 6;
+  MaxCpusPerUser = 7;
+  MaxTimeLimitPerTask = 8;
+}
+
+message AccountInfo {
+  string name = 1;
+  string description = 2;
+  repeated string users = 3;
+  repeated string child_accounts = 4;
+  string parent_account = 5;
+  repeated string allowed_partitions = 6;
+  string default_qos = 7;
+  repeated string allowed_qos_list = 8;
+  repeated string coordinators = 9;
+  bool blocked = 10;
+}
+
+// Note: UserInfo DIFFERS from the `User` struct in C++ code and database representation
+//       and is ONLY used for communication between CraneCtld and cacctmgr command.
+//       If an user belongs to multiple accounts, There will be multiple `UserInfo`
+//       messages with `account` pointing to each account.
+//       For example, if a user (uid=1) belongs to accounts `1,2,3`,
+//       there will be three `UserInfo` messages: (uid=1, account=1), (uid=1, account=2),
+//       (uid=1, account=3).
+//       The c++ code and database representation use a Map<account name, AttrsInAccount> to contain
+//       in ONE UserInfo message all the information belonging to different accounts.
+message UserInfo {
+  enum AdminLevel{
+    None = 0;
+    Operator = 1;
+    Admin = 2;
+    Root = 3;
+  };
+  message AllowedPartitionQos{
+    string partition_name = 1;
+    repeated string qos_list = 2;
+    string default_qos = 3;
+  }
+
+  uint32 uid = 1;
+  string name = 2;
+  string account = 3;
+  bool blocked = 4;
+  repeated AllowedPartitionQos allowed_partition_qos_list = 5;
+  repeated string coordinator_accounts = 6;
+  AdminLevel admin_level = 7;
+}
+
+message QosInfo {
+  string name = 1;
+  string description = 2;
+  uint32 priority = 3;
+  uint32 max_jobs_per_user = 4;
+  uint32 max_cpus_per_user = 5;
+  uint64 max_time_limit_per_task = 6;
+}
+
+message TimeInterval {
+  google.protobuf.Timestamp lower_bound = 1;
+  google.protobuf.Timestamp upper_bound = 2;
+}
+
+message SystemRelInfo {
+  string name = 1;
+  string release = 2;
+  string version = 3;
+}
+
+message CranedRemoteMeta {
+  DedicatedResourceInNode dres_in_node = 1;
+  SystemRelInfo sys_rel_info = 2;
+  string craned_version = 3;
+  google.protobuf.Timestamp craned_start_time = 4;
+  google.protobuf.Timestamp system_boot_time = 5;
+}
