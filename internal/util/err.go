@@ -81,7 +81,7 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "The partition already exists in the account or user"
 	case protos.ErrCode_ERR_USER_EMPTY_PARTITION:
 		return "The user does not contain any partitions, operation cannot be performed."
-	case protos.ErrCode_ERR_CHILD_HAS_PARTITOIN:
+	case protos.ErrCode_ERR_CHILD_HAS_PARTITION:
 		return "The partition is currently being used by the child accounts or users of the account, operation cannot be performed. You can use a forced operation to ignore this constraint"
 	}
 
