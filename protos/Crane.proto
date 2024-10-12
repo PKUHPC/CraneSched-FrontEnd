@@ -16,820 +16,820 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
- syntax = "proto3";
+syntax = "proto3";
 
- package crane.grpc;
- option go_package = "/protos";
- 
- import "PublicDefs.proto";
- 
- message TaskStatusChangeRequest {
-   uint32 task_id = 1;
-   string craned_id = 2;
-   TaskStatus new_status = 3;
-   uint32 exit_code = 4;
-   string reason = 5;
- }
- 
- message TaskStatusChangeReply {
-   bool ok = 1;
- }
- 
- message CranedRegisterRequest {
-   string craned_id = 1;
- }
- 
- message CranedRegisterReply {
-   bool ok = 1;
-   bool already_registered = 2;
- }
- 
- message QueryCranedListFromTaskIdRequest {
-   uint32 task_id = 1;
- }
- 
- message QueryCranedListFromTaskIdReply {
-   bool ok = 1;
-   string craned_list = 2;
- }
- 
- message SubmitBatchTaskRequest {
-   TaskToCtld task = 1;
- }
- 
- message SubmitBatchTaskReply {
-   bool ok = 1;
-   oneof payload{
-     uint32 task_id = 2;
-     string reason = 3;
-   }
- }
- 
- message SubmitBatchTasksRequest {
-   TaskToCtld task = 1;
-   uint32 count = 2;
- }
- 
- message SubmitBatchTasksReply {
-   repeated uint32 task_id_list = 1;
-   repeated string reason_list = 2;
- }
- 
- message ExecuteTasksRequest {
-   repeated TaskToD tasks = 1;
- }
- 
- message ExecuteTasksReply {
-   repeated uint32 failed_task_id_list = 1;
- }
- 
- message CreateCgroupForTasksRequest {
-   repeated uint32 task_id_list = 1;
-   repeated uint32 uid_list = 2;
-   repeated ResourceInNode res_list = 3;
-   repeated string execution_node = 4;
- }
- 
- message CreateCgroupForTasksReply{}
- 
- message ReleaseCgroupForTasksRequest{
-   repeated uint32 task_id_list = 1;
-   repeated uint32 uid_list = 2;
- }
- 
- message ReleaseCgroupForTasksReply{}
- 
- message TerminateTasksRequest {
-   repeated uint32 task_id_list = 1;
- }
- 
- message TerminateTasksReply {
-   bool ok = 1;
-   string reason = 2;
- }
- 
- message TerminateOrphanedTaskRequest {
-   uint32 task_id = 1;
- }
- 
- message TerminateOrphanedTaskReply {
-   bool ok = 1;
-   string reason = 2;
- }
- 
- message ChangeTaskTimeLimitRequest {
-   uint32 task_id = 1;
-   int64 time_limit_seconds = 2;
- }
- 
- message ChangeTaskTimeLimitReply {
-   bool ok = 1;
- }
- 
- message CheckTaskStatusRequest {
-   uint32 task_id = 1;
- }
- 
- message CheckTaskStatusReply {
-   bool ok = 1;
-   TaskStatus status = 2;
- }
- 
- message CancelTaskRequest {
-   uint32 operator_uid = 1;
- 
-   // Filters
-   repeated uint32 filter_task_ids = 2;
-   string filter_partition = 3;
-   string filter_account = 4;
-   TaskStatus filter_state = 5;
-   string filter_task_name = 6;
-   repeated string filter_nodes = 7;
-   string filter_username = 8;
- }
- 
- message CancelTaskReply {
-   repeated uint32 cancelled_tasks = 2;
-   repeated uint32 not_cancelled_tasks = 3;
-   repeated string not_cancelled_reasons = 4;
- }
- 
- 
- message QueryTaskIdFromPortRequest{
-   uint32 port = 1;
- }
- 
- message QueryTaskIdFromPortReply{
-   bool ok = 1;
-   uint32 task_id = 2;
- }
- 
- message QueryTaskIdFromPortForwardRequest{
-   uint32 ssh_remote_port = 1;
-   string ssh_remote_address = 2;
-   uint32 uid = 3;
- }
- 
- message QueryTaskIdFromPortForwardReply{
-   bool ok = 1;
-   bool from_user = 2;
-   uint32 task_id = 3;
-   string cgroup_path = 4;
- }
- 
- 
- message QueryCranedInfoRequest {
-   string craned_name = 1;
- }
- 
- message QueryCranedInfoReply {
-   repeated CranedInfo craned_info_list = 1;
- }
- 
- message QueryPartitionInfoRequest {
-   string partition_name = 1;
- }
- 
- message QueryPartitionInfoReply {
-   repeated PartitionInfo partition_info = 1;
- }
- 
- message ModifyTaskRequest {
-   enum TargetAttributes {
-     TimeLimit = 0;
-     Priority = 1;
-     Hold = 2;
-   }
- 
-   uint32 uid = 1;
-   repeated uint32 task_ids = 2;
- 
-   TargetAttributes attribute = 3;
- 
-   oneof value {
-     int64 time_limit_seconds = 4;
-     double mandated_priority = 5;
- 
-     // If hold_seconds == 0, release the hold constraint timer if any exists;
-     // If hold_seconds > 0, add or overwrite a hold constraint timer;
-     // If hold_seconds == MaxInt64, add a hold constraint without timer.
-     int64 hold_seconds = 7;
-   }
- }
- 
- message ModifyTaskReply {
-   repeated uint32 modified_tasks = 2;
-   repeated uint32 not_modified_tasks = 3;
-   repeated string not_modified_reasons = 4;
- }
- 
- message ModifyCranedStateRequest{
-   repeated string craned_ids = 1;
-   CranedControlState new_state = 2;
-   string reason = 3;
- }
- 
- message ModifyCranedStateReply{
-   repeated string modified_nodes = 2;
-   repeated string not_modified_nodes = 3;
-   repeated string not_modified_reasons = 4;
- }
- 
- message AddAccountRequest {
-   uint32 uid = 1;
-   AccountInfo account = 2;
- }
- 
- message AddAccountReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message AddUserRequest {
-   uint32 uid = 1;
-   UserInfo user = 2;
- }
- 
- message AddUserReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message AddQosRequest {
-   uint32 uid = 1;
-   QosInfo qos = 2;
- }
- 
- message AddQosReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message DeleteAccountRequest {
-   uint32 uid = 1;
-   string name = 2;
- }
- 
- message DeleteAccountReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message DeleteUserRequest {
-   uint32 uid = 1;
-   string name = 2;
-   string account = 3;
- }
- 
- message DeleteUserReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message DeleteQosRequest {
-   uint32 uid = 1;
-   string name = 2;
- }
- 
- message DeleteQosReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message ModifyAccountRequest {
-   uint32 uid = 1;
-   ModifyField modify_field = 2;   //modify item field
-   string value = 3;   //new value
-   string name = 4;
-   OperatorType type = 5;
-   bool force = 6;
- }
- 
- message ModifyAccountReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message ModifyUserRequest {
-   uint32 uid = 1;
-   ModifyField modify_field = 2;   //modify item field
-   string value = 3;   //new value
-   string name = 4;
-   string partition = 5;
-   OperatorType type = 6;
-   string account = 8;
-   bool force = 9;
- }
- 
- message ModifyUserReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message ModifyQosRequest {
-   uint32 uid = 1;
-   ModifyField modify_field = 2;   //modify item field
-   string value = 3;   //new value
-   string name = 4;
- }
- 
- message ModifyQosReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message QueryAccountInfoRequest {
-   uint32 uid = 1;
-   string name = 2;
- }
- 
- message QueryAccountInfoReply {
-   bool ok = 1;
-   ErrCode reason = 2;
-   repeated AccountInfo account_list = 3;
- }
- 
- message QueryUserInfoRequest {
-   uint32 uid = 1;
-   string name = 2;
-   string account = 3;
- }
- 
- message QueryUserInfoReply {
-   bool ok = 1;
-   ErrCode reason = 2;
-   repeated UserInfo user_list = 3; 
- }
- 
- message QueryQosInfoRequest {
-   uint32 uid = 1;
-   string name = 2;
- }
- 
- message QueryQosInfoReply {
-   bool ok = 1;
-   ErrCode reason = 2;
-   repeated QosInfo qos_list = 5;
- }
- 
- message BlockAccountOrUserRequest {
-   uint32 uid = 1;
-   bool block = 2;
-   EntityType entity_type = 3;
-   string name = 4;
-   string account = 5;
- }
- 
- message BlockAccountOrUserReply {
-   bool ok = 1;
-   ErrCode reason = 2;
- }
- 
- message MigrateSshProcToCgroupRequest {
-   int32 pid = 1;
-   uint32 task_id = 2;
- }
- 
- message MigrateSshProcToCgroupReply {
-   bool ok = 1;
- }
- 
- message QueryTaskEnvVariablesRequest{
-   uint32 task_id = 1;
- }
- 
- message QueryTaskEnvVariablesReply{
-   bool ok = 1;
-   repeated string name = 2;
-   repeated string value = 3;
- }
- 
- message QueryTaskEnvVariablesForwardRequest{
-   uint32 task_id = 1;
-   string execution_node = 2;
- }
- 
- message QueryTaskEnvVariablesForwardReply{
-   bool ok = 1;
-   repeated string name = 2;
-   repeated string value = 3;
- }
- 
- message QueryClusterInfoRequest {
-   repeated string filter_partitions = 1;
-   repeated string filter_nodes = 2;
-   repeated CranedResourceState filter_craned_resource_states = 3;
-   repeated CranedControlState filter_craned_control_states = 4;
- }
- 
- message QueryClusterInfoReply {
-   bool ok = 1;
-   repeated TrimmedPartitionInfo partitions = 2;
- }
- 
- message QueryTasksInfoRequest{
-   repeated uint32 filter_task_ids = 1;
-   repeated string filter_partitions = 2;
-   uint32 num_limit = 3;
-   repeated string filter_task_names = 4;
-   repeated string filter_qos = 5;
- 
-   repeated TaskStatus filter_task_states = 6;
-   repeated string filter_users = 7;
-   repeated string filter_accounts = 8;
-   TimeInterval filter_submit_time_interval = 9;
-   TimeInterval filter_start_time_interval = 10;
-   TimeInterval filter_end_time_interval = 11;
- 
-   bool option_include_completed_tasks = 15;
- }
- 
- message QueryTasksInfoReply{
-   bool ok = 1;
-   repeated TaskInfo task_info_list = 2;
- }
- 
- message StreamCallocRequest {
-   enum CallocRequestType {
-     TASK_REQUEST = 0;
-     TASK_COMPLETION_REQUEST = 1;
-   }
- 
-   message TaskReq {
-     int32 calloc_pid = 1;
-     TaskToCtld task = 2;
-   }
- 
-   message TaskCompleteReq {
-     uint32 task_id = 1;
-     TaskStatus status = 2;
-   }
- 
-   CallocRequestType type = 1;
- 
-   oneof payload {
-     TaskReq payload_task_req = 2;
-     TaskCompleteReq payload_task_complete_req = 3;
-   }
- }
- 
- message StreamCforedReply {
-   enum CforedReplyType {
-     TASK_ID_REPLY = 0;
-     TASK_RES_ALLOC_REPLY = 1;
-     TASK_CANCEL_REQUEST = 2;
-     TASK_COMPLETION_ACK_REPLY = 3;
-   }
- 
-   message TaskIdReply {
-     bool ok = 1;
-     uint32 task_id = 2;
-     string failure_reason = 3;
-   }
- 
-   message TaskResAllocatedReply {
-     bool ok = 1;
-     string allocated_craned_regex = 2;
-   }
- 
-   message TaskCancelRequest {
-     uint32 task_id = 1;
-   }
- 
-   message TaskCompletionAckReply {
-     bool ok = 1;
-   }
- 
-   CforedReplyType type = 1 ;
- 
-   oneof payload {
-     TaskIdReply payload_task_id_reply = 2;
-     TaskResAllocatedReply payload_task_alloc_reply = 3;
-     TaskCancelRequest payload_task_cancel_request = 4;
-     TaskCompletionAckReply payload_task_completion_ack_reply = 5;
-   }
- }
- 
- message StreamCforedRequest {
-   enum CforedRequestType {
-     CFORED_REGISTRATION = 0;
-     TASK_REQUEST = 1;
-     TASK_COMPLETION_REQUEST = 2;
-     CFORED_GRACEFUL_EXIT = 3;
-   }
-   CforedRequestType type = 1;
- 
-   message CforedReg {
-     string cfored_name = 1;
-   }
- 
-   message TaskReq {
-     string cfored_name = 1;
-     int32 pid = 2;
-     TaskToCtld task = 3;
-   }
- 
-   message TaskCompleteReq {
-     string cfored_name = 1;
-     uint32 task_id = 2;
-     TaskStatus status = 3;
-     InteractiveTaskType interactive_type = 4;
-   }
- 
-   message GracefulExitReq {
-     string cfored_name = 1;
-   }
- 
-   oneof payload {
-     CforedReg payload_cfored_reg = 2;
-     TaskReq payload_task_req = 3;
-     TaskCompleteReq payload_task_complete_req = 4;
-     GracefulExitReq payload_graceful_exit_req = 5;
-   }
- }
- 
- message StreamCtldReply {
-   enum CtldReplyType {
-     TASK_ID_REPLY = 0;
-     TASK_RES_ALLOC_REPLY = 1;
-     TASK_CANCEL_REQUEST = 2;
-     TASK_COMPLETION_ACK_REPLY = 3;
-     CFORED_REGISTRATION_ACK = 4;
-     CFORED_GRACEFUL_EXIT_ACK = 5;
-   }
- 
-   message TaskIdReply {
-     int32 pid = 1;
-     bool ok = 2;
-     uint32 task_id = 3;
-     string failure_reason = 4;
-   }
- 
-   message TaskResAllocatedReply {
-     uint32 task_id = 1;
-     bool ok = 2;
-     string allocated_craned_regex = 3;
-     string failure_reason = 4;
-     repeated string craned_ids = 5;
-   }
- 
-   message TaskCancelRequest {
-     uint32 task_id = 1;
-   }
- 
-   message TaskCompletionAckReply {
-     uint32 task_id = 1;
-   }
- 
-   message CforedRegistrationAck {
-     bool ok = 1;
-     string failure_reason = 2;
-   }
- 
-   message CforedGracefulExitAck {
-     bool ok = 1;
-   }
- 
-   CtldReplyType type = 1;
- 
-   oneof payload {
-     CforedRegistrationAck payload_cfored_reg_ack = 2;
-     TaskResAllocatedReply payload_task_res_alloc_reply = 3;
-     TaskCancelRequest payload_task_cancel_request = 4;
-     TaskCompletionAckReply payload_task_completion_ack = 5;
-     TaskIdReply payload_task_id_reply = 6;
-     CforedGracefulExitAck payload_graceful_exit_ack = 7;
-   }
- }
- 
- message QueryCranedRemoteMetaRequest {}
- 
- message QueryCranedRemoteMetaReply {
-   bool ok = 1;
-   CranedRemoteMeta craned_remote_meta = 2;
- }
- 
- message StreamCrunRequest {
-   enum CrunRequestType {
-     TASK_REQUEST = 0;
-     TASK_COMPLETION_REQUEST = 1;
-     TASK_IO_FORWARD = 2;
-   }
- 
-   message TaskReq {
-     int32 crun_pid = 1;
-     TaskToCtld task = 2;
-   }
- 
-   message TaskCompleteReq {
-     uint32 task_id = 1;
-     TaskStatus status = 2;
-   }
- 
-   message TaskIOForwardReq {
-     uint32 task_id = 1;
-     string msg = 2;
-   }
- 
-   CrunRequestType type = 1;
- 
-   oneof payload {
-     TaskReq payload_task_req = 2;
-     TaskCompleteReq payload_task_complete_req = 3;
-     TaskIOForwardReq payload_task_io_forward_req = 4;
-   }
- }
- 
- message StreamCforedCrunReply {
-   enum CforedCrunReplyType {
-     TASK_ID_REPLY = 0;
-     TASK_RES_ALLOC_REPLY = 1;
-     TASK_CANCEL_REQUEST = 2;
-     TASK_COMPLETION_ACK_REPLY = 3;
-     TASK_IO_FORWARD = 4;
-     TASK_IO_FORWARD_READY = 5;
-   }
- 
-   message TaskIdReply {
-     bool ok = 1;
-     uint32 task_id = 2;
-     string failure_reason = 3;
-   }
- 
-   message TaskResAllocatedReply {
-     bool ok = 1;
-     string allocated_craned_regex = 2;
-   }
- 
-   message TaskCancelRequest {
-     uint32 task_id = 1;
-   }
- 
-   message TaskCompletionAckReply {
-     bool ok = 1;
-   }
- 
-   message TaskIOForwardReadyReply {
-     bool ok = 1;
-   }
- 
-   message TaskIOForwardReply{
-     string msg = 1;
-   }
- 
-   CforedCrunReplyType type = 1 ;
- 
-   oneof payload {
-     TaskIdReply payload_task_id_reply = 2;
-     TaskResAllocatedReply payload_task_alloc_reply = 3;
-     TaskCancelRequest payload_task_cancel_request = 4;
-     TaskCompletionAckReply payload_task_completion_ack_reply = 5;
-     TaskIOForwardReadyReply payload_task_io_forward_ready_reply = 6;
-     TaskIOForwardReply payload_task_io_forward_reply = 7;
-   }
- }
- 
- message StreamCforedTaskIORequest {
-   enum CranedRequestType{
-     CRANED_REGISTER = 0;
-     CRANED_TASK_OUTPUT = 1;
-     CRANED_UNREGISTER = 2;
-   }
- 
-   message CranedRegisterReq {
-     string craned_id = 1;
-   }
- 
-   message CranedTaskOutputReq {
-     uint32 task_id = 1;
-     string msg = 2;
-   }
- 
-   message CranedUnRegisterReq {
-     string craned_id = 1;
-   }
- 
-   CranedRequestType type = 1;
-   oneof payload {
-     CranedRegisterReq payload_register_req = 2;
-     CranedTaskOutputReq payload_task_output_req = 3;
-     CranedUnRegisterReq payload_unregister_req = 4;
-   }
- }
- 
- message StreamCforedTaskIOReply {
-   enum CranedReplyType {
-     CRANED_REGISTER_REPLY = 0;
-     CRANED_TASK_INPUT = 1;
-     CRANED_UNREGISTER_REPLY = 2;
-   }
- 
-   message CranedRegisterReply {
-     bool ok = 1;
-   }
- 
-   message CranedTaskInputReq {
-     uint32 task_id = 1;
-     string msg = 2;
-   }
- 
-   message CranedUnregisterReply {
-     bool ok = 1;
-   }
- 
-   CranedReplyType type = 1;
- 
-   oneof payload {
-     CranedRegisterReply payload_craned_register_reply = 2;
-     CranedTaskInputReq payload_task_input_req = 3;
-     CranedUnregisterReply payload_craned_unregister_reply = 4;
-   }
- }
- 
- // Todo: Divide service into two parts: one for Craned and one for Crun
- //  We need to distinguish the message sender
- //  and have some kind of authentication
- service CraneCtld {
-   /* RPCs called from Craned */
-   rpc TaskStatusChange(TaskStatusChangeRequest) returns (TaskStatusChangeReply);
-   rpc CranedRegister(CranedRegisterRequest) returns (CranedRegisterReply);
- 
-   /* RPCs called from Cfored */
-   rpc CforedStream(stream StreamCforedRequest) returns(stream StreamCtldReply);
- 
-   /* RPCs called from ccancel */
-   rpc CancelTask(CancelTaskRequest) returns (CancelTaskReply);
- 
-   /* RPCs called from cbatch */
-   rpc SubmitBatchTask(SubmitBatchTaskRequest) returns (SubmitBatchTaskReply);
-   rpc SubmitBatchTasks(SubmitBatchTasksRequest) returns (SubmitBatchTasksReply);
- 
-   /* PRCs called from ccontrol */
-   rpc QueryCranedInfo(QueryCranedInfoRequest) returns (QueryCranedInfoReply);
-   rpc QueryPartitionInfo(QueryPartitionInfoRequest) returns (QueryPartitionInfoReply);
-   rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
-   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
- 
-   /* RPCs called from cacctmgr */
-   rpc AddAccount(AddAccountRequest) returns (AddAccountReply);
-   rpc AddUser(AddUserRequest) returns (AddUserReply);
-   rpc AddQos(AddQosRequest) returns (AddQosReply);
- 
-   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountReply);
-   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserReply);
-   rpc DeleteQos(DeleteQosRequest) returns (DeleteQosReply);
- 
-   rpc QueryAccountInfo(QueryAccountInfoRequest) returns (QueryAccountInfoReply);
-   rpc QueryUserInfo(QueryUserInfoRequest) returns (QueryUserInfoReply);
-   rpc QueryQosInfo(QueryQosInfoRequest) returns (QueryQosInfoReply);
- 
-   rpc ModifyAccount(ModifyAccountRequest) returns (ModifyAccountReply);
-   rpc ModifyUser(ModifyUserRequest) returns (ModifyUserReply);
-   rpc ModifyQos(ModifyQosRequest) returns (ModifyQosReply);
-   
-   rpc BlockAccountOrUser(BlockAccountOrUserRequest) returns (BlockAccountOrUserReply);
- 
-   /* RPCs called from cinfo */
-   rpc QueryClusterInfo(QueryClusterInfoRequest) returns (QueryClusterInfoReply);
- 
-   /* common RPCs */
-   rpc QueryTasksInfo(QueryTasksInfoRequest) returns (QueryTasksInfoReply);
- }
- 
- service Craned {
-   /* ----------------------------------- Called from CraneCtld ---------------------------------------------------- */
-   rpc ExecuteTask(ExecuteTasksRequest) returns(ExecuteTasksReply);
- 
-   rpc CheckTaskStatus(CheckTaskStatusRequest) returns(CheckTaskStatusReply);
- 
-   rpc CreateCgroupForTasks(CreateCgroupForTasksRequest) returns(CreateCgroupForTasksReply);
-   rpc ReleaseCgroupForTasks(ReleaseCgroupForTasksRequest) returns(ReleaseCgroupForTasksReply);
- 
-   rpc QueryCranedRemoteMeta(QueryCranedRemoteMetaRequest) returns(QueryCranedRemoteMetaReply);
- 
-   /*
-   If the task is an interactive task, the resource uuid is also revoked.
-    If there's no process in this interactive task, just deallocate all the resources.
-    If there are processes in this interactive task, kill all the processes and deallocate resources.
-   If the task is a batch task, just kill it.
-   */
-   rpc TerminateTasks(TerminateTasksRequest) returns (TerminateTasksReply);
-   rpc TerminateOrphanedTask(TerminateOrphanedTaskRequest) returns (TerminateOrphanedTaskReply);
-   rpc ChangeTaskTimeLimit(ChangeTaskTimeLimitRequest) returns (ChangeTaskTimeLimitReply);
- 
-   /* ----------------------------------- Called from Craned  ------------------------------------------------------ */
-   rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
- 
-   /* ----------------------------------- Called from Pam Module  --------------------------------------------------- */
-   rpc QueryTaskIdFromPortForward(QueryTaskIdFromPortForwardRequest) returns (QueryTaskIdFromPortForwardReply);
-   rpc MigrateSshProcToCgroup(MigrateSshProcToCgroupRequest) returns (MigrateSshProcToCgroupReply);
-   rpc QueryTaskEnvVariables(QueryTaskEnvVariablesRequest) returns (QueryTaskEnvVariablesReply);
-   rpc QueryTaskEnvVariablesForward(QueryTaskEnvVariablesForwardRequest) returns (QueryTaskEnvVariablesForwardReply);
- }
- 
- service CraneForeD {
-   rpc CallocStream(stream StreamCallocRequest) returns(stream StreamCforedReply);
-   rpc CrunStream(stream StreamCrunRequest) returns(stream StreamCforedCrunReply);
-   rpc TaskIOStream(stream StreamCforedTaskIORequest) returns(stream StreamCforedTaskIOReply);
-   rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
- }
+package crane.grpc;
+option go_package = "/protos";
+
+import "PublicDefs.proto";
+
+message TaskStatusChangeRequest {
+  uint32 task_id = 1;
+  string craned_id = 2;
+  TaskStatus new_status = 3;
+  uint32 exit_code = 4;
+  string reason = 5;
+}
+
+message TaskStatusChangeReply {
+  bool ok = 1;
+}
+
+message CranedRegisterRequest {
+  string craned_id = 1;
+}
+
+message CranedRegisterReply {
+  bool ok = 1;
+  bool already_registered = 2;
+}
+
+message QueryCranedListFromTaskIdRequest {
+  uint32 task_id = 1;
+}
+
+message QueryCranedListFromTaskIdReply {
+  bool ok = 1;
+  string craned_list = 2;
+}
+
+message SubmitBatchTaskRequest {
+  TaskToCtld task = 1;
+}
+
+message SubmitBatchTaskReply {
+  bool ok = 1;
+  oneof payload{
+    uint32 task_id = 2;
+    string reason = 3;
+  }
+}
+
+message SubmitBatchTasksRequest {
+  TaskToCtld task = 1;
+  uint32 count = 2;
+}
+
+message SubmitBatchTasksReply {
+  repeated uint32 task_id_list = 1;
+  repeated string reason_list = 2;
+}
+
+message ExecuteTasksRequest {
+  repeated TaskToD tasks = 1;
+}
+
+message ExecuteTasksReply {
+  repeated uint32 failed_task_id_list = 1;
+}
+
+message CreateCgroupForTasksRequest {
+  repeated uint32 task_id_list = 1;
+  repeated uint32 uid_list = 2;
+  repeated ResourceInNode res_list = 3;
+  repeated string execution_node = 4;
+}
+
+message CreateCgroupForTasksReply{}
+
+message ReleaseCgroupForTasksRequest{
+  repeated uint32 task_id_list = 1;
+  repeated uint32 uid_list = 2;
+}
+
+message ReleaseCgroupForTasksReply{}
+
+message TerminateTasksRequest {
+  repeated uint32 task_id_list = 1;
+}
+
+message TerminateTasksReply {
+  bool ok = 1;
+  string reason = 2;
+}
+
+message TerminateOrphanedTaskRequest {
+  uint32 task_id = 1;
+}
+
+message TerminateOrphanedTaskReply {
+  bool ok = 1;
+  string reason = 2;
+}
+
+message ChangeTaskTimeLimitRequest {
+  uint32 task_id = 1;
+  int64 time_limit_seconds = 2;
+}
+
+message ChangeTaskTimeLimitReply {
+  bool ok = 1;
+}
+
+message CheckTaskStatusRequest {
+  uint32 task_id = 1;
+}
+
+message CheckTaskStatusReply {
+  bool ok = 1;
+  TaskStatus status = 2;
+}
+
+message CancelTaskRequest {
+  uint32 operator_uid = 1;
+
+  // Filters
+  repeated uint32 filter_task_ids = 2;
+  string filter_partition = 3;
+  string filter_account = 4;
+  TaskStatus filter_state = 5;
+  string filter_task_name = 6;
+  repeated string filter_nodes = 7;
+  string filter_username = 8;
+}
+
+message CancelTaskReply {
+  repeated uint32 cancelled_tasks = 2;
+  repeated uint32 not_cancelled_tasks = 3;
+  repeated string not_cancelled_reasons = 4;
+}
+
+
+message QueryTaskIdFromPortRequest{
+  uint32 port = 1;
+}
+
+message QueryTaskIdFromPortReply{
+  bool ok = 1;
+  uint32 task_id = 2;
+}
+
+message QueryTaskIdFromPortForwardRequest{
+  uint32 ssh_remote_port = 1;
+  string ssh_remote_address = 2;
+  uint32 uid = 3;
+}
+
+message QueryTaskIdFromPortForwardReply{
+  bool ok = 1;
+  bool from_user = 2;
+  uint32 task_id = 3;
+  string cgroup_path = 4;
+}
+
+
+message QueryCranedInfoRequest {
+  string craned_name = 1;
+}
+
+message QueryCranedInfoReply {
+  repeated CranedInfo craned_info_list = 1;
+}
+
+message QueryPartitionInfoRequest {
+  string partition_name = 1;
+}
+
+message QueryPartitionInfoReply {
+  repeated PartitionInfo partition_info = 1;
+}
+
+message ModifyTaskRequest {
+  enum TargetAttributes {
+    TimeLimit = 0;
+    Priority = 1;
+    Hold = 2;
+  }
+
+  uint32 uid = 1;
+  repeated uint32 task_ids = 2;
+
+  TargetAttributes attribute = 3;
+
+  oneof value {
+    int64 time_limit_seconds = 4;
+    double mandated_priority = 5;
+
+    // If hold_seconds == 0, release the hold constraint timer if any exists;
+    // If hold_seconds > 0, add or overwrite a hold constraint timer;
+    // If hold_seconds == MaxInt64, add a hold constraint without timer.
+    int64 hold_seconds = 7;
+  }
+}
+
+message ModifyTaskReply {
+  repeated uint32 modified_tasks = 2;
+  repeated uint32 not_modified_tasks = 3;
+  repeated string not_modified_reasons = 4;
+}
+
+message ModifyCranedStateRequest{
+  repeated string craned_ids = 1;
+  CranedControlState new_state = 2;
+  string reason = 3;
+}
+
+message ModifyCranedStateReply{
+  repeated string modified_nodes = 2;
+  repeated string not_modified_nodes = 3;
+  repeated string not_modified_reasons = 4;
+}
+
+message AddAccountRequest {
+  uint32 uid = 1;
+  AccountInfo account = 2;
+}
+
+message AddAccountReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message AddUserRequest {
+  uint32 uid = 1;
+  UserInfo user = 2;
+}
+
+message AddUserReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message AddQosRequest {
+  uint32 uid = 1;
+  QosInfo qos = 2;
+}
+
+message AddQosReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message DeleteAccountRequest {
+  uint32 uid = 1;
+  string name = 2;
+}
+
+message DeleteAccountReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message DeleteUserRequest {
+  uint32 uid = 1;
+  string name = 2;
+  string account = 3;
+}
+
+message DeleteUserReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message DeleteQosRequest {
+  uint32 uid = 1;
+  string name = 2;
+}
+
+message DeleteQosReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message ModifyAccountRequest {
+  uint32 uid = 1;
+  ModifyField modify_field = 2;   //modify item field
+  string value = 3;   //new value
+  string name = 4;
+  OperatorType type = 5;
+  bool force = 6;
+}
+
+message ModifyAccountReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message ModifyUserRequest {
+  uint32 uid = 1;
+  ModifyField modify_field = 2;   //modify item field
+  string value = 3;   //new value
+  string name = 4;
+  string partition = 5;
+  OperatorType type = 6;
+  string account = 8;
+  bool force = 9;
+}
+
+message ModifyUserReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message ModifyQosRequest {
+  uint32 uid = 1;
+  ModifyField modify_field = 2;   //modify item field
+  string value = 3;   //new value
+  string name = 4;
+}
+
+message ModifyQosReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message QueryAccountInfoRequest {
+  uint32 uid = 1;
+  string name = 2;
+}
+
+message QueryAccountInfoReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+  repeated AccountInfo account_list = 3;
+}
+
+message QueryUserInfoRequest {
+  uint32 uid = 1;
+  string name = 2;
+  string account = 3;
+}
+
+message QueryUserInfoReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+  repeated UserInfo user_list = 3;
+}
+
+message QueryQosInfoRequest {
+  uint32 uid = 1;
+  string name = 2;
+}
+
+message QueryQosInfoReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+  repeated QosInfo qos_list = 5;
+}
+
+message BlockAccountOrUserRequest {
+  uint32 uid = 1;
+  bool block = 2;
+  EntityType entity_type = 3;
+  string name = 4;
+  string account = 5;
+}
+
+message BlockAccountOrUserReply {
+  bool ok = 1;
+  ErrCode reason = 2;
+}
+
+message MigrateSshProcToCgroupRequest {
+  int32 pid = 1;
+  uint32 task_id = 2;
+}
+
+message MigrateSshProcToCgroupReply {
+  bool ok = 1;
+}
+
+message QueryTaskEnvVariablesRequest{
+  uint32 task_id = 1;
+}
+
+message QueryTaskEnvVariablesReply{
+  bool ok = 1;
+  repeated string name = 2;
+  repeated string value = 3;
+}
+
+message QueryTaskEnvVariablesForwardRequest{
+  uint32 task_id = 1;
+  string execution_node = 2;
+}
+
+message QueryTaskEnvVariablesForwardReply{
+  bool ok = 1;
+  repeated string name = 2;
+  repeated string value = 3;
+}
+
+message QueryClusterInfoRequest {
+  repeated string filter_partitions = 1;
+  repeated string filter_nodes = 2;
+  repeated CranedResourceState filter_craned_resource_states = 3;
+  repeated CranedControlState filter_craned_control_states = 4;
+}
+
+message QueryClusterInfoReply {
+  bool ok = 1;
+  repeated TrimmedPartitionInfo partitions = 2;
+}
+
+message QueryTasksInfoRequest{
+  repeated uint32 filter_task_ids = 1;
+  repeated string filter_partitions = 2;
+  uint32 num_limit = 3;
+  repeated string filter_task_names = 4;
+  repeated string filter_qos = 5;
+
+  repeated TaskStatus filter_task_states = 6;
+  repeated string filter_users = 7;
+  repeated string filter_accounts = 8;
+  TimeInterval filter_submit_time_interval = 9;
+  TimeInterval filter_start_time_interval = 10;
+  TimeInterval filter_end_time_interval = 11;
+
+  bool option_include_completed_tasks = 15;
+}
+
+message QueryTasksInfoReply{
+  bool ok = 1;
+  repeated TaskInfo task_info_list = 2;
+}
+
+message StreamCallocRequest {
+  enum CallocRequestType {
+    TASK_REQUEST = 0;
+    TASK_COMPLETION_REQUEST = 1;
+  }
+
+  message TaskReq {
+    int32 calloc_pid = 1;
+    TaskToCtld task = 2;
+  }
+
+  message TaskCompleteReq {
+    uint32 task_id = 1;
+    TaskStatus status = 2;
+  }
+
+  CallocRequestType type = 1;
+
+  oneof payload {
+    TaskReq payload_task_req = 2;
+    TaskCompleteReq payload_task_complete_req = 3;
+  }
+}
+
+message StreamCforedReply {
+  enum CforedReplyType {
+    TASK_ID_REPLY = 0;
+    TASK_RES_ALLOC_REPLY = 1;
+    TASK_CANCEL_REQUEST = 2;
+    TASK_COMPLETION_ACK_REPLY = 3;
+  }
+
+  message TaskIdReply {
+    bool ok = 1;
+    uint32 task_id = 2;
+    string failure_reason = 3;
+  }
+
+  message TaskResAllocatedReply {
+    bool ok = 1;
+    string allocated_craned_regex = 2;
+  }
+
+  message TaskCancelRequest {
+    uint32 task_id = 1;
+  }
+
+  message TaskCompletionAckReply {
+    bool ok = 1;
+  }
+
+  CforedReplyType type = 1 ;
+
+  oneof payload {
+    TaskIdReply payload_task_id_reply = 2;
+    TaskResAllocatedReply payload_task_alloc_reply = 3;
+    TaskCancelRequest payload_task_cancel_request = 4;
+    TaskCompletionAckReply payload_task_completion_ack_reply = 5;
+  }
+}
+
+message StreamCforedRequest {
+  enum CforedRequestType {
+    CFORED_REGISTRATION = 0;
+    TASK_REQUEST = 1;
+    TASK_COMPLETION_REQUEST = 2;
+    CFORED_GRACEFUL_EXIT = 3;
+  }
+  CforedRequestType type = 1;
+
+  message CforedReg {
+    string cfored_name = 1;
+  }
+
+  message TaskReq {
+    string cfored_name = 1;
+    int32 pid = 2;
+    TaskToCtld task = 3;
+  }
+
+  message TaskCompleteReq {
+    string cfored_name = 1;
+    uint32 task_id = 2;
+    TaskStatus status = 3;
+    InteractiveTaskType interactive_type = 4;
+  }
+
+  message GracefulExitReq {
+    string cfored_name = 1;
+  }
+
+  oneof payload {
+    CforedReg payload_cfored_reg = 2;
+    TaskReq payload_task_req = 3;
+    TaskCompleteReq payload_task_complete_req = 4;
+    GracefulExitReq payload_graceful_exit_req = 5;
+  }
+}
+
+message StreamCtldReply {
+  enum CtldReplyType {
+    TASK_ID_REPLY = 0;
+    TASK_RES_ALLOC_REPLY = 1;
+    TASK_CANCEL_REQUEST = 2;
+    TASK_COMPLETION_ACK_REPLY = 3;
+    CFORED_REGISTRATION_ACK = 4;
+    CFORED_GRACEFUL_EXIT_ACK = 5;
+  }
+
+  message TaskIdReply {
+    int32 pid = 1;
+    bool ok = 2;
+    uint32 task_id = 3;
+    string failure_reason = 4;
+  }
+
+  message TaskResAllocatedReply {
+    uint32 task_id = 1;
+    bool ok = 2;
+    string allocated_craned_regex = 3;
+    string failure_reason = 4;
+    repeated string craned_ids = 5;
+  }
+
+  message TaskCancelRequest {
+    uint32 task_id = 1;
+  }
+
+  message TaskCompletionAckReply {
+    uint32 task_id = 1;
+  }
+
+  message CforedRegistrationAck {
+    bool ok = 1;
+    string failure_reason = 2;
+  }
+
+  message CforedGracefulExitAck {
+    bool ok = 1;
+  }
+
+  CtldReplyType type = 1;
+
+  oneof payload {
+    CforedRegistrationAck payload_cfored_reg_ack = 2;
+    TaskResAllocatedReply payload_task_res_alloc_reply = 3;
+    TaskCancelRequest payload_task_cancel_request = 4;
+    TaskCompletionAckReply payload_task_completion_ack = 5;
+    TaskIdReply payload_task_id_reply = 6;
+    CforedGracefulExitAck payload_graceful_exit_ack = 7;
+  }
+}
+
+message QueryCranedRemoteMetaRequest {}
+
+message QueryCranedRemoteMetaReply {
+  bool ok = 1;
+  CranedRemoteMeta craned_remote_meta = 2;
+}
+
+message StreamCrunRequest {
+  enum CrunRequestType {
+    TASK_REQUEST = 0;
+    TASK_COMPLETION_REQUEST = 1;
+    TASK_IO_FORWARD = 2;
+  }
+
+  message TaskReq {
+    int32 crun_pid = 1;
+    TaskToCtld task = 2;
+  }
+
+  message TaskCompleteReq {
+    uint32 task_id = 1;
+    TaskStatus status = 2;
+  }
+
+  message TaskIOForwardReq {
+    uint32 task_id = 1;
+    string msg = 2;
+  }
+
+  CrunRequestType type = 1;
+
+  oneof payload {
+    TaskReq payload_task_req = 2;
+    TaskCompleteReq payload_task_complete_req = 3;
+    TaskIOForwardReq payload_task_io_forward_req = 4;
+  }
+}
+
+message StreamCforedCrunReply {
+  enum CforedCrunReplyType {
+    TASK_ID_REPLY = 0;
+    TASK_RES_ALLOC_REPLY = 1;
+    TASK_CANCEL_REQUEST = 2;
+    TASK_COMPLETION_ACK_REPLY = 3;
+    TASK_IO_FORWARD = 4;
+    TASK_IO_FORWARD_READY = 5;
+  }
+
+  message TaskIdReply {
+    bool ok = 1;
+    uint32 task_id = 2;
+    string failure_reason = 3;
+  }
+
+  message TaskResAllocatedReply {
+    bool ok = 1;
+    string allocated_craned_regex = 2;
+  }
+
+  message TaskCancelRequest {
+    uint32 task_id = 1;
+  }
+
+  message TaskCompletionAckReply {
+    bool ok = 1;
+  }
+
+  message TaskIOForwardReadyReply {
+    bool ok = 1;
+  }
+
+  message TaskIOForwardReply{
+    string msg = 1;
+  }
+
+  CforedCrunReplyType type = 1 ;
+
+  oneof payload {
+    TaskIdReply payload_task_id_reply = 2;
+    TaskResAllocatedReply payload_task_alloc_reply = 3;
+    TaskCancelRequest payload_task_cancel_request = 4;
+    TaskCompletionAckReply payload_task_completion_ack_reply = 5;
+    TaskIOForwardReadyReply payload_task_io_forward_ready_reply = 6;
+    TaskIOForwardReply payload_task_io_forward_reply = 7;
+  }
+}
+
+message StreamCforedTaskIORequest {
+  enum CranedRequestType{
+    CRANED_REGISTER = 0;
+    CRANED_TASK_OUTPUT = 1;
+    CRANED_UNREGISTER = 2;
+  }
+
+  message CranedRegisterReq {
+    string craned_id = 1;
+  }
+
+  message CranedTaskOutputReq {
+    uint32 task_id = 1;
+    string msg = 2;
+  }
+
+  message CranedUnRegisterReq {
+    string craned_id = 1;
+  }
+
+  CranedRequestType type = 1;
+  oneof payload {
+    CranedRegisterReq payload_register_req = 2;
+    CranedTaskOutputReq payload_task_output_req = 3;
+    CranedUnRegisterReq payload_unregister_req = 4;
+  }
+}
+
+message StreamCforedTaskIOReply {
+  enum CranedReplyType {
+    CRANED_REGISTER_REPLY = 0;
+    CRANED_TASK_INPUT = 1;
+    CRANED_UNREGISTER_REPLY = 2;
+  }
+
+  message CranedRegisterReply {
+    bool ok = 1;
+  }
+
+  message CranedTaskInputReq {
+    uint32 task_id = 1;
+    string msg = 2;
+  }
+
+  message CranedUnregisterReply {
+    bool ok = 1;
+  }
+
+  CranedReplyType type = 1;
+
+  oneof payload {
+    CranedRegisterReply payload_craned_register_reply = 2;
+    CranedTaskInputReq payload_task_input_req = 3;
+    CranedUnregisterReply payload_craned_unregister_reply = 4;
+  }
+}
+
+// Todo: Divide service into two parts: one for Craned and one for Crun
+//  We need to distinguish the message sender
+//  and have some kind of authentication
+service CraneCtld {
+  /* RPCs called from Craned */
+  rpc TaskStatusChange(TaskStatusChangeRequest) returns (TaskStatusChangeReply);
+  rpc CranedRegister(CranedRegisterRequest) returns (CranedRegisterReply);
+
+  /* RPCs called from Cfored */
+  rpc CforedStream(stream StreamCforedRequest) returns(stream StreamCtldReply);
+
+  /* RPCs called from ccancel */
+  rpc CancelTask(CancelTaskRequest) returns (CancelTaskReply);
+
+  /* RPCs called from cbatch */
+  rpc SubmitBatchTask(SubmitBatchTaskRequest) returns (SubmitBatchTaskReply);
+  rpc SubmitBatchTasks(SubmitBatchTasksRequest) returns (SubmitBatchTasksReply);
+
+  /* PRCs called from ccontrol */
+  rpc QueryCranedInfo(QueryCranedInfoRequest) returns (QueryCranedInfoReply);
+  rpc QueryPartitionInfo(QueryPartitionInfoRequest) returns (QueryPartitionInfoReply);
+  rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
+  rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
+
+  /* RPCs called from cacctmgr */
+  rpc AddAccount(AddAccountRequest) returns (AddAccountReply);
+  rpc AddUser(AddUserRequest) returns (AddUserReply);
+  rpc AddQos(AddQosRequest) returns (AddQosReply);
+
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountReply);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserReply);
+  rpc DeleteQos(DeleteQosRequest) returns (DeleteQosReply);
+
+  rpc QueryAccountInfo(QueryAccountInfoRequest) returns (QueryAccountInfoReply);
+  rpc QueryUserInfo(QueryUserInfoRequest) returns (QueryUserInfoReply);
+  rpc QueryQosInfo(QueryQosInfoRequest) returns (QueryQosInfoReply);
+
+  rpc ModifyAccount(ModifyAccountRequest) returns (ModifyAccountReply);
+  rpc ModifyUser(ModifyUserRequest) returns (ModifyUserReply);
+  rpc ModifyQos(ModifyQosRequest) returns (ModifyQosReply);
+
+  rpc BlockAccountOrUser(BlockAccountOrUserRequest) returns (BlockAccountOrUserReply);
+
+  /* RPCs called from cinfo */
+  rpc QueryClusterInfo(QueryClusterInfoRequest) returns (QueryClusterInfoReply);
+
+  /* common RPCs */
+  rpc QueryTasksInfo(QueryTasksInfoRequest) returns (QueryTasksInfoReply);
+}
+
+service Craned {
+  /* ----------------------------------- Called from CraneCtld ---------------------------------------------------- */
+  rpc ExecuteTask(ExecuteTasksRequest) returns(ExecuteTasksReply);
+
+  rpc CheckTaskStatus(CheckTaskStatusRequest) returns(CheckTaskStatusReply);
+
+  rpc CreateCgroupForTasks(CreateCgroupForTasksRequest) returns(CreateCgroupForTasksReply);
+  rpc ReleaseCgroupForTasks(ReleaseCgroupForTasksRequest) returns(ReleaseCgroupForTasksReply);
+
+  rpc QueryCranedRemoteMeta(QueryCranedRemoteMetaRequest) returns(QueryCranedRemoteMetaReply);
+
+  /*
+  If the task is an interactive task, the resource uuid is also revoked.
+   If there's no process in this interactive task, just deallocate all the resources.
+   If there are processes in this interactive task, kill all the processes and deallocate resources.
+  If the task is a batch task, just kill it.
+  */
+  rpc TerminateTasks(TerminateTasksRequest) returns (TerminateTasksReply);
+  rpc TerminateOrphanedTask(TerminateOrphanedTaskRequest) returns (TerminateOrphanedTaskReply);
+  rpc ChangeTaskTimeLimit(ChangeTaskTimeLimitRequest) returns (ChangeTaskTimeLimitReply);
+
+  /* ----------------------------------- Called from Craned  ------------------------------------------------------ */
+  rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
+
+  /* ----------------------------------- Called from Pam Module  --------------------------------------------------- */
+  rpc QueryTaskIdFromPortForward(QueryTaskIdFromPortForwardRequest) returns (QueryTaskIdFromPortForwardReply);
+  rpc MigrateSshProcToCgroup(MigrateSshProcToCgroupRequest) returns (MigrateSshProcToCgroupReply);
+  rpc QueryTaskEnvVariables(QueryTaskEnvVariablesRequest) returns (QueryTaskEnvVariablesReply);
+  rpc QueryTaskEnvVariablesForward(QueryTaskEnvVariablesForwardRequest) returns (QueryTaskEnvVariablesForwardReply);
+}
+
+service CraneForeD {
+  rpc CallocStream(stream StreamCallocRequest) returns(stream StreamCforedReply);
+  rpc CrunStream(stream StreamCrunRequest) returns(stream StreamCforedCrunReply);
+  rpc TaskIOStream(stream StreamCforedTaskIORequest) returns(stream StreamCforedTaskIOReply);
+  rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
+}
