@@ -579,24 +579,10 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 		Env: make(map[string]string),
 	}
 
-	if FlagNodes > 0 {
-		task.NodeNum = FlagNodes
-	} else {
-		log.Errorf("Invalid --nodes %d", FlagNodes)
-		return util.ErrorCmdArg
-	}
-	if FlagCpuPerTask > 0 {
-		task.CpusPerTask = FlagCpuPerTask
-	} else {
-		log.Errorf("Invalid --cpus-per-task %f", FlagCpuPerTask)
-		return util.ErrorCmdArg
-	}
-	if FlagNtasksPerNode > 0 {
-		task.NtasksPerNode = FlagNtasksPerNode
-	} else {
-		log.Errorf("Invalid --ntasks-per-node %d", FlagNtasksPerNode)
-		return util.ErrorCmdArg
-	}
+	task.NodeNum = FlagNodes
+	task.CpusPerTask = FlagCpuPerTask
+	task.NtasksPerNode = FlagNtasksPerNode
+
 	if FlagTime != "" {
 		ok := util.ParseDuration(FlagTime, task.TimeLimit)
 		if !ok {
