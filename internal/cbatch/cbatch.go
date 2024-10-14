@@ -282,10 +282,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorln("Invalid --time")
 		return false, nil
 	}
-	if task.Resources.AllocatableRes.MemoryLimitBytes <= 0 {
-		log.Errorln("Invalid --mem")
-		return false, nil
-	}
 	if !util.CheckNodeList(task.Nodelist) {
 		log.Errorln("Invalid --nodelist")
 		return false, nil
