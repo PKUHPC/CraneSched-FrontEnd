@@ -17,6 +17,7 @@
 package cwrapper
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/cacct"
 	"CraneFrontEnd/internal/cacctmgr"
 	"CraneFrontEnd/internal/calloc"
@@ -32,8 +33,11 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -684,13 +688,14 @@ func squeue() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			if !cqueue.FlagNoHeader {
-				fmt.Printf("%s %s %s %s %s %s %s %s\n",
-					"JOBID", "PARTITION", "NAME", "USER", "ST", "TIME", "NODES", "NODELIST(REASON)")
-				cqueue.FlagNoHeader = true
+
+			err := util.ErrorSuccess
+			if cqueue.FlagIterate != 0 {
+				err = slurmLoopedQuery(cqueue.FlagIterate)
+			} else {
+				err = slurmQuery()
 			}
-			cqueue.FlagFormat = "%j %P %n %u %t %e %N %r"
-			cqueue.RootCmd.Run(cmd, args)
+			os.Exit(err)
 		},
 	}
 
@@ -722,6 +727,102 @@ func squeue() *cobra.Command {
 	// --format, -o: As the cqueue's output format is very different from squeue, this flag is not supported.
 
 	return cmd
+}
+
+func SlurmQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
+	if reply == nil {
+		log.Errorln("QueryTasksInfoReply empty")
+		return util.ErrorCmdArg
+	}
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderlessTable(table)
+	header := []string{"JOBID", "PARTITION", "NAME", "USER",
+		"ST", "TIME", "NODES", "NODELIST(REASON)"}
+	tableData := make([][]string, len(reply.TaskInfoList))
+	for i := 0; i < len(reply.TaskInfoList); i++ {
+		var timeElapsedStr string
+		if reply.TaskInfoList[i].Status == protos.TaskStatus_Running {
+			timeElapsedStr = util.SecondTimeFormat(reply.TaskInfoList[i].ElapsedTime.Seconds)
+		} else {
+			timeElapsedStr = "-"
+		}
+
+		var reasonOrListStr string
+		if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
+			reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
+		} else {
+			reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
+		}
+
+		tableData[i] = []string{
+			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
+			reply.TaskInfoList[i].Partition,
+			reply.TaskInfoList[i].Name,
+			reply.TaskInfoList[i].Username,
+			reply.TaskInfoList[i].Status.String(),
+			timeElapsedStr,
+			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
+			reasonOrListStr,
+		}
+	}
+
+	if cqueue.FlagStartTime {
+		header = append(header, "StartTime")
+		for i := 0; i < len(tableData); i++ {
+			startTime := reply.TaskInfoList[i].StartTime
+			if startTime.Seconds != 0 {
+				tableData[i] = append(tableData[i],
+					startTime.AsTime().In(time.Local).
+						Format("2006-01-02 15:04:05"))
+			} else {
+				tableData[i] = append(tableData[i], "")
+			}
+		}
+	}
+	if cqueue.FlagFilterQos != "" {
+		header = append(header, "QoS")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
+		}
+	}
+
+	if !cqueue.FlagNoHeader {
+		table.SetHeader(header)
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
+	return util.ErrorSuccess
+}
+
+func slurmQuery() util.CraneCmdError {
+	reply, err := cqueue.QueryTasksInfo()
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	if err = SlurmQueryTableOutput(reply); err != util.ErrorSuccess {
+		return err
+	}
+
+	return util.ErrorSuccess
+}
+
+func slurmLoopedQuery(iterate uint64) util.CraneCmdError {
+	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
+	if err != nil {
+		log.Errorln("Invalid time interval.")
+		return util.ErrorCmdArg
+	}
+	for {
+		fmt.Println(time.Now().String()[0:19])
+		err := slurmQuery()
+		if err != util.ErrorSuccess {
+			return err
+		}
+		time.Sleep(time.Duration(interval.Nanoseconds()))
+		fmt.Println()
+	}
 }
 
 func srun() *cobra.Command {

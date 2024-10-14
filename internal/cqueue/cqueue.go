@@ -36,16 +36,17 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query() util.CraneCmdError {
+func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
+	var reply *protos.QueryTasksInfoReply
 
 	if FlagFilterStates != "" {
 		stateList, err := util.ParseInRamTaskStatusList(FlagFilterStates)
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterTaskStates = stateList
 	}
@@ -54,7 +55,7 @@ func Query() util.CraneCmdError {
 		cu, err := user.Current()
 		if err != nil {
 			log.Errorf("Failed to get current username: %v\n", err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterUsers = []string{cu.Username}
 	}
@@ -62,7 +63,7 @@ func Query() util.CraneCmdError {
 		filterJobNameList, err := util.ParseParameterList(FlagFilterJobNames, ",")
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterTaskNames = filterJobNameList
 	}
@@ -70,7 +71,7 @@ func Query() util.CraneCmdError {
 		filterUserList, err := util.ParseParameterList(FlagFilterUsers, ",")
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterUsers = filterUserList
 	}
@@ -78,7 +79,7 @@ func Query() util.CraneCmdError {
 		filterJobQosList, err := util.ParseParameterList(FlagFilterQos, ",")
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterQos = filterJobQosList
 	}
@@ -86,7 +87,7 @@ func Query() util.CraneCmdError {
 		filterAccountList, err := util.ParseParameterList(FlagFilterAccounts, ",")
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterAccounts = filterAccountList
 	}
@@ -94,7 +95,7 @@ func Query() util.CraneCmdError {
 		filterPartitionList, err := util.ParseParameterList(FlagFilterPartitions, ",")
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterPartitions = filterPartitionList
 	}
@@ -103,7 +104,7 @@ func Query() util.CraneCmdError {
 		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterTaskIds = filterJobIdList
 		req.NumLimit = uint32(len(filterJobIdList))
@@ -115,14 +116,22 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryTasksInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
-		return util.ErrorNetwork
+		return reply, util.ErrorNetwork
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return util.ErrorSuccess
+		return reply, util.ErrorSuccess
 	}
 
+	return reply, util.ErrorSuccess
+}
+
+func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
+	if reply == nil {
+		log.Errorln("QueryTasksInfoReply empty")
+		return util.ErrorCmdArg
+	}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
@@ -201,6 +210,19 @@ func Query() util.CraneCmdError {
 
 	table.AppendBulk(tableData)
 	table.Render()
+	return util.ErrorSuccess
+}
+
+func Query() util.CraneCmdError {
+	reply, err := QueryTasksInfo()
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	if err = QueryTableOutput(reply); err != util.ErrorSuccess {
+		return err
+	}
+
 	return util.ErrorSuccess
 }
 
