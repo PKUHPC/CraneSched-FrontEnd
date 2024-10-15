@@ -118,7 +118,7 @@ func QueryJob() util.CraneCmdError {
 	if FlagFilterQos != "" {
 		filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
 		if err != nil {
-			log.Errorf("Invalid qos list specified: %v.\n", err)
+			log.Errorf("Invalid Qos list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 		request.FilterQos = filterJobQosList

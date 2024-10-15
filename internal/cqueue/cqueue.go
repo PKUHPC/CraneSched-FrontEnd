@@ -78,7 +78,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 	if FlagFilterQos != "" {
 		filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
 		if err != nil {
-			log.Errorf("Invalid qos list specified: %v.\n", err)
+			log.Errorf("Invalid Qos list specified: %v.\n", err)
 			return reply, util.ErrorCmdArg
 		}
 		req.FilterQos = filterJobQosList

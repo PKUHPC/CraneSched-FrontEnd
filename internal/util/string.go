@@ -677,7 +677,7 @@ func ParseStringParamList(parameters string, splitStr string) ([]string, error) 
 	parameterList := strings.Split(parameters, splitStr)
 	for i := 0; i < len(parameterList); i++ {
 		if parameterList[i] == "" {
-			return nil, fmt.Errorf("unsupported value in parameter: %s", parameterList[i])
+			return nil, fmt.Errorf("empty value")
 		}
 	}
 
