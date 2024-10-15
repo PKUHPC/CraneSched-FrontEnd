@@ -71,7 +71,7 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterAccounts != "" {
-		filterAccountList, err := util.ParseParameterList(FlagFilterAccounts, ",")
+		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
 			log.Errorln(err)
 			return util.ErrorCmdArg
@@ -89,7 +89,7 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterUsers != "" {
-		filterUserList, err := util.ParseParameterList(FlagFilterUsers, ",")
+		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 		if err != nil {
 			log.Errorln(err)
 			return util.ErrorCmdArg
@@ -98,7 +98,7 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterJobNames != "" {
-		filterJobNameList, err := util.ParseParameterList(FlagFilterJobNames, ",")
+		filterJobNameList, err := util.ParseStringParamList(FlagFilterJobNames, ",")
 		if err != nil {
 			log.Errorln(err)
 			return util.ErrorCmdArg
@@ -116,7 +116,7 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterQos != "" {
-		filterJobQosList, err := util.ParseParameterList(FlagFilterQos, ",")
+		filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
 		if err != nil {
 			log.Errorln(err)
 			return util.ErrorCmdArg
@@ -125,7 +125,7 @@ func QueryJob() util.CraneCmdError {
 	}
 
 	if FlagFilterPartitions != "" {
-		filterPartitionList, err := util.ParseParameterList(FlagFilterPartitions, ",")
+		filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
 		if err != nil {
 			log.Errorln(err)
 			return util.ErrorCmdArg

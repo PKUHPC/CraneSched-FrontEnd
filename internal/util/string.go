@@ -673,11 +673,11 @@ func ParseInRamTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
 	return []protos.TaskStatus{}, nil
 }
 
-func ParseParameterList(parameters string, splitStr string) ([]string, error) {
+func ParseStringParamList(parameters string, splitStr string) ([]string, error) {
 	parameterList := strings.Split(parameters, splitStr)
 	for i := 0; i < len(parameterList); i++ {
 		if parameterList[i] == "" {
-			return nil, fmt.Errorf("unsupported parameter: %s.", parameterList[i])
+			return nil, fmt.Errorf("unsupported value in parameter: %s", parameterList[i])
 		}
 	}
 
@@ -690,7 +690,7 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 	for i := 0; i < len(filterJobIdList); i++ {
 		jobId, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
 		if err != nil || jobId == 0 {
-			return nil, fmt.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
+			return nil, fmt.Errorf("invalid job id given: %s", filterJobIdList[i])
 		}
 		jobIdList = append(jobIdList, uint32(jobId))
 	}

@@ -60,7 +60,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 		req.FilterUsers = []string{cu.Username}
 	}
 	if FlagFilterJobNames != "" {
-		filterJobNameList, err := util.ParseParameterList(FlagFilterJobNames, ",")
+		filterJobNameList, err := util.ParseStringParamList(FlagFilterJobNames, ",")
 		if err != nil {
 			log.Errorln(err)
 			return reply, util.ErrorCmdArg
@@ -68,7 +68,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 		req.FilterTaskNames = filterJobNameList
 	}
 	if FlagFilterUsers != "" {
-		filterUserList, err := util.ParseParameterList(FlagFilterUsers, ",")
+		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 		if err != nil {
 			log.Errorln(err)
 			return reply, util.ErrorCmdArg
@@ -76,7 +76,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 		req.FilterUsers = filterUserList
 	}
 	if FlagFilterQos != "" {
-		filterJobQosList, err := util.ParseParameterList(FlagFilterQos, ",")
+		filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
 		if err != nil {
 			log.Errorln(err)
 			return reply, util.ErrorCmdArg
@@ -84,7 +84,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 		req.FilterQos = filterJobQosList
 	}
 	if FlagFilterAccounts != "" {
-		filterAccountList, err := util.ParseParameterList(FlagFilterAccounts, ",")
+		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
 			log.Errorln(err)
 			return reply, util.ErrorCmdArg
@@ -92,7 +92,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 		req.FilterAccounts = filterAccountList
 	}
 	if FlagFilterPartitions != "" {
-		filterPartitionList, err := util.ParseParameterList(FlagFilterPartitions, ",")
+		filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
 		if err != nil {
 			log.Errorln(err)
 			return reply, util.ErrorCmdArg

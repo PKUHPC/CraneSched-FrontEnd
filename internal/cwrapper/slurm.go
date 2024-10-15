@@ -578,8 +578,7 @@ func scontrol() *cobra.Command {
 						// If not "job" or "jobid", it should be a job id list
 						// Trim is needed as slurm supports "hold ,1,2,3" but crane doesn't
 						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
-						_, err := util.ParseJobIdList(convertedArgs[i], ",")
-						if err != nil {
+						if _, err := util.ParseJobIdList(convertedArgs[i], ","); err != nil {
 							log.Errorln(err)
 							os.Exit(util.ErrorCmdArg)
 						}
@@ -594,8 +593,7 @@ func scontrol() *cobra.Command {
 						// If not "job" or "jobid", it should be a job id list
 						// Trim is needed as slurm supports "release ,1,2,3" but crane doesn't
 						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
-						_, err := util.ParseJobIdList(convertedArgs[i], ",")
-						if err != nil {
+						if _, err := util.ParseJobIdList(convertedArgs[i], ","); err != nil {
 							log.Errorln(err)
 							os.Exit(util.ErrorCmdArg)
 						}
@@ -691,9 +689,9 @@ func squeue() *cobra.Command {
 
 			err := util.ErrorSuccess
 			if cqueue.FlagIterate != 0 {
-				err = SqueueLoopedQuery(cqueue.FlagIterate)
+				err = squeueLoopedQuery(cqueue.FlagIterate)
 			} else {
-				err = SqueueQuery()
+				err = squeueQuery()
 			}
 			os.Exit(err)
 		},
@@ -729,7 +727,7 @@ func squeue() *cobra.Command {
 	return cmd
 }
 
-func SqueueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
+func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JOBID", "PARTITION", "NAME", "USER",
@@ -791,16 +789,16 @@ func SqueueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdErro
 	return util.ErrorSuccess
 }
 
-func SqueueQuery() util.CraneCmdError {
+func squeueQuery() util.CraneCmdError {
 	reply, err := cqueue.QueryTasksInfo()
 	if err != util.ErrorSuccess {
 		return err
 	}
 
-	return SqueueQueryTableOutput(reply)
+	return squeueQueryTableOutput(reply)
 }
 
-func SqueueLoopedQuery(iterate uint64) util.CraneCmdError {
+func squeueLoopedQuery(iterate uint64) util.CraneCmdError {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
 		log.Errorln("Invalid time interval.")
@@ -808,7 +806,7 @@ func SqueueLoopedQuery(iterate uint64) util.CraneCmdError {
 	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
-		err := SqueueQuery()
+		err := squeueQuery()
 		if err != util.ErrorSuccess {
 			return err
 		}
