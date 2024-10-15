@@ -691,9 +691,9 @@ func squeue() *cobra.Command {
 
 			err := util.ErrorSuccess
 			if cqueue.FlagIterate != 0 {
-				err = slurmLoopedQuery(cqueue.FlagIterate)
+				err = SqueueLoopedQuery(cqueue.FlagIterate)
 			} else {
-				err = slurmQuery()
+				err = SqueueQuery()
 			}
 			os.Exit(err)
 		},
@@ -729,11 +729,7 @@ func squeue() *cobra.Command {
 	return cmd
 }
 
-func SlurmQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
-	if reply == nil {
-		log.Errorln("QueryTasksInfoReply empty")
-		return util.ErrorCmdArg
-	}
+func SqueueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JOBID", "PARTITION", "NAME", "USER",
@@ -795,20 +791,16 @@ func SlurmQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError
 	return util.ErrorSuccess
 }
 
-func slurmQuery() util.CraneCmdError {
+func SqueueQuery() util.CraneCmdError {
 	reply, err := cqueue.QueryTasksInfo()
 	if err != util.ErrorSuccess {
 		return err
 	}
 
-	if err = SlurmQueryTableOutput(reply); err != util.ErrorSuccess {
-		return err
-	}
-
-	return util.ErrorSuccess
+	return SqueueQueryTableOutput(reply)
 }
 
-func slurmLoopedQuery(iterate uint64) util.CraneCmdError {
+func SqueueLoopedQuery(iterate uint64) util.CraneCmdError {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
 		log.Errorln("Invalid time interval.")
@@ -816,7 +808,7 @@ func slurmLoopedQuery(iterate uint64) util.CraneCmdError {
 	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
-		err := slurmQuery()
+		err := SqueueQuery()
 		if err != util.ErrorSuccess {
 			return err
 		}

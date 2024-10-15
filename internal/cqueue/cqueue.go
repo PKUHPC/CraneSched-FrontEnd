@@ -128,10 +128,6 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 }
 
 func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
-	if reply == nil {
-		log.Errorln("QueryTasksInfoReply empty")
-		return util.ErrorCmdArg
-	}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
@@ -219,11 +215,7 @@ func Query() util.CraneCmdError {
 		return err
 	}
 
-	if err = QueryTableOutput(reply); err != util.ErrorSuccess {
-		return err
-	}
-
-	return util.ErrorSuccess
+	return QueryTableOutput(reply)
 }
 
 // FormatData formats the output data according to the format string.
