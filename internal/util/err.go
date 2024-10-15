@@ -121,6 +121,10 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_IN_DENIED_LIST:         "The account has been denied access to this partition. Please contact the security administrator if access is required",
 	protos.ErrCode_ERR_EBPF:                   "EBPF syscall error",
 	protos.ErrCode_ERR_SUPERVISOR:             "Supervisor error",
+	protos.ErrCode_ERR_SIGN_CERTIFICATE:       "The user failed to issue the certificate, please contact the administrator for assistance",
+	protos.ErrCode_ERR_DUPLICATE_CERTIFICATE:  "The certificate has already been issued to the user. If the certificate is lost and needs to be reissued, please contact the administrator for assistance",
+	protos.ErrCode_ERR_REVOKE_CERTIFICATE:     "Revocation of the certificate failed, Please check the logs",
+	protos.ErrCode_ERR_IDENTITY_MISMATCH:      "User information does not match, unable to submit the task.",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
