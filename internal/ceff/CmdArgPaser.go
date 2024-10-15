@@ -37,7 +37,7 @@ var (
 			var err error
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldByConfig(config)
+			stub = util.GetStubToCtldPlain(config)
 			dbConfig, err = GetInfluxDbConfig(config)
 			return err
 		},

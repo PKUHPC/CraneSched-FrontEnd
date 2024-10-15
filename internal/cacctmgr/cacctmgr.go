@@ -1085,12 +1085,12 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	dataMap := make(map[string]*ResourceUsageRecord)
 	for result.Next() {
 		record := result.Record()
-	
+
 		clusterName := fmt.Sprintf("%v", record.ValueByKey("cluster_name"))
 		nodeName := fmt.Sprintf("%v", record.ValueByKey("node_name"))
 		field := fmt.Sprintf("%v", record.Field())
 		timestamp := record.Time()
-	
+
 		key := fmt.Sprintf("%s:%s:%s", clusterName, nodeName, timestamp)
 		if _, exists := dataMap[key]; !exists {
 			dataMap[key] = &ResourceUsageRecord {
@@ -1099,7 +1099,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 				Timestamp:   timestamp,
 			}
 		}
-	
+
 		switch field {
 		case "uid":
 			if uid, ok := record.Value().(uint64); ok {
@@ -1118,8 +1118,8 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 				dataMap[key].Reason = reason
 			}
 		}
-	}	
-	
+	}
+
 	if result.Err() != nil {
 		return nil, fmt.Errorf("query parsing error: %w", result.Err())
 	}
@@ -1128,7 +1128,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	for _, record := range dataMap {
 		records = append(records, record)
 	}
-	
+
 	if len(records) == 0 {
 		return nil, fmt.Errorf("no matching data available")
 	}
@@ -1136,13 +1136,13 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	sort.SliceStable(records, func(i, j int) bool {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
-	
+
 	return records, nil
 }
 
 
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
-	nodeNames := []string{} 
+	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
 		nodeNames, ok = util.ParseHostList(nodeRegex)
