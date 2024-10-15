@@ -36,12 +36,12 @@ import (
 )
 
 var (
-	stub protos.CraneCtldClient
+	stub protos.CraneCtldPlainClient
 )
 
 func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 	config := util.ParseConfig(FlagConfigFilePath)
-	stub = util.GetStubToCtldByConfig(config)
+	stub = util.GetStubToCtldPlain(config)
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
 	var reply *protos.QueryTasksInfoReply
 

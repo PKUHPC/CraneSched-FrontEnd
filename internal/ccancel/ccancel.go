@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	stub protos.CraneCtldClient
+	stub protos.CraneCtldSecureClient
 )
 
 func CancelTask(args []string) error {

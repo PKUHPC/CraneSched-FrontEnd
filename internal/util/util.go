@@ -76,6 +76,8 @@ const (
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
+	DefaultUserConfigPath = "~/.config/crane"
+
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
