@@ -73,7 +73,7 @@ func QueryJob() util.CraneCmdError {
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
-			log.Errorln(err)
+			log.Errorf("Invalid account list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 		request.FilterAccounts = filterAccountList
@@ -91,7 +91,7 @@ func QueryJob() util.CraneCmdError {
 	if FlagFilterUsers != "" {
 		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 		if err != nil {
-			log.Errorln(err)
+			log.Errorf("Invalid user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 		request.FilterUsers = filterUserList
@@ -100,7 +100,7 @@ func QueryJob() util.CraneCmdError {
 	if FlagFilterJobNames != "" {
 		filterJobNameList, err := util.ParseStringParamList(FlagFilterJobNames, ",")
 		if err != nil {
-			log.Errorln(err)
+			log.Errorf("Invalid job name list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 		request.FilterTaskNames = filterJobNameList
@@ -118,7 +118,7 @@ func QueryJob() util.CraneCmdError {
 	if FlagFilterQos != "" {
 		filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
 		if err != nil {
-			log.Errorln(err)
+			log.Errorf("Invalid qos list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 		request.FilterQos = filterJobQosList
@@ -127,7 +127,7 @@ func QueryJob() util.CraneCmdError {
 	if FlagFilterPartitions != "" {
 		filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
 		if err != nil {
-			log.Errorln(err)
+			log.Errorf("Invalid partition list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 		request.FilterPartitions = filterPartitionList
