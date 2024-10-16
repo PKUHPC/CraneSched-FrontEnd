@@ -36,16 +36,17 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func Query() util.CraneCmdError {
+func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
+	var reply *protos.QueryTasksInfoReply
 
 	if FlagFilterStates != "" {
 		stateList, err := util.ParseInRamTaskStatusList(FlagFilterStates)
 		if err != nil {
 			log.Errorln(err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterTaskStates = stateList
 	}
@@ -54,43 +55,59 @@ func Query() util.CraneCmdError {
 		cu, err := user.Current()
 		if err != nil {
 			log.Errorf("Failed to get current username: %v\n", err)
-			return util.ErrorCmdArg
+			return reply, util.ErrorCmdArg
 		}
 		req.FilterUsers = []string{cu.Username}
 	}
 	if FlagFilterJobNames != "" {
-		filterJobNameList := strings.Split(FlagFilterJobNames, ",")
+		filterJobNameList, err := util.ParseStringParamList(FlagFilterJobNames, ",")
+		if err != nil {
+			log.Errorf("Invalid job name list specified: %v.\n", err)
+			return reply, util.ErrorCmdArg
+		}
 		req.FilterTaskNames = filterJobNameList
 	}
 	if FlagFilterUsers != "" {
-		filterUserList := strings.Split(FlagFilterUsers, ",")
+		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return reply, util.ErrorCmdArg
+		}
 		req.FilterUsers = filterUserList
 	}
 	if FlagFilterQos != "" {
-		filterJobQosList := strings.Split(FlagFilterQos, ",")
+		filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
+		if err != nil {
+			log.Errorf("Invalid Qos list specified: %v.\n", err)
+			return reply, util.ErrorCmdArg
+		}
 		req.FilterQos = filterJobQosList
 	}
 	if FlagFilterAccounts != "" {
-		filterAccountList := strings.Split(FlagFilterAccounts, ",")
+		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
+		if err != nil {
+			log.Errorf("Invalid account list specified: %v.\n", err)
+			return reply, util.ErrorCmdArg
+		}
 		req.FilterAccounts = filterAccountList
 	}
 	if FlagFilterPartitions != "" {
-		filterPartitionList := strings.Split(FlagFilterPartitions, ",")
+		filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
+		if err != nil {
+			log.Errorf("Invalid partition list specified: %v.\n", err)
+			return reply, util.ErrorCmdArg
+		}
 		req.FilterPartitions = filterPartitionList
 	}
+
 	if FlagFilterJobIDs != "" {
-		filterJobIdList := strings.Split(FlagFilterJobIDs, ",")
-		req.NumLimit = uint32(len(filterJobIdList))
-		var filterJobIdListInt []uint32
-		for i := 0; i < len(filterJobIdList); i++ {
-			id, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
-			if err != nil {
-				log.Errorf("Invalid job id given: %s.\n", filterJobIdList[i])
-				return util.ErrorCmdArg
-			}
-			filterJobIdListInt = append(filterJobIdListInt, uint32(id))
+		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
+		if err != nil {
+			log.Errorf("Invalid job list specified: %v.\n", err)
+			return reply, util.ErrorCmdArg
 		}
-		req.FilterTaskIds = filterJobIdListInt
+		req.FilterTaskIds = filterJobIdList
+		req.NumLimit = uint32(len(filterJobIdList))
 	}
 	if FlagNumLimit != 0 {
 		req.NumLimit = FlagNumLimit
@@ -99,14 +116,18 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryTasksInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job queue")
-		return util.ErrorNetwork
+		return reply, util.ErrorNetwork
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return util.ErrorSuccess
+		return reply, util.ErrorSuccess
 	}
 
+	return reply, util.ErrorSuccess
+}
+
+func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JobId", "Partition", "Name", "User",
@@ -186,6 +207,15 @@ func Query() util.CraneCmdError {
 	table.AppendBulk(tableData)
 	table.Render()
 	return util.ErrorSuccess
+}
+
+func Query() util.CraneCmdError {
+	reply, err := QueryTasksInfo()
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	return QueryTableOutput(reply)
 }
 
 // FormatData formats the output data according to the format string.

@@ -380,21 +380,6 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 	return resList, true
 }
 
-func ParseTaskIds(taskStr string) ([]uint32, bool) {
-	taskIdStrSplit := strings.Split(taskStr, ",")
-	var taskList []uint32
-	for i := 0; i < len(taskIdStrSplit); i++ {
-		taskId64, err := strconv.ParseUint(taskIdStrSplit[i], 10, 32)
-		if err != nil {
-			fmt.Errorf("Invalid job Id: %s", taskIdStrSplit[i])
-			return nil, false
-		} else {
-			taskList = append(taskList, uint32(taskId64))
-		}
-	}
-	return taskList, true
-}
-
 func InvalidDuration() *durationpb.Duration {
 	return &durationpb.Duration{
 		Seconds: 315576000000,
@@ -686,4 +671,29 @@ func ParseInRamTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
 		}
 	}
 	return []protos.TaskStatus{}, nil
+}
+
+func ParseStringParamList(parameters string, splitStr string) ([]string, error) {
+	parameterList := strings.Split(parameters, splitStr)
+	for i := 0; i < len(parameterList); i++ {
+		if parameterList[i] == "" {
+			return nil, fmt.Errorf("empty value")
+		}
+	}
+
+	return parameterList, nil
+}
+
+func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
+	filterJobIdList := strings.Split(jobIds, splitStr)
+	var jobIdList []uint32
+	for i := 0; i < len(filterJobIdList); i++ {
+		jobId, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
+		if err != nil || jobId == 0 {
+			return nil, fmt.Errorf("invalid job id %s", filterJobIdList[i])
+		}
+		jobIdList = append(jobIdList, uint32(jobId))
+	}
+
+	return jobIdList, nil
 }
