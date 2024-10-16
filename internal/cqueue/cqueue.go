@@ -103,7 +103,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 	if FlagFilterJobIDs != "" {
 		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
 		if err != nil {
-			log.Errorln(err)
+			log.Errorf("Invalid job list specified: %v.\n", err)
 			return reply, util.ErrorCmdArg
 		}
 		req.FilterTaskIds = filterJobIdList

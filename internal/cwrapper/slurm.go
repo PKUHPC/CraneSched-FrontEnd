@@ -579,7 +579,7 @@ func scontrol() *cobra.Command {
 						// Trim is needed as slurm supports "hold ,1,2,3" but crane doesn't
 						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
 						if _, err := util.ParseJobIdList(convertedArgs[i], ","); err != nil {
-							log.Errorln(err)
+							log.Errorf("Invalid job list specified: %v.\n", err)
 							os.Exit(util.ErrorCmdArg)
 						}
 						concatedTaskIds += "," + convertedArgs[i]
@@ -594,7 +594,7 @@ func scontrol() *cobra.Command {
 						// Trim is needed as slurm supports "release ,1,2,3" but crane doesn't
 						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
 						if _, err := util.ParseJobIdList(convertedArgs[i], ","); err != nil {
-							log.Errorln(err)
+							log.Errorf("Invalid job list specified: %v.\n", err)
 							os.Exit(util.ErrorCmdArg)
 						}
 						concatedTaskIds += "," + convertedArgs[i]
@@ -801,7 +801,7 @@ func squeueQuery() util.CraneCmdError {
 func squeueLoopedQuery(iterate uint64) util.CraneCmdError {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-		log.Errorln("Invalid time interval.")
+		log.Errorf("Invalid time interval: %v.\n", err)
 		return util.ErrorCmdArg
 	}
 	for {

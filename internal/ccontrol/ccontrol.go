@@ -424,7 +424,7 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
 
 	taskIds, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
-		log.Errorln(err)
+		log.Errorf("Invalid job list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
 
@@ -484,7 +484,7 @@ func ParseTimeStrToSeconds(time string) (int64, error) {
 func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 	jobList, err := util.ParseJobIdList(jobs, ",")
 	if err != nil {
-		log.Errorln(err)
+		log.Errorf("Invalid job list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
 
