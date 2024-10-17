@@ -20,7 +20,6 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 	"regexp"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -101,11 +100,9 @@ var (
 			if len(args) == 0 {
 				FlagQueryAll = true
 			} else {
-				id, _ := strconv.Atoi(args[0])
-				FlagTaskId = uint32(id)
 				FlagQueryAll = false
 			}
-			if err := ShowTasks(FlagTaskId, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowTasks(args[0], FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
