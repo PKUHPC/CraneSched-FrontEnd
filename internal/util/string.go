@@ -685,12 +685,12 @@ func ParseStringParamList(parameters string, splitStr string) ([]string, error) 
 }
 
 func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
-	filterJobIdList := strings.Split(jobIds, splitStr)
+	jobIdStrList := strings.Split(jobIds, splitStr)
 	var jobIdList []uint32
-	for i := 0; i < len(filterJobIdList); i++ {
-		jobId, err := strconv.ParseUint(filterJobIdList[i], 10, 32)
+	for i := 0; i < len(jobIdStrList); i++ {
+		jobId, err := strconv.ParseUint(jobIdStrList[i], 10, 32)
 		if err != nil || jobId == 0 {
-			return nil, fmt.Errorf("invalid job id %s", filterJobIdList[i])
+			return nil, fmt.Errorf("invalid job id \"%s\"", jobIdStrList[i])
 		}
 		jobIdList = append(jobIdList, uint32(jobId))
 	}

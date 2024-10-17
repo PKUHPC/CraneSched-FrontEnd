@@ -20,7 +20,6 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 	"regexp"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -93,19 +92,20 @@ var (
 		},
 	}
 	showJobCmd = &cobra.Command{
-		Use:   "job [flags] [job_id]",
+		Use:   "job [flags] [job_id,...]",
 		Short: "Display details of the jobs, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			jobIds := ""
 			if len(args) == 0 {
 				FlagQueryAll = true
+				jobIds = ""
 			} else {
-				id, _ := strconv.Atoi(args[0])
-				FlagTaskId = uint32(id)
 				FlagQueryAll = false
+				jobIds = args[0]
 			}
-			if err := ShowTasks(FlagTaskId, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowJobs(jobIds, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
