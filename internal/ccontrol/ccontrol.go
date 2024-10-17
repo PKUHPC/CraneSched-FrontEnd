@@ -227,28 +227,28 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func ShowTasks(taskId string, queryAll bool) util.CraneCmdError {
+func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 	var req *protos.QueryTasksInfoRequest
-	var taskIdList []uint32
-	taskIdList, err := util.ParseJobIdList(taskId, ",")
-	if err != nil {
-		log.Errorf("Invalid job list specified: %v.\n", err)
-		return util.ErrorCmdArg
-	}
-	if queryAll {
-		req = &protos.QueryTasksInfoRequest{}
-	} else {
-		req = &protos.QueryTasksInfoRequest{FilterTaskIds: taskIdList}
+	var jobIdList []uint32
+	var err error
+
+	if !queryAll {
+		jobIdList, err = util.ParseJobIdList(jobIds, ",")
+		if err != nil {
+			log.Errorf("Invalid job list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
 	}
 
+	req = &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show the task")
+		util.GrpcErrorPrintf(err, "Failed to show jobs")
 		return util.ErrorNetwork
 	}
 
 	if !reply.GetOk() {
-		log.Errorf("Failed to retrive the information of job %v", taskId)
+		log.Errorf("Failed to retrive the information of job %v", jobIds)
 		return util.ErrorBackend
 	}
 
@@ -261,88 +261,109 @@ func ShowTasks(taskId string, queryAll bool) util.CraneCmdError {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
-			fmt.Printf("Job %v is not running.\n", taskId)
+			fmt.Printf("Job %v is not running.\n", jobIds)
 		}
-	} else {
-		checkStringEmpty := func(s string) string {
-			if len(s) == 0 {
-				return "unknown"
-			} else {
-				return s
-			}
-		}
-		for _, taskInfo := range reply.TaskInfoList {
-			timeSubmitStr := "unknown"
-			timeStartStr := "unknown"
-			timeEndStr := "unknown"
-			runTimeStr := "unknown"
+		return util.ErrorSuccess
+	}
 
-			var timeLimitStr string
-
-			timeSubmit := taskInfo.SubmitTime.AsTime()
-			if !timeSubmit.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-				timeSubmitStr = timeSubmit.In(time.Local).Format("2006-01-02 15:04:05")
-			}
-
-			timeStart := taskInfo.StartTime.AsTime()
-			if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-				timeStartStr = timeStart.In(time.Local).Format("2006-01-02 15:04:05")
-			}
-
-			timeEnd := taskInfo.EndTime.AsTime()
-			if timeEnd.After(timeStart) {
-				timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
-			}
-			var resourcesType = "ReqRes"
-			if taskInfo.Status == protos.TaskStatus_Running {
-				timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).In(time.Local).Format("2006-01-02 15:04:05")
-
-				runTimeDuration := taskInfo.ElapsedTime.AsDuration()
-
-				days := int(runTimeDuration.Hours()) / 24
-				hours := int(runTimeDuration.Hours()) % 24
-				minutes := int(runTimeDuration.Minutes()) % 60
-				seconds := int(runTimeDuration.Seconds()) % 60
-
-				runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
-				resourcesType = "AllocRes"
-			}
-
-			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
-				timeLimitStr = "unlimited"
-				timeEndStr = "unknown"
-			} else {
-				timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
-			}
-			craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
-			if err != nil {
-				log.Errorf("Failed to get username for UID %d: %s\n", taskInfo.Uid, err)
-				return util.ErrorGeneric
-			}
-			group, err := user.LookupGroupId(strconv.Itoa(int(taskInfo.Gid)))
-			if err != nil {
-				log.Errorf("Failed to get groupname for GID %d: %s\n", taskInfo.Gid, err)
-				return util.ErrorGeneric
-			}
-
-			fmt.Printf("JobId=%v JobName=%v\n"+
-				"\tUser=%s(%d) GroupId=%s(%d) Account=%v\n"+
-				"\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
-				"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
-				"\tCmdLine=\"%v\" Workdir=%v\n"+
-				"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
-				"\t%s=node=%d cpu=%.2f gres=%s\n"+
-				"\tReqNodeList=%v ExecludeNodeList=%v \n",
-				taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
-				taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
-				timeStartStr, timeEndStr, taskInfo.Partition, checkStringEmpty(taskInfo.GetCranedList()),
-				checkStringEmpty(util.HostNameListToStr(taskInfo.GetExecutionNode())),
-				taskInfo.CmdLine, taskInfo.Cwd,
-				taskInfo.Priority, taskInfo.Qos, taskInfo.ResView.AllocatableRes.CpuCoreLimit, formatMemToMB(taskInfo.ResView.AllocatableRes.MemoryLimitBytes),
-				resourcesType, taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
-				checkStringEmpty(util.HostNameListToStr(taskInfo.GetReqNodes())), checkStringEmpty(util.HostNameListToStr(taskInfo.GetExcludeNodes())))
+	checkStringEmpty := func(s string) string {
+		if len(s) == 0 {
+			return "unknown"
+		} else {
+			return s
 		}
 	}
+
+	// Track if any job requested is not returned
+	printed := map[uint32]bool{}
+
+	for _, taskInfo := range reply.TaskInfoList {
+		timeSubmitStr := "unknown"
+		timeStartStr := "unknown"
+		timeEndStr := "unknown"
+		runTimeStr := "unknown"
+
+		var timeLimitStr string
+
+		timeSubmit := taskInfo.SubmitTime.AsTime()
+		if !timeSubmit.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+			timeSubmitStr = timeSubmit.In(time.Local).Format("2006-01-02 15:04:05")
+		}
+
+		timeStart := taskInfo.StartTime.AsTime()
+		if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+			timeStartStr = timeStart.In(time.Local).Format("2006-01-02 15:04:05")
+		}
+
+		timeEnd := taskInfo.EndTime.AsTime()
+		if timeEnd.After(timeStart) {
+			timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
+		}
+		var resourcesType = "ReqRes"
+		if taskInfo.Status == protos.TaskStatus_Running {
+			timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).In(time.Local).Format("2006-01-02 15:04:05")
+
+			runTimeDuration := taskInfo.ElapsedTime.AsDuration()
+
+			days := int(runTimeDuration.Hours()) / 24
+			hours := int(runTimeDuration.Hours()) % 24
+			minutes := int(runTimeDuration.Minutes()) % 60
+			seconds := int(runTimeDuration.Seconds()) % 60
+
+			runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
+			resourcesType = "AllocRes"
+		}
+
+		if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+			timeLimitStr = "unlimited"
+			timeEndStr = "unknown"
+		} else {
+			timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
+		}
+		craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
+		if err != nil {
+			log.Errorf("Failed to get username for UID %d: %s\n", taskInfo.Uid, err)
+			return util.ErrorGeneric
+		}
+		group, err := user.LookupGroupId(strconv.Itoa(int(taskInfo.Gid)))
+		if err != nil {
+			log.Errorf("Failed to get groupname for GID %d: %s\n", taskInfo.Gid, err)
+			return util.ErrorGeneric
+		}
+
+		printed[taskInfo.TaskId] = true
+
+		fmt.Printf("JobId=%v JobName=%v\n"+
+			"\tUser=%s(%d) GroupId=%s(%d) Account=%v\n"+
+			"\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
+			"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
+			"\tCmdLine=\"%v\" Workdir=%v\n"+
+			"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
+			"\t%s=node=%d cpu=%.2f gres=%s\n"+
+			"\tReqNodeList=%v ExecludeNodeList=%v \n",
+			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
+			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
+			timeStartStr, timeEndStr, taskInfo.Partition, checkStringEmpty(taskInfo.GetCranedList()),
+			checkStringEmpty(util.HostNameListToStr(taskInfo.GetExecutionNode())),
+			taskInfo.CmdLine, taskInfo.Cwd,
+			taskInfo.Priority, taskInfo.Qos, taskInfo.ResView.AllocatableRes.CpuCoreLimit, formatMemToMB(taskInfo.ResView.AllocatableRes.MemoryLimitBytes),
+			resourcesType, taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
+			checkStringEmpty(util.HostNameListToStr(taskInfo.GetReqNodes())), checkStringEmpty(util.HostNameListToStr(taskInfo.GetExcludeNodes())))
+	}
+
+	// If any job is requested but not returned, remind the user
+	if !queryAll {
+		notRunningJobs := []uint32{}
+		for _, jobId := range jobIdList {
+			if !printed[jobId] {
+				notRunningJobs = append(notRunningJobs, jobId)
+			}
+		}
+		if len(notRunningJobs) > 0 {
+			fmt.Printf("Job %v is not running.\n", notRunningJobs)
+		}
+	}
+
 	return util.ErrorSuccess
 }
 

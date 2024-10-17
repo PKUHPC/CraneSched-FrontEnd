@@ -92,17 +92,20 @@ var (
 		},
 	}
 	showJobCmd = &cobra.Command{
-		Use:   "job [flags] [job_id]",
+		Use:   "job [flags] [job_id,...]",
 		Short: "Display details of the jobs, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			jobIds := ""
 			if len(args) == 0 {
 				FlagQueryAll = true
+				jobIds = ""
 			} else {
 				FlagQueryAll = false
+				jobIds = args[0]
 			}
-			if err := ShowTasks(args[0], FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowJobs(jobIds, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
