@@ -28,7 +28,7 @@ import (
 )
 
 type GrpcCtldClient struct {
-	ctldClientStub   protos.CraneCtldClient
+	ctldClientStub   protos.CraneCtldForCforedClient
 	ctldReplyChannel chan *protos.StreamCtldReply
 }
 
@@ -42,7 +42,7 @@ const (
 	GracefulExit    StateOfCtldClient = 4
 )
 
-func (client *GrpcCtldClient) CtldReplyReceiveRoutine(stream protos.CraneCtld_CforedStreamClient) {
+func (client *GrpcCtldClient) CtldReplyReceiveRoutine(stream protos.CraneCtldForCfored_CforedStreamClient) {
 	for {
 		m := new(protos.StreamCtldReply)
 		if err := stream.RecvMsg(m); err != nil {
@@ -57,7 +57,7 @@ func (client *GrpcCtldClient) CtldReplyReceiveRoutine(stream protos.CraneCtld_Cf
 
 func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 	var request *protos.StreamCforedRequest
-	var stream protos.CraneCtld_CforedStreamClient
+	var stream protos.CraneCtldForCfored_CforedStreamClient
 	var err error
 
 	state := StartReg
