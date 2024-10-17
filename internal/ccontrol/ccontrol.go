@@ -227,10 +227,14 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
+func ShowTasks(taskId string, queryAll bool) util.CraneCmdError {
 	var req *protos.QueryTasksInfoRequest
 	var taskIdList []uint32
-	taskIdList = append(taskIdList, taskId)
+	taskIdList, err := util.ParseJobIdList(taskId, ",")
+	if err != nil {
+		log.Errorf("Invalid job list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
 	if queryAll {
 		req = &protos.QueryTasksInfoRequest{}
 	} else {
@@ -244,7 +248,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 	}
 
 	if !reply.GetOk() {
-		log.Errorf("Failed to retrive the information of job %d", taskId)
+		log.Errorf("Failed to retrive the information of job %v", taskId)
 		return util.ErrorBackend
 	}
 
@@ -257,7 +261,7 @@ func ShowTasks(taskId uint32, queryAll bool) util.CraneCmdError {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
-			fmt.Printf("Job %d is not running.\n", taskId)
+			fmt.Printf("Job %v is not running.\n", taskId)
 		}
 	} else {
 		checkStringEmpty := func(s string) string {
