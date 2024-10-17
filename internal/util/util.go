@@ -26,11 +26,13 @@ import (
 )
 
 type Config struct {
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+	ControlMachine               string `yaml:"ControlMachine"`
+	CraneCtldListenPort          string `yaml:"CraneCtldListenPort"`
+	CraneCtldForCforedListenPort string `yaml:"CraneCtldForCforedListenPort"`
 
 	UseTls               bool   `yaml:"UseTls"`
 	ExternalCertFilePath string `yaml:"CranectldExternalCertFilePath"`
+	InternalCertFilePath string `yaml:"CranectldInternalCertFilePath"`
 	ServerKeyFilePath    string `yaml:"ServerKeyFilePath"`
 	CforedCertFilePath   string `yaml:"CforedCertFilePath"`
 	CforedKeyFilePath    string `yaml:"CforedKeyFilePath"`

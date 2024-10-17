@@ -144,6 +144,53 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	return stub
 }
 
+func GetStubToCtldForCfored(config *Config) protos.CraneCtldForCforedClient {
+	var serverAddr string
+	var stub protos.CraneCtldForCforedClient
+
+	if config.UseTls {
+		serverAddr = fmt.Sprintf("%s.%s:%s",
+			config.ControlMachine, config.DomainSuffix, config.CraneCtldForCforedListenPort)
+		cert, _ := tls.LoadX509KeyPair(config.CforedCertFilePath, config.CforedKeyFilePath)
+
+		CaCertContent, err := os.ReadFile(config.InternalCertFilePath)
+		if err != nil {
+			log.Errorln("Failed to read InternalCertFile: " + err.Error())
+			os.Exit(ErrorGeneric)
+		}
+
+		caPool := x509.NewCertPool()
+		if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
+			log.Errorln("Failed to append cert Content.")
+			os.Exit(ErrorGeneric)
+		}
+
+		creds := credentials.NewTLS(&tls.Config{
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caPool,
+		})
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+		if err != nil {
+			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
+			os.Exit(ErrorBackend)
+		}
+
+		stub = protos.NewCraneCtldForCforedClient(conn)
+	} else {
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForCforedListenPort)
+
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
+			os.Exit(ErrorBackend)
+		}
+
+		stub = protos.NewCraneCtldForCforedClient(conn)
+	}
+
+	return stub
+}
+
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
