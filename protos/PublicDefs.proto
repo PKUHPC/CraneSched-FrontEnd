@@ -383,7 +383,6 @@ enum ErrCode {
 enum EntityType {
   Account = 0;
   User = 1;
-  // Qos = 2;
 }
 
 enum OperatorType {
