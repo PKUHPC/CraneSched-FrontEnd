@@ -353,7 +353,7 @@ enum ErrCode {
   ERR_ALLOWED_DEFAULT_QOS = 10029; // Default QoS is not in the allowed QoS list
   ERR_DUPLICATE_DEFAULT_QOS = 10030; // Duplicate default QoS setting
   ERR_CHILD_HAS_DEFAULT_QOS = 10031; // Someone is using QoS '{}' as default QoS. Ignoring this constraint with forced deletion, the deleted default QoS is randomly replaced with one of the remaining items in the QoS list.
-  ERR_CHILD_HAS_QOS = 10032; // QoS '{}' is used by some descendant node or itself of the account '{}'. Ignoring this constraint with forced operation.
+  ERR_SET_ACCOUNT_QOS = 10032; // QoS '{}' is used by some descendant node or itself of the account '{}'. Ignoring this constraint with forced operation.
   ERR_SET_DEFAULT_QOS = 10033; // Qos '{}' not in allowed qos list or is already the default qos
   ERR_IS_DEFAULT_QOS = 10034;
 
