@@ -329,19 +329,19 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	if account.DefaultQos == "" && len(account.AllowedQosList) > 0 {
 		account.DefaultQos = account.AllowedQosList[0]
 	}
-	if account.DefaultQos != "" {
-		find := false
-		for _, qos := range account.AllowedQosList {
-			if qos == account.DefaultQos {
-				find = true
-				break
-			}
-		}
-		if !find {
-			log.Errorf("Default QoS %s not contain in allowed QoS list", account.DefaultQos)
-			return util.ErrorCmdArg
-		}
-	}
+	// if account.DefaultQos != "" {
+	// 	find := false
+	// 	for _, qos := range account.AllowedQosList {
+	// 		if qos == account.DefaultQos {
+	// 			find = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if !find {
+	// 		log.Errorf("Default QoS %s not contain in allowed QoS list", account.DefaultQos)
+	// 		return util.ErrorCmdArg
+	// 	}
+	// }
 
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
@@ -385,7 +385,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 		log.Error(err)
 		return util.ErrorCmdArg
 	}
-
+	user.Account = ""
 	req := new(protos.AddUserRequest)
 	req.Uid = userUid
 	req.User = user
@@ -589,12 +589,12 @@ func ModifyAccount(modify_field protos.ModifyField, new_value string, name strin
 }
 
 func ModifyUser(modify_field protos.ModifyField, new_value string, name string, account string, partition string, requestType protos.OperatorType) util.CraneCmdError {
-	if modify_field == protos.ModifyField_AdminLevel {
-		if new_value != "none" && new_value != "operator" && new_value != "admin" {
-			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
-			return util.ErrorCmdArg
-		}
-	}
+	// if modify_field == protos.ModifyField_AdminLevel {
+	// 	if new_value != "none" && new_value != "operator" && new_value != "admin" {
+	// 		log.Errorf("Unknown admin level, valid values: none, operator, admin.")
+	// 		return util.ErrorCmdArg
+	// 	}
+	// }
 
 	req := protos.ModifyUserRequest{
 		Uid:         userUid,
