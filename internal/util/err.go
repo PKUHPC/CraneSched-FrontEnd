@@ -108,8 +108,8 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "The entered default_qos is not allowed"
 	case protos.ErrCode_ERR_DUPLICATE_DEFAULT_QOS:
 		return "The QoS is already the default QoS for the account or specified partition of the user"
-	case protos.ErrCode_ERR_CHILD_HAS_QOS:
-		return "The Qos is currently being used by the child accounts or users of the account, operation cannot be performed. You can use a forced operation to ignore this constraint"
+	case protos.ErrCode_ERR_SET_ACCOUNT_QOS:
+		return "The entered QoS list does not include the default QoS for this account or some descendant node. You can use a forced operation to ignore this constraint"
 	case protos.ErrCode_ERR_CHILD_HAS_DEFAULT_QOS:
 		return "some child accounts or users is using the QoS as the default QoS. By ignoring this constraint with forced deletion, the deleted default QoS is randomly replaced with one of the remaining items in the QoS list"
 	case protos.ErrCode_ERR_SET_DEFAULT_QOS:
