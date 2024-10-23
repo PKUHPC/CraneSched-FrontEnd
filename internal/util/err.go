@@ -105,7 +105,7 @@ func ErrMsg(err_code protos.ErrCode) string {
 	case protos.ErrCode_ERR_PARENT_ALLOWED_QOS:
 		return "Parent account does not include the qos"
 	case protos.ErrCode_ERR_SET_ALLOWED_QOS:
-		return "The entered QoS list does not include the default QoS. Ignoring this constraint with forced operation, the default QoS is randomly replaced with one of the items in the new QoS list"
+		return "The entered QoS list does not include the default QoS for this user. Ignoring this constraint with forced operation, the default QoS is randomly replaced with one of the items in the new QoS list"
 	case protos.ErrCode_ERR_ALLOWED_DEFAULT_QOS:
 		return "The entered default_qos is not allowed"
 	case protos.ErrCode_ERR_DUPLICATE_DEFAULT_QOS:
@@ -115,7 +115,9 @@ func ErrMsg(err_code protos.ErrCode) string {
 	case protos.ErrCode_ERR_CHILD_HAS_DEFAULT_QOS:
 		return "some child accounts or users is using the QoS as the default QoS. By ignoring this constraint with forced deletion, the deleted default QoS is randomly replaced with one of the remaining items in the QoS list"
 	case protos.ErrCode_ERR_SET_DEFAULT_QOS:
-		return "the Qos not allowed or is already the default qos"
+		return "The Qos not allowed or is already the default qos"
+	case protos.ErrCode_ERR_IS_DEFAULT_QOS:
+		return "The QoS is the default QoS for the current user/Account and cannot be modified. Ignoring this constraint with forced operation, the default QoS is randomly replaced with one of the items in the new QoS list"
 	}
 
 	switch err_code {
