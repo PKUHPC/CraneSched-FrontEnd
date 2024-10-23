@@ -451,7 +451,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	}
 
 	req := new(protos.AddQosRequest)
-	req.Uid = userUid
+	req.Uid = 999
 	req.Qos = qos
 
 	reply, err := stub.AddQos(context.Background(), req)
