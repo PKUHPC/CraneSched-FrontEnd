@@ -185,7 +185,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			err := util.ErrorSuccess
 			if cmd.Flags().Changed("description") { //See if a flag was set by the user
-				err = ModifyAccount("description", FlagAccount.Description, FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Description, FlagAccount.Description, FlagAccount.Name, protos.OperatorType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -194,27 +194,27 @@ var (
 			//	ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
 			//}
 			if cmd.Flags().Changed("set-allowed-partition") {
-				err = ModifyAccount("allowed_partition", strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Partition, strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.OperatorType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-partition") {
-				err = ModifyAccount("allowed_partition", FlagSetPartition, FlagAccount.Name, protos.ModifyEntityRequest_Add)
+				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperatorType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-partition") {
-				err = ModifyAccount("allowed_partition", FlagSetPartition, FlagAccount.Name, protos.ModifyEntityRequest_Delete)
+				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperatorType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set-allowed-qos-list") {
-				err = ModifyAccount("allowed_qos_list", strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Qos, strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.OperatorType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-qos-list") {
-				err = ModifyAccount("allowed_qos_list", FlagQos.Name, FlagAccount.Name, protos.ModifyEntityRequest_Add)
+				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperatorType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
-				err = ModifyAccount("allowed_qos_list", FlagQos.Name, FlagAccount.Name, protos.ModifyEntityRequest_Delete)
+				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperatorType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyAccount("default_qos", FlagAccount.DefaultQos, FlagAccount.Name, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyAccount(protos.ModifyField_DefaultQos, FlagAccount.DefaultQos, FlagAccount.Name, protos.OperatorType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -239,33 +239,33 @@ var (
 			err := util.ErrorSuccess
 			// Check if a flag was set explicitly
 			if cmd.Flags().Changed("admin-level") {
-				err = ModifyUser("admin_level", FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser(protos.ModifyField_AdminLevel, FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set-allowed-partition") {
-				err = ModifyUser("allowed_partition", strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser(protos.ModifyField_Partition, strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-partition") {
-				err = ModifyUser("allowed_partition", FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Add)
+				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-partition") {
-				err = ModifyUser("allowed_partition", FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Delete)
+				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set-allowed-qos-list") {
-				err = ModifyUser("allowed_qos_list", strings.Join(FlagUserQosList, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser(protos.ModifyField_Qos, strings.Join(FlagUserQosList, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-qos-list") {
-				err = ModifyUser("allowed_qos_list", FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Add)
+				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
-				err = ModifyUser("allowed_qos_list", FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Delete)
+				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyUser("default_qos", FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.ModifyEntityRequest_Overwrite)
+				err = ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -288,27 +288,27 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("description") {
-				if err := ModifyQos("description", FlagQos.Description, FlagQos.Name); err != util.ErrorSuccess {
+				if err := ModifyQos(protos.ModifyField_Description, FlagQos.Description, FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
 			if cmd.Flags().Changed("priority") {
-				if err := ModifyQos("priority", fmt.Sprint(FlagQos.Priority), FlagQos.Name); err != util.ErrorSuccess {
+				if err := ModifyQos(protos.ModifyField_Priority, fmt.Sprint(FlagQos.Priority), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
 			if cmd.Flags().Changed("max-jobs-per-user") {
-				if err := ModifyQos("max_jobs_per_user", fmt.Sprint(FlagQos.MaxJobsPerUser), FlagQos.Name); err != util.ErrorSuccess {
+				if err := ModifyQos(protos.ModifyField_MaxJobsPerUser, fmt.Sprint(FlagQos.MaxJobsPerUser), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
 			if cmd.Flags().Changed("max-cpus-per-user") {
-				if err := ModifyQos("max_cpus_per_user", fmt.Sprint(FlagQos.MaxCpusPerUser), FlagQos.Name); err != util.ErrorSuccess {
+				if err := ModifyQos(protos.ModifyField_MaxCpusPerUser, fmt.Sprint(FlagQos.MaxCpusPerUser), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
 			if cmd.Flags().Changed("max-time-limit-per-task") {
-				if err := ModifyQos("max_time_limit_per_task", fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagQos.Name); err != util.ErrorSuccess {
+				if err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
