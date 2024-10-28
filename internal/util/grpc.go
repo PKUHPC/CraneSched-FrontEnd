@@ -110,23 +110,25 @@ func GetUnixSocket(path string, mode fs.FileMode) (net.Listener, error) {
 	return socket, nil
 }
 
-type TokeAuth struct {
-	Token string
+type TokenAuth struct {
+	Token  string
+	UseTls bool
 }
 
-func (t *TokeAuth) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+func (t *TokenAuth) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
 	return map[string]string{
 		"Authorization": t.Token,
 	}, nil
 }
 
-func (t *TokeAuth) RequireTransportSecurity() bool {
-	return false
+func (t *TokenAuth) RequireTransportSecurity() bool {
+	return t.UseTls
 }
 
 func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
+	token_auth := TokenAuth{Token: "token", UseTls: config.UseTls}
 
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
@@ -136,7 +138,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 			log.Errorln("Failed to create TLS credentials " + err.Error())
 			os.Exit(ErrorGeneric)
 		}
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds), grpc.WithPerRPCCredentials(&TokeAuth{Token: "token"}))
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds), grpc.WithPerRPCCredentials(&token_auth))
 		if err != nil {
 			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
 			os.Exit(ErrorBackend)
@@ -146,7 +148,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	} else {
 		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithPerRPCCredentials(&TokeAuth{Token: "token"}))
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithPerRPCCredentials(&token_auth))
 		if err != nil {
 			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
 			os.Exit(ErrorBackend)
