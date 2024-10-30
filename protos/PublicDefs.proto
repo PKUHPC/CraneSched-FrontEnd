@@ -492,3 +492,10 @@ message CranedRemoteMeta {
   google.protobuf.Timestamp craned_start_time = 4;
   google.protobuf.Timestamp system_boot_time = 5;
 }
+
+message ReservationInfo {
+  string reservation_name = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Duration duration = 3;
+  string craned_regex = 4;
+}

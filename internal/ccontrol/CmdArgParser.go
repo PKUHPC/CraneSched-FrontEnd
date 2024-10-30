@@ -28,17 +28,21 @@ import (
 )
 
 var (
-	FlagNodeName       string
-	FlagState          string
-	FlagReason         string
-	FlagPartitionName  string
-	FlagTaskIds        string
-	FlagQueryAll       bool
-	FlagTimeLimit      string
-	FlagPriority       float64
-	FlagHoldTime       string
-	FlagConfigFilePath string
-	FlagJson           bool
+	FlagNodeName        string
+	FlagState           string
+	FlagReason          string
+	FlagPartitionName   string
+	FlagTaskIds         string
+	FlagQueryAll        bool
+	FlagTimeLimit       string
+	FlagPriority        float64
+	FlagHoldTime        string
+	FlagConfigFilePath  string
+	FlagJson            bool
+	FlagReservationName string
+	FlagStartTime       string
+	FlagDuration        string
+	FlagNodes           string
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -111,6 +115,17 @@ var (
 			}
 		},
 	}
+	// showReservationsCmd = &cobra.Command{
+	// 	Use:   "reservation",
+	// 	Short: "Display details of the reservations",
+	// 	Long:  "",
+	// 	Args:  cobra.ExactArgs(0),
+	// 	Run: func(cmd *cobra.Command, args []string) {
+	// 		if err := ShowReservations(); err != util.ErrorSuccess {
+	// 			os.Exit(err)
+	// 		}
+	// 	},
+	// }
 	showConfigCmd = &cobra.Command{
 		Use:   "config",
 		Short: "Display the configuration file in key-value format",
@@ -206,6 +221,22 @@ var (
 			}
 		},
 	}
+	createCmd = &cobra.Command{
+		Use:   "create",
+		Short: "Create a new entity",
+		Long:  "",
+	}
+	createReservationCmd = &cobra.Command{
+		Use:   "reservation [flags]",
+		Short: "Create a new reservation",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := CreateReservation(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -227,6 +258,7 @@ func init() {
 		showCmd.AddCommand(showPartitionCmd)
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
+		// showCmd.AddCommand(showReservationsCmd)
 	}
 
 	RootCmd.AddCommand(updateCmd)
@@ -250,9 +282,22 @@ func init() {
 			}
 		}
 	}
+
 	RootCmd.AddCommand(holdCmd)
 	{
 		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
 	}
+
 	RootCmd.AddCommand(releaseCmd)
+
+	RootCmd.AddCommand(createCmd)
+	{
+		createCmd.AddCommand(createReservationCmd)
+		{
+			createReservationCmd.Flags().StringVarP(&FlagReservationName, "name", "n", "", "Specify the name of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagStartTime, "start-time", "s", "", "Specify the start time of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagDuration, "duration", "d", "", "Specify the duration of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagNodes, "nodes", "N", "", "Specify the nodes of the reservation")
+		}
+	}
 }
