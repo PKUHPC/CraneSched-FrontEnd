@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 
 	log "github.com/sirupsen/logrus"
@@ -655,4 +656,40 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	}
 
 	return SummarizeReply(reply)
+}
+
+func CreateReservation() util.CraneCmdError {
+	start_time, err := util.ParseTime(FlagStartTime)
+	if err != nil {
+		log.Errorln(err)
+		return util.ErrorCmdArg
+	}
+
+	reservation_info := &protos.ReservationInfo{}
+	reservation_info.ReservationName = FlagReservationName
+	reservation_info.StartTime = timestamppb.New(start_time)
+	ok := util.ParseDuration(FlagDuration, reservation_info.Duration)
+	if !ok {
+		log.Errorln("Invalid duration specified.")
+		return util.ErrorCmdArg
+	}
+	reservation_info.CranedRegex = FlagNodes
+
+	req := &protos.CreateReservationRequest{
+		ReservationInfo: reservation_info,
+	}
+
+	reply, err := stub.CreateReservation(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to create reservation")
+		return util.ErrorNetwork
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Reservation %s created successfully.\n", FlagReservationName)
+	} else {
+		log.Errorf("Failed to create reservation: %s.\n", reply.GetReason())
+		return util.ErrorBackend
+	}
+	return util.ErrorSuccess
 }
