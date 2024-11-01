@@ -468,12 +468,16 @@ func init() {
 		addCmd.AddCommand(addUserCmd)
 		{
 			addUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Set the name of the user")
+			addUserCmd.Flags().StringVarP(&FlagUser.Password, "password", "P", "", "Set the password of the user")
 			addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Set the account of the user")
 			addUserCmd.Flags().StringSliceVarP(&FlagUserPartitions, "partition", "p", nil, "Set allowed partitions of the user (comma seperated list)")
 			addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "Set admin level (none/operator) of the user")
 			addUserCmd.Flags().BoolVarP(&FlagUserCoordinator, "coordinator", "c", false, "Set the user as a coordinator of the account")
 			if err := addUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
+			}
+			if err := addUserCmd.MarkFlagRequired("password"); err != nil {
+				log.Fatalln("Can't mark 'password' flag required")
 			}
 			if err := addUserCmd.MarkFlagRequired("account"); err != nil {
 				log.Fatalln("Can't mark 'account' flag required")
