@@ -113,7 +113,6 @@ var (
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
 			}
-			// TODO: 阻止使用module但没申请license的任务
 
 			task.Uid = uint32(os.Getuid())
 			task.Gid = uint32(os.Getgid())
