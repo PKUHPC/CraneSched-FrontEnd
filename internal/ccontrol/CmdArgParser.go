@@ -100,13 +100,13 @@ var (
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				FlagLicenseName = ""
+				FlagLicenseNameList = ""
 				FlagQueryAll = true
 			} else {
-				FlagLicenseName = args[0]
+				FlagLicenseNameList = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowLicenses(FlagLicenseName, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowLicenses(FlagLicenseNameList, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
