@@ -75,7 +75,6 @@ var (
 			if err := ParseCbatchScript(args[0], &pArgs, &pSh); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
-			// TODO: 阻止使用module但没申请license的任务
 
 			ok, task := ProcessCbatchArgs(cmd, pArgs)
 			if !ok {

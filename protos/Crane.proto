@@ -195,7 +195,7 @@ message QueryPartitionInfoReply {
 }
 
 message QueryLicensesInfoRequest {
-  string license_name = 1;
+  repeated string license_name_list = 1;
 }
 
 message QueryLicensesInfoReply {

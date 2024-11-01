@@ -28,19 +28,19 @@ import (
 )
 
 var (
-	FlagNodeName       string
-	FlagState          string
-	FlagReason         string
-	FlagPartitionName  string
-	FlagLicenseName    string
-	FlagTaskId         uint32
-	FlagTaskIds        string
-	FlagQueryAll       bool
-	FlagTimeLimit      string
-	FlagPriority       float64
-	FlagHoldTime       string
-	FlagConfigFilePath string
-	FlagJson           bool
+	FlagNodeName        string
+	FlagState           string
+	FlagReason          string
+	FlagPartitionName   string
+	FlagLicenseNameList string
+	FlagTaskId          uint32
+	FlagTaskIds         string
+	FlagQueryAll        bool
+	FlagTimeLimit       string
+	FlagPriority        float64
+	FlagHoldTime        string
+	FlagConfigFilePath  string
+	FlagJson            bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -101,13 +101,13 @@ var (
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				FlagLicenseName = ""
+				FlagLicenseNameList = ""
 				FlagQueryAll = true
 			} else {
-				FlagLicenseName = args[0]
+				FlagLicenseNameList = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowLicenses(FlagLicenseName, FlagQueryAll); err != util.ErrorSuccess {
+			if err := ShowLicenses(FlagLicenseNameList, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
