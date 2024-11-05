@@ -28,6 +28,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func SaveFileWithPermissions(path string, content []byte, perm os.FileMode) error {
+	err := os.WriteFile(path, content, perm)
+	if err != nil {
+		return fmt.Errorf("error writing file: %w", err)
+	}
+
+	err = os.Chmod(path, perm)
+	if err != nil {
+		return fmt.Errorf("error setting file permissions: %w", err)
+	}
+	return nil
+}
+
 func RemoveFileIfExists(path string) bool {
 	if _, err := os.Stat(path); err == nil {
 		err := os.Remove(path)
