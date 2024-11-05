@@ -81,8 +81,8 @@ install:
 	@echo "  - Installing binaries to /usr/local/bin/"
 	@mkdir -p /usr/local/bin
 	@cp $(BIN_DIR)/* /usr/local/bin
-	@echo "  - Installing systemd service files to /etc/systemd/system/"
-	@mkdir -p /etc/systemd/system
-	@cp etc/*.service /etc/systemd/system
+	@echo "  - Installing systemd service files to /usr/lib/systemd/system"
+	@mkdir -p /usr/lib/systemd/system
+	@cp etc/*.service /usr/lib/systemd/system
 	@echo "  - You may need to reload systemd daemons: 'systemctl daemon-reload'"
 	@echo "  - Done."
