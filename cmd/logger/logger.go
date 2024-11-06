@@ -16,42 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package util
+package main
 
-import (
-	"fmt"
+import "CraneFrontEnd/internal/logger"
 
-	nested "github.com/antonfisher/nested-logrus-formatter"
-	log "github.com/sirupsen/logrus"
-)
-
-func InitLogger(level string) {
-	switch level {
-	case "trace":
-		log.SetLevel(log.TraceLevel)
-	case "debug":
-		log.SetLevel(log.DebugLevel)
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	default:
-		log.Warnf("Invalid log level %s, using info level", level)
-		log.SetLevel(log.InfoLevel)
-	}
-	log.SetReportCaller(false)
-	log.SetFormatter(&nested.Formatter{})
-}
-
-func CheckLogLevel(strLevel string) error {
-	validLogLevels := map[string]bool{
-		"trace": true,
-		"debug": true,
-		"info":  true,
-		"warn":  true,
-		"error": true,
-	}
-	if !validLogLevels[strLevel] {
-		return fmt.Errorf("invalid log level: %v", strLevel)
-	}
-
-	return nil
+func main() {
+	logger.ParseCmdArgs()
 }

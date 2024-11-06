@@ -689,6 +689,15 @@ message StreamCforedTaskIOReply {
     CranedUnregisterReply payload_craned_unregister_reply = 4;
   }
 }
+  message SetLogLevelRequest {
+    string logger = 1;
+    string log_level = 2;
+  }
+
+  message SetLogLevelReply {
+    bool ok = 1;
+    string reason = 2;
+  }
 
 // Todo: Divide service into two parts: one for Craned and one for Crun
 //  We need to distinguish the message sender
@@ -727,6 +736,9 @@ service CraneCtld {
 
   /* RPCs called from cinfo */
   rpc QueryClusterInfo(QueryClusterInfoRequest) returns (QueryClusterInfoReply);
+
+  /* RPCs called from logger */
+  rpc SetLogerLevel(SetLogLevelRequest) returns (SetLogLevelReply);
 
   /* common RPCs */
   rpc QueryTasksInfo(QueryTasksInfoRequest) returns (QueryTasksInfoReply);
