@@ -9,13 +9,14 @@ import (
 )
 
 var (
-	stub protos.CraneCtldClient
+	userUid uint32
+	stub    protos.CraneCtldClient
 )
 
-func Login(username string, password string) util.CraneCmdError {
+func Login(password string) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
-	req := protos.LoginRequest{Username: username, Password: password}
+	req := protos.LoginRequest{Uid: userUid, Password: password}
 	var reply *protos.LoginReply
 	var err error
 
