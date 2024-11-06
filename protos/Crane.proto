@@ -747,13 +747,14 @@ message StreamCforedTaskIOReply {
 }
 
 message LoginRequest {
-  string username = 1;
+  uint32 uid = 1;
   string password = 2;
 }
 
 message LoginReply {
   bool ok = 1;
   string token = 2;
+  string reason = 3;
 }
 
 // Todo: Divide service into two parts: one for Craned and one for Crun
