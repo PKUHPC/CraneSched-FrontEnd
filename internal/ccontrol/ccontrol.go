@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"
 
 	log "github.com/sirupsen/logrus"
@@ -121,6 +121,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			fmt.Println("No node is available.")
 		} else {
 			fmt.Printf("Node %s not found.\n", nodeName)
+			return util.ErrorBackend
 		}
 	} else {
 		for _, nodeInfo := range reply.CranedInfoList {
@@ -198,14 +199,15 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 		return util.ErrorSuccess
 	}
 
-	if len(reply.PartitionInfo) == 0 {
+	if len(reply.PartitionInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No partition is available.")
 		} else {
 			fmt.Printf("Partition %s not found.\n", partitionName)
+			return util.ErrorBackend
 		}
 	} else {
-		for _, partitionInfo := range reply.PartitionInfo {
+		for _, partitionInfo := range reply.PartitionInfoList {
 			fmt.Printf("PartitionName=%v State=%v\n"+
 				"\tTotalNodes=%d AliveNodes=%d\n"+
 				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
@@ -224,6 +226,51 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
 				partitionInfo.Hostlist)
+		}
+	}
+	return util.ErrorSuccess
+}
+
+func ShowReservations(reservationName string, queryAll bool) util.CraneCmdError {
+	req := &protos.QueryReservationInfoRequest{ReservationName: reservationName}
+	reply, err := stub.QueryReservationInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show reservations")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
+	}
+
+	if len(reply.ReservationInfoList) == 0 {
+		if queryAll {
+			fmt.Println("No reservation is available.")
+		} else {
+			fmt.Printf("Reservation %s not found.\n", reservationName)
+			return util.ErrorBackend
+		}
+	} else {
+		for _, reservationInfo := range reply.ReservationInfoList {
+			fmt.Printf("ReservationName=%v StartTime=%v Duration=%v\n"+
+				"\tPartition=%v CranedRegex=%v\n"+
+				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
+				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
+				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n\n",
+				reservationInfo.ReservationName, reservationInfo.StartTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"),
+				reservationInfo.Duration.AsDuration().String(),
+				reservationInfo.Partition, reservationInfo.CranedRegex,
+				math.Abs(reservationInfo.ResTotal.AllocatableRes.CpuCoreLimit),
+				math.Abs(reservationInfo.ResAvail.AllocatableRes.CpuCoreLimit),
+				math.Abs(reservationInfo.ResAlloc.AllocatableRes.CpuCoreLimit),
+				formatMemToMB(reservationInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
+				formatMemToMB(reservationInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
+				formatMemToMB(reservationInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
+				formatDeviceMap(reservationInfo.ResTotal.GetDeviceMap()),
+				formatDeviceMap(reservationInfo.ResAvail.GetDeviceMap()),
+				formatDeviceMap(reservationInfo.ResAlloc.GetDeviceMap()),
+			)
 		}
 	}
 	return util.ErrorSuccess
@@ -635,19 +682,19 @@ func CreateReservation() util.CraneCmdError {
 		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
-
-	reservation_info := &protos.ReservationInfo{}
-	reservation_info.ReservationName = FlagReservationName
-	reservation_info.StartTime = timestamppb.New(start_time)
-	ok := util.ParseDuration(FlagDuration, reservation_info.Duration)
-	if !ok {
+	duration := durationpb.New(time.Duration(0))
+	ok := util.ParseDuration(FlagDuration, duration)
+	if !ok || duration.AsDuration() < 0 {
 		log.Errorln("Invalid duration specified.")
 		return util.ErrorCmdArg
 	}
-	reservation_info.CranedRegex = FlagNodes
 
 	req := &protos.CreateReservationRequest{
-		ReservationInfo: reservation_info,
+		ReservationName:  FlagReservationName,
+		StartTimeSeconds: start_time.Unix(),
+		DurationSeconds:  duration.GetSeconds(),
+		Partition:        FlagPartitionName,
+		CranedRegex:      FlagNodes,
 	}
 
 	reply, err := stub.CreateReservation(context.Background(), req)
@@ -660,6 +707,23 @@ func CreateReservation() util.CraneCmdError {
 		fmt.Printf("Reservation %s created successfully.\n", FlagReservationName)
 	} else {
 		log.Errorf("Failed to create reservation: %s.\n", reply.GetReason())
+		return util.ErrorBackend
+	}
+	return util.ErrorSuccess
+}
+
+func DeleteReservation(ReservationName string) util.CraneCmdError {
+	req := &protos.DeleteReservationRequest{ReservationName: ReservationName}
+	reply, err := stub.DeleteReservation(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to delete reservation")
+		return util.ErrorNetwork
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
+	} else {
+		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
