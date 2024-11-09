@@ -23,9 +23,9 @@
 # - Please use proper indentation for neater output.
 
 # Variables
-GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
+GIT_COMMIT_HASH := $(shell if [ -d .git ]; then git rev-parse --short HEAD; else echo "no-git"; fi)
 VERSION_FILE := VERSION
-VERSION := $(shell [ -f $(VERSION_FILE) ] && cat $(VERSION_FILE) || echo $(GIT_COMMIT_HASH))
+VERSION := $(shell [ -f $(VERSION_FILE) ] && cat $(VERSION_FILE) || echo "$(GIT_COMMIT_HASH)")
 BUILD_TIME := $(shell date +'%a, %d %b %Y %H:%M:%S %z')
 LDFLAGS := -ldflags \
 			"-X 'CraneFrontEnd/internal/util.VERSION=$(VERSION)' \
