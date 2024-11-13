@@ -23,10 +23,10 @@ import "C"
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+
 	"bufio"
 	"context"
 	"fmt"
-	"golang.org/x/term"
 	"io"
 	"os"
 	"os/signal"
@@ -36,6 +36,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
