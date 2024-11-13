@@ -19,6 +19,9 @@
 package util
 
 import (
+	"fmt"
+	"strings"
+
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
 )
@@ -37,4 +40,52 @@ func InitLogger(level string) {
 	}
 	log.SetReportCaller(false)
 	log.SetFormatter(&nested.Formatter{})
+}
+
+func CheckLogLevel(strLevel string) error {
+	validLogLevels := map[string]struct{}{
+		"trace": {},
+		"debug": {},
+		"info":  {},
+		"warn":  {},
+		"error": {},
+	}
+
+	validLevelsStr := strings.Join([]string{"trace", "debug", "info", "warn", "error"}, ", ")
+
+	if _, exists := validLogLevels[strLevel]; !exists {
+		return fmt.Errorf("invalid log level: %v. Valid log levels are: %s", strLevel, validLevelsStr)
+	}
+
+	return nil
+}
+func CheckLoggerName(nodeNames []string, strLoggerName string) error {
+	// cranectld valid logger
+	cranectldLoggerNames := map[string]struct{}{
+		"all":           {},
+		"cranedkeeper":  {},
+		"taskscheduler": {},
+		"default":       {},
+	}
+
+	cranedLoggerNames := map[string]struct{}{
+		"default": {},
+	}
+
+	var validLogNames map[string]struct{}
+	if len(nodeNames) == 1 && strings.ToLower(nodeNames[0]) == "cranectld" {
+		validLogNames = cranectldLoggerNames
+	} else {
+		validLogNames = cranedLoggerNames
+	}
+
+	if _, exists := validLogNames[strLoggerName]; !exists {
+		validNames := make([]string, 0, len(validLogNames))
+		for name := range validLogNames {
+			validNames = append(validNames, name)
+		}
+		return fmt.Errorf("invalid logger %v. Valid loggers are: %v", strLoggerName, strings.Join(validNames, ", "))
+	}
+
+	return nil
 }

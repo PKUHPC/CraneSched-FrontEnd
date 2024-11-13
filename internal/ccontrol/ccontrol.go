@@ -427,6 +427,18 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		return util.ErrorSuccess
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
+			fmt.Printf("Nodes %v logger level modified successfully.\n", reply.ModifiedNodes)
+		}
+		if len(reply.NotModifiedNodes) > 0 {
+			for i := 0; i < len(reply.NotModifiedNodes); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node logger: %s. Reason: %s.\n",
+					reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+			}
+			return util.ErrorBackend
+		}
+		return util.ErrorSuccess
+	case *protos.SetLoggerLevelReply:
+		if len(reply.ModifiedNodes) > 0 {
 			fmt.Printf("Nodes %v modified successfully.\n", reply.ModifiedNodes)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
@@ -642,6 +654,51 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
 		log.Errorf("Failed to modify node state: %v.\n", err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.NotModifiedNodes) == 0 {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	return SummarizeReply(reply)
+}
+
+func ChangeLoggerState(inputNodesName, logger, logLevel string) util.CraneCmdError {
+	nodeNames, ok := util.ParseHostList(inputNodesName)
+	if !ok {
+		log.Errorf("Invalid node pattern: %s.\n", inputNodesName)
+		return util.ErrorCmdArg
+	}
+
+	if len(nodeNames) == 0 {
+		log.Errorln("No node provided.")
+		return util.ErrorCmdArg
+	}
+
+	if err := util.CheckLogLevel(logLevel); err != nil {
+		log.Errorf("Invalid level: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+	logger = strings.ToLower(logger)
+	if err := util.CheckLoggerName(nodeNames, logger); err != nil {
+		log.Errorf("Invalid logger:  %v.\n", err)
+		return util.ErrorCmdArg
+	}
+
+	req := &protos.SetLoggerLevelRequest{
+		NodeName: nodeNames,
+		Logger:   FlagLoggerName,
+		LogLevel: logLevel,
+	}
+	reply, err := stub.SetLoggerLevel(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to modify node logger: %v.\n", err)
 		return util.ErrorNetwork
 	}
 
