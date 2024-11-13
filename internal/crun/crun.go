@@ -26,11 +26,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"golang.org/x/term"
 	"io"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -87,6 +87,25 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient,
 	}
 }
 
+type TermReadWriter struct {
+	chanInputFromTerm  chan string
+	chanOutputFromTask chan string
+}
+
+func (rw *TermReadWriter) Read(p []byte) (n int, err error) {
+	resp := <-rw.chanOutputFromTask
+	return copy(p, resp), nil
+}
+
+func (rw *TermReadWriter) Write(p []byte) (n int, err error) {
+	rw.chanInputFromTerm <- string(p)
+	return len(p), nil
+}
+
+func NewTermReadWriter(chanInputFromTerm chan string, chanOutputFromTask chan string) io.ReadWriter {
+	return &TermReadWriter{chanInputFromTerm: chanInputFromTerm, chanOutputFromTask: chanOutputFromTask}
+}
+
 func StartCrunStream(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 
@@ -120,6 +139,8 @@ func StartCrunStream(task *protos.TaskToCtld) util.CraneCmdError {
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
+
+	ret := util.ErrorSuccess
 CrunStateMachineLoop:
 	for {
 		switch state {
@@ -128,6 +149,7 @@ CrunStateMachineLoop:
 			stream, err = client.CrunStream(gVars.globalCtx)
 			if err != nil {
 				log.Errorf("Failed to create CrunStream: %s.", err)
+				ret = util.ErrorNetwork
 				break CrunStateMachineLoop
 			}
 
@@ -148,6 +170,7 @@ CrunStateMachineLoop:
 				log.Errorf("Failed to send Task Request to CrunStream: %s. "+
 					"Connection to Crun is broken", err)
 				gVars.connectionBroken = true
+				ret = util.ErrorNetwork
 				break CrunStateMachineLoop
 			}
 
@@ -167,6 +190,7 @@ CrunStateMachineLoop:
 						log.Errorf("Connection to Cfored broken when requesting "+
 							"task id: %s. Exiting...", err)
 						gVars.connectionBroken = true
+						ret = util.ErrorNetwork
 						break CrunStateMachineLoop
 					}
 				}
@@ -183,6 +207,7 @@ CrunStateMachineLoop:
 					state = WaitRes
 				} else {
 					_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+					ret = util.ErrorBackend
 					break CrunStateMachineLoop
 				}
 			case sig := <-sigs:
@@ -207,6 +232,7 @@ CrunStateMachineLoop:
 						log.Errorf("Connection to Cfored broken when waiting "+
 							"resource allocated: %s. Exiting...", err)
 						gVars.connectionBroken = true
+						ret = util.ErrorNetwork
 						break CrunStateMachineLoop
 					}
 				}
@@ -221,6 +247,7 @@ CrunStateMachineLoop:
 						state = WaitForward
 					} else {
 						log.Errorln("Failed to allocate task resource. Exiting...")
+						ret = util.ErrorBackend
 						break CrunStateMachineLoop
 					}
 				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
@@ -251,6 +278,7 @@ CrunStateMachineLoop:
 						log.Errorf("Connection to Cfored broken when waiting for forwarding user i/o "+
 							"%s. Exiting...", err)
 						gVars.connectionBroken = true
+						ret = util.ErrorNetwork
 						break CrunStateMachineLoop
 					}
 				}
@@ -263,12 +291,15 @@ CrunStateMachineLoop:
 						state = Forwarding
 					} else {
 						log.Errorln("Failed to wait for task io forward ready. Exiting...")
+						ret = util.ErrorBackend
 						break CrunStateMachineLoop
 					}
 				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
 					state = TaskKilling
 				case protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY:
+					// Task launch failed !
 					fmt.Println("Task failed ")
+					ret = util.ErrorGeneric
 					break CrunStateMachineLoop
 				default:
 					log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
@@ -285,10 +316,29 @@ CrunStateMachineLoop:
 			}
 
 		case Forwarding:
-			taskFinishCtx, taskFinishCb := context.WithCancel(context.Background())
+
+			if FlagPty {
+				originalState, err := term.MakeRaw(int(os.Stdin.Fd()))
+				if err != nil {
+					return 0
+				}
+				if err != nil {
+					log.Errorf("Failed to make stdin raw: %s,killing", err.Error())
+					state = TaskKilling
+					ret = util.ErrorGeneric
+					break CrunStateMachineLoop
+				}
+				defer func(fd int, oldState *term.State) {
+					err := term.Restore(fd, oldState)
+					if err != nil {
+						log.Errorf("Failed to restore stdin: %s", err.Error())
+					}
+				}(int(os.Stdin.Fd()), originalState)
+			}
 			chanInputFromTerm := make(chan string, 5)
 			chanOutputFromRemote := make(chan string, 5)
-			go IOForward(taskFinishCtx, taskFinishCb, chanInputFromTerm, chanOutputFromRemote)
+			taskFinishCtx, taskFinishCb := context.WithCancel(context.Background())
+			StartIOForward(taskFinishCtx, taskFinishCb, chanInputFromTerm, chanOutputFromRemote)
 
 			go func(msgToTask chan string) {
 			forwardToCfored:
@@ -334,6 +384,7 @@ CrunStateMachineLoop:
 						log.Errorf("The connection to Cfored was broken: %s. "+
 							"Exiting...", err)
 						gVars.connectionBroken = true
+						ret = util.ErrorNetwork
 						break CrunStateMachineLoop
 					} else {
 						state = WaitAck
@@ -348,6 +399,7 @@ CrunStateMachineLoop:
 						default:
 							log.Errorf("The connection to Cfored was broken: %s. "+
 								"Killing task...", err)
+							ret = util.ErrorNetwork
 							gVars.connectionBroken = true
 							break CrunStateMachineLoop
 						}
@@ -385,6 +437,8 @@ CrunStateMachineLoop:
 			}
 
 			if gVars.connectionBroken {
+				log.Errorf("The connection to Cfored was broken. Exiting...")
+				ret = util.ErrorNetwork
 				break CrunStateMachineLoop
 			}
 
@@ -392,6 +446,7 @@ CrunStateMachineLoop:
 			if err := stream.Send(request); err != nil {
 				log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
 				gVars.connectionBroken = true
+				ret = util.ErrorNetwork
 				break CrunStateMachineLoop
 			} else {
 				state = WaitAck
@@ -410,6 +465,7 @@ CrunStateMachineLoop:
 					log.Errorf("The connection to Cfored was broken: %s. "+
 						"Exiting...", err)
 					gVars.connectionBroken = true
+					ret = util.ErrorNetwork
 					break CrunStateMachineLoop
 				}
 			}
@@ -430,16 +486,10 @@ CrunStateMachineLoop:
 		}
 	}
 	// Check if connection finished normally
-	if state != WaitAck || gVars.connectionBroken {
-		return util.ErrorNetwork
-	} else {
-		return util.ErrorSuccess
-	}
+	return ret
 }
 
-func forwardingSigintHandlerRoutine(sigintCb func(), wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func forwardingSigintHandlerRoutine(sigintCb func()) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
 
@@ -471,8 +521,7 @@ loop:
 	log.Tracef("Signal processing goroutine exit.")
 }
 
-func fileWriterRoutine(fd uintptr, chanOutputFromTask chan string, ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
+func fileWriterRoutine(fd uintptr, chanOutputFromTask chan string, ctx context.Context) {
 	file := os.NewFile(fd, "stdout")
 	writer := bufio.NewWriter(file)
 
@@ -498,8 +547,7 @@ writing:
 	}
 }
 
-func fileReaderRoutine(fd uintptr, chanInputFromTerm chan string, ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
+func fileReaderRoutine(fd uintptr, chanInputFromTerm chan string, ctx context.Context) {
 
 	file := os.NewFile(fd, "stdin")
 	reader := bufio.NewReader(file)
@@ -510,30 +558,26 @@ reading:
 			break reading
 
 		default:
-			line, err := reader.ReadString('\n')
+			data, err := reader.ReadByte()
 			if err != nil {
 				if err == io.EOF {
 					break reading
 				}
-				fmt.Printf("Failed to read from fd: %v\n", err)
+				log.Errorf("Failed to read from fd: %v\n", err)
 				break reading
 			}
-			chanInputFromTerm <- line
+			chanInputFromTerm <- string(data)
 		}
 	}
 }
 
-func IOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
+func StartIOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
 	chanInputFromTerm chan string, chanOutputFromTask chan string) {
 
-	var wg sync.WaitGroup
-	wg.Add(3)
+	go forwardingSigintHandlerRoutine(taskFinishFunc)
+	go fileReaderRoutine(os.Stdin.Fd(), chanInputFromTerm, taskFinishCtx)
+	go fileWriterRoutine(os.Stdout.Fd(), chanOutputFromTask, taskFinishCtx)
 
-	go forwardingSigintHandlerRoutine(taskFinishFunc, &wg)
-	go fileReaderRoutine(os.Stdin.Fd(), chanInputFromTerm, taskFinishCtx, &wg)
-	go fileWriterRoutine(os.Stdout.Fd(), chanOutputFromTask, taskFinishCtx, &wg)
-
-	wg.Wait()
 }
 
 func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
@@ -636,6 +680,10 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
+	if FlagPty && FlagNodes > 1 {
+		log.Error("Not allowed to run in pty for node more than 1")
+		return util.ErrorCmdArg
+	}
 	util.SetPropagatedEnviron(task)
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
