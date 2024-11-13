@@ -89,25 +89,6 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient,
 	}
 }
 
-type TermReadWriter struct {
-	chanInputFromTerm  chan string
-	chanOutputFromTask chan string
-}
-
-func (rw *TermReadWriter) Read(p []byte) (n int, err error) {
-	resp := <-rw.chanOutputFromTask
-	return copy(p, resp), nil
-}
-
-func (rw *TermReadWriter) Write(p []byte) (n int, err error) {
-	rw.chanInputFromTerm <- string(p)
-	return len(p), nil
-}
-
-func NewTermReadWriter(chanInputFromTerm chan string, chanOutputFromTask chan string) io.ReadWriter {
-	return &TermReadWriter{chanInputFromTerm: chanInputFromTerm, chanOutputFromTask: chanOutputFromTask}
-}
-
 func StartCrunStream(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 
@@ -337,7 +318,7 @@ CrunStateMachineLoop:
 					}
 				}(int(os.Stdin.Fd()), originalState)
 			}
-			chanInputFromTerm := make(chan string, 5)
+			chanInputFromTerm := make(chan string, 100)
 			chanOutputFromRemote := make(chan string, 5)
 			taskFinishCtx, taskFinishCb := context.WithCancel(context.Background())
 			StartIOForward(taskFinishCtx, taskFinishCb, chanInputFromTerm, chanOutputFromRemote)
@@ -560,15 +541,28 @@ reading:
 			break reading
 
 		default:
-			data, err := reader.ReadByte()
-			if err != nil {
-				if err == io.EOF {
+			if FlagPty {
+				data, err := reader.ReadByte()
+				if err != nil {
+					if err == io.EOF {
+						break reading
+					}
+					log.Errorf("Failed to read from fd: %v\n", err)
 					break reading
 				}
-				log.Errorf("Failed to read from fd: %v\n", err)
-				break reading
+				chanInputFromTerm <- string(data)
+			} else {
+				data, err := reader.ReadString('\n')
+				if err != nil {
+					if err == io.EOF {
+						break reading
+					}
+					log.Errorf("Failed to read from fd: %v\n", err)
+					break reading
+				}
+				chanInputFromTerm <- data
 			}
-			chanInputFromTerm <- string(data)
+
 		}
 	}
 }
@@ -692,12 +686,15 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 		log.Errorf("Request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
 		return util.ErrorCmdArg
 	}
-	task.GetInteractiveMeta().ShScript = strings.Join(args, " ")
-	term, exits := syscall.Getenv("TERM")
+	interactiveMeta := task.GetInteractiveMeta()
+	interactiveMeta.Pty = FlagPty
+
+	interactiveMeta.ShScript = strings.Join(args, " ")
+	termEnv, exits := syscall.Getenv("TERM")
 	if exits {
-		task.GetInteractiveMeta().TermEnv = term
+		interactiveMeta.TermEnv = termEnv
 	}
-	task.GetInteractiveMeta().InteractiveType = protos.InteractiveTaskType_Crun
+	interactiveMeta.InteractiveType = protos.InteractiveTaskType_Crun
 
 	return StartCrunStream(task)
 }
