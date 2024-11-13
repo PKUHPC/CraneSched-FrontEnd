@@ -266,8 +266,8 @@ func init() {
 		}
 		updateCmd.AddCommand(updateLoggerCmd)
 		{
-			updateLoggerCmd.Flags().StringVarP(&FlagNodeName, "node-name", "N", "cranectld", "Specify names of the node to be modified(cranectld or real craned name)")
-			updateLoggerCmd.Flags().StringVarP(&FlagLoggerName, "logger-name", "n", "all", "Specify logger name of the node to be modified")
+			updateLoggerCmd.Flags().StringVarP(&FlagNodeName, "node-name", "n", "cranectld", "Specify names of the node to be modified(cranectld or real craned name)")
+			updateLoggerCmd.Flags().StringVarP(&FlagLoggerName, "logger-name", "m", "all", "Specify logger name of the node to be modified")
 			updateLoggerCmd.Flags().StringVarP(&FlagLogLevel, "logger-level", "l", "trace", "Specify logger level")
 		}
 	}

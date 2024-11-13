@@ -44,14 +44,15 @@ func InitLogger(level string) {
 
 func CheckLogLevel(strLevel string) error {
 	validLogLevels := map[string]struct{}{
-		"trace": {},
-		"debug": {},
-		"info":  {},
-		"warn":  {},
-		"error": {},
+		"trace":    {},
+		"debug":    {},
+		"info":     {},
+		"warn":     {},
+		"error":    {},
+		"critical": {},
 	}
 
-	validLevelsStr := strings.Join([]string{"trace", "debug", "info", "warn", "error"}, ", ")
+	validLevelsStr := strings.Join([]string{"trace", "debug", "info", "warn", "error", "critical"}, ", ")
 
 	if _, exists := validLogLevels[strLevel]; !exists {
 		return fmt.Errorf("invalid log level: %v. Valid log levels are: %s", strLevel, validLevelsStr)
