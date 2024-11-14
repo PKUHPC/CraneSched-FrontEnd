@@ -437,13 +437,13 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 		return util.ErrorSuccess
-	case *protos.SetLoggerLevelReply:
+	case *protos.SetLoggingLevelReply:
 		if len(reply.ModifiedNodes) > 0 {
-			fmt.Printf("Nodes %v logger level modified successfully.\n", reply.ModifiedNodes)
+			fmt.Printf("Nodes %v logging level modified successfully.\n", reply.ModifiedNodes)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node logging level: %s. Reason: %s.\n",
 					reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 			}
 			return util.ErrorBackend
@@ -669,34 +669,20 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	return SummarizeReply(reply)
 }
 
-func ChangeLoggerLevel(inputNodesName, logger, logLevel string) util.CraneCmdError {
+func ChangeLoggingLevel(inputNodesName, logger, logLevel string) util.CraneCmdError {
 	nodeNames, ok := util.ParseHostList(inputNodesName)
 	if !ok {
 		log.Errorf("Invalid node pattern: %s.\n", inputNodesName)
 		return util.ErrorCmdArg
 	}
 
-	if len(nodeNames) == 0 {
-		log.Errorln("No node provided.")
-		return util.ErrorCmdArg
-	}
-
-	if err := util.CheckLogLevel(logLevel); err != nil {
-		log.Errorf("Invalid level: %v.\n", err)
-		return util.ErrorCmdArg
-	}
 	logger = strings.ToLower(logger)
-	if err := util.CheckLoggerName(nodeNames, logger); err != nil {
-		log.Errorf("Invalid logger:  %v.\n", err)
-		return util.ErrorCmdArg
-	}
-
-	req := &protos.SetLoggerLevelRequest{
+	req := &protos.SetLoggingLevelRequest{
 		NodeName: nodeNames,
 		Logger:   FlagLoggerName,
 		LogLevel: logLevel,
 	}
-	reply, err := stub.SetLoggerLevel(context.Background(), req)
+	reply, err := stub.SetLoggingLevel(context.Background(), req)
 	if err != nil {
 		log.Errorf("Failed to modify node logger: %v.\n", err)
 		return util.ErrorNetwork
