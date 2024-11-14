@@ -748,7 +748,7 @@ service CraneCtld {
   /* RPCs called from cinfo */
   rpc QueryClusterInfo(QueryClusterInfoRequest) returns (QueryClusterInfoReply);
 
-  /* RPCs called from logger */
+  /* RPCs called from ccontrol */
   rpc SetLoggerLevel(SetLoggerLevelRequest) returns (SetLoggerLevelReply);
 
   /* common RPCs */
@@ -778,8 +778,6 @@ service Craned {
 
   /* ----------------------------------- Called from Craned  ------------------------------------------------------ */
   rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
-
-   /* RPCs called from logger */
   rpc SetCranedLoggerLevel(SetCranedLoggerLevelRequest) returns (SetCranedLoggerLevelReply);
 
   /* ----------------------------------- Called from Pam Module  --------------------------------------------------- */

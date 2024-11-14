@@ -427,7 +427,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		return util.ErrorSuccess
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
-			fmt.Printf("Nodes %v logger level modified successfully.\n", reply.ModifiedNodes)
+			fmt.Printf("Nodes %v modified successfully.\n", reply.ModifiedNodes)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
@@ -439,7 +439,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		return util.ErrorSuccess
 	case *protos.SetLoggerLevelReply:
 		if len(reply.ModifiedNodes) > 0 {
-			fmt.Printf("Nodes %v modified successfully.\n", reply.ModifiedNodes)
+			fmt.Printf("Nodes %v logger level modified successfully.\n", reply.ModifiedNodes)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
@@ -669,7 +669,7 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	return SummarizeReply(reply)
 }
 
-func ChangeLoggerState(inputNodesName, logger, logLevel string) util.CraneCmdError {
+func ChangeLoggerLevel(inputNodesName, logger, logLevel string) util.CraneCmdError {
 	nodeNames, ok := util.ParseHostList(inputNodesName)
 	if !ok {
 		log.Errorf("Invalid node pattern: %s.\n", inputNodesName)

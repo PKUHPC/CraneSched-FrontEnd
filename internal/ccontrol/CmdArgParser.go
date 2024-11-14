@@ -163,18 +163,16 @@ var (
 			}
 		},
 	}
-
 	updateLoggerCmd = &cobra.Command{
 		Use:   "logger [flags]",
 		Short: "Modify node logger log level",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ChangeLoggerState(FlagNodeName, FlagLoggerName, FlagLogLevel); err != util.ErrorSuccess {
+			if err := ChangeLoggerLevel(FlagNodeName, FlagLoggerName, FlagLogLevel); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
 	}
-
 	holdCmd = &cobra.Command{
 		Use:   "hold [flags] job_id[,job_id...]",
 		Short: "prevent specified job from starting. ",
@@ -267,8 +265,8 @@ func init() {
 		updateCmd.AddCommand(updateLoggerCmd)
 		{
 			updateLoggerCmd.Flags().StringVarP(&FlagNodeName, "node-name", "n", "cranectld", "Specify names of the node to be modified(cranectld or real craned name)")
-			updateLoggerCmd.Flags().StringVarP(&FlagLoggerName, "logger-name", "m", "all", "Specify logger name of the node to be modified")
-			updateLoggerCmd.Flags().StringVarP(&FlagLogLevel, "logger-level", "l", "trace", "Specify logger level")
+			updateLoggerCmd.Flags().StringVarP(&FlagLoggerName, "logging-name", "m", "all", "Specify logger name of the node to be modified")
+			updateLoggerCmd.Flags().StringVarP(&FlagLogLevel, "loggging-level", "l", "trace", "Specify logger level")
 		}
 	}
 	RootCmd.AddCommand(holdCmd)
