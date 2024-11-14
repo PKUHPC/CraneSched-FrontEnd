@@ -431,7 +431,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node logger: %s. Reason: %s.\n",
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
 					reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 			}
 			return util.ErrorBackend
