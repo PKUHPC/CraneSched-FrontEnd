@@ -677,7 +677,7 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	}
 
 	if FlagPty && FlagNodes > 1 {
-		log.Error("Not allowed to run in pty for node more than 1")
+		log.Error("Not allowed to run in pty for node more than one")
 		return util.ErrorCmdArg
 	}
 	util.SetPropagatedEnviron(task)
