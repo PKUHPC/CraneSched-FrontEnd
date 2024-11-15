@@ -168,7 +168,7 @@ var (
 		Short: "Modify node logging level",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			log.Println("-n unset for cranectld")
+			log.Info("-n unset for cranectld")
 			if err := ChangeLoggingLevel(FlagNodeName, FlagLoggerName, FlagLogLevel); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
