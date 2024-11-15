@@ -268,28 +268,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorf("Invalid error file path: %v", err)
 		return false, nil
 	}
-	if task.CpusPerTask <= 0 {
-		log.Errorln("Invalid --cpus-per-task")
-		return false, nil
-	}
-	if task.NtasksPerNode <= 0 {
-		log.Errorln("Invalid --ntasks-per-node")
-		return false, nil
-	}
-	if task.NodeNum <= 0 {
-		log.Errorln("Invalid --nodes")
-		return false, nil
-	}
-	if task.TimeLimit.AsDuration() <= 0 {
-		log.Errorln("Invalid --time")
-		return false, nil
-	}
-	if !util.CheckNodeList(task.Nodelist) {
-		log.Errorln("Invalid --nodelist")
-		return false, nil
-	}
-	if !util.CheckNodeList(task.Excludes) {
-		log.Errorln("Invalid --exclude")
+	if err := util.CheckTaskArgs(task); err != nil {
+		log.Errorln(err)
 		return false, nil
 	}
 	if task.ExtraAttr != "" {
