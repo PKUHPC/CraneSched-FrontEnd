@@ -128,8 +128,14 @@ func (t *TokenAuth) RequireTransportSecurity() bool {
 func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
-	token_auth := TokenAuth{Token: "token", UseTls: config.UseTls}
 
+	tokenFilePath, err := ExpandPath(DefaultJwtTokenPath)
+	if err != nil {
+		log.Errorln("Failed to get home dir: " + err.Error())
+		os.Exit(ErrorGeneric)
+	}
+	TokenContent, _ := os.ReadFile(tokenFilePath)
+	token_auth := TokenAuth{Token: string(TokenContent), UseTls: config.UseTls}
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
 			config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)

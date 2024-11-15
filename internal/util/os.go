@@ -21,6 +21,7 @@ package util
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -28,15 +29,37 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func ExpandPath(path string) (string, error) {
+	if len(path) > 0 && path[0] == '~' {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, path[1:]), nil
+	}
+	return path, nil
+}
+
 func SaveFileWithPermissions(path string, content []byte, perm os.FileMode) error {
-	err := os.WriteFile(path, content, perm)
+	filePath, err := ExpandPath(path)
 	if err != nil {
-		return fmt.Errorf("error writing file: %w", err)
+		return err
+	}
+	dir := filepath.Dir(filePath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			return err
+		}
+	}
+	err = os.WriteFile(filePath, content, perm)
+	if err != nil {
+		return err
 	}
 
-	err = os.Chmod(path, perm)
+	err = os.Chmod(filePath, perm)
 	if err != nil {
-		return fmt.Errorf("error setting file permissions: %w", err)
+		return err
 	}
 	return nil
 }
