@@ -4,8 +4,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-
-	log "github.com/sirupsen/logrus"
+	"fmt"
 )
 
 var (
@@ -25,11 +24,17 @@ func Login(password string) util.CraneCmdError {
 		util.GrpcErrorPrintf(err, "Failed to login")
 		return util.ErrorNetwork
 	}
-	// TODO: 保存token
+
+	if !reply.GetOk() {
+		fmt.Printf("Login failed: %s.\n", reply.GetReason())
+		return util.ErrorBackend
+	}
+
 	err = util.SaveFileWithPermissions(util.DefaultJwtTokenPath, []byte(reply.GetToken()), 0600)
 	if err != nil {
-		log.Errorf(err.Error())
+		fmt.Printf("Failed to save token file: %s. \n", err.Error())
 		return util.ErrorGeneric
 	}
+	fmt.Println("Login succeeded.")
 	return util.ErrorSuccess
 }
