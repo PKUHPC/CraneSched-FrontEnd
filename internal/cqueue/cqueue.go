@@ -121,11 +121,6 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 		return reply, util.ErrorNetwork
 	}
 
-	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		return reply, util.ErrorSuccess
-	}
-
 	return reply, util.ErrorSuccess
 }
 
@@ -215,6 +210,15 @@ func Query() util.CraneCmdError {
 	reply, err := QueryTasksInfo()
 	if err != util.ErrorSuccess {
 		return err
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 
 	return QueryTableOutput(reply)

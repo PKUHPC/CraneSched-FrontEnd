@@ -147,7 +147,11 @@ func QueryJob() util.CraneCmdError {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return util.ErrorSuccess
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)

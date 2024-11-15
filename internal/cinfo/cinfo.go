@@ -104,6 +104,14 @@ func Query() util.CraneCmdError {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
 		return util.ErrorNetwork
 	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
