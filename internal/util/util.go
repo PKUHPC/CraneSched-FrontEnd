@@ -25,12 +25,7 @@ import (
 	"strings"
 )
 
-type Config struct {
-	ControlMachine               string `yaml:"ControlMachine"`
-	CraneCtldListenPort          string `yaml:"CraneCtldListenPort"`
-	CraneCtldForCforedListenPort string `yaml:"CraneCtldForCforedListenPort"`
-
-	UseTls               bool   `yaml:"UseTls"`
+type SSLConfig struct {
 	ExternalCertFilePath string `yaml:"CranectldExternalCertFilePath"`
 	InternalCertFilePath string `yaml:"CranectldInternalCertFilePath"`
 	ServerKeyFilePath    string `yaml:"ServerKeyFilePath"`
