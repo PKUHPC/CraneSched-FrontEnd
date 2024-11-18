@@ -24,12 +24,7 @@ import (
 	"strings"
 )
 
-type Config struct {
-	ControlMachine               string `yaml:"ControlMachine"`
-	CraneCtldListenPort          string `yaml:"CraneCtldListenPort"`
-	CraneCtldForCforedListenPort string `yaml:"CraneCtldForCforedListenPort"`
-
-	UseTls               bool   `yaml:"UseTls"`
+type SSLConfig struct {
 	ExternalCertFilePath string `yaml:"CranectldExternalCertFilePath"`
 	InternalCertFilePath string `yaml:"CranectldInternalCertFilePath"`
 	ServerKeyFilePath    string `yaml:"ServerKeyFilePath"`
@@ -37,9 +32,15 @@ type Config struct {
 	CforedKeyFilePath    string `yaml:"CforedKeyFilePath"`
 	InternalCaFilePath   string `yaml:"InternalCaFilePath"`
 	DomainSuffix         string `yaml:"DomainSuffix"`
-
-	CraneBaseDir         string `yaml:"CraneBaseDir"`
-	CranedCforedSockPath string `yaml:"CranedCforedSockPath"`
+}
+type Config struct {
+	ControlMachine               string    `yaml:"ControlMachine"`
+	CraneCtldListenPort          string    `yaml:"CraneCtldListenPort"`
+	CraneCtldForCforedListenPort string    `yaml:"CraneCtldForCforedListenPort"`
+	SslConfig                    SSLConfig `yaml:"SSL"`
+	UseTls                       bool      `yaml:"UseTls"`
+	CraneBaseDir                 string    `yaml:"CraneBaseDir"`
+	CranedCforedSockPath         string    `yaml:"CranedCforedSockPath"`
 }
 
 // Path = BaseDir + Dir + Name

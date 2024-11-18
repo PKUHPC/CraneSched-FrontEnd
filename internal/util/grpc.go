@@ -40,7 +40,7 @@ import (
 
 func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 	if config.UseTls {
-		CaCertContent, err := os.ReadFile(config.InternalCaFilePath)
+		CaCertContent, err := os.ReadFile(config.SslConfig.InternalCaFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +50,7 @@ func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 			return nil, err
 		}
 
-		cert, err := tls.LoadX509KeyPair(config.CforedCertFilePath, config.CforedKeyFilePath)
+		cert, err := tls.LoadX509KeyPair(config.SslConfig.CforedCertFilePath, config.SslConfig.CforedKeyFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -138,8 +138,8 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	token_auth := TokenAuth{Token: string(TokenContent), UseTls: config.UseTls}
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)
-		creds, err := credentials.NewClientTLSFromFile(config.ExternalCertFilePath, fmt.Sprintf("*.%s", config.DomainSuffix))
+			config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
+		creds, err := credentials.NewClientTLSFromFile(config.SslConfig.ExternalCertFilePath, fmt.Sprintf("*.%s", config.SslConfig.DomainSuffix))
 		if err != nil {
 			log.Errorln("Failed to create TLS credentials " + err.Error())
 			os.Exit(ErrorGeneric)
@@ -172,10 +172,10 @@ func GetStubToCtldForCfored(config *Config) protos.CraneCtldForCforedClient {
 
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.DomainSuffix, config.CraneCtldForCforedListenPort)
-		cert, _ := tls.LoadX509KeyPair(config.CforedCertFilePath, config.CforedKeyFilePath)
+			config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldForCforedListenPort)
+		cert, _ := tls.LoadX509KeyPair(config.SslConfig.CforedCertFilePath, config.SslConfig.CforedKeyFilePath)
 
-		CaCertContent, err := os.ReadFile(config.InternalCertFilePath)
+		CaCertContent, err := os.ReadFile(config.SslConfig.InternalCertFilePath)
 		if err != nil {
 			log.Errorln("Failed to read InternalCertFile: " + err.Error())
 			os.Exit(ErrorGeneric)
