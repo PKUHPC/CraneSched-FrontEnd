@@ -23,6 +23,8 @@ import "C"
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"github.com/pkg/term/termios"
+	"golang.org/x/sys/unix"
 
 	"bufio"
 	"context"
@@ -36,8 +38,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -240,11 +240,9 @@ CrunStateMachineLoop:
 
 			case sig := <-sigs:
 				if sig == syscall.SIGINT {
-					log.Tracef("SIGINT Received. Cancelling the task...")
-					state = TaskKilling
+					log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskRes")
 				} else {
 					log.Tracef("Unhandled sig %s", sig.String())
-					state = TaskKilling
 				}
 			}
 
@@ -301,22 +299,32 @@ CrunStateMachineLoop:
 		case Forwarding:
 
 			if FlagPty {
-				originalState, err := term.MakeRaw(int(os.Stdin.Fd()))
+				ptyAttr := unix.Termios{}
+				err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
 				if err != nil {
-					return 0
-				}
-				if err != nil {
-					log.Errorf("Failed to make stdin raw: %s,killing", err.Error())
+					log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
 					state = TaskKilling
 					ret = util.ErrorGeneric
 					break CrunStateMachineLoop
 				}
-				defer func(fd int, oldState *term.State) {
-					err := term.Restore(fd, oldState)
+				originAttr := ptyAttr
+				termios.Cfmakeraw(&ptyAttr)
+				termios.Cfmakecbreak(&ptyAttr)
+				err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
+				if err != nil {
+					log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
+					state = TaskKilling
+					ret = util.ErrorGeneric
+					break CrunStateMachineLoop
+				}
+				defer func(fd uintptr, oldState *unix.Termios) {
+					err := termios.Tcsetattr(fd, termios.TCSANOW, &originAttr)
 					if err != nil {
-						log.Errorf("Failed to restore stdin: %s", err.Error())
+						log.Errorf("Failed to restore stdin attr: %s,killing", err.Error())
+						ret = util.ErrorGeneric
 					}
-				}(int(os.Stdin.Fd()), originalState)
+
+				}(os.Stdin.Fd(), &originAttr)
 			}
 			chanInputFromTerm := make(chan string, 100)
 			chanOutputFromRemote := make(chan string, 5)
