@@ -1,0 +1,37 @@
+monitor:
+  sample_period: 1s          # 采样周期
+  cgroup_base_path: "/sys/fs/cgroup"
+  switches:
+    # 资源监控开关
+    cpu: true                          # CPU使用率监控
+    memory: true                       # 内存使用监控
+    io: true                           # IO使用监控
+    network: false                     # 网络使用监控
+    # 能耗监控开关
+    energy: true                       # 总能耗监控开关
+    package: true                      # CPU包能耗
+    core: true                         # CPU核心能耗
+    uncore: true                       # CPU非核心能耗
+    dram: true                         # 内存能耗
+    gpu: false                         # GPU能耗
+    temperature: true                  # 温度监控
+    frequency: true                    # 频率监控
+
+db:
+  type: "influxdb"          # 数据库类型：sqlite, influxdb, mongodb
+  batch_size: 1              # 通用批量写入大小
+  flush_interval: "30s"      # 通用定期刷新间隔
+
+  sqlite:
+    path: "./energy_monitor.db"
+
+  influxdb:
+    url: "http://localhost:8086"
+    token: "9NGg-1vx4Y4LSxDdJ-oJfkbef73_h7ZN3PmrRriJwWJuo0XKVA6Mj7I9n4AOvIKEU4GoLT4sR_v4jZmX9Jvl1Q=="
+    org: "pku2"
+    node_bucket: "energy_node2"
+    task_bucket: "energy_task2"
+
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    database: "energy_monitor"
