@@ -26,7 +26,7 @@ func Login(password string) util.CraneCmdError {
 	}
 
 	if !reply.GetOk() {
-		fmt.Printf("Login failed: %s.\n", reply.GetReason())
+		fmt.Printf("Login failed: %s.\n", util.ErrMsg(reply.GetReason()))
 		return util.ErrorBackend
 	}
 
