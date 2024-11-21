@@ -157,6 +157,26 @@ func ParseDuration(time string, duration *durationpb.Duration) bool {
 }
 
 func ParseTime(ts string) (time.Time, error) {
+	if ts[:3] == "now" {
+		if len(ts) == 3 {
+			return time.Now(), nil
+		} else if ts[3] == '+' {
+			durationShift := durationpb.New(time.Duration(0))
+			if !ParseDuration(ts[4:], durationShift) {
+				return time.Time{}, fmt.Errorf("duration {%s} is invalid", ts[4:])
+			}
+			return time.Now().Add(durationShift.AsDuration()), nil
+		} else if ts[3] == '-' {
+			durationShift := durationpb.New(time.Duration(0))
+			if !ParseDuration(ts[4:], durationShift) {
+				return time.Time{}, fmt.Errorf("duration {%s} is invalid", ts[4:])
+			}
+			return time.Now().Add(-durationShift.AsDuration()), nil
+		} else {
+			return time.Time{}, fmt.Errorf("invalid time format")
+		}
+	}
+
 	// Use regex to check if HH:MM:SS exists
 	// This is required as Golang permits `2:03:14` but denies `2:3:14`,
 	// which is undesired.
