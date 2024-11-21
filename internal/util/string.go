@@ -723,3 +723,10 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 
 	return jobIdList, nil
 }
+
+func CheckNameValid(name string) bool {
+	var validStringPattern = `^[a-zA-Z0-9][a-zA-Z0-9_]*$`
+	re := regexp.MustCompile(validStringPattern)
+
+	return re.MatchString(name)
+}
