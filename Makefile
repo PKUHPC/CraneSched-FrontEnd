@@ -67,24 +67,29 @@ build:
 
 plugin: energy-plugin other-plugins
 
-# NVIDIA 配置
 NVIDIA_LIB_PATH := /usr/lib/x86_64-linux-gnu
 CUDA_INCLUDE_PATH := /usr/include
 
-# 设置编译标志
 CGO_CFLAGS := -I$(CUDA_INCLUDE_PATH)
 CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -l:libnvidia-ml.so.565.57.01 -Wl,-rpath,$(NVIDIA_LIB_PATH)
+
+CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 energy-plugin:
 	@echo "Building energy plugin with $(GO_VERSION)..."
 	@mkdir -p $(PLUGIN_DIR)
 	@cd plugin/energy && \
+	if [ -n "$(CHECK_GPU)" ]; then \
 		$(COMMON_ENV) \
+		CGO_ENABLED=1 \
 		CGO_CFLAGS="$(CGO_CFLAGS)" \
-		CGO_LDFLAGS="$(CGO_LDFLAGS)" \
-		$(GO) build $(BUILD_FLAGS) -buildmode=plugin \
-		-o ../../$(PLUGIN_DIR)/energy.so .
-
+		CGO_LDFLAGS="$(CGO_LDFLAGS) -lnvidia-ml" \
+		$(GO) build $(BUILD_FLAGS) -buildmode=plugin -tags with_nvml -o ../../$(PLUGIN_DIR)/energy.so .; \
+	else \
+		$(COMMON_ENV) \
+		CGO_ENABLED=1 \
+		$(GO) build $(BUILD_FLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/energy.so .; \
+	fi
 
 other-plugins:
 	@echo "  - Building other plugins..."

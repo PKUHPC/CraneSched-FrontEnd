@@ -50,8 +50,7 @@ func init() {
 }
 
 var (
-	globalMonitor *monitor.SystemMonitor
-	globalDB      db.DBInterface
+	globalMonitor *monitor.Monitor
 	globalMu      sync.Mutex
 )
 
@@ -81,11 +80,8 @@ func (p EnergyPlugin) Init(meta api.PluginMeta) error {
 	}
 
 	// 启动节点监控
-	if err := globalMonitor.StartNodeMonitor(); err != nil {
-		return fmt.Errorf("\033[31m[EnergyPlugin] failed to start node monitor: %w\033[0m", err)
-	}
+	globalMonitor.NodeMonitor.Start()
 
-	log.Info("\033[32m[EnergyPlugin] Plugin initialized successfully\033[0m")
 	return nil
 }
 
@@ -120,7 +116,7 @@ func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {
 
 	log.Infof("\033[32m[EnergyPlugin] Stopping task monitor for task: %s\033[0m", taskName)
 
-	globalMonitor.StopTaskMonitor(taskName)
+	globalMonitor.TaskMonitor.Stop(taskName)
 }
 
 func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {
@@ -134,31 +130,22 @@ func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {
 		req.TaskId, req.Cgroup)
 
 	// 启动任务监控
-	if err := globalMonitor.StartTaskMonitor(req.TaskId, req.Cgroup); err != nil {
-		log.Errorf("\033[31m[EnergyPlugin] Failed to start task monitor: %v\033[0m", err)
-	}
+	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup)
 }
 
 func (p EnergyPlugin) ensureInitialized() error {
 	globalMu.Lock()
 	defer globalMu.Unlock()
 
-	if globalDB == nil {
-		database, err := db.NewDatabase(p.config.DB)
+	if db.GetInstance() == nil {
+		err := db.InitDB(p.config)
 		if err != nil {
 			return fmt.Errorf("\033[31m[EnergyPlugin] failed to create database: %w\033[0m", err)
 		}
-		globalDB = database
 	}
 
 	if globalMonitor == nil {
-		systemMonitor, err := monitor.NewSystemMonitor(p.config.Monitor, globalDB)
-		if err != nil {
-			globalDB.Close()
-			globalDB = nil
-			return fmt.Errorf("\033[31m[EnergyPlugin] failed to create system monitor: %w\033[0m", err)
-		}
-		globalMonitor = systemMonitor
+		globalMonitor = monitor.NewMonitor(p.config.Monitor)
 	}
 
 	return nil
@@ -172,18 +159,15 @@ func (p EnergyPlugin) Close() {
 
 	// 关闭监控器
 	if globalMonitor != nil {
-		if err := globalMonitor.Close(); err != nil {
-			log.Errorf("\033[31m[EnergyPlugin] Error closing monitor: %v\033[0m", err)
-		}
+		globalMonitor.Close()
 		globalMonitor = nil
 	}
 
 	// 关闭数据库
-	if globalDB != nil {
-		if err := globalDB.Close(); err != nil {
+	if db.GetInstance() != nil {
+		if err := db.GetInstance().Close(); err != nil {
 			log.Errorf("\033[31m[EnergyPlugin] Error closing database: %v\033[0m", err)
 		}
-		globalDB = nil
 	}
 
 	log.Info("\033[32m[EnergyPlugin] Plugin closed\033[0m")

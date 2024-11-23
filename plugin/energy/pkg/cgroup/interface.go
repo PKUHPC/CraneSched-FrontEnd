@@ -7,7 +7,3 @@ import (
 type CgroupReader interface {
 	GetTaskResourceUsage(taskName string, lastUsage *types.TaskResourceUsage) types.TaskResourceUsage
 }
-
-type Config struct {
-	CgroupBasePath string
-}

@@ -1,59 +1,48 @@
 package rapl
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
-	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
-	"CraneFrontEnd/plugin/energy/pkg/config"
-	"CraneFrontEnd/plugin/energy/pkg/db"
-	"CraneFrontEnd/plugin/energy/pkg/sysstat"
 	"CraneFrontEnd/plugin/energy/pkg/types"
+)
+
+const (
+	RAPLBasePath = "/sys/class/powercap"
 )
 
 type RAPLDomain struct {
 	Name           string
 	Path           string
-	MaxEnergyRange float64
-	TDP            float64
 	Enabled        bool
+	MaxEnergyRange float64
+	LastEnergy     float64
+	LastReadTime   time.Time
 }
 
 type RAPLReader struct {
-	domains  map[string]*RAPLDomain
-	stopCh   chan struct{}
-	db       db.DBInterface
-	sysStats *sysstat.SystemStats
-	config   config.MonitorConfig
+	domains map[string]*RAPLDomain
 }
 
-func NewRAPLReader(config config.MonitorConfig, db db.DBInterface) (*RAPLReader, error) {
-
+func NewRAPLReader() *RAPLReader {
 	reader := &RAPLReader{
-		domains:  make(map[string]*RAPLDomain),
-		sysStats: sysstat.NewSystemStats(),
-		db:       db,
-		stopCh:   make(chan struct{}),
-		config:   config,
+		domains: make(map[string]*RAPLDomain),
 	}
 
 	if err := reader.discoverDomains(); err != nil {
-		return nil, fmt.Errorf("failed to discover RAPL domains: %v", err)
+		log.Warnf("\033[35m[RAPL]\033[0m failed to discover RAPL domains: %v", err)
 	}
 
-	return reader, nil
+	return reader
 }
 
 func (r *RAPLReader) discoverDomains() error {
-	basePath := "/sys/class/powercap"
-	entries, err := os.ReadDir(basePath)
+	entries, err := os.ReadDir(RAPLBasePath)
 	if err != nil {
 		return err
 	}
@@ -62,19 +51,13 @@ func (r *RAPLReader) discoverDomains() error {
 		if strings.HasPrefix(entry.Name(), "intel-rapl:") {
 			domain := &RAPLDomain{
 				Name: entry.Name(),
-				Path: filepath.Join(basePath, entry.Name()),
+				Path: filepath.Join(RAPLBasePath, entry.Name()),
 			}
 
-			// 读取域的最大能耗范围，目前尚未使用到
+			// 读取域的最大能耗范围，用于处理计数器溢出
 			maxEnergyRange, err := r.readMaxEnergyRange(domain.Path)
 			if err == nil {
 				domain.MaxEnergyRange = maxEnergyRange
-			}
-
-			// TDP值，目前尚未使用到
-			tdp, err := r.readTDP(domain.Path)
-			if err == nil {
-				domain.TDP = tdp
 			}
 
 			domain.Enabled = true
@@ -90,14 +73,9 @@ func (r *RAPLReader) discoverDomains() error {
 	return nil
 }
 
-func (r *RAPLReader) GetMetrics() (*types.NodeData, error) {
-	result := &types.NodeData{
-		Timestamp:   time.Now(),
-		Temperature: 0,
-		Frequencies: 0,
-	}
+func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
+	metrics := &types.RAPLMetrics{}
 
-	// Collect energy data
 	for name, domain := range r.domains {
 		if !domain.Enabled {
 			continue
@@ -105,132 +83,69 @@ func (r *RAPLReader) GetMetrics() (*types.NodeData, error) {
 
 		energy, err := r.readDomainEnergy(domain)
 		if err != nil {
-			log.Errorf("Error reading energy for domain %s: %v", name, err)
+			log.Warnf("\033[35m[RAPL]\033[0m Error reading energy for domain %s: %v", name, err)
 			continue
 		}
 
 		parts := strings.Split(name, ":")
 		if len(parts) < 2 {
-			log.Errorf("Invalid domain name format: %s", name)
+			log.Warnf("\033[35m[RAPL]\033[0m Invalid domain name format: %s", name)
 			continue
 		}
 
-		log.Infof("\033[32m[RAPL]\033[0m Reading energy for domain %s: %.2f J", name, energy)
+		// log.Infof("\033[32m[RAPL]\033[0m Reading energy for domain %s: %.2f J", name, energy)
 
 		if len(parts) == 2 {
-			result.Package += energy
-			log.Infof("\033[32m[RAPL]\033[0m Added to Package total: %.2f J", result.Package)
+			metrics.Package += energy
 		} else if len(parts) == 3 {
 			switch parts[2] {
 			case "0":
-				result.Core += energy
-				log.Infof("\033[32m[RAPL]\033[0m Added to Core total: %.2f J", result.Core)
+				metrics.Core += energy
 			case "1":
-				result.Uncore += energy
-				log.Infof("\033[32m[RAPL]\033[0m Added to Uncore total: %.2f J", result.Uncore)
+				metrics.Uncore += energy
 			case "2":
-				result.DRAM += energy
-				log.Infof("\033[32m[RAPL]\033[0m Added to DRAM total: %.2f J", result.DRAM)
+				metrics.DRAM += energy
 			case "3":
-				result.GT += energy
-				log.Infof("\033[32m[RAPL]\033[0m Added to GT total: %.2f J", result.GT)
+				metrics.GT += energy
 			default:
 				log.Infof("\033[31m[RAPL]\033[0m Unknown subdomain: %s", parts[2])
 			}
 		}
 	}
 
-	// Concurrent collection of system metrics
-	var wg sync.WaitGroup
-	var errCPU, errMem, errDisk, errNet error
+	// r.logMetrics(metrics)
 
-	// CPU utilization
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if data, err := os.ReadFile("/proc/stat"); err == nil {
-			result.CPUUtil = r.sysStats.GetCPUUtil(string(data))
-		} else {
-			errCPU = err
-		}
-	}()
-
-	// Memory utilization
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var si syscall.Sysinfo_t
-		if err := syscall.Sysinfo(&si); err == nil {
-			usedMem := float64(si.Totalram-si.Freeram) * float64(si.Unit)
-			totalMem := float64(si.Totalram) * float64(si.Unit)
-			result.MemoryUtil = (usedMem / totalMem) * 100
-		} else {
-			errMem = err
-		}
-	}()
-
-	// Disk I/O
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if data, err := os.ReadFile("/proc/diskstats"); err == nil {
-			result.DiskIO = r.sysStats.GetDiskIO(string(data))
-		} else {
-			errDisk = err
-		}
-	}()
-
-	// Network I/O
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if data, err := os.ReadFile("/proc/net/dev"); err == nil {
-			result.NetworkIO = r.sysStats.GetNetworkIO(string(data))
-		} else {
-			errNet = err
-		}
-	}()
-
-	// Optional temperature and frequency collection
-	if r.config.Switches.Temperature {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if temp, err := r.sysStats.GetCPUTemperature(); err == nil {
-				result.Temperature = temp
-			}
-		}()
-	}
-
-	if r.config.Switches.Frequency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if freq, err := r.sysStats.GetCPUFrequency(); err == nil {
-				result.Frequencies = freq
-			}
-		}()
-	}
-
-	// Wait for all goroutines to complete
-	wg.Wait()
-
-	// Check for errors
-	if errCPU != nil || errMem != nil || errDisk != nil || errNet != nil {
-		log.Errorf("Errors collecting system metrics: CPU=%v, Mem=%v, Disk=%v, Net=%v",
-			errCPU, errMem, errDisk, errNet)
-	}
-
-	return result, nil
+	return metrics, nil
 }
 
 func (r *RAPLReader) readDomainEnergy(domain *RAPLDomain) (float64, error) {
+	currentTime := time.Now()
+
+	// 读取当前累计值
 	data, err := os.ReadFile(filepath.Join(domain.Path, "energy_uj"))
 	if err != nil {
 		return 0, err
 	}
-	value, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
-	return value / 1e6, err // 转换为焦耳
+	currentEnergy, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
+	if err != nil {
+		return 0, err
+	}
+	currentEnergy = currentEnergy / 1e6 // 转换为焦耳
+
+	if !domain.LastReadTime.IsZero() {
+		energyDiff := currentEnergy - domain.LastEnergy
+		// 处理计数器溢出情况
+		if energyDiff < 0 {
+			energyDiff += domain.MaxEnergyRange
+		}
+		domain.LastEnergy = currentEnergy
+		domain.LastReadTime = currentTime
+		return energyDiff, nil
+	}
+
+	domain.LastEnergy = currentEnergy
+	domain.LastReadTime = currentTime
+	return 0, nil
 }
 
 func (r *RAPLReader) readMaxEnergyRange(path string) (float64, error) {
@@ -242,17 +157,12 @@ func (r *RAPLReader) readMaxEnergyRange(path string) (float64, error) {
 	return value / 1e6, err // 转换为焦耳
 }
 
-// readTDP 读取热设计功率
-func (r *RAPLReader) readTDP(path string) (float64, error) {
-	data, err := os.ReadFile(filepath.Join(path, "constraint_0_power_limit_uw"))
-	if err != nil {
-		return 0, err
-	}
-	value, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
-	return value / 1e6, err // 转换为瓦特
+func (r *RAPLReader) LogMetrics(metrics *types.RAPLMetrics) {
+	log.Printf("\033[32m[RAPL]\033[0m RAPL Metrics:")
+	log.Printf("\033[32m[RAPL]\033[0m Package: %.2f J, Core: %.2f J, Uncore: %.2f J, DRAM: %.2f J, GT: %.2f J",
+		metrics.Package, metrics.Core, metrics.Uncore, metrics.DRAM, metrics.GT)
 }
 
 func (r *RAPLReader) Close() error {
-	close(r.stopCh)
 	return nil
 }

@@ -13,37 +13,24 @@ type Config struct {
 }
 
 type MonitorConfig struct {
-	SamplePeriod   string   `mapstructure:"sample_period"`
-	CgroupBasePath string   `mapstructure:"cgroup_base_path"`
-	Switches       Switches `mapstructure:"switches"`
+	SamplePeriod string   `mapstructure:"sample_period"`
+	Switches     Switches `mapstructure:"switches"`
 }
 
 type Switches struct {
-	CPU         bool `mapstructure:"cpu"`
-	Memory      bool `mapstructure:"memory"`
-	IO          bool `mapstructure:"io"`
-	Network     bool `mapstructure:"network"`
-	Energy      bool `mapstructure:"energy"`
-	Package     bool `mapstructure:"package"`
-	Core        bool `mapstructure:"core"`
-	Uncore      bool `mapstructure:"uncore"`
-	DRAM        bool `mapstructure:"dram"`
-	GPU         bool `mapstructure:"gpu"`
-	Temperature bool `mapstructure:"temperature"`
-	Frequency   bool `mapstructure:"frequency"`
+	Task   bool `mapstructure:"task"`
+	IPMI   bool `mapstructure:"ipmi"`
+	GPU    bool `mapstructure:"gpu"`
+	RAPL   bool `mapstructure:"rapl"`
+	System bool `mapstructure:"system"`
 }
 
 type DBConfig struct {
 	Type      string          `mapstructure:"type"`
 	BatchSize int             `mapstructure:"batch_size"`
 	FlushTime string          `mapstructure:"flush_interval"`
-	SQLite    *SQLiteConfig   `mapstructure:"sqlite"`
 	InfluxDB  *InfluxDBConfig `mapstructure:"influxdb"`
 	MongoDB   *MongoConfig    `mapstructure:"mongodb"`
-}
-
-type SQLiteConfig struct {
-	Path string `mapstructure:"path"`
 }
 
 type InfluxDBConfig struct {
@@ -84,24 +71,15 @@ func LoadConfig(path string) (*Config, error) {
 func setDefaultConfig(v *viper.Viper) {
 	// Monitor defaults
 	v.SetDefault("monitor.sample_period", "1s")
-	v.SetDefault("monitor.cgroup_base_path", "/sys/fs/cgroup")
 
-	// Switch defaults
-	v.SetDefault("monitor.switches.cpu", true)
-	v.SetDefault("monitor.switches.memory", true)
-	v.SetDefault("monitor.switches.io", true)
-	v.SetDefault("monitor.switches.network", false)
-	v.SetDefault("monitor.switches.energy", true)
-	v.SetDefault("monitor.switches.package", true)
-	v.SetDefault("monitor.switches.core", true)
-	v.SetDefault("monitor.switches.uncore", true)
-	v.SetDefault("monitor.switches.dram", true)
-	v.SetDefault("monitor.switches.gpu", false)
-	v.SetDefault("monitor.switches.temperature", true)
-	v.SetDefault("monitor.switches.frequency", true)
+	v.SetDefault("monitor.switches.task", true)
+	v.SetDefault("monitor.switches.ipmi", true)
+	v.SetDefault("monitor.switches.gpu", true)
+	v.SetDefault("monitor.switches.rapl", true)
+	v.SetDefault("monitor.switches.system", true)
 
 	// DB defaults
-	v.SetDefault("db.type", "sqlite")
+	v.SetDefault("db.type", "influxdb")
 	v.SetDefault("db.batch_size", 1)
 	v.SetDefault("db.flush_interval", "30s")
 }
@@ -116,10 +94,6 @@ func validateConfig(cfg *Config) error {
 	}
 
 	switch cfg.DB.Type {
-	case "sqlite":
-		if cfg.DB.SQLite == nil || cfg.DB.SQLite.Path == "" {
-			return fmt.Errorf("sqlite configuration is required when type is sqlite")
-		}
 	case "influxdb":
 		if cfg.DB.InfluxDB == nil {
 			return fmt.Errorf("influxdb configuration is required when type is influxdb")
@@ -142,22 +116,14 @@ func PrintConfig(cfg *Config) {
 	// Monitor
 	log.Printf("Monitor Configuration:")
 	log.Printf("  Sample Period: %v", cfg.Monitor.SamplePeriod)
-	log.Printf("  Cgroup Base Path: %v", cfg.Monitor.CgroupBasePath)
 
 	// Switches
 	log.Printf("  Switches:")
-	log.Printf("    CPU: %v", cfg.Monitor.Switches.CPU)
-	log.Printf("    Memory: %v", cfg.Monitor.Switches.Memory)
-	log.Printf("    IO: %v", cfg.Monitor.Switches.IO)
-	log.Printf("    Network: %v", cfg.Monitor.Switches.Network)
-	log.Printf("    Energy: %v", cfg.Monitor.Switches.Energy)
-	log.Printf("    Package: %v", cfg.Monitor.Switches.Package)
-	log.Printf("    Core: %v", cfg.Monitor.Switches.Core)
-	log.Printf("    Uncore: %v", cfg.Monitor.Switches.Uncore)
-	log.Printf("    DRAM: %v", cfg.Monitor.Switches.DRAM)
+	log.Printf("    Task: %v", cfg.Monitor.Switches.Task)
+	log.Printf("    IPMI: %v", cfg.Monitor.Switches.IPMI)
 	log.Printf("    GPU: %v", cfg.Monitor.Switches.GPU)
-	log.Printf("    Temperature: %v", cfg.Monitor.Switches.Temperature)
-	log.Printf("    Frequency: %v", cfg.Monitor.Switches.Frequency)
+	log.Printf("    RAPL: %v", cfg.Monitor.Switches.RAPL)
+	log.Printf("    System: %v", cfg.Monitor.Switches.System)
 
 	// Database
 	log.Printf("Database Configuration:")
@@ -177,11 +143,6 @@ func PrintConfig(cfg *Config) {
 				tokenPreview := cfg.DB.InfluxDB.Token[:10] + "..."
 				log.Printf("    Token: %s", tokenPreview)
 			}
-		}
-	case "sqlite":
-		if cfg.DB.SQLite != nil {
-			log.Printf("  SQLite Settings:")
-			log.Printf("    Path: %s", cfg.DB.SQLite.Path)
 		}
 	}
 

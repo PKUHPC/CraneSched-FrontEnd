@@ -1,32 +1,31 @@
 package db
 
 import (
-	"fmt"
+	"sync"
 
 	"CraneFrontEnd/plugin/energy/pkg/config"
 )
 
-func NewDatabase(config config.DBConfig) (DBInterface, error) {
-	switch config.Type {
-	case "sqlite":
-		if config.SQLite == nil {
-			return nil, fmt.Errorf("sqlite config is nil")
-		}
-		return NewSQLiteDB(&config)
+var (
+	instance DBInterface
+	once     sync.Once
+)
 
-	case "influxdb":
-		if config.InfluxDB == nil {
-			return nil, fmt.Errorf("influxdb config is nil")
-		}
-		return NewInfluxDB(&config)
+func GetInstance() DBInterface {
+	return instance
+}
 
-	case "mongodb":
-		if config.MongoDB == nil {
-			return nil, fmt.Errorf("mongodb config is nil")
+func InitDB(config *config.Config) error {
+	var err error
+	once.Do(func() {
+		switch config.DB.Type {
+		case "mongodb":
+			instance, err = NewMongoDB(config)
+		case "influxdb":
+			instance, err = NewInfluxDB(config)
+		default:
+			instance, err = NewInfluxDB(config)
 		}
-		return NewMongoDB(&config)
-
-	default:
-		return nil, fmt.Errorf("unsupported database type: %s", config.Type)
-	}
+	})
+	return err
 }
