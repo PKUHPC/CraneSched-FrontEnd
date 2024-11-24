@@ -10,106 +10,134 @@ import (
 )
 
 type GPUReader struct {
-	HasGPU        bool
-	NvmlInited    bool
-	DeviceCount   int
-	LastPowerTime time.Time
-	LastPower     float64
+	hasGPU      bool
+	nvmlInited  bool
+	deviceCount int
+	devices     []*deviceState
+}
+
+type deviceState struct {
+	index     int
+	lastPower float64
+	lastTime  time.Time
 }
 
 func NewGPUReader() *GPUReader {
 	reader := &GPUReader{}
-
-	if err := nvmlInit(); err != nil {
-		log.Infof("\033[31m[GPU]\033[0m NVML init failed or no NVIDIA GPU present: %v, will run in no GPU mode", err)
-		return reader
+	if err := reader.init(); err != nil {
+		log.WithError(err).Info("\033[31m[GPU]\033[0m Init failed, will run in no GPU mode")
 	}
-
-	reader.NvmlInited = true
-
-	count, err := nvmlDeviceGetCount()
-	if err != nil {
-		log.Infof("\033[31m[GPU]\033[0m failed to get GPU count: %v, will run in no GPU mode", err)
-		reader.cleanup()
-		return reader
-	}
-
-	if count > 0 {
-		reader.HasGPU = true
-		reader.DeviceCount = count
-		log.Infof("\033[32m[GPU]\033[0m detected %d NVIDIA GPUs", count)
-	} else {
-		log.Info("\033[32m[GPU]\033[0m no NVIDIA GPUs detected")
-	}
-
 	return reader
 }
 
-func (r *GPUReader) GetMetrics() (*types.GPUMetrics, error) {
-	metrics := &types.GPUMetrics{}
+func (r *GPUReader) init() error {
+	if err := nvmlInit(); err != nil {
+		return fmt.Errorf("NVML init failed: %v", err)
+	}
+	r.nvmlInited = true
 
-	if !r.HasGPU || !r.NvmlInited {
-		return metrics, nil
+	count, err := nvmlDeviceGetCount()
+	if err != nil {
+		r.cleanup()
+		return fmt.Errorf("failed to get GPU count: %v", err)
 	}
 
-	currentTime := time.Now()
-	var activeGPUs int
+	if count > 0 {
+		r.hasGPU = true
+		r.deviceCount = count
+		r.initDeviceStates(count)
+		log.Infof("\033[32m[GPU]\033[0m detected %d NVIDIA GPUs", count)
+	}
+	return nil
+}
 
-	for i := 0; i < r.DeviceCount; i++ {
-		device, err := nvmlDeviceGetHandleByIndex(i)
+func (r *GPUReader) initDeviceStates(count int) {
+	r.devices = make([]*deviceState, count)
+	for i := 0; i < count; i++ {
+		r.devices[i] = &deviceState{index: i}
+	}
+}
+
+func (r *GPUReader) GetMetrics() (*types.GPUMetrics, error) {
+	if !r.hasGPU || !r.nvmlInited {
+		return &types.GPUMetrics{}, nil
+	}
+
+	metrics := &types.GPUMetrics{}
+	activeDevices := 0
+
+	for i := 0; i < r.deviceCount; i++ {
+		deviceMetrics, err := r.GetDeviceMetrics(i)
 		if err != nil {
-			log.Errorf("\033[33m[GPU]\033[0m skipping GPU %d: %v", i, err)
+			log.WithField("device", i).WithError(err).Error("\033[33m[GPU]\033[0m Failed to collect metrics")
 			continue
 		}
 
-		if power, err := device.GetPowerUsage(); err == nil {
-			metrics.Power += float64(power) / 1000.0 // mW -> W
-		} else {
-			log.Errorf("\033[33m[GPU]\033[0m failed to get power usage for GPU %d: %v", i, err)
-		}
-
-		if gpuUtil, memUtil, err := device.GetUtilization(); err == nil {
-			metrics.Util += float64(gpuUtil)
-			metrics.MemUtil += float64(memUtil)
-			activeGPUs++
-		} else {
-			log.Errorf("\033[33m[GPU]\033[0m failed to get utilization for GPU %d: %v", i, err)
-		}
-
-		if temp, err := device.GetTemperature(); err == nil {
-			metrics.Temp += float64(temp)
-		} else {
-			log.Errorf("\033[33m[GPU]\033[0m failed to get temperature for GPU %d: %v", i, err)
-		}
+		metrics.Power += deviceMetrics.Power
+		metrics.Energy += deviceMetrics.Energy
+		metrics.Util += deviceMetrics.Util
+		metrics.MemUtil += deviceMetrics.MemUtil
+		metrics.Temp += deviceMetrics.Temp
+		activeDevices++
 	}
 
-	if !r.LastPowerTime.IsZero() {
-		duration := currentTime.Sub(r.LastPowerTime).Seconds()
+	if activeDevices > 0 {
+		metrics.Util /= float64(activeDevices)
+		metrics.MemUtil /= float64(activeDevices)
+		metrics.Temp /= float64(activeDevices)
+	}
 
-		averagePower := (metrics.Power + r.LastPower) / 2
+	return metrics, nil
+}
+
+func (r *GPUReader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
+	metrics := &types.GPUMetrics{}
+
+	device, err := nvmlDeviceGetHandleByIndex(index)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get device handle: %v", err)
+	}
+
+	power, err := device.GetPowerUsage()
+	if err != nil {
+		return nil, fmt.Errorf("power metrics: %v", err)
+	}
+	metrics.Power = float64(power) / 1000.0 // mW -> W
+
+	gpuUtil, memUtil, err := device.GetUtilization()
+	if err != nil {
+		return nil, fmt.Errorf("utilization metrics: %v", err)
+	}
+	metrics.Util = float64(gpuUtil)
+	metrics.MemUtil = float64(memUtil)
+
+	temp, err := device.GetTemperature()
+	if err != nil {
+		return nil, fmt.Errorf("temperature metrics: %v", err)
+	}
+	metrics.Temp = float64(temp)
+
+	currentTime := time.Now()
+	if state := r.devices[index]; !state.lastTime.IsZero() {
+		duration := currentTime.Sub(state.lastTime).Seconds()
+		averagePower := (metrics.Power + state.lastPower) / 2
 		metrics.Energy = averagePower * duration
 	}
 
-	r.LastPowerTime = currentTime
-	r.LastPower = metrics.Power
-
-	if activeGPUs > 0 {
-		metrics.Util /= float64(activeGPUs)
-		metrics.MemUtil /= float64(activeGPUs)
-
-		metrics.Temp /= float64(activeGPUs)
-	}
-
-	// r.logMetrics(metrics)
+	r.devices[index].lastPower = metrics.Power
+	r.devices[index].lastTime = currentTime
 
 	return metrics, nil
 }
 
 func (r *GPUReader) LogMetrics(metrics *types.GPUMetrics) {
-	log.Printf("\033[33m[GPU]\033[0m GPU Metrics:")
-	log.Printf("\033[33m[GPU]\033[0m Power: %.2f W, Energy: %.2f J", metrics.Power, metrics.Energy)
-	log.Printf("\033[33m[GPU]\033[0m Util: %.2f%% (MemUtil: %.2f%%)", metrics.Util, metrics.MemUtil)
-	log.Printf("\033[33m[GPU]\033[0m Temp: %.1f°C", metrics.Temp)
+	log.WithFields(log.Fields{
+		"power":    fmt.Sprintf("%.2f W", metrics.Power),
+		"energy":   fmt.Sprintf("%.2f J", metrics.Energy),
+		"util":     fmt.Sprintf("%.2f%%", metrics.Util),
+		"mem_util": fmt.Sprintf("%.2f%%", metrics.MemUtil),
+		"temp":     fmt.Sprintf("%.1f°C", metrics.Temp),
+	}).Info("\033[33m[GPU]\033[0m GPU Metrics")
 }
 
 func (r *GPUReader) Close() error {
@@ -117,11 +145,56 @@ func (r *GPUReader) Close() error {
 }
 
 func (r *GPUReader) cleanup() error {
-	if r.NvmlInited {
+	if r.nvmlInited {
 		if err := nvmlShutdown(); err != nil {
 			return fmt.Errorf("\033[31m[GPU]\033[0m failed to shutdown NVML: %v", err)
 		}
-		r.NvmlInited = false
+		r.nvmlInited = false
 	}
 	return nil
+}
+
+func (r *GPUReader) GetDeviceCount() int {
+	return r.deviceCount
+}
+
+func (r *GPUReader) HasGPU() bool {
+	return r.hasGPU && r.nvmlInited
+}
+
+func (r *GPUReader) GetGpuStats(indices []int) types.GPUMetrics {
+	if !r.hasGPU || !r.nvmlInited {
+		return types.GPUMetrics{}
+	}
+
+	metrics := types.GPUMetrics{}
+	activeDevices := 0
+
+	for _, idx := range indices {
+		if idx < 0 || idx >= r.deviceCount {
+			log.Errorf("invalid device index: %d, total devices: %d", idx, r.deviceCount)
+			continue
+		}
+
+		deviceMetrics, err := r.GetDeviceMetrics(idx)
+		if err != nil {
+			log.WithField("device", idx).WithError(err).Error("\033[33m[GPU]\033[0m Failed to collect metrics")
+			continue
+		}
+
+		metrics.Power += deviceMetrics.Power
+		metrics.Energy += deviceMetrics.Energy
+		metrics.Util += deviceMetrics.Util
+		metrics.MemUtil += deviceMetrics.MemUtil
+		metrics.Temp += deviceMetrics.Temp
+		activeDevices++
+	}
+
+	if activeDevices > 0 {
+		metrics.Util /= float64(activeDevices)
+		metrics.MemUtil /= float64(activeDevices)
+		metrics.Temp /= float64(activeDevices)
+	}
+
+	return metrics
 }

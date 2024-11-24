@@ -6,7 +6,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"CraneFrontEnd/plugin/energy/pkg/cgroup"
 	"CraneFrontEnd/plugin/energy/pkg/config"
 	"CraneFrontEnd/plugin/energy/pkg/gpu"
 	"CraneFrontEnd/plugin/energy/pkg/ipmi"
@@ -58,7 +57,6 @@ func NewMonitor(config config.MonitorConfig) *Monitor {
 		TaskMonitor: &TaskMonitor{
 			samplePeriod: duration,
 			config:       &config,
-			cgroupReader: cgroup.NewV1Reader(),
 			tasks:        make(map[string]*Task),
 			taskMu:       sync.RWMutex{},
 		},

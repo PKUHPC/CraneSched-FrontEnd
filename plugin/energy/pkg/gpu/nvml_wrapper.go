@@ -9,6 +9,7 @@ package gpu
 import "C"
 import (
 	"fmt"
+	"unsafe"
 )
 
 type NVMLDevice struct {
@@ -67,4 +68,23 @@ func (d *NVMLDevice) GetUtilization() (uint, uint, error) {
 		return 0, 0, fmt.Errorf("failed to get utilization: %v", result)
 	}
 	return uint(utilization.gpu), uint(utilization.memory), nil
+}
+
+// GetUUID 获取GPU设备的UUID
+func (d *NVMLDevice) GetUUID() (string, error) {
+	var uuid [C.NVML_DEVICE_UUID_BUFFER_SIZE]C.char
+	if result := C.nvmlDeviceGetUUID(d.handle, &uuid[0], C.NVML_DEVICE_UUID_BUFFER_SIZE); result != C.NVML_SUCCESS {
+		return "", fmt.Errorf("failed to get device UUID: %v", result)
+	}
+	return C.GoString(&uuid[0]), nil
+}
+
+// GetPciInfo 获取GPU设备的PCI信息
+func (d *NVMLDevice) GetPciInfo() (string, error) {
+	var pci C.nvmlPciInfo_t
+	if result := C.nvmlDeviceGetPciInfo(d.handle, &pci); result != C.NVML_SUCCESS {
+		return "", fmt.Errorf("failed to get PCI info: %v", result)
+	}
+	// 返回PCI总线ID，格式如："00000000:01:00.0"
+	return C.GoString((*C.char)(unsafe.Pointer(&pci.busId[0]))), nil
 }

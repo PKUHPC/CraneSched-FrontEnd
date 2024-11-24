@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"sync"
 
 	log "github.com/sirupsen/logrus"
 
@@ -51,7 +50,6 @@ func init() {
 
 var (
 	globalMonitor *monitor.Monitor
-	globalMu      sync.Mutex
 )
 
 // 确保实现了插件接口
@@ -79,7 +77,6 @@ func (p EnergyPlugin) Init(meta api.PluginMeta) error {
 		return fmt.Errorf("\033[31m[EnergyPlugin] failed to initialize resources: %w\033[0m", err)
 	}
 
-	// 启动节点监控
 	globalMonitor.NodeMonitor.Start()
 
 	return nil
@@ -116,7 +113,7 @@ func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {
 
 	log.Infof("\033[32m[EnergyPlugin] Stopping task monitor for task: %s\033[0m", taskName)
 
-	globalMonitor.TaskMonitor.Stop(taskName)
+	globalMonitor.TaskMonitor.StopTask(taskName)
 }
 
 func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {
@@ -129,14 +126,12 @@ func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {
 	log.Infof("\033[32m[EnergyPlugin] Starting task monitor for task: %d, cgroup: %s\033[0m",
 		req.TaskId, req.Cgroup)
 
-	// 启动任务监控
-	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup)
+	boundGPUS := []int{}
+
+	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundGPUS)
 }
 
 func (p EnergyPlugin) ensureInitialized() error {
-	globalMu.Lock()
-	defer globalMu.Unlock()
-
 	if db.GetInstance() == nil {
 		err := db.InitDB(p.config)
 		if err != nil {
@@ -154,16 +149,11 @@ func (p EnergyPlugin) ensureInitialized() error {
 func (p EnergyPlugin) Close() {
 	log.Info("\033[32m[EnergyPlugin] Closing plugin\033[0m")
 
-	globalMu.Lock()
-	defer globalMu.Unlock()
-
-	// 关闭监控器
 	if globalMonitor != nil {
 		globalMonitor.Close()
 		globalMonitor = nil
 	}
 
-	// 关闭数据库
 	if db.GetInstance() != nil {
 		if err := db.GetInstance().Close(); err != nil {
 			log.Errorf("\033[31m[EnergyPlugin] Error closing database: %v\033[0m", err)

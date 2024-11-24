@@ -63,10 +63,10 @@ func (r *NodeMonitor) collectNodeEnergy() {
 			}
 		}
 
-		// r.raplReader.LogMetrics(&data.RAPL)
-		// r.ipmiReader.LogMetrics(&data.IPMI)
-		// r.gpuReader.LogMetrics(&data.GPU)
-		// r.sysLoadReader.LogMetrics(&data.SystemLoad)
+		r.raplReader.LogMetrics(&data.RAPL)
+		r.ipmiReader.LogMetrics(&data.IPMI)
+		r.gpuReader.LogMetrics(&data.GPU)
+		r.sysLoadReader.LogMetrics(&data.SystemLoad)
 
 		return data, nil
 	}
@@ -75,12 +75,10 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		select {
 		case <-ticker.C:
 			if data, err := metricsCollector(); err == nil {
-
+				r.broadcastNodeData(data)
 				if err := db.GetInstance().SaveNodeEnergy(data); err != nil {
 					log.Errorf("Error saving node energy data: %v", err)
 				}
-
-				r.broadcastNodeData(data)
 			}
 		case <-r.stopCh:
 			return
@@ -111,6 +109,12 @@ func (r *NodeMonitor) Close() {
 		}
 	}
 
+	if r.ipmiReader != nil {
+		if err := r.ipmiReader.Close(); err != nil {
+			log.Infof("error closing IPMI reader: %v", err)
+		}
+	}
+
 	if r.gpuReader != nil {
 		if err := r.gpuReader.Close(); err != nil {
 			log.Infof("error closing GPU reader: %v", err)
@@ -120,6 +124,9 @@ func (r *NodeMonitor) Close() {
 	if r.sysLoadReader != nil {
 		r.sysLoadReader.Close()
 	}
+
+	subscriberManager := GetSubscriberManagerInstance()
+	subscriberManager.Close()
 
 	close(r.stopCh)
 }

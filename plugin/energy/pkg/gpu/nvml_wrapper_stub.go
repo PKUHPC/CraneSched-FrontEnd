@@ -31,3 +31,11 @@ func (d *NVMLDevice) GetTemperature() (uint, error) {
 func (d *NVMLDevice) GetUtilization() (uint, uint, error) {
 	return 0, 0, nil
 }
+
+func (d *NVMLDevice) GetUUID() (string, error) {
+	return "", nil
+}
+
+func (d *NVMLDevice) GetPciInfo() (string, error) {
+	return "", nil
+}

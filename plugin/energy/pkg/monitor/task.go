@@ -10,19 +10,19 @@ import (
 	"CraneFrontEnd/plugin/energy/pkg/cgroup"
 	"CraneFrontEnd/plugin/energy/pkg/config"
 	"CraneFrontEnd/plugin/energy/pkg/db"
+	"CraneFrontEnd/plugin/energy/pkg/gpu"
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
 
 type TaskMonitor struct {
 	samplePeriod time.Duration
 	config       *config.MonitorConfig
-	cgroupReader cgroup.CgroupReader
 
 	tasks  map[string]*Task
 	taskMu sync.RWMutex
 }
 
-func (m *TaskMonitor) Start(taskID uint32, taskName string) {
+func (m *TaskMonitor) Start(taskID uint32, taskName string, boundGPUS []int) {
 	log.Infof("\033[32m[TaskMonitor]\033[0m Task monitor config: %v", m.config.Switches.Task)
 
 	if !m.config.Switches.Task {
@@ -37,7 +37,7 @@ func (m *TaskMonitor) Start(taskID uint32, taskName string) {
 
 	log.Infof("Starting task monitor for task: %d, cgroup path: %s", taskID, taskName)
 
-	task := NewTask(taskID, taskName, m.samplePeriod, m.cgroupReader)
+	task := NewTask(taskID, taskName, m.samplePeriod, boundGPUS)
 
 	m.taskMu.Lock()
 	m.tasks[taskName] = task
@@ -46,7 +46,7 @@ func (m *TaskMonitor) Start(taskID uint32, taskName string) {
 	task.Start()
 }
 
-func (m *TaskMonitor) Stop(taskName string) {
+func (m *TaskMonitor) StopTask(taskName string) {
 	m.taskMu.Lock()
 	if task, exists := m.tasks[taskName]; exists {
 		task.Stop()
@@ -64,92 +64,112 @@ func (m *TaskMonitor) Close() {
 }
 
 type Task struct {
-	ID        uint32
-	Name      string
-	StartTime time.Time
+	ID           uint32
+	Name         string
+	boundGPUs    []int
+	samplePeriod time.Duration
 
-	// 控制相关
+	data        *types.TaskData
+	sampleCount int
+
+	cgroupReader *cgroup.V1Reader
+	gpuReader    *gpu.GPUReader
+
 	ctx        context.Context
 	cancel     context.CancelFunc
 	subscriber *NodeDataSubscriber
-
-	// 数据相关
-	data         *types.TaskData
-	usageChan    chan types.TaskResourceUsage
-	samplePeriod time.Duration
-
-	cgroupReader cgroup.CgroupReader
 }
 
-func NewTask(id uint32, name string, samplePeriod time.Duration, cgroupReader cgroup.CgroupReader) *Task {
+func NewTask(id uint32, name string, samplePeriod time.Duration, boundGPUS []int) *Task {
 	ctx, cancel := context.WithCancel(context.Background())
 	startTime := time.Now()
 
 	return &Task{
-		ID:        id,
-		Name:      name,
-		StartTime: startTime,
-		ctx:       ctx,
-		cancel:    cancel,
+		ID:     id,
+		Name:   name,
+		ctx:    ctx,
+		cancel: cancel,
 		subscriber: &NodeDataSubscriber{
 			Ch:        make(chan *types.NodeData, 10),
 			StartTime: startTime,
 		},
 		data: &types.TaskData{
-			TaskName:          name,
-			StartTime:         startTime,
-			NodeDataHistory:   make([]*types.NodeData, 0, 100),
-			TaskResourceUsage: make([]types.TaskResourceUsage, 0, 100),
+			TaskName:  name,
+			StartTime: startTime,
 		},
-		usageChan:    make(chan types.TaskResourceUsage, 10),
 		samplePeriod: samplePeriod,
-		cgroupReader: cgroupReader,
+		cgroupReader: cgroup.NewV1Reader(name),
+		gpuReader:    gpu.NewGPUReader(),
+		boundGPUs:    boundGPUS,
 	}
 }
 
 func (t *Task) Start() {
 	GetSubscriberManagerInstance().AddSubscriber(t.Name, t.subscriber)
 
-	// 启动资源使用率监控
 	go t.monitorResourceUsage()
-	// 启动数据收集
 	go t.collectData()
 }
 
 func (t *Task) Stop() {
 	t.cancel()
 	GetSubscriberManagerInstance().DeleteSubscriber(t.Name)
-	close(t.usageChan)
+
+	if err := t.gpuReader.Close(); err != nil {
+		log.WithError(err).Error("Failed to close GPU reader")
+	}
+
+	if err := t.cgroupReader.Close(); err != nil {
+		log.WithError(err).Error("Failed to close cgroup reader")
+	}
 }
 
 func (t *Task) monitorResourceUsage() {
 	ticker := time.NewTicker(t.samplePeriod)
 	defer ticker.Stop()
 
-	var lastUsage *types.TaskResourceUsage
 	for {
 		select {
 		case <-ticker.C:
-			usage := t.cgroupReader.GetTaskResourceUsage(t.Name, lastUsage)
-			select {
-			case t.usageChan <- usage:
-				lastUsage = &usage
-			case <-t.ctx.Done():
-				return
-			}
+			taskStats := t.cgroupReader.GetCgroupStats()
+			metrics := t.gpuReader.GetGpuStats(t.boundGPUs)
+			t.updateTaskStats(&taskStats, &metrics)
 		case <-t.ctx.Done():
 			return
 		}
 	}
 }
 
+func (t *Task) updateTaskStats(stats *types.TaskStats, metrics *types.GPUMetrics) {
+	// Cgroup中这些资源使用量是累积的，所以不需要累加，每次采样直接更新就可以
+	t.data.TaskStats.CPUStats.UsageSeconds = stats.CPUStats.UsageSeconds
+	t.data.TaskStats.IOStats.ReadMB = stats.IOStats.ReadMB
+	t.data.TaskStats.IOStats.WriteMB = stats.IOStats.WriteMB
+	t.data.TaskStats.IOStats.ReadOperations = stats.IOStats.ReadOperations
+	t.data.TaskStats.IOStats.WriteOperations = stats.IOStats.WriteOperations
+
+	// 这些资源每一次采样都累加一下，最终计算平均值
+	t.data.TaskStats.CPUStats.Utilization += stats.CPUStats.Utilization
+	t.data.TaskStats.MemoryStats.UsageMB += stats.MemoryStats.UsageMB
+	t.data.TaskStats.MemoryStats.Utilization += stats.MemoryStats.Utilization
+	t.data.TaskStats.IOStats.ReadMBPS += stats.IOStats.ReadMBPS
+	t.data.TaskStats.IOStats.WriteMBPS += stats.IOStats.WriteMBPS
+	t.data.TaskStats.IOStats.ReadOpsPerSec += stats.IOStats.ReadOpsPerSec
+	t.data.TaskStats.IOStats.WriteOpsPerSec += stats.IOStats.WriteOpsPerSec
+	t.data.TaskStats.GPUStats.Utilization += metrics.Util
+	t.data.TaskStats.GPUStats.MemoryUtil += metrics.MemUtil
+
+	// GPU能耗读取出来是基于时间片的，所以需要累加，但是最终不需要计算平均值
+	t.data.GPUEnergy += metrics.Energy
+
+	t.sampleCount++
+}
+
 func (t *Task) collectData() {
 	for {
 		select {
 		case data := <-t.subscriber.Ch:
-			t.data.NodeDataHistory = append(t.data.NodeDataHistory, data)
-		case usage := <-t.usageChan:
-			t.data.TaskResourceUsage = append(t.data.TaskResourceUsage, usage)
+			t.updateEnergy(data)
 		case <-t.ctx.Done():
 			t.calculateStats()
 			if err := db.GetInstance().SaveTaskEnergy(t.data); err != nil {
@@ -160,70 +180,49 @@ func (t *Task) collectData() {
 	}
 }
 
-func (t *Task) calculateResourceStats() {
-	if len(t.data.TaskResourceUsage) < 2 {
-		log.Errorf("insufficient task resource data points for task: %s", t.Name)
-		return
-	}
-
-	// 计算CPU时间
-	startUsage := t.data.TaskResourceUsage[0]
-	endUsage := t.data.TaskResourceUsage[len(t.data.TaskResourceUsage)-1]
-	t.data.CPUTime = float64(endUsage.CPUStats.CurrentUsage-startUsage.CPUStats.CurrentUsage) / 1e9
-
-	// 计算平均资源使用率
-	var totalMemoryUtil, totalCPUUtil float64
-	for _, usage := range t.data.TaskResourceUsage {
-		totalMemoryUtil += usage.MemoryStats.Utilization
-		totalCPUUtil += usage.CPUStats.AverageUtilization
-	}
-
-	t.data.CPUUtil = totalCPUUtil / float64(len(t.data.TaskResourceUsage))
-	t.data.MemoryUtil = totalMemoryUtil / float64(len(t.data.TaskResourceUsage))
-
-	t.data.MemoryUsage = endUsage.MemoryStats.CurrentUsage
-	t.data.DiskReadBytes = endUsage.IOStats.CurrentRead
-	t.data.DiskWriteBytes = endUsage.IOStats.CurrentWrite
-	t.data.DiskReadSpeed = float64(t.data.DiskReadBytes) / t.data.Duration.Seconds()
-	t.data.DiskWriteSpeed = float64(t.data.DiskWriteBytes) / t.data.Duration.Seconds()
+func (t *Task) updateEnergy(data *types.NodeData) {
+	// RAPL采样是基于时间片的，所以需要累加，不需要求平均值，最终通过乘以利用率来计算任务能耗
+	t.data.CPUEnergy += data.RAPL.Core + data.RAPL.Uncore
+	t.data.DRAMEnergy += data.RAPL.DRAM
 }
 
-// calculateEnergyStats 计算能耗统计
-func (t *Task) calculateEnergyStats() {
-	if len(t.data.NodeDataHistory) < 2 {
-		log.Errorf("insufficient node data points for task: %s", t.Name)
+func (t *Task) calculateStats() {
+	if t.sampleCount < 2 {
+		log.WithField("task", t.Name).Error("Insufficient samples for statistics")
 		return
 	}
 
-	var totalCPUEnergy, totalDRAMEnergy, totalGPUEnergy float64
-	var totalCPUUtil, totalGPUUtil float64
+	t.data.EndTime = time.Now()
+	t.data.Duration = t.data.EndTime.Sub(t.data.StartTime)
+	sampleCount := float64(t.sampleCount)
 
-	// 计算总能耗和平均使用率
-	for _, data := range t.data.NodeDataHistory {
-		totalCPUEnergy += data.RAPL.Core + data.RAPL.Uncore
-		totalDRAMEnergy += data.RAPL.DRAM
-		totalGPUEnergy += data.GPU.Energy
+	t.calculateAverages(sampleCount)
+	t.calculateEnergy()
 
-		totalCPUUtil += data.SystemLoad.CPUUtil
-		totalGPUUtil += data.GPU.Util
-	}
+	t.logStats()
+}
 
-	// 计算平均使用率
-	sampleCount := float64(len(t.data.NodeDataHistory))
-	t.data.CPUUtil = totalCPUUtil / sampleCount
-	t.data.GPUUtil = totalGPUUtil / sampleCount
+func (t *Task) calculateAverages(sampleCount float64) {
+	t.data.TaskStats.CPUStats.Utilization /= sampleCount
+	t.data.TaskStats.MemoryStats.UsageMB /= sampleCount
+	t.data.TaskStats.MemoryStats.Utilization /= sampleCount
+	t.data.TaskStats.IOStats.ReadMBPS /= sampleCount
+	t.data.TaskStats.IOStats.WriteMBPS /= sampleCount
+	t.data.TaskStats.IOStats.ReadOpsPerSec /= sampleCount
+	t.data.TaskStats.IOStats.WriteOpsPerSec /= sampleCount
+	t.data.TaskStats.GPUStats.Utilization /= sampleCount
+	t.data.TaskStats.GPUStats.MemoryUtil /= sampleCount
+}
 
-	// 根据使用率分配能耗
-	t.data.CPUEnergy = totalCPUEnergy * (t.data.CPUUtil / 100.0)
-	t.data.DRAMEnergy = totalDRAMEnergy * (t.data.MemoryUtil / 100.0)
-	t.data.GPUEnergy = totalGPUEnergy * (t.data.GPUUtil / 100.0)
-
-	// 计算总能耗和平均功率
+func (t *Task) calculateEnergy() {
+	t.data.CPUEnergy = t.data.CPUEnergy * (t.data.TaskStats.CPUStats.Utilization / 100.0)
+	t.data.DRAMEnergy = t.data.DRAMEnergy * (t.data.TaskStats.MemoryStats.Utilization / 100.0)
 	t.data.TotalEnergy = t.data.CPUEnergy + t.data.DRAMEnergy + t.data.GPUEnergy
-	t.data.AveragePower = t.data.TotalEnergy / t.data.Duration.Seconds()
+	if duration := t.data.Duration.Seconds(); duration > 0 {
+		t.data.AveragePower = t.data.TotalEnergy / duration
+	}
 }
 
-// logStats 记录统计信息
 func (t *Task) logStats() {
 	log.Infof("Task Statistics for %s:", t.Name)
 	// 基本信息
@@ -236,30 +235,23 @@ func (t *Task) logStats() {
 	log.Infof("Energy Statistics:")
 	log.Infof("  Total energy: %.2f J", t.data.TotalEnergy)
 	log.Infof("  Average power: %.2f W", t.data.AveragePower)
-	log.Infof("  CPU energy: %.2f J (utilization: %.2f%%)", t.data.CPUEnergy, t.data.CPUUtil)
-	log.Infof("  GPU energy: %.2f J (utilization: %.2f%%)", t.data.GPUEnergy, t.data.GPUUtil)
-	log.Infof("  DRAM energy: %.2f J (utilization: %.2f%%)", t.data.DRAMEnergy, t.data.MemoryUtil)
+	log.Infof("  CPU energy: %.2f J (utilization: %.2f%%)",
+		t.data.CPUEnergy, t.data.TaskStats.CPUStats.Utilization)
+	log.Infof("  GPU energy: %.2f J (utilization: %.2f%%)",
+		t.data.GPUEnergy, t.data.TaskStats.GPUStats.Utilization)
+	log.Infof("  DRAM energy: %.2f J (utilization: %.2f%%)",
+		t.data.DRAMEnergy, t.data.TaskStats.MemoryStats.Utilization)
 
 	// 资源使用统计
 	log.Infof("Resource Usage Statistics:")
-	log.Infof("  CPU time: %.2f seconds", t.data.CPUTime)
-	log.Infof("  Memory usage: %d bytes", t.data.MemoryUsage)
-	log.Infof("  Memory utilization: %.2f%%", t.data.MemoryUtil)
-	log.Infof("  Disk read: %d bytes (%.2f B/s)", t.data.DiskReadBytes, t.data.DiskReadSpeed)
-	log.Infof("  Disk write: %d bytes (%.2f B/s)", t.data.DiskWriteBytes, t.data.DiskWriteSpeed)
-}
-
-func (t *Task) calculateStats() {
-	if len(t.data.NodeDataHistory) < 2 || len(t.data.TaskResourceUsage) < 2 {
-		log.Errorf("insufficient data points for task: %s", t.Name)
-		return
-	}
-
-	// 设置时间信息
-	t.data.EndTime = time.Now()
-	t.data.Duration = t.data.EndTime.Sub(t.data.StartTime)
-
-	t.calculateResourceStats()
-	t.calculateEnergyStats()
-	t.logStats()
+	log.Infof("  CPU utilization: %.2f%%", t.data.TaskStats.CPUStats.Utilization)
+	log.Infof("  CPU usage: %.2f seconds", t.data.TaskStats.CPUStats.UsageSeconds)
+	log.Infof("  Memory utilization: %.2f%%", t.data.TaskStats.MemoryStats.Utilization)
+	log.Infof("  Memory usage: %.2f MB", t.data.TaskStats.MemoryStats.UsageMB)
+	log.Infof("  Disk read: %.2f MB (%.2f MB/s)",
+		t.data.TaskStats.IOStats.ReadMB, t.data.TaskStats.IOStats.ReadMBPS)
+	log.Infof("  Disk write: %.2f MB (%.2f MB/s)",
+		t.data.TaskStats.IOStats.WriteMB, t.data.TaskStats.IOStats.WriteMBPS)
+	log.Infof("  GPU utilization: %.2f%%", t.data.TaskStats.GPUStats.Utilization)
+	log.Infof("  GPU memory utilization: %.2f%%", t.data.TaskStats.GPUStats.MemoryUtil)
 }

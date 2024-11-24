@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"strings"
 	"sync"
@@ -217,28 +216,25 @@ func (db *MongoDB) SaveTaskEnergy(monitor *types.TaskData) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	history, _ := json.Marshal(monitor.TaskResourceUsage)
-
 	doc := map[string]interface{}{
 		"task_name":        monitor.TaskName,
 		"start_time":       monitor.StartTime,
 		"end_time":         monitor.EndTime,
 		"duration":         monitor.Duration,
-		"resource_history": string(history),
 		"total_energy":     monitor.TotalEnergy,
 		"cpu_energy":       monitor.CPUEnergy,
 		"gpu_energy":       monitor.GPUEnergy,
 		"dram_energy":      monitor.DRAMEnergy,
 		"average_power":    monitor.AveragePower,
-		"cpu_time":         monitor.CPUTime,
-		"cpu_utilization":  monitor.CPUUtil,
-		"gpu_utilization":  monitor.GPUUtil,
-		"memory_usage":     monitor.MemoryUsage,
-		"memory_util":      monitor.MemoryUtil,
-		"disk_read_bytes":  monitor.DiskReadBytes,
-		"disk_write_bytes": monitor.DiskWriteBytes,
-		"disk_read_speed":  monitor.DiskReadSpeed,
-		"disk_write_speed": monitor.DiskWriteSpeed,
+		"cpu_time":         monitor.TaskStats.CPUStats.UsageSeconds,
+		"cpu_utilization":  monitor.TaskStats.CPUStats.Utilization,
+		"gpu_utilization":  monitor.TaskStats.GPUStats.Utilization,
+		"memory_usage":     monitor.TaskStats.MemoryStats.UsageMB,
+		"memory_util":      monitor.TaskStats.MemoryStats.Utilization,
+		"disk_read_mb":     monitor.TaskStats.IOStats.ReadMB,
+		"disk_write_mb":    monitor.TaskStats.IOStats.WriteMB,
+		"disk_read_speed":  monitor.TaskStats.IOStats.ReadMBPS,
+		"disk_write_speed": monitor.TaskStats.IOStats.WriteMBPS,
 	}
 
 	_, err := db.taskEnergy.InsertOne(ctx, doc)

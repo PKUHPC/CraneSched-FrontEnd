@@ -35,3 +35,10 @@ func (r *SubscriberManager) AddSubscriber(taskName string, subscriber *NodeDataS
 func (r *SubscriberManager) DeleteSubscriber(taskName string) {
 	r.subscribers.Delete(taskName)
 }
+
+func (r *SubscriberManager) Close() {
+	r.subscribers.Range(func(key, value interface{}) bool {
+		close(value.(*NodeDataSubscriber).Ch)
+		return true
+	})
+}

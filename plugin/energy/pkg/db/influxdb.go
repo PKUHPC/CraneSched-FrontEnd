@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -245,7 +244,7 @@ func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
 	log.Infof("\033[34m[InfluxDB]\033[0m Saving task energy data for task: %s, node: %s, cluster: %s", taskData.TaskName, NodeID, ClusterID)
 	writeAPI := db.client.WriteAPIBlocking(db.org, db.taskBucket)
 
-	history, _ := json.Marshal(taskData.TaskResourceUsage)
+	// history, _ := json.Marshal(taskData.TaskResourceUsage)
 
 	p := influxdb2.NewPoint(
 		db.taskBucket,
@@ -265,17 +264,17 @@ func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
 			"dram_energy":   taskData.DRAMEnergy,
 			"average_power": taskData.AveragePower,
 
-			"cpu_time":         taskData.CPUTime,
-			"cpu_utilization":  taskData.CPUUtil,
-			"gpu_utilization":  taskData.GPUUtil,
-			"memory_usage":     taskData.MemoryUsage,
-			"memory_util":      taskData.MemoryUtil,
-			"disk_read_bytes":  taskData.DiskReadBytes,
-			"disk_write_bytes": taskData.DiskWriteBytes,
-			"disk_read_speed":  taskData.DiskReadSpeed,
-			"disk_write_speed": taskData.DiskWriteSpeed,
+			"cpu_time":         taskData.TaskStats.CPUStats.UsageSeconds,
+			"cpu_utilization":  taskData.TaskStats.CPUStats.Utilization,
+			"gpu_utilization":  taskData.TaskStats.GPUStats.Utilization,
+			"memory_usage":     taskData.TaskStats.MemoryStats.UsageMB,
+			"memory_util":      taskData.TaskStats.MemoryStats.Utilization,
+			"disk_read_mb":     taskData.TaskStats.IOStats.ReadMB,
+			"disk_write_mb":    taskData.TaskStats.IOStats.WriteMB,
+			"disk_read_speed":  taskData.TaskStats.IOStats.ReadMBPS,
+			"disk_write_speed": taskData.TaskStats.IOStats.WriteMBPS,
 
-			"resource_history": string(history),
+			"resource_history": "TODO",
 		},
 		taskData.EndTime,
 	)

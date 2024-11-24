@@ -33,11 +33,11 @@ type IPMIMetrics struct {
 }
 
 type GPUMetrics struct {
-	Energy  float64 // GPU能耗(J)
-	Power   float64 // GPU功率(W)
-	Util    float64 // GPU使用率(%)
-	MemUtil float64 // GPU显存使用率(%)
-	Temp    float64 // GPU温度(℃)
+	Energy  float64
+	Power   float64
+	Util    float64
+	MemUtil float64
+	Temp    float64
 }
 
 type SystemLoadMetrics struct {
@@ -71,51 +71,45 @@ type TaskData struct {
 	EndTime   time.Time
 	Duration  time.Duration
 
-	NodeDataHistory   []*NodeData
-	TaskResourceUsage []TaskResourceUsage
-
 	TotalEnergy  float64 // 执行完任务累计总能耗(J)
 	CPUEnergy    float64 // 执行完任务累计CPU能耗(J)
 	GPUEnergy    float64 // 执行完任务累计GPU能耗(J)
 	DRAMEnergy   float64 // 执行完任务累计内存能耗(J)
 	AveragePower float64 // 执行完任务平均功率(W)
-	CPUTime      float64 // 执行完任务CPU总使用时间(s)
 
-	CPUUtil        float64 // 平均CPU使用率(%)
-	GPUUtil        float64 // 平均GPU使用率(%)
-	MemoryUsage    uint64  // 平均内存使用量(B)
-	MemoryUtil     float64 // 平均内存使用率(%)
-	DiskReadBytes  uint64  // 总读取字节数
-	DiskWriteBytes uint64  // 总写入字节数
-	DiskReadSpeed  float64 // 平均读取速率(B/s)
-	DiskWriteSpeed float64 // 平均写入速率(B/s)
+	TaskStats TaskStats
 }
 
-type TaskResourceUsage struct {
-	LastUpdateTime time.Time
-	CPUStats       CPUStats
-	MemoryStats    MemoryStats
-	IOStats        IOStats
+type TaskStats struct {
+	CPUStats    CPUStats
+	GPUStats    GPUStats
+	MemoryStats MemoryStats
+	IOStats     IOStats
 }
 
 type CPUStats struct {
-	CurrentUsage       uint64
-	AverageUtilization float64
-}
-
-type MemoryStats struct {
-	CurrentUsage uint64
+	UsageSeconds float64
 	Utilization  float64
 }
 
+type GPUStats struct {
+	Utilization float64
+	MemoryUtil  float64
+}
+
+type MemoryStats struct {
+	UsageMB     float64
+	Utilization float64
+}
+
 type IOStats struct {
-	CurrentRead  uint64  // 总读取字节数
-	CurrentWrite uint64  // 总写入字节数
-	ReadSpeed    float64 // 读取速率 (bytes/s)
-	WriteSpeed   float64 // 写入速率 (bytes/s)
+	ReadMB    float64 // 总读取量(MB)
+	WriteMB   float64 // 总写入量(MB)
+	ReadMBPS  float64 // 读取速率(MB/s)
+	WriteMBPS float64 // 写入速率(MB/s)
 
 	ReadOperations  uint64  // 读操作总次数
 	WriteOperations uint64  // 写操作总次数
-	ReadOpsPerSec   float64 // 读操作速率 (ops/s)
-	WriteOpsPerSec  float64 // 写操作速率 (ops/s)
+	ReadOpsPerSec   float64 // 读操作速率(IOPS)
+	WriteOpsPerSec  float64 // 写操作速率(IOPS)
 }

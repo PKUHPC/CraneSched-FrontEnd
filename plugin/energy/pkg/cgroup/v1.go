@@ -3,7 +3,9 @@ package cgroup
 import (
 	"fmt"
 	"math"
-	"path/filepath"
+	"os"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,188 +16,237 @@ import (
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
 
+const (
+	MB        = 1024 * 1024
+	NS_TO_SEC = 1e9
+)
+
 type V1Reader struct {
 	control cgroups.Cgroup
+
+	startCPUTime uint64    // 任务开始时的CPU时间
+	startTime    time.Time // 任务开始时间
 }
 
-func NewV1Reader() *V1Reader {
-	return &V1Reader{}
-}
-
-func (r *V1Reader) loadCgroup(taskName string) error {
-	if r.control != nil {
+func NewV1Reader(taskName string) *V1Reader {
+	if taskName == "" {
 		return nil
 	}
 
-	path := filepath.Join("/sys/fs/cgroup", taskName)
-	control, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(path))
+	control, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(taskName))
 	if err != nil {
-		return fmt.Errorf("load cgroup: %v", err)
+		return nil
 	}
-	r.control = control
-	return nil
+
+	startCPUTime, err := readTotalCPUTime()
+	if err != nil {
+		log.Warnf("Failed to read initial CPU time: %v", err)
+	}
+
+	reader := V1Reader{
+		control:      control,
+		startCPUTime: startCPUTime,
+		startTime:    time.Now(),
+	}
+
+	log.Infof("Successfully loaded cgroup for task: %s", taskName)
+	for _, subsystem := range control.Subsystems() {
+		log.Infof("Subsystem: %s", subsystem.Name())
+	}
+
+	return &reader
 }
 
-func (r *V1Reader) getDiskIOStats(metrics *v1.Metrics, lastUsage *types.TaskResourceUsage, duration float64) types.IOStats {
-	var stats types.IOStats
+func (r *V1Reader) Close() error {
+	return r.control.Delete()
+}
 
-	if metrics.Blkio == nil {
+func (r *V1Reader) GetCgroupStats() types.TaskStats {
+	currentTime := time.Now()
+	usage := types.TaskStats{}
+
+	v1Metrics, err := r.control.Stat(cgroups.IgnoreNotExist)
+	if err != nil {
+		log.Errorf("Failed to get cgroup stats: %v", err)
+		return usage
+	}
+
+	if v1Metrics == nil {
+		log.Error("Metrics is nil")
+		return usage
+	}
+
+	duration := currentTime.Sub(r.startTime).Seconds()
+
+	cpuStats := r.calculateCPUStats(v1Metrics)
+	memoryStats := calculateMemoryStats(v1Metrics)
+	ioStats := calculateIOStats(v1Metrics, duration)
+
+	usage = types.TaskStats{
+		CPUStats:    cpuStats,
+		MemoryStats: memoryStats,
+		IOStats:     ioStats,
+	}
+
+	logTaskStats(v1Metrics, usage)
+	return usage
+}
+
+func (r *V1Reader) calculateCPUStats(v1Metrics *v1.Metrics) types.CPUStats {
+	if v1Metrics == nil || v1Metrics.CPU == nil {
+		log.Warn("CPU metrics not available")
+		return types.CPUStats{}
+	}
+
+	stats := types.CPUStats{
+		UsageSeconds: float64(v1Metrics.CPU.Usage.Total) / NS_TO_SEC,
+	}
+
+	currentCPUTime, err := readTotalCPUTime()
+	if err != nil {
+		log.Warnf("Failed to read current CPU time: %v", err)
 		return stats
 	}
 
-	for _, entry := range metrics.Blkio.IoServiceBytesRecursive {
-		switch entry.Op {
-		case "Read":
-			stats.CurrentRead = uint64(entry.Value)
-		case "Write":
-			stats.CurrentWrite = uint64(entry.Value)
+	if r.startCPUTime > 0 && currentCPUTime > r.startCPUTime {
+		systemCPUDiff := currentCPUTime - r.startCPUTime
+		taskCPUJiffies := v1Metrics.CPU.Usage.Total / 10000000 // 转换为jiffies
+
+		numCPUs := float64(len(v1Metrics.CPU.Usage.PerCPU))
+		if numCPUs == 0 {
+			numCPUs = 1
 		}
-	}
 
-	for _, entry := range metrics.Blkio.IoServicedRecursive {
-		switch entry.Op {
-		case "Read":
-			stats.ReadOperations = entry.Value
-		case "Write":
-			stats.WriteOperations = entry.Value
+		cpuUtil := (float64(taskCPUJiffies) / float64(systemCPUDiff)) * 100 / numCPUs
+		if cpuUtil > 100 {
+			log.Warnf("CPU utilization exceeds 100%% (%.2f%%), capping at 100%%", cpuUtil)
+			cpuUtil = 100
 		}
-	}
-
-	if lastUsage != nil && duration > 0 {
-		readDiff := stats.CurrentRead - lastUsage.IOStats.CurrentRead
-		writeDiff := stats.CurrentWrite - lastUsage.IOStats.CurrentWrite
-
-		stats.ReadSpeed = float64(readDiff) / duration
-		stats.WriteSpeed = float64(writeDiff) / duration
-
-		readOpsDiff := stats.ReadOperations - lastUsage.IOStats.ReadOperations
-		writeOpsDiff := stats.WriteOperations - lastUsage.IOStats.WriteOperations
-
-		stats.ReadOpsPerSec = float64(readOpsDiff) / duration
-		stats.WriteOpsPerSec = float64(writeOpsDiff) / duration
-
-		log.Debugf("IO Operations - Read: %d ops (%.2f IOPS), Write: %d ops (%.2f IOPS)",
-			stats.ReadOperations,
-			stats.ReadOpsPerSec,
-			stats.WriteOperations,
-			stats.WriteOpsPerSec)
+		stats.Utilization = cpuUtil
 	}
 
 	return stats
 }
 
-func (r *V1Reader) GetTaskResourceUsage(taskName string, lastUsage *types.TaskResourceUsage) types.TaskResourceUsage {
-	startTime := time.Now()
-
-	if err := r.loadCgroup(taskName); err != nil {
-		log.Errorf("Failed to load cgroup for task %s: %v", taskName, err)
-		return types.TaskResourceUsage{LastUpdateTime: startTime}
+func calculateMemoryStats(v1Metrics *v1.Metrics) types.MemoryStats {
+	if v1Metrics == nil || v1Metrics.Memory == nil {
+		log.Warn("Memory metrics not available")
+		return types.MemoryStats{}
 	}
 
-	metrics, err := r.control.Stat(cgroups.IgnoreNotExist)
-	if err != nil {
-		log.Errorf("Failed to get cgroup stats: %v", err)
-		return types.TaskResourceUsage{LastUpdateTime: startTime}
+	stats := types.MemoryStats{
+		UsageMB: float64(v1Metrics.Memory.Usage.Usage) / MB,
 	}
 
-	duration := time.Since(lastUsage.LastUpdateTime).Seconds()
-	ioStats := r.getDiskIOStats(metrics, lastUsage, duration)
-
-	usage := types.TaskResourceUsage{
-		LastUpdateTime: startTime,
-		CPUStats: types.CPUStats{
-			CurrentUsage:       metrics.CPU.Usage.Total,
-			AverageUtilization: calculateCPUUtil(metrics, lastUsage, duration),
-		},
-		MemoryStats: types.MemoryStats{
-			CurrentUsage: metrics.Memory.Usage.Usage,
-			Utilization:  calculateMemUtil(metrics),
-		},
-		IOStats: ioStats,
-	}
-
-	log.Info("CgroupV1: ", taskName)
-	log.Infof("CgroupV1: CPU: %d", usage.CPUStats.CurrentUsage)
-	log.Infof("CgroupV1: CPU: %.2f%%", usage.CPUStats.AverageUtilization)
-	log.Infof("CgroupV1: Memory: %d", usage.MemoryStats.CurrentUsage)
-	log.Infof("CgroupV1: Memory: %.2f%%", usage.MemoryStats.Utilization)
-	log.Infof("CgroupV1: IO: %.2f%%", usage.IOStats.ReadSpeed)
-	log.Infof("CgroupV1: IO: %.2f%%", usage.IOStats.WriteSpeed)
-	log.Infof("CgroupV1: IO: %.2f%%", usage.IOStats.ReadOpsPerSec)
-	log.Infof("CgroupV1: IO: %.2f%%", usage.IOStats.WriteOpsPerSec)
-	log.Infof("CgroupV1: IO: %d", usage.IOStats.ReadOperations)
-	log.Infof("CgroupV1: IO: %d", usage.IOStats.WriteOperations)
-	log.Infof("CgroupV1: IO: %d", usage.IOStats.CurrentRead)
-	log.Infof("CgroupV1: IO: %d", usage.IOStats.CurrentWrite)
-
-	return usage
-}
-
-// calculateCPUUtil 计算CPU利用率
-func calculateCPUUtil(metrics *v1.Metrics, lastUsage *types.TaskResourceUsage, duration float64) float64 {
-	if lastUsage == nil || duration <= 0 || metrics.CPU == nil {
-		return 0
-	}
-
-	// 计算CPU使用时间差（纳秒）
-	cpuDiff := int64(metrics.CPU.Usage.Total - lastUsage.CPUStats.CurrentUsage)
-	if cpuDiff < 0 {
-		log.Warnf("Negative CPU usage difference detected, resetting")
-		return 0
-	}
-
-	// 获取CPU核心数
-	numCPUs := float64(len(metrics.CPU.Usage.PerCPU))
-	if numCPUs == 0 {
-		numCPUs = 1 // 防止除零
-	}
-
-	// CPU利用率计算公式：
-	// (CPU时间差 / 总时间差) * 100 / CPU核心数
-	// CPU时间是纳秒，需要转换为秒
-	cpuUtil := (float64(cpuDiff) / (duration * 1e9)) * 100 / numCPUs
-
-	// 合理性检查
-	if cpuUtil > 100 {
-		log.Warnf("CPU utilization exceeds 100%% (%.2f%%), capping at 100%%", cpuUtil)
-		cpuUtil = 100
-	}
-
-	return cpuUtil
-}
-
-func calculateMemUtil(metrics *v1.Metrics) float64 {
-	if metrics.Memory == nil {
-		return 0
-	}
-
-	usage := metrics.Memory.Usage.Usage
-	limit := metrics.Memory.Usage.Limit
-
+	limit := v1Metrics.Memory.Usage.Limit
 	if limit == 0 || limit == math.MaxUint64 {
 		var si syscall.Sysinfo_t
 		if err := syscall.Sysinfo(&si); err != nil {
 			log.Warnf("Failed to get system memory info: %v", err)
-			return 0
+			return stats
 		}
 		limit = si.Totalram
 	}
 
 	if limit > 0 {
-		memUtil := (float64(usage) / float64(limit)) * 100
-
+		memUtil := (float64(v1Metrics.Memory.Usage.Usage) / float64(limit)) * 100
 		if memUtil > 100 {
 			log.Warnf("Memory utilization exceeds 100%% (%.2f%%), capping at 100%%", memUtil)
 			memUtil = 100
 		}
-
-		log.Debugf("Memory stats: usage=%.2f MB, limit=%.2f MB, utilization=%.2f%%",
-			float64(usage)/(1024*1024),
-			float64(limit)/(1024*1024),
-			memUtil)
-
-		return memUtil
+		stats.Utilization = memUtil
 	}
 
-	return 0
+	return stats
+}
+
+func calculateIOStats(v1Metrics *v1.Metrics, duration float64) types.IOStats {
+	var stats types.IOStats
+
+	if v1Metrics == nil || v1Metrics.Blkio == nil {
+		log.Warn("IO metrics not available")
+		return stats
+	}
+
+	var (
+		totalReadBytes  uint64
+		totalWriteBytes uint64
+		totalReadOps    uint64
+		totalWriteOps   uint64
+	)
+
+	for _, entry := range v1Metrics.Blkio.IoServiceBytesRecursive {
+		switch entry.Op {
+		case "Read":
+			totalReadBytes += entry.Value
+		case "Write":
+			totalWriteBytes += entry.Value
+		}
+	}
+
+	for _, entry := range v1Metrics.Blkio.IoServicedRecursive {
+		switch entry.Op {
+		case "Read":
+			totalReadOps += entry.Value
+		case "Write":
+			totalWriteOps += entry.Value
+		}
+	}
+
+	stats.ReadMB = float64(totalReadBytes) / MB
+	stats.WriteMB = float64(totalWriteBytes) / MB
+	stats.ReadOperations = totalReadOps
+	stats.WriteOperations = totalWriteOps
+
+	if duration > 0 {
+		stats.ReadMBPS = stats.ReadMB / duration
+		stats.WriteMBPS = stats.WriteMB / duration
+		stats.ReadOpsPerSec = float64(totalReadOps) / duration
+		stats.WriteOpsPerSec = float64(totalWriteOps) / duration
+	}
+
+	return stats
+}
+
+func readTotalCPUTime() (uint64, error) {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return 0, fmt.Errorf("failed to read /proc/stat: %v", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "cpu ") {
+			fields := strings.Fields(line)[1:] // 跳过"cpu"字段
+			var total uint64
+			for _, field := range fields {
+				val, err := strconv.ParseUint(field, 10, 64)
+				if err != nil {
+					return 0, fmt.Errorf("failed to parse CPU time: %v", err)
+				}
+				total += val
+			}
+			return total, nil
+		}
+	}
+
+	return 0, fmt.Errorf("CPU stats not found in /proc/stat")
+}
+
+func logTaskStats(v1Metrics *v1.Metrics, usage types.TaskStats) {
+	log.WithFields(log.Fields{
+		"cpu_available":    v1Metrics.CPU != nil,
+		"memory_available": v1Metrics.Memory != nil,
+		"blkio_available":  v1Metrics.Blkio != nil,
+		"cpu_usage":        fmt.Sprintf("%.2f s", usage.CPUStats.UsageSeconds),
+		"cpu_util":         fmt.Sprintf("%.2f%%", usage.CPUStats.Utilization),
+		"memory_usage":     fmt.Sprintf("%.2f MB", usage.MemoryStats.UsageMB),
+		"memory_util":      fmt.Sprintf("%.2f%%", usage.MemoryStats.Utilization),
+		"io_read_mb":       fmt.Sprintf("%.2f MB", usage.IOStats.ReadMB),
+		"io_write_mb":      fmt.Sprintf("%.2f MB", usage.IOStats.WriteMB),
+		"io_read_speed":    fmt.Sprintf("%.2f MB/s", usage.IOStats.ReadMBPS),
+		"io_write_speed":   fmt.Sprintf("%.2f MB/s", usage.IOStats.WriteMBPS),
+		"io_read_ops":      fmt.Sprintf("%.2f IOPS", usage.IOStats.ReadOpsPerSec),
+		"io_write_ops":     fmt.Sprintf("%.2f IOPS", usage.IOStats.WriteOpsPerSec),
+	}).Info("Resource usage stats")
 }
