@@ -131,13 +131,8 @@ func (r *GPUReader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
 }
 
 func (r *GPUReader) LogMetrics(metrics *types.GPUMetrics) {
-	log.WithFields(log.Fields{
-		"power":    fmt.Sprintf("%.2f W", metrics.Power),
-		"energy":   fmt.Sprintf("%.2f J", metrics.Energy),
-		"util":     fmt.Sprintf("%.2f%%", metrics.Util),
-		"mem_util": fmt.Sprintf("%.2f%%", metrics.MemUtil),
-		"temp":     fmt.Sprintf("%.1f°C", metrics.Temp),
-	}).Info("\033[33m[GPU]\033[0m GPU Metrics")
+	log.Infof("\033[33m[GPU]\033[0m GPU Metrics: power=%.2f W, energy=%.2f J, util=%.2f%%", metrics.Power, metrics.Energy, metrics.Util)
+	log.Infof("\033[33m[GPU]\033[0m GPU Metrics: mem_util=%.2f%%, temp=%.1f°C", metrics.MemUtil, metrics.Temp)
 }
 
 func (r *GPUReader) Close() error {

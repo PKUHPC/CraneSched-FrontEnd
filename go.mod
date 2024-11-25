@@ -5,6 +5,7 @@ go 1.22
 require (
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/containerd/cgroups v1.1.0
+	github.com/docker/go-units v0.4.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/term v1.1.0
@@ -15,7 +16,6 @@ require (
 	github.com/tidwall/sjson v1.2.5
 	github.com/u-root/u-root v0.14.0
 	github.com/xlab/treeprint v1.2.0
-	go.mongodb.org/mongo-driver v1.17.1
 	golang.org/x/sys v0.26.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.35.1
@@ -24,7 +24,6 @@ require (
 
 require (
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
-	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/godbus/dbus/v5 v5.0.4 // indirect
@@ -56,13 +55,10 @@ require (
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/oapi-codegen/runtime v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
@@ -70,13 +66,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
-	github.com/xdg-go/scram v1.1.2 // indirect
-	github.com/xdg-go/stringprep v1.0.4 // indirect
-	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
 )

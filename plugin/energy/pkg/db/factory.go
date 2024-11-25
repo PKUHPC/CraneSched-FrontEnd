@@ -19,8 +19,6 @@ func InitDB(config *config.Config) error {
 	var err error
 	once.Do(func() {
 		switch config.DB.Type {
-		case "mongodb":
-			instance, err = NewMongoDB(config)
 		case "influxdb":
 			instance, err = NewInfluxDB(config)
 		default:

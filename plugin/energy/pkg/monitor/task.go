@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ type TaskMonitor struct {
 	taskMu sync.RWMutex
 }
 
-func (m *TaskMonitor) Start(taskID uint32, taskName string, boundGPUS []int) {
+func (m *TaskMonitor) Start(taskID uint32, taskName string) {
 	log.Infof("\033[32m[TaskMonitor]\033[0m Task monitor config: %v", m.config.Switches.Task)
 
 	if !m.config.Switches.Task {
@@ -37,7 +38,7 @@ func (m *TaskMonitor) Start(taskID uint32, taskName string, boundGPUS []int) {
 
 	log.Infof("Starting task monitor for task: %d, cgroup path: %s", taskID, taskName)
 
-	task := NewTask(taskID, taskName, m.samplePeriod, boundGPUS)
+	task := NewTask(taskID, taskName, m.samplePeriod)
 
 	m.taskMu.Lock()
 	m.tasks[taskName] = task
@@ -80,9 +81,23 @@ type Task struct {
 	subscriber *NodeDataSubscriber
 }
 
-func NewTask(id uint32, name string, samplePeriod time.Duration, boundGPUS []int) *Task {
+func getNodeID() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "unknown"
+	}
+	return hostname
+}
+
+func getClusterID() string {
+	return "cluster-1"
+}
+
+func NewTask(id uint32, name string, samplePeriod time.Duration) *Task {
 	ctx, cancel := context.WithCancel(context.Background())
 	startTime := time.Now()
+
+	cgroupReader := cgroup.NewV1Reader(name)
 
 	return &Task{
 		ID:     id,
@@ -94,13 +109,15 @@ func NewTask(id uint32, name string, samplePeriod time.Duration, boundGPUS []int
 			StartTime: startTime,
 		},
 		data: &types.TaskData{
+			NodeID:    getNodeID(),
+			ClusterID: getClusterID(),
 			TaskName:  name,
 			StartTime: startTime,
 		},
 		samplePeriod: samplePeriod,
-		cgroupReader: cgroup.NewV1Reader(name),
+		cgroupReader: cgroupReader,
 		gpuReader:    gpu.NewGPUReader(),
-		boundGPUs:    boundGPUS,
+		boundGPUs:    cgroupReader.GetBoundGPUs(),
 	}
 }
 
@@ -117,10 +134,6 @@ func (t *Task) Stop() {
 
 	if err := t.gpuReader.Close(); err != nil {
 		log.WithError(err).Error("Failed to close GPU reader")
-	}
-
-	if err := t.cgroupReader.Close(); err != nil {
-		log.WithError(err).Error("Failed to close cgroup reader")
 	}
 }
 
@@ -159,7 +172,7 @@ func (t *Task) updateTaskStats(stats *types.TaskStats, metrics *types.GPUMetrics
 	t.data.TaskStats.GPUStats.Utilization += metrics.Util
 	t.data.TaskStats.GPUStats.MemoryUtil += metrics.MemUtil
 
-	// GPU能耗读取出来是基于时间片的，所以需要累加，但是最终不需要计算平均值
+	// GPU能耗是基于时间片的，所以需要累加，但是最终不需要计算平均值
 	t.data.GPUEnergy += metrics.Energy
 
 	t.sampleCount++
@@ -182,8 +195,7 @@ func (t *Task) collectData() {
 
 func (t *Task) updateEnergy(data *types.NodeData) {
 	// RAPL采样是基于时间片的，所以需要累加，不需要求平均值，最终通过乘以利用率来计算任务能耗
-	t.data.CPUEnergy += data.RAPL.Core + data.RAPL.Uncore
-	t.data.DRAMEnergy += data.RAPL.DRAM
+	t.data.CPUEnergy += data.RAPL.Package
 }
 
 func (t *Task) calculateStats() {
@@ -216,8 +228,7 @@ func (t *Task) calculateAverages(sampleCount float64) {
 
 func (t *Task) calculateEnergy() {
 	t.data.CPUEnergy = t.data.CPUEnergy * (t.data.TaskStats.CPUStats.Utilization / 100.0)
-	t.data.DRAMEnergy = t.data.DRAMEnergy * (t.data.TaskStats.MemoryStats.Utilization / 100.0)
-	t.data.TotalEnergy = t.data.CPUEnergy + t.data.DRAMEnergy + t.data.GPUEnergy
+	t.data.TotalEnergy = t.data.CPUEnergy + t.data.GPUEnergy
 	if duration := t.data.Duration.Seconds(); duration > 0 {
 		t.data.AveragePower = t.data.TotalEnergy / duration
 	}
@@ -225,13 +236,11 @@ func (t *Task) calculateEnergy() {
 
 func (t *Task) logStats() {
 	log.Infof("Task Statistics for %s:", t.Name)
-	// 基本信息
 	log.Infof("  Task name: %s", t.data.TaskName)
 	log.Infof("  Node ID: %s", t.data.NodeID)
 	log.Infof("  Cluster ID: %s", t.data.ClusterID)
 	log.Infof("  Duration: %.2f seconds", t.data.Duration.Seconds())
 
-	// 能耗统计
 	log.Infof("Energy Statistics:")
 	log.Infof("  Total energy: %.2f J", t.data.TotalEnergy)
 	log.Infof("  Average power: %.2f W", t.data.AveragePower)
@@ -239,19 +248,20 @@ func (t *Task) logStats() {
 		t.data.CPUEnergy, t.data.TaskStats.CPUStats.Utilization)
 	log.Infof("  GPU energy: %.2f J (utilization: %.2f%%)",
 		t.data.GPUEnergy, t.data.TaskStats.GPUStats.Utilization)
-	log.Infof("  DRAM energy: %.2f J (utilization: %.2f%%)",
-		t.data.DRAMEnergy, t.data.TaskStats.MemoryStats.Utilization)
 
-	// 资源使用统计
 	log.Infof("Resource Usage Statistics:")
 	log.Infof("  CPU utilization: %.2f%%", t.data.TaskStats.CPUStats.Utilization)
 	log.Infof("  CPU usage: %.2f seconds", t.data.TaskStats.CPUStats.UsageSeconds)
+	log.Infof("  GPU utilization: %.2f%%", t.data.TaskStats.GPUStats.Utilization)
+	log.Infof("  GPU memory utilization: %.2f%%", t.data.TaskStats.GPUStats.MemoryUtil)
 	log.Infof("  Memory utilization: %.2f%%", t.data.TaskStats.MemoryStats.Utilization)
 	log.Infof("  Memory usage: %.2f MB", t.data.TaskStats.MemoryStats.UsageMB)
 	log.Infof("  Disk read: %.2f MB (%.2f MB/s)",
 		t.data.TaskStats.IOStats.ReadMB, t.data.TaskStats.IOStats.ReadMBPS)
 	log.Infof("  Disk write: %.2f MB (%.2f MB/s)",
 		t.data.TaskStats.IOStats.WriteMB, t.data.TaskStats.IOStats.WriteMBPS)
-	log.Infof("  GPU utilization: %.2f%%", t.data.TaskStats.GPUStats.Utilization)
-	log.Infof("  GPU memory utilization: %.2f%%", t.data.TaskStats.GPUStats.MemoryUtil)
+	log.Infof("  Disk read operations count: %d", t.data.TaskStats.IOStats.ReadOperations)
+	log.Infof("  Disk write operations count: %d", t.data.TaskStats.IOStats.WriteOperations)
+	log.Infof("  Disk read operations: %.2f IOPS", t.data.TaskStats.IOStats.ReadOpsPerSec)
+	log.Infof("  Disk write operations: %.2f IOPS", t.data.TaskStats.IOStats.WriteOpsPerSec)
 }

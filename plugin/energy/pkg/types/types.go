@@ -45,7 +45,6 @@ type SystemLoadMetrics struct {
 	CPULoad1    float64 // 1分钟平均负载
 	CPULoad5    float64 // 5分钟平均负载
 	CPULoad15   float64 // 15分钟平均负载
-	Temperature float64 // CPU平均温度(℃)
 	Frequencies float64 // CPU平均频率(MHz)
 
 	MemoryUtil  float64 // 内存使用率(%)
@@ -59,6 +58,8 @@ type SystemLoadMetrics struct {
 	NetworkRx float64 // 网络接收速率(MB/s)
 	NetworkTx float64 // 网络发送速率(MB/s)
 
+	Temperature float64 // 系统平均温度(℃)
+
 	Timestamp time.Time // 采集时间戳
 }
 
@@ -71,20 +72,21 @@ type TaskData struct {
 	EndTime   time.Time
 	Duration  time.Duration
 
-	TotalEnergy  float64 // 执行完任务累计总能耗(J)
-	CPUEnergy    float64 // 执行完任务累计CPU能耗(J)
-	GPUEnergy    float64 // 执行完任务累计GPU能耗(J)
-	DRAMEnergy   float64 // 执行完任务累计内存能耗(J)
+	TotalEnergy float64 // 执行完任务累计总能耗(J)
+	CPUEnergy   float64 // 执行完任务累计CPU能耗(J)
+	GPUEnergy   float64 // 执行完任务累计GPU能耗(J)
+	// DRAMEnergy   float64 // 执行完任务累计内存能耗(J)
 	AveragePower float64 // 执行完任务平均功率(W)
 
 	TaskStats TaskStats
 }
 
 type TaskStats struct {
-	CPUStats    CPUStats
-	GPUStats    GPUStats
-	MemoryStats MemoryStats
-	IOStats     IOStats
+	CPUStats       CPUStats
+	GPUStats       GPUStats
+	MemoryStats    MemoryStats
+	IOStats        IOStats
+	DeviceAccesses []DeviceAccess
 }
 
 type CPUStats struct {
@@ -100,6 +102,14 @@ type GPUStats struct {
 type MemoryStats struct {
 	UsageMB     float64
 	Utilization float64
+}
+
+type DeviceAccess struct {
+	DeviceType rune // 'c' for char device, 'b' for block device
+	Major      int64
+	Minor      int64
+	Access     string // rwm (read/write/mknod)
+	DevPath    string // 设备路径
 }
 
 type IOStats struct {

@@ -35,16 +35,16 @@ func init() {
 
 	logDir := "/var/log/crane"
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		log.Warnf("\033[33m[EnergyPlugin] Failed to create log directory: %v\033[0m", err)
+		log.Warnf("\033[33m[EnergyPlugin]\033[0m Failed to create log directory: %v", err)
 		return
 	}
 
 	logFile, err := os.OpenFile(path.Join(logDir, "energy.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
 		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
-		log.Info("\033[32m[EnergyPlugin] Successfully set up logging to file\033[0m")
+		log.Info("\033[32m[EnergyPlugin]\033[0m Successfully set up logging to file")
 	} else {
-		log.Warnf("\033[33m[EnergyPlugin] Failed to log to file: %v, using default stderr\033[0m", err)
+		log.Warnf("\033[33m[EnergyPlugin]\033[0m Failed to log to file: %v, using default stderr", err)
 	}
 }
 
@@ -63,18 +63,18 @@ type EnergyPlugin struct {
 }
 
 func (p EnergyPlugin) Init(meta api.PluginMeta) error {
-	log.Info("\033[32m[EnergyPlugin] Initializing plugin\033[0m")
+	log.Info("\033[32m[EnergyPlugin]\033[0m Initializing plugin")
 
 	cfg, err := config.LoadConfig(meta.Config)
 	if err != nil {
-		return fmt.Errorf("\033[31m[EnergyPlugin] failed to load config: %w\033[0m", err)
+		return fmt.Errorf("\033[31m[EnergyPlugin]\033[0m failed to load config: %w", err)
 	}
 
 	p.config = cfg
 	config.PrintConfig(cfg)
 
 	if err := p.ensureInitialized(); err != nil {
-		return fmt.Errorf("\033[31m[EnergyPlugin] failed to initialize resources: %w\033[0m", err)
+		return fmt.Errorf("\033[31m[EnergyPlugin]\033[0m failed to initialize resources: %w", err)
 	}
 
 	globalMonitor.NodeMonitor.Start()
@@ -93,25 +93,25 @@ func (p EnergyPlugin) Version() string {
 func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.StartHookRequest)
 	if !ok {
-		log.Error("\033[31m[EnergyPlugin] Invalid request type, expected StartHookRequest\033[0m")
+		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected StartHookRequest")
 		return
 	}
 
 	taskID := req.TaskInfoList[0].TaskId
-	log.Infof("\033[32m[EnergyPlugin] Task start hook triggered for task: %d\033[0m", taskID)
+	log.Infof("\033[32m[EnergyPlugin]\033[0m Task start hook triggered for task: %d", taskID)
 }
 
 func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.EndHookRequest)
 	if !ok {
-		log.Error("\033[31m[EnergyPlugin] Invalid request type, expected EndHookRequest\033[0m")
+		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected EndHookRequest")
 		return
 	}
 
 	taskID := req.TaskInfoList[0].TaskId
 	taskName := fmt.Sprintf("Crane_Task_%d", taskID)
 
-	log.Infof("\033[32m[EnergyPlugin] Stopping task monitor for task: %s\033[0m", taskName)
+	log.Infof("\033[32m[EnergyPlugin]\033[0m Stopping task monitor for task: %s", taskName)
 
 	globalMonitor.TaskMonitor.StopTask(taskName)
 }
@@ -119,23 +119,21 @@ func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {
 func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
 	if !ok {
-		log.Error("\033[31m[EnergyPlugin] Invalid request type, expected JobMonitorHookRequest\033[0m")
+		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected JobMonitorHookRequest")
 		return
 	}
 
-	log.Infof("\033[32m[EnergyPlugin] Starting task monitor for task: %d, cgroup: %s\033[0m",
+	log.Infof("\033[32m[EnergyPlugin]\033[0m Starting task monitor for task: %d, cgroup: %s",
 		req.TaskId, req.Cgroup)
 
-	boundGPUS := []int{}
-
-	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundGPUS)
+	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup)
 }
 
 func (p EnergyPlugin) ensureInitialized() error {
 	if db.GetInstance() == nil {
 		err := db.InitDB(p.config)
 		if err != nil {
-			return fmt.Errorf("\033[31m[EnergyPlugin] failed to create database: %w\033[0m", err)
+			return fmt.Errorf("\033[31m[EnergyPlugin]\033[0m failed to create database: %w", err)
 		}
 	}
 
@@ -147,7 +145,7 @@ func (p EnergyPlugin) ensureInitialized() error {
 }
 
 func (p EnergyPlugin) Close() {
-	log.Info("\033[32m[EnergyPlugin] Closing plugin\033[0m")
+	log.Info("\033[32m[EnergyPlugin]\033[0m Closing plugin")
 
 	if globalMonitor != nil {
 		globalMonitor.Close()
@@ -156,11 +154,11 @@ func (p EnergyPlugin) Close() {
 
 	if db.GetInstance() != nil {
 		if err := db.GetInstance().Close(); err != nil {
-			log.Errorf("\033[31m[EnergyPlugin] Error closing database: %v\033[0m", err)
+			log.Errorf("\033[31m[EnergyPlugin]\033[0m Error closing database: %v", err)
 		}
 	}
 
-	log.Info("\033[32m[EnergyPlugin] Plugin closed\033[0m")
+	log.Info("\033[32m[EnergyPlugin]\033[0m Plugin closed")
 }
 
 func main() {

@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -27,21 +26,6 @@ type InfluxDB struct {
 	batchSize int
 
 	switches *config.Switches
-}
-
-var NodeID string
-var ClusterID string
-
-func getNodeID() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return "unknown"
-	}
-	return hostname
-}
-
-func getClusterID() string {
-	return "cluster-1"
 }
 
 func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
@@ -72,9 +56,6 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 		return nil, fmt.Errorf("\033[31m[InfluxDB] failed to create task bucket: %v\033[0m", err)
 	}
 
-	NodeID = getNodeID()
-	ClusterID = getClusterID()
-
 	flushTime, err := time.ParseDuration(config.DB.FlushTime)
 	if err != nil {
 		log.Errorf("\033[31m[InfluxDB]\033[0m Invalid flush time format: %v, using default 30s", err)
@@ -101,7 +82,7 @@ func (db *InfluxDB) SaveNodeEnergy(data *types.NodeData) error {
 }
 
 func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
-	// log.Infof("\033[34m[InfluxDB]\033[0m Batch saving node energy data, count: %d", len(dataList))
+	log.Infof("\033[34m[InfluxDB]\033[0m Batch saving node energy data, count: %d", len(dataList))
 
 	if len(dataList) == 0 {
 		return fmt.Errorf("\033[31m[InfluxDB] no data to write\033[0m")
@@ -119,35 +100,44 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		// 始终包含所有字段，未启用的模块对应值为 null
 		fields := map[string]interface{}{
 			// 系统负载相关字段
-			"cpu_util":        nil,
-			"mem_util":        nil,
-			"disk_io":         nil,
-			"network_io":      nil,
-			"sys_temperature": nil,
-			"cpu_frequencies": nil,
+			"cpu_utilization":    nil,
+			"cpu_load_1":         nil,
+			"cpu_load_5":         nil,
+			"cpu_load_15":        nil,
+			"cpu_frequencies":    nil,
+			"cpu_temperature":    nil,
+			"memory_utilization": nil,
+			"memory_used_gb":     nil,
+			"memory_total_gb":    nil,
+			"disk_utilization":   nil,
+			"disk_io_mb_ps":      nil,
+			"network_io_mb_ps":   nil,
+			"network_rx_mb_ps":   nil,
+			"network_tx_mb_ps":   nil,
 
 			// RAPL 相关字段
-			"rapl_package":      nil,
-			"rapl_core":         nil,
-			"rapl_uncore":       nil,
-			"rapl_dram":         nil,
-			"rapl_gt":           nil,
-			"rapl_total_energy": nil,
+			"rapl_package_energy_j": nil,
+			"rapl_core_energy_j":    nil,
+			"rapl_uncore_energy_j":  nil,
+			"rapl_dram_energy_j":    nil,
+			"rapl_gt_energy_j":      nil,
 
 			// IPMI 相关字段
-			"ipmi_power":       nil,
-			"ipmi_energy":      nil,
-			"ipmi_temperature": nil,
+			"ipmi_power_w":      nil,
+			"ipmi_energy_j":     nil,
+			"ipmi_cpu_power_w":  nil,
+			"ipmi_fan_power_w":  nil,
+			"ipmi_disk_power_w": nil,
 
 			// GPU 相关字段
-			"gpu_energy":      nil,
-			"gpu_power":       nil,
-			"gpu_util":        nil,
-			"gpu_mem_util":    nil,
-			"gpu_temperature": nil,
+			"gpu_energy_j":           nil,
+			"gpu_power_w":            nil,
+			"gpu_utilization":        nil,
+			"gpu_memory_utilization": nil,
+			"gpu_temperature":        nil,
 
 			// 总能耗字段
-			"total_energy": nil,
+			"total_energy_j": nil,
 		}
 
 		// 记录启用的模块
@@ -155,53 +145,68 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 
 		// 根据开关填充实际值
 		if db.switches.System {
-			fields["cpu_util"] = data.SystemLoad.CPUUtil
-			fields["mem_util"] = data.SystemLoad.MemoryUtil
-			fields["disk_io"] = data.SystemLoad.DiskIO
-			fields["network_io"] = data.SystemLoad.NetworkIO
-			fields["sys_temperature"] = data.SystemLoad.Temperature
+			fields["cpu_utilization"] = data.SystemLoad.CPUUtil
+			fields["cpu_load_1"] = data.SystemLoad.CPULoad1
+			fields["cpu_load_5"] = data.SystemLoad.CPULoad5
+			fields["cpu_load_15"] = data.SystemLoad.CPULoad15
 			fields["cpu_frequencies"] = data.SystemLoad.Frequencies
+			fields["cpu_temperature"] = data.SystemLoad.Temperature
+
+			fields["memory_utilization"] = data.SystemLoad.MemoryUtil
+			fields["memory_used_gb"] = data.SystemLoad.MemoryUsed
+			fields["memory_total_gb"] = data.SystemLoad.MemoryTotal
+
+			fields["disk_utilization"] = data.SystemLoad.DiskUtil
+			fields["disk_io_mb_ps"] = data.SystemLoad.DiskIO
+
+			fields["network_io_mb_ps"] = data.SystemLoad.NetworkIO
+			fields["network_rx_mb_ps"] = data.SystemLoad.NetworkRx
+			fields["network_tx_mb_ps"] = data.SystemLoad.NetworkTx
+
 			enabledSources = append(enabledSources, "system")
 		}
 
 		if db.switches.RAPL {
-			fields["rapl_package"] = data.RAPL.Package
-			fields["rapl_core"] = data.RAPL.Core
-			fields["rapl_uncore"] = data.RAPL.Uncore
-			fields["rapl_dram"] = data.RAPL.DRAM
-			fields["rapl_gt"] = data.RAPL.GT
-			fields["rapl_total_energy"] = data.RAPL.Package + data.RAPL.DRAM
+			fields["rapl_package_energy_j"] = data.RAPL.Package
+			fields["rapl_core_energy_j"] = data.RAPL.Core
+			fields["rapl_uncore_energy_j"] = data.RAPL.Uncore
+			fields["rapl_dram_energy_j"] = data.RAPL.DRAM
+			fields["rapl_gt_energy_j"] = data.RAPL.GT
 			enabledSources = append(enabledSources, "rapl")
 		}
 
 		if db.switches.IPMI {
-			fields["ipmi_power"] = data.IPMI.Power
-			fields["ipmi_energy"] = data.IPMI.Energy
+			fields["ipmi_power_w"] = data.IPMI.Power
+			fields["ipmi_energy_j"] = data.IPMI.Energy
+			fields["ipmi_cpu_power_w"] = data.IPMI.CPUPower
+			fields["ipmi_fan_power_w"] = data.IPMI.FanPower
+			fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
 			enabledSources = append(enabledSources, "ipmi")
 		}
 
 		if db.switches.GPU {
-			fields["gpu_energy"] = data.GPU.Energy
-			fields["gpu_power"] = data.GPU.Power
-			fields["gpu_util"] = data.GPU.Util
-			fields["gpu_mem_util"] = data.GPU.MemUtil
+			fields["gpu_energy_j"] = data.GPU.Energy
+			fields["gpu_power_w"] = data.GPU.Power
+			fields["gpu_utilization"] = data.GPU.Util
+			fields["gpu_memory_utilization"] = data.GPU.MemUtil
 			fields["gpu_temperature"] = data.GPU.Temp
 			enabledSources = append(enabledSources, "gpu")
 		}
 
 		// 设置总能耗（保持优先级：IPMI > RAPL > GPU）
 		if db.switches.IPMI {
-			fields["total_energy"] = data.IPMI.Energy
+			fields["total_energy_j"] = data.IPMI.Energy
 			tags["energy_source"] = "ipmi"
 		} else if db.switches.RAPL {
-			fields["total_energy"] = fields["rapl_total_energy"]
+			fields["total_energy_j"] = data.RAPL.Package
 			tags["energy_source"] = "rapl"
 		} else if db.switches.GPU {
-			fields["total_energy"] = data.GPU.Energy
+			fields["total_energy_j"] = data.GPU.Energy
 			tags["energy_source"] = "gpu"
 		}
 
-		// 添加已启用模块的标签
+		tags["node_id"] = data.NodeID
+		tags["cluster_id"] = data.ClusterID
 		tags["enabled_modules"] = strings.Join(enabledSources, ",")
 
 		p := influxdb2.NewPoint(
@@ -220,6 +225,7 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 	return nil
 }
 
+// 定期刷新缓冲区
 func (db *InfluxDB) periodicFlush(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -241,40 +247,40 @@ func (db *InfluxDB) periodicFlush(interval time.Duration) {
 }
 
 func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
-	log.Infof("\033[34m[InfluxDB]\033[0m Saving task energy data for task: %s, node: %s, cluster: %s", taskData.TaskName, NodeID, ClusterID)
+	log.Infof("\033[34m[InfluxDB]\033[0m Saving task energy data for task: %s, node: %s, cluster: %s", taskData.TaskName, taskData.NodeID, taskData.ClusterID)
 	writeAPI := db.client.WriteAPIBlocking(db.org, db.taskBucket)
-
-	// history, _ := json.Marshal(taskData.TaskResourceUsage)
 
 	p := influxdb2.NewPoint(
 		db.taskBucket,
 		map[string]string{
 			"task_name":  taskData.TaskName,
-			"node_id":    NodeID,
-			"cluster_id": ClusterID,
+			"node_id":    taskData.NodeID,
+			"cluster_id": taskData.ClusterID,
 		},
 		map[string]interface{}{
 			"start_time": taskData.StartTime,
 			"end_time":   taskData.EndTime,
 			"duration":   taskData.Duration.Seconds(),
 
-			"total_energy":  taskData.TotalEnergy,
-			"cpu_energy":    taskData.CPUEnergy,
-			"gpu_energy":    taskData.GPUEnergy,
-			"dram_energy":   taskData.DRAMEnergy,
-			"average_power": taskData.AveragePower,
+			"total_energy_j":  taskData.TotalEnergy,
+			"cpu_energy_j":    taskData.CPUEnergy,
+			"gpu_energy_j":    taskData.GPUEnergy,
+			"average_power_w": taskData.AveragePower,
 
-			"cpu_time":         taskData.TaskStats.CPUStats.UsageSeconds,
-			"cpu_utilization":  taskData.TaskStats.CPUStats.Utilization,
-			"gpu_utilization":  taskData.TaskStats.GPUStats.Utilization,
-			"memory_usage":     taskData.TaskStats.MemoryStats.UsageMB,
-			"memory_util":      taskData.TaskStats.MemoryStats.Utilization,
-			"disk_read_mb":     taskData.TaskStats.IOStats.ReadMB,
-			"disk_write_mb":    taskData.TaskStats.IOStats.WriteMB,
-			"disk_read_speed":  taskData.TaskStats.IOStats.ReadMBPS,
-			"disk_write_speed": taskData.TaskStats.IOStats.WriteMBPS,
-
-			"resource_history": "TODO",
+			"cpu_time_usage_seconds": taskData.TaskStats.CPUStats.UsageSeconds,
+			"cpu_utilization":        taskData.TaskStats.CPUStats.Utilization,
+			"gpu_utilization":        taskData.TaskStats.GPUStats.Utilization,
+			"gpu_memory_utilization": taskData.TaskStats.GPUStats.MemoryUtil,
+			"memory_usage_mb":        taskData.TaskStats.MemoryStats.UsageMB,
+			"memory_utilization":     taskData.TaskStats.MemoryStats.Utilization,
+			"disk_read_mb":           taskData.TaskStats.IOStats.ReadMB,
+			"disk_write_mb":          taskData.TaskStats.IOStats.WriteMB,
+			"disk_read_speed_mb_ps":  taskData.TaskStats.IOStats.ReadMBPS,
+			"disk_write_speed_mb_ps": taskData.TaskStats.IOStats.WriteMBPS,
+			"disk_read_iops":         taskData.TaskStats.IOStats.ReadOperations,
+			"disk_write_iops":        taskData.TaskStats.IOStats.WriteOperations,
+			"disk_read_iops_ps":      taskData.TaskStats.IOStats.ReadOpsPerSec,
+			"disk_write_iops_ps":     taskData.TaskStats.IOStats.WriteOpsPerSec,
 		},
 		taskData.EndTime,
 	)
