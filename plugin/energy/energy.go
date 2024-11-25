@@ -52,10 +52,8 @@ var (
 	globalMonitor *monitor.Monitor
 )
 
-// 确保实现了插件接口
 var _ api.Plugin = EnergyPlugin{}
 
-// 导出插件实例
 var PluginInstance = EnergyPlugin{}
 
 type EnergyPlugin struct {
@@ -91,14 +89,14 @@ func (p EnergyPlugin) Version() string {
 }
 
 func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.StartHookRequest)
+	_, ok := ctx.Request().(*protos.StartHookRequest)
 	if !ok {
 		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected StartHookRequest")
 		return
 	}
 
-	taskID := req.TaskInfoList[0].TaskId
-	log.Infof("\033[32m[EnergyPlugin]\033[0m Task start hook triggered for task: %d", taskID)
+	// taskID := req.TaskInfoList[0].TaskId
+	// log.Infof("\033[32m[EnergyPlugin]\033[0m Task start hook triggered for task: %d", taskID)
 }
 
 func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {

@@ -149,9 +149,6 @@ func (s *SystemLoadReader) GetNetworkIO() (float64, error) {
 		return 0, nil
 	}
 
-	// log.Debugf("\033[35m[System Load]\033[0m Network speed: Rx=%.2f MB/s, Tx=%.2f MB/s, Total=%.2f MB/s",
-	// 	rxSpeed, txSpeed, totalSpeed)
-
 	s.lastNetwork = &NetworkStats{
 		TotalRx:   totalRx,
 		TotalTx:   totalTx,
@@ -297,9 +294,6 @@ func (s *SystemLoadReader) GetNetworkDetails() (float64, float64, float64, error
 		return 0, 0, 0, nil
 	}
 
-	// log.Debugf("\033[35m[System Load]\033[0m Network speed: Rx=%.2f MB/s, Tx=%.2f MB/s, Total=%.2f MB/s",
-	// 	rxSpeed, txSpeed, totalSpeed)
-
 	s.lastNetwork = current
 
 	return totalSpeed, rxSpeed, txSpeed, nil
@@ -390,8 +384,6 @@ func (s *SystemLoadReader) GetMetrics() (*types.SystemLoadMetrics, error) {
 	if len(errs) > 0 {
 		return metrics, fmt.Errorf("\033[35m[System Load]\033[0m errors collecting metrics: %v", errs)
 	}
-
-	// s.logMetrics(metrics)
 
 	return metrics, nil
 }

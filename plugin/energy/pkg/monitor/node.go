@@ -77,7 +77,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 			if data, err := metricsCollector(); err == nil {
 				r.broadcastNodeData(data)
 				if err := db.GetInstance().SaveNodeEnergy(data); err != nil {
-					log.Errorf("Error saving node energy data: %v", err)
+					log.Errorf("\033[31m[Node Monitor]\033[0m Error saving node energy data: %v", err)
 				}
 			}
 		case <-r.stopCh:
@@ -94,7 +94,7 @@ func (r *NodeMonitor) broadcastNodeData(data *types.NodeData) {
 				select {
 				case sub.Ch <- data:
 				default:
-					log.Infof("Warning: task %v channel full, skipping data", key)
+					log.Infof("\033[31m[Node Monitor]\033[0m Warning: task %v channel full, skipping data", key)
 				}
 			}
 		}
@@ -105,19 +105,19 @@ func (r *NodeMonitor) broadcastNodeData(data *types.NodeData) {
 func (r *NodeMonitor) Close() {
 	if r.raplReader != nil {
 		if err := r.raplReader.Close(); err != nil {
-			log.Infof("error closing RAPL reader: %v", err)
+			log.Errorf("\033[31m[Node Monitor]\033[0m error closing RAPL reader: %v", err)
 		}
 	}
 
 	if r.ipmiReader != nil {
 		if err := r.ipmiReader.Close(); err != nil {
-			log.Infof("error closing IPMI reader: %v", err)
+			log.Errorf("\033[31m[Node Monitor]\033[0m error closing IPMI reader: %v", err)
 		}
 	}
 
 	if r.gpuReader != nil {
 		if err := r.gpuReader.Close(); err != nil {
-			log.Infof("error closing GPU reader: %v", err)
+			log.Errorf("\033[31m[Node Monitor]\033[0m error closing GPU reader: %v", err)
 		}
 	}
 

@@ -93,8 +93,6 @@ func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
 			continue
 		}
 
-		// log.Infof("\033[32m[RAPL]\033[0m Reading energy for domain %s: %.2f J", name, energy)
-
 		if len(parts) == 2 {
 			metrics.Package += energy
 		} else if len(parts) == 3 {
@@ -112,8 +110,6 @@ func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
 			}
 		}
 	}
-
-	// r.logMetrics(metrics)
 
 	return metrics, nil
 }

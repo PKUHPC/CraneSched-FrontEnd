@@ -32,14 +32,14 @@ func NewGPUReader() *GPUReader {
 
 func (r *GPUReader) init() error {
 	if err := nvmlInit(); err != nil {
-		return fmt.Errorf("NVML init failed: %v", err)
+		return fmt.Errorf("\033[33m[GPU]\033[0m NVML init failed: %v", err)
 	}
 	r.nvmlInited = true
 
 	count, err := nvmlDeviceGetCount()
 	if err != nil {
 		r.cleanup()
-		return fmt.Errorf("failed to get GPU count: %v", err)
+		return fmt.Errorf("\033[33m[GPU]\033[0m failed to get GPU count: %v", err)
 	}
 
 	if count > 0 {
@@ -69,7 +69,7 @@ func (r *GPUReader) GetMetrics() (*types.GPUMetrics, error) {
 	for i := 0; i < r.deviceCount; i++ {
 		deviceMetrics, err := r.GetDeviceMetrics(i)
 		if err != nil {
-			log.WithField("device", i).WithError(err).Error("\033[33m[GPU]\033[0m Failed to collect metrics")
+			log.Errorf("\033[33m[GPU]\033[0m Failed to collect metrics: %v", err)
 			continue
 		}
 
@@ -95,25 +95,25 @@ func (r *GPUReader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
 
 	device, err := nvmlDeviceGetHandleByIndex(index)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get device handle: %v", err)
+		return nil, fmt.Errorf("\033[33m[GPU]\033[0m failed to get device handle: %v", err)
 	}
 
 	power, err := device.GetPowerUsage()
 	if err != nil {
-		return nil, fmt.Errorf("power metrics: %v", err)
+		return nil, fmt.Errorf("\033[33m[GPU]\033[0m power metrics: %v", err)
 	}
 	metrics.Power = float64(power) / 1000.0 // mW -> W
 
 	gpuUtil, memUtil, err := device.GetUtilization()
 	if err != nil {
-		return nil, fmt.Errorf("utilization metrics: %v", err)
+		return nil, fmt.Errorf("\033[33m[GPU]\033[0m utilization metrics: %v", err)
 	}
 	metrics.Util = float64(gpuUtil)
 	metrics.MemUtil = float64(memUtil)
 
 	temp, err := device.GetTemperature()
 	if err != nil {
-		return nil, fmt.Errorf("temperature metrics: %v", err)
+		return nil, fmt.Errorf("\033[33m[GPU]\033[0m temperature metrics: %v", err)
 	}
 	metrics.Temp = float64(temp)
 
@@ -167,13 +167,13 @@ func (r *GPUReader) GetGpuStats(indices []int) types.GPUMetrics {
 
 	for _, idx := range indices {
 		if idx < 0 || idx >= r.deviceCount {
-			log.Errorf("invalid device index: %d, total devices: %d", idx, r.deviceCount)
+			log.Errorf("\033[31m[GPU]\033[0m invalid device index: %d, total devices: %d", idx, r.deviceCount)
 			continue
 		}
 
 		deviceMetrics, err := r.GetDeviceMetrics(idx)
 		if err != nil {
-			log.WithField("device", idx).WithError(err).Error("\033[33m[GPU]\033[0m Failed to collect metrics")
+			log.Errorf("\033[33m[GPU]\033[0m Failed to collect metrics: %v", err)
 			continue
 		}
 

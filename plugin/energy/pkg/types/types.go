@@ -16,20 +16,21 @@ type NodeData struct {
 }
 
 type RAPLMetrics struct {
-	Package float64 // 间隔包能耗(J)
-	Core    float64 // 间隔核心能耗(J)
-	Uncore  float64 // 间隔非核心能耗(J)
-	DRAM    float64 // 间隔内存能耗(J)
-	GT      float64 // 间隔集成显卡能耗(J)
+	Package float64 // 采样间隔期间消耗的包能耗(J)， 包能耗为CPU能耗
+	Core    float64 // 采样间隔期间消耗的核心能耗(J)
+	Uncore  float64 // 采样间隔期间消耗的非核心能耗(J)
+	DRAM    float64 // 采样间隔期间消耗的内存能耗(J)
+	GT      float64 // 采样间隔期间消耗的集成显卡能耗(J)
 }
 
 type IPMIMetrics struct {
-	Power    float64 // 总功率(W)
-	CPUPower float64 // CPU功率 (CPU_Power)
-	FanPower float64 // 风扇功率 (FAN_Power)
-	HDDPower float64 // 硬盘功率 (HDD_Power)
+	Power    float64 // 采样间隔期间的总功率(W)
+	CPUPower float64 // 采样间隔期间CPU功率 (W)
+	FanPower float64 // 采样间隔期间风扇功率 (W)
+	HDDPower float64 // 采样间隔期间硬盘功率 (W)
 
-	Energy float64 // 整机间隔能耗(J)
+	Energy    float64 // 采样间隔期间整机能耗(J)
+	CPUEnergy float64 // 采样间隔期间CPU能耗(J)
 }
 
 type GPUMetrics struct {

@@ -126,6 +126,7 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 			"ipmi_power_w":      nil,
 			"ipmi_energy_j":     nil,
 			"ipmi_cpu_power_w":  nil,
+			"ipmi_cpu_energy_j": nil,
 			"ipmi_fan_power_w":  nil,
 			"ipmi_disk_power_w": nil,
 
@@ -179,6 +180,7 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 			fields["ipmi_power_w"] = data.IPMI.Power
 			fields["ipmi_energy_j"] = data.IPMI.Energy
 			fields["ipmi_cpu_power_w"] = data.IPMI.CPUPower
+			fields["ipmi_cpu_energy_j"] = data.IPMI.CPUEnergy
 			fields["ipmi_fan_power_w"] = data.IPMI.FanPower
 			fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
 			enabledSources = append(enabledSources, "ipmi")

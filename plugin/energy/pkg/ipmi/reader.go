@@ -21,10 +21,11 @@ type IPMIReader struct {
 	ipmi    *ipmi.IPMI
 	HasIPMI bool
 
-	LastPowerTime time.Time
-	LastPower     float64
-	metricsCache  *types.IPMIMetrics
-	mutex         sync.Mutex
+	LastPowerTime  time.Time
+	LastTotalPower float64
+	LastCPUPower   float64
+	metricsCache   *types.IPMIMetrics
+	mutex          sync.Mutex
 }
 
 type SensorConfig struct {
@@ -112,9 +113,6 @@ func (r *IPMIReader) getPowerUsage(sensor SensorConfig) (float64, error) {
 		return 0, fmt.Errorf("\033[31m[IPMI]\033[0m reading out of range")
 	}
 
-	// log.Debugf("\033[34m[IPMI]\033[0m %s Raw: 0x%02x (%d) -> %.2f W",
-	// 	sensor.Name, uint8(rawReading), uint8(rawReading), power)
-
 	return power, nil
 }
 
@@ -149,28 +147,25 @@ func (r *IPMIReader) GetMetrics() (*types.IPMIMetrics, error) {
 
 	if !r.LastPowerTime.IsZero() {
 		duration := currentTime.Sub(r.LastPowerTime).Seconds()
-		metrics.Energy = (metrics.Power + r.LastPower) * duration / 2
-
-		// log.Debugf("\033[34m[IPMI]\033[0m Interval Energy: %.2f J (%.2f W * %.3f s)",
-		// 	metrics.Energy, (metrics.Power+r.LastPower)/2, duration)
+		metrics.Energy = (metrics.Power + r.LastTotalPower) * duration / 2
+		metrics.CPUEnergy = (metrics.CPUPower + r.LastCPUPower) * duration / 2
 	} else {
 		metrics.Energy = 0
 	}
 
 	r.LastPowerTime = currentTime
-	r.LastPower = metrics.Power
+	r.LastTotalPower = metrics.Power
+	r.LastCPUPower = metrics.CPUPower
 	r.metricsCache = metrics
-
-	// r.logMetrics(metrics)
 
 	return metrics, nil
 }
 
 func (r *IPMIReader) LogMetrics(metrics *types.IPMIMetrics) {
-	log.Printf("\033[34m[IPMI]\033[0m IPMI Metrics:")
-	log.Printf("\033[34m[IPMI]\033[0m Power: %.2f W, Energy: %.2f J", metrics.Power, metrics.Energy)
-	log.Printf("\033[34m[IPMI]\033[0m CPU Power: %.2f W, Fan Power: %.2f W, HDD Power: %.2f W",
-		metrics.CPUPower, metrics.FanPower, metrics.HDDPower)
+	log.Infof("\033[34m[IPMI]\033[0m IPMI Metrics:")
+	log.Infof("\033[34m[IPMI]\033[0m Power: %.2f W, Energy: %.2f J", metrics.Power, metrics.Energy)
+	log.Infof("\033[34m[IPMI]\033[0m CPU Power: %.2f W, CPU Energy: %.2f J", metrics.CPUPower, metrics.CPUEnergy)
+	log.Infof("\033[34m[IPMI]\033[0m Fan Power: %.2f W, HDD Power: %.2f W", metrics.FanPower, metrics.HDDPower)
 }
 
 func (r *IPMIReader) Close() error {

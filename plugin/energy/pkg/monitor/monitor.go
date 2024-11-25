@@ -21,7 +21,7 @@ type Monitor struct {
 func NewMonitor(config config.MonitorConfig) *Monitor {
 	duration, err := time.ParseDuration(config.SamplePeriod)
 	if err != nil {
-		log.Errorf("invalid sample period: %v", err)
+		log.Errorf("\033[31m[Monitor]\033[0m invalid sample period: %v", err)
 		return nil
 	}
 

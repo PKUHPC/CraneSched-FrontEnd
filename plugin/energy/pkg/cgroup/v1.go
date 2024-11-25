@@ -53,7 +53,7 @@ func NewV1Reader(taskName string) *V1Reader {
 		taskName:     taskName,
 	}
 
-	log.Infof("Successfully loaded cgroup for task: %s", taskName)
+	log.Infof("\033[33m[CGroup]\033[0m Successfully loaded cgroup for task: %s", taskName)
 	for _, subsystem := range control.Subsystems() {
 		log.Infof("\033[33m[CGroup]\033[0m Subsystem: %s", subsystem.Name())
 	}
@@ -80,6 +80,7 @@ func (r *V1Reader) GetCgroupStats() types.TaskStats {
 
 	cpuStats := r.calculateCPUStats(v1Metrics)
 	memoryStats := calculateMemoryStats(v1Metrics)
+	// 目前好像并未支持blkio控制器，所以IO统计数据为空
 	ioStats := calculateIOStats(v1Metrics, duration)
 
 	usage = types.TaskStats{
@@ -249,7 +250,6 @@ func (r *V1Reader) GetBoundGPUs() []int {
 		return getAllGPUs()
 	}
 
-	// 解析每一行，查找 NVIDIA GPU 设备
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	for _, line := range lines {
 		fields := strings.Fields(line)
