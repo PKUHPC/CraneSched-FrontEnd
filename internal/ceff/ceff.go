@@ -361,10 +361,10 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemoryGbNode := float64(taskInfo.ResView.AllocatableRes.MemoryLimitBytes) / (1024 * 1024 * 1024)
-	totalMallocMemoryGb := mallocMemoryGbNode * float64(taskInfo.NodeNum)
-	if totalMallocMemoryGb != 0 {
-		memEfficiency = (totalMemoryMb / 1024) / totalMallocMemoryGb * 100
+	mallocMemoryMbNode := float64(taskInfo.ResView.AllocatableRes.MemoryLimitBytes) / (1024 * 1024)
+	totalMallocMemoryMb := mallocMemoryMbNode * float64(taskInfo.NodeNum)
+	if totalMallocMemoryMb != 0 {
+		memEfficiency = totalMemoryMb / totalMallocMemoryMb * 100
 	}
 
 	// Print job information
@@ -373,9 +373,9 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 			"CPU Efficiency: %.2f%% of %s core-walltime\n"+
 			"Job Wall-clock time: %s\n"+
 			"Memory Utilized: %.2f MB (estimated maximum)\n"+
-			"Memory Efficiency: %.2f%% of %.2f GB (%.2f GB/node)\n",
+			"Memory Efficiency: %.2f%% of %.2f MB (%.2f MB/node)\n",
 		cPUUtilizedStr, cPUEfficiency, runTimeStr, runTimeStr, totalMemoryMb,
-		memEfficiency, totalMallocMemoryGb, mallocMemoryGbNode)
+		memEfficiency, totalMallocMemoryMb, mallocMemoryMbNode)
 
 	if taskInfo.Status == protos.TaskStatus_Running {
 		fmt.Printf("WARNING: Efficiency statistics may be misleading for RUNNING jobs.\n")
