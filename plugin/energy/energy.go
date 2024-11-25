@@ -105,13 +105,14 @@ func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {
 		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected EndHookRequest")
 		return
 	}
+	for _, task := range req.TaskInfoList {
+		taskID := task.TaskId
+		taskName := fmt.Sprintf("Crane_Task_%d", taskID)
 
-	taskID := req.TaskInfoList[0].TaskId
-	taskName := fmt.Sprintf("Crane_Task_%d", taskID)
+		log.Infof("\033[32m[EnergyPlugin]\033[0m Stopping task monitor for task: %s", taskName)
 
-	log.Infof("\033[32m[EnergyPlugin]\033[0m Stopping task monitor for task: %s", taskName)
-
-	globalMonitor.TaskMonitor.StopTask(taskName)
+		globalMonitor.TaskMonitor.StopTask(taskName)
+	}
 }
 
 func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {

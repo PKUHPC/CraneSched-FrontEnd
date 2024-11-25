@@ -24,7 +24,7 @@ type TaskMonitor struct {
 }
 
 func (m *TaskMonitor) Start(taskID uint32, taskName string) {
-	log.Infof("\033[32m[TaskMonitor]\033[0m Task monitor config: %v", m.config.Switches.Task)
+	log.Infof("\033[32m[TaskMonitor]\033[0m Task monitor switches: %v", m.config.Switches)
 
 	if !m.config.Switches.Task {
 		log.Warnf("\033[34m[TaskMonitor]\033[0m Task monitor is not enabled, skipping task: %d, %s", taskID, taskName)
