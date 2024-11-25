@@ -154,14 +154,16 @@ func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames [
 	}
 	hostnameCondition := strings.Join(hostnameFilters, " or ")
 
+	// Construct the Flux query
 	fluxQuery := fmt.Sprintf(`
-	  from(bucket: "%s")
-  	  |> range(start: 0)
-      |> filter(fn: (r) => r["_measurement"] == "ResourceUsage" and (%s) and (%s))
-      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-      |> group(columns: ["job_id", "hostname"])
-      |> sort(columns: ["_time"], desc: true)
-      |> limit(n: 1)`, moniterConfig.Bucket, jobIDCondition, hostnameCondition)
+	from(bucket: "%s")
+	|> range(start: 0)
+	|> filter(fn: (r) => 
+	    r["_measurement"] == "ResourceUsage" and 
+		(r["_field"] == "cpu_usage" or r["_field"] == "memory_usage") and
+		(%s) and (%s))
+	|> group(columns: ["job_id", "hostname", "_field"])
+	|> max(column: "_value")`, moniterConfig.Bucket, jobIDCondition, hostnameCondition)
 
 	// Execute the query
 	queryAPI := client.QueryAPI(moniterConfig.Org)
@@ -174,11 +176,12 @@ func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames [
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	var records []*ResourceUsageRecord
+	// Parse and aggregate the query results
+	dataMap := make(map[string]*ResourceUsageRecord)
 	for result.Next() {
 		record := result.Record()
 
-		//Extract job_id
+		// Extract job_id and hostname
 		jobIDStr, ok := record.ValueByKey("job_id").(string)
 		if !ok {
 			log.Printf("Invalid type for job_id")
@@ -189,49 +192,42 @@ func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames [
 			log.Printf("Failed to parse job_id: %v", err)
 			continue
 		}
-
-		// Extract hostname
 		hostname, ok := record.ValueByKey("hostname").(string)
 		if !ok {
 			log.Printf("Invalid type for hostname")
 			continue
 		}
 
-		// Extract proc_count
-		procCount, ok := record.ValueByKey("proc_count").(uint64)
-		if !ok {
-			log.Printf("Invalid type for proc_count")
-			continue
+		// Construct a unique key for aggregation
+		key := fmt.Sprintf("%d:%s", jobID, hostname)
+		if _, exists := dataMap[key]; !exists {
+			dataMap[key] = &ResourceUsageRecord{
+				TaskID:   jobID,
+				Hostname: hostname,
+			}
 		}
 
-		// Extract cpu_usage
-		cpuUsage, ok := record.ValueByKey("cpu_usage").(uint64)
-		if !ok {
-			log.Printf("Invalid type for cpu_usage")
-			continue
-		}
+		// Extract _field and _value
+		field := record.ValueByKey("_field").(string)
+		value := uint64(record.Value().(uint64))
 
-		//Extract memory_usage
-		memoryUsage, ok := record.ValueByKey("memory_usage").(uint64)
-		if !ok {
-			log.Printf("Invalid type for memory_usage")
-			continue
+		// Update the corresponding field in the record
+		if field == "cpu_usage" {
+			dataMap[key].CPUUsage = value
+		} else if field == "memory_usage" {
+			dataMap[key].MemoryUsage = value
 		}
-
-		//Assembly results
-		records = append(records, &ResourceUsageRecord{
-			TaskID:      jobID,
-			Hostname:    hostname,
-			ProcCount:   procCount,
-			CPUUsage:    cpuUsage,
-			MemoryUsage: memoryUsage,
-			Timestamp:   record.Time(),
-		})
 	}
 
 	if result.Err() != nil {
 		log.Printf("Query parsing error: %v", result.Err())
 		return nil, fmt.Errorf("query parsing error: %w", result.Err())
+	}
+
+	// Convert the aggregated data into a slice
+	var records []*ResourceUsageRecord
+	for _, record := range dataMap {
+		records = append(records, record)
 	}
 
 	return records, nil
