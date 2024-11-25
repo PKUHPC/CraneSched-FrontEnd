@@ -350,9 +350,7 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	totalCPUUseS, totalMemoryMb := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
 
 	cPUUtilizedStr := "0-0:0:0"
-	if taskInfo.Status == protos.TaskStatus_Running || taskInfo.Status == protos.TaskStatus_Completed {
-		cPUUtilizedStr = formatDuration(time.Duration(totalCPUUseS) * time.Second)
-	}
+	cPUUtilizedStr = formatDuration(time.Duration(totalCPUUseS) * time.Second)
 
 	cPUEfficiency := 0.0
 	if runTime != 0 {
@@ -361,8 +359,8 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemoryMbNode := float64(taskInfo.ResView.AllocatableRes.MemoryLimitBytes) / (1024 * 1024)
-	totalMallocMemoryMb := mallocMemoryMbNode * float64(taskInfo.NodeNum)
+	mallocMemoryMbNodes := float64(taskInfo.ResView.AllocatableRes.MemoryLimitBytes) / (1024 * 1024)
+	totalMallocMemoryMb := mallocMemoryMbNodes * float64(taskInfo.NodeNum)
 	if totalMallocMemoryMb != 0 {
 		memEfficiency = totalMemoryMb / totalMallocMemoryMb * 100
 	}
@@ -375,7 +373,7 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 			"Memory Utilized: %.2f MB (estimated maximum)\n"+
 			"Memory Efficiency: %.2f%% of %.2f MB (%.2f MB/node)\n",
 		cPUUtilizedStr, cPUEfficiency, runTimeStr, runTimeStr, totalMemoryMb,
-		memEfficiency, totalMallocMemoryMb, mallocMemoryMbNode)
+		memEfficiency, totalMallocMemoryMb, mallocMemoryMbNodes)
 
 	if taskInfo.Status == protos.TaskStatus_Running {
 		fmt.Printf("WARNING: Efficiency statistics may be misleading for RUNNING jobs.\n")
