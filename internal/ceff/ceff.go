@@ -23,11 +23,11 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/user"
 	"strconv"
 	"strings"
-
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
@@ -327,12 +327,15 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 		fmt.Printf("JobState: %v (exit code %d)\n", taskInfo.Status.String(), taskInfo.ExitCode)
 	}
 
-	fmt.Printf(
-		"Cores: %.2f\n"+
+	cpuTotal := taskInfo.ResView.AllocatableRes.CpuCoreLimit * float64(taskInfo.NodeNum)
+	if math.Abs(cpuTotal-1) < 1e-9 {
+		fmt.Printf("Cores: %.2f\n", cpuTotal)
+	} else {
+		fmt.Printf(
 			"Nodes: %v\n"+
-			"Cores per node: %.2f\n",
-		taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum),
-		taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit)
+				"Cores per node: %.2f\n",
+			taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit)
+	}
 
 	if taskInfo.Status == protos.TaskStatus_Pending {
 		fmt.Printf("Efficiency not available for jobs in the PENDING state.\n")
