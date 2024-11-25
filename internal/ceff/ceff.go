@@ -238,7 +238,7 @@ func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames [
 }
 
 // FilterRecordsByJobID filters records by a specific JobID
-func CalculateTotalUsagePtr(records []*ResourceUsageRecord, targetJobID int64) (uint64, uint64) {
+func CalculateTotalUsagePtr(records []*ResourceUsageRecord, targetJobID int64) (float64, float64) {
 	var filteredRecords []*ResourceUsageRecord
 	for _, record := range records {
 		if record != nil && record.TaskID == targetJobID {
@@ -246,17 +246,18 @@ func CalculateTotalUsagePtr(records []*ResourceUsageRecord, targetJobID int64) (
 		}
 	}
 
-	var totalCPUUse, totalMemory, totalMemoryMb uint64
+	var totalCPUUseNs, totalMemoryByte uint64
+	var totalCPUUseS, totalMemoryMb float64
 	for _, record := range filteredRecords {
 		if record != nil {
-			totalCPUUse += record.CPUUsage
-			totalMemory += record.MemoryUsage
+			totalCPUUseNs += record.CPUUsage
+			totalMemoryByte += record.MemoryUsage
 		}
 	}
-	totalCPUUse = totalCPUUse / 1e9
-	totalMemoryMb = totalMemory / (1024 * 1024)
+	totalCPUUseS = float64(totalCPUUseNs) / 1e9
+	totalMemoryMb = float64(totalMemoryByte) / (1024 * 1024)
 
-	return totalCPUUse, totalMemoryMb
+	return totalCPUUseS, totalMemoryMb
 }
 
 func calculateRunTime(taskInfo *protos.TaskInfo) (uint64, string) {
@@ -346,16 +347,16 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	runTime, runTimeStr := calculateRunTime(taskInfo)
 
 	// Filter task records
-	totalCPUUse, totalMemoryMb := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
+	totalCPUUseS, totalMemoryMb := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
 
 	cPUUtilizedStr := "0-0:0:0"
 	if taskInfo.Status == protos.TaskStatus_Running || taskInfo.Status == protos.TaskStatus_Completed {
-		cPUUtilizedStr = formatDuration(time.Duration(totalCPUUse) * time.Second)
+		cPUUtilizedStr = formatDuration(time.Duration(totalCPUUseS) * time.Second)
 	}
 
 	cPUEfficiency := 0.0
 	if runTime != 0 {
-		cPUEfficiency = float64(totalCPUUse) / float64(runTime) * 100
+		cPUEfficiency = totalCPUUseS / float64(runTime) * 100
 	}
 
 	// Calculate mem efficiency
