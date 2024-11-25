@@ -128,7 +128,7 @@ func GetInfluxdbParameter(configFilePath string) *DatabaseConfig {
 
 func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
 	if len(hostNames) == 0 {
-		return nil, fmt.Errorf("HostNames is empty, please check submit parameter")
+		return nil, fmt.Errorf("Job not found")
 	}
 	client := influxdb2.NewClient(moniterConfig.Url, moniterConfig.Token)
 	defer client.Close()
@@ -361,10 +361,10 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemoryMbNode := taskInfo.ResView.AllocatableRes.MemoryLimitBytes / (1024 * 1024)
-	totalMallocMemoryMb := mallocMemoryMbNode * uint64(taskInfo.NodeNum)
-	if totalMallocMemoryMb != 0 {
-		memEfficiency = float64(totalMemoryMb) / float64(totalMallocMemoryMb) * 100
+	mallocMemoryGbNode := float64(taskInfo.ResView.AllocatableRes.MemoryLimitBytes) / (1024 * 1024 * 1024)
+	totalMallocMemoryGb := mallocMemoryGbNode * float64(taskInfo.NodeNum)
+	if totalMallocMemoryGb != 0 {
+		memEfficiency = (totalMemoryMb / 1024) / totalMallocMemoryGb * 100
 	}
 
 	// Print job information
@@ -372,10 +372,10 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 		"CPU Utilized: %s\n"+
 			"CPU Efficiency: %.2f%% of %s core-walltime\n"+
 			"Job Wall-clock time: %s\n"+
-			"Memory Utilized: %v MB (estimated maximum)\n"+
+			"Memory Utilized: %.2f MB (estimated maximum)\n"+
 			"Memory Efficiency: %.2f%% of %.2f GB (%.2f GB/node)\n",
 		cPUUtilizedStr, cPUEfficiency, runTimeStr, runTimeStr, totalMemoryMb,
-		memEfficiency, float64(totalMallocMemoryMb)/1024, float64(mallocMemoryMbNode)/1024)
+		memEfficiency, totalMallocMemoryGb, mallocMemoryGbNode)
 
 	if taskInfo.Status == protos.TaskStatus_Running {
 		fmt.Printf("WARNING: Efficiency statistics may be misleading for RUNNING jobs.\n")
