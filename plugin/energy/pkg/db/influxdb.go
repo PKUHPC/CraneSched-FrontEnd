@@ -145,55 +145,55 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		enabledSources := make([]string, 0)
 
 		// 根据开关填充实际值
-		if db.switches.System {
-			fields["cpu_utilization"] = data.SystemLoad.CPUUtil
-			fields["cpu_load_1"] = data.SystemLoad.CPULoad1
-			fields["cpu_load_5"] = data.SystemLoad.CPULoad5
-			fields["cpu_load_15"] = data.SystemLoad.CPULoad15
-			fields["cpu_frequencies"] = data.SystemLoad.Frequencies
-			fields["cpu_temperature"] = data.SystemLoad.Temperature
+		// if db.switches.System {
+		fields["cpu_utilization"] = data.SystemLoad.CPUUtil
+		fields["cpu_load_1"] = data.SystemLoad.CPULoad1
+		fields["cpu_load_5"] = data.SystemLoad.CPULoad5
+		fields["cpu_load_15"] = data.SystemLoad.CPULoad15
+		fields["cpu_frequencies"] = data.SystemLoad.Frequencies
+		fields["cpu_temperature"] = data.SystemLoad.Temperature
 
-			fields["memory_utilization"] = data.SystemLoad.MemoryUtil
-			fields["memory_used_gb"] = data.SystemLoad.MemoryUsed
-			fields["memory_total_gb"] = data.SystemLoad.MemoryTotal
+		fields["memory_utilization"] = data.SystemLoad.MemoryUtil
+		fields["memory_used_gb"] = data.SystemLoad.MemoryUsed
+		fields["memory_total_gb"] = data.SystemLoad.MemoryTotal
 
-			fields["disk_utilization"] = data.SystemLoad.DiskUtil
-			fields["disk_io_mb_ps"] = data.SystemLoad.DiskIO
+		fields["disk_utilization"] = data.SystemLoad.DiskUtil
+		fields["disk_io_mb_ps"] = data.SystemLoad.DiskIO
 
-			fields["network_io_mb_ps"] = data.SystemLoad.NetworkIO
-			fields["network_rx_mb_ps"] = data.SystemLoad.NetworkRx
-			fields["network_tx_mb_ps"] = data.SystemLoad.NetworkTx
+		fields["network_io_mb_ps"] = data.SystemLoad.NetworkIO
+		fields["network_rx_mb_ps"] = data.SystemLoad.NetworkRx
+		fields["network_tx_mb_ps"] = data.SystemLoad.NetworkTx
 
-			enabledSources = append(enabledSources, "system")
-		}
+		enabledSources = append(enabledSources, "system")
+		// }
 
-		if db.switches.RAPL {
-			fields["rapl_package_energy_j"] = data.RAPL.Package
-			fields["rapl_core_energy_j"] = data.RAPL.Core
-			fields["rapl_uncore_energy_j"] = data.RAPL.Uncore
-			fields["rapl_dram_energy_j"] = data.RAPL.DRAM
-			fields["rapl_gt_energy_j"] = data.RAPL.GT
-			enabledSources = append(enabledSources, "rapl")
-		}
+		// if db.switches.RAPL {
+		fields["rapl_package_energy_j"] = data.RAPL.Package
+		fields["rapl_core_energy_j"] = data.RAPL.Core
+		fields["rapl_uncore_energy_j"] = data.RAPL.Uncore
+		fields["rapl_dram_energy_j"] = data.RAPL.DRAM
+		fields["rapl_gt_energy_j"] = data.RAPL.GT
+		enabledSources = append(enabledSources, "rapl")
+		// }
 
-		if db.switches.IPMI {
-			fields["ipmi_power_w"] = data.IPMI.Power
-			fields["ipmi_energy_j"] = data.IPMI.Energy
-			fields["ipmi_cpu_power_w"] = data.IPMI.CPUPower
-			fields["ipmi_cpu_energy_j"] = data.IPMI.CPUEnergy
-			fields["ipmi_fan_power_w"] = data.IPMI.FanPower
-			fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
-			enabledSources = append(enabledSources, "ipmi")
-		}
+		// if db.switches.IPMI {
+		fields["ipmi_power_w"] = data.IPMI.Power
+		fields["ipmi_energy_j"] = data.IPMI.Energy
+		fields["ipmi_cpu_power_w"] = data.IPMI.CPUPower
+		fields["ipmi_cpu_energy_j"] = data.IPMI.CPUEnergy
+		fields["ipmi_fan_power_w"] = data.IPMI.FanPower
+		fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
+		enabledSources = append(enabledSources, "ipmi")
+		// }
 
-		if db.switches.GPU {
-			fields["gpu_energy_j"] = data.GPU.Energy
-			fields["gpu_power_w"] = data.GPU.Power
-			fields["gpu_utilization"] = data.GPU.Util
-			fields["gpu_memory_utilization"] = data.GPU.MemUtil
-			fields["gpu_temperature"] = data.GPU.Temp
-			enabledSources = append(enabledSources, "gpu")
-		}
+		// if db.switches.GPU {
+		fields["gpu_energy_j"] = data.GPU.Energy
+		fields["gpu_power_w"] = data.GPU.Power
+		fields["gpu_utilization"] = data.GPU.Util
+		fields["gpu_memory_utilization"] = data.GPU.MemUtil
+		fields["gpu_temperature"] = data.GPU.Temp
+		enabledSources = append(enabledSources, "gpu")
+		// }
 
 		// 设置总能耗（保持优先级：IPMI > RAPL > GPU）
 		if db.switches.IPMI {
@@ -205,6 +205,8 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		} else if db.switches.GPU {
 			fields["total_energy_j"] = data.GPU.Energy
 			tags["energy_source"] = "gpu"
+		} else {
+			return fmt.Errorf("\033[31m[InfluxDB] no energy source enabled\033[0m")
 		}
 
 		tags["node_id"] = data.NodeID

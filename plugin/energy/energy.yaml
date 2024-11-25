@@ -8,7 +8,7 @@ monitor:
     system: true
 
 db:
-  type: "influxdb"          # 数据库类型：influxdb, mongodb
+  type: "influxdb"          # 数据库类型：influxdb
   batch_size: 1              # 通用批量写入大小
   flush_interval: "30s"      # 通用定期刷新间隔
 
@@ -18,7 +18,3 @@ db:
     org: "pku"
     node_bucket: "energy_node"
     task_bucket: "energy_task"
-
-  mongodb:
-    uri: "mongodb://localhost:27017"
-    database: "energy_monitor"

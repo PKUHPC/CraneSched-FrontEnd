@@ -197,14 +197,14 @@ func (t *Task) collectData() {
 	}
 }
 
-func (t *Task) updateEnergy(data *types.NodeData) {
+func (t *Task) updateEnergy(nodeData *types.NodeData) {
 	// 如果开启了IPMI，则优先使用IPMI的能耗数据
 	if t.config.Switches.IPMI {
 		// IPMI采样是基于时间片的，所以需要累加，不需要求平均值，最终通过乘以利用率来计算任务能耗
-		t.data.CPUEnergy += data.IPMI.CPUEnergy
+		t.data.CPUEnergy += nodeData.IPMI.CPUEnergy
 	} else if t.config.Switches.RAPL {
 		// RAPL采样是基于时间片的，所以需要累加，不需要求平均值，最终通过乘以利用率来计算任务能耗
-		t.data.CPUEnergy += data.RAPL.Package
+		t.data.CPUEnergy += nodeData.RAPL.Package
 	}
 }
 

@@ -94,9 +94,6 @@ func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {
 		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected StartHookRequest")
 		return
 	}
-
-	// taskID := req.TaskInfoList[0].TaskId
-	// log.Infof("\033[32m[EnergyPlugin]\033[0m Task start hook triggered for task: %d", taskID)
 }
 
 func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {
