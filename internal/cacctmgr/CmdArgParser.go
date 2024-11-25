@@ -387,10 +387,16 @@ var (
 		Use:   "account [flags] name",
 		Short: "Block an account",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := BlockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := BlockAccountOrUser("", protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := BlockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -416,10 +422,16 @@ var (
 		Use:   "account [flags] name",
 		Short: "Unblock an account",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := UnblockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := UnblockAccountOrUser("", protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := UnblockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
