@@ -9,11 +9,13 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/plugin/energy/pkg/config"
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
+
+var log = logrus.WithField("component", "InfluxDB")
 
 type InfluxDB struct {
 	client     influxdb2.Client
@@ -29,11 +31,9 @@ type InfluxDB struct {
 }
 
 func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
-	log.Infof("\033[34m[InfluxDB]\033[0m Initializing InfluxDB with config: %+v", config)
-
 	client := influxdb2.NewClient(config.DB.InfluxDB.URL, config.DB.InfluxDB.Token)
 	if _, err := client.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("\033[31m[InfluxDB] failed to ping InfluxDB: %v\033[0m", err)
+		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
 	}
 
 	db := &InfluxDB{
@@ -48,17 +48,17 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 
 	if err := db.createBucketIfNotExists(db.nodeBucket); err != nil {
 		client.Close()
-		return nil, fmt.Errorf("\033[31m[InfluxDB] failed to create node bucket: %v\033[0m", err)
+		return nil, fmt.Errorf("failed to create node bucket: %v", err)
 	}
 
 	if err := db.createBucketIfNotExists(db.taskBucket); err != nil {
 		client.Close()
-		return nil, fmt.Errorf("\033[31m[InfluxDB] failed to create task bucket: %v\033[0m", err)
+		return nil, fmt.Errorf("failed to create task bucket: %v", err)
 	}
 
 	flushTime, err := time.ParseDuration(config.DB.FlushTime)
 	if err != nil {
-		log.Errorf("\033[31m[InfluxDB]\033[0m Invalid flush time format: %v, using default 30s", err)
+		log.Errorf("Invalid flush time format: %v, using default 30s", err)
 		flushTime = 30 * time.Second
 	}
 	go db.periodicFlush(flushTime)
@@ -82,10 +82,10 @@ func (db *InfluxDB) SaveNodeEnergy(data *types.NodeData) error {
 }
 
 func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
-	log.Infof("\033[34m[InfluxDB]\033[0m Batch saving node energy data, count: %d", len(dataList))
+	log.Infof("Batch saving node energy data, count: %d", len(dataList))
 
 	if len(dataList) == 0 {
-		return fmt.Errorf("\033[31m[InfluxDB] no data to write\033[0m")
+		return fmt.Errorf("no data to write")
 	}
 
 	writeAPI := db.client.WriteAPIBlocking(db.org, db.nodeBucket)
@@ -97,9 +97,7 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 			"cluster_id": data.ClusterID,
 		}
 
-		// 始终包含所有字段，未启用的模块对应值为 null
 		fields := map[string]interface{}{
-			// 系统负载相关字段
 			"cpu_utilization":    nil,
 			"cpu_load_1":         nil,
 			"cpu_load_5":         nil,
@@ -115,14 +113,12 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 			"network_rx_mb_ps":   nil,
 			"network_tx_mb_ps":   nil,
 
-			// RAPL 相关字段
 			"rapl_package_energy_j": nil,
 			"rapl_core_energy_j":    nil,
 			"rapl_uncore_energy_j":  nil,
 			"rapl_dram_energy_j":    nil,
 			"rapl_gt_energy_j":      nil,
 
-			// IPMI 相关字段
 			"ipmi_power_w":      nil,
 			"ipmi_energy_j":     nil,
 			"ipmi_cpu_power_w":  nil,
@@ -130,28 +126,24 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 			"ipmi_fan_power_w":  nil,
 			"ipmi_disk_power_w": nil,
 
-			// GPU 相关字段
 			"gpu_energy_j":           nil,
 			"gpu_power_w":            nil,
 			"gpu_utilization":        nil,
 			"gpu_memory_utilization": nil,
 			"gpu_temperature":        nil,
 
-			// 总能耗字段
 			"total_energy_j": nil,
 		}
 
-		// 记录启用的模块
+		// record enabled modules
 		enabledSources := make([]string, 0)
 
-		// 根据开关填充实际值
-		// if db.switches.System {
 		fields["cpu_utilization"] = data.SystemLoad.CPUUtil
 		fields["cpu_load_1"] = data.SystemLoad.CPULoad1
 		fields["cpu_load_5"] = data.SystemLoad.CPULoad5
 		fields["cpu_load_15"] = data.SystemLoad.CPULoad15
 		fields["cpu_frequencies"] = data.SystemLoad.Frequencies
-		fields["cpu_temperature"] = data.SystemLoad.Temperature
+		fields["cpu_temperature"] = data.SystemLoad.CPUTemperature
 
 		fields["memory_utilization"] = data.SystemLoad.MemoryUtil
 		fields["memory_used_gb"] = data.SystemLoad.MemoryUsed
@@ -163,20 +155,15 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		fields["network_io_mb_ps"] = data.SystemLoad.NetworkIO
 		fields["network_rx_mb_ps"] = data.SystemLoad.NetworkRx
 		fields["network_tx_mb_ps"] = data.SystemLoad.NetworkTx
-
 		enabledSources = append(enabledSources, "system")
-		// }
 
-		// if db.switches.RAPL {
 		fields["rapl_package_energy_j"] = data.RAPL.Package
 		fields["rapl_core_energy_j"] = data.RAPL.Core
 		fields["rapl_uncore_energy_j"] = data.RAPL.Uncore
 		fields["rapl_dram_energy_j"] = data.RAPL.DRAM
 		fields["rapl_gt_energy_j"] = data.RAPL.GT
 		enabledSources = append(enabledSources, "rapl")
-		// }
 
-		// if db.switches.IPMI {
 		fields["ipmi_power_w"] = data.IPMI.Power
 		fields["ipmi_energy_j"] = data.IPMI.Energy
 		fields["ipmi_cpu_power_w"] = data.IPMI.CPUPower
@@ -184,18 +171,15 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		fields["ipmi_fan_power_w"] = data.IPMI.FanPower
 		fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
 		enabledSources = append(enabledSources, "ipmi")
-		// }
 
-		// if db.switches.GPU {
 		fields["gpu_energy_j"] = data.GPU.Energy
 		fields["gpu_power_w"] = data.GPU.Power
 		fields["gpu_utilization"] = data.GPU.Util
 		fields["gpu_memory_utilization"] = data.GPU.MemUtil
 		fields["gpu_temperature"] = data.GPU.Temp
 		enabledSources = append(enabledSources, "gpu")
-		// }
 
-		// 设置总能耗（保持优先级：IPMI > RAPL > GPU）
+		// set total energy (priority: IPMI > RAPL > GPU)
 		if db.switches.IPMI {
 			fields["total_energy_j"] = data.IPMI.Energy
 			tags["energy_source"] = "ipmi"
@@ -206,7 +190,7 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 			fields["total_energy_j"] = data.GPU.Energy
 			tags["energy_source"] = "gpu"
 		} else {
-			return fmt.Errorf("\033[31m[InfluxDB] no energy source enabled\033[0m")
+			return fmt.Errorf("no energy source enabled")
 		}
 
 		tags["node_id"] = data.NodeID
@@ -223,13 +207,13 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 	}
 
 	if err := writeAPI.WritePoint(context.Background(), points...); err != nil {
-		return fmt.Errorf("\033[31m[InfluxDB] failed to write batch data: %v\033[0m", err)
+		return fmt.Errorf("failed to write batch data: %v", err)
 	}
 
 	return nil
 }
 
-// 定期刷新缓冲区
+// flush buffer periodically
 func (db *InfluxDB) periodicFlush(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -242,7 +226,7 @@ func (db *InfluxDB) periodicFlush(interval time.Duration) {
 			db.bufferMu.Unlock()
 
 			if err := db.writeBatch(buffer); err != nil {
-				log.Errorf("\033[31m[InfluxDB]\033[0m Failed to flush buffer: %v", err)
+				log.Errorf("Failed to flush buffer: %v", err)
 			}
 		} else {
 			db.bufferMu.Unlock()
@@ -251,7 +235,8 @@ func (db *InfluxDB) periodicFlush(interval time.Duration) {
 }
 
 func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
-	log.Infof("\033[34m[InfluxDB]\033[0m Saving task energy data for task: %s, node: %s, cluster: %s", taskData.TaskName, taskData.NodeID, taskData.ClusterID)
+	log.Infof("Saving task energy data for task: %s, node: %s, cluster: %s", taskData.TaskName, taskData.NodeID, taskData.ClusterID)
+
 	writeAPI := db.client.WriteAPIBlocking(db.org, db.taskBucket)
 
 	p := influxdb2.NewPoint(
@@ -296,7 +281,7 @@ func (db *InfluxDB) Close() error {
 	db.bufferMu.Lock()
 	if len(db.buffer) > 0 {
 		if err := db.writeBatch(db.buffer); err != nil {
-			log.Errorf("\033[31m[InfluxDB]\033[0m Failed to flush buffer: %v", err)
+			log.Errorf("Failed to flush buffer: %v", err)
 		}
 	}
 	db.bufferMu.Unlock()
@@ -309,30 +294,30 @@ func (db *InfluxDB) createBucketIfNotExists(bucketName string) error {
 	ctx := context.Background()
 
 	if err := db.createOrgIfNotExists(); err != nil {
-		return fmt.Errorf("\033[31m[InfluxDB] failed to ensure organization exists: %v\033[0m", err)
+		return fmt.Errorf("failed to ensure organization exists: %v", err)
 	}
 
 	bucketsAPI := db.client.BucketsAPI()
 	bucket, _ := bucketsAPI.FindBucketByName(ctx, bucketName)
 
 	if bucket != nil {
-		log.Infof("\033[34m[InfluxDB]\033[0m Bucket already exists: %s", bucketName)
+		log.Infof("Bucket already exists: %s", bucketName)
 		return nil
 	}
 
-	log.Infof("\033[34m[InfluxDB]\033[0m Creating bucket: %s", bucketName)
+	log.Infof("Creating bucket: %s", bucketName)
 	orgAPI := db.client.OrganizationsAPI()
 	org, err := orgAPI.FindOrganizationByName(ctx, db.org)
 	if err != nil {
-		return fmt.Errorf("\033[31m[InfluxDB] failed to find organization: %v\033[0m", err)
+		return fmt.Errorf("failed to find organization: %v", err)
 	}
 
 	_, err = bucketsAPI.CreateBucketWithName(ctx, org, bucketName)
 	if err != nil {
-		return fmt.Errorf("\033[31m[InfluxDB] failed to create bucket: %v\033[0m", err)
+		return fmt.Errorf("failed to create bucket: %v", err)
 	}
 
-	log.Infof("\033[34m[InfluxDB]\033[0m Successfully created bucket: %s", bucketName)
+	log.Infof("Successfully created bucket: %s", bucketName)
 	return nil
 }
 
@@ -343,16 +328,16 @@ func (db *InfluxDB) createOrgIfNotExists() error {
 	org, _ := orgAPI.FindOrganizationByName(ctx, db.org)
 
 	if org != nil {
-		log.Infof("\033[34m[InfluxDB]\033[0m Organization already exists: %s", db.org)
+		log.Infof("Organization already exists: %s", db.org)
 		return nil
 	}
 
-	log.Infof("\033[34m[InfluxDB]\033[0m Creating organization: %s", db.org)
+	log.Infof("Creating organization: %s", db.org)
 	_, err := orgAPI.CreateOrganizationWithName(ctx, db.org)
 	if err != nil {
-		return fmt.Errorf("\033[31m[InfluxDB] failed to create organization: %v\033[0m", err)
+		return fmt.Errorf("failed to create organization: %v", err)
 	}
 
-	log.Infof("\033[34m[InfluxDB]\033[0m Successfully created organization: %s", db.org)
+	log.Infof("Successfully created organization: %s", db.org)
 	return nil
 }

@@ -2,6 +2,7 @@
 
 package gpu
 
+// If NVML is not enabled, use this stub
 type NVMLDevice struct{}
 
 func nvmlInit() error {

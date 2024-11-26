@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
+
+var log = logrus.WithField("component", "RAPL")
 
 const (
 	RAPLBasePath = "/sys/class/powercap"
@@ -35,7 +37,7 @@ func NewRAPLReader() *RAPLReader {
 	}
 
 	if err := reader.discoverDomains(); err != nil {
-		log.Warnf("\033[35m[RAPL]\033[0m failed to discover RAPL domains: %v", err)
+		log.Warnf("failed to discover RAPL domains: %v", err)
 	}
 
 	return reader
@@ -54,7 +56,7 @@ func (r *RAPLReader) discoverDomains() error {
 				Path: filepath.Join(RAPLBasePath, entry.Name()),
 			}
 
-			// 读取域的最大能耗范围，用于处理计数器溢出
+			// read the maximum energy range, for handling counter overflow
 			maxEnergyRange, err := r.readMaxEnergyRange(domain.Path)
 			if err == nil {
 				domain.MaxEnergyRange = maxEnergyRange
@@ -65,7 +67,7 @@ func (r *RAPLReader) discoverDomains() error {
 		}
 	}
 
-	log.Info("\033[32m[RAPL]\033[0m Discovered RAPL domains:")
+	log.Info("Discovered RAPL domains:")
 	for name, domain := range r.domains {
 		log.Infof("  %s: %s", name, domain.Path)
 	}
@@ -83,13 +85,13 @@ func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
 
 		energy, err := r.readDomainEnergy(domain)
 		if err != nil {
-			log.Warnf("\033[35m[RAPL]\033[0m Error reading energy for domain %s: %v", name, err)
+			log.Warnf("Error reading energy for domain %s: %v", name, err)
 			continue
 		}
 
 		parts := strings.Split(name, ":")
 		if len(parts) < 2 {
-			log.Warnf("\033[35m[RAPL]\033[0m Invalid domain name format: %s", name)
+			log.Warnf("Invalid domain name format: %s", name)
 			continue
 		}
 
@@ -106,7 +108,7 @@ func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
 			case "3":
 				metrics.GT += energy
 			default:
-				log.Infof("\033[31m[RAPL]\033[0m Unknown subdomain: %s", parts[2])
+				log.Infof("Unknown subdomain: %s", parts[2])
 			}
 		}
 	}
@@ -117,7 +119,7 @@ func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
 func (r *RAPLReader) readDomainEnergy(domain *RAPLDomain) (float64, error) {
 	currentTime := time.Now()
 
-	// 读取当前累计值
+	// read the current cumulative value
 	data, err := os.ReadFile(filepath.Join(domain.Path, "energy_uj"))
 	if err != nil {
 		return 0, err
@@ -126,11 +128,11 @@ func (r *RAPLReader) readDomainEnergy(domain *RAPLDomain) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	currentEnergy = currentEnergy / 1e6 // 转换为焦耳
+	currentEnergy = currentEnergy / 1e6 // convert to joule
 
 	if !domain.LastReadTime.IsZero() {
 		energyDiff := currentEnergy - domain.LastEnergy
-		// 处理计数器溢出情况
+		// handle counter overflow
 		if energyDiff < 0 {
 			energyDiff += domain.MaxEnergyRange
 		}
@@ -150,12 +152,12 @@ func (r *RAPLReader) readMaxEnergyRange(path string) (float64, error) {
 		return 0, err
 	}
 	value, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
-	return value / 1e6, err // 转换为焦耳
+	return value / 1e6, err // convert to joule
 }
 
 func (r *RAPLReader) LogMetrics(metrics *types.RAPLMetrics) {
-	log.Printf("\033[32m[RAPL]\033[0m RAPL Metrics:")
-	log.Printf("\033[32m[RAPL]\033[0m Package: %.2f J, Core: %.2f J, Uncore: %.2f J, DRAM: %.2f J, GT: %.2f J",
+	log.Printf("RAPL Metrics:")
+	log.Printf("Package: %.2f J, Core: %.2f J, Uncore: %.2f J, DRAM: %.2f J, GT: %.2f J",
 		metrics.Package, metrics.Core, metrics.Uncore, metrics.DRAM, metrics.GT)
 }
 

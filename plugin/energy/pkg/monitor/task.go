@@ -2,11 +2,10 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/plugin/energy/pkg/cgroup"
 	"CraneFrontEnd/plugin/energy/pkg/config"
@@ -24,22 +23,24 @@ type TaskMonitor struct {
 }
 
 func (m *TaskMonitor) Start(taskID uint32, taskName string) {
-	log.Infof("\033[32m[TaskMonitor]\033[0m Task monitor switches: %v", m.config.Switches)
+	log.Infof("Starting task monitor for task: %d, cgroup path: %s", taskID, taskName)
 
 	if !m.config.Switches.Task {
-		log.Warnf("\033[34m[TaskMonitor]\033[0m Task monitor is not enabled, skipping task: %d, %s", taskID, taskName)
+		log.Warnf("Task monitor is not enabled, skipping task: %d, %s", taskID, taskName)
 		return
 	}
 
-	// 如果既没有开启RAPL也没有开启IPMI，则无法计算任务能耗，跳过该任务
+	// If neither RAPL nor IPMI is enabled, the task energy cannot be calculated, skip this task
 	if !m.config.Switches.RAPL && !m.config.Switches.IPMI {
-		log.Warnf("\033[34m[TaskMonitor]\033[0m No energy metrics enabled, skipping task: %d, %s", taskID, taskName)
+		log.Warnf("No energy metrics enabled, skipping task: %d, %s", taskID, taskName)
 		return
 	}
 
-	log.Infof("\033[34m[TaskMonitor]\033[0m Starting task monitor for task: %d, cgroup path: %s", taskID, taskName)
-
-	task := NewTask(taskID, taskName, m.samplePeriod, m.config)
+	task, err := NewTask(taskID, taskName, m.samplePeriod, m.config)
+	if err != nil {
+		log.Errorf("Failed to create task monitor: %v", err)
+		return
+	}
 
 	m.taskMu.Lock()
 	m.tasks[taskName] = task
@@ -75,7 +76,7 @@ type Task struct {
 	data        *types.TaskData
 	sampleCount int
 
-	cgroupReader *cgroup.V1Reader
+	cgroupReader cgroup.CgroupReader
 	gpuReader    *gpu.GPUReader
 
 	ctx        context.Context
@@ -91,16 +92,19 @@ func getNodeID() string {
 	return hostname
 }
 
-// TODO: 从配置文件中读取集群ID
+// TODO: Read cluster ID from configuration file
 func getClusterID() string {
 	return "cluster-1"
 }
 
-func NewTask(id uint32, name string, samplePeriod time.Duration, config *config.MonitorConfig) *Task {
+func NewTask(id uint32, name string, samplePeriod time.Duration, config *config.MonitorConfig) (*Task, error) {
+	cgroupReader, err := cgroup.NewCgroupReader(cgroup.V1, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cgroup reader: %v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	startTime := time.Now()
-
-	cgroupReader := cgroup.NewV1Reader(name)
 
 	return &Task{
 		ID:           id,
@@ -122,7 +126,7 @@ func NewTask(id uint32, name string, samplePeriod time.Duration, config *config.
 		},
 		cgroupReader: cgroupReader,
 		gpuReader:    gpu.NewGPUReader(),
-	}
+	}, nil
 }
 
 func (t *Task) Start() {
@@ -137,7 +141,7 @@ func (t *Task) Stop() {
 	GetSubscriberManagerInstance().DeleteSubscriber(t.Name)
 
 	if err := t.gpuReader.Close(); err != nil {
-		log.Errorf("\033[31m[TaskMonitor]\033[0m Failed to close GPU reader: %v", err)
+		log.Errorf("Failed to close GPU reader: %v", err)
 	}
 }
 
@@ -158,14 +162,14 @@ func (t *Task) monitorResourceUsage() {
 }
 
 func (t *Task) updateTaskStats(stats *types.TaskStats, metrics *types.GPUMetrics) {
-	// Cgroup中这些资源使用量是累积的，所以不需要累加，每次采样直接更新就可以
+	// The resource usage in cgroup is cumulative, so no need to accumulate, just update directly
 	t.data.TaskStats.CPUStats.UsageSeconds = stats.CPUStats.UsageSeconds
 	t.data.TaskStats.IOStats.ReadMB = stats.IOStats.ReadMB
 	t.data.TaskStats.IOStats.WriteMB = stats.IOStats.WriteMB
 	t.data.TaskStats.IOStats.ReadOperations = stats.IOStats.ReadOperations
 	t.data.TaskStats.IOStats.WriteOperations = stats.IOStats.WriteOperations
 
-	// 这些资源每一次采样都累加一下，最终计算平均值
+	// These resources are accumulated every time they are sampled, and the average value is calculated at the end
 	t.data.TaskStats.CPUStats.Utilization += stats.CPUStats.Utilization
 	t.data.TaskStats.MemoryStats.UsageMB += stats.MemoryStats.UsageMB
 	t.data.TaskStats.MemoryStats.Utilization += stats.MemoryStats.Utilization
@@ -176,7 +180,6 @@ func (t *Task) updateTaskStats(stats *types.TaskStats, metrics *types.GPUMetrics
 	t.data.TaskStats.GPUStats.Utilization += metrics.Util
 	t.data.TaskStats.GPUStats.MemoryUtil += metrics.MemUtil
 
-	// GPU能耗是基于时间片的，所以需要累加，但是最终不需要计算平均值
 	t.data.GPUEnergy += metrics.Energy
 
 	t.sampleCount++
@@ -190,7 +193,7 @@ func (t *Task) collectData() {
 		case <-t.ctx.Done():
 			t.calculateStats()
 			if err := db.GetInstance().SaveTaskEnergy(t.data); err != nil {
-				log.Errorf("\033[31m[TaskMonitor]\033[0m Error saving task energy data: %v", err)
+				log.Errorf("Error saving task energy data: %v", err)
 			}
 			return
 		}
@@ -198,19 +201,17 @@ func (t *Task) collectData() {
 }
 
 func (t *Task) updateEnergy(nodeData *types.NodeData) {
-	// 如果开启了IPMI，则优先使用IPMI的能耗数据
+	// If IPMI is enabled, use IPMI energy data preferentially
 	if t.config.Switches.IPMI {
-		// IPMI采样是基于时间片的，所以需要累加，不需要求平均值，最终通过乘以利用率来计算任务能耗
 		t.data.CPUEnergy += nodeData.IPMI.CPUEnergy
 	} else if t.config.Switches.RAPL {
-		// RAPL采样是基于时间片的，所以需要累加，不需要求平均值，最终通过乘以利用率来计算任务能耗
 		t.data.CPUEnergy += nodeData.RAPL.Package
 	}
 }
 
 func (t *Task) calculateStats() {
 	if t.sampleCount < 2 {
-		log.Errorf("\033[31m[TaskMonitor]\033[0m Insufficient samples for statistics")
+		log.Errorf("Insufficient samples for statistics")
 		return
 	}
 
@@ -245,13 +246,13 @@ func (t *Task) calculateEnergy() {
 }
 
 func (t *Task) logTaskStats() {
-	log.Infof("\033[34m[TaskMonitor]\033[0m Task Statistics for %s:", t.Name)
+	log.Infof("Task Statistics for %s:", t.Name)
 	log.Infof("  Task name: %s", t.data.TaskName)
 	log.Infof("  Node ID: %s", t.data.NodeID)
 	log.Infof("  Cluster ID: %s", t.data.ClusterID)
 	log.Infof("  Duration: %.2f seconds", t.data.Duration.Seconds())
 
-	log.Infof("\033[34m[TaskMonitor]\033[0m Energy Statistics:")
+	log.Infof("Energy Statistics:")
 	log.Infof("  Total energy: %.2f J", t.data.TotalEnergy)
 	log.Infof("  Average power: %.2f W", t.data.AveragePower)
 	log.Infof("  CPU energy: %.2f J (utilization: %.2f%%)",
@@ -259,7 +260,7 @@ func (t *Task) logTaskStats() {
 	log.Infof("  GPU energy: %.2f J (utilization: %.2f%%)",
 		t.data.GPUEnergy, t.data.TaskStats.GPUStats.Utilization)
 
-	log.Infof("\033[34m[TaskMonitor]\033[0m Resource Usage Statistics:")
+	log.Infof("Resource Usage Statistics:")
 	log.Infof("  CPU utilization: %.2f%%", t.data.TaskStats.CPUStats.Utilization)
 	log.Infof("  CPU usage: %.2f seconds", t.data.TaskStats.CPUStats.UsageSeconds)
 	log.Infof("  GPU utilization: %.2f%%", t.data.TaskStats.GPUStats.Utilization)

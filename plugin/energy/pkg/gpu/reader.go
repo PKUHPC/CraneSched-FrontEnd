@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
+
+var log = logrus.WithField("component", "GPU")
 
 type GPUReader struct {
 	hasGPU      bool
@@ -25,28 +27,28 @@ type deviceState struct {
 func NewGPUReader() *GPUReader {
 	reader := &GPUReader{}
 	if err := reader.init(); err != nil {
-		log.WithError(err).Info("\033[31m[GPU]\033[0m Init failed, will run in no GPU mode")
+		log.WithError(err).Info("Init failed, will run in no GPU mode")
 	}
 	return reader
 }
 
 func (r *GPUReader) init() error {
 	if err := nvmlInit(); err != nil {
-		return fmt.Errorf("\033[33m[GPU]\033[0m NVML init failed: %v", err)
+		return fmt.Errorf("NVML init failed: %v", err)
 	}
 	r.nvmlInited = true
 
 	count, err := nvmlDeviceGetCount()
 	if err != nil {
 		r.cleanup()
-		return fmt.Errorf("\033[33m[GPU]\033[0m failed to get GPU count: %v", err)
+		return fmt.Errorf("failed to get GPU count: %v", err)
 	}
 
 	if count > 0 {
 		r.hasGPU = true
 		r.deviceCount = count
 		r.initDeviceStates(count)
-		log.Infof("\033[32m[GPU]\033[0m detected %d NVIDIA GPUs", count)
+		log.Infof("detected %d NVIDIA GPUs", count)
 	}
 	return nil
 }
@@ -69,7 +71,7 @@ func (r *GPUReader) GetMetrics() (*types.GPUMetrics, error) {
 	for i := 0; i < r.deviceCount; i++ {
 		deviceMetrics, err := r.GetDeviceMetrics(i)
 		if err != nil {
-			log.Errorf("\033[33m[GPU]\033[0m Failed to collect metrics: %v", err)
+			log.Errorf("Failed to collect metrics: %v", err)
 			continue
 		}
 
@@ -95,25 +97,25 @@ func (r *GPUReader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
 
 	device, err := nvmlDeviceGetHandleByIndex(index)
 	if err != nil {
-		return nil, fmt.Errorf("\033[33m[GPU]\033[0m failed to get device handle: %v", err)
+		return nil, fmt.Errorf("failed to get device handle: %v", err)
 	}
 
 	power, err := device.GetPowerUsage()
 	if err != nil {
-		return nil, fmt.Errorf("\033[33m[GPU]\033[0m power metrics: %v", err)
+		return nil, fmt.Errorf("power metrics: %v", err)
 	}
 	metrics.Power = float64(power) / 1000.0 // mW -> W
 
 	gpuUtil, memUtil, err := device.GetUtilization()
 	if err != nil {
-		return nil, fmt.Errorf("\033[33m[GPU]\033[0m utilization metrics: %v", err)
+		return nil, fmt.Errorf("utilization metrics: %v", err)
 	}
 	metrics.Util = float64(gpuUtil)
 	metrics.MemUtil = float64(memUtil)
 
 	temp, err := device.GetTemperature()
 	if err != nil {
-		return nil, fmt.Errorf("\033[33m[GPU]\033[0m temperature metrics: %v", err)
+		return nil, fmt.Errorf("temperature metrics: %v", err)
 	}
 	metrics.Temp = float64(temp)
 
@@ -131,8 +133,8 @@ func (r *GPUReader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
 }
 
 func (r *GPUReader) LogMetrics(metrics *types.GPUMetrics) {
-	log.Infof("\033[33m[GPU]\033[0m GPU Metrics: power=%.2f W, energy=%.2f J, util=%.2f%%", metrics.Power, metrics.Energy, metrics.Util)
-	log.Infof("\033[33m[GPU]\033[0m GPU Metrics: mem_util=%.2f%%, temp=%.1f°C", metrics.MemUtil, metrics.Temp)
+	log.Infof("GPU Metrics: power=%.2f W, energy=%.2f J, util=%.2f%%", metrics.Power, metrics.Energy, metrics.Util)
+	log.Infof("GPU Metrics: mem_util=%.2f%%, temp=%.1f°C", metrics.MemUtil, metrics.Temp)
 }
 
 func (r *GPUReader) Close() error {
@@ -142,7 +144,7 @@ func (r *GPUReader) Close() error {
 func (r *GPUReader) cleanup() error {
 	if r.nvmlInited {
 		if err := nvmlShutdown(); err != nil {
-			return fmt.Errorf("\033[31m[GPU]\033[0m failed to shutdown NVML: %v", err)
+			return fmt.Errorf("failed to shutdown NVML: %v", err)
 		}
 		r.nvmlInited = false
 	}
@@ -167,13 +169,13 @@ func (r *GPUReader) GetGpuStats(indices []int) types.GPUMetrics {
 
 	for _, idx := range indices {
 		if idx < 0 || idx >= r.deviceCount {
-			log.Errorf("\033[31m[GPU]\033[0m invalid device index: %d, total devices: %d", idx, r.deviceCount)
+			log.Errorf("invalid device index: %d, total devices: %d", idx, r.deviceCount)
 			continue
 		}
 
 		deviceMetrics, err := r.GetDeviceMetrics(idx)
 		if err != nil {
-			log.Errorf("\033[33m[GPU]\033[0m Failed to collect metrics: %v", err)
+			log.Errorf("Failed to collect metrics: %v", err)
 			continue
 		}
 

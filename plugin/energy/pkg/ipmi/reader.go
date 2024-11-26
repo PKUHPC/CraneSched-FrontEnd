@@ -5,11 +5,13 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 	"github.com/u-root/u-root/pkg/ipmi"
 
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
+
+var log = logrus.WithField("component", "IPMI")
 
 const (
 	MetricsCacheDuration   = 500 * time.Millisecond
@@ -67,7 +69,7 @@ func NewIPMIReader() *IPMIReader {
 
 	i, err := ipmi.Open(0)
 	if err != nil {
-		log.Warnf("\033[31m[IPMI]\033[0m Failed to open IPMI device: %v", err)
+		log.Warnf("Failed to open IPMI device: %v", err)
 		return reader
 	}
 
@@ -82,35 +84,35 @@ func (r *IPMIReader) getPowerUsage(sensor SensorConfig) (float64, error) {
 	defer r.mutex.Unlock()
 
 	if !r.HasIPMI {
-		return 0, fmt.Errorf("\033[31m[IPMI]\033[0m IPMI not available")
+		return 0, fmt.Errorf("IPMI not available")
 	}
 
 	cmd := []byte{NETFN_SENSOR, CMD_GET_SENSOR_READING, sensor.SensorNum}
 	resp, err := r.ipmi.RawCmd(cmd)
 	if err != nil {
-		return 0, fmt.Errorf("\033[31m[IPMI]\033[0m failed to get sensor reading: %v", err)
+		return 0, fmt.Errorf("failed to get sensor reading: %v", err)
 	}
 
 	if len(resp) < 4 {
-		return 0, fmt.Errorf("\033[31m[IPMI]\033[0m invalid response length")
+		return 0, fmt.Errorf("invalid response length")
 	}
 
 	if resp[0] != 0x00 {
-		return 0, fmt.Errorf("\033[31m[IPMI]\033[0m command failed with code: 0x%02x", resp[0])
+		return 0, fmt.Errorf("command failed with code: 0x%02x", resp[0])
 	}
 
 	if resp[2] != 0xC0 || resp[3] != 0xC0 {
-		return 0, fmt.Errorf("\033[31m[IPMI]\033[0m invalid reading flags: %02x %02x", resp[2], resp[3])
+		return 0, fmt.Errorf("invalid reading flags: %02x %02x", resp[2], resp[3])
 	}
 
 	rawReading := float64(resp[1])
 	power := rawReading * sensor.Scale
 
-	// 验证读数是否在合理范围内
+	// verify if the reading is within the reasonable range
 	if power < 0 || power > sensor.MaxValue {
-		log.Warnf("\033[33m[IPMI]\033[0m %s reading out of range: %.2f W (raw: 0x%02x)",
+		log.Warnf("%s reading out of range: %.2f W (raw: 0x%02x)",
 			sensor.Name, power, uint8(rawReading))
-		return 0, fmt.Errorf("\033[31m[IPMI]\033[0m reading out of range")
+		return 0, fmt.Errorf("reading out of range")
 	}
 
 	return power, nil
@@ -118,7 +120,7 @@ func (r *IPMIReader) getPowerUsage(sensor SensorConfig) (float64, error) {
 
 func (r *IPMIReader) GetMetrics() (*types.IPMIMetrics, error) {
 	if !r.HasIPMI {
-		return &types.IPMIMetrics{}, fmt.Errorf("\033[31m[IPMI]\033[0m IPMI not available")
+		return &types.IPMIMetrics{}, fmt.Errorf("IPMI not available")
 	}
 
 	if time.Since(r.LastPowerTime) < MetricsCacheDuration && r.metricsCache != nil {
@@ -141,7 +143,7 @@ func (r *IPMIReader) GetMetrics() (*types.IPMIMetrics, error) {
 				metrics.HDDPower = reading
 			}
 		} else {
-			log.Warnf("\033[31m[IPMI]\033[0m Failed to get %s: %v", sensor.Name, err)
+			log.Warnf("Failed to get %s: %v", sensor.Name, err)
 		}
 	}
 
@@ -162,10 +164,10 @@ func (r *IPMIReader) GetMetrics() (*types.IPMIMetrics, error) {
 }
 
 func (r *IPMIReader) LogMetrics(metrics *types.IPMIMetrics) {
-	log.Infof("\033[34m[IPMI]\033[0m IPMI Metrics:")
-	log.Infof("\033[34m[IPMI]\033[0m Power: %.2f W, Energy: %.2f J", metrics.Power, metrics.Energy)
-	log.Infof("\033[34m[IPMI]\033[0m CPU Power: %.2f W, CPU Energy: %.2f J", metrics.CPUPower, metrics.CPUEnergy)
-	log.Infof("\033[34m[IPMI]\033[0m Fan Power: %.2f W, HDD Power: %.2f W", metrics.FanPower, metrics.HDDPower)
+	log.Infof("IPMI Metrics:")
+	log.Infof("Power: %.2f W, Energy: %.2f J", metrics.Power, metrics.Energy)
+	log.Infof("CPU Power: %.2f W, CPU Energy: %.2f J", metrics.CPUPower, metrics.CPUEnergy)
+	log.Infof("Fan Power: %.2f W, HDD Power: %.2f W", metrics.FanPower, metrics.HDDPower)
 }
 
 func (r *IPMIReader) Close() error {

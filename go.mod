@@ -5,7 +5,6 @@ go 1.22
 require (
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/containerd/cgroups v1.1.0
-	github.com/docker/go-units v0.4.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/term v1.1.0
@@ -24,6 +23,7 @@ require (
 
 require (
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/godbus/dbus/v5 v5.0.4 // indirect

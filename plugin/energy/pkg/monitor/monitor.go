@@ -4,14 +4,16 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"CraneFrontEnd/plugin/energy/pkg/config"
 	"CraneFrontEnd/plugin/energy/pkg/gpu"
 	"CraneFrontEnd/plugin/energy/pkg/ipmi"
 	"CraneFrontEnd/plugin/energy/pkg/rapl"
 	"CraneFrontEnd/plugin/energy/pkg/sysload"
+
+	logrus "github.com/sirupsen/logrus"
 )
+
+var log = logrus.WithField("component", "Monitor")
 
 type Monitor struct {
 	NodeMonitor *NodeMonitor
@@ -21,7 +23,7 @@ type Monitor struct {
 func NewMonitor(config config.MonitorConfig) *Monitor {
 	duration, err := time.ParseDuration(config.SamplePeriod)
 	if err != nil {
-		log.Errorf("\033[31m[Monitor]\033[0m invalid sample period: %v", err)
+		log.Errorf("invalid sample period: %v", err)
 		return nil
 	}
 

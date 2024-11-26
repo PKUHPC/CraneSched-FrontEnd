@@ -7,7 +7,8 @@ import (
 	"path"
 	"runtime"
 
-	log "github.com/sirupsen/logrus"
+	nested "github.com/antonfisher/nested-logrus-formatter"
+	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
@@ -16,41 +17,29 @@ import (
 	"CraneFrontEnd/plugin/energy/pkg/monitor"
 )
 
-// 初始化日志配置
+var log = logrus.WithField("component", "EnergyPlugin")
+
 func init() {
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp:   true,
+	logrus.SetFormatter(&nested.Formatter{
+		HideKeys:        true,
 		TimestampFormat: "2006-01-02 15:04:05",
-		ForceColors:     true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+		ShowFullLevel:   true,
+		NoColors:        false,
+		NoFieldsColors:  false,
+		NoFieldsSpace:   true,
+		FieldsOrder:     []string{"caller", "component"},
+
+		CustomCallerFormatter: func(f *runtime.Frame) string {
 			filename := path.Base(f.File)
-			return "", fmt.Sprintf("%s:%d", filename, f.Line)
+			return fmt.Sprintf(" [%s:%d]", filename, f.Line)
 		},
 	})
 
-	// 启用调用者信息
-	log.SetReportCaller(true)
-
-	log.SetLevel(log.DebugLevel)
-
-	logDir := "/var/log/crane"
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		log.Warnf("\033[33m[EnergyPlugin]\033[0m Failed to create log directory: %v", err)
-		return
-	}
-
-	logFile, err := os.OpenFile(path.Join(logDir, "energy.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err == nil {
-		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
-		log.Info("\033[32m[EnergyPlugin]\033[0m Successfully set up logging to file")
-	} else {
-		log.Warnf("\033[33m[EnergyPlugin]\033[0m Failed to log to file: %v, using default stderr", err)
-	}
+	logrus.SetReportCaller(true)
+	logrus.SetLevel(logrus.DebugLevel)
 }
 
-var (
-	globalMonitor *monitor.Monitor
-)
+var globalMonitor *monitor.Monitor
 
 var _ api.Plugin = EnergyPlugin{}
 
@@ -61,18 +50,22 @@ type EnergyPlugin struct {
 }
 
 func (p EnergyPlugin) Init(meta api.PluginMeta) error {
-	log.Info("\033[32m[EnergyPlugin]\033[0m Initializing plugin")
+	log.Info("Initializing plugin")
 
 	cfg, err := config.LoadConfig(meta.Config)
 	if err != nil {
-		return fmt.Errorf("\033[31m[EnergyPlugin]\033[0m failed to load config: %w", err)
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if err := setupLogging(cfg.Monitor.LogPath); err != nil {
+		log.Warnf("Failed to setup logging: %v, using default stderr", err)
 	}
 
 	p.config = cfg
 	config.PrintConfig(cfg)
 
 	if err := p.ensureInitialized(); err != nil {
-		return fmt.Errorf("\033[31m[EnergyPlugin]\033[0m failed to initialize resources: %w", err)
+		return fmt.Errorf("failed to initialize resources: %w", err)
 	}
 
 	globalMonitor.NodeMonitor.Start()
@@ -88,38 +81,18 @@ func (p EnergyPlugin) Version() string {
 	return "v1.0.0"
 }
 
-func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {
-	_, ok := ctx.Request().(*protos.StartHookRequest)
-	if !ok {
-		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected StartHookRequest")
-		return
-	}
-}
+func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {}
 
-func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.EndHookRequest)
-	if !ok {
-		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected EndHookRequest")
-		return
-	}
-	for _, task := range req.TaskInfoList {
-		taskID := task.TaskId
-		taskName := fmt.Sprintf("Crane_Task_%d", taskID)
-
-		log.Infof("\033[32m[EnergyPlugin]\033[0m Stopping task monitor for task: %s", taskName)
-
-		globalMonitor.TaskMonitor.StopTask(taskName)
-	}
-}
+func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {}
 
 func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
 	if !ok {
-		log.Error("\033[31m[EnergyPlugin]\033[0m Invalid request type, expected JobMonitorHookRequest")
+		log.Error("Invalid request type, expected JobMonitorHookRequest")
 		return
 	}
 
-	log.Infof("\033[32m[EnergyPlugin]\033[0m Starting task monitor for task: %d, cgroup: %s",
+	log.Infof("Starting task monitor for task: %d, cgroup: %s",
 		req.TaskId, req.Cgroup)
 
 	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup)
@@ -129,7 +102,7 @@ func (p EnergyPlugin) ensureInitialized() error {
 	if db.GetInstance() == nil {
 		err := db.InitDB(p.config)
 		if err != nil {
-			return fmt.Errorf("\033[31m[EnergyPlugin]\033[0m failed to create database: %w", err)
+			return fmt.Errorf("failed to create database: %w", err)
 		}
 	}
 
@@ -141,7 +114,7 @@ func (p EnergyPlugin) ensureInitialized() error {
 }
 
 func (p EnergyPlugin) Close() {
-	log.Info("\033[32m[EnergyPlugin]\033[0m Closing plugin")
+	log.Info("EnergyPlugin closing")
 
 	if globalMonitor != nil {
 		globalMonitor.Close()
@@ -150,11 +123,28 @@ func (p EnergyPlugin) Close() {
 
 	if db.GetInstance() != nil {
 		if err := db.GetInstance().Close(); err != nil {
-			log.Errorf("\033[31m[EnergyPlugin]\033[0m Error closing database: %v", err)
+			log.Errorf("Error closing database: %v", err)
 		}
 	}
 
-	log.Info("\033[32m[EnergyPlugin]\033[0m Plugin closed")
+	log.Info("EnergyPlugin closed")
+}
+
+func setupLogging(logPath string) error {
+	logDir := path.Dir(logPath)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	logFile, err := os.OpenFile(logPath,
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %w", err)
+	}
+
+	logrus.SetOutput(io.MultiWriter(os.Stdout, logFile))
+	log.Infof("Successfully set up logging to file %s", logPath)
+	return nil
 }
 
 func main() {

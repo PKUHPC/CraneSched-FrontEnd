@@ -3,9 +3,11 @@ package config
 import (
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
+
+var log = logrus.WithField("component", "Config")
 
 type Config struct {
 	Monitor MonitorConfig `mapstructure:"monitor"`
@@ -13,8 +15,9 @@ type Config struct {
 }
 
 type MonitorConfig struct {
-	SamplePeriod string   `mapstructure:"sample_period"`
+	SamplePeriod string   `mapstructure:"samplePeriod"`
 	Switches     Switches `mapstructure:"switches"`
+	LogPath      string   `mapstructure:"logPath"`
 }
 
 type Switches struct {
@@ -27,18 +30,17 @@ type Switches struct {
 
 type DBConfig struct {
 	Type      string          `mapstructure:"type"`
-	BatchSize int             `mapstructure:"batch_size"`
-	FlushTime string          `mapstructure:"flush_interval"`
+	BatchSize int             `mapstructure:"batchSize"`
+	FlushTime string          `mapstructure:"flushInterval"`
 	InfluxDB  *InfluxDBConfig `mapstructure:"influxdb"`
-	MongoDB   *MongoConfig    `mapstructure:"mongodb"`
 }
 
 type InfluxDBConfig struct {
 	URL        string `mapstructure:"url"`
 	Token      string `mapstructure:"token"`
 	Org        string `mapstructure:"org"`
-	NodeBucket string `mapstructure:"node_bucket"`
-	TaskBucket string `mapstructure:"task_bucket"`
+	NodeBucket string `mapstructure:"nodeBucket"`
+	TaskBucket string `mapstructure:"taskBucket"`
 }
 
 type MongoConfig struct {
@@ -48,8 +50,6 @@ type MongoConfig struct {
 
 func LoadConfig(path string) (*Config, error) {
 	v := viper.New()
-
-	setDefaultConfig(v)
 
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
@@ -68,23 +68,8 @@ func LoadConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
-func setDefaultConfig(v *viper.Viper) {
-	// Monitor defaults
-	v.SetDefault("monitor.sample_period", "1s")
-
-	v.SetDefault("monitor.switches.task", true)
-	v.SetDefault("monitor.switches.ipmi", true)
-	v.SetDefault("monitor.switches.gpu", true)
-	v.SetDefault("monitor.switches.rapl", true)
-	v.SetDefault("monitor.switches.system", true)
-
-	// DB defaults
-	v.SetDefault("db.type", "influxdb")
-	v.SetDefault("db.batch_size", 1)
-	v.SetDefault("db.flush_interval", "30s")
-}
-
 func validateConfig(cfg *Config) error {
+
 	if cfg.DB.BatchSize <= 0 {
 		return fmt.Errorf("batch size must be greater than 0")
 	}
@@ -111,40 +96,41 @@ func validateConfig(cfg *Config) error {
 }
 
 func PrintConfig(cfg *Config) {
-	log.Printf("\033[32m[EnergyPlugin] === Current Configuration Start ===\033[0m")
+	log.Infof("=== Current Configuration Start ===")
 
 	// Monitor
-	log.Printf("Monitor Configuration:")
-	log.Printf("  Sample Period: %v", cfg.Monitor.SamplePeriod)
+	log.Infof("Monitor Configuration:")
+	log.Infof("  Sample Period: %v", cfg.Monitor.SamplePeriod)
+	log.Infof("  Log Path: %v", cfg.Monitor.LogPath)
 
 	// Switches
-	log.Printf("  Switches:")
-	log.Printf("    Task: %v", cfg.Monitor.Switches.Task)
-	log.Printf("    IPMI: %v", cfg.Monitor.Switches.IPMI)
-	log.Printf("    GPU: %v", cfg.Monitor.Switches.GPU)
-	log.Printf("    RAPL: %v", cfg.Monitor.Switches.RAPL)
-	log.Printf("    System: %v", cfg.Monitor.Switches.System)
+	log.Infof("  Switches:")
+	log.Infof("    Task: %v", cfg.Monitor.Switches.Task)
+	log.Infof("    IPMI: %v", cfg.Monitor.Switches.IPMI)
+	log.Infof("    GPU: %v", cfg.Monitor.Switches.GPU)
+	log.Infof("    RAPL: %v", cfg.Monitor.Switches.RAPL)
+	log.Infof("    System: %v", cfg.Monitor.Switches.System)
 
 	// Database
-	log.Printf("Database Configuration:")
-	log.Printf("  Type: %s", cfg.DB.Type)
-	log.Printf("  Batch Size: %d", cfg.DB.BatchSize)
-	log.Printf("  Flush Time: %s", cfg.DB.FlushTime)
+	log.Infof("Database Configuration:")
+	log.Infof("  Type: %s", cfg.DB.Type)
+	log.Infof("  Batch Size: %d", cfg.DB.BatchSize)
+	log.Infof("  Flush Time: %s", cfg.DB.FlushTime)
 
 	switch cfg.DB.Type {
 	case "influxdb":
 		if cfg.DB.InfluxDB != nil {
-			log.Printf("  InfluxDB Settings:")
-			log.Printf("    URL: %s", cfg.DB.InfluxDB.URL)
-			log.Printf("    Organization: %s", cfg.DB.InfluxDB.Org)
-			log.Printf("    Node Bucket: %s", cfg.DB.InfluxDB.NodeBucket)
-			log.Printf("    Task Bucket: %s", cfg.DB.InfluxDB.TaskBucket)
+			log.Infof("  InfluxDB Settings:")
+			log.Infof("    URL: %s", cfg.DB.InfluxDB.URL)
+			log.Infof("    Organization: %s", cfg.DB.InfluxDB.Org)
+			log.Infof("    Node Bucket: %s", cfg.DB.InfluxDB.NodeBucket)
+			log.Infof("    Task Bucket: %s", cfg.DB.InfluxDB.TaskBucket)
 			if cfg.DB.InfluxDB.Token != "" {
 				tokenPreview := cfg.DB.InfluxDB.Token[:10] + "..."
-				log.Printf("    Token: %s", tokenPreview)
+				log.Infof("    Token: %s", tokenPreview)
 			}
 		}
 	}
 
-	log.Printf("\033[32m[EnergyPlugin] === Current Configuration End ===\033[0m")
+	log.Infof("=== Current Configuration End ===")
 }

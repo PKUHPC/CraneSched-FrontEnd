@@ -16,54 +16,52 @@ type NodeData struct {
 }
 
 type RAPLMetrics struct {
-	Package float64 // 采样间隔期间消耗的包能耗(J)， 包能耗为CPU能耗
-	Core    float64 // 采样间隔期间消耗的核心能耗(J)
-	Uncore  float64 // 采样间隔期间消耗的非核心能耗(J)
-	DRAM    float64 // 采样间隔期间消耗的内存能耗(J)
-	GT      float64 // 采样间隔期间消耗的集成显卡能耗(J)
+	Package float64 // unit: J
+	Core    float64 // unit: J
+	Uncore  float64 // unit: J
+	DRAM    float64 // unit: J
+	GT      float64 // unit: J
 }
 
 type IPMIMetrics struct {
-	Power    float64 // 采样间隔期间的总功率(W)
-	CPUPower float64 // 采样间隔期间CPU功率 (W)
-	FanPower float64 // 采样间隔期间风扇功率 (W)
-	HDDPower float64 // 采样间隔期间硬盘功率 (W)
+	Power    float64 // unit: W
+	CPUPower float64 // unit: W
+	FanPower float64 // unit: W
+	HDDPower float64 // unit: W
 
-	Energy    float64 // 采样间隔期间整机能耗(J)
-	CPUEnergy float64 // 采样间隔期间CPU能耗(J)
+	Energy    float64 // unit: J
+	CPUEnergy float64 // unit: J
 }
 
 type GPUMetrics struct {
-	Energy  float64
-	Power   float64
-	Util    float64
-	MemUtil float64
-	Temp    float64
+	Energy  float64 // unit: J
+	Power   float64 // unit: W
+	Util    float64 // GPU utilization(%)
+	MemUtil float64 // GPU VRAM utilization(%)
+	Temp    float64 // unit: ℃
 }
 
 type SystemLoadMetrics struct {
-	CPUUtil     float64 // CPU使用率(%)
-	CPULoad1    float64 // 1分钟平均负载
-	CPULoad5    float64 // 5分钟平均负载
-	CPULoad15   float64 // 15分钟平均负载
-	Frequencies float64 // CPU平均频率(MHz)
+	CPUUtil        float64 // CPU utilization(%)
+	CPULoad1       float64 // 1 minute load average
+	CPULoad5       float64 // 5 minute load average
+	CPULoad15      float64 // 15 minute load average
+	Frequencies    float64 // CPU average frequency(MHz)
+	CPUTemperature float64 // CPU temperature(℃)
 
-	MemoryUtil  float64 // 内存使用率(%)
-	MemoryUsed  float64 // 已用内存(GB)
-	MemoryTotal float64 // 总内存(GB)
+	MemoryUtil  float64 // memory utilization(%)
+	MemoryUsed  float64 // used memory(GB)
+	MemoryTotal float64 // total memory(GB)
 
-	DiskUtil float64 // 磁盘使用率(%)
-	DiskIO   float64 // 磁盘IO(MB/s)
+	DiskUtil float64 // disk utilization(%)
+	DiskIO   float64 // disk IO(MB/s)
 
-	NetworkIO float64 // 网络IO总量(MB/s)
-	NetworkRx float64 // 网络接收速率(MB/s)
-	NetworkTx float64 // 网络发送速率(MB/s)
-
-	Temperature float64 // 系统平均温度(℃)
-
-	Timestamp time.Time // 采集时间戳
+	NetworkIO float64 // network IO(MB/s)
+	NetworkRx float64 // network receive rate(MB/s)
+	NetworkTx float64 // network transmit rate(MB/s)
 }
 
+// Record the total energy consumption and average indicators after the task is completed.
 type TaskData struct {
 	TaskName  string
 	NodeID    string
@@ -73,54 +71,44 @@ type TaskData struct {
 	EndTime   time.Time
 	Duration  time.Duration
 
-	TotalEnergy float64 // 执行完任务累计总能耗(J)
-	CPUEnergy   float64 // 执行完任务累计CPU能耗(J)
-	GPUEnergy   float64 // 执行完任务累计GPU能耗(J)
-	// DRAMEnergy   float64 // 执行完任务累计内存能耗(J)
-	AveragePower float64 // 执行完任务平均功率(W)
+	TotalEnergy  float64 // unit: J
+	CPUEnergy    float64 // unit: J
+	GPUEnergy    float64 // unit: J
+	AveragePower float64 // unit: W
 
 	TaskStats TaskStats
 }
 
 type TaskStats struct {
-	CPUStats       CPUStats
-	GPUStats       GPUStats
-	MemoryStats    MemoryStats
-	IOStats        IOStats
-	DeviceAccesses []DeviceAccess
+	CPUStats    CPUStats
+	GPUStats    GPUStats
+	MemoryStats MemoryStats
+	IOStats     IOStats
 }
 
 type CPUStats struct {
-	UsageSeconds float64
-	Utilization  float64
+	UsageSeconds float64 // unit: s
+	Utilization  float64 // unit: %
 }
 
 type GPUStats struct {
-	Utilization float64
-	MemoryUtil  float64
+	Utilization float64 // unit: %
+	MemoryUtil  float64 // unit: %
 }
 
 type MemoryStats struct {
-	UsageMB     float64
-	Utilization float64
-}
-
-type DeviceAccess struct {
-	DeviceType rune // 'c' for char device, 'b' for block device
-	Major      int64
-	Minor      int64
-	Access     string // rwm (read/write/mknod)
-	DevPath    string // 设备路径
+	UsageMB     float64 // unit: MB
+	Utilization float64 // unit: %
 }
 
 type IOStats struct {
-	ReadMB    float64 // 总读取量(MB)
-	WriteMB   float64 // 总写入量(MB)
-	ReadMBPS  float64 // 读取速率(MB/s)
-	WriteMBPS float64 // 写入速率(MB/s)
+	ReadMB    float64 // unit: MB
+	WriteMB   float64 // unit: MB
+	ReadMBPS  float64 // unit: MB/s
+	WriteMBPS float64 // unit: MB/s
 
-	ReadOperations  uint64  // 读操作总次数
-	WriteOperations uint64  // 写操作总次数
-	ReadOpsPerSec   float64 // 读操作速率(IOPS)
-	WriteOpsPerSec  float64 // 写操作速率(IOPS)
+	ReadOperations  uint64  // read IO count
+	WriteOperations uint64  // write IO count
+	ReadOpsPerSec   float64 // read IO count/s
+	WriteOpsPerSec  float64 // write IO count/s
 }

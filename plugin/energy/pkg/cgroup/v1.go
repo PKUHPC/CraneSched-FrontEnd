@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -13,23 +14,47 @@ import (
 
 	"github.com/containerd/cgroups"
 	v1 "github.com/containerd/cgroups/stats/v1"
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
+
+var log = logrus.WithField("component", "CgroupV1")
 
 const (
 	MB        = 1024 * 1024
 	NS_TO_SEC = 1e9
 )
 
+// get the system clock frequency
+func getClockTicks() int64 {
+	cmd := exec.Command("getconf", "CLK_TCK")
+	out, err := cmd.Output()
+	if err != nil {
+		log.Warnf("Failed to get CLK_TCK: %v, using default value 100", err)
+		return 100
+	}
+
+	ticks, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	if err != nil {
+		log.Warnf("Failed to parse CLK_TCK: %v, using default value 100", err)
+		return 100
+	}
+
+	return ticks
+}
+
 type V1Reader struct {
 	control cgroups.Cgroup
 
-	startTime    time.Time // 任务开始时间
-	startCPUTime uint64    // 任务开始时的CPU时间
+	startTime    time.Time // task start time
+	startCPUTime uint64    // CPU time at task start
 	taskName     string
+
+	clockTicks int64
 }
+
+var _ CgroupReader = (*V1Reader)(nil)
 
 func NewV1Reader(taskName string) *V1Reader {
 	if taskName == "" {
@@ -43,19 +68,20 @@ func NewV1Reader(taskName string) *V1Reader {
 
 	startCPUTime, err := readTotalCPUTime()
 	if err != nil {
-		log.Warnf("\033[31m[CGroup]\033[0m Failed to read initial CPU time: %v", err)
+		log.Errorf("Failed to read initial CPU time: %v", err)
 	}
 
 	reader := V1Reader{
+		taskName:     taskName,
 		control:      control,
 		startCPUTime: startCPUTime,
 		startTime:    time.Now(),
-		taskName:     taskName,
+		clockTicks:   getClockTicks(),
 	}
 
-	log.Infof("\033[33m[CGroup]\033[0m Successfully loaded cgroup for task: %s", taskName)
+	log.Infof("Successfully loaded cgroup for task: %s", taskName)
 	for _, subsystem := range control.Subsystems() {
-		log.Infof("\033[33m[CGroup]\033[0m Subsystem: %s", subsystem.Name())
+		log.Infof("Subsystem: %s", subsystem.Name())
 	}
 
 	return &reader
@@ -63,39 +89,84 @@ func NewV1Reader(taskName string) *V1Reader {
 
 func (r *V1Reader) GetCgroupStats() types.TaskStats {
 	currentTime := time.Now()
-	usage := types.TaskStats{}
+	stats := types.TaskStats{}
 
 	v1Metrics, err := r.control.Stat(cgroups.IgnoreNotExist)
 	if err != nil {
-		log.Errorf("\033[31m[CGroup]\033[0m Failed to get cgroup stats: %v", err)
-		return usage
+		log.Errorf("Failed to get cgroup stats: %v", err)
+		return stats
 	}
 
 	if v1Metrics == nil {
-		log.Error("\033[31m[CGroup]\033[0m Metrics is nil")
-		return usage
+		log.Error("Metrics is nil")
+		return stats
 	}
 
 	duration := currentTime.Sub(r.startTime).Seconds()
 
 	cpuStats := r.calculateCPUStats(v1Metrics)
 	memoryStats := calculateMemoryStats(v1Metrics)
-	// 目前好像并未支持blkio控制器，所以IO统计数据为空
 	ioStats := calculateIOStats(v1Metrics, duration)
 
-	usage = types.TaskStats{
+	stats = types.TaskStats{
 		CPUStats:    cpuStats,
 		MemoryStats: memoryStats,
 		IOStats:     ioStats,
 	}
 
-	r.logTaskStats(usage)
-	return usage
+	r.logTaskStats(stats)
+	return stats
+}
+
+func (r *V1Reader) GetBoundGPUs() []int {
+	var boundGPUs []int
+
+	deviceListPath := filepath.Join("/sys/fs/cgroup/devices", r.taskName, "devices.list")
+	data, err := os.ReadFile(deviceListPath)
+	if err != nil {
+		log.Warnf("Failed to read devices.list from %s: %v", deviceListPath, err)
+		return boundGPUs
+	}
+
+	// check if there is permission to access all devices
+	if strings.Contains(string(data), "a *:* rwm") {
+		log.Infof("Task %s has access to all devices", r.taskName)
+		return getAllGPUs()
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) != 3 {
+			continue
+		}
+
+		// check if it is a character device and the major device number is 195 (NVIDIA GPU)
+		if fields[0] == "c" && strings.HasPrefix(fields[1], "195:") {
+			nums := strings.Split(fields[1], ":")
+			if len(nums) == 2 && nums[1] != "*" {
+				if minor, err := strconv.Atoi(nums[1]); err == nil {
+					// the minor device number of NVIDIA GPU is the GPU index
+					if minor < 128 { // exclude control devices (195:254, 195:255)
+						boundGPUs = append(boundGPUs, minor)
+					}
+				}
+			}
+		}
+	}
+
+	if len(boundGPUs) > 0 {
+		sort.Ints(boundGPUs)
+		boundGPUs = removeDuplicates(boundGPUs)
+		log.Infof("Task %s is bound to GPUs: %v", r.taskName, boundGPUs)
+	}
+
+	return boundGPUs
 }
 
 func (r *V1Reader) calculateCPUStats(v1Metrics *v1.Metrics) types.CPUStats {
 	if v1Metrics == nil || v1Metrics.CPU == nil {
-		log.Warn("\033[31m[CGroup]\033[0m CPU metrics not available")
+		log.Warn("CPU metrics not available")
 		return types.CPUStats{}
 	}
 
@@ -105,22 +176,25 @@ func (r *V1Reader) calculateCPUStats(v1Metrics *v1.Metrics) types.CPUStats {
 
 	currentCPUTime, err := readTotalCPUTime()
 	if err != nil {
-		log.Warnf("\033[31m[CGroup]\033[0m Failed to read current CPU time: %v", err)
+		log.Warnf("Failed to read current CPU time: %v", err)
 		return stats
 	}
 
 	if r.startCPUTime > 0 && currentCPUTime > r.startCPUTime {
 		systemCPUDiff := currentCPUTime - r.startCPUTime
-		taskCPUJiffies := v1Metrics.CPU.Usage.Total / 10000000 // 转换为jiffies
+
+		// convert nanoseconds to jiffies
+		nsPerJiffy := NS_TO_SEC / r.clockTicks
+		taskCPUJiffies := v1Metrics.CPU.Usage.Total / uint64(nsPerJiffy)
 
 		numCPUs := float64(len(v1Metrics.CPU.Usage.PerCPU))
 		if numCPUs == 0 {
 			numCPUs = 1
 		}
 
-		cpuUtil := (float64(taskCPUJiffies) / float64(systemCPUDiff)) * 100 / numCPUs
+		cpuUtil := (float64(taskCPUJiffies) / float64(systemCPUDiff)) * 100
 		if cpuUtil > 100 {
-			log.Warnf("\033[31m[CGroup]\033[0m CPU utilization exceeds 100%% (%.2f%%), capping at 100%%", cpuUtil)
+			log.Warnf("CPU utilization exceeds 100%% (%.2f%%), capping at 100%%", cpuUtil)
 			cpuUtil = 100
 		}
 		stats.Utilization = cpuUtil
@@ -131,7 +205,7 @@ func (r *V1Reader) calculateCPUStats(v1Metrics *v1.Metrics) types.CPUStats {
 
 func calculateMemoryStats(v1Metrics *v1.Metrics) types.MemoryStats {
 	if v1Metrics == nil || v1Metrics.Memory == nil {
-		log.Warn("\033[31m[CGroup]\033[0m Memory metrics not available")
+		log.Warn("Memory metrics not available")
 		return types.MemoryStats{}
 	}
 
@@ -143,7 +217,7 @@ func calculateMemoryStats(v1Metrics *v1.Metrics) types.MemoryStats {
 	if limit == 0 || limit == math.MaxUint64 {
 		var si syscall.Sysinfo_t
 		if err := syscall.Sysinfo(&si); err != nil {
-			log.Warnf("\033[31m[CGroup]\033[0m Failed to get system memory info: %v", err)
+			log.Warnf("Failed to get system memory info: %v", err)
 			return stats
 		}
 		limit = si.Totalram
@@ -152,7 +226,7 @@ func calculateMemoryStats(v1Metrics *v1.Metrics) types.MemoryStats {
 	if limit > 0 {
 		memUtil := (float64(v1Metrics.Memory.Usage.Usage) / float64(limit)) * 100
 		if memUtil > 100 {
-			log.Warnf("\033[31m[CGroup]\033[0m Memory utilization exceeds 100%% (%.2f%%), capping at 100%%", memUtil)
+			log.Warnf("Memory utilization exceeds 100%% (%.2f%%), capping at 100%%", memUtil)
 			memUtil = 100
 		}
 		stats.Utilization = memUtil
@@ -165,7 +239,7 @@ func calculateIOStats(v1Metrics *v1.Metrics, duration float64) types.IOStats {
 	var stats types.IOStats
 
 	if v1Metrics == nil || v1Metrics.Blkio == nil {
-		log.Warn("\033[31m[CGroup]\033[0m IO metrics not available")
+		log.Warn("IO metrics not available")
 		return stats
 	}
 
@@ -212,18 +286,18 @@ func calculateIOStats(v1Metrics *v1.Metrics, duration float64) types.IOStats {
 func readTotalCPUTime() (uint64, error) {
 	data, err := os.ReadFile("/proc/stat")
 	if err != nil {
-		return 0, fmt.Errorf("\033[31m[CGroup]\033[0m failed to read /proc/stat: %v", err)
+		return 0, fmt.Errorf("failed to read /proc/stat: %v", err)
 	}
 
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
 		if strings.HasPrefix(line, "cpu ") {
-			fields := strings.Fields(line)[1:] // 跳过"cpu"字段
+			fields := strings.Fields(line)[1:] // skip "cpu" field
 			var total uint64
 			for _, field := range fields {
 				val, err := strconv.ParseUint(field, 10, 64)
 				if err != nil {
-					return 0, fmt.Errorf("\033[31m[CGroup]\033[0m failed to parse CPU time: %v", err)
+					return 0, fmt.Errorf("failed to parse CPU time: %v", err)
 				}
 				total += val
 			}
@@ -231,53 +305,7 @@ func readTotalCPUTime() (uint64, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("\033[31m[CGroup]\033[0m CPU stats not found in /proc/stat")
-}
-
-func (r *V1Reader) GetBoundGPUs() []int {
-	var boundGPUs []int
-
-	deviceListPath := filepath.Join("/sys/fs/cgroup/devices", r.taskName, "devices.list")
-	data, err := os.ReadFile(deviceListPath)
-	if err != nil {
-		log.Warnf("\033[31m[CGroup]\033[0m Failed to read devices.list from %s: %v", deviceListPath, err)
-		return boundGPUs
-	}
-
-	// 检查是否有访问所有设备的权限
-	if strings.Contains(string(data), "a *:* rwm") {
-		log.Infof("\033[33m[CGroup]\033[0m Task %s has access to all devices", r.taskName)
-		return getAllGPUs()
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) != 3 {
-			continue
-		}
-
-		// 检查是否是字符设备且主设备号为 195（NVIDIA GPU）
-		if fields[0] == "c" && strings.HasPrefix(fields[1], "195:") {
-			nums := strings.Split(fields[1], ":")
-			if len(nums) == 2 && nums[1] != "*" {
-				if minor, err := strconv.Atoi(nums[1]); err == nil {
-					// NVIDIA GPU 的次设备号就是 GPU 索引
-					if minor < 128 { // 排除控制设备（195:254, 195:255）
-						boundGPUs = append(boundGPUs, minor)
-					}
-				}
-			}
-		}
-	}
-
-	if len(boundGPUs) > 0 {
-		sort.Ints(boundGPUs)
-		boundGPUs = removeDuplicates(boundGPUs)
-		log.Infof("\033[33m[CGroup]\033[0m Task %s is bound to GPUs: %v", r.taskName, boundGPUs)
-	}
-
-	return boundGPUs
+	return 0, fmt.Errorf("CPU stats not found in /proc/stat")
 }
 
 func getAllGPUs() []int {
@@ -297,7 +325,7 @@ func getAllGPUs() []int {
 
 	sort.Ints(gpus)
 
-	log.Infof("\033[33m[CGroup]\033[0m System has GPUs: %v", gpus)
+	log.Infof("System has GPUs: %v", gpus)
 	return gpus
 }
 
@@ -314,8 +342,8 @@ func removeDuplicates(indices []int) []int {
 }
 
 func (r *V1Reader) logTaskStats(usage types.TaskStats) {
-	log.Infof("\033[33m[CGroup]\033[0m %s Cgroup Metrics:", r.taskName)
-	log.Infof("\033[33m[CGroup]\033[0m CPU Usage: %.2f s, CPU Utilization: %.2f%%", usage.CPUStats.UsageSeconds, usage.CPUStats.Utilization)
-	log.Infof("\033[33m[CGroup]\033[0m Memory Usage: %.2f MB, Memory Utilization: %.2f%%", usage.MemoryStats.UsageMB, usage.MemoryStats.Utilization)
-	log.Infof("\033[33m[CGroup]\033[0m IO Read: %.2f MB, IO Write: %.2f MB, IO Read Speed: %.2f MB/s, IO Write Speed: %.2f MB/s, IO Read Operations: %.2f IOPS, IO Write Operations: %.2f IOPS", usage.IOStats.ReadMB, usage.IOStats.WriteMB, usage.IOStats.ReadMBPS, usage.IOStats.WriteMBPS, usage.IOStats.ReadOpsPerSec, usage.IOStats.WriteOpsPerSec)
+	log.Infof("%s Cgroup Metrics:", r.taskName)
+	log.Infof("CPU Usage: %.2f s, CPU Utilization: %.2f%%", usage.CPUStats.UsageSeconds, usage.CPUStats.Utilization)
+	log.Infof("Memory Usage: %.2f MB, Memory Utilization: %.2f%%", usage.MemoryStats.UsageMB, usage.MemoryStats.Utilization)
+	log.Infof("IO Read: %.2f MB, IO Write: %.2f MB, IO Read Speed: %.2f MB/s, IO Write Speed: %.2f MB/s, IO Read Operations: %.2f IOPS, IO Write Operations: %.2f IOPS", usage.IOStats.ReadMB, usage.IOStats.WriteMB, usage.IOStats.ReadMBPS, usage.IOStats.WriteMBPS, usage.IOStats.ReadOpsPerSec, usage.IOStats.WriteOpsPerSec)
 }

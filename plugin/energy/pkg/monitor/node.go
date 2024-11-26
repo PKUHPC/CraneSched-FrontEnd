@@ -3,8 +3,6 @@ package monitor
 import (
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"CraneFrontEnd/plugin/energy/pkg/config"
 	"CraneFrontEnd/plugin/energy/pkg/db"
 	"CraneFrontEnd/plugin/energy/pkg/gpu"
@@ -34,7 +32,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 	ticker := time.NewTicker(r.samplePeriod)
 	defer ticker.Stop()
 
-	metricsCollector := func() (*types.NodeData, error) {
+	metricsCollector := func() *types.NodeData {
 		data := &types.NodeData{
 			Timestamp: time.Now(),
 		}
@@ -63,22 +61,29 @@ func (r *NodeMonitor) collectNodeEnergy() {
 			}
 		}
 
-		r.raplReader.LogMetrics(&data.RAPL)
-		r.ipmiReader.LogMetrics(&data.IPMI)
-		r.gpuReader.LogMetrics(&data.GPU)
-		r.sysLoadReader.LogMetrics(&data.SystemLoad)
+		if r.raplReader != nil {
+			r.raplReader.LogMetrics(&data.RAPL)
+		}
+		if r.ipmiReader != nil {
+			r.ipmiReader.LogMetrics(&data.IPMI)
+		}
+		if r.gpuReader != nil {
+			r.gpuReader.LogMetrics(&data.GPU)
+		}
+		if r.sysLoadReader != nil {
+			r.sysLoadReader.LogMetrics(&data.SystemLoad)
+		}
 
-		return data, nil
+		return data
 	}
 
 	for {
 		select {
 		case <-ticker.C:
-			if data, err := metricsCollector(); err == nil {
-				r.broadcastNodeData(data)
-				if err := db.GetInstance().SaveNodeEnergy(data); err != nil {
-					log.Errorf("\033[31m[Node Monitor]\033[0m Error saving node energy data: %v", err)
-				}
+			data := metricsCollector()
+			r.broadcastNodeData(data)
+			if err := db.GetInstance().SaveNodeEnergy(data); err != nil {
+				log.Errorf("Error saving node energy data: %v", err)
 			}
 		case <-r.stopCh:
 			return
@@ -94,7 +99,7 @@ func (r *NodeMonitor) broadcastNodeData(data *types.NodeData) {
 				select {
 				case sub.Ch <- data:
 				default:
-					log.Infof("\033[31m[Node Monitor]\033[0m Warning: task %v channel full, skipping data", key)
+					log.Warnf("task %v channel full, skipping data", key)
 				}
 			}
 		}
@@ -105,19 +110,19 @@ func (r *NodeMonitor) broadcastNodeData(data *types.NodeData) {
 func (r *NodeMonitor) Close() {
 	if r.raplReader != nil {
 		if err := r.raplReader.Close(); err != nil {
-			log.Errorf("\033[31m[Node Monitor]\033[0m error closing RAPL reader: %v", err)
+			log.Errorf("error closing RAPL reader: %v", err)
 		}
 	}
 
 	if r.ipmiReader != nil {
 		if err := r.ipmiReader.Close(); err != nil {
-			log.Errorf("\033[31m[Node Monitor]\033[0m error closing IPMI reader: %v", err)
+			log.Errorf("error closing IPMI reader: %v", err)
 		}
 	}
 
 	if r.gpuReader != nil {
 		if err := r.gpuReader.Close(); err != nil {
-			log.Errorf("\033[31m[Node Monitor]\033[0m error closing GPU reader: %v", err)
+			log.Errorf("error closing GPU reader: %v", err)
 		}
 	}
 

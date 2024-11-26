@@ -1,20 +1,20 @@
 monitor:
-  sample_period: 1s
+  samplePeriod: 5s 
+  logPath: "/var/log/crane/energy.log"
   switches:
-    task: true
+    task: true 
     ipmi: true
-    gpu: true
-    rapl: true
-    system: true
+    gpu: true 
+    rapl: true 
+    system: true 
 
 db:
-  type: "influxdb"          # 数据库类型：influxdb
-  batch_size: 1              # 通用批量写入大小
-  flush_interval: "30s"      # 通用定期刷新间隔
-
+  type: "influxdb"          
+  batchSize: 10              
+  flushInterval: "30s"     
   influxdb:
     url: "http://localhost:8086"
     token: "1a46-kXWb29mJJh7o0A0CFegjGf_-tE30cRdbuT2jqLgBj-iHL8rGRmX3XCuZy0z-foKNBf5buvxZc7tPQ5vmA=="
     org: "pku"
-    node_bucket: "energy_node"
-    task_bucket: "energy_task"
+    nodeBucket: "energy_node"
+    taskBucket: "energy_task"
