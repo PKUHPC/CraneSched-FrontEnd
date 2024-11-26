@@ -99,6 +99,7 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	var reply *protos.StreamCforedCrunReply
 
 	var execCranedIds []string
+	var crunPty bool
 	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
@@ -162,7 +163,9 @@ CforedCrunStateMachineLoop:
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
 				task := crunRequest.GetPayloadTaskReq().Task
-				task.GetInteractiveMeta().CforedName = gVars.hostName
+				interactiveMeta := task.GetInteractiveMeta()
+				interactiveMeta.CforedName = gVars.hostName
+				crunPty = interactiveMeta.Pty
 				cforedRequest := &protos.StreamCforedRequest{
 					Type: protos.StreamCforedRequest_TASK_REQUEST,
 					Payload: &protos.StreamCforedRequest_PayloadTaskReq{
@@ -280,7 +283,12 @@ CforedCrunStateMachineLoop:
 					}
 
 					// TODO: Difference
-					execCranedIds = ctldPayload.GetCranedIds()
+					if crunPty {
+						// For crun with pty, only execute on first node
+						execCranedIds = []string{ctldPayload.GetCranedIds()[0]}
+					} else {
+						execCranedIds = ctldPayload.GetCranedIds()
+					}
 
 					if err := toCrunStream.Send(reply); err != nil {
 						log.Debug("[Cfored<->Crun] Connection to crun was broken.")

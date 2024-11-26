@@ -81,6 +81,7 @@ func (keeper *CranedChannelKeeper) cranedDownAndRemoveChannelToCraned(cranedId s
 }
 
 func (keeper *CranedChannelKeeper) waitCranedChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool, taskId uint32) {
+	log.Tracef("[Cfored<->Crun] Waiting for %d related craned up", len(cranedIds))
 	keeper.crunRequestChannelMtx.Lock()
 	defer keeper.crunRequestChannelMtx.Unlock()
 	for !stopWaiting.Load() {

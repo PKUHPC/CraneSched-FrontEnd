@@ -684,10 +684,6 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-	if FlagPty && FlagNodes > 1 {
-		log.Error("Not allowed to run in pty for node more than one")
-		return util.ErrorCmdArg
-	}
 	util.SetPropagatedEnviron(task)
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
