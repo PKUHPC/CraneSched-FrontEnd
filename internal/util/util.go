@@ -49,7 +49,7 @@ const (
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
 
-	MaxJobNameLength               = 31
+	MaxJobNameLength               = 50
 	MaxJobFileNameLength           = 127
 	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength
 	MaxJobFilePathLengthForUnix    = 4096 - MaxJobFileNameLength
