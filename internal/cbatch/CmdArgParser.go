@@ -21,6 +21,7 @@ package cbatch
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"errors"
 	"os"
 	"strings"
 
@@ -48,6 +49,8 @@ var (
 	FlagStdoutPath    string
 	FlagStderrPath    string
 
+	FlagWrappedScript string
+
 	FlagExtraAttr string
 	FlagMailType  string
 	FlagMailUser  string
@@ -59,7 +62,16 @@ var (
 		Use:     "cbatch [flags] file",
 		Short:   "Submit batch job",
 		Version: util.Version(),
-		Args:    cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("wrap") {
+				if len(args) != 0 {
+					return errors.New("--wrap is exclusive with file name argument")
+				}
+			} else if len(args) != 1 {
+				return errors.New("invalid number of arguments")
+			}
+			return nil
+		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},
@@ -69,18 +81,25 @@ var (
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			pArgs := make([]CbatchArg, 0)
-			pSh := make([]string, 0)
-			if err := ParseCbatchScript(args[0], &pArgs, &pSh); err != util.ErrorSuccess {
-				os.Exit(err)
+			cbatchArgs := make([]CbatchArg, 0)
+			shScript := ""
+
+			if FlagWrappedScript == "" {
+				shLines := make([]string, 0)
+				if err := ParseCbatchScript(args[0], &cbatchArgs, &shLines); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+				shScript = strings.Join(shLines, "\n")
+			} else {
+				shScript = FlagWrappedScript
 			}
 
-			ok, task := ProcessCbatchArgs(cmd, pArgs)
+			ok, task := ProcessCbatchArgs(cmd, cbatchArgs)
 			if !ok {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			task.GetBatchMeta().ShScript = strings.Join(pSh, "\n")
+			task.GetBatchMeta().ShScript = shScript
 			task.Uid = uint32(os.Getuid())
 			task.CmdLine = strings.Join(os.Args, " ")
 
@@ -92,7 +111,7 @@ var (
 				task.Cwd, _ = os.Getwd()
 			}
 
-			var err int
+			var err util.CraneCmdError
 			if FlagRepeat == 1 {
 				err = SendRequest(task)
 			} else {
@@ -131,6 +150,7 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "Redirection path of standard output of the script")
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
+	RootCmd.Flags().StringVar(&FlagWrappedScript, "wrap", "", "Wrap command string in a sh script and submit")
 	RootCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
