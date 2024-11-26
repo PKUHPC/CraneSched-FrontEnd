@@ -240,9 +240,11 @@ CrunStateMachineLoop:
 
 			case sig := <-sigs:
 				if sig == syscall.SIGINT {
-					log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskRes")
+					log.Tracef("SIGINT Received. Cancelling the task...")
+					state = TaskKilling
 				} else {
 					log.Tracef("Unhandled sig %s", sig.String())
+					state = TaskKilling
 				}
 			}
 
