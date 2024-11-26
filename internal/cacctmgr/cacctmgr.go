@@ -762,7 +762,7 @@ func FindAccount(name string) util.CraneCmdError {
 		PrintAccountTable(reply.AccountList)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(reply.Reason)
+		fmt.Println(util.ErrMsg(reply.Reason))
 		return util.ErrorBackend
 	}
 }
@@ -787,7 +787,7 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 		fmt.Printf("Block %s succeeded.\n", name)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(reply.Reason)
+		fmt.Println(util.ErrMsg(reply.Reason))
 		return util.ErrorBackend
 	}
 }
@@ -812,7 +812,7 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 		fmt.Printf("Unblock %s succeeded.\n", name)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(reply.Reason)
+		fmt.Println(util.ErrMsg(reply.Reason))
 		return util.ErrorBackend
 	}
 }
