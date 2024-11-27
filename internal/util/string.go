@@ -126,28 +126,28 @@ func ParseInterval(interval string, intervalpb *protos.TimeInterval) (err error)
 }
 
 func ParseDuration(time string, duration *durationpb.Duration) bool {
-	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
-	result := re.FindAllStringSubmatch(time, -1)
-	if result == nil || len(result) != 1 {
+	re := regexp.MustCompile(`^((\d+)-)?(\d+):(\d+):(\d+)$`)
+	result := re.FindStringSubmatch(time)
+	if result == nil {
 		return false
 	}
 	var dd uint64 = 0
-	if result[0][1] != "" {
-		day, err := strconv.ParseUint(result[0][2], 10, 32)
+	if result[1] != "" {
+		day, err := strconv.ParseUint(result[2], 10, 32)
 		if err != nil {
 			return false
 		}
 		dd = day
 	}
-	hh, err := strconv.ParseUint(result[0][3], 10, 32)
+	hh, err := strconv.ParseUint(result[3], 10, 32)
 	if err != nil {
 		return false
 	}
-	mm, err := strconv.ParseUint(result[0][4], 10, 32)
+	mm, err := strconv.ParseUint(result[4], 10, 32)
 	if err != nil {
 		return false
 	}
-	ss, err := strconv.ParseUint(result[0][5], 10, 32)
+	ss, err := strconv.ParseUint(result[5], 10, 32)
 	if err != nil {
 		return false
 	}
@@ -157,24 +157,26 @@ func ParseDuration(time string, duration *durationpb.Duration) bool {
 }
 
 func ParseTime(ts string) (time.Time, error) {
-	if ts[:3] == "now" {
-		if len(ts) == 3 {
-			return time.Now(), nil
+	if strings.HasPrefix(ts, "now") {
+		t := time.Time{}
+		if ts == "now" {
+			t = time.Now()
 		} else if ts[3] == '+' {
 			durationShift := durationpb.New(time.Duration(0))
 			if !ParseDuration(ts[4:], durationShift) {
-				return time.Time{}, fmt.Errorf("duration {%s} is invalid", ts[4:])
+				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
 			}
-			return time.Now().Add(durationShift.AsDuration()), nil
+			t = time.Now().Add(durationShift.AsDuration())
 		} else if ts[3] == '-' {
 			durationShift := durationpb.New(time.Duration(0))
 			if !ParseDuration(ts[4:], durationShift) {
-				return time.Time{}, fmt.Errorf("duration {%s} is invalid", ts[4:])
+				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
 			}
-			return time.Now().Add(-durationShift.AsDuration()), nil
+			t = time.Now().Add(-durationShift.AsDuration())
 		} else {
-			return time.Time{}, fmt.Errorf("invalid time format")
+			return t, fmt.Errorf("invalid time format")
 		}
+		return t.Round(0), nil
 	}
 
 	// Use regex to check if HH:MM:SS exists
