@@ -256,19 +256,19 @@ func CalculateTotalUsagePtr(records []*ResourceUsageRecord, targetJobID int64) (
 	return totalCPUUseS, totalMemoryMb
 }
 
-func calculateRunTime(taskInfo *protos.TaskInfo) (uint64, string) {
+func calculateRunTime(taskInfo *protos.TaskInfo, cPUTotal float64) (uint64, string) {
 	if taskInfo.Status == protos.TaskStatus_Running {
 		duration := taskInfo.ElapsedTime.AsDuration()
-		return uint64(duration.Seconds()), formatDuration(duration)
+		return uint64(duration.Seconds() * cPUTotal), formatDuration(duration * time.Duration(cPUTotal))
 	}
 	start := taskInfo.StartTime.AsTime()
 	end := taskInfo.EndTime.AsTime()
 	if end.Before(start) {
-		log.Warn("Invalid time range: end is before start")
+		log.Warnf("Invalid time range: end (%v) is before start (%v)", end, start)
 		return 0, "0-0:0:0"
 	}
 	duration := end.Sub(start)
-	return uint64(duration.Seconds()), formatDuration(duration)
+	return uint64(duration.Seconds() * cPUTotal), formatDuration(duration * time.Duration(cPUTotal))
 }
 
 func formatDuration(duration time.Duration) string {
@@ -315,9 +315,9 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	fmt.Printf(
 		"JobId: %v\n"+
-			"Qos: %v\n"+
-			"User/Group: %s(%d)/%s(%d)\n"+
-			"Account: %v\n",
+		"Qos: %v\n"+
+		"User/Group: %s(%d)/%s(%d)\n"+
+		"Account: %v\n",
 		taskInfo.TaskId, taskInfo.Qos, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 		taskInfo.Account)
 
@@ -333,7 +333,7 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	} else {
 		fmt.Printf(
 			"Nodes: %v\n"+
-				"Cores per node: %.2f\n",
+			"Cores per node: %.2f\n",
 			taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit)
 	}
 
@@ -343,7 +343,7 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	}
 
 	// Calculate running time
-	runTime, runTimeStr := calculateRunTime(taskInfo)
+	runTime, runTimeStr := calculateRunTime(taskInfo, cpuTotal)
 
 	// Filter task records
 	totalCPUUseS, totalMemoryMb := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
@@ -367,10 +367,10 @@ func printTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	// Print job information
 	fmt.Printf(
 		"CPU Utilized: %s\n"+
-			"CPU Efficiency: %.2f%% of %s core-walltime\n"+
-			"Job Wall-clock time: %s\n"+
-			"Memory Utilized: %.2f MB (estimated maximum)\n"+
-			"Memory Efficiency: %.2f%% of %.2f MB (%.2f MB/node)\n",
+		"CPU Efficiency: %.2f%% of %s core-walltime\n"+
+		"Job Wall-clock time: %s\n"+
+		"Memory Utilized: %.2f MB (estimated maximum)\n"+
+		"Memory Efficiency: %.2f%% of %.2f MB (%.2f MB/node)\n",
 		cPUUtilizedStr, cPUEfficiency, runTimeStr, runTimeStr, totalMemoryMb,
 		memEfficiency, totalMallocMemoryMb, mallocMemoryMbNodes)
 
