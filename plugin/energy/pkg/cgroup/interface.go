@@ -7,8 +7,8 @@ import (
 )
 
 type CgroupReader interface {
-	GetCgroupStats() types.TaskStats
-	GetBoundGPUs() []int
+	GetCgroupStats() types.CgroupStats
+	GetBoundGPUs(gpuType string) []int
 }
 
 type Version int
@@ -18,12 +18,12 @@ const (
 	V2
 )
 
-func NewCgroupReader(version Version, taskName string) (CgroupReader, error) {
+func NewCgroupReader(version Version, cgroupName string) (CgroupReader, error) {
 	switch version {
 	case V1:
-		reader := NewV1Reader(taskName)
+		reader := NewV1Reader(cgroupName)
 		if reader == nil {
-			return nil, fmt.Errorf("failed to create v1 reader for task: %s", taskName)
+			return nil, fmt.Errorf("failed to create v1 reader for cgroup: %s", cgroupName)
 		}
 		return reader, nil
 	case V2:

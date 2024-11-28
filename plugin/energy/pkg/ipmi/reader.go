@@ -70,7 +70,7 @@ func NewIPMIReader() *IPMIReader {
 	i, err := ipmi.Open(0)
 	if err != nil {
 		log.Warnf("Failed to open IPMI device: %v", err)
-		return reader
+		return nil
 	}
 
 	reader.ipmi = i

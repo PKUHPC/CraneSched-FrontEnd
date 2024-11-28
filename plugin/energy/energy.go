@@ -85,17 +85,26 @@ func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {}
 
 func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {}
 
-func (p EnergyPlugin) JobMonitorHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
+func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)
 	if !ok {
-		log.Error("Invalid request type, expected JobMonitorHookRequest")
+		log.Error("Invalid request type, expected CreateCgroupHookRequest")
 		return
 	}
 
-	log.Infof("Starting task monitor for task: %d, cgroup: %s",
-		req.TaskId, req.Cgroup)
-
+	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup)
+}
+
+func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.DestroyCgroupHookRequest)
+	if !ok {
+		log.Error("Invalid request type, expected DestroyCgroupHookRequest")
+		return
+	}
+
+	log.Infof("DestroyCgroupHook received for cgroup: %s", req.Cgroup)
+	globalMonitor.TaskMonitor.Stop(req.TaskId)
 }
 
 func (p EnergyPlugin) ensureInitialized() error {

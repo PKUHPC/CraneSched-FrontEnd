@@ -63,9 +63,8 @@ type SystemLoadMetrics struct {
 
 // Record the total energy consumption and average indicators after the task is completed.
 type TaskData struct {
-	TaskName  string
-	NodeID    string
-	ClusterID string
+	TaskID uint32
+	NodeID string
 
 	StartTime time.Time
 	EndTime   time.Time
@@ -76,10 +75,10 @@ type TaskData struct {
 	GPUEnergy    float64 // unit: J
 	AveragePower float64 // unit: W
 
-	TaskStats TaskStats
+	CgroupStats CgroupStats
 }
 
-type TaskStats struct {
+type CgroupStats struct {
 	CPUStats    CPUStats
 	GPUStats    GPUStats
 	MemoryStats MemoryStats

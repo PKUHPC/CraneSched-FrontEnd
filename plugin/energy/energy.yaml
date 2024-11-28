@@ -1,9 +1,10 @@
 monitor:
   samplePeriod: 5s 
   logPath: "/var/log/crane/energy.log"
-  switches:
+  gpuType: "nvidia"
+  enabled:
     task: true 
-    ipmi: true
+    ipmi: true  
     gpu: true 
     rapl: true 
     system: true 
@@ -14,7 +15,7 @@ db:
   flushInterval: "30s"     
   influxdb:
     url: "http://localhost:8086"
-    token: "1a46-kXWb29mJJh7o0A0CFegjGf_-tE30cRdbuT2jqLgBj-iHL8rGRmX3XCuZy0z-foKNBf5buvxZc7tPQ5vmA=="
+    token: "9NGg-1vx4Y4LSxDdJ-oJfkbef73_h7ZN3PmrRriJwWJuo0XKVA6Mj7I9n4AOvIKEU4GoLT4sR_v4jZmX9Jvl1Q=="
     org: "pku"
     nodeBucket: "energy_node"
     taskBucket: "energy_task"

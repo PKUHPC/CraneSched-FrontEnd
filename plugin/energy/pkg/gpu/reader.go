@@ -2,6 +2,7 @@ package gpu
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	logrus "github.com/sirupsen/logrus"
@@ -11,12 +12,13 @@ import (
 
 var log = logrus.WithField("component", "GPU")
 
-type GPUReader struct {
-	hasGPU      bool
-	nvmlInited  bool
-	deviceCount int
-	devices     []*deviceState
-}
+type GPUType string
+
+const (
+	NVIDIA GPUType = "nvidia"
+	AMD    GPUType = "amd"
+	ASCEND GPUType = "ascend"
+)
 
 type deviceState struct {
 	index     int
@@ -24,45 +26,67 @@ type deviceState struct {
 	lastTime  time.Time
 }
 
-func NewGPUReader() *GPUReader {
-	reader := &GPUReader{}
+type Reader struct {
+	hasGPU      bool
+	manager     GPUManager
+	deviceCount int
+	devices     []*deviceState
+}
+
+func NewGPUReader(gpuType string) *Reader {
+	var manager GPUManager
+
+	switch GPUType(strings.ToLower(gpuType)) {
+	case NVIDIA:
+		manager = &NVMLManager{}
+		if !withNVML {
+			log.Info("Using NVIDIA GPU without NVML")
+		} else {
+			log.Info("Using NVIDIA GPU with NVML")
+		}
+	default:
+		log.Warnf("Unsupported GPU type: %s, falling back to nvidia", gpuType)
+		manager = &NVMLManager{}
+	}
+
+	reader := &Reader{
+		manager: manager,
+	}
+
 	if err := reader.init(); err != nil {
 		log.WithError(err).Info("Init failed, will run in no GPU mode")
 	}
+
 	return reader
 }
 
-func (r *GPUReader) init() error {
-	if err := nvmlInit(); err != nil {
-		return fmt.Errorf("NVML init failed: %v", err)
+func (r *Reader) init() error {
+	if err := r.manager.Init(); err != nil {
+		return fmt.Errorf("GPU manager init failed: %v", err)
 	}
-	r.nvmlInited = true
 
-	count, err := nvmlDeviceGetCount()
+	count, err := r.manager.GetDeviceCount()
 	if err != nil {
-		r.cleanup()
+		r.Close()
 		return fmt.Errorf("failed to get GPU count: %v", err)
 	}
 
 	if count > 0 {
 		r.hasGPU = true
 		r.deviceCount = count
-		r.initDeviceStates(count)
-		log.Infof("detected %d NVIDIA GPUs", count)
+		r.devices = make([]*deviceState, count)
+		for i := 0; i < count; i++ {
+			r.devices[i] = &deviceState{index: i}
+		}
+
+		log.Infof("detected %d GPUs", count)
 	}
 	return nil
 }
 
-func (r *GPUReader) initDeviceStates(count int) {
-	r.devices = make([]*deviceState, count)
-	for i := 0; i < count; i++ {
-		r.devices[i] = &deviceState{index: i}
-	}
-}
-
-func (r *GPUReader) GetMetrics() (*types.GPUMetrics, error) {
-	if !r.hasGPU || !r.nvmlInited {
-		return &types.GPUMetrics{}, nil
+func (r *Reader) GetMetrics() (*types.GPUMetrics, error) {
+	if !r.hasGPU {
+		return &types.GPUMetrics{}, fmt.Errorf("no GPU available")
 	}
 
 	metrics := &types.GPUMetrics{}
@@ -92,12 +116,12 @@ func (r *GPUReader) GetMetrics() (*types.GPUMetrics, error) {
 	return metrics, nil
 }
 
-func (r *GPUReader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
+func (r *Reader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
 	metrics := &types.GPUMetrics{}
 
-	device, err := nvmlDeviceGetHandleByIndex(index)
+	device, err := r.manager.GetDevice(index)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get device handle: %v", err)
+		return nil, fmt.Errorf("failed to get device: %v", err)
 	}
 
 	power, err := device.GetPowerUsage()
@@ -132,40 +156,22 @@ func (r *GPUReader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
 	return metrics, nil
 }
 
-func (r *GPUReader) LogMetrics(metrics *types.GPUMetrics) {
-	log.Infof("GPU Metrics: power=%.2f W, energy=%.2f J, util=%.2f%%", metrics.Power, metrics.Energy, metrics.Util)
-	log.Infof("GPU Metrics: mem_util=%.2f%%, temp=%.1f°C", metrics.MemUtil, metrics.Temp)
-}
-
-func (r *GPUReader) Close() error {
-	return r.cleanup()
-}
-
-func (r *GPUReader) cleanup() error {
-	if r.nvmlInited {
-		if err := nvmlShutdown(); err != nil {
-			return fmt.Errorf("failed to shutdown NVML: %v", err)
-		}
-		r.nvmlInited = false
-	}
-	return nil
-}
-
-func (r *GPUReader) GetDeviceCount() int {
-	return r.deviceCount
-}
-
-func (r *GPUReader) HasGPU() bool {
-	return r.hasGPU && r.nvmlInited
-}
-
-func (r *GPUReader) GetGpuStats(indices []int) types.GPUMetrics {
-	if !r.hasGPU || !r.nvmlInited {
-		return types.GPUMetrics{}
+func (r *Reader) GetBoundGpuMetrics(indices []int) *types.GPUMetrics {
+	if !r.hasGPU {
+		return &types.GPUMetrics{}
 	}
 
-	metrics := types.GPUMetrics{}
+	metrics := &types.GPUMetrics{}
 	activeDevices := 0
+
+	if len(indices) == 1 && indices[0] == -1 {
+		metrics, err := r.GetMetrics()
+		if err != nil {
+			log.Errorf("Failed to get all GPU metrics: %v", err)
+			return nil
+		}
+		return metrics
+	}
 
 	for _, idx := range indices {
 		if idx < 0 || idx >= r.deviceCount {
@@ -194,4 +200,22 @@ func (r *GPUReader) GetGpuStats(indices []int) types.GPUMetrics {
 	}
 
 	return metrics
+}
+
+func (r *Reader) GetDeviceCount() int {
+	return r.deviceCount
+}
+
+func (r *Reader) LogMetrics(metrics *types.GPUMetrics) {
+	log.Infof("GPU Metrics: power=%.2f W, energy=%.2f J, util=%.2f%%", metrics.Power, metrics.Energy, metrics.Util)
+	log.Infof("GPU Metrics: mem_util=%.2f%%, temp=%.1f°C", metrics.MemUtil, metrics.Temp)
+}
+
+func (r *Reader) Close() error {
+	if r.hasGPU {
+		if err := r.manager.Close(); err != nil {
+			return fmt.Errorf("failed to cleanup GPU manager: %v", err)
+		}
+	}
+	return nil
 }

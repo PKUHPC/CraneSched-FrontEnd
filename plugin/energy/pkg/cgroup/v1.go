@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,49 +19,69 @@ import (
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
 
+/*
+#include <unistd.h>
+*/
+import "C"
+
 var log = logrus.WithField("component", "CgroupV1")
 
 const (
-	MB        = 1024 * 1024
-	NS_TO_SEC = 1e9
+	MB              = 1024 * 1024
+	NS_TO_SEC       = 1e9
+	allowAllDevices = "a *:* rwm"
 )
 
-// get the system clock frequency
+var gpuDeviceInfos = map[string]struct {
+	majorNumber      string
+	deviceRegex      string
+	controlDeviceMin int
+	pattern          *regexp.Regexp
+}{
+	"nvidia": {
+		majorNumber:      "195",
+		deviceRegex:      `^c\s+195:(\d+)\s+rwm$`,
+		controlDeviceMin: 128,
+	}}
+
+func init() {
+	for gpuType, info := range gpuDeviceInfos {
+		pattern, err := regexp.Compile(info.deviceRegex)
+		if err != nil {
+			log.Errorf("Failed to compile regex for %s: %v", gpuType, err)
+			continue
+		}
+		info.pattern = pattern
+		gpuDeviceInfos[gpuType] = info
+	}
+}
+
 func getClockTicks() int64 {
-	cmd := exec.Command("getconf", "CLK_TCK")
-	out, err := cmd.Output()
-	if err != nil {
-		log.Warnf("Failed to get CLK_TCK: %v, using default value 100", err)
+	ticks := C.sysconf(C._SC_CLK_TCK)
+	if ticks == -1 {
+		log.Warnf("Failed to get CLK_TCK, using default value 100")
 		return 100
 	}
-
-	ticks, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
-	if err != nil {
-		log.Warnf("Failed to parse CLK_TCK: %v, using default value 100", err)
-		return 100
-	}
-
-	return ticks
+	return int64(ticks)
 }
 
 type V1Reader struct {
-	control cgroups.Cgroup
-
-	startTime    time.Time // task start time
-	startCPUTime uint64    // CPU time at task start
-	taskName     string
+	cgroupName   string
+	control      cgroups.Cgroup
+	startTime    time.Time
+	startCPUTime uint64
 
 	clockTicks int64
 }
 
 var _ CgroupReader = (*V1Reader)(nil)
 
-func NewV1Reader(taskName string) *V1Reader {
-	if taskName == "" {
+func NewV1Reader(cgroupName string) *V1Reader {
+	if cgroupName == "" {
 		return nil
 	}
 
-	control, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(taskName))
+	control, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(cgroupName))
 	if err != nil {
 		return nil
 	}
@@ -72,14 +92,14 @@ func NewV1Reader(taskName string) *V1Reader {
 	}
 
 	reader := V1Reader{
-		taskName:     taskName,
+		cgroupName:   cgroupName,
 		control:      control,
 		startCPUTime: startCPUTime,
 		startTime:    time.Now(),
 		clockTicks:   getClockTicks(),
 	}
 
-	log.Infof("Successfully loaded cgroup for task: %s", taskName)
+	log.Infof("Successfully loaded cgroup: %s", cgroupName)
 	for _, subsystem := range control.Subsystems() {
 		log.Infof("Subsystem: %s", subsystem.Name())
 	}
@@ -87,9 +107,9 @@ func NewV1Reader(taskName string) *V1Reader {
 	return &reader
 }
 
-func (r *V1Reader) GetCgroupStats() types.TaskStats {
+func (r *V1Reader) GetCgroupStats() types.CgroupStats {
 	currentTime := time.Now()
-	stats := types.TaskStats{}
+	stats := types.CgroupStats{}
 
 	v1Metrics, err := r.control.Stat(cgroups.IgnoreNotExist)
 	if err != nil {
@@ -108,49 +128,49 @@ func (r *V1Reader) GetCgroupStats() types.TaskStats {
 	memoryStats := calculateMemoryStats(v1Metrics)
 	ioStats := calculateIOStats(v1Metrics, duration)
 
-	stats = types.TaskStats{
+	stats = types.CgroupStats{
 		CPUStats:    cpuStats,
 		MemoryStats: memoryStats,
 		IOStats:     ioStats,
 	}
 
-	r.logTaskStats(stats)
+	r.logCgroupStats(stats)
 	return stats
 }
 
-func (r *V1Reader) GetBoundGPUs() []int {
+func (r *V1Reader) GetBoundGPUs(gpuType string) []int {
 	var boundGPUs []int
 
-	deviceListPath := filepath.Join("/sys/fs/cgroup/devices", r.taskName, "devices.list")
+	deviceInfo, ok := gpuDeviceInfos[gpuType]
+	if !ok {
+		log.Warnf("Unsupported GPU type: %s, falling back to nvidia", gpuType)
+		deviceInfo = gpuDeviceInfos["nvidia"]
+	}
+
+	deviceListPath := filepath.Join("/sys/fs/cgroup/devices", r.cgroupName, "devices.list")
 	data, err := os.ReadFile(deviceListPath)
 	if err != nil {
 		log.Warnf("Failed to read devices.list from %s: %v", deviceListPath, err)
 		return boundGPUs
 	}
 
-	// check if there is permission to access all devices
-	if strings.Contains(string(data), "a *:* rwm") {
-		log.Infof("Task %s has access to all devices", r.taskName)
-		return getAllGPUs()
+	content := string(data)
+
+	if strings.Contains(content, allowAllDevices) {
+		log.Infof("Cgroup %s has access to all devices", r.cgroupName)
+		return []int{-1} // all GPUs
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	lines := strings.Split(strings.TrimSpace(content), "\n")
 	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) != 3 {
+		matches := deviceInfo.pattern.FindStringSubmatch(line)
+		if len(matches) != 2 {
 			continue
 		}
 
-		// check if it is a character device and the major device number is 195 (NVIDIA GPU)
-		if fields[0] == "c" && strings.HasPrefix(fields[1], "195:") {
-			nums := strings.Split(fields[1], ":")
-			if len(nums) == 2 && nums[1] != "*" {
-				if minor, err := strconv.Atoi(nums[1]); err == nil {
-					// the minor device number of NVIDIA GPU is the GPU index
-					if minor < 128 { // exclude control devices (195:254, 195:255)
-						boundGPUs = append(boundGPUs, minor)
-					}
-				}
+		if minor, err := strconv.Atoi(matches[1]); err == nil {
+			if minor < deviceInfo.controlDeviceMin {
+				boundGPUs = append(boundGPUs, minor)
 			}
 		}
 	}
@@ -158,7 +178,7 @@ func (r *V1Reader) GetBoundGPUs() []int {
 	if len(boundGPUs) > 0 {
 		sort.Ints(boundGPUs)
 		boundGPUs = removeDuplicates(boundGPUs)
-		log.Infof("Task %s is bound to GPUs: %v", r.taskName, boundGPUs)
+		log.Infof("Cgroup %s is bound to %s GPUs: %v", r.cgroupName, gpuType, boundGPUs)
 	}
 
 	return boundGPUs
@@ -185,14 +205,14 @@ func (r *V1Reader) calculateCPUStats(v1Metrics *v1.Metrics) types.CPUStats {
 
 		// convert nanoseconds to jiffies
 		nsPerJiffy := NS_TO_SEC / r.clockTicks
-		taskCPUJiffies := v1Metrics.CPU.Usage.Total / uint64(nsPerJiffy)
+		CPUJiffies := v1Metrics.CPU.Usage.Total / uint64(nsPerJiffy)
 
 		numCPUs := float64(len(v1Metrics.CPU.Usage.PerCPU))
 		if numCPUs == 0 {
 			numCPUs = 1
 		}
 
-		cpuUtil := (float64(taskCPUJiffies) / float64(systemCPUDiff)) * 100
+		cpuUtil := (float64(CPUJiffies) / float64(systemCPUDiff)) * 100
 		if cpuUtil > 100 {
 			log.Warnf("CPU utilization exceeds 100%% (%.2f%%), capping at 100%%", cpuUtil)
 			cpuUtil = 100
@@ -308,27 +328,6 @@ func readTotalCPUTime() (uint64, error) {
 	return 0, fmt.Errorf("CPU stats not found in /proc/stat")
 }
 
-func getAllGPUs() []int {
-	var gpus []int
-	pattern := "/dev/nvidia[0-9]*"
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return gpus
-	}
-
-	for _, match := range matches {
-		numStr := strings.TrimPrefix(match, "/dev/nvidia")
-		if idx, err := strconv.Atoi(numStr); err == nil {
-			gpus = append(gpus, idx)
-		}
-	}
-
-	sort.Ints(gpus)
-
-	log.Infof("System has GPUs: %v", gpus)
-	return gpus
-}
-
 func removeDuplicates(indices []int) []int {
 	seen := make(map[int]bool)
 	result := []int{}
@@ -341,9 +340,10 @@ func removeDuplicates(indices []int) []int {
 	return result
 }
 
-func (r *V1Reader) logTaskStats(usage types.TaskStats) {
-	log.Infof("%s Cgroup Metrics:", r.taskName)
+func (r *V1Reader) logCgroupStats(usage types.CgroupStats) {
+	log.Infof("%s Cgroup Metrics:", r.cgroupName)
 	log.Infof("CPU Usage: %.2f s, CPU Utilization: %.2f%%", usage.CPUStats.UsageSeconds, usage.CPUStats.Utilization)
 	log.Infof("Memory Usage: %.2f MB, Memory Utilization: %.2f%%", usage.MemoryStats.UsageMB, usage.MemoryStats.Utilization)
-	log.Infof("IO Read: %.2f MB, IO Write: %.2f MB, IO Read Speed: %.2f MB/s, IO Write Speed: %.2f MB/s, IO Read Operations: %.2f IOPS, IO Write Operations: %.2f IOPS", usage.IOStats.ReadMB, usage.IOStats.WriteMB, usage.IOStats.ReadMBPS, usage.IOStats.WriteMBPS, usage.IOStats.ReadOpsPerSec, usage.IOStats.WriteOpsPerSec)
+	log.Infof("IO Read: %.2f MB, IO Write: %.2f MB, IO Read Speed: %.2f MB/s, IO Write Speed: %.2f MB/s", usage.IOStats.ReadMB, usage.IOStats.WriteMB, usage.IOStats.ReadMBPS, usage.IOStats.WriteMBPS)
+	log.Infof("IO Read Operations count: %d, IO Write Operations count: %d, IO Read Operations per second: %.2f, IO Write Operations per second: %.2f", usage.IOStats.ReadOperations, usage.IOStats.WriteOperations, usage.IOStats.ReadOpsPerSec, usage.IOStats.WriteOpsPerSec)
 }

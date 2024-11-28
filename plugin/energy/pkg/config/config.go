@@ -15,12 +15,13 @@ type Config struct {
 }
 
 type MonitorConfig struct {
-	SamplePeriod string   `mapstructure:"samplePeriod"`
-	Switches     Switches `mapstructure:"switches"`
-	LogPath      string   `mapstructure:"logPath"`
+	SamplePeriod string  `mapstructure:"samplePeriod"`
+	Enabled      Enabled `mapstructure:"enabled"`
+	LogPath      string  `mapstructure:"logPath"`
+	GPUType      string  `mapstructure:"gpuType"`
 }
 
-type Switches struct {
+type Enabled struct {
 	Task   bool `mapstructure:"task"`
 	IPMI   bool `mapstructure:"ipmi"`
 	GPU    bool `mapstructure:"gpu"`
@@ -41,11 +42,6 @@ type InfluxDBConfig struct {
 	Org        string `mapstructure:"org"`
 	NodeBucket string `mapstructure:"nodeBucket"`
 	TaskBucket string `mapstructure:"taskBucket"`
-}
-
-type MongoConfig struct {
-	URI      string `mapstructure:"uri"`
-	Database string `mapstructure:"database"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -102,14 +98,15 @@ func PrintConfig(cfg *Config) {
 	log.Infof("Monitor Configuration:")
 	log.Infof("  Sample Period: %v", cfg.Monitor.SamplePeriod)
 	log.Infof("  Log Path: %v", cfg.Monitor.LogPath)
+	log.Infof("  GPU Type: %v", cfg.Monitor.GPUType)
 
 	// Switches
-	log.Infof("  Switches:")
-	log.Infof("    Task: %v", cfg.Monitor.Switches.Task)
-	log.Infof("    IPMI: %v", cfg.Monitor.Switches.IPMI)
-	log.Infof("    GPU: %v", cfg.Monitor.Switches.GPU)
-	log.Infof("    RAPL: %v", cfg.Monitor.Switches.RAPL)
-	log.Infof("    System: %v", cfg.Monitor.Switches.System)
+	log.Infof("  Enabled:")
+	log.Infof("    Task: %v", cfg.Monitor.Enabled.Task)
+	log.Infof("    IPMI: %v", cfg.Monitor.Enabled.IPMI)
+	log.Infof("    GPU: %v", cfg.Monitor.Enabled.GPU)
+	log.Infof("    RAPL: %v", cfg.Monitor.Enabled.RAPL)
+	log.Infof("    System: %v", cfg.Monitor.Enabled.System)
 
 	// Database
 	log.Infof("Database Configuration:")

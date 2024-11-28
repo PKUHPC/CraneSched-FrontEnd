@@ -27,7 +27,7 @@ type InfluxDB struct {
 	bufferMu  sync.Mutex
 	batchSize int
 
-	switches *config.Switches
+	enabled *config.Enabled
 }
 
 func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
@@ -43,7 +43,7 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 		taskBucket: config.DB.InfluxDB.TaskBucket,
 		batchSize:  config.DB.BatchSize,
 		buffer:     make([]*types.NodeData, 0, config.DB.BatchSize),
-		switches:   &config.Monitor.Switches,
+		enabled:    &config.Monitor.Enabled,
 	}
 
 	if err := db.createBucketIfNotExists(db.nodeBucket); err != nil {
@@ -97,46 +97,10 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 			"cluster_id": data.ClusterID,
 		}
 
-		fields := map[string]interface{}{
-			"cpu_utilization":    nil,
-			"cpu_load_1":         nil,
-			"cpu_load_5":         nil,
-			"cpu_load_15":        nil,
-			"cpu_frequencies":    nil,
-			"cpu_temperature":    nil,
-			"memory_utilization": nil,
-			"memory_used_gb":     nil,
-			"memory_total_gb":    nil,
-			"disk_utilization":   nil,
-			"disk_io_mb_ps":      nil,
-			"network_io_mb_ps":   nil,
-			"network_rx_mb_ps":   nil,
-			"network_tx_mb_ps":   nil,
-
-			"rapl_package_energy_j": nil,
-			"rapl_core_energy_j":    nil,
-			"rapl_uncore_energy_j":  nil,
-			"rapl_dram_energy_j":    nil,
-			"rapl_gt_energy_j":      nil,
-
-			"ipmi_power_w":      nil,
-			"ipmi_energy_j":     nil,
-			"ipmi_cpu_power_w":  nil,
-			"ipmi_cpu_energy_j": nil,
-			"ipmi_fan_power_w":  nil,
-			"ipmi_disk_power_w": nil,
-
-			"gpu_energy_j":           nil,
-			"gpu_power_w":            nil,
-			"gpu_utilization":        nil,
-			"gpu_memory_utilization": nil,
-			"gpu_temperature":        nil,
-
-			"total_energy_j": nil,
-		}
+		fields := map[string]interface{}{}
 
 		// record enabled modules
-		enabledSources := make([]string, 0)
+		enabledModules := make([]string, 0)
 
 		fields["cpu_utilization"] = data.SystemLoad.CPUUtil
 		fields["cpu_load_1"] = data.SystemLoad.CPULoad1
@@ -155,14 +119,14 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		fields["network_io_mb_ps"] = data.SystemLoad.NetworkIO
 		fields["network_rx_mb_ps"] = data.SystemLoad.NetworkRx
 		fields["network_tx_mb_ps"] = data.SystemLoad.NetworkTx
-		enabledSources = append(enabledSources, "system")
+		enabledModules = append(enabledModules, "system")
 
 		fields["rapl_package_energy_j"] = data.RAPL.Package
 		fields["rapl_core_energy_j"] = data.RAPL.Core
 		fields["rapl_uncore_energy_j"] = data.RAPL.Uncore
 		fields["rapl_dram_energy_j"] = data.RAPL.DRAM
 		fields["rapl_gt_energy_j"] = data.RAPL.GT
-		enabledSources = append(enabledSources, "rapl")
+		enabledModules = append(enabledModules, "rapl")
 
 		fields["ipmi_power_w"] = data.IPMI.Power
 		fields["ipmi_energy_j"] = data.IPMI.Energy
@@ -170,23 +134,23 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		fields["ipmi_cpu_energy_j"] = data.IPMI.CPUEnergy
 		fields["ipmi_fan_power_w"] = data.IPMI.FanPower
 		fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
-		enabledSources = append(enabledSources, "ipmi")
+		enabledModules = append(enabledModules, "ipmi")
 
 		fields["gpu_energy_j"] = data.GPU.Energy
 		fields["gpu_power_w"] = data.GPU.Power
 		fields["gpu_utilization"] = data.GPU.Util
 		fields["gpu_memory_utilization"] = data.GPU.MemUtil
 		fields["gpu_temperature"] = data.GPU.Temp
-		enabledSources = append(enabledSources, "gpu")
+		enabledModules = append(enabledModules, "gpu")
 
 		// set total energy (priority: IPMI > RAPL > GPU)
-		if db.switches.IPMI {
+		if db.enabled.IPMI {
 			fields["total_energy_j"] = data.IPMI.Energy
 			tags["energy_source"] = "ipmi"
-		} else if db.switches.RAPL {
+		} else if db.enabled.RAPL {
 			fields["total_energy_j"] = data.RAPL.Package
 			tags["energy_source"] = "rapl"
-		} else if db.switches.GPU {
+		} else if db.enabled.GPU {
 			fields["total_energy_j"] = data.GPU.Energy
 			tags["energy_source"] = "gpu"
 		} else {
@@ -195,7 +159,7 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 
 		tags["node_id"] = data.NodeID
 		tags["cluster_id"] = data.ClusterID
-		tags["enabled_modules"] = strings.Join(enabledSources, ",")
+		tags["enabled_modules"] = strings.Join(enabledModules, ",")
 
 		p := influxdb2.NewPoint(
 			db.nodeBucket,
@@ -235,16 +199,15 @@ func (db *InfluxDB) periodicFlush(interval time.Duration) {
 }
 
 func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
-	log.Infof("Saving task energy data for task: %s, node: %s, cluster: %s", taskData.TaskName, taskData.NodeID, taskData.ClusterID)
+	log.Infof("Saving task energy data for task: %d, node: %s", taskData.TaskID, taskData.NodeID)
 
 	writeAPI := db.client.WriteAPIBlocking(db.org, db.taskBucket)
 
 	p := influxdb2.NewPoint(
 		db.taskBucket,
 		map[string]string{
-			"task_name":  taskData.TaskName,
-			"node_id":    taskData.NodeID,
-			"cluster_id": taskData.ClusterID,
+			"task_id": fmt.Sprintf("%d", taskData.TaskID),
+			"node_id": taskData.NodeID,
 		},
 		map[string]interface{}{
 			"start_time": taskData.StartTime,
@@ -256,20 +219,20 @@ func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
 			"gpu_energy_j":    taskData.GPUEnergy,
 			"average_power_w": taskData.AveragePower,
 
-			"cpu_time_usage_seconds": taskData.TaskStats.CPUStats.UsageSeconds,
-			"cpu_utilization":        taskData.TaskStats.CPUStats.Utilization,
-			"gpu_utilization":        taskData.TaskStats.GPUStats.Utilization,
-			"gpu_memory_utilization": taskData.TaskStats.GPUStats.MemoryUtil,
-			"memory_usage_mb":        taskData.TaskStats.MemoryStats.UsageMB,
-			"memory_utilization":     taskData.TaskStats.MemoryStats.Utilization,
-			"disk_read_mb":           taskData.TaskStats.IOStats.ReadMB,
-			"disk_write_mb":          taskData.TaskStats.IOStats.WriteMB,
-			"disk_read_speed_mb_ps":  taskData.TaskStats.IOStats.ReadMBPS,
-			"disk_write_speed_mb_ps": taskData.TaskStats.IOStats.WriteMBPS,
-			"disk_read_iops":         taskData.TaskStats.IOStats.ReadOperations,
-			"disk_write_iops":        taskData.TaskStats.IOStats.WriteOperations,
-			"disk_read_iops_ps":      taskData.TaskStats.IOStats.ReadOpsPerSec,
-			"disk_write_iops_ps":     taskData.TaskStats.IOStats.WriteOpsPerSec,
+			"cpu_time_usage_seconds": taskData.CgroupStats.CPUStats.UsageSeconds,
+			"cpu_utilization":        taskData.CgroupStats.CPUStats.Utilization,
+			"gpu_utilization":        taskData.CgroupStats.GPUStats.Utilization,
+			"gpu_memory_utilization": taskData.CgroupStats.GPUStats.MemoryUtil,
+			"memory_usage_mb":        taskData.CgroupStats.MemoryStats.UsageMB,
+			"memory_utilization":     taskData.CgroupStats.MemoryStats.Utilization,
+			"disk_read_mb":           taskData.CgroupStats.IOStats.ReadMB,
+			"disk_write_mb":          taskData.CgroupStats.IOStats.WriteMB,
+			"disk_read_speed_mb_ps":  taskData.CgroupStats.IOStats.ReadMBPS,
+			"disk_write_speed_mb_ps": taskData.CgroupStats.IOStats.WriteMBPS,
+			"disk_read_iops":         taskData.CgroupStats.IOStats.ReadOperations,
+			"disk_write_iops":        taskData.CgroupStats.IOStats.WriteOperations,
+			"disk_read_iops_ps":      taskData.CgroupStats.IOStats.ReadOpsPerSec,
+			"disk_write_iops_ps":     taskData.CgroupStats.IOStats.WriteOpsPerSec,
 		},
 		taskData.EndTime,
 	)

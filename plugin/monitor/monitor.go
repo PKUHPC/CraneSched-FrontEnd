@@ -80,9 +80,11 @@ type ResourceUsage struct {
 
 type MonitorPlugin struct {
 	config
-	client influxdb2.Client
-	once   sync.Once          // Ensure the Singleton of InfluxDB client
-	buffer chan ResourceUsage // Buffer channel for processing usage data
+	client   influxdb2.Client
+	once     sync.Once          // Ensure the Singleton of InfluxDB client
+	buffer   chan ResourceUsage // Buffer channel for processing usage data
+	jobCtx   map[int64]context.CancelFunc
+	jobMutex sync.RWMutex
 }
 
 // Dummy implementations
@@ -135,16 +137,11 @@ func getHostname() (string, error) {
 	return strings.TrimSpace(string(content)), nil
 }
 
-func getRealCgroupPath(pattern string, cgroupName string) string {
-	return strings.ReplaceAll(pattern, "%j", cgroupName)
+func getRealCgroupPath(pattern string, task_name string) string {
+	return strings.ReplaceAll(pattern, "%j", task_name)
 }
 
-func validateCgroup(cgroupPath string) bool {
-	_, err := os.Stat(cgroupPath)
-	return !os.IsNotExist(err)
-}
-
-func (p *MonitorPlugin) producer(id int64, cgroup string) {
+func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string) {
 	log.Infof("Monitoring goroutine for job #%v started.", id)
 
 	if (p.buffer == nil) || (p.client == nil) {
@@ -155,53 +152,53 @@ func (p *MonitorPlugin) producer(id int64, cgroup string) {
 	// As Cgroup may be created without any process inside, we need to mark
 	// if the first process is launched.
 	migrated := false
-	cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, cgroup)
-	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, cgroup)
-	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, cgroup)
+	cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, task_name)
+	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, task_name)
+	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, task_name)
 
 	for {
-		// If the cgroup is not found, the job is finished, break
-		if !validateCgroup(cgroupCpuPath) {
-			break
-		}
+		select {
+		case <-ctx.Done():
+			log.Infof("Monitoring goroutine for job #%v cancelled.", id)
+			return
+		default:
+			// If none pid found, the cgroup is empty, continue
+			procCount, err := getProcCount(cgroupProcListPath)
+			if err != nil {
+				log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
+				continue
+			}
+			if !migrated && procCount == 0 {
+				time.Sleep(time.Duration(p.Interval) * time.Millisecond)
+				continue
+			}
+			migrated = true
 
-		// If none pid found, the cgroup is empty, break
-		procCount, err := getProcCount(cgroupProcListPath)
-		if err != nil {
-			log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
-			break
-		}
-		if migrated && procCount == 0 {
-			break
-		}
-		migrated = true
+			cpuUsage, err := getCpuUsage(cgroupCpuPath)
+			if err != nil {
+				log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
+				continue
+			}
 
-		cpuUsage, err := getCpuUsage(cgroupCpuPath)
-		if err != nil {
-			log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
-			break
-		}
+			memoryUsage, err := getMemoryUsage(cgroupMemPath)
+			if err != nil {
+				log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
+				continue
+			}
 
-		memoryUsage, err := getMemoryUsage(cgroupMemPath)
-		if err != nil {
-			log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
-			break
-		}
-
-		p.buffer <- ResourceUsage{
-			TaskID:      id,
-			ProcCount:   procCount,
-			CPUUsage:    cpuUsage,
-			MemoryUsage: memoryUsage,
-			Hostname:    p.hostname,
-			Timestamp:   time.Now(),
+			p.buffer <- ResourceUsage{
+				TaskID:      id,
+				ProcCount:   procCount,
+				CPUUsage:    cpuUsage,
+				MemoryUsage: memoryUsage,
+				Hostname:    p.hostname,
+				Timestamp:   time.Now(),
+			}
 		}
 
 		// Sleep for the interval
 		time.Sleep(time.Duration(p.Interval) * time.Millisecond)
 	}
-
-	log.Infof("Monitoring goroutine for job #%v exited.", id)
 }
 
 func (p *MonitorPlugin) consumer() {
@@ -266,6 +263,7 @@ func (p *MonitorPlugin) Init(meta api.PluginMeta) error {
 		log.Warnf("Buffer size is not specified or invalid, using default: %v", p.BufferSize)
 	}
 	p.buffer = make(chan ResourceUsage, p.BufferSize)
+	p.jobCtx = make(map[int64]context.CancelFunc)
 
 	// Apply default values, use cgroup v1 path
 	if p.config.Cgroup.CPU == "" {
@@ -275,6 +273,10 @@ func (p *MonitorPlugin) Init(meta api.PluginMeta) error {
 	if p.config.Cgroup.Memory == "" {
 		p.config.Cgroup.Memory = "/sys/fs/cgroup/memory/%j/memory.usage_in_bytes"
 		log.Warnf("Memory cgroup path is not specified, using default: %s", p.config.Cgroup.Memory)
+	}
+	if p.config.Cgroup.ProcList == "" {
+		p.config.Cgroup.ProcList = "/sys/fs/cgroup/memory/%j/cgroup.procs"
+		log.Warnf("ProcList cgroup path is not specified, using default: %s", p.config.Cgroup.ProcList)
 	}
 
 	log.Infoln("Monitor plugin is initialized.")
@@ -291,20 +293,41 @@ func (p *MonitorPlugin) Version() string {
 	return "v0.0.1"
 }
 
-func (p *MonitorPlugin) JobMonitorHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
+func (p *MonitorPlugin) CreateCgroupHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected JobMonitorHookRequest.")
+		log.Errorln("Invalid request type, expected CreateCgroupHookRequest.")
 		return
 	}
 
-	// Start consumer (only once)
 	p.once.Do(func() {
 		go p.consumer()
 	})
 
-	// Start producer goroutine to monitor the resource usage
-	go p.producer(int64(req.TaskId), req.Cgroup)
+	monitorCtx, cancel := context.WithCancel(context.Background())
+
+	p.jobMutex.Lock()
+	p.jobCtx[int64(req.TaskId)] = cancel
+	p.jobMutex.Unlock()
+
+	go p.producer(monitorCtx, int64(req.TaskId), req.Cgroup)
+}
+
+func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.DestroyCgroupHookRequest)
+	if !ok {
+		log.Errorln("Invalid request type, expected DestroyCgroupHookRequest.")
+		return
+	}
+
+	p.jobMutex.Lock()
+	if cancel, exists := p.jobCtx[int64(req.TaskId)]; exists {
+		cancel()
+		delete(p.jobCtx, int64(req.TaskId))
+	}
+	p.jobMutex.Unlock()
+
+	log.Infof("Monitoring stopped for job #%v", req.TaskId)
 }
 
 func main() {

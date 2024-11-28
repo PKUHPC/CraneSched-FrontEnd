@@ -18,57 +18,57 @@ type TaskMonitor struct {
 	samplePeriod time.Duration
 	config       *config.MonitorConfig
 
-	tasks  map[string]*Task
-	taskMu sync.RWMutex
+	tasks map[uint32]*Task
+	mutex sync.RWMutex
 }
 
-func (m *TaskMonitor) Start(taskID uint32, taskName string) {
-	log.Infof("Starting task monitor for task: %d, cgroup path: %s", taskID, taskName)
+func (m *TaskMonitor) Start(taskID uint32, cgroupName string) {
+	log.Infof("Starting task monitor for task: %d, cgroup name: %s", taskID, cgroupName)
 
-	if !m.config.Switches.Task {
-		log.Warnf("Task monitor is not enabled, skipping task: %d, %s", taskID, taskName)
+	if !m.config.Enabled.Task {
+		log.Warnf("Task monitor is not enabled, skipping task: %d, %s", taskID, cgroupName)
 		return
 	}
 
 	// If neither RAPL nor IPMI is enabled, the task energy cannot be calculated, skip this task
-	if !m.config.Switches.RAPL && !m.config.Switches.IPMI {
-		log.Warnf("No energy metrics enabled, skipping task: %d, %s", taskID, taskName)
+	if !m.config.Enabled.RAPL && !m.config.Enabled.IPMI {
+		log.Warnf("No energy metrics enabled, skipping task: %d, %s", taskID, cgroupName)
 		return
 	}
 
-	task, err := NewTask(taskID, taskName, m.samplePeriod, m.config)
+	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config)
 	if err != nil {
 		log.Errorf("Failed to create task monitor: %v", err)
 		return
 	}
 
-	m.taskMu.Lock()
-	m.tasks[taskName] = task
-	m.taskMu.Unlock()
+	m.mutex.Lock()
+	m.tasks[taskID] = task
+	m.mutex.Unlock()
 
-	task.Start()
+	task.StartMonitor()
 }
 
-func (m *TaskMonitor) StopTask(taskName string) {
-	m.taskMu.Lock()
-	if task, exists := m.tasks[taskName]; exists {
-		task.Stop()
-		delete(m.tasks, taskName)
+func (m *TaskMonitor) Stop(taskID uint32) {
+	m.mutex.Lock()
+	if task, exists := m.tasks[taskID]; exists {
+		task.StopMonitor()
+		delete(m.tasks, taskID)
 	}
-	m.taskMu.Unlock()
+	m.mutex.Unlock()
 }
 
 func (m *TaskMonitor) Close() {
-	m.taskMu.Lock()
+	m.mutex.Lock()
 	for _, task := range m.tasks {
-		task.Stop()
+		task.StopMonitor()
 	}
-	m.taskMu.Unlock()
+	m.mutex.Unlock()
 }
 
 type Task struct {
-	ID           uint32
-	Name         string
+	taskID       uint32
+	cgroupName   string
 	boundGPUs    []int
 	samplePeriod time.Duration
 	config       *config.MonitorConfig
@@ -77,7 +77,7 @@ type Task struct {
 	sampleCount int
 
 	cgroupReader cgroup.CgroupReader
-	gpuReader    *gpu.GPUReader
+	gpuReader    *gpu.Reader
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -92,13 +92,8 @@ func getNodeID() string {
 	return hostname
 }
 
-// TODO: Read cluster ID from configuration file
-func getClusterID() string {
-	return "cluster-1"
-}
-
-func NewTask(id uint32, name string, samplePeriod time.Duration, config *config.MonitorConfig) (*Task, error) {
-	cgroupReader, err := cgroup.NewCgroupReader(cgroup.V1, name)
+func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig) (*Task, error) {
+	cgroupReader, err := cgroup.NewCgroupReader(cgroup.V1, cgroupName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cgroup reader: %v", err)
 	}
@@ -107,11 +102,11 @@ func NewTask(id uint32, name string, samplePeriod time.Duration, config *config.
 	startTime := time.Now()
 
 	return &Task{
-		ID:           id,
-		Name:         name,
+		taskID:       taskID,
+		cgroupName:   cgroupName,
 		samplePeriod: samplePeriod,
 		config:       config,
-		boundGPUs:    cgroupReader.GetBoundGPUs(),
+		boundGPUs:    cgroupReader.GetBoundGPUs(config.GPUType),
 		ctx:          ctx,
 		cancel:       cancel,
 		subscriber: &NodeDataSubscriber{
@@ -119,26 +114,27 @@ func NewTask(id uint32, name string, samplePeriod time.Duration, config *config.
 			StartTime: startTime,
 		},
 		data: &types.TaskData{
+			TaskID:    taskID,
 			NodeID:    getNodeID(),
-			ClusterID: getClusterID(),
-			TaskName:  name,
 			StartTime: startTime,
 		},
 		cgroupReader: cgroupReader,
-		gpuReader:    gpu.NewGPUReader(),
+		gpuReader:    gpu.NewGPUReader(config.GPUType),
 	}, nil
 }
 
-func (t *Task) Start() {
-	GetSubscriberManagerInstance().AddSubscriber(t.Name, t.subscriber)
+func (t *Task) StartMonitor() {
+	GetSubscriberManagerInstance().AddSubscriber(t.taskID, t.subscriber)
 
 	go t.monitorResourceUsage()
 	go t.collectData()
 }
 
-func (t *Task) Stop() {
+func (t *Task) StopMonitor() {
+	log.Infof("Stopping task monitor for task: %d", t.taskID)
+
 	t.cancel()
-	GetSubscriberManagerInstance().DeleteSubscriber(t.Name)
+	GetSubscriberManagerInstance().DeleteSubscriber(t.taskID)
 
 	if err := t.gpuReader.Close(); err != nil {
 		log.Errorf("Failed to close GPU reader: %v", err)
@@ -153,32 +149,32 @@ func (t *Task) monitorResourceUsage() {
 		select {
 		case <-ticker.C:
 			taskStats := t.cgroupReader.GetCgroupStats()
-			metrics := t.gpuReader.GetGpuStats(t.boundGPUs)
-			t.updateTaskStats(&taskStats, &metrics)
+			metrics := t.gpuReader.GetBoundGpuMetrics(t.boundGPUs)
+			t.updateTaskStats(&taskStats, metrics)
 		case <-t.ctx.Done():
 			return
 		}
 	}
 }
 
-func (t *Task) updateTaskStats(stats *types.TaskStats, metrics *types.GPUMetrics) {
+func (t *Task) updateTaskStats(stats *types.CgroupStats, metrics *types.GPUMetrics) {
 	// The resource usage in cgroup is cumulative, so no need to accumulate, just update directly
-	t.data.TaskStats.CPUStats.UsageSeconds = stats.CPUStats.UsageSeconds
-	t.data.TaskStats.IOStats.ReadMB = stats.IOStats.ReadMB
-	t.data.TaskStats.IOStats.WriteMB = stats.IOStats.WriteMB
-	t.data.TaskStats.IOStats.ReadOperations = stats.IOStats.ReadOperations
-	t.data.TaskStats.IOStats.WriteOperations = stats.IOStats.WriteOperations
+	t.data.CgroupStats.CPUStats.UsageSeconds = stats.CPUStats.UsageSeconds
+	t.data.CgroupStats.IOStats.ReadMB = stats.IOStats.ReadMB
+	t.data.CgroupStats.IOStats.WriteMB = stats.IOStats.WriteMB
+	t.data.CgroupStats.IOStats.ReadOperations = stats.IOStats.ReadOperations
+	t.data.CgroupStats.IOStats.WriteOperations = stats.IOStats.WriteOperations
 
 	// These resources are accumulated every time they are sampled, and the average value is calculated at the end
-	t.data.TaskStats.CPUStats.Utilization += stats.CPUStats.Utilization
-	t.data.TaskStats.MemoryStats.UsageMB += stats.MemoryStats.UsageMB
-	t.data.TaskStats.MemoryStats.Utilization += stats.MemoryStats.Utilization
-	t.data.TaskStats.IOStats.ReadMBPS += stats.IOStats.ReadMBPS
-	t.data.TaskStats.IOStats.WriteMBPS += stats.IOStats.WriteMBPS
-	t.data.TaskStats.IOStats.ReadOpsPerSec += stats.IOStats.ReadOpsPerSec
-	t.data.TaskStats.IOStats.WriteOpsPerSec += stats.IOStats.WriteOpsPerSec
-	t.data.TaskStats.GPUStats.Utilization += metrics.Util
-	t.data.TaskStats.GPUStats.MemoryUtil += metrics.MemUtil
+	t.data.CgroupStats.CPUStats.Utilization += stats.CPUStats.Utilization
+	t.data.CgroupStats.MemoryStats.UsageMB += stats.MemoryStats.UsageMB
+	t.data.CgroupStats.MemoryStats.Utilization += stats.MemoryStats.Utilization
+	t.data.CgroupStats.IOStats.ReadMBPS += stats.IOStats.ReadMBPS
+	t.data.CgroupStats.IOStats.WriteMBPS += stats.IOStats.WriteMBPS
+	t.data.CgroupStats.IOStats.ReadOpsPerSec += stats.IOStats.ReadOpsPerSec
+	t.data.CgroupStats.IOStats.WriteOpsPerSec += stats.IOStats.WriteOpsPerSec
+	t.data.CgroupStats.GPUStats.Utilization += metrics.Util
+	t.data.CgroupStats.GPUStats.MemoryUtil += metrics.MemUtil
 
 	t.data.GPUEnergy += metrics.Energy
 
@@ -202,9 +198,9 @@ func (t *Task) collectData() {
 
 func (t *Task) updateEnergy(nodeData *types.NodeData) {
 	// If IPMI is enabled, use IPMI energy data preferentially
-	if t.config.Switches.IPMI {
+	if t.config.Enabled.IPMI {
 		t.data.CPUEnergy += nodeData.IPMI.CPUEnergy
-	} else if t.config.Switches.RAPL {
+	} else if t.config.Enabled.RAPL {
 		t.data.CPUEnergy += nodeData.RAPL.Package
 	}
 }
@@ -226,19 +222,19 @@ func (t *Task) calculateStats() {
 }
 
 func (t *Task) calculateAverages(sampleCount float64) {
-	t.data.TaskStats.CPUStats.Utilization /= sampleCount
-	t.data.TaskStats.MemoryStats.UsageMB /= sampleCount
-	t.data.TaskStats.MemoryStats.Utilization /= sampleCount
-	t.data.TaskStats.IOStats.ReadMBPS /= sampleCount
-	t.data.TaskStats.IOStats.WriteMBPS /= sampleCount
-	t.data.TaskStats.IOStats.ReadOpsPerSec /= sampleCount
-	t.data.TaskStats.IOStats.WriteOpsPerSec /= sampleCount
-	t.data.TaskStats.GPUStats.Utilization /= sampleCount
-	t.data.TaskStats.GPUStats.MemoryUtil /= sampleCount
+	t.data.CgroupStats.CPUStats.Utilization /= sampleCount
+	t.data.CgroupStats.MemoryStats.UsageMB /= sampleCount
+	t.data.CgroupStats.MemoryStats.Utilization /= sampleCount
+	t.data.CgroupStats.IOStats.ReadMBPS /= sampleCount
+	t.data.CgroupStats.IOStats.WriteMBPS /= sampleCount
+	t.data.CgroupStats.IOStats.ReadOpsPerSec /= sampleCount
+	t.data.CgroupStats.IOStats.WriteOpsPerSec /= sampleCount
+	t.data.CgroupStats.GPUStats.Utilization /= sampleCount
+	t.data.CgroupStats.GPUStats.MemoryUtil /= sampleCount
 }
 
 func (t *Task) calculateEnergy() {
-	t.data.CPUEnergy = t.data.CPUEnergy * (t.data.TaskStats.CPUStats.Utilization / 100.0)
+	t.data.CPUEnergy = t.data.CPUEnergy * (t.data.CgroupStats.CPUStats.Utilization / 100.0)
 	t.data.TotalEnergy = t.data.CPUEnergy + t.data.GPUEnergy
 	if duration := t.data.Duration.Seconds(); duration > 0 {
 		t.data.AveragePower = t.data.TotalEnergy / duration
@@ -246,33 +242,32 @@ func (t *Task) calculateEnergy() {
 }
 
 func (t *Task) logTaskStats() {
-	log.Infof("Task Statistics for %s:", t.Name)
-	log.Infof("  Task name: %s", t.data.TaskName)
+	log.Infof("Task Statistics for %d:", t.taskID)
+	log.Infof("  Task ID: %d", t.taskID)
 	log.Infof("  Node ID: %s", t.data.NodeID)
-	log.Infof("  Cluster ID: %s", t.data.ClusterID)
 	log.Infof("  Duration: %.2f seconds", t.data.Duration.Seconds())
 
 	log.Infof("Energy Statistics:")
 	log.Infof("  Total energy: %.2f J", t.data.TotalEnergy)
 	log.Infof("  Average power: %.2f W", t.data.AveragePower)
 	log.Infof("  CPU energy: %.2f J (utilization: %.2f%%)",
-		t.data.CPUEnergy, t.data.TaskStats.CPUStats.Utilization)
+		t.data.CPUEnergy, t.data.CgroupStats.CPUStats.Utilization)
 	log.Infof("  GPU energy: %.2f J (utilization: %.2f%%)",
-		t.data.GPUEnergy, t.data.TaskStats.GPUStats.Utilization)
+		t.data.GPUEnergy, t.data.CgroupStats.GPUStats.Utilization)
 
 	log.Infof("Resource Usage Statistics:")
-	log.Infof("  CPU utilization: %.2f%%", t.data.TaskStats.CPUStats.Utilization)
-	log.Infof("  CPU usage: %.2f seconds", t.data.TaskStats.CPUStats.UsageSeconds)
-	log.Infof("  GPU utilization: %.2f%%", t.data.TaskStats.GPUStats.Utilization)
-	log.Infof("  GPU memory utilization: %.2f%%", t.data.TaskStats.GPUStats.MemoryUtil)
-	log.Infof("  Memory utilization: %.2f%%", t.data.TaskStats.MemoryStats.Utilization)
-	log.Infof("  Memory usage: %.2f MB", t.data.TaskStats.MemoryStats.UsageMB)
+	log.Infof("  CPU utilization: %.2f%%", t.data.CgroupStats.CPUStats.Utilization)
+	log.Infof("  CPU usage: %.2f seconds", t.data.CgroupStats.CPUStats.UsageSeconds)
+	log.Infof("  GPU utilization: %.2f%%", t.data.CgroupStats.GPUStats.Utilization)
+	log.Infof("  GPU memory utilization: %.2f%%", t.data.CgroupStats.GPUStats.MemoryUtil)
+	log.Infof("  Memory utilization: %.2f%%", t.data.CgroupStats.MemoryStats.Utilization)
+	log.Infof("  Memory usage: %.2f MB", t.data.CgroupStats.MemoryStats.UsageMB)
 	log.Infof("  Disk read: %.2f MB (%.2f MB/s)",
-		t.data.TaskStats.IOStats.ReadMB, t.data.TaskStats.IOStats.ReadMBPS)
+		t.data.CgroupStats.IOStats.ReadMB, t.data.CgroupStats.IOStats.ReadMBPS)
 	log.Infof("  Disk write: %.2f MB (%.2f MB/s)",
-		t.data.TaskStats.IOStats.WriteMB, t.data.TaskStats.IOStats.WriteMBPS)
-	log.Infof("  Disk read operations count: %d", t.data.TaskStats.IOStats.ReadOperations)
-	log.Infof("  Disk write operations count: %d", t.data.TaskStats.IOStats.WriteOperations)
-	log.Infof("  Disk read operations: %.2f IOPS", t.data.TaskStats.IOStats.ReadOpsPerSec)
-	log.Infof("  Disk write operations: %.2f IOPS", t.data.TaskStats.IOStats.WriteOpsPerSec)
+		t.data.CgroupStats.IOStats.WriteMB, t.data.CgroupStats.IOStats.WriteMBPS)
+	log.Infof("  Disk read operations count: %d", t.data.CgroupStats.IOStats.ReadOperations)
+	log.Infof("  Disk write operations count: %d", t.data.CgroupStats.IOStats.WriteOperations)
+	log.Infof("  Disk read operations: %.2f IOPS", t.data.CgroupStats.IOStats.ReadOpsPerSec)
+	log.Infof("  Disk write operations: %.2f IOPS", t.data.CgroupStats.IOStats.WriteOpsPerSec)
 }

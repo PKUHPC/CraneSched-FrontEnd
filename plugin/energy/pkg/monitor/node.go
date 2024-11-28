@@ -18,7 +18,7 @@ type NodeMonitor struct {
 
 	raplReader    *rapl.RAPLReader
 	ipmiReader    *ipmi.IPMIReader
-	gpuReader     *gpu.GPUReader
+	gpuReader     *gpu.Reader
 	sysLoadReader *sysload.SystemLoadReader
 
 	stopCh chan struct{}
@@ -41,24 +41,32 @@ func (r *NodeMonitor) collectNodeEnergy() {
 			if raplData, err := r.raplReader.GetMetrics(); err == nil && raplData != nil {
 				data.RAPL = *raplData
 			}
+		} else {
+			r.config.Enabled.RAPL = false
 		}
 
 		if r.ipmiReader != nil {
 			if ipmiData, err := r.ipmiReader.GetMetrics(); err == nil && ipmiData != nil {
 				data.IPMI = *ipmiData
 			}
+		} else {
+			r.config.Enabled.IPMI = false
 		}
 
 		if r.gpuReader != nil {
 			if gpuData, err := r.gpuReader.GetMetrics(); err == nil && gpuData != nil {
 				data.GPU = *gpuData
 			}
+		} else {
+			r.config.Enabled.GPU = false
 		}
 
 		if r.sysLoadReader != nil {
 			if sysData, err := r.sysLoadReader.GetMetrics(); err == nil && sysData != nil {
 				data.SystemLoad = *sysData
 			}
+		} else {
+			r.config.Enabled.System = false
 		}
 
 		if r.raplReader != nil {

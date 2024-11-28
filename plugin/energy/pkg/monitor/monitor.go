@@ -4,13 +4,13 @@ import (
 	"sync"
 	"time"
 
+	logrus "github.com/sirupsen/logrus"
+
 	"CraneFrontEnd/plugin/energy/pkg/config"
 	"CraneFrontEnd/plugin/energy/pkg/gpu"
 	"CraneFrontEnd/plugin/energy/pkg/ipmi"
 	"CraneFrontEnd/plugin/energy/pkg/rapl"
 	"CraneFrontEnd/plugin/energy/pkg/sysload"
-
-	logrus "github.com/sirupsen/logrus"
 )
 
 var log = logrus.WithField("component", "Monitor")
@@ -29,20 +29,19 @@ func NewMonitor(config config.MonitorConfig) *Monitor {
 
 	var raplReader *rapl.RAPLReader
 	var ipmiReader *ipmi.IPMIReader
-	var gpuReader *gpu.GPUReader
+	var gpuReader *gpu.Reader
 	var sysLoadReader *sysload.SystemLoadReader
 
-	switches := config.Switches
-	if switches.RAPL {
+	if config.Enabled.RAPL {
 		raplReader = rapl.NewRAPLReader()
 	}
-	if switches.IPMI {
+	if config.Enabled.IPMI {
 		ipmiReader = ipmi.NewIPMIReader()
 	}
-	if switches.GPU {
-		gpuReader = gpu.NewGPUReader()
+	if config.Enabled.GPU {
+		gpuReader = gpu.NewGPUReader(config.GPUType)
 	}
-	if switches.System {
+	if config.Enabled.System {
 		sysLoadReader = sysload.NewSystemLoadReader()
 	}
 
@@ -59,8 +58,8 @@ func NewMonitor(config config.MonitorConfig) *Monitor {
 		TaskMonitor: &TaskMonitor{
 			samplePeriod: duration,
 			config:       &config,
-			tasks:        make(map[string]*Task),
-			taskMu:       sync.RWMutex{},
+			tasks:        make(map[uint32]*Task),
+			mutex:        sync.RWMutex{},
 		},
 	}
 }

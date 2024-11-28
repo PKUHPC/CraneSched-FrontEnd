@@ -72,16 +72,28 @@ func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
 	log.Tracef("EndHookReq: \n%v", req.String())
 }
 
-func (dp DummyPlugin) JobMonitorHook(ctx *api.PluginContext) {
-	log.Infoln("JobMonitorHook is called!")
+func (dp DummyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
+	log.Infoln("CreateCgroupHook is called!")
 
-	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
+	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected JobMonitorHookRequest.")
+		log.Errorln("Invalid request type, expected CreateCgroupHookRequest.")
 		return
 	}
 
-	log.Tracef("JobMonitorHookReq: \n%v", req.String())
+	log.Tracef("CreateCgroupHookReq: \n%v", req.String())
+}
+
+func (dp DummyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
+	log.Infoln("DestroyCgroupHook is called!")
+
+	req, ok := ctx.Request().(*protos.DestroyCgroupHookRequest)
+	if !ok {
+		log.Errorln("Invalid request type, expected DestroyCgroupHookRequest.")
+		return
+	}
+
+	log.Tracef("DestroyCgroupHookReq: \n%v", req.String())
 }
 
 func main() {
