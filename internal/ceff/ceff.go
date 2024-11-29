@@ -135,7 +135,6 @@ func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames [
 
 	ctx := context.Background()
 	if pong, err := client.Ping(ctx); err != nil {
-		log.Errorf("Failed to ping InfluxDB: %v", err)
 		return nil, fmt.Errorf("Failed to ping InfluxDB: %v", err)
 	} else if !pong {
 		return nil, fmt.Errorf("Failed to ping InfluxDB: not pong")
@@ -172,8 +171,7 @@ func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames [
 
 	result, err := queryAPI.Query(ctx, fluxQuery)
 	if err != nil {
-		log.Printf("Failed to execute query: %v", err)
-		return nil, fmt.Errorf("query failed: %w", err)
+		return nil, fmt.Errorf("Execute query failed: %w", err)
 	}
 
 	// Parse and aggregate the query results
@@ -220,7 +218,6 @@ func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames [
 	}
 
 	if result.Err() != nil {
-		log.Printf("Query parsing error: %v", result.Err())
 		return nil, fmt.Errorf("query parsing error: %w", result.Err())
 	}
 
