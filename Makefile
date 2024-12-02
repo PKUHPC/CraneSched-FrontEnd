@@ -39,8 +39,14 @@ GO := $(GO_PATH)/bin/go
 COMMON_ENV := GOROOT=$(GO_PATH)
 BUILD_FLAGS := -trimpath
 
+NVIDIA_LIB_PATH := /usr/lib/x86_64-linux-gnu
+CUDA_INCLUDE_PATH := /usr/include
+CGO_CFLAGS := -I$(CUDA_INCLUDE_PATH)
+CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_PATH)
+CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
+
 # Targets
-.PHONY: all protos build clean install plugin energy-plugin other-plugins
+.PHONY: all protos build clean install plugin plugin-energy plugin-other
 
 all: protos build plugin
 
@@ -65,17 +71,9 @@ build:
 	@echo "    - Commit hash: $(GIT_COMMIT_HASH)"
 	@echo "    - Binaries are in ./$(BIN_DIR)/"
 
-plugin: energy-plugin other-plugins
+plugin: plugin-energy plugin-other
 
-NVIDIA_LIB_PATH := /usr/lib/x86_64-linux-gnu
-CUDA_INCLUDE_PATH := /usr/include
-
-CGO_CFLAGS := -I$(CUDA_INCLUDE_PATH)
-CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -l:libnvidia-ml.so.565.57.01 -Wl,-rpath,$(NVIDIA_LIB_PATH)
-
-CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
-
-energy-plugin:
+plugin-energy:
 	@echo "Building energy plugin with $(GO_VERSION)..."
 	@mkdir -p $(PLUGIN_DIR)
 	@cd plugin/energy && \
@@ -83,7 +81,7 @@ energy-plugin:
 		$(COMMON_ENV) \
 		CGO_ENABLED=1 \
 		CGO_CFLAGS="$(CGO_CFLAGS)" \
-		CGO_LDFLAGS="$(CGO_LDFLAGS) -lnvidia-ml" \
+		CGO_LDFLAGS="$(CGO_LDFLAGS)" \
 		$(GO) build $(BUILD_FLAGS) -buildmode=plugin -tags with_nvml -o ../../$(PLUGIN_DIR)/energy.so .; \
 	else \
 		$(COMMON_ENV) \
@@ -91,7 +89,7 @@ energy-plugin:
 		$(GO) build $(BUILD_FLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/energy.so .; \
 	fi
 
-other-plugins:
+plugin-other:
 	@echo "  - Building other plugins..."
 	@mkdir -p $(PLUGIN_DIR)
 	@for dir in plugin/*/ ; do \

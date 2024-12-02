@@ -1,21 +1,21 @@
-monitor:
-  samplePeriod: 5s 
-  logPath: "/var/log/crane/energy.log"
-  gpuType: "nvidia"
-  enabled:
-    task: true 
-    ipmi: true  
-    gpu: true 
-    rapl: true 
-    system: true 
+Monitor:
+  SamplePeriod: 5s 
+  LogPath: "/var/log/crane/energy.log"
+  GPUType: "nvidia"
+  Enabled:
+    Task: true 
+    Ipmi: true  
+    Gpu: true 
+    Rapl: true 
+    System: true 
 
-db:
-  type: "influxdb"          
-  batchSize: 10              
-  flushInterval: "30s"     
-  influxdb:
-    url: "http://localhost:8086"
-    token: "9NGg-1vx4Y4LSxDdJ-oJfkbef73_h7ZN3PmrRriJwWJuo0XKVA6Mj7I9n4AOvIKEU4GoLT4sR_v4jZmX9Jvl1Q=="
-    org: "pku"
-    nodeBucket: "energy_node"
-    taskBucket: "energy_task"
+Database:
+  Type: "influxdb"          
+  BatchSize: 10              
+  FlushInterval: "30s"     
+  Influxdb:
+    Url: "YOUR_INFLUXDB_URL"
+    Token: "YOUR_INFLUXDB_TOKEN"
+    Org: "YOUR_INFLUXDB_ORG_NAME"
+    NodeBucket: "YOUR_NODE_BUCKET_NAME"
+    TaskBucket: "YOUR_TASK_BUCKET_NAME"

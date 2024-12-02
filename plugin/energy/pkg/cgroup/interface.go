@@ -8,7 +8,6 @@ import (
 
 type CgroupReader interface {
 	GetCgroupStats() types.CgroupStats
-	GetBoundGPUs(gpuType string) []int
 }
 
 type Version int

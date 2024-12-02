@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
-	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -27,34 +24,9 @@ import "C"
 var log = logrus.WithField("component", "CgroupV1")
 
 const (
-	MB              = 1024 * 1024
-	NS_TO_SEC       = 1e9
-	allowAllDevices = "a *:* rwm"
+	MB        = 1024 * 1024
+	NS_TO_SEC = 1e9
 )
-
-var gpuDeviceInfos = map[string]struct {
-	majorNumber      string
-	deviceRegex      string
-	controlDeviceMin int
-	pattern          *regexp.Regexp
-}{
-	"nvidia": {
-		majorNumber:      "195",
-		deviceRegex:      `^c\s+195:(\d+)\s+rwm$`,
-		controlDeviceMin: 128,
-	}}
-
-func init() {
-	for gpuType, info := range gpuDeviceInfos {
-		pattern, err := regexp.Compile(info.deviceRegex)
-		if err != nil {
-			log.Errorf("Failed to compile regex for %s: %v", gpuType, err)
-			continue
-		}
-		info.pattern = pattern
-		gpuDeviceInfos[gpuType] = info
-	}
-}
 
 func getClockTicks() int64 {
 	ticks := C.sysconf(C._SC_CLK_TCK)
@@ -136,52 +108,6 @@ func (r *V1Reader) GetCgroupStats() types.CgroupStats {
 
 	r.logCgroupStats(stats)
 	return stats
-}
-
-func (r *V1Reader) GetBoundGPUs(gpuType string) []int {
-	var boundGPUs []int
-
-	deviceInfo, ok := gpuDeviceInfos[gpuType]
-	if !ok {
-		log.Warnf("Unsupported GPU type: %s, falling back to nvidia", gpuType)
-		deviceInfo = gpuDeviceInfos["nvidia"]
-	}
-
-	deviceListPath := filepath.Join("/sys/fs/cgroup/devices", r.cgroupName, "devices.list")
-	data, err := os.ReadFile(deviceListPath)
-	if err != nil {
-		log.Warnf("Failed to read devices.list from %s: %v", deviceListPath, err)
-		return boundGPUs
-	}
-
-	content := string(data)
-
-	if strings.Contains(content, allowAllDevices) {
-		log.Infof("Cgroup %s has access to all devices", r.cgroupName)
-		return []int{-1} // all GPUs
-	}
-
-	lines := strings.Split(strings.TrimSpace(content), "\n")
-	for _, line := range lines {
-		matches := deviceInfo.pattern.FindStringSubmatch(line)
-		if len(matches) != 2 {
-			continue
-		}
-
-		if minor, err := strconv.Atoi(matches[1]); err == nil {
-			if minor < deviceInfo.controlDeviceMin {
-				boundGPUs = append(boundGPUs, minor)
-			}
-		}
-	}
-
-	if len(boundGPUs) > 0 {
-		sort.Ints(boundGPUs)
-		boundGPUs = removeDuplicates(boundGPUs)
-		log.Infof("Cgroup %s is bound to %s GPUs: %v", r.cgroupName, gpuType, boundGPUs)
-	}
-
-	return boundGPUs
 }
 
 func (r *V1Reader) calculateCPUStats(v1Metrics *v1.Metrics) types.CPUStats {

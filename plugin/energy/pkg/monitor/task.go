@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,7 +24,7 @@ type TaskMonitor struct {
 	mutex sync.RWMutex
 }
 
-func (m *TaskMonitor) Start(taskID uint32, cgroupName string) {
+func (m *TaskMonitor) Start(taskID uint32, cgroupName string, boundDevices []string) {
 	log.Infof("Starting task monitor for task: %d, cgroup name: %s", taskID, cgroupName)
 
 	if !m.config.Enabled.Task {
@@ -36,7 +38,7 @@ func (m *TaskMonitor) Start(taskID uint32, cgroupName string) {
 		return
 	}
 
-	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config)
+	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config, boundDevices)
 	if err != nil {
 		log.Errorf("Failed to create task monitor: %v", err)
 		return
@@ -92,7 +94,47 @@ func getNodeID() string {
 	return hostname
 }
 
-func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig) (*Task, error) {
+var gpuPatterns = map[string]*struct {
+	pattern *regexp.Regexp
+	vendor  string
+}{
+	"nvidia": {
+		pattern: regexp.MustCompile(`/dev/nvidia(\d+)`),
+		vendor:  "nvidia",
+	},
+}
+
+func getBoundGPUs(devices []string) []int {
+	boundGPUs := make([]int, 0)
+
+	for _, device := range devices {
+		for _, info := range gpuPatterns {
+			matches := info.pattern.FindStringSubmatch(device)
+			if len(matches) != 2 {
+				continue
+			}
+
+			deviceNum, err := strconv.Atoi(matches[1])
+			if err != nil {
+				log.Errorf("Failed to parse GPU device number for %s: %v", info.vendor, err)
+				continue
+			}
+
+			log.Infof("Bound GPU: %s, device number: %d", info.vendor, deviceNum)
+
+			if info.vendor == "nvidia" && deviceNum >= 128 {
+				continue
+			}
+
+			boundGPUs = append(boundGPUs, deviceNum)
+			break
+		}
+	}
+
+	return boundGPUs
+}
+
+func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig, boundDevices []string) (*Task, error) {
 	cgroupReader, err := cgroup.NewCgroupReader(cgroup.V1, cgroupName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cgroup reader: %v", err)
@@ -106,7 +148,7 @@ func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, confi
 		cgroupName:   cgroupName,
 		samplePeriod: samplePeriod,
 		config:       config,
-		boundGPUs:    cgroupReader.GetBoundGPUs(config.GPUType),
+		boundGPUs:    getBoundGPUs(boundDevices),
 		ctx:          ctx,
 		cancel:       cancel,
 		subscriber: &NodeDataSubscriber{

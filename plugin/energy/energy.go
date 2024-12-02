@@ -78,7 +78,7 @@ func (p EnergyPlugin) Name() string {
 }
 
 func (p EnergyPlugin) Version() string {
-	return "v1.0.0"
+	return "1.0.0"
 }
 
 func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {}
@@ -93,7 +93,10 @@ func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 	}
 
 	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
-	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup)
+
+	boundDevices := []string{}
+	boundDevices = append(boundDevices, req.Devices...)
+	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundDevices)
 }
 
 func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {

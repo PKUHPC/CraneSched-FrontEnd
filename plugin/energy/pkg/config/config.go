@@ -10,38 +10,38 @@ import (
 var log = logrus.WithField("component", "Config")
 
 type Config struct {
-	Monitor MonitorConfig `mapstructure:"monitor"`
-	DB      DBConfig      `mapstructure:"db"`
+	Monitor MonitorConfig `mapstructure:"Monitor"`
+	DB      DBConfig      `mapstructure:"Database"`
 }
 
 type MonitorConfig struct {
-	SamplePeriod string  `mapstructure:"samplePeriod"`
-	Enabled      Enabled `mapstructure:"enabled"`
-	LogPath      string  `mapstructure:"logPath"`
-	GPUType      string  `mapstructure:"gpuType"`
+	SamplePeriod string  `mapstructure:"SamplePeriod"`
+	Enabled      Enabled `mapstructure:"Enabled"`
+	LogPath      string  `mapstructure:"LogPath"`
+	GPUType      string  `mapstructure:"GPUType"`
 }
 
 type Enabled struct {
-	Task   bool `mapstructure:"task"`
-	IPMI   bool `mapstructure:"ipmi"`
-	GPU    bool `mapstructure:"gpu"`
-	RAPL   bool `mapstructure:"rapl"`
-	System bool `mapstructure:"system"`
+	Task   bool `mapstructure:"Task"`
+	IPMI   bool `mapstructure:"Ipmi"`
+	GPU    bool `mapstructure:"Gpu"`
+	RAPL   bool `mapstructure:"Rapl"`
+	System bool `mapstructure:"System"`
 }
 
 type DBConfig struct {
-	Type      string          `mapstructure:"type"`
-	BatchSize int             `mapstructure:"batchSize"`
-	FlushTime string          `mapstructure:"flushInterval"`
-	InfluxDB  *InfluxDBConfig `mapstructure:"influxdb"`
+	Type      string          `mapstructure:"Type"`
+	BatchSize int             `mapstructure:"BatchSize"`
+	FlushTime string          `mapstructure:"FlushInterval"`
+	InfluxDB  *InfluxDBConfig `mapstructure:"Influxdb"`
 }
 
 type InfluxDBConfig struct {
-	URL        string `mapstructure:"url"`
-	Token      string `mapstructure:"token"`
-	Org        string `mapstructure:"org"`
-	NodeBucket string `mapstructure:"nodeBucket"`
-	TaskBucket string `mapstructure:"taskBucket"`
+	URL        string `mapstructure:"Url"`
+	Token      string `mapstructure:"Token"`
+	Org        string `mapstructure:"Org"`
+	NodeBucket string `mapstructure:"NodeBucket"`
+	TaskBucket string `mapstructure:"TaskBucket"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -100,7 +100,7 @@ func PrintConfig(cfg *Config) {
 	log.Infof("  Log Path: %v", cfg.Monitor.LogPath)
 	log.Infof("  GPU Type: %v", cfg.Monitor.GPUType)
 
-	// Switches
+	// Enabled
 	log.Infof("  Enabled:")
 	log.Infof("    Task: %v", cfg.Monitor.Enabled.Task)
 	log.Infof("    IPMI: %v", cfg.Monitor.Enabled.IPMI)
