@@ -2,10 +2,7 @@ package clogin
 
 import (
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os"
-
-	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/spf13/cobra"
 )
@@ -19,18 +16,6 @@ var (
 		Short:   "Login with your password",
 		Long:    "",
 		Version: util.Version(),
-		Args: func(cmd *cobra.Command, args []string) error {
-			fmt.Print("Enter Password: ")
-			bytePassword, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-			if err != nil {
-				fmt.Println("\nError reading password:", err)
-				os.Exit(1)
-			}
-			FlagPassword = string(bytePassword)
-			fmt.Println()
-
-			return nil
-		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
@@ -55,4 +40,5 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.Flags().StringVarP(&FlagPassword, "password", "P", "", "Input the password of the user")
 }

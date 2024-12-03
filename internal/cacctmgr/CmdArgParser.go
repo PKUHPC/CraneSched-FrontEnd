@@ -476,9 +476,6 @@ func init() {
 			if err := addUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
-			if err := addUserCmd.MarkFlagRequired("password"); err != nil {
-				log.Fatalln("Can't mark 'password' flag required")
-			}
 			if err := addUserCmd.MarkFlagRequired("account"); err != nil {
 				log.Fatalln("Can't mark 'account' flag required")
 			}
