@@ -94,6 +94,11 @@ func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
 		os.Exit(util.ErrorCmdArg)
 	}
 
+	if !craneConfig.Plugin.Enabled {
+		log.Errorf("Plugin is not enable")
+		os.Exit(util.ErrorCmdArg)	
+	}
+	
 	var monitorConfigPath string
 	for _, plugin := range craneConfig.Plugin.Plugins {
 		if plugin.Name == "monitor" {
@@ -103,7 +108,7 @@ func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
 	}
 
 	if monitorConfigPath == "" {
-		log.Errorf("no monitor plugin found in config.yaml")
+		log.Errorf("No monitor plugin found ")
 		os.Exit(util.ErrorCmdArg)
 	}
 
@@ -117,7 +122,7 @@ func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
 		Database *DatabaseConfig `yaml:"Database"`
 	}{}
 	if err := yaml.Unmarshal(confFile, dbConfig); err != nil {
-		log.Errorf("Monitor readYAMLFile config.yaml")
+		log.Errorf("Monitor readYAMLFile")
 		os.Exit(util.ErrorCmdArg)
 	}
 	if dbConfig.Database == nil {
@@ -128,7 +133,7 @@ func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
 	return dbConfig.Database
 }
 
-func QueryDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
+func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
 	if len(hostNames) == 0 {
 		return nil, fmt.Errorf("job not found")
 	}
@@ -331,7 +336,7 @@ func ExtractNodeNames(taskInfos []*protos.TaskInfo) ([]string, error) {
 	return nodeNames, nil
 }
 
-// Print task information
+
 func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) error {
 	// Filter task records
 	totalCPUUseS, totalMemMb, err:= CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
@@ -402,7 +407,6 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
 
-	// Print job information
 	fmt.Printf(
 		"CPU Utilized: %s\n"+
 		"CPU Efficiency: %.2f%% of %s core-walltime\n"+
@@ -537,7 +541,7 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 	}
 
 	// Query InfluxDB data
-	result, err := QueryDataByTags(dataConfig, jobIdList, nodeNames)
+	result, err := QueryInfluxDbDataByTags(dataConfig, jobIdList, nodeNames)
 	if err != nil {
 		log.Errorf("Failed to query job info from InfluxDB: %v", err)
 		return util.ErrorNetwork
