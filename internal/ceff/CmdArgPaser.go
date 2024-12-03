@@ -22,13 +22,13 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var (
 	FlagConfigFilePath string
 	FlagJson           bool
+	FlagClearData      bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ceff [flags][job_id,...]",
@@ -40,14 +40,14 @@ var (
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-			dataConfig = GetInfluxdbParameter(FlagConfigFilePath)
-			if dataConfig == nil {
-				log.Error("Get Influxdb error")
-				os.Exit(util.ErrorNetwork)
-			}
+			dataConfig = GetInfluxdbPara(FlagConfigFilePath)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
+			if FlagClearData {
+				err = ClearInfluxDBData()
+				os.Exit(err)
+			}
 			jobIds := ""
 			if len(args) == 0 {
 				jobIds = ""
@@ -58,6 +58,7 @@ var (
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+
 		},
 	}
 )
@@ -73,4 +74,6 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	RootCmd.PersistentFlags().BoolVar(&FlagClearData, "clear", false, "Clear influxdb data (please operate with caution)")
 }
