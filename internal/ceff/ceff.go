@@ -336,6 +336,16 @@ func ExtractNodeNames(taskInfos []*protos.TaskInfo) ([]string, error) {
 	return nodeNames, nil
 }
 
+func findNotFoundJobs(jobIdList []uint32, printed map[uint32]bool) []uint32 {
+	var notFoundJobs []uint32
+	for _, jobID := range jobIdList {
+		if !printed[jobID] {
+			notFoundJobs = append(notFoundJobs, jobID)
+		}
+	}
+	return notFoundJobs
+}
+
 
 func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) error {
 	// Filter task records
@@ -546,20 +556,36 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 		log.Errorf("Failed to query job info from InfluxDB: %v", err)
 		return util.ErrorNetwork
 	}
+
+	printed := map[uint32]bool{}
 	if FlagJson {
 		for _, taskInfo := range reply.TaskInfoList {
 			if err := PrintTaskInfoInJson(taskInfo, result); err != nil {
 				log.Warnf("%v", err)
+			} else {
+				printed[taskInfo.TaskId] = true
 			}
 		}
+		notFoundJobs := findNotFoundJobs(jobIdList, printed)
+		if len(notFoundJobs) > 0 {
+			fmt.Printf("Job %v does not exist.\n", notFoundJobs)
+		}
+	
 		return util.ErrorSuccess
 	}
 
-	// Print task information
+
 	for _, taskInfo := range reply.TaskInfoList {
 		if err := PrintTaskInfo(taskInfo, result); err != nil {
 			log.Warnf("%v", err)
+		} else {
+			printed[taskInfo.TaskId] = true
 		}
+	}
+
+	notFoundJobs := findNotFoundJobs(jobIdList, printed)
+	if len(notFoundJobs) > 0 {
+		fmt.Printf("Job %v does not exist.\n", notFoundJobs)
 	}
 
 	return util.ErrorSuccess
