@@ -483,7 +483,7 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 	if taskInfo.Status == protos.TaskStatus_Pending {
 		jsonData, err := json.MarshalIndent(taskInfo, "", "  ")
 		if err != nil {
-			log.Fatalf("Error marshalling to JSON: %v", err)
+			return fmt.Errorf("error marshalling to JSON: %v", err)
 		}
 
 		fmt.Println(string(jsonData))
@@ -573,7 +573,6 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 	
 		return util.ErrorSuccess
 	}
-
 
 	for _, taskInfo := range reply.TaskInfoList {
 		if err := PrintTaskInfo(taskInfo, result); err != nil {
