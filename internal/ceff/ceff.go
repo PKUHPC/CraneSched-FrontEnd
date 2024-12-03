@@ -95,7 +95,7 @@ func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
 	}
 
 	if !craneConfig.Plugin.Enabled {
-		log.Errorf("Plugin is not enable")
+		log.Errorf("Plugin is not enabled")
 		os.Exit(util.ErrorCmdArg)	
 	}
 	
@@ -108,7 +108,7 @@ func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
 	}
 
 	if monitorConfigPath == "" {
-		log.Errorf("No monitor plugin found ")
+		log.Errorf("No monitor plugin found")
 		os.Exit(util.ErrorCmdArg)
 	}
 
