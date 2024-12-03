@@ -69,7 +69,6 @@ type DatabaseConfig struct {
 
 type ResourceUsageRecord struct {
 	TaskID      int64
-	Ok          bool
 	CPUUsage    uint64
 	MemoryUsage uint64
 	ProcCount   uint64
@@ -209,7 +208,6 @@ func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hos
 			dataMap[key] = &ResourceUsageRecord{
 				TaskID:   jobID,
 				Hostname: hostname,
-				Ok: true,
 			}
 		}
 
@@ -242,7 +240,7 @@ func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hos
 	return records, nil
 }
 
-func ClearInfluxDBData() util.CraneCmdError {
+func ClearInfluxdbData() util.CraneCmdError {
 	client := influxdb2.NewClient(dataConfig.Url, dataConfig.Token)
 	defer client.Close()
 
@@ -519,7 +517,7 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 
 	jsonData, err := json.MarshalIndent(taskJsonInfo, "", "  ")
 	if err != nil {
-		log.Fatalf("Error marshalling to JSON: %v", err)
+		return fmt.Errorf("error marshalling to JSON: %v", err)
 	}
 
 	fmt.Println(string(jsonData))

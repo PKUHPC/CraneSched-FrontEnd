@@ -45,7 +45,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
 			if FlagClearData {
-				err = ClearInfluxDBData()
+				err = ClearInfluxdbData()
 				os.Exit(err)
 			}
 			jobIds := ""
