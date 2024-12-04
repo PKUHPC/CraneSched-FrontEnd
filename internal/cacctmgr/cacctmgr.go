@@ -479,12 +479,19 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	}
 }
 
-func DeleteAccount(name string) util.CraneCmdError {
-	req := protos.DeleteAccountRequest{Uid: userUid, Name: name}
+func DeleteAccount(value string) util.CraneCmdError {
+
+	account_list, err := util.ParseStringParamList(value, ",")
+	if err != nil {
+		log.Errorf("Invalid user list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+
+	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: account_list}
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete account %s", name)
+		util.GrpcErrorPrintf(err, "Failed to delete account %s", value)
 		return util.ErrorNetwork
 	}
 
@@ -497,20 +504,26 @@ func DeleteAccount(name string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Delete account %s succeeded.\n", name)
+		fmt.Printf("Delete account %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Delete account %s failed: %s.\n", name, util.ErrMsg(reply.GetReason()))
+		fmt.Printf("Delete account %s failed: %s.\n", value, util.ErrMsg(reply.GetReason()))
 		return util.ErrorBackend
 	}
 }
 
-func DeleteUser(name string, account string) util.CraneCmdError {
-	req := protos.DeleteUserRequest{Uid: userUid, Name: name, Account: account}
+func DeleteUser(value string, account string) util.CraneCmdError {
+
+	user_list, err := util.ParseStringParamList(value, ",")
+	if err != nil {
+		log.Errorf("Invalid user list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+	req := protos.DeleteUserRequest{Uid: userUid, UserList: user_list, Account: account}
 
 	reply, err := stub.DeleteUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to remove user %s", name)
+		util.GrpcErrorPrintf(err, "Failed to remove user %s", value)
 		return util.ErrorNetwork
 	}
 
@@ -523,10 +536,10 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Remove user %s succeeded.\n", name)
+		fmt.Printf("Remove user %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Remove user %s failed: %s.\n", name, util.ErrMsg(reply.GetReason()))
+		fmt.Printf("Remove user %s failed: %s.\n", value, util.ErrMsg(reply.GetReason()))
 		return util.ErrorBackend
 	}
 }
@@ -720,17 +733,19 @@ func ShowAccounts() util.CraneCmdError {
 	}
 }
 
-func ShowUser(name string, account string) util.CraneCmdError {
+func ShowUser(value string, account string) util.CraneCmdError {
 
-	if name != "" {
-		_, err := util.ParseStringParamList(name, ",")
+	var user_list []string
+	if value != "" {
+		var err error
+		user_list, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.QueryUserInfoRequest{Uid: userUid, Name: name, Account: account}
+	req := protos.QueryUserInfoRequest{Uid: userUid, UserList: user_list, Account: account}
 	reply, err := stub.QueryUserInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the user")
@@ -783,17 +798,18 @@ func ShowQos(name string) util.CraneCmdError {
 	}
 }
 
-func FindAccount(name string) util.CraneCmdError {
-
-	if name != "" {
-		_, err := util.ParseStringParamList(name, ",")
+func FindAccount(value string) util.CraneCmdError {
+	var account_list []string
+	if value != "" {
+		var err error
+		account_list, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid account list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.QueryAccountInfoRequest{Uid: userUid, Name: name}
+	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: account_list}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to find the account")
@@ -817,17 +833,19 @@ func FindAccount(name string) util.CraneCmdError {
 	}
 }
 
-func BlockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
+func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
-	if name != "" {
-		_, err := util.ParseStringParamList(name, ",")
+	var entity_list []string
+	if value != "" {
+		var err error
+		entity_list, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid account/user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, Name: name, Account: account}
+	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entity_list, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to block the entity")
@@ -843,7 +861,7 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Block %s succeeded.\n", name)
+		fmt.Printf("Block %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
 		fmt.Println(util.ErrMsg(reply.Reason))
@@ -851,17 +869,19 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 	}
 }
 
-func UnblockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
+func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
-	if name != "" {
-		_, err := util.ParseStringParamList(name, ",")
+	var entity_list []string
+	if value != "" {
+		var err error
+		entity_list, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid account/user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, Name: name, Account: account}
+	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entity_list, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to unblock the entity")
@@ -877,7 +897,7 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Unblock %s succeeded.\n", name)
+		fmt.Printf("Unblock %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
 		fmt.Println(util.ErrMsg(reply.Reason))
