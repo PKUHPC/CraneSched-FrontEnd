@@ -27,6 +27,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type StateOfCrunServer int
+
 const (
 	CrunWaitTaskIdAllocReq  StateOfCrunServer = 0
 	CrunWaitCtldAllocTaskId StateOfCrunServer = 1

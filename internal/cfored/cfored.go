@@ -66,20 +66,6 @@ type GlobalVariables struct {
 
 var gVars GlobalVariables
 
-type StateOfCallocServer int
-type StateOfCrunServer int
-type StateOfCranedServer int
-
-const (
-	WaitTaskIdAllocReq     StateOfCallocServer = 0
-	WaitCtldAllocTaskId    StateOfCallocServer = 1
-	WaitCtldAllocRes       StateOfCallocServer = 2
-	WaitCallocComplete     StateOfCallocServer = 3
-	WaitCallocCancel       StateOfCallocServer = 4
-	WaitCtldAck            StateOfCallocServer = 5
-	CancelTaskOfDeadCalloc StateOfCallocServer = 6
-)
-
 func StartCfored() {
 	util.InitLogger(FlagDebugLevel)
 

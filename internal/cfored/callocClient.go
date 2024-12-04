@@ -7,6 +7,18 @@ import (
 	"math"
 )
 
+type StateOfCallocServer int
+
+const (
+	WaitTaskIdAllocReq     StateOfCallocServer = 0
+	WaitCtldAllocTaskId    StateOfCallocServer = 1
+	WaitCtldAllocRes       StateOfCallocServer = 2
+	WaitCallocComplete     StateOfCallocServer = 3
+	WaitCallocCancel       StateOfCallocServer = 4
+	WaitCtldAck            StateOfCallocServer = 5
+	CancelTaskOfDeadCalloc StateOfCallocServer = 6
+)
+
 func (cforedServer *GrpcCforedServer) CallocStream(toCallocStream protos.CraneForeD_CallocStreamServer) error {
 	var callocPid int32
 	var taskId uint32
