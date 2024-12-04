@@ -544,12 +544,18 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 	}
 }
 
-func DeleteQos(name string) util.CraneCmdError {
-	req := protos.DeleteQosRequest{Uid: userUid, Name: name}
+func DeleteQos(value string) util.CraneCmdError {
+
+	qos_list, err := util.ParseStringParamList(value, ",")
+	if err != nil {
+		log.Errorf("Invalid user list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+	req := protos.DeleteQosRequest{Uid: userUid, QosList: qos_list}
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", name)
+		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", value)
 		return util.ErrorNetwork
 	}
 
@@ -562,10 +568,10 @@ func DeleteQos(name string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Delete QoS %s succeeded.\n", name)
+		fmt.Printf("Delete QoS %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Delete QoS %s failed: %s.\n", name, util.ErrMsg(reply.GetReason()))
+		fmt.Printf("Delete QoS %s failed: %s.\n", value, util.ErrMsg(reply.GetReason()))
 		return util.ErrorBackend
 	}
 }
@@ -769,8 +775,17 @@ func ShowUser(value string, account string) util.CraneCmdError {
 	}
 }
 
-func ShowQos(name string) util.CraneCmdError {
-	req := protos.QueryQosInfoRequest{Uid: userUid, Name: name}
+func ShowQos(value string) util.CraneCmdError {
+	var qos_list []string
+	if value != "" {
+		var err error
+		qos_list, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+	req := protos.QueryQosInfoRequest{Uid: userUid, QosList: qos_list}
 	reply, err := stub.QueryQosInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the QoS")
@@ -789,10 +804,10 @@ func ShowQos(name string) util.CraneCmdError {
 		PrintAllQos(reply.QosList)
 		return util.ErrorSuccess
 	} else {
-		if name == "" {
+		if value == "" {
 			fmt.Printf("Can't find any QoS. %s.\n", util.ErrMsg(reply.GetReason()))
 		} else {
-			fmt.Printf("Can't find QoS %s.\n", name)
+			fmt.Printf("Can't find QoS %s.\n", value)
 		}
 		return util.ErrorBackend
 	}
