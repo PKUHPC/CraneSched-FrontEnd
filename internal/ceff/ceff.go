@@ -41,21 +41,6 @@ var (
 	dataConfig *DatabaseConfig
 )
 
-// PluginConfig represents the structure of the plugin configuration in config.yaml
-type PluginConfig struct {
-	Name   string `yaml:"Name"`
-	Path   string `yaml:"Path"`
-	Config string `yaml:"Config"`
-}
-
-type CraneConfig struct {
-	Plugin struct {
-		Enabled           bool           `yaml:"Enabled"`
-		PlugindSockPath   string         `yaml:"PlugindSockPath"`
-		PlugindDebugLevel string         `yaml:"PlugindDebugLevel"`
-		Plugins           []PluginConfig `yaml:"Plugins"`
-	} `yaml:"Plugin"`
-}
 
 // DatabaseConfig represents the structure of the database configuration in monitor.yaml
 type DatabaseConfig struct {
@@ -76,30 +61,41 @@ type ResourceUsageRecord struct {
 	Timestamp   time.Time
 }
 
-var isFirstCall = true //use for multi-job print
+type TaskInfo struct {
+	JobID              uint32  `json:"job_id"`
+	QoS                string  `json:"qos"`
+	UID                uint32  `json:"uid"`
+	UserName           string  `json:"user_name"`
+	GID                uint32  `json:"gid"`
+	GroupName          string  `json:"group_name"`
+	Account            string  `json:"account"`
+	JobState           protos.TaskStatus `json:"job_state"`
+	Nodes              uint32  `json:"nodes"`
+	CoresPerNode       float64 `json:"cores_per_node"`
+	CPUUtilizedStr     string  `json:"cpu_utilized_str"`
+	CPUEfficiency      float64 `json:"cpu_efficiency"`
+	RunTimeStr         string  `json:"run_time_str"`
+	TotalMemMB         float64 `json:"total_mem_mb"`
+	MemEfficiency      float64 `json:"mem_efficiency"`
+	TotalMallocMemMB   float64 `json:"total_malloc_mem_mb"`
+	MallocMemMBPerNode float64 `json:"malloc_mem_mb_per_node"`
+}
+
+type TaskList struct {
+	TaskList []*TaskInfo `json:"job_list"`
+}
+
+var isFirstCall = true //Used for multi-job print
 
 //Extracts the InfluxDB configuration from the specified YAML configuration files
-func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
-	confFile, err := os.ReadFile(configFilePath)
-	if err != nil {
-		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
-		os.Exit(util.ErrorCmdArg)
-	}
-
-	craneConfig := &CraneConfig{}
-	err = yaml.Unmarshal(confFile, craneConfig)
-	if err != nil {
-		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
-		os.Exit(util.ErrorCmdArg)
-	}
-
-	if !craneConfig.Plugin.Enabled {
+func GetInfluxdbPara(config *util.Config) *DatabaseConfig {
+	if !config.Plugin.Enabled {
 		log.Errorf("Plugin is not enabled")
 		os.Exit(util.ErrorCmdArg)	
 	}
 	
 	var monitorConfigPath string
-	for _, plugin := range craneConfig.Plugin.Plugins {
+	for _, plugin := range config.Plugin.Plugins {
 		if plugin.Name == "monitor" {
 			monitorConfigPath = plugin.Config
 			break
@@ -111,9 +107,9 @@ func GetInfluxdbPara(configFilePath string) *DatabaseConfig {
 		os.Exit(util.ErrorCmdArg)
 	}
 
-	confFile, err = os.ReadFile(monitorConfigPath)
+	confFile, err := os.ReadFile(monitorConfigPath)
 	if err != nil {
-		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
+		log.Errorf("Failed to read config file %s: %v", monitorConfigPath, err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
@@ -164,11 +160,12 @@ func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hos
 	from(bucket: "%s")
 	|> range(start: 0)
 	|> filter(fn: (r) => 
-	    r["_measurement"] == "ResourceUsage" and 
+	    r["_measurement"] == "%s" and 
 		(r["_field"] == "cpu_usage" or r["_field"] == "memory_usage") and
 		(%s) and (%s))
 	|> group(columns: ["job_id", "hostname", "_field"])
-	|> max(column: "_value")`, moniterConfig.Bucket, jobIDCondition, hostnameCondition)
+	|> max(column: "_value")`, moniterConfig.Bucket,
+	 moniterConfig.Measurement, jobIDCondition, hostnameCondition)
 
 	// Execute the query
 	queryAPI := client.QueryAPI(moniterConfig.Org)
@@ -238,35 +235,6 @@ func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hos
 	}
 
 	return records, nil
-}
-
-func ClearInfluxdbData() util.CraneCmdError {
-	client := influxdb2.NewClient(dataConfig.Url, dataConfig.Token)
-	defer client.Close()
-
-	ctx := context.Background()
-	if pong, err := client.Ping(ctx); err != nil {
-		log.Errorf("Invalid job list specified: %v", err)
-		return util.ErrorCmdArg
-	} else if !pong {
-		log.Errorf("Failed to ping InfluxDB: not pong")
-		return util.ErrorCmdArg
-	}
-	
-	// Delete API
-	deleteAPI := client.DeleteAPI()
-
-	start := time.Unix(0, 0)
-	stop := time.Now()
-	err := deleteAPI.DeleteWithName(context.Background(),
-	dataConfig.Org, dataConfig.Bucket, start, stop, "")
-	if err != nil {
-		log.Errorf("failed to delete data from bucket %s: %V",  dataConfig.Bucket, err)
-		return util.ErrorCmdArg
-	}
-
-	fmt.Printf("Successfully cleared all data from bucket: %s\n",  dataConfig.Bucket)
-	return util.ErrorSuccess
 }
 
 //Filters records by a specific JobID
@@ -431,47 +399,29 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	return nil
 }
 
-func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) error {
+func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) (*TaskInfo, error) {
 	totalCPUUseS, totalMemMb, err:= CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
 	if err != nil {
-		return fmt.Errorf("print task %v json info error: %w", taskInfo.TaskId, err)
+		return nil, fmt.Errorf("print task %v json info error: %w", taskInfo.TaskId, err)
 	}
 
 	craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
 	if err != nil {
-		return fmt.Errorf("failed to get username for UID %d: %w", taskInfo.Uid, err)
+		return nil, fmt.Errorf("failed to get username for UID %d: %w", taskInfo.Uid, err)
 	}
 	group, err := user.LookupGroupId(strconv.Itoa(int(taskInfo.Gid)))
 	if err != nil {
-		return fmt.Errorf("failed to get groupname for GID %d: %w", taskInfo.Gid, err)
+		return nil, fmt.Errorf("failed to get groupname for GID %d: %w", taskInfo.Gid, err)
 	}
 
 	cpuTotal := taskInfo.ResView.AllocatableRes.CpuCoreLimit * float64(taskInfo.NodeNum)
-	taskJsonInfo := struct {
-		JobId                 uint32   `json:"jobid"`
-		Qos                   string   `json:"qos"`
-		Uid                   uint32   `json:"uid"`
-		UserName              string   `json:"username"`
-		Gid                   uint32   `json:"gid"`
-		GroupName             string   `json:"groupName "`
-		Account               string   `json:"account"`
-		JobState              protos.TaskStatus `json:"jobstate"`
-		Nodes                 uint32   `json:"nodes"`
-		CoresPerNode          float64  `json:"corespernode"`
-		CPUUtilizedStr        string   `json:"cpuutilizedstr"`
-		CPUEfficiency         float64  `json:"cpuefficiency"`
-		RunTimeStr            string   `json:"runtimestr"`
-		TotalMemMb            float64  `json:"totalmemmb"`
-		MemEfficiency         float64  `json:"memefficiency"`
-		TotalMallocMemMb      float64  `json:"totalmallocmemmb"`
-		MallocMemMbPerNode    float64  `json:"mallocmemMbpernode"`
-	}{
-		JobId: taskInfo.TaskId,
-		Qos: taskInfo.Qos,
+	taskJsonInfo := &TaskInfo {
+		JobID: taskInfo.TaskId,
+		QoS: taskInfo.Qos,
 		UserName: craneUser.Username,
-		Uid: taskInfo.Uid,
+		UID: taskInfo.Uid,
 		GroupName: group.Name,
-		Gid: taskInfo.Gid,
+		GID: taskInfo.Gid,
 		Account: taskInfo.Account,
 		JobState: taskInfo.Status,
 		Nodes: taskInfo.NodeNum,
@@ -479,13 +429,7 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 	}
 
 	if taskInfo.Status == protos.TaskStatus_Pending {
-		jsonData, err := json.MarshalIndent(taskInfo, "", "  ")
-		if err != nil {
-			return fmt.Errorf("error marshalling to JSON: %v", err)
-		}
-
-		fmt.Println(string(jsonData))
-		return nil
+		return taskJsonInfo, nil
 	}
 
 	// Calculate running time
@@ -510,19 +454,12 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 	taskJsonInfo.CPUUtilizedStr = cPUUtilizedStr
 	taskJsonInfo.CPUEfficiency = cPUEfficiency
 	taskJsonInfo.RunTimeStr = runTimeStr
-	taskJsonInfo.TotalMemMb = totalMemMb
+	taskJsonInfo.TotalMemMB = totalMemMb
 	taskJsonInfo.MemEfficiency = memEfficiency
-	taskJsonInfo.TotalMallocMemMb = totalMallocMemMb
-	taskJsonInfo.MallocMemMbPerNode = mallocMemMbPerNode
+	taskJsonInfo.TotalMallocMemMB = totalMallocMemMb
+	taskJsonInfo.MallocMemMBPerNode = mallocMemMbPerNode
 
-	jsonData, err := json.MarshalIndent(taskJsonInfo, "", "  ")
-	if err != nil {
-		return fmt.Errorf("error marshalling to JSON: %v", err)
-	}
-
-	fmt.Println(string(jsonData))
-
-	return nil
+	return taskJsonInfo, nil
 }
 
 func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
@@ -532,11 +469,14 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-	req := &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
+	req := &protos.QueryTasksInfoRequest{
+		FilterTaskIds: jobIdList,
+		OptionIncludeCompletedTasks: true,
+	}
 	if stub == nil {
 		log.Fatal("gRPC client stub is not initialized")
 	}
-	reply, err := stub.QueryTasksInfoByIds(context.Background(), req)
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job info")
 		return util.ErrorNetwork
@@ -556,14 +496,27 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 	}
 
 	printed := map[uint32]bool{}
+	taskInfoList := []*TaskInfo{}
 	if FlagJson {
 		for _, taskInfo := range reply.TaskInfoList {
-			if err := PrintTaskInfoInJson(taskInfo, result); err != nil {
+			if taskData, err := PrintTaskInfoInJson(taskInfo, result); err != nil {
 				log.Warnf("%v", err)
 			} else {
+				taskInfoList = append(taskInfoList, taskData)
 				printed[taskInfo.TaskId] = true
 			}
 		}
+
+		TaskList := TaskList {
+			TaskList: taskInfoList,
+		}
+
+		jsonData, err := json.MarshalIndent(TaskList, "", "  ")
+		if err != nil {
+			log.Errorf("Error marshalling to JSON: %v", err)
+		}
+
+		fmt.Println(string(jsonData))
 		notFoundJobs := findNotFoundJobs(jobIdList, printed)
 		if len(notFoundJobs) > 0 {
 			fmt.Printf("Job %v does not exist.\n", notFoundJobs)
