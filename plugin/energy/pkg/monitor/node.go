@@ -35,6 +35,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 	metricsCollector := func() *types.NodeData {
 		data := &types.NodeData{
 			Timestamp: time.Now(),
+			NodeID:    getNodeID(),
 		}
 
 		if r.raplReader != nil {

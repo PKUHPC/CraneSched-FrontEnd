@@ -5,7 +5,10 @@ import (
 	"io"
 	"os"
 	"path"
+	"regexp"
 	"runtime"
+	"strconv"
+	"strings"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	logrus "github.com/sirupsen/logrus"
@@ -39,15 +42,28 @@ func init() {
 	logrus.SetLevel(logrus.DebugLevel)
 }
 
-var globalMonitor *monitor.Monitor
-
 var _ api.Plugin = EnergyPlugin{}
 
 var PluginInstance = EnergyPlugin{}
 
-type EnergyPlugin struct {
-	config *config.Config
+var gpuConfigs = map[string]struct {
+	pattern    *regexp.Regexp
+	validRange func(int) bool
+}{
+	"nvidia": {
+		pattern:    regexp.MustCompile(`/dev/nvidia(\d+)`),
+		validRange: func(num int) bool { return num >= 0 && num < 128 },
+	},
 }
+
+type GlobalMonitor struct {
+	config  *config.Config
+	monitor *monitor.Monitor
+}
+
+var globalMonitor GlobalMonitor
+
+type EnergyPlugin struct{}
 
 func (p EnergyPlugin) Init(meta api.PluginMeta) error {
 	log.Info("Initializing plugin")
@@ -61,14 +77,14 @@ func (p EnergyPlugin) Init(meta api.PluginMeta) error {
 		log.Warnf("Failed to setup logging: %v, using default stderr", err)
 	}
 
-	p.config = cfg
+	globalMonitor.config = cfg
 	config.PrintConfig(cfg)
 
 	if err := p.ensureInitialized(); err != nil {
 		return fmt.Errorf("failed to initialize resources: %w", err)
 	}
 
-	globalMonitor.NodeMonitor.Start()
+	globalMonitor.monitor.NodeMonitor.Start()
 
 	return nil
 }
@@ -94,9 +110,8 @@ func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 
 	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 
-	boundDevices := []string{}
-	boundDevices = append(boundDevices, req.Devices...)
-	globalMonitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundDevices)
+	boundGPUs := getBoundGPUs(req.RequestedRes, globalMonitor.config.Monitor.GPUType)
+	globalMonitor.monitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundGPUs)
 }
 
 func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
@@ -107,19 +122,19 @@ func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	}
 
 	log.Infof("DestroyCgroupHook received for cgroup: %s", req.Cgroup)
-	globalMonitor.TaskMonitor.Stop(req.TaskId)
+	globalMonitor.monitor.TaskMonitor.Stop(req.TaskId)
 }
 
 func (p EnergyPlugin) ensureInitialized() error {
 	if db.GetInstance() == nil {
-		err := db.InitDB(p.config)
+		err := db.InitDB(globalMonitor.config)
 		if err != nil {
 			return fmt.Errorf("failed to create database: %w", err)
 		}
 	}
 
-	if globalMonitor == nil {
-		globalMonitor = monitor.NewMonitor(p.config.Monitor)
+	if globalMonitor.monitor == nil {
+		globalMonitor.monitor = monitor.NewMonitor(globalMonitor.config.Monitor)
 	}
 
 	return nil
@@ -128,9 +143,9 @@ func (p EnergyPlugin) ensureInitialized() error {
 func (p EnergyPlugin) Close() {
 	log.Info("EnergyPlugin closing")
 
-	if globalMonitor != nil {
-		globalMonitor.Close()
-		globalMonitor = nil
+	if globalMonitor.monitor != nil {
+		globalMonitor.monitor.Close()
+		globalMonitor.monitor = nil
 	}
 
 	if db.GetInstance() != nil {
@@ -138,6 +153,8 @@ func (p EnergyPlugin) Close() {
 			log.Errorf("Error closing database: %v", err)
 		}
 	}
+
+	globalMonitor = GlobalMonitor{}
 
 	log.Info("EnergyPlugin closed")
 }
@@ -157,6 +174,49 @@ func setupLogging(logPath string) error {
 	logrus.SetOutput(io.MultiWriter(os.Stdout, logFile))
 	log.Infof("Successfully set up logging to file %s", logPath)
 	return nil
+}
+
+func getBoundGPUs(res *protos.DedicatedResourceInNode, gpuType string) []int {
+	boundGPUs := make([]int, 0)
+
+	gpuConfig, exists := gpuConfigs[gpuType]
+	if !exists {
+		log.Errorf("Unsupported GPU type: %s", gpuType)
+		return boundGPUs
+	}
+
+	for deviceName, typeSlotMap := range res.GetNameTypeMap() {
+		if !strings.Contains(strings.ToLower(deviceName), "gpu") {
+			continue
+		}
+
+		for typeName, slots := range typeSlotMap.TypeSlotsMap {
+			log.Infof("Device type: %s", typeName)
+
+			for _, slot := range slots.Slots {
+				matches := gpuConfig.pattern.FindStringSubmatch(slot)
+				if len(matches) != 2 {
+					log.Errorf("Invalid %s GPU device path format: %s", gpuType, slot)
+					continue
+				}
+
+				deviceNum, err := strconv.Atoi(matches[1])
+				if err != nil {
+					log.Errorf("Failed to parse GPU number: %v", err)
+					continue
+				}
+
+				if gpuConfig.validRange(deviceNum) {
+					log.Infof("Bound %s GPU device number: %d", gpuType, deviceNum)
+					boundGPUs = append(boundGPUs, deviceNum)
+				} else {
+					log.Warnf("Invalid %s GPU device number: %d", gpuType, deviceNum)
+				}
+			}
+		}
+	}
+
+	return boundGPUs
 }
 
 func main() {

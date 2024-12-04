@@ -92,14 +92,8 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 	points := make([]*write.Point, 0, len(dataList))
 
 	for _, data := range dataList {
-		tags := map[string]string{
-			"node_id":    data.NodeID,
-			"cluster_id": data.ClusterID,
-		}
-
+		tags := map[string]string{}
 		fields := map[string]interface{}{}
-
-		// record enabled modules
 		enabledModules := make([]string, 0)
 
 		fields["cpu_utilization"] = data.SystemLoad.CPUUtil
@@ -158,14 +152,13 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		}
 
 		tags["node_id"] = data.NodeID
-		tags["cluster_id"] = data.ClusterID
 		tags["enabled_modules"] = strings.Join(enabledModules, ",")
 
 		p := influxdb2.NewPoint(
 			db.nodeBucket,
 			tags,
 			fields,
-			data.Timestamp,
+			time.Now(),
 		)
 		points = append(points, p)
 	}
@@ -206,8 +199,8 @@ func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
 	p := influxdb2.NewPoint(
 		db.taskBucket,
 		map[string]string{
-			"task_id": fmt.Sprintf("%d", taskData.TaskID),
 			"node_id": taskData.NodeID,
+			"task_id": fmt.Sprintf("%d", taskData.TaskID),
 		},
 		map[string]interface{}{
 			"start_time": taskData.StartTime,
@@ -234,7 +227,7 @@ func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
 			"disk_read_iops_ps":      taskData.CgroupStats.IOStats.ReadOpsPerSec,
 			"disk_write_iops_ps":     taskData.CgroupStats.IOStats.WriteOpsPerSec,
 		},
-		taskData.EndTime,
+		time.Now(),
 	)
 
 	return writeAPI.WritePoint(context.Background(), p)

@@ -254,18 +254,6 @@ func readTotalCPUTime() (uint64, error) {
 	return 0, fmt.Errorf("CPU stats not found in /proc/stat")
 }
 
-func removeDuplicates(indices []int) []int {
-	seen := make(map[int]bool)
-	result := []int{}
-	for _, idx := range indices {
-		if !seen[idx] {
-			seen[idx] = true
-			result = append(result, idx)
-		}
-	}
-	return result
-}
-
 func (r *V1Reader) logCgroupStats(usage types.CgroupStats) {
 	log.Infof("%s Cgroup Metrics:", r.cgroupName)
 	log.Infof("CPU Usage: %.2f s, CPU Utilization: %.2f%%", usage.CPUStats.UsageSeconds, usage.CPUStats.Utilization)
