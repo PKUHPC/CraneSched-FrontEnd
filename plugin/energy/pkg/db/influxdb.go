@@ -93,8 +93,7 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 
 	for _, data := range dataList {
 		tags := map[string]string{
-			"node_id":    data.NodeID,
-			"cluster_id": data.ClusterID,
+			"node_id": data.NodeID,
 		}
 
 		fields := map[string]interface{}{}
@@ -158,7 +157,6 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		}
 
 		tags["node_id"] = data.NodeID
-		tags["cluster_id"] = data.ClusterID
 		tags["enabled_modules"] = strings.Join(enabledModules, ",")
 
 		p := influxdb2.NewPoint(

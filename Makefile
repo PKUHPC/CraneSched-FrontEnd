@@ -41,8 +41,8 @@ BUILD_FLAGS := -trimpath
 
 NVIDIA_LIB_PATH := /usr/lib/x86_64-linux-gnu
 CUDA_INCLUDE_PATH := /usr/include
-CGO_CFLAGS := -I$(CUDA_INCLUDE_PATH)
-CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_PATH)
+PLUGIN_CGO_CFLAGS := -I$(CUDA_INCLUDE_PATH)
+PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_PATH)
 CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 # Targets
@@ -80,8 +80,8 @@ plugin-energy:
 	if [ -n "$(CHECK_GPU)" ]; then \
 		$(COMMON_ENV) \
 		CGO_ENABLED=1 \
-		CGO_CFLAGS="$(CGO_CFLAGS)" \
-		CGO_LDFLAGS="$(CGO_LDFLAGS)" \
+		CGO_CFLAGS="$(PLUGIN_CGO_CFLAGS)" \
+		CGO_LDFLAGS="$(PLUGIN_CGO_LDFLAGS)" \
 		$(GO) build $(BUILD_FLAGS) -buildmode=plugin -tags with_nvml -o ../../$(PLUGIN_DIR)/energy.so .; \
 	else \
 		$(COMMON_ENV) \

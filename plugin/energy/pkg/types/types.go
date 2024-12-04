@@ -6,7 +6,6 @@ import (
 
 type NodeData struct {
 	NodeID    string
-	ClusterID string
 	Timestamp time.Time
 
 	RAPL       RAPLMetrics

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strconv"
 	"sync"
 	"time"
 
@@ -24,7 +23,7 @@ type TaskMonitor struct {
 	mutex sync.RWMutex
 }
 
-func (m *TaskMonitor) Start(taskID uint32, cgroupName string, boundDevices []string) {
+func (m *TaskMonitor) Start(taskID uint32, cgroupName string, boundGPUs []int) {
 	log.Infof("Starting task monitor for task: %d, cgroup name: %s", taskID, cgroupName)
 
 	if !m.config.Enabled.Task {
@@ -38,7 +37,7 @@ func (m *TaskMonitor) Start(taskID uint32, cgroupName string, boundDevices []str
 		return
 	}
 
-	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config, boundDevices)
+	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config, boundGPUs)
 	if err != nil {
 		log.Errorf("Failed to create task monitor: %v", err)
 		return
@@ -104,37 +103,7 @@ var gpuPatterns = map[string]*struct {
 	},
 }
 
-func getBoundGPUs(devices []string) []int {
-	boundGPUs := make([]int, 0)
-
-	for _, device := range devices {
-		for _, info := range gpuPatterns {
-			matches := info.pattern.FindStringSubmatch(device)
-			if len(matches) != 2 {
-				continue
-			}
-
-			deviceNum, err := strconv.Atoi(matches[1])
-			if err != nil {
-				log.Errorf("Failed to parse GPU device number for %s: %v", info.vendor, err)
-				continue
-			}
-
-			log.Infof("Bound GPU: %s, device number: %d", info.vendor, deviceNum)
-
-			if info.vendor == "nvidia" && deviceNum >= 128 {
-				continue
-			}
-
-			boundGPUs = append(boundGPUs, deviceNum)
-			break
-		}
-	}
-
-	return boundGPUs
-}
-
-func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig, boundDevices []string) (*Task, error) {
+func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig, boundGPUs []int) (*Task, error) {
 	cgroupReader, err := cgroup.NewCgroupReader(cgroup.V1, cgroupName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cgroup reader: %v", err)
@@ -148,7 +117,7 @@ func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, confi
 		cgroupName:   cgroupName,
 		samplePeriod: samplePeriod,
 		config:       config,
-		boundGPUs:    getBoundGPUs(boundDevices),
+		boundGPUs:    boundGPUs,
 		ctx:          ctx,
 		cancel:       cancel,
 		subscriber: &NodeDataSubscriber{
