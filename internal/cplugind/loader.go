@@ -30,13 +30,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-type PluginConfig struct {
-	Enabled  bool             `yaml:"Enabled"`
-	SockPath string           `yaml:"PlugindSockPath"`
-	LogLevel string           `yaml:"PlugindDebugLevel"`
-	Plugins  []api.PluginMeta `yaml:"Plugins"`
-}
-
 type PluginLoaded struct {
 	api.Plugin
 
@@ -44,7 +37,7 @@ type PluginLoaded struct {
 }
 
 var (
-	gPluginConfig PluginConfig
+	gPluginConfig util.PluginConfig
 	gPluginMap    map[string]*PluginLoaded
 )
 
@@ -55,7 +48,7 @@ func ParsePluginConfig(basedir string, path string) error {
 	}
 
 	temp := struct {
-		Plugin PluginConfig `yaml:"Plugin"`
+		Plugin util.PluginConfig `yaml:"Plugin"`
 	}{}
 	if err = yaml.Unmarshal(config, &temp); err != nil {
 		return err

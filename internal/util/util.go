@@ -20,6 +20,7 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/api"
 	"os"
 	"strings"
 )
@@ -36,6 +37,14 @@ type Config struct {
 
 	CraneBaseDir         string `yaml:"CraneBaseDir"`
 	CranedCforedSockPath string `yaml:"CranedCforedSockPath"`
+	Plugin               PluginConfig `yaml:"Plugin"`
+}
+
+type PluginConfig struct {
+	Enabled  bool             `yaml:"Enabled"`
+	SockPath string           `yaml:"PlugindSockPath"`
+	LogLevel string           `yaml:"PlugindDebugLevel"`
+	Plugins  []api.PluginMeta `yaml:"Plugins"`
 }
 
 // Path = BaseDir + Dir + Name
