@@ -88,10 +88,10 @@ type TaskList struct {
 var isFirstCall = true //Used for multi-job print
 
 //Extracts the InfluxDB configuration from the specified YAML configuration files
-func GetInfluxdbPara(config *util.Config) *DatabaseConfig {
+func GetInfluxdbPara(config *util.Config) (*DatabaseConfig, util.CraneCmdError) {
 	if !config.Plugin.Enabled {
 		log.Errorf("Plugin is not enabled")
-		os.Exit(util.ErrorCmdArg)	
+		return nil, util.ErrorCmdArg
 	}
 	
 	var monitorConfigPath string
@@ -104,13 +104,13 @@ func GetInfluxdbPara(config *util.Config) *DatabaseConfig {
 
 	if monitorConfigPath == "" {
 		log.Errorf("No monitor plugin found")
-		os.Exit(util.ErrorCmdArg)
+		return nil, util.ErrorCmdArg
 	}
 
 	confFile, err := os.ReadFile(monitorConfigPath)
 	if err != nil {
 		log.Errorf("Failed to read config file %s: %v", monitorConfigPath, err)
-		os.Exit(util.ErrorCmdArg)
+		return nil, util.ErrorCmdArg
 	}
 
 	dbConfig := &struct {
@@ -118,14 +118,14 @@ func GetInfluxdbPara(config *util.Config) *DatabaseConfig {
 	}{}
 	if err := yaml.Unmarshal(confFile, dbConfig); err != nil {
 		log.Errorf("Monitor readYAMLFile")
-		os.Exit(util.ErrorCmdArg)
+		return nil, util.ErrorCmdArg
 	}
 	if dbConfig.Database == nil {
 		log.Errorf("Database section not found in YAML")
-		os.Exit(util.ErrorCmdArg)
+		return nil, util.ErrorCmdArg
 	}
 
-	return dbConfig.Database
+	return dbConfig.Database, util.ErrorSuccess
 }
 
 func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
@@ -514,6 +514,7 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 		jsonData, err := json.MarshalIndent(TaskList, "", "  ")
 		if err != nil {
 			log.Errorf("Error marshalling to JSON: %v", err)
+			return util.ErrorCmdArg
 		}
 
 		fmt.Println(string(jsonData))

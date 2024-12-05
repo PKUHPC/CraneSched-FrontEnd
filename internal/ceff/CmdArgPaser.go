@@ -36,10 +36,14 @@ var (
 		Version: util.Version(),
 		Args:    cobra.MaximumNArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-			dataConfig = GetInfluxdbPara(config)
+			dataConfig, err = GetInfluxdbPara(config)
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			var err util.CraneCmdError
