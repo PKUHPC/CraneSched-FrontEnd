@@ -439,6 +439,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+
 	// Check the validity of the parameters
 	if len(task.Name) > util.MaxJobNameLength {
 		log.Errorf("Job name exceeds %v characters.", util.MaxJobNameLength)
