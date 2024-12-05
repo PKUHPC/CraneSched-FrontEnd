@@ -30,5 +30,5 @@ func VersionTemplate() string {
 }
 
 func Version() string {
-	return fmt.Sprintf("Version: %s\nBuild Time: %s", VERSION, BUILD_TIME)
+	return fmt.Sprintf("CraneSched %s\nBuild Time: %s", VERSION, BUILD_TIME)
 }
