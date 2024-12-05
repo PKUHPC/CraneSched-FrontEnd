@@ -40,7 +40,7 @@ var (
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-			dataConfig, err = GetInfluxdbPara(config)
+			dbConfig, err = GetInfluxDbConfig(config)
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
@@ -53,11 +53,9 @@ var (
 			} else {
 				jobIds = args[0]
 			}
-			err = QueryTasksInfoByIds(jobIds)
-			if err != util.ErrorSuccess {
+			if err = QueryTasksInfoByIds(jobIds); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
-
 		},
 	}
 )

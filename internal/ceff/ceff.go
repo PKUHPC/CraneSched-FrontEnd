@@ -37,13 +37,12 @@ import (
 )
 
 var (
-	stub       protos.CraneCtldClient
-	dataConfig *DatabaseConfig
+	stub     protos.CraneCtldClient
+	dbConfig *InfluxDbConfig
 )
 
-
-// DatabaseConfig represents the structure of the database configuration in monitor.yaml
-type DatabaseConfig struct {
+// InfluxDB Config represents the structure of the database configuration in monitor.yaml
+type InfluxDbConfig struct {
 	Username    string `yaml:"Username"`
 	Bucket      string `yaml:"Bucket"`
 	Org         string `yaml:"Org"`
@@ -61,39 +60,35 @@ type ResourceUsageRecord struct {
 	Timestamp   time.Time
 }
 
-type TaskInfo struct {
-	JobID              uint32  `json:"job_id"`
-	QoS                string  `json:"qos"`
-	UID                uint32  `json:"uid"`
-	UserName           string  `json:"user_name"`
-	GID                uint32  `json:"gid"`
-	GroupName          string  `json:"group_name"`
-	Account            string  `json:"account"`
+type CeffTaskInfo struct {
+	JobID              uint32            `json:"job_id"`
+	QoS                string            `json:"qos"`
+	UID                uint32            `json:"uid"`
+	UserName           string            `json:"user_name"`
+	GID                uint32            `json:"gid"`
+	GroupName          string            `json:"group_name"`
+	Account            string            `json:"account"`
 	JobState           protos.TaskStatus `json:"job_state"`
-	Nodes              uint32  `json:"nodes"`
-	CoresPerNode       float64 `json:"cores_per_node"`
-	CPUUtilizedStr     string  `json:"cpu_utilized_str"`
-	CPUEfficiency      float64 `json:"cpu_efficiency"`
-	RunTimeStr         string  `json:"run_time_str"`
-	TotalMemMB         float64 `json:"total_mem_mb"`
-	MemEfficiency      float64 `json:"mem_efficiency"`
-	TotalMallocMemMB   float64 `json:"total_malloc_mem_mb"`
-	MallocMemMBPerNode float64 `json:"malloc_mem_mb_per_node"`
-}
-
-type TaskList struct {
-	TaskList []*TaskInfo `json:"job_list"`
+	Nodes              uint32            `json:"nodes"`
+	CoresPerNode       float64           `json:"cores_per_node"`
+	CPUUtilizedStr     string            `json:"cpu_utilized_str"`
+	CPUEfficiency      float64           `json:"cpu_efficiency"`
+	RunTimeStr         string            `json:"run_time_str"`
+	TotalMemMB         float64           `json:"total_mem_mb"`
+	MemEfficiency      float64           `json:"mem_efficiency"`
+	TotalMallocMemMB   float64           `json:"total_malloc_mem_mb"`
+	MallocMemMBPerNode float64           `json:"malloc_mem_mb_per_node"`
 }
 
 var isFirstCall = true //Used for multi-job print
 
-//Extracts the InfluxDB configuration from the specified YAML configuration files
-func GetInfluxdbPara(config *util.Config) (*DatabaseConfig, util.CraneCmdError) {
+// Extracts the InfluxDB configuration from the specified YAML configuration files
+func GetInfluxDbConfig(config *util.Config) (*InfluxDbConfig, util.CraneCmdError) {
 	if !config.Plugin.Enabled {
 		log.Errorf("Plugin is not enabled")
 		return nil, util.ErrorCmdArg
 	}
-	
+
 	var monitorConfigPath string
 	for _, plugin := range config.Plugin.Plugins {
 		if plugin.Name == "monitor" {
@@ -103,32 +98,32 @@ func GetInfluxdbPara(config *util.Config) (*DatabaseConfig, util.CraneCmdError) 
 	}
 
 	if monitorConfigPath == "" {
-		log.Errorf("No monitor plugin found")
+		log.Errorf("Monitor plugin not found")
 		return nil, util.ErrorCmdArg
 	}
 
 	confFile, err := os.ReadFile(monitorConfigPath)
 	if err != nil {
-		log.Errorf("Failed to read config file %s: %v", monitorConfigPath, err)
+		log.Errorf("Failed to read config file %s: %v.", monitorConfigPath, err)
 		return nil, util.ErrorCmdArg
 	}
 
-	dbConfig := &struct {
-		Database *DatabaseConfig `yaml:"Database"`
+	dbConf := &struct {
+		Database *InfluxDbConfig `yaml:"Database"`
 	}{}
-	if err := yaml.Unmarshal(confFile, dbConfig); err != nil {
-		log.Errorf("Monitor readYAMLFile")
+	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
+		log.Errorf("Failed to parse YAML config file: %v", err)
 		return nil, util.ErrorCmdArg
 	}
-	if dbConfig.Database == nil {
+	if dbConf.Database == nil {
 		log.Errorf("Database section not found in YAML")
 		return nil, util.ErrorCmdArg
 	}
 
-	return dbConfig.Database, util.ErrorSuccess
+	return dbConf.Database, util.ErrorSuccess
 }
 
-func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
+func QueryInfluxDbDataByTags(moniterConfig *InfluxDbConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
 	if len(hostNames) == 0 {
 		return nil, fmt.Errorf("job not found")
 	}
@@ -165,7 +160,7 @@ func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hos
 		(%s) and (%s))
 	|> group(columns: ["job_id", "hostname", "_field"])
 	|> max(column: "_value")`, moniterConfig.Bucket,
-	 moniterConfig.Measurement, jobIDCondition, hostnameCondition)
+		moniterConfig.Measurement, jobIDCondition, hostnameCondition)
 
 	// Execute the query
 	queryAPI := client.QueryAPI(moniterConfig.Org)
@@ -237,7 +232,7 @@ func QueryInfluxDbDataByTags(moniterConfig *DatabaseConfig, jobIDs []uint32, hos
 	return records, nil
 }
 
-//Filters records by a specific JobID
+// Filters records by a specific JobID
 func CalculateTotalUsagePtr(records []*ResourceUsageRecord, targetJobID int64) (float64, float64, error) {
 	var filteredRecords []*ResourceUsageRecord
 	for _, record := range records {
@@ -312,10 +307,9 @@ func findNotFoundJobs(jobIdList []uint32, printed map[uint32]bool) []uint32 {
 	return notFoundJobs
 }
 
-
 func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) error {
 	// Filter task records
-	totalCPUUseS, totalMemMb, err:= CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
+	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
 	if err != nil {
 		return fmt.Errorf("print task %v info error: %w", taskInfo.TaskId, err)
 	}
@@ -337,9 +331,9 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	fmt.Printf(
 		"JobId: %v\n"+
-		"Qos: %v\n"+
-		"User/Group: %s(%d)/%s(%d)\n"+
-		"Account: %v\n",
+			"Qos: %v\n"+
+			"User/Group: %s(%d)/%s(%d)\n"+
+			"Account: %v\n",
 		taskInfo.TaskId, taskInfo.Qos, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 		taskInfo.Account)
 
@@ -355,7 +349,7 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	} else {
 		fmt.Printf(
 			"Nodes: %v\n"+
-			"Cores per node: %.2f\n",
+				"Cores per node: %.2f\n",
 			taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit)
 	}
 
@@ -385,10 +379,10 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	fmt.Printf(
 		"CPU Utilized: %s\n"+
-		"CPU Efficiency: %.2f%% of %s core-walltime\n"+
-		"Job Wall-clock time: %s\n"+
-		"Memory Utilized: %.2f MB (estimated maximum)\n"+
-		"Memory Efficiency: %.2f%% of %.2f MB (%.2f MB/node)\n",
+			"CPU Efficiency: %.2f%% of %s core-walltime\n"+
+			"Job Wall-clock time: %s\n"+
+			"Memory Utilized: %.2f MB (estimated maximum)\n"+
+			"Memory Efficiency: %.2f%% of %.2f MB (%.2f MB/node)\n",
 		cPUUtilizedStr, cPUEfficiency, runTimeStr, runTimeStr, totalMemMb,
 		memEfficiency, totalMallocMemMb, mallocMemMbPerNode)
 
@@ -399,8 +393,8 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	return nil
 }
 
-func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) (*TaskInfo, error) {
-	totalCPUUseS, totalMemMb, err:= CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
+func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) (*CeffTaskInfo, error) {
+	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
 	if err != nil {
 		return nil, fmt.Errorf("print task %v json info error: %w", taskInfo.TaskId, err)
 	}
@@ -415,16 +409,16 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 	}
 
 	cpuTotal := taskInfo.ResView.AllocatableRes.CpuCoreLimit * float64(taskInfo.NodeNum)
-	taskJsonInfo := &TaskInfo {
-		JobID: taskInfo.TaskId,
-		QoS: taskInfo.Qos,
-		UserName: craneUser.Username,
-		UID: taskInfo.Uid,
-		GroupName: group.Name,
-		GID: taskInfo.Gid,
-		Account: taskInfo.Account,
-		JobState: taskInfo.Status,
-		Nodes: taskInfo.NodeNum,
+	taskJsonInfo := &CeffTaskInfo{
+		JobID:        taskInfo.TaskId,
+		QoS:          taskInfo.Qos,
+		UserName:     craneUser.Username,
+		UID:          taskInfo.Uid,
+		GroupName:    group.Name,
+		GID:          taskInfo.Gid,
+		Account:      taskInfo.Account,
+		JobState:     taskInfo.Status,
+		Nodes:        taskInfo.NodeNum,
 		CoresPerNode: taskInfo.ResView.AllocatableRes.CpuCoreLimit,
 	}
 
@@ -470,12 +464,10 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 	}
 
 	req := &protos.QueryTasksInfoRequest{
-		FilterTaskIds: jobIdList,
+		FilterTaskIds:               jobIdList,
 		OptionIncludeCompletedTasks: true,
 	}
-	if stub == nil {
-		log.Fatal("gRPC client stub is not initialized")
-	}
+
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job info")
@@ -485,18 +477,18 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 	nodeNames, err := ExtractNodeNames(reply.TaskInfoList)
 	if err != nil {
 		log.Errorf("Failed to extract node names: %v", err)
-		return util.ErrorCmdArg
+		return util.ErrorBackend
 	}
 
-	// Query InfluxDB data
-	result, err := QueryInfluxDbDataByTags(dataConfig, jobIdList, nodeNames)
+	// Query Resource Usage Records in InfluxDB
+	result, err := QueryInfluxDbDataByTags(dbConfig, jobIdList, nodeNames)
 	if err != nil {
 		log.Errorf("Failed to query job info from InfluxDB: %v", err)
-		return util.ErrorNetwork
+		return util.ErrorBackend
 	}
 
 	printed := map[uint32]bool{}
-	taskInfoList := []*TaskInfo{}
+	taskInfoList := []*CeffTaskInfo{}
 	if FlagJson {
 		for _, taskInfo := range reply.TaskInfoList {
 			if taskData, err := PrintTaskInfoInJson(taskInfo, result); err != nil {
@@ -507,14 +499,10 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 			}
 		}
 
-		TaskList := TaskList {
-			TaskList: taskInfoList,
-		}
-
-		jsonData, err := json.MarshalIndent(TaskList, "", "  ")
+		jsonData, err := json.MarshalIndent(taskInfoList, "", "  ")
 		if err != nil {
 			log.Errorf("Error marshalling to JSON: %v", err)
-			return util.ErrorCmdArg
+			return util.ErrorBackend
 		}
 
 		fmt.Println(string(jsonData))
@@ -522,7 +510,7 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 		if len(notFoundJobs) > 0 {
 			fmt.Printf("Job %v does not exist.\n", notFoundJobs)
 		}
-	
+
 		return util.ErrorSuccess
 	}
 

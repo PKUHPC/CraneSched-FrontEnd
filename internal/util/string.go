@@ -40,6 +40,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TODO: Refactor this to return ErrCodes instead of exiting.
 func ParseConfig(configFilePath string) *Config {
 	confFile, err := os.ReadFile(configFilePath)
 	if err != nil {
