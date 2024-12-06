@@ -450,13 +450,13 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 
 func DeleteAccount(value string) util.CraneCmdError {
 
-	account_list, err := util.ParseStringParamList(value, ",")
+	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
 
-	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: account_list}
+	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList}
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
@@ -483,12 +483,12 @@ func DeleteAccount(value string) util.CraneCmdError {
 
 func DeleteUser(value string, account string) util.CraneCmdError {
 
-	user_list, err := util.ParseStringParamList(value, ",")
+	userList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
-	req := protos.DeleteUserRequest{Uid: userUid, UserList: user_list, Account: account}
+	req := protos.DeleteUserRequest{Uid: userUid, UserList: userList, Account: account}
 
 	reply, err := stub.DeleteUser(context.Background(), &req)
 	if err != nil {
@@ -515,12 +515,12 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 
 func DeleteQos(value string) util.CraneCmdError {
 
-	qos_list, err := util.ParseStringParamList(value, ",")
+	qosList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
-	req := protos.DeleteQosRequest{Uid: userUid, QosList: qos_list}
+	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList}
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
@@ -545,26 +545,26 @@ func DeleteQos(value string) util.CraneCmdError {
 	}
 }
 
-func ModifyAccount(modify_field protos.ModifyField, new_value string, name string, requestType protos.OperationType) util.CraneCmdError {
+func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.CraneCmdError {
 	req := protos.ModifyAccountRequest{
 		Uid:         userUid,
-		ModifyField: modify_field,
-		Value:       new_value,
+		ModifyField: modifyField,
+		Value:       newValue,
 		Name:        name,
 		Type:        requestType,
 		Force:       FlagForce,
 	}
 
-	if modify_field == protos.ModifyField_Qos {
-		_, err := util.ParseStringParamList(new_value, ",")
+	if modifyField == protos.ModifyField_Qos {
+		_, err := util.ParseStringParamList(newValue, ",")
 		if err != nil {
 			log.Errorf("Invalid qos list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	if modify_field == protos.ModifyField_Partition {
-		_, err := util.ParseStringParamList(new_value, ",")
+	if modifyField == protos.ModifyField_Partition {
+		_, err := util.ParseStringParamList(newValue, ",")
 		if err != nil {
 			log.Errorf("Invalid partition list specified: %v.\n", err)
 			return util.ErrorCmdArg
@@ -594,24 +594,24 @@ func ModifyAccount(modify_field protos.ModifyField, new_value string, name strin
 	}
 }
 
-func ModifyUser(modify_field protos.ModifyField, new_value string, name string, account string, partition string, requestType protos.OperationType) util.CraneCmdError {
-	if modify_field == protos.ModifyField_AdminLevel {
-		if new_value != "none" && new_value != "operator" && new_value != "admin" {
+func ModifyUser(modifyField protos.ModifyField, newValue string, name string, account string, partition string, requestType protos.OperationType) util.CraneCmdError {
+	if modifyField == protos.ModifyField_AdminLevel {
+		if newValue != "none" && newValue != "operator" && newValue != "admin" {
 			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
 			return util.ErrorCmdArg
 		}
 	}
 
-	if modify_field == protos.ModifyField_Qos {
-		_, err := util.ParseStringParamList(new_value, ",")
+	if modifyField == protos.ModifyField_Qos {
+		_, err := util.ParseStringParamList(newValue, ",")
 		if err != nil {
 			log.Errorf("Invalid qos list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	if modify_field == protos.ModifyField_Partition {
-		_, err := util.ParseStringParamList(new_value, ",")
+	if modifyField == protos.ModifyField_Partition {
+		_, err := util.ParseStringParamList(newValue, ",")
 		if err != nil {
 			log.Errorf("Invalid partition list specified: %v.\n", err)
 			return util.ErrorCmdArg
@@ -620,8 +620,8 @@ func ModifyUser(modify_field protos.ModifyField, new_value string, name string, 
 
 	req := protos.ModifyUserRequest{
 		Uid:         userUid,
-		ModifyField: modify_field,
-		Value:       new_value,
+		ModifyField: modifyField,
+		Value:       newValue,
 		Name:        name,
 		Partition:   partition,
 		Type:        requestType,
@@ -652,11 +652,11 @@ func ModifyUser(modify_field protos.ModifyField, new_value string, name string, 
 	}
 }
 
-func ModifyQos(modify_field protos.ModifyField, new_value string, name string) util.CraneCmdError {
+func ModifyQos(modifyField protos.ModifyField, newVlaue string, name string) util.CraneCmdError {
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
-		ModifyField: modify_field,
-		Value:       new_value,
+		ModifyField: modifyField,
+		Value:       newVlaue,
 		Name:        name,
 	}
 
@@ -710,17 +710,17 @@ func ShowAccounts() util.CraneCmdError {
 
 func ShowUser(value string, account string) util.CraneCmdError {
 
-	var user_list []string
+	var userList []string
 	if value != "" {
 		var err error
-		user_list, err = util.ParseStringParamList(value, ",")
+		userList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.QueryUserInfoRequest{Uid: userUid, UserList: user_list, Account: account}
+	req := protos.QueryUserInfoRequest{Uid: userUid, UserList: userList, Account: account}
 	reply, err := stub.QueryUserInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the user")
@@ -745,16 +745,16 @@ func ShowUser(value string, account string) util.CraneCmdError {
 }
 
 func ShowQos(value string) util.CraneCmdError {
-	var qos_list []string
+	var qosList []string
 	if value != "" {
 		var err error
-		qos_list, err = util.ParseStringParamList(value, ",")
+		qosList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
-	req := protos.QueryQosInfoRequest{Uid: userUid, QosList: qos_list}
+	req := protos.QueryQosInfoRequest{Uid: userUid, QosList: qosList}
 	reply, err := stub.QueryQosInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the QoS")
@@ -783,17 +783,17 @@ func ShowQos(value string) util.CraneCmdError {
 }
 
 func FindAccount(value string) util.CraneCmdError {
-	var account_list []string
+	var accountList []string
 	if value != "" {
 		var err error
-		account_list, err = util.ParseStringParamList(value, ",")
+		accountList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid account list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: account_list}
+	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: accountList}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to find the account")
@@ -819,17 +819,17 @@ func FindAccount(value string) util.CraneCmdError {
 
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
-	var entity_list []string
+	var entityList []string
 	if value != "" {
 		var err error
-		entity_list, err = util.ParseStringParamList(value, ",")
+		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid account/user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entity_list, Account: account}
+	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to block the entity")
@@ -855,17 +855,17 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 
 func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
-	var entity_list []string
+	var entityList []string
 	if value != "" {
 		var err error
-		entity_list, err = util.ParseStringParamList(value, ",")
+		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
 			log.Errorf("Invalid account/user list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
 
-	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entity_list, Account: account}
+	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to unblock the entity")
