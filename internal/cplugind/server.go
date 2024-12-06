@@ -92,15 +92,29 @@ func (pd *PluginDaemon) EndHook(ctx context.Context, req *protos.EndHookRequest)
 	return reply, nil
 }
 
-func (pd *PluginDaemon) JobMonitorHook(ctx context.Context, req *protos.JobMonitorHookRequest) (*protos.JobMonitorHookReply, error) {
-	log.Tracef("JobMonitorHook request received: %v", req)
-	reply := &protos.JobMonitorHookReply{}
+func (pd *PluginDaemon) CreateCgroupHook(ctx context.Context, req *protos.CreateCgroupHookRequest) (*protos.CreateCgroupHookReply, error) {
+	log.Tracef("CreateCgroupHook request received: %v", req)
+	reply := &protos.CreateCgroupHookReply{}
 	hs := make([]api.PluginHandler, 0)
 	for _, p := range gPluginMap {
-		hs = append(hs, (*p).JobMonitorHook)
+		hs = append(hs, (*p).CreateCgroupHook)
 	}
 
-	c := api.NewContext(ctx, req, api.JobMonitorHook, &hs)
+	c := api.NewContext(ctx, req, api.CreateCgroupHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
+
+func (pd *PluginDaemon) DestroyCgroupHook(ctx context.Context, req *protos.DestroyCgroupHookRequest) (*protos.DestroyCgroupHookReply, error) {
+	log.Tracef("DestroyCgroupHook request received: %v", req)
+	reply := &protos.DestroyCgroupHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).DestroyCgroupHook)
+	}
+
+	c := api.NewContext(ctx, req, api.DestroyCgroupHook, &hs)
 	c.Start()
 
 	return reply, nil

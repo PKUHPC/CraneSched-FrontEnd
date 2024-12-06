@@ -33,8 +33,20 @@ LDFLAGS := -ldflags \
 BIN_DIR := build/bin
 PLUGIN_DIR := build/plugin
 
+GO_VERSION := $(shell go version)
+GO_PATH := $(shell go env GOROOT)
+GO := $(GO_PATH)/bin/go
+COMMON_ENV := GOROOT=$(GO_PATH)
+BUILD_FLAGS := -trimpath
+
+NVIDIA_LIB_PATH := /usr/lib/x86_64-linux-gnu
+CUDA_INCLUDE_PATH := /usr/include
+PLUGIN_CGO_CFLAGS := -I$(CUDA_INCLUDE_PATH)
+PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_PATH)
+CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
+
 # Targets
-.PHONY: all protos build clean install plugin
+.PHONY: all protos build clean install plugin plugin-energy plugin-other
 
 all: protos build plugin
 
@@ -46,11 +58,12 @@ protos:
 	@echo "    - Protobuf files generated in ./generated/protos/"
 
 build:
-	@echo "- Building executables..."
+	@echo "- Building executables with $(GO_VERSION)..."
 	@mkdir -p $(BIN_DIR)
 	@for dir in cmd/*/ ; do \
 		echo "  - Building $$dir"; \
-		(cd $$dir && go build $(LDFLAGS) -o ../../$(BIN_DIR)/$$(basename $$dir)) || exit 1; \
+		(cd $$dir && $(COMMON_ENV) $(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
+			-o ../../$(BIN_DIR)/$$(basename $$dir)) || exit 1; \
 	done
 	@echo "  - Summary:"
 	@echo "    - Version: $(VERSION)"
@@ -58,12 +71,33 @@ build:
 	@echo "    - Commit hash: $(GIT_COMMIT_HASH)"
 	@echo "    - Binaries are in ./$(BIN_DIR)/"
 
-plugin:
-	@echo "- Building plugins..."
+plugin: plugin-energy plugin-other
+
+plugin-energy:
+	@echo "Building energy plugin with $(GO_VERSION)..."
+	@mkdir -p $(PLUGIN_DIR)
+	@cd plugin/energy && \
+	if [ -n "$(CHECK_GPU)" ]; then \
+		$(COMMON_ENV) \
+		CGO_ENABLED=1 \
+		CGO_CFLAGS="$(PLUGIN_CGO_CFLAGS)" \
+		CGO_LDFLAGS="$(PLUGIN_CGO_LDFLAGS)" \
+		$(GO) build $(BUILD_FLAGS) -buildmode=plugin -tags with_nvml -o ../../$(PLUGIN_DIR)/energy.so .; \
+	else \
+		$(COMMON_ENV) \
+		CGO_ENABLED=1 \
+		$(GO) build $(BUILD_FLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/energy.so .; \
+	fi
+
+plugin-other:
+	@echo "  - Building other plugins..."
 	@mkdir -p $(PLUGIN_DIR)
 	@for dir in plugin/*/ ; do \
-		echo "  - Building: $$(basename $$dir).so"; \
-		(cd $$dir && go build $(LDFLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/$$(basename $$dir).so) || exit 1; \
+		if [ "$$(basename $$dir)" != "energy" ]; then \
+			echo "    - Building: $$(basename $$dir).so"; \
+			(cd $$dir && $(COMMON_ENV) $(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
+				-buildmode=plugin -o ../../$(PLUGIN_DIR)/$$(basename $$dir).so) || exit 1; \
+		fi \
 	done
 	@echo "  - Summary:"
 	@echo "    - Plugins are in ./$(PLUGIN_DIR)/"
