@@ -387,10 +387,16 @@ var (
 		Use:   "account [flags] name",
 		Short: "Block an account",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := BlockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := BlockAccountOrUser("", protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := BlockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -398,10 +404,16 @@ var (
 		Use:   "user [flags] name",
 		Short: "Block a user under an account",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := BlockAccountOrUser(args[0], protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := BlockAccountOrUser("", protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := BlockAccountOrUser(args[0], protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -416,10 +428,16 @@ var (
 		Use:   "account [flags] name",
 		Short: "Unblock an account",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := UnblockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := UnblockAccountOrUser("", protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := UnblockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -427,10 +445,16 @@ var (
 		Use:   "user [flags] name",
 		Short: "Unblock a user under an account",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := UnblockAccountOrUser(args[0], protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
-				os.Exit(err)
+			if len(args) == 0 {
+				if err := UnblockAccountOrUser("", protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				if err := UnblockAccountOrUser(args[0], protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -537,12 +561,12 @@ func init() {
 			modifyAccountCmd.Flags().StringVarP(&FlagAccount.DefaultQos, "default-qos", "Q", "", "Set default QoS of the account")
 
 			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the account (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete a single partition from allowed partition list")
+			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add partition to allowed partition list")
+			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete partition from allowed partition list")
 
 			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add a single QoS to allowed QoS list")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete a single QoS from allowed QoS list")
+			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
+			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
 
 			// Other flags
 			modifyAccountCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced to operate")
@@ -569,12 +593,12 @@ func init() {
 			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin-level", "L", "", "Set admin level (none/operator/admin) of the user")
 
 			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete a single partition to allowed partition list")
+			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add partition to allowed partition list")
+			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete partition to allowed partition list")
 
 			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add a single QoS to allowed QoS list")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete a single QoS from allowed QoS list")
+			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
+			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
 
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
