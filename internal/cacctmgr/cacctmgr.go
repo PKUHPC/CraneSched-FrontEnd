@@ -577,10 +577,19 @@ func DeleteQos(value string) util.CraneCmdError {
 }
 
 func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperatorType) util.CraneCmdError {
+	var valueList []string
+	var err error
+
+	valueList, err = util.ParseStringParamList(newValue, ",")
+	if err != nil {
+		log.Errorf("Invalid value list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+
 	req := protos.ModifyAccountRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
-		Value:       newValue,
+		ValueList:   valueList,
 		Name:        name,
 		Type:        requestType,
 		Force:       FlagForce,
@@ -633,26 +642,19 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 		}
 	}
 
-	if modifyField == protos.ModifyField_Qos {
-		_, err := util.ParseStringParamList(newValue, ",")
-		if err != nil {
-			log.Errorf("Invalid qos list specified: %v.\n", err)
-			return util.ErrorCmdArg
-		}
-	}
+	var valueList []string
+	var err error
 
-	if modifyField == protos.ModifyField_Partition {
-		_, err := util.ParseStringParamList(newValue, ",")
-		if err != nil {
-			log.Errorf("Invalid partition list specified: %v.\n", err)
-			return util.ErrorCmdArg
-		}
+	valueList, err = util.ParseStringParamList(newValue, ",")
+	if err != nil {
+		log.Errorf("Invalid value list specified: %v.\n", err)
+		return util.ErrorCmdArg
 	}
 
 	req := protos.ModifyUserRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
-		Value:       newValue,
+		ValueList:   valueList,
 		Name:        name,
 		Partition:   partition,
 		Type:        requestType,
@@ -683,11 +685,11 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 	}
 }
 
-func ModifyQos(modifyField protos.ModifyField, newVlaue string, name string) util.CraneCmdError {
+func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
-		Value:       newVlaue,
+		Value:       newValue,
 		Name:        name,
 	}
 
