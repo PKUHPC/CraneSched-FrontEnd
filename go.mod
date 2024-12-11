@@ -13,7 +13,6 @@ require (
 	github.com/tidwall/sjson v1.2.5
 	github.com/xlab/treeprint v1.2.0
 	golang.org/x/sys v0.24.0
-	golang.org/x/term v0.23.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
