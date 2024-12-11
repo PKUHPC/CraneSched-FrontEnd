@@ -39,6 +39,7 @@ type PluginLoaded struct {
 var (
 	gPluginConfig util.PluginConfig
 	gPluginMap    map[string]*PluginLoaded
+	// As gPluginMap is only write once, it's safe to read it without lock
 )
 
 func ParsePluginConfig(basedir string, path string) error {
@@ -96,6 +97,21 @@ func LoadPluginsByConfig(pl []api.PluginMeta) error {
 			Plugin: castV,
 			Meta:   p,
 		}
+	}
+
+	return nil
+}
+
+func UnloadPlugins() error {
+	var errs []error
+	for _, p := range gPluginMap {
+		if err := (*p).Unload(p.Meta); err != nil {
+			errs = append(errs, fmt.Errorf("(%s: %v)", p.Meta.Name, err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("%v", errs)
 	}
 
 	return nil

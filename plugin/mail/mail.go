@@ -46,9 +46,6 @@ type MailPlugin struct {
 	config
 }
 
-// Dummy implementations
-func (p *MailPlugin) JobMonitorHook(ctx *api.PluginContext) {}
-
 func (p *MailPlugin) parseExtraAttrInTask(t *protos.TaskInfo) (mailtype string, mailuser string, err error) {
 	// We treat "" as a valid JSON string
 	if t.ExtraAttr != "" && !gjson.Valid(t.ExtraAttr) {
@@ -119,7 +116,7 @@ func (p *MailPlugin) Version() string {
 	return "v0.0.1"
 }
 
-func (p *MailPlugin) Init(meta api.PluginMeta) error {
+func (p *MailPlugin) Load(meta api.PluginMeta) error {
 	if meta.Config == "" {
 		return fmt.Errorf("no config file specified")
 	}
@@ -136,6 +133,11 @@ func (p *MailPlugin) Init(meta api.PluginMeta) error {
 	log.Infoln("Mail plugin is initialized.")
 	log.Tracef("Mail plugin config: %v", p.config)
 
+	return nil
+}
+
+func (p *MailPlugin) Unload(meta api.PluginMeta) error {
+	log.Infoln("Mail plugin is unloaded.")
 	return nil
 }
 
@@ -206,4 +208,12 @@ func (p *MailPlugin) EndHook(ctx *api.PluginContext) {
 			}
 		}
 	}
+}
+
+func (p *MailPlugin) CreateCgroupHook(ctx *api.PluginContext) {
+	log.Infoln("CreateCgroupHook is called!")
+}
+
+func (p *MailPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
+	log.Infoln("DestroyCgroupHook is called!")
 }

@@ -1,0 +1,21 @@
+Monitor:
+  SamplePeriod: 5s 
+  LogPath: "/var/log/crane/energy.log"
+  GPUType: "nvidia"
+  Enabled:
+    Task: true 
+    Ipmi: true  
+    Gpu: true 
+    Rapl: true 
+    System: true 
+
+Database:
+  Type: "influxdb"          
+  BatchSize: 10              
+  FlushInterval: "30s"     
+  Influxdb:
+    Url: "YOUR_INFLUXDB_URL"
+    Token: "YOUR_INFLUXDB_TOKEN"
+    Org: "YOUR_INFLUXDB_ORG_NAME"
+    NodeBucket: "YOUR_NODE_BUCKET_NAME"
+    TaskBucket: "YOUR_TASK_BUCKET_NAME"

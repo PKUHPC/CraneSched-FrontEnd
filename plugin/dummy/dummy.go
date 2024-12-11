@@ -34,18 +34,24 @@ var PluginInstance = DummyPlugin{}
 
 type DummyPlugin struct{}
 
-func (dp DummyPlugin) Init(meta api.PluginMeta) error {
-	log.Infof("Dummy plugin is loaded.")
-	log.Tracef("Metadata: %v", meta)
-	return nil
-}
-
 func (dp DummyPlugin) Name() string {
 	return "Dummy"
 }
 
 func (dp DummyPlugin) Version() string {
 	return "v0.0.1"
+}
+
+func (dp DummyPlugin) Load(meta api.PluginMeta) error {
+	log.Infof("Dummy plugin is loaded.")
+	log.Tracef("Metadata: %v", meta)
+	return nil
+}
+
+func (dp DummyPlugin) Unload(meta api.PluginMeta) error {
+	log.Infof("Dummy plugin is unloaded.")
+	log.Tracef("Metadata: %v", meta)
+	return nil
 }
 
 func (dp DummyPlugin) StartHook(ctx *api.PluginContext) {
@@ -72,16 +78,28 @@ func (dp DummyPlugin) EndHook(ctx *api.PluginContext) {
 	log.Tracef("EndHookReq: \n%v", req.String())
 }
 
-func (dp DummyPlugin) JobMonitorHook(ctx *api.PluginContext) {
-	log.Infoln("JobMonitorHook is called!")
+func (dp DummyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
+	log.Infoln("CreateCgroupHook is called!")
 
-	req, ok := ctx.Request().(*protos.JobMonitorHookRequest)
+	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected JobMonitorHookRequest.")
+		log.Errorln("Invalid request type, expected CreateCgroupHookRequest.")
 		return
 	}
 
-	log.Tracef("JobMonitorHookReq: \n%v", req.String())
+	log.Tracef("CreateCgroupHookReq: \n%v", req.String())
+}
+
+func (dp DummyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
+	log.Infoln("DestroyCgroupHook is called!")
+
+	req, ok := ctx.Request().(*protos.DestroyCgroupHookRequest)
+	if !ok {
+		log.Errorln("Invalid request type, expected DestroyCgroupHookRequest.")
+		return
+	}
+
+	log.Tracef("DestroyCgroupHookReq: \n%v", req.String())
 }
 
 func main() {
