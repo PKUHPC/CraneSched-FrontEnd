@@ -105,6 +105,13 @@ func formatMemToMB(data uint64) string {
 	}
 }
 
+func formatAllowedAccounts(allowedAccounts []string) string {
+	if len(allowedAccounts) == 0 {
+		return "ALL"
+	}
+	return strings.Join(allowedAccounts, ",")
+}
+
 func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
@@ -208,12 +215,14 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	} else {
 		for _, partitionInfo := range reply.PartitionInfo {
 			fmt.Printf("PartitionName=%v State=%v\n"+
+				"\tAllowAccounts=%s\n"+
 				"\tTotalNodes=%d AliveNodes=%d\n"+
 				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
 				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
 				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
 				"\tHostList=%v\n\n",
 				partitionInfo.Name, partitionInfo.State.String()[10:],
+				formatAllowedAccounts(partitionInfo.AllowedAccounts),
 				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
 				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
