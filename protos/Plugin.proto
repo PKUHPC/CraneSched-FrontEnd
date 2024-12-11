@@ -54,7 +54,7 @@ message EndHookReply {
 message CreateCgroupHookRequest {
   uint32 task_id = 1;
   string cgroup = 2;
-  DedicatedResourceInNode requested_res = 3;
+  DedicatedResourceInNode resource = 3;
 }
 
 message CreateCgroupHookReply {
@@ -74,6 +74,8 @@ service CranePluginD {
   /* ----------------------------------- Called from CraneCtld ---------------------------------------------------- */  
   rpc StartHook(StartHookRequest) returns (StartHookReply);
   rpc EndHook(EndHookRequest) returns (EndHookReply);
+
+  /* ----------------------------------- Called from Craned ---------------------------------------------------- */
   rpc CreateCgroupHook(CreateCgroupHookRequest) returns (CreateCgroupHookReply);
   rpc DestroyCgroupHook(DestroyCgroupHookRequest) returns (DestroyCgroupHookReply);
 }

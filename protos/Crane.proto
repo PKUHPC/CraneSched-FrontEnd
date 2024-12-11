@@ -302,7 +302,7 @@ message ModifyAccountRequest {
   ModifyField modify_field = 2;   //modify item field
   string value = 3;   //new value
   string name = 4;
-  OperatorType type = 5;
+  OperationType type = 5;
   bool force = 6;
 }
 
@@ -317,7 +317,7 @@ message ModifyUserRequest {
   string value = 3;   //new value
   string name = 4;
   string partition = 5;
-  OperatorType type = 6;
+  OperationType type = 6;
   string account = 8;
   bool force = 9;
 }
@@ -359,7 +359,7 @@ message QueryUserInfoRequest {
 message QueryUserInfoReply {
   bool ok = 1;
   ErrCode reason = 2;
-  repeated UserInfo user_list = 3;
+  repeated UserInfo user_list = 3; 
 }
 
 message QueryQosInfoRequest {
@@ -401,8 +401,7 @@ message QueryTaskEnvVariablesRequest{
 
 message QueryTaskEnvVariablesReply{
   bool ok = 1;
-  repeated string name = 2;
-  repeated string value = 3;
+  map<string/*name*/, string/*value*/> env_map = 2;
 }
 
 message QueryTaskEnvVariablesForwardRequest{
@@ -412,8 +411,7 @@ message QueryTaskEnvVariablesForwardRequest{
 
 message QueryTaskEnvVariablesForwardReply{
   bool ok = 1;
-  repeated string name = 2;
-  repeated string value = 3;
+  map<string/*name*/, string/*value*/> env_map = 2;
 }
 
 message QueryClusterInfoRequest {
@@ -787,7 +785,7 @@ service CraneCtld {
   rpc ModifyAccount(ModifyAccountRequest) returns (ModifyAccountReply);
   rpc ModifyUser(ModifyUserRequest) returns (ModifyUserReply);
   rpc ModifyQos(ModifyQosRequest) returns (ModifyQosReply);
-
+  
   rpc BlockAccountOrUser(BlockAccountOrUserRequest) returns (BlockAccountOrUserReply);
 
   /* RPCs called from cinfo */

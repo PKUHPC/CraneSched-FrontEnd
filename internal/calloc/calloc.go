@@ -384,7 +384,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
 
-		// Todo: Propagate Env by --export here!
+		// TODO: Propagate Env by --export here!
 		Env: make(map[string]string),
 	}
 

@@ -557,7 +557,7 @@ func DeleteQos(name string) util.CraneCmdError {
 	}
 }
 
-func ModifyAccount(modify_field protos.ModifyField, new_value string, name string, requestType protos.OperatorType) util.CraneCmdError {
+func ModifyAccount(modify_field protos.ModifyField, new_value string, name string, requestType protos.OperationType) util.CraneCmdError {
 	req := protos.ModifyAccountRequest{
 		Uid:         userUid,
 		ModifyField: modify_field,
@@ -590,7 +590,7 @@ func ModifyAccount(modify_field protos.ModifyField, new_value string, name strin
 	}
 }
 
-func ModifyUser(modify_field protos.ModifyField, new_value string, name string, account string, partition string, requestType protos.OperatorType) util.CraneCmdError {
+func ModifyUser(modify_field protos.ModifyField, new_value string, name string, account string, partition string, requestType protos.OperationType) util.CraneCmdError {
 	if modify_field == protos.ModifyField_AdminLevel {
 		if new_value != "none" && new_value != "operator" && new_value != "admin" {
 			log.Errorf("Unknown admin level, valid values: none, operator, admin.")

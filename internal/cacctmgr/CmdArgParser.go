@@ -185,7 +185,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			err := util.ErrorSuccess
 			if cmd.Flags().Changed("description") { //See if a flag was set by the user
-				err = ModifyAccount(protos.ModifyField_Description, FlagAccount.Description, FlagAccount.Name, protos.OperatorType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Description, FlagAccount.Description, FlagAccount.Name, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -194,27 +194,27 @@ var (
 			//	ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
 			//}
 			if cmd.Flags().Changed("set-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.OperatorType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Partition, strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.OperationType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperatorType_Add)
+				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperatorType_Delete)
+				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.OperatorType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Qos, strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.OperationType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperatorType_Add)
+				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperationType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperatorType_Delete)
+				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperationType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyAccount(protos.ModifyField_DefaultQos, FlagAccount.DefaultQos, FlagAccount.Name, protos.OperatorType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_DefaultQos, FlagAccount.DefaultQos, FlagAccount.Name, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -239,33 +239,33 @@ var (
 			err := util.ErrorSuccess
 			// Check if a flag was set explicitly
 			if cmd.Flags().Changed("admin-level") {
-				err = ModifyUser(protos.ModifyField_AdminLevel, FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
+				err = ModifyUser(protos.ModifyField_AdminLevel, FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set-allowed-partition") {
-				err = ModifyUser(protos.ModifyField_Partition, strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
+				err = ModifyUser(protos.ModifyField_Partition, strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-partition") {
-				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Add)
+				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-partition") {
-				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Delete)
+				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set-allowed-qos-list") {
-				err = ModifyUser(protos.ModifyField_Qos, strings.Join(FlagUserQosList, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
+				err = ModifyUser(protos.ModifyField_Qos, strings.Join(FlagUserQosList, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-qos-list") {
-				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Add)
+				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
-				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Delete)
+				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperatorType_Overwrite)
+				err = ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
