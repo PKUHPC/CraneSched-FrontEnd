@@ -622,6 +622,7 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 
 	var req = &protos.ModifyCranedStateRequest{}
 
+	req.Uid = uint32(os.Getuid())
 	req.CranedIds = nodeNames
 	state = strings.ToLower(state)
 	switch state {
