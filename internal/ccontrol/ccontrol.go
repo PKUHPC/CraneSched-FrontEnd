@@ -37,7 +37,8 @@ import (
 )
 
 var (
-	stub protos.CraneCtldClient
+	userUid uint32
+	stub    protos.CraneCtldClient
 )
 
 func formatDeviceMap(data *protos.DeviceMap) string {
@@ -626,4 +627,27 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	}
 
 	return SummarizeReply(reply)
+}
+
+func ModifyPartitionAllowedAccounts(partition string, allowedAccounts string) util.CraneCmdError {
+	allowedAccountList, err := util.ParseStringParamList(allowedAccounts, ",")
+	if err != nil {
+		log.Errorf("Invalid allowed account list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+
+	req := protos.ModifyPartitionAllowedAccountsRequest{Uid: userUid, PartitionName: partition, AllowedAccounts: allowedAccountList}
+	reply, err := stub.ModifyPartitionAllowedAccounts(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
+		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		fmt.Printf("Modify partition %s failed: %s.\n", partition, util.ErrMsg(reply.GetReason()))
+		return util.ErrorBackend
+	}
+
+	fmt.Printf("Modify partition %s succeeded.\n", partition)
+	return util.ErrorSuccess
 }
