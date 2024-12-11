@@ -130,7 +130,7 @@ func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 
 	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 
-	boundGPUs := getBoundGPUs(req.RequestedRes, globalMonitor.config.Monitor.GPUType)
+	boundGPUs := getBoundGPUs(req.Resource, globalMonitor.config.Monitor.GPUType)
 	globalMonitor.monitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundGPUs)
 }
 

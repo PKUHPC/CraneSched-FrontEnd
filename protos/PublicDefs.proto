@@ -38,25 +38,25 @@ message AllocatableResource {
   uint64 memory_sw_limit_bytes = 3;
 }
 
-message TypeCountMap{
-  map <string/*Type*/, uint64> type_count_map = 1;
+message TypeCountMap {
+  map<string /*Type*/, uint64> type_count_map = 1;
   uint64 total = 2;
 }
 
-message DeviceMap{
+message DeviceMap {
   map<string /*name*/, TypeCountMap> name_type_map = 1;
 }
 
-message Slots{
+message Slots {
   repeated string slots = 1;
 }
 
-message DeviceTypeSlotsMap{
+message DeviceTypeSlotsMap {
   map<string /*Type*/, Slots /*index of slot*/> type_slots_map = 1;
 }
 
-message DedicatedResourceInNode{
-  map <string /*device name*/, DeviceTypeSlotsMap> name_type_map = 1;
+message DedicatedResourceInNode {
+  map<string /*device name*/, DeviceTypeSlotsMap> name_type_map = 1;
 }
 
 message ResourceInNode {
@@ -65,7 +65,7 @@ message ResourceInNode {
 }
 
 message ResourceV2 {
-  map <string /*craned id*/, ResourceInNode> each_node_res = 1;
+  map<string /*craned id*/, ResourceInNode> each_node_res = 1;
 }
 
 message ResourceView {
@@ -218,7 +218,7 @@ message BatchTaskAdditionalMeta {
   string error_file_pattern = 4;
 }
 
-message InteractiveTaskAdditionalMeta{
+message InteractiveTaskAdditionalMeta {
   string cfored_name = 1;
   string sh_script = 2;
   string term_env = 3;
@@ -381,13 +381,12 @@ enum ErrCode {
   ERR_NO_AVAIL_NODE = 10118;
 }
 
-
 enum EntityType {
   Account = 0;
   User = 1;
 }
 
-enum OperatorType {
+enum OperationType {
   Overwrite = 0;
   Add = 1;
   Delete = 2;
@@ -432,13 +431,13 @@ message AccountInfo {
 //       The c++ code and database representation use a Map<account name, AttrsInAccount> to contain
 //       in ONE UserInfo message all the information belonging to different accounts.
 message UserInfo {
-  enum AdminLevel{
+  enum AdminLevel {
     None = 0;
     Operator = 1;
     Admin = 2;
     Root = 3;
   };
-  message AllowedPartitionQos{
+  message AllowedPartitionQos {
     string partition_name = 1;
     repeated string qos_list = 2;
     string default_qos = 3;
