@@ -81,6 +81,7 @@ type ResourceUsage struct {
 type MonitorPlugin struct {
 	config
 	client   influxdb2.Client
+	cond     *sync.Cond         // Sync consumer
 	once     sync.Once          // Ensure the Singleton of InfluxDB client
 	buffer   chan ResourceUsage // Buffer channel for processing usage data
 	jobCtx   map[int64]context.CancelFunc
@@ -217,6 +218,7 @@ func (p *MonitorPlugin) consumer() {
 	log.Infof("InfluxDB client is created: %v", p.client.ServerURL())
 
 	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
+	p.cond = sync.NewCond(&sync.Mutex{})
 	for stat := range p.buffer {
 		tags := map[string]string{
 			"job_id":   strconv.FormatInt(stat.TaskID, 10),
@@ -237,9 +239,22 @@ func (p *MonitorPlugin) consumer() {
 		log.Tracef("Recorded Job ID: %v, Hostname: %s, Proc Count: %d, CPU Usage: %d, Memory Usage: %.2f KB at %v",
 			stat.TaskID, stat.Hostname, stat.ProcCount, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
 	}
+
+	// consumer is done, signal to exit
+	p.cond.L.Lock()
+	p.cond.Broadcast()
+	p.cond.L.Unlock()
 }
 
-func (p *MonitorPlugin) Init(meta api.PluginMeta) error {
+func (p *MonitorPlugin) Name() string {
+	return "Monitor"
+}
+
+func (p *MonitorPlugin) Version() string {
+	return "v0.0.1"
+}
+
+func (p *MonitorPlugin) Load(meta api.PluginMeta) error {
 	if meta.Config == "" {
 		return errors.New("config file is not specified")
 	}
@@ -285,12 +300,26 @@ func (p *MonitorPlugin) Init(meta api.PluginMeta) error {
 	return nil
 }
 
-func (p *MonitorPlugin) Name() string {
-	return "Monitor"
-}
+func (p *MonitorPlugin) Unload(meta api.PluginMeta) error {
+	// Cancel all monitoring goroutines
+	p.jobMutex.Lock()
+	for _, cancel := range p.jobCtx {
+		cancel()
+	}
+	p.jobMutex.Unlock()
 
-func (p *MonitorPlugin) Version() string {
-	return "v0.0.1"
+	// Close channel, then consumer closes the InfluxDB client
+	close(p.buffer)
+
+	// Wait for consumer to finish
+	if p.cond != nil {
+		p.cond.L.Lock()
+		p.cond.Wait()
+		p.cond.L.Unlock()
+	}
+
+	log.Infoln("Monitor plugin gracefully unloaded.")
+	return nil
 }
 
 func (p *MonitorPlugin) CreateCgroupHook(ctx *api.PluginContext) {

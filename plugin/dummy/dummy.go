@@ -34,18 +34,24 @@ var PluginInstance = DummyPlugin{}
 
 type DummyPlugin struct{}
 
-func (dp DummyPlugin) Init(meta api.PluginMeta) error {
-	log.Infof("Dummy plugin is loaded.")
-	log.Tracef("Metadata: %v", meta)
-	return nil
-}
-
 func (dp DummyPlugin) Name() string {
 	return "Dummy"
 }
 
 func (dp DummyPlugin) Version() string {
 	return "v0.0.1"
+}
+
+func (dp DummyPlugin) Load(meta api.PluginMeta) error {
+	log.Infof("Dummy plugin is loaded.")
+	log.Tracef("Metadata: %v", meta)
+	return nil
+}
+
+func (dp DummyPlugin) Unload(meta api.PluginMeta) error {
+	log.Infof("Dummy plugin is unloaded.")
+	log.Tracef("Metadata: %v", meta)
+	return nil
 }
 
 func (dp DummyPlugin) StartHook(ctx *api.PluginContext) {

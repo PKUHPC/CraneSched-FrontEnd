@@ -37,14 +37,17 @@ type PluginMeta struct {
 
 // A plugin is a shared object that implements the Plugin interface
 type Plugin interface {
-	// Init the plugin with the metadata, e.g., read the config file
-	Init(meta PluginMeta) error
-
 	// Get the plugin name, should be consistent with the config file
 	Name() string
 
 	// Get the plugin version, could be used for simple version control
 	Version() string
+
+	// Load the plugin with the metadata, e.g., read the config file
+	Load(meta PluginMeta) error
+
+	// Unload the plugin, e.g., close the file descriptor
+	Unload(meta PluginMeta) error
 
 	/*
 		Hook processing functions:

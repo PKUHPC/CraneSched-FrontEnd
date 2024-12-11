@@ -65,8 +65,16 @@ var globalMonitor GlobalMonitor
 
 type EnergyPlugin struct{}
 
-func (p EnergyPlugin) Init(meta api.PluginMeta) error {
-	log.Info("Initializing plugin")
+func (p EnergyPlugin) Name() string {
+	return "energy"
+}
+
+func (p EnergyPlugin) Version() string {
+	return "1.0.0"
+}
+
+func (p EnergyPlugin) Load(meta api.PluginMeta) error {
+	log.Info("Initializing energy plugin")
 
 	cfg, err := config.LoadConfig(meta.Config)
 	if err != nil {
@@ -89,12 +97,24 @@ func (p EnergyPlugin) Init(meta api.PluginMeta) error {
 	return nil
 }
 
-func (p EnergyPlugin) Name() string {
-	return "energy"
-}
+func (p EnergyPlugin) Unload(meta api.PluginMeta) error {
+	log.Info("Unloading energy plugin")
 
-func (p EnergyPlugin) Version() string {
-	return "1.0.0"
+	if globalMonitor.monitor != nil {
+		globalMonitor.monitor.Close()
+		globalMonitor.monitor = nil
+	}
+
+	if db.GetInstance() != nil {
+		if err := db.GetInstance().Close(); err != nil {
+			return fmt.Errorf("error closing database: %v", err)
+		}
+	}
+
+	globalMonitor = GlobalMonitor{}
+
+	log.Info("energy plugin gracefully unloaded")
+	return nil
 }
 
 func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {}
@@ -138,25 +158,6 @@ func (p EnergyPlugin) ensureInitialized() error {
 	}
 
 	return nil
-}
-
-func (p EnergyPlugin) Close() {
-	log.Info("EnergyPlugin closing")
-
-	if globalMonitor.monitor != nil {
-		globalMonitor.monitor.Close()
-		globalMonitor.monitor = nil
-	}
-
-	if db.GetInstance() != nil {
-		if err := db.GetInstance().Close(); err != nil {
-			log.Errorf("Error closing database: %v", err)
-		}
-	}
-
-	globalMonitor = GlobalMonitor{}
-
-	log.Info("EnergyPlugin closed")
 }
 
 func setupLogging(logPath string) error {

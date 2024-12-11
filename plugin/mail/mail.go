@@ -116,7 +116,7 @@ func (p *MailPlugin) Version() string {
 	return "v0.0.1"
 }
 
-func (p *MailPlugin) Init(meta api.PluginMeta) error {
+func (p *MailPlugin) Load(meta api.PluginMeta) error {
 	if meta.Config == "" {
 		return fmt.Errorf("no config file specified")
 	}
@@ -133,6 +133,11 @@ func (p *MailPlugin) Init(meta api.PluginMeta) error {
 	log.Infoln("Mail plugin is initialized.")
 	log.Tracef("Mail plugin config: %v", p.config)
 
+	return nil
+}
+
+func (p *MailPlugin) Unload(meta api.PluginMeta) error {
+	log.Infoln("Mail plugin is unloaded.")
 	return nil
 }
 
