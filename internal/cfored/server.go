@@ -81,6 +81,7 @@ func (keeper *CranedChannelKeeper) cranedDownAndRemoveChannelToCraned(cranedId s
 }
 
 func (keeper *CranedChannelKeeper) waitCranedChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool, taskId uint32) {
+	log.Tracef("[Cfored<->Crun] Waiting for %d related craned up", len(cranedIds))
 	keeper.crunRequestChannelMtx.Lock()
 	defer keeper.crunRequestChannelMtx.Unlock()
 	for !stopWaiting.Load() {
@@ -220,35 +221,7 @@ func grpcStreamReceiver[RecvT any](stream grpcStreamServer[RecvT], requestChanne
 	}
 }
 
-func (cforedServer *GrpcCforedServer) QueryTaskIdFromPort(ctx context.Context,
-	request *protos.QueryTaskIdFromPortRequest) (*protos.QueryTaskIdFromPortReply, error) {
-
-	var taskId uint32
-	var ok bool
-
-	pid, err := util.GetPidFromPort(uint16(request.Port))
-	if err != nil {
-		return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
-	}
-
-	for {
-		gVars.pidTaskIdMapMtx.RLock()
-		taskId, ok = gVars.pidTaskIdMap[int32(pid)]
-		gVars.pidTaskIdMapMtx.RUnlock()
-
-		if ok {
-			return &protos.QueryTaskIdFromPortReply{
-				Ok:     true,
-				TaskId: taskId,
-			}, nil
-		}
-
-		pid, err = util.GetParentProcessID(pid)
-		if err != nil || pid == 1 {
-			return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
-		}
-	}
-}
+type StateOfCranedServer int
 
 const (
 	CranedReg    StateOfCranedServer = 0
@@ -397,6 +370,36 @@ CforedCranedStateMachineLoop:
 		}
 	}
 	return nil
+}
+
+func (cforedServer *GrpcCforedServer) QueryTaskIdFromPort(ctx context.Context,
+	request *protos.QueryTaskIdFromPortRequest) (*protos.QueryTaskIdFromPortReply, error) {
+
+	var taskId uint32
+	var ok bool
+
+	pid, err := util.GetPidFromPort(uint16(request.Port))
+	if err != nil {
+		return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
+	}
+
+	for {
+		gVars.pidTaskIdMapMtx.RLock()
+		taskId, ok = gVars.pidTaskIdMap[int32(pid)]
+		gVars.pidTaskIdMapMtx.RUnlock()
+
+		if ok {
+			return &protos.QueryTaskIdFromPortReply{
+				Ok:     true,
+				TaskId: taskId,
+			}, nil
+		}
+
+		pid, err = util.GetParentProcessID(pid)
+		if err != nil || pid == 1 {
+			return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
+		}
+	}
 }
 
 func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
