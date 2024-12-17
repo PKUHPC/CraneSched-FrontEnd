@@ -112,37 +112,37 @@ func init() {
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format.
-Fields are identified by a percent sign (%) followed by a character. 
+Fields are identified by a percent sign (%) followed by a character or string. 
 Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
 
-Supported format identifiers:
-	%a: Account      - Displays the account associated with the job.
-	%c: AllocCPUs    - Displays the number of allocated CPUs, formatted to two decimal places.
-	%e: ExitCode     - Displays the exit code of the job. 
-	                If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
-	                it formats as "0:<code>" or "<code>:0" based on the condition.
-	%j: JobID        - Displays the ID of the job.
-	%n: Name         - Displays the name of the job.
-	%P: Partition    - Displays the partition associated with the job.
-	%t: State        - Displays the state of the job.
-	%u: Uid          - Displays the uid of the job.
-	%l: TimeLimit    - Displays the time-time of the job.
-	%S: StartTime    - Displays the start-time of the job.
-	%E: EndTime      - Displays the end-time of the job.
-	%s: SubmitTime   - Displays the submit-time num of the job.
-	%N: NodeNum      - Displays the node num of the job.
-	%U: UserName     - Displays the username of the job.
-	%q: Qos          - Displays the QoS of the job.
-	%r: ReqNodes     - Displays the ReqNodes of the job.
-	%x: ExcludeNodes - Displays the ExcludeNodes of the job.
-	%h: Held         - Displays the Held of the job.
-	%p: Priority     - Displays the Priority of the job.
+Supported format identifiers or string, string case insensitive:
+	%a/%Account      - Displays the account associated with the job.
+	%c/%AllocCpus    - Displays the number of allocated CPUs, formatted to two decimal places.
+	%e/%ExitCode     - Displays the exit code of the job. 
+	                    If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
+	                    it formats as "0:<code>" or "<code>:0" based on the condition.
+	%j/%JobID        - Displays the ID of the job.
+	%n/%Name         - Displays the name of the job.
+	%P/%Partition    - Displays the partition associated with the job.
+	%t/%State        - Display the state of the job.
+	%u/%Uid          - Displays the uid of the job.
+	%l/%TimeLimit    - Displays the time limit of the job.
+	%S/%StartTime    - Displays the start time of the job.
+	%E/%EndTime      - Displays the end time of the job.
+	%s/%SubmitTime   - Displays the submit time num of the job.
+	%N/%NodeNum      - Displays the node num of the job.
+	%U/%UserName     - Displays the username of the job.
+	%q/%Qos          - Displays the QoS of the job.
+	%r/%ReqNodes     - Displays the reqnodes of the job.
+	%x/%ExcludeNodes - Displays the excludenodes of the job.
+	%h/%Held         - Displays the held of the job.
+	%p/%Priority     - Displays the priority of the job.
 
-Each format specifier can be modified with a width specifier (e.g., "%.5j").
+Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
 If the format is invalid or unrecognized, the program will terminate with an error message.
 
-Example: --format "%.5j %.20n %t" would output the job's ID with a minimum width of 5,
+Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum width of 5,
          Name with a minimum width of 20, and the State.
 `)
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")

@@ -241,7 +241,7 @@ func QueryJob() util.CraneCmdError {
 }
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
-	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z])`)
+	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
 		log.Errorln("Invalid format specifier.")
@@ -289,22 +289,28 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 
 		// Parse format specifier
 		header := ""
-		switch FlagFormat[spec[4]:spec[5]] {
-		// a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName
-		// P-Partition, t-State
-		case "a":
+		field := FlagFormat[spec[4]:spec[5]]
+		if len(field) > 1 {
+			field = strings.ToLower(field)
+		}
+
+		switch field {
+		//a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State
+		//u-Uid, l-TimeLimit, S-StartTime, E-EndTime, s-SubmitTime, N-NodeNum, U-UserName
+		//q-Qos, r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority
+		case "a", "account":
 			header = "Account"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Account)
 			}
-		case "c":
+		case "c", "alloccpus":
 			header = "AllocCPUs"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j],
 					strconv.FormatFloat(reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit*
 						float64(reply.TaskInfoList[j].NodeNum), 'f', 2, 64))
 			}
-		case "e":
+		case "e", "exitcode":
 			header = "ExitCode"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				exitCode := ""
@@ -315,114 +321,122 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				}
 				tableOutputCell[j] = append(tableOutputCell[j], exitCode)
 			}
-		case "j":
+		case "j", "jobid":
 			header = "JobId"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j],
 					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
 			}
-		case "n":
+		case "n", "jobname":
 			header = "JobName"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Name)
 			}
-		case "P":
+		case "P", "partition":
 			header = "Partition"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Partition)
 			}
-		case "t":
+		case "t", "state":
 			header = "State"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Status.String())
 			}
-		case "u":
+		case "u", "uid":
 			header = "Uid"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].Uid), 10))
 			}
-		case "l":
+		case "l", "timelimit":
 			header = "TimeLimit"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				timeLimit := reply.TaskInfoList[j].TimeLimit
-				if timeLimit.Seconds != 0 {
-					tableOutputCell[j] = append(tableOutputCell[j], util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds))
+				var timeLimitStr string
+				if reply.TaskInfoList[j].TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+					timeLimitStr = "unlimited"
 				} else {
-					tableOutputCell[j] = append(tableOutputCell[j], " ")
+					timeLimitStr = util.SecondTimeFormat(reply.TaskInfoList[j].TimeLimit.Seconds)
 				}
+				tableOutputCell[j] = append(tableOutputCell[j], timeLimitStr)
 			}
-		case "S":
+		case "S", "starttime":
 			header = "StartTime"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				startTime := reply.TaskInfoList[j].StartTime
-				if startTime.Seconds != 0 {
-					tableOutputCell[j] = append(tableOutputCell[j], startTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"))
-				} else {
-					tableOutputCell[j] = append(tableOutputCell[j], "")
+				startTimeStr := "unknown"
+				startTime := reply.TaskInfoList[j].StartTime.AsTime()
+				if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) &&
+				startTime.Before(time.Now()) {
+					startTimeStr = startTime.In(time.Local).Format("2006-01-02 15:04:05")
 				}
+				tableOutputCell[j] = append(tableOutputCell[j], startTimeStr)
 			}
-		case "E":
+		case "E", "endtime":
 			header = "EndTime"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				endTime := reply.TaskInfoList[j].EndTime
-				if endTime.Seconds != 0 {
-					tableOutputCell[j] = append(tableOutputCell[j], endTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"))
-				} else {
-					tableOutputCell[j] = append(tableOutputCell[j], "")
+				endTimeStr := "unknown"
+				if !(reply.TaskInfoList[j].Status == protos.TaskStatus_Pending ||
+				reply.TaskInfoList[j].Status == protos.TaskStatus_Running) {
+					startTime := reply.TaskInfoList[j].StartTime.AsTime()
+					endTime := reply.TaskInfoList[j].EndTime.AsTime()
+					if startTime.Before(time.Now()) && endTime.After(startTime) {
+						endTimeStr = endTime.In(time.Local).Format("2006-01-02 15:04:05")
+					}
 				}
+				tableOutputCell[j] = append(tableOutputCell[j], endTimeStr)
 			}
-		case "s":
+		case "s", "submittime":
 			header = "SubmitTime"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				submitTime := reply.TaskInfoList[j].SubmitTime
-				if submitTime.Seconds != 0 {
-					tableOutputCell[j] = append(tableOutputCell[j], submitTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"))
-				} else {
-					tableOutputCell[j] = append(tableOutputCell[j], "")
+				submitTimeStr := "unknown"
+				submitTime := reply.TaskInfoList[j].SubmitTime.AsTime()
+				if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+					submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
 				}
+				tableOutputCell[j] = append(tableOutputCell[j], submitTimeStr)
 			}
-		case "N":
+		case "N", "nodenum":
 			header = "NodeNum"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].NodeNum), 10))
+				tableOutputCell[j] = append(tableOutputCell[j],
+									 strconv.FormatUint(uint64(reply.TaskInfoList[j].NodeNum), 10))
 			}
-		case "U":
+		case "U", "username":
 			header = "UserName"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Username)
 			}
-		case "q":
+		case "q", "qos":
 			header = "Qos"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Qos)
 			}
-		case "r":
+		case "r", "reqnodes":
 			header = "ReqNodes"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], strings.Join(reply.TaskInfoList[j].ReqNodes, ","))
 			}
-		case "x":
+		case "x", "excludenodes":
 			header = "ExcludeNodes"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], strings.Join(reply.TaskInfoList[j].ExcludeNodes, ","))
 			}
-		case "h":
+		case "h", "held":
 			header = "Held"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j],  strconv.FormatBool(reply.TaskInfoList[j].Held))
 			}
-		case "p":
+		case "p", "priority":
 			header = "Priority"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].Priority), 10))
 			}
 		default:
-			// a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName
-			// P-Partition, t-State
-			log.Errorln("Invalid format specifier, shorthand reference:\n" +
-				"a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State\n" +
-				"u-Uid, l-TimeLimit, S-StartTime, E-EndTime, s-SubmitTime, N-NodeNum, U-UserName\n" +
-				"q-Qos, r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority")
+			//a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State
+			//u-Uid, l-TimeLimit, S-StartTime, E-EndTime, s-SubmitTime, N-NodeNum, U-UserName
+			//q-Qos, r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority
+			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
+				"a/Account, c/AllocCPUs, e/ExitCode, j/JobId, n/JobName, P/Partition, t/State\n" +
+				"u/Uid, l/TimeLimit, S/StartTime, E/EndTime, s/SubmitTime, N/NodeNum, U/UserName\n" +
+				"q/Qos, r/ReqNodes, x/ExcludeNodes, h/Held, p/Priority.")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
