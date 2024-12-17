@@ -28,19 +28,19 @@ import (
 )
 
 var (
-	FlagNodeName        string
-	FlagState           string
-	FlagReason          string
-	FlagPartitionName   string
-	FlagAllowedAccounts string
-	FlagTaskId          uint32
-	FlagTaskIds         string
-	FlagQueryAll        bool
-	FlagTimeLimit       string
-	FlagPriority        float64
-	FlagHoldTime        string
-	FlagConfigFilePath  string
-	FlagJson            bool
+	FlagNodeName       string
+	FlagState          string
+	FlagReason         string
+	FlagPartitionName  string
+	FlagAllowAccounts  string
+	FlagTaskId         uint32
+	FlagTaskIds        string
+	FlagQueryAll       bool
+	FlagTimeLimit      string
+	FlagPriority       float64
+	FlagHoldTime       string
+	FlagConfigFilePath string
+	FlagJson           bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -176,7 +176,7 @@ var (
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ModifyPartitionAllowedAccounts(args[0], FlagAllowedAccounts); err != util.ErrorSuccess {
+			if err := ModifyPartitionAllowAccounts(args[0], FlagAllowAccounts); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -273,9 +273,9 @@ func init() {
 
 		updateCmd.AddCommand(updatePartitionCmd)
 		{
-			updatePartitionCmd.Flags().StringVarP(&FlagAllowedAccounts, "allowed-accounts", "A", "", "Set the allowed account list for the partition")
+			updatePartitionCmd.Flags().StringVarP(&FlagAllowAccounts, "allow-accounts", "A", "", "Set the allow account list for the partition")
 
-			err := updatePartitionCmd.MarkFlagRequired("allowed-accounts")
+			err := updatePartitionCmd.MarkFlagRequired("allow-accounts")
 			if err != nil {
 				return
 			}
