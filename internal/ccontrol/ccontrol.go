@@ -104,11 +104,11 @@ func formatMemToMB(data uint64) string {
 	}
 }
 
-func formatAllowedAccounts(allowedAccounts []string) string {
-	if len(allowedAccounts) == 0 {
+func formatAllowAccounts(allowAccounts []string) string {
+	if len(allowAccounts) == 0 {
 		return "ALL"
 	}
-	return strings.Join(allowedAccounts, ",")
+	return strings.Join(allowAccounts, ",")
 }
 
 func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
@@ -221,7 +221,7 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
 				"\tHostList=%v\n\n",
 				partitionInfo.Name, partitionInfo.State.String()[10:],
-				formatAllowedAccounts(partitionInfo.AllowedAccounts),
+				formatAllowAccounts(partitionInfo.AllowAccounts),
 				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
 				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
@@ -638,15 +638,11 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	return SummarizeReply(reply)
 }
 
-func ModifyPartitionAllowedAccounts(partition string, allowedAccounts string) util.CraneCmdError {
-	allowedAccountList, err := util.ParseStringParamList(allowedAccounts, ",")
-	if err != nil {
-		log.Errorf("Invalid allowed account list specified: %v.\n", err)
-		return util.ErrorCmdArg
-	}
+func ModifyPartitionAllowAccounts(partition string, allowAccounts string) util.CraneCmdError {
+	allowedAccountList, _ := util.ParseStringParamList(allowAccounts, ",")
 
-	req := protos.ModifyPartitionAllowedAccountsRequest{Uid: userUid, PartitionName: partition, AllowedAccounts: allowedAccountList}
-	reply, err := stub.ModifyPartitionAllowedAccounts(context.Background(), &req)
+	req := protos.ModifyPartitionAllowAccountsRequest{Uid: userUid, PartitionName: partition, AllowAccounts: allowedAccountList}
+	reply, err := stub.ModifyPartitionAllowAccounts(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
 		return util.ErrorNetwork
