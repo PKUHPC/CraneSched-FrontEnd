@@ -156,55 +156,125 @@ func QueryJob() util.CraneCmdError {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
-
+	var header []string
 	tableData := make([][]string, len(reply.TaskInfoList))
-	for i := 0; i < len(reply.TaskInfoList); i++ {
-		taskInfo := reply.TaskInfoList[i]
+	if  FlagFull {
+			header = []string{"JobId", "JobName", "UserName", "Uid", "Partition", 
+			"NodeNum", "Account", "AllocCPUs", "State", "TimeLimit", "StartTime",
+			"EndTime", "SubmitTime", "Qos", "ReqNodes", "ExcludeNodes", "Held",
+			"Priority", "ExitCode"}
 
-		exitCode := ""
-		if taskInfo.ExitCode >= kTerminationSignalBase {
-			exitCode = fmt.Sprintf("0:%d", taskInfo.ExitCode-kTerminationSignalBase)
-		} else {
-			exitCode = fmt.Sprintf("%d:0", taskInfo.ExitCode)
+		for i := 0; i < len(reply.TaskInfoList); i++ {
+			taskInfo := reply.TaskInfoList[i]
+
+			exitCode := ""
+			if taskInfo.ExitCode >= kTerminationSignalBase {
+				exitCode = fmt.Sprintf("0:%d", taskInfo.ExitCode-kTerminationSignalBase)
+			} else {
+				exitCode = fmt.Sprintf("%d:0", taskInfo.ExitCode)
+			}
+
+			var timeLimitStr string
+			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+				timeLimitStr = "unlimited"
+			} else {
+				timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
+			}
+
+			startTimeStr := "unknown"
+			startTime := taskInfo.StartTime.AsTime()
+			if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) &&
+			startTime.Before(time.Now()) {
+				startTimeStr = startTime.In(time.Local).Format("2006-01-02 15:04:05")
+			}
+
+			endTimeStr := "unknown"
+			if !(taskInfo.Status == protos.TaskStatus_Pending ||
+			taskInfo.Status == protos.TaskStatus_Running) {
+				endTime := taskInfo.EndTime.AsTime()
+				if startTime.Before(time.Now()) && endTime.After(startTime) {
+					endTimeStr = endTime.In(time.Local).Format("2006-01-02 15:04:05")
+				}
+			}
+
+			submitTimeStr := "unknown"
+			submitTime := taskInfo.SubmitTime.AsTime()
+			if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+				submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
+			}
+
+			tableData[i] = []string {
+				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
+				taskInfo.Name,
+				taskInfo.Username,
+				strconv.FormatUint(uint64(taskInfo.Uid), 10),
+				taskInfo.Partition,
+				strconv.FormatUint(uint64(taskInfo.NodeNum), 10),
+				taskInfo.Account,
+				strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
+				taskInfo.Status.String(),
+				timeLimitStr,
+				startTimeStr,
+				endTimeStr,
+				submitTimeStr,
+				taskInfo.Qos,
+				strings.Join(taskInfo.ReqNodes, ","),
+				strings.Join(taskInfo.ExcludeNodes, ","),
+				strconv.FormatBool(taskInfo.Held),
+				strconv.FormatUint(uint64(taskInfo.Priority), 10),
+				exitCode}
 		}
-		tableData[i] = []string{
-			strconv.FormatUint(uint64(taskInfo.TaskId), 10),
-			taskInfo.Name,
-			taskInfo.Partition,
-			taskInfo.Account,
-			strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
-			taskInfo.Status.String(),
-			exitCode}
-	}
 
-	if FlagFormat != "" {
-		header, tableData = FormatData(reply)
-		table.SetTablePadding("")
-		table.SetAutoFormatHeaders(false)
-	}
+	} else {
+		header = []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
+		
+		for i := 0; i < len(reply.TaskInfoList); i++ {
+			taskInfo := reply.TaskInfoList[i]
 
-	if FlagFilterStartTime != "" {
-		header = append(header, "StartTime")
-		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i],
-				reply.TaskInfoList[i].StartTime.AsTime().In(time.Local).String())
+			exitCode := ""
+			if taskInfo.ExitCode >= kTerminationSignalBase {
+				exitCode = fmt.Sprintf("0:%d", taskInfo.ExitCode-kTerminationSignalBase)
+			} else {
+				exitCode = fmt.Sprintf("%d:0", taskInfo.ExitCode)
+			}
+			tableData[i] = []string{
+				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
+				taskInfo.Name,
+				taskInfo.Partition,
+				taskInfo.Account,
+				strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
+				taskInfo.Status.String(),
+				exitCode}
 		}
-	}
 
-	if FlagFilterEndTime != "" {
-		header = append(header, "EndTime")
-		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i],
-				reply.TaskInfoList[i].EndTime.AsTime().In(time.Local).String())
+		if FlagFormat != "" {
+			header, tableData = FormatData(reply)
+			table.SetTablePadding("")
+			table.SetAutoFormatHeaders(false)
 		}
-	}
 
-	if FlagFilterSubmitTime != "" {
-		header = append(header, "SubmitTime")
-		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i],
-				reply.TaskInfoList[i].SubmitTime.AsTime().In(time.Local).String())
+		if FlagFilterStartTime != "" {
+			header = append(header, "StartTime")
+			for i := 0; i < len(tableData); i++ {
+				tableData[i] = append(tableData[i],
+					reply.TaskInfoList[i].StartTime.AsTime().In(time.Local).String())
+			}
+		}
+
+		if FlagFilterEndTime != "" {
+			header = append(header, "EndTime")
+			for i := 0; i < len(tableData); i++ {
+				tableData[i] = append(tableData[i],
+					reply.TaskInfoList[i].EndTime.AsTime().In(time.Local).String())
+			}
+		}
+
+		if FlagFilterSubmitTime != "" {
+			header = append(header, "SubmitTime")
+			for i := 0; i < len(tableData); i++ {
+				tableData[i] = append(tableData[i],
+					reply.TaskInfoList[i].SubmitTime.AsTime().In(time.Local).String())
+			}
 		}
 	}
 
