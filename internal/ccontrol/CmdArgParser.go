@@ -32,6 +32,7 @@ var (
 	FlagState          string
 	FlagReason         string
 	FlagPartitionName  string
+	FlagAllowAccounts  string
 	FlagTaskId         uint32
 	FlagTaskIds        string
 	FlagQueryAll       bool
@@ -50,6 +51,7 @@ var (
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
+			userUid = uint32(os.Getuid())
 		},
 	}
 	showCmd = &cobra.Command{
@@ -161,6 +163,24 @@ var (
 			}
 		},
 	}
+	updatePartitionCmd = &cobra.Command{
+		Use:   "partition [flags] partition_name",
+		Short: "Modify partition partition attributes",
+		Long:  "",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := ModifyPartitionAllowAccounts(args[0], FlagAllowAccounts); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 	holdCmd = &cobra.Command{
 		Use:   "hold [flags] job_id[,job_id...]",
 		Short: "prevent specified job from starting. ",
@@ -246,6 +266,16 @@ func init() {
 			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
 
 			err := updateJobCmd.MarkFlagRequired("job")
+			if err != nil {
+				return
+			}
+		}
+
+		updateCmd.AddCommand(updatePartitionCmd)
+		{
+			updatePartitionCmd.Flags().StringVarP(&FlagAllowAccounts, "allow-accounts", "A", "", "Set the allow account list for the partition")
+
+			err := updatePartitionCmd.MarkFlagRequired("allow-accounts")
 			if err != nil {
 				return
 			}
