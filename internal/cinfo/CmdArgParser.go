@@ -101,22 +101,22 @@ func init() {
 
 	RootCmd.MarkFlagsMutuallyExclusive("states", "responding", "dead")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-		`Specify the output format.
-Fields are identified by a percent sign (%) followed by a character. 
-Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
+	`Specify the output format.
+	Fields are identified by a percent sign (%) followed by a character or string. 
+	Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field.
 
-Supported format identifiers:
+Supported format identifiers or string, string case insensitive:
 	%p/%Partition     - Display all partitions in the current environment.
-	%a: Avail         - Displays the state of the node.
-	%n: Nodes         - Display the number of partition nodes. 
-	%s: State         - Display the status of partition nodes
-	%l: NodeList      - Display all node names in the partition.
+	%a/%Avail         - Displays the state of the node.
+	%n/%Nodes         - Display the number of partition nodes. 
+	%s/%State         - Display the status of partition nodes
+	%l/%NodeList      - Display all node list in the partition.
 
-Each format specifier can be modified with a width specifier (e.g., "%.5j").
+Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
 If the format is invalid or unrecognized, the program will terminate with an error message.
 
-Example: --format "%.5partition %.20a %s" would output the partition's name  in the current environment 
-         with a minimum width of 5, state of the node with a minimum width of 20, and the State.
+Example: --format "%.5partition %.6a %s" would output the partition's name in the current environment 
+         with a minimum width of 5, state of the node with a minimum width of 6, and the State.
 `)
 }

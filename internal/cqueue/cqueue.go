@@ -438,8 +438,8 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Name)
 			}
-		case "t", "status":
-			header = "Status"
+		case "t", "state":
+			header = "State"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Status.String())
 			}
@@ -475,7 +475,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].Uid), 10))
 			}
-		case "r", "reason":
+		case "R", "reason":
 			header = "Reason"
 			var reasonOrListStr string
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -486,7 +486,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				}
 				tableOutputCell[j] = append(tableOutputCell[j], reasonOrListStr)
 			}
-		case "R", "reqnodes":
+		case "r", "reqnodes":
 			header = "ReqNodes"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], strings.Join(reply.TaskInfoList[j].ReqNodes, ","))
@@ -504,11 +504,11 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		default:
 		// a-Account, c-CpuPerNode, C-AllocCPUs, N-NodeNum, e-ElapsedTime, j-JobId, l-TimeLimit, S-StartTime
 		// s-SubmitTime, L-NodeList, m-MemPerNode, n-Name, t-State, p-Priority, P-Partition, q-Qos, T-JobType
-		// u-User, u-Uid, r-Reason, r-ReqNodes, x-ExcludeNodes, h-Held
+		// u-User, U-Uid, r-Reason, r-ReqNodes, x-ExcludeNodes, h-Held
 		log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, c/CpuPerNode, C/AllocCPUs, N/NodeNum, e/ElapsedTime, j/JobId, l/TimeLimit, \n" +
+				"a/Account, c/CpuPerNode, C/AllocCPUs, N/NodeNum, e/ElapsedTime, j/JobID, l/TimeLimit,\n" +
 				"S/StartTime, s/SubmitTime, L/NodeList, m/MemPerNode, n/Name, t/State, p/Priority, P/Partition,\n" +
-				"q/Qos, T/JobType, u/User, u/Uid, r/Reason, r/ReqNodes, x/ExcludeNodes, h/Held.")
+				"q/Qos, T/JobType, u/User, U/Uid, R/Reason, r/ReqNodes, x/ExcludeNodes, h/Held.")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))

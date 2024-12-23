@@ -110,14 +110,14 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 	`Specify the output format.
 	Fields are identified by a percent sign (%) followed by a character or string. 
-	Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
+	Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field.
 	
 Supported format identifiers or string, string case insensitive:
 	%a/%Account      - Display the account associated with the job.
 	%c/%CpuPerNode   - Display the requested cpu per node of the job.
 	%C/%AllocCpus    - Display the cpus allocated to the job.
 	%N/%NodeNum      - Display the number of nodes requested by the job.
-	%e/%Time         - Display the elapsed time from the start of the job. 
+	%e/%ElapsedTime  - Display the elapsed time from the start of the job. 
 	%j/%JobID        - Display the ID of the job.
 	%l/%TimeLimit    - Display the time limit for the job.
 	%S/%StartTime    - Display the start time of the job.
@@ -131,7 +131,7 @@ Supported format identifiers or string, string case insensitive:
 	%q/%QoS          - Display the Quality of Service level for the job.
 	%T/%JobType      - Display the job type.
 	%u/%User         - Display the user who submitted the job.
-	%u/%Uid          - Display the uid of the job.
+	%U/%Uid          - Display the uid of the job.
 	%R/%Reason       - Display the reason of pending.
 	%r/%ReqNodes     - Display the reqnodes of the job.
 	%x/%ExcludeNodes - Display the exclude nodes of the job.
