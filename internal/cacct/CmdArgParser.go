@@ -113,30 +113,35 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format.
 Fields are identified by a percent sign (%) followed by a character or string. 
-Use a dot (.) and a number between % and the format character to specify a minimum width for the field. 
+Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field. 
 
 Supported format identifiers or string, string case insensitive:
-	%a/%Account      - Displays the account associated with the job.
-	%c/%AllocCpus    - Displays the number of allocated CPUs, formatted to two decimal places.
-	%e/%ExitCode     - Displays the exit code of the job. 
+	%a/%Account      - Display the account associated with the job.
+	%c/%AllocCpus    - Display the number of allocated CPUs, formatted to two decimal places.
+	%e/%ExitCode     - Display the exit code of the job. 
 	                    If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
 	                    it formats as "0:<code>" or "<code>:0" based on the condition.
-	%j/%JobID        - Displays the ID of the job.
-	%n/%Name         - Displays the name of the job.
-	%P/%Partition    - Displays the partition associated with the job.
+	%j/%JobID        - Display the ID of the job.
+	%n/%JobName      - Display the name of the job.
+	%P/%Partition    - Display the partition associated with the job.
 	%t/%State        - Display the state of the job.
-	%u/%Uid          - Displays the uid of the job.
-	%l/%TimeLimit    - Displays the time limit of the job.
-	%S/%StartTime    - Displays the start time of the job.
-	%E/%EndTime      - Displays the end time of the job.
-	%s/%SubmitTime   - Displays the submit time num of the job.
-	%N/%NodeNum      - Displays the node num of the job.
-	%U/%UserName     - Displays the username of the job.
-	%q/%Qos          - Displays the QoS of the job.
-	%r/%ReqNodes     - Displays the reqnodes of the job.
-	%x/%ExcludeNodes - Displays the excludenodes of the job.
-	%h/%Held         - Displays the held of the job.
-	%p/%Priority     - Displays the priority of the job.
+	%u/%Uid          - Display the uid of the job.
+	%l/%TimeLimit    - Display the time limit of the job.
+	%S/%StartTime    - Display the start time of the job.
+	%E/%EndTime      - Display the end time of the job.
+	%s/%SubmitTime   - Display the submit time num of the job.
+	%D/%ElapsedTime  - Display the elapsed time from the start of the job. 
+	%N/%NodeNum      - Display the node num of the job.
+	%U/%UserName     - Display the username of the job.
+	%q/%Qos          - Display the QoS of the job.
+	%r/%ReqNodes     - Display the reqnodes of the job.
+	%x/%ExcludeNodes - Display the excludenodes of the job.
+	%h/%Held         - Display the hold status of the job.
+	%p/%Priority     - Display the priority of the job.
+	%L/%NodeList     - Display the list of nodes the job is running on.
+	%T/%JobType      - Display the job type.
+	%R/%Reason       - Display the reason of pending.
+	%m/%MemPerNode   - Display the requested mem per node of the job.
 
 Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 

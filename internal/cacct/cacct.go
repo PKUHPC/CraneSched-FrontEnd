@@ -159,10 +159,9 @@ func QueryJob() util.CraneCmdError {
 	var header []string
 	tableData := make([][]string, len(reply.TaskInfoList))
 	if  FlagFull {
-			header = []string{"JobId", "JobName", "UserName", "Uid", "Partition", 
-			"NodeNum", "Account", "AllocCPUs", "State", "TimeLimit", "StartTime",
-			"EndTime", "SubmitTime", "Qos", "ReqNodes", "ExcludeNodes", "Held",
-			"Priority", "ExitCode"}
+			header = []string{"JobId", "JobName", "UserName", "Partition", 
+			"NodeNum", "Account", "AllocCPUs", "MemPerNode", "State", "TimeLimit",
+			 "StartTime", "EndTime", "SubmitTime", "Qos",  "Held", "Priority", "CranedList", "ExitCode"}
 
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
@@ -207,24 +206,22 @@ func QueryJob() util.CraneCmdError {
 				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
 				taskInfo.Name,
 				taskInfo.Username,
-				strconv.FormatUint(uint64(taskInfo.Uid), 10),
 				taskInfo.Partition,
 				strconv.FormatUint(uint64(taskInfo.NodeNum), 10),
 				taskInfo.Account,
 				strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
+				strconv.FormatUint(taskInfo.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10),
 				taskInfo.Status.String(),
 				timeLimitStr,
 				startTimeStr,
 				endTimeStr,
 				submitTimeStr,
 				taskInfo.Qos,
-				strings.Join(taskInfo.ReqNodes, ","),
-				strings.Join(taskInfo.ExcludeNodes, ","),
 				strconv.FormatBool(taskInfo.Held),
 				strconv.FormatUint(uint64(taskInfo.Priority), 10),
+				taskInfo.GetCranedList(),
 				exitCode}
 		}
-
 	} else {
 		header = []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
 		
@@ -365,9 +362,9 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		}
 
 		switch field {
-		//a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State
-		//u-Uid, l-TimeLimit, S-StartTime, E-EndTime, s-SubmitTime, N-NodeNum, U-UserName
-		//q-Qos, r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority
+		// a-Account, c-AllocCPUs, e-ExitCode, j-JobID, n-JobName, P-Partition, t-State, u-Uid
+		// l-TimeLimit, S-StartTime, E-EndTime, D-ElapsedTime s-SubmitTime, N-NodeNum, U-UserName q-Qos,
+		// r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority, L-NodeList, T-JobType, m-MemPerNode, R-Reason
 		case "a", "account":
 			header = "Account"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -392,7 +389,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				tableOutputCell[j] = append(tableOutputCell[j], exitCode)
 			}
 		case "j", "jobid":
-			header = "JobId"
+			header = "JobID"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j],
 					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
@@ -463,6 +460,16 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 				}
 				tableOutputCell[j] = append(tableOutputCell[j], submitTimeStr)
 			}
+		case "D", "elapsedtime":
+			header = "ElapsedTime"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				if reply.TaskInfoList[j].Status == protos.TaskStatus_Running {
+					tableOutputCell[j] = append(tableOutputCell[j],
+						util.SecondTimeFormat(reply.TaskInfoList[j].ElapsedTime.Seconds))
+				} else {
+					tableOutputCell[j] = append(tableOutputCell[j], "-")
+				}
+			}
 		case "N", "nodenum":
 			header = "NodeNum"
 			for j := 0; j < len(reply.TaskInfoList); j++ {
@@ -499,14 +506,41 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].Priority), 10))
 			}
+		case "L", "nodelist":
+			header = "NodeList"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].GetCranedList())
+			}
+		case "T", "jobtype":
+			header = "JobType"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Type.String())
+			}
+		case "R", "reason":
+			header = "Reason"
+			var reasonOrListStr string
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				if reply.TaskInfoList[j].Status == protos.TaskStatus_Pending {
+					reasonOrListStr = reply.TaskInfoList[j].GetPendingReason()
+				} else {
+					reasonOrListStr = " "
+				}
+				tableOutputCell[j] = append(tableOutputCell[j], reasonOrListStr)
+			}
+		case "m", "mempernode":
+			header = "MemPerNode"
+			for j := 0; j < len(reply.TaskInfoList); j++ {
+				tableOutputCell[j] = append(tableOutputCell[j],
+					strconv.FormatUint(reply.TaskInfoList[j].ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10))
+			}
 		default:
-			//a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State
-			//u-Uid, l-TimeLimit, S-StartTime, E-EndTime, s-SubmitTime, N-NodeNum, U-UserName
-			//q-Qos, r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority
+			// a-Account, c-AllocCPUs, e-ExitCode, j-JobID, n-JobName, P-Partition, t-State, u-Uid
+			// l-TimeLimit, S-StartTime, E-EndTime, D-ElapsedTime s-SubmitTime, N-NodeNum, U-UserName q-Qos,
+			// r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority, L-NodeList, T-JobType, m-MemPerNode, R-Reason
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, c/AllocCPUs, e/ExitCode, j/JobId, n/JobName, P/Partition, t/State\n" +
-				"u/Uid, l/TimeLimit, S/StartTime, E/EndTime, s/SubmitTime, N/NodeNum, U/UserName\n" +
-				"q/Qos, r/ReqNodes, x/ExcludeNodes, h/Held, p/Priority.")
+				"a/Account, c/AllocCPUs, e/ExitCode, j/JobID, n/JobName, P/Partition, t/State, u/Uid, l/TimeLimit,\n" +
+				"S/StartTime, E/EndTime, D/ElapsedTime, s/SubmitTime, N/NodeNum, U/UserName, q/Qos, r/ReqNodes,\n" +
+				"x/ExcludeNodes, h/Held, p/Priority, L/NodeList, T/JobType, m/MemPerNode, R/Reason.")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
