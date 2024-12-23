@@ -43,8 +43,13 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	tableOutputWidth := make([]int, 0, len(specifiers))
 	tableOutputHeader := make([]string, 0, len(specifiers))
 	tableLen := 0
-	if len(reply.Partitions ) > 0 && reply.Partitions[0].CranedLists[0].Count > 0{
-		tableLen = len(reply.Partitions) * int(reply.Partitions[0].CranedLists[0].Count)
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			cranedStateListCount := commonCranedStateList.Count
+			if  cranedStateListCount > 0 {
+				tableLen++
+			}
+		}
 	}
 	tableOutputCell := make([][]string, tableLen)
 
@@ -57,6 +62,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputCell[j] = append(tableOutputCell[j], prefix)
 		}
 	}
+
 	for i, spec := range specifiers {
 		// Get the padding string between specifiers
 		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
@@ -88,76 +94,75 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			field = strings.ToLower(field)
 		}
 		switch field {
-		// a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State, u-Uid
-		// l-TimeLimit, S-StartTime, E-EndTime, D-ElapsedTime s-SubmitTime, N-NodeNum, U-UserName q-Qos,
-		// r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority, L-NodeList, T-JobType, m-MemPerNode, R-Reason
 		case "p", "partition":
 			header = "Partition"
-			// for j := 0; j < tableLen; j++ {
-			// 	tableOutputCell[j] = append(tableOutputCell[j], reply.Partitions[j].Name)
-			// }
-			for i, partitionCraned := range reply.Partitions {
-				for j, commonCranedStateList := range partitionCraned.CranedLists {
+			tableIdx := 0
+			for _, partitionCraned := range reply.Partitions {
+				for _, commonCranedStateList := range partitionCraned.CranedLists {
 					cranedStateListCount := commonCranedStateList.Count
 					if  cranedStateListCount > 0 {
-						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
 						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx], partitionCraned.Name)
+						tableIdx++
 					}
 				}
 			}
 		case "a", "avail":
 			header = "Avail"
-			for i, partitionCraned := range reply.Partitions {
-				for j, commonCranedStateList := range partitionCraned.CranedLists {
+			tableIdx := 0
+			for _, partitionCraned := range reply.Partitions {
+				for _, commonCranedStateList := range partitionCraned.CranedLists {
 					cranedStateListCount := commonCranedStateList.Count
 					if  cranedStateListCount > 0 {
-						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
 						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
 							strings.ToLower(partitionCraned.State.String()[10:]))
+						tableIdx++
 					}
 				}
 			}
 		case "n", "nodes":
 			header = "Nodes"
-			for i, partitionCraned := range reply.Partitions {
-				for j, commonCranedStateList := range partitionCraned.CranedLists {
+			tableIdx := 0
+			for _, partitionCraned := range reply.Partitions {
+				for _, commonCranedStateList := range partitionCraned.CranedLists {
 					cranedStateListCount := commonCranedStateList.Count
 					if  cranedStateListCount > 0 {
-						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
 						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
 							strconv.FormatUint(uint64(commonCranedStateList.Count), 10))
+						tableIdx++
 					}
 				}
 			}
 		case "s", "state":
 			header = "State"
-			for i, partitionCraned := range reply.Partitions {
-				for j, commonCranedStateList := range partitionCraned.CranedLists {
+			tableIdx := 0
+			for _, partitionCraned := range reply.Partitions {
+				for _, commonCranedStateList := range partitionCraned.CranedLists {
 					cranedStateListCount := commonCranedStateList.Count
 					if cranedStateListCount > 0 {
 						stateStr := strings.ToLower(commonCranedStateList.ResourceState.String()[6:])
 						if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
 							stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
 						}
-						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
 						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],  stateStr)
+						tableIdx++
 					}
 				}
 			}
 		case "l", "nodelist":
 			header = "NodeList"
-			for i, partitionCraned := range reply.Partitions {
-				for j, commonCranedStateList := range partitionCraned.CranedLists {
+			tableIdx := 0
+			for _, partitionCraned := range reply.Partitions {
+				for _, commonCranedStateList := range partitionCraned.CranedLists {
 					cranedStateListCount := commonCranedStateList.Count
 					if cranedStateListCount > 0 {
-						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
 						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],  commonCranedStateList.CranedListRegex)
+						tableIdx++
 					}
 				}
 			}
 		default:
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +		
-			"p/Partition, a/Avail, n/Nodes, j/State, l/NodeList.")
+			"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
@@ -173,7 +178,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	}
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
 }
-		
+
 func Query() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
