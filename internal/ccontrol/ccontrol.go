@@ -655,3 +655,87 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 
 	return SummarizeReply(reply)
 }
+
+func SleepNode(nodeName string) util.CraneCmdError {
+	req := &protos.SleepCranedRequest{
+		Uid:      uint32(os.Getuid()),
+		CranedId: nodeName,
+	}
+
+	reply, err := stub.SleepCraned(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to put node to sleep: %v", err)
+		return util.ErrorGeneric
+	}
+
+	if !reply.Ok {
+		log.Errorf("Failed to put node to sleep: %s", reply.Reason)
+		return util.ErrorGeneric
+	}
+
+	fmt.Printf("Successfully put node %s to sleep\n", nodeName)
+	return util.ErrorSuccess
+}
+
+func WakeupNode(nodeName string) util.CraneCmdError {
+	req := &protos.WakeupCranedRequest{
+		Uid:      uint32(os.Getuid()),
+		CranedId: nodeName,
+	}
+
+	reply, err := stub.WakeupCraned(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to wake up node: %v", err)
+		return util.ErrorGeneric
+	}
+
+	if !reply.Ok {
+		log.Errorf("Failed to wake up node: %s", reply.Reason)
+		return util.ErrorGeneric
+	}
+
+	fmt.Printf("Successfully woke up node %s\n", nodeName)
+	return util.ErrorSuccess
+}
+
+func ShutdownNode(nodeName string) util.CraneCmdError {
+	req := &protos.ShutdownCranedRequest{
+		Uid:      uint32(os.Getuid()),
+		CranedId: nodeName,
+	}
+
+	reply, err := stub.ShutdownCraned(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to shutdown node: %v", err)
+		return util.ErrorGeneric
+	}
+
+	if !reply.Ok {
+		log.Errorf("Failed to shutdown node: %s", reply.Reason)
+		return util.ErrorGeneric
+	}
+
+	fmt.Printf("Successfully shutdown node %s\n", nodeName)
+	return util.ErrorSuccess
+}
+
+func PowerOnNode(nodeName string) util.CraneCmdError {
+	req := &protos.PowerOnCranedRequest{
+		Uid:      uint32(os.Getuid()),
+		CranedId: nodeName,
+	}
+
+	reply, err := stub.PowerOnCraned(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to power on node: %v", err)
+		return util.ErrorGeneric
+	}
+
+	if !reply.Ok {
+		log.Errorf("Failed to power on node: %s", reply.Reason)
+		return util.ErrorGeneric
+	}
+
+	fmt.Printf("Successfully powered on node %s\n", nodeName)
+	return util.ErrorSuccess
+}
