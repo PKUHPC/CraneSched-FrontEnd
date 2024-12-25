@@ -96,6 +96,8 @@ func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
 		fields := map[string]interface{}{}
 		enabledModules := make([]string, 0)
 
+		fields["task_count"] = data.TaskCount
+
 		fields["cpu_utilization"] = data.SystemLoad.CPUUtil
 		fields["cpu_load_1"] = data.SystemLoad.CPULoad1
 		fields["cpu_load_5"] = data.SystemLoad.CPULoad5

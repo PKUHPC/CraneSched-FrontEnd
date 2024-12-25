@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 	"regexp"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -207,6 +208,114 @@ var (
 			}
 		},
 	}
+	sleepCmd = &cobra.Command{
+		Use:   "sleep [flags] node_name[,node_name...]",
+		Short: "Put nodes into sleep state",
+		Long:  "Put the specified nodes into sleep state to save power",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			matched, _ := regexp.MatchString(`^([a-zA-Z0-9_-]+)(,[a-zA-Z0-9_-]+)*$`, args[0])
+			if !matched {
+				log.Error("node name list must follow the format " +
+					"<node_name> or '<node_name>,<node_name>,<node_name>...'")
+				os.Exit(util.ErrorCmdArg)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			nodeNames := strings.Split(args[0], ",")
+			for _, nodeName := range nodeNames {
+				if err := SleepNode(nodeName); err != util.ErrorSuccess {
+					log.Errorf("Failed to put node %s to sleep", nodeName)
+					os.Exit(err)
+				}
+			}
+		},
+	}
+	wakeupCmd = &cobra.Command{
+		Use:   "wakeup [flags] node_name[,node_name...]",
+		Short: "Wake up sleeping nodes",
+		Long:  "Wake up nodes that are in sleep state",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			matched, _ := regexp.MatchString(`^([a-zA-Z0-9_-]+)(,[a-zA-Z0-9_-]+)*$`, args[0])
+			if !matched {
+				log.Error("node name list must follow the format " +
+					"<node_name> or '<node_name>,<node_name>,<node_name>...'")
+				os.Exit(util.ErrorCmdArg)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			nodeNames := strings.Split(args[0], ",")
+			for _, nodeName := range nodeNames {
+				if err := WakeupNode(nodeName); err != util.ErrorSuccess {
+					log.Errorf("Failed to wake up node %s", nodeName)
+					os.Exit(err)
+				}
+			}
+		},
+	}
+	shutdownCmd = &cobra.Command{
+		Use:   "shutdown [flags] node_name[,node_name...]",
+		Short: "Shutdown nodes",
+		Long:  "Completely shutdown the specified nodes",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			matched, _ := regexp.MatchString(`^([a-zA-Z0-9_-]+)(,[a-zA-Z0-9_-]+)*$`, args[0])
+			if !matched {
+				log.Error("node name list must follow the format " +
+					"<node_name> or '<node_name>,<node_name>,<node_name>...'")
+				os.Exit(util.ErrorCmdArg)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			nodeNames := strings.Split(args[0], ",")
+			for _, nodeName := range nodeNames {
+				if err := ShutdownNode(nodeName); err != util.ErrorSuccess {
+					log.Errorf("Failed to shutdown node %s", nodeName)
+					os.Exit(err)
+				}
+			}
+		},
+	}
+	poweronCmd = &cobra.Command{
+		Use:   "poweron [flags] node_name[,node_name...]",
+		Short: "Power on nodes",
+		Long:  "Power on nodes that are completely shutdown",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			matched, _ := regexp.MatchString(`^([a-zA-Z0-9_-]+)(,[a-zA-Z0-9_-]+)*$`, args[0])
+			if !matched {
+				log.Error("node name list must follow the format " +
+					"<node_name> or '<node_name>,<node_name>,<node_name>...'")
+				os.Exit(util.ErrorCmdArg)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			nodeNames := strings.Split(args[0], ",")
+			for _, nodeName := range nodeNames {
+				if err := PowerOnNode(nodeName); err != util.ErrorSuccess {
+					log.Errorf("Failed to power on node %s", nodeName)
+					os.Exit(err)
+				}
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -256,4 +365,9 @@ func init() {
 		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
 	}
 	RootCmd.AddCommand(releaseCmd)
+
+	RootCmd.AddCommand(sleepCmd)
+	RootCmd.AddCommand(wakeupCmd)
+	RootCmd.AddCommand(shutdownCmd)
+	RootCmd.AddCommand(poweronCmd)
 }

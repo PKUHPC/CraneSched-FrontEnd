@@ -7,6 +7,7 @@ import (
 type NodeData struct {
 	NodeID    string
 	Timestamp time.Time
+	TaskCount uint32
 
 	RAPL       RAPLMetrics
 	IPMI       IPMIMetrics

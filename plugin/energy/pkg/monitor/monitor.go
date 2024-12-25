@@ -68,3 +68,7 @@ func (sm *Monitor) Close() {
 	sm.NodeMonitor.Close()
 	sm.TaskMonitor.Close()
 }
+
+func (sm *Monitor) UpdateTaskCount(increment bool) {
+	sm.NodeMonitor.UpdateTaskCount(increment)
+}
