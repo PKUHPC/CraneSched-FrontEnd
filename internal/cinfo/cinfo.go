@@ -46,24 +46,44 @@ func Query() util.CraneCmdError {
 			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_MIX)
 		case "alloc":
 			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_ALLOC)
-		case "down":
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_DOWN)
-		case "none":
-			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_NONE)
-		case "drain":
-			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_DRAIN)
+		case "sleeped":
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_SLEEPED)
+		case "shutdown":
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_SHUTDOWN)
+		case "waking":
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_WAKING_UP)
+		case "preparing_sleep":
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_PREPARING_SLEEP)
+		case "poweringup":
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_POWERING_UP)
+		case "shuttingdown":
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_SHUTTING_DOWN)
+		case "unknown":
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_UNKNOWN)
 		default:
 			log.Errorf("Invalid state given: %s.\n", FlagFilterCranedStates[i])
 			return util.ErrorCmdArg
 		}
 	}
+
+	serviceUnavailableStateList := []protos.CranedResourceState{
+		protos.CranedResourceState_CRANE_SLEEPED,
+		protos.CranedResourceState_CRANE_SHUTDOWN,
+		protos.CranedResourceState_CRANE_WAKING_UP,
+		protos.CranedResourceState_CRANE_PREPARING_SLEEP,
+		protos.CranedResourceState_CRANE_POWERING_UP,
+		protos.CranedResourceState_CRANE_SHUTTING_DOWN,
+		protos.CranedResourceState_CRANE_UNKNOWN,
+	}
+
 	if len(resourceStateList) == 0 {
 		if FlagFilterRespondingOnly {
 			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE, protos.CranedResourceState_CRANE_MIX, protos.CranedResourceState_CRANE_ALLOC)
 		} else if FlagFilterDownOnly {
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_DOWN)
+			resourceStateList = append(resourceStateList, serviceUnavailableStateList...)
 		} else {
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE, protos.CranedResourceState_CRANE_MIX, protos.CranedResourceState_CRANE_ALLOC, protos.CranedResourceState_CRANE_DOWN)
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE, protos.CranedResourceState_CRANE_MIX, protos.CranedResourceState_CRANE_ALLOC)
+			resourceStateList = append(resourceStateList, serviceUnavailableStateList...)
 		}
 	}
 	if len(controlStateList) == 0 {

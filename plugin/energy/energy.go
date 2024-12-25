@@ -131,7 +131,7 @@ func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 
 	boundGPUs := getBoundGPUs(req.Resource, globalMonitor.config.Monitor.GPUType)
-	globalMonitor.monitor.UpdateTaskCount(true)
+	globalMonitor.monitor.NodeMonitor.UpdateTaskCount(true)
 	globalMonitor.monitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundGPUs)
 }
 
@@ -143,7 +143,7 @@ func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	}
 
 	log.Infof("DestroyCgroupHook received for cgroup: %s", req.Cgroup)
-	globalMonitor.monitor.UpdateTaskCount(false)
+	globalMonitor.monitor.NodeMonitor.UpdateTaskCount(false)
 	globalMonitor.monitor.TaskMonitor.Stop(req.TaskId)
 }
 
