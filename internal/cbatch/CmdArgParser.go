@@ -101,6 +101,7 @@ var (
 
 			task.GetBatchMeta().ShScript = shScript
 			task.Uid = uint32(os.Getuid())
+			task.Gid = uint32(os.Getgid())
 			task.CmdLine = strings.Join(os.Args, " ")
 
 			// Process the content of --get-user-env

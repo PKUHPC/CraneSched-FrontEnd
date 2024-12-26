@@ -351,6 +351,9 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 
+	// Get egid using os.Getgid() instead of using user.Current()
+	gid := os.Getgid()
+
 	uid, err := strconv.Atoi(gVars.user.Uid)
 	if err != nil {
 		log.Errorf("Failed to convert uid to int: %s", err.Error())
@@ -376,6 +379,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		},
 		Type:            protos.TaskType_Interactive,
 		Uid:             uint32(uid),
+		Gid:             uint32(gid),
 		NodeNum:         1,
 		NtasksPerNode:   1,
 		CpusPerTask:     1,
