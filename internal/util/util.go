@@ -19,8 +19,8 @@
 package util
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/api"
+	"CraneFrontEnd/generated/protos"
 	"os"
 	"strings"
 )
@@ -35,8 +35,8 @@ type Config struct {
 	CaCertFilePath     string `yaml:"CaCertFilePath"`
 	DomainSuffix       string `yaml:"DomainSuffix"`
 
-	CraneBaseDir         string `yaml:"CraneBaseDir"`
-	CranedCforedSockPath string `yaml:"CranedCforedSockPath"`
+	CraneBaseDir         string       `yaml:"CraneBaseDir"`
+	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
 	Plugin               PluginConfig `yaml:"Plugin"`
 }
 
@@ -62,6 +62,9 @@ const (
 	MaxJobFileNameLength           = 127
 	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength
 	MaxJobFilePathLengthForUnix    = 4096 - MaxJobFileNameLength
+
+	MaxJobTimeLimit = 315576000000 // 10000 years
+	MaxJobTimeStamp = 253402300799 // 9999-12-31 23:59:59
 )
 
 func SplitEnvironEntry(env *string) (string, string, bool) {

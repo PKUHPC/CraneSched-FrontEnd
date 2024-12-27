@@ -284,44 +284,42 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		timeStartStr := "unknown"
 		timeEndStr := "unknown"
 		runTimeStr := "unknown"
+		resourcesType := "ReqRes"
 
 		var timeLimitStr string
 
+		// submit_time
 		timeSubmit := taskInfo.SubmitTime.AsTime()
 		if !timeSubmit.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 			timeSubmitStr = timeSubmit.In(time.Local).Format("2006-01-02 15:04:05")
 		}
 
+		// start_time
 		timeStart := taskInfo.StartTime.AsTime()
 		if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 			timeStartStr = timeStart.In(time.Local).Format("2006-01-02 15:04:05")
 		}
 
+		// end_time
 		timeEnd := taskInfo.EndTime.AsTime()
-		if timeEnd.After(timeStart) {
+		if !timeEnd.Before(timeStart) && timeEnd.Second() < util.MaxJobTimeStamp {
 			timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
 		}
-		var resourcesType = "ReqRes"
-		if taskInfo.Status == protos.TaskStatus_Running {
-			timeEndStr = timeStart.Add(taskInfo.TimeLimit.AsDuration()).In(time.Local).Format("2006-01-02 15:04:05")
 
-			runTimeDuration := taskInfo.ElapsedTime.AsDuration()
-
-			days := int(runTimeDuration.Hours()) / 24
-			hours := int(runTimeDuration.Hours()) % 24
-			minutes := int(runTimeDuration.Minutes()) % 60
-			seconds := int(runTimeDuration.Seconds()) % 60
-
-			runTimeStr = fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
-			resourcesType = "AllocRes"
-		}
-
-		if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+		// time_limit
+		if taskInfo.TimeLimit.Seconds >= util.MaxJobTimeLimit {
 			timeLimitStr = "unlimited"
-			timeEndStr = "unknown"
 		} else {
 			timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
 		}
+
+		// elapsed_time and resources
+		if taskInfo.Status == protos.TaskStatus_Running {
+			runTimeStr = util.SecondTimeFormat(taskInfo.ElapsedTime.Seconds)
+			resourcesType = "AllocRes"
+		}
+
+		// uid and gid (egid)
 		craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
 		if err != nil {
 			log.Errorf("Failed to get username for UID %d: %s\n", taskInfo.Uid, err)

@@ -133,7 +133,7 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
-		if info.MaxTimeLimitPerTask >= uint64(util.InvalidDuration().Seconds) {
+		if info.MaxTimeLimitPerTask >= util.MaxJobTimeLimit {
 			timeLimitStr = "unlimited"
 		} else {
 			timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))

@@ -23,6 +23,7 @@ import "C"
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
 
@@ -615,6 +616,7 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 		},
 		Type:            protos.TaskType_Interactive,
 		Uid:             uint32(os.Getuid()),
+		Gid:             uint32(os.Getgid()),
 		NodeNum:         1,
 		NtasksPerNode:   1,
 		CpusPerTask:     1,
