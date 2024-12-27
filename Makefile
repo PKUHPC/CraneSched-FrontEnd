@@ -27,9 +27,19 @@ GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
 VERSION_FILE := VERSION
 VERSION := $(shell [ -f $(VERSION_FILE) ] && cat $(VERSION_FILE) || echo $(GIT_COMMIT_HASH))
 BUILD_TIME := $(shell date +'%a, %d %b %Y %H:%M:%S %z')
-LDFLAGS := -ldflags \
-			"-X 'CraneFrontEnd/internal/util.VERSION=$(VERSION)' \
-			-X 'CraneFrontEnd/internal/util.BUILD_TIME=$(BUILD_TIME)'"
+STRIP ?= false
+
+# LDFLAGS adjustments based on STRIP
+ifeq ($(STRIP), true)
+	LDFLAGS := -ldflags \
+				"-s -w -X 'CraneFrontEnd/internal/util.VERSION=$(VERSION)' \
+				-X 'CraneFrontEnd/internal/util.BUILD_TIME=$(BUILD_TIME)'"
+else
+	LDFLAGS := -ldflags \
+				"-X 'CraneFrontEnd/internal/util.VERSION=$(VERSION)' \
+				-X 'CraneFrontEnd/internal/util.BUILD_TIME=$(BUILD_TIME)'"
+endif
+
 BIN_DIR := build/bin
 PLUGIN_DIR := build/plugin
 
@@ -74,7 +84,7 @@ build:
 plugin: plugin-energy plugin-other
 
 plugin-energy:
-	@echo "Building energy plugin with $(GO_VERSION)..."
+	@echo "- Building energy plugin with $(GO_VERSION)..."
 	@mkdir -p $(PLUGIN_DIR)
 	@cd plugin/energy && \
 	if [ -n "$(CHECK_GPU)" ]; then \
@@ -90,11 +100,11 @@ plugin-energy:
 	fi
 
 plugin-other:
-	@echo "  - Building other plugins..."
+	@echo "- Building other plugins..."
 	@mkdir -p $(PLUGIN_DIR)
 	@for dir in plugin/*/ ; do \
 		if [ "$$(basename $$dir)" != "energy" ]; then \
-			echo "    - Building: $$(basename $$dir).so"; \
+			echo "  - Building: $$(basename $$dir).so"; \
 			(cd $$dir && $(COMMON_ENV) $(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
 				-buildmode=plugin -o ../../$(PLUGIN_DIR)/$$(basename $$dir).so) || exit 1; \
 		fi \
