@@ -287,22 +287,22 @@ func CheckFileLength(filepath string) error {
 
 func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if task.CpusPerTask <= 0 {
-		return fmt.Errorf("Invalid --cpus-per-task")
+		return fmt.Errorf("invalid --cpus-per-task")
 	}
 	if task.NtasksPerNode <= 0 {
-		return fmt.Errorf("Invalid --ntasks-per-node")
+		return fmt.Errorf("invalid --ntasks-per-node")
 	}
 	if task.NodeNum <= 0 {
-		return fmt.Errorf("Invalid --nodes")
+		return fmt.Errorf("invalid --nodes")
 	}
 	if task.TimeLimit.AsDuration() <= 0 {
-		return fmt.Errorf("Invalid --time")
+		return fmt.Errorf("invalid --time")
 	}
 	if !CheckNodeList(task.Nodelist) {
-		return fmt.Errorf("Invalid --nodelist")
+		return fmt.Errorf("invalid --nodelist")
 	}
 	if !CheckNodeList(task.Excludes) {
-		return fmt.Errorf("Invalid --exclude")
+		return fmt.Errorf("invalid --exclude")
 	}
 	return nil
 }
@@ -431,7 +431,7 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 
 func InvalidDuration() *durationpb.Duration {
 	return &durationpb.Duration{
-		Seconds: 315576000000,
+		Seconds: MaxJobTimeLimit,
 		Nanos:   0,
 	}
 }

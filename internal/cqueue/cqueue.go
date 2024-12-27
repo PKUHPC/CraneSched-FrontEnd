@@ -132,7 +132,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 	tableData := make([][]string, len(reply.TaskInfoList))
 	for i := 0; i < len(reply.TaskInfoList); i++ {
 		var timeLimitStr string
-		if reply.TaskInfoList[i].TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+		if reply.TaskInfoList[i].TimeLimit.Seconds >= util.MaxJobTimeLimit {
 			timeLimitStr = "unlimited"
 		} else {
 			timeLimitStr = util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds)
