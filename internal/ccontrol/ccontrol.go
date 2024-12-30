@@ -270,7 +270,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 
 	checkStringEmpty := func(s string) string {
 		if len(s) == 0 {
-			return "unknown"
+			return "None"
 		} else {
 			return s
 		}
