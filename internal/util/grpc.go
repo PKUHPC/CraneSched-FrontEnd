@@ -113,32 +113,45 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
 
-	if config.UseTls {
-		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
-		creds, err := credentials.NewClientTLSFromFile(config.SslConfig.ExternalCertFilePath, fmt.Sprintf("*.%s", config.SslConfig.DomainSuffix))
-		if err != nil {
-			log.Errorln("Failed to create TLS credentials " + err.Error())
-			os.Exit(ErrorGeneric)
-		}
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
-		if err != nil {
-			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
-			os.Exit(ErrorBackend)
-		}
-
-		stub = protos.NewCraneCtldClient(conn)
-	} else {
-		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
-
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
-			os.Exit(ErrorBackend)
-		}
-
-		stub = protos.NewCraneCtldClient(conn)
+	serverAddr = fmt.Sprintf("%s.%s:%s",
+		config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
+	userKeyPath, err := ExpandPath(DefaultUserConfigPath + "/user.key")
+	if err != nil {
+		os.Exit(ErrorGeneric)
 	}
+	userCertPath, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
+	if err != nil {
+		os.Exit(ErrorGeneric)
+	}
+	externalCertPath, err := ExpandPath(DefaultUserConfigPath + "/external.pem")
+	if err != nil {
+		os.Exit(ErrorGeneric)
+	}
+	cert, _ := tls.LoadX509KeyPair(userCertPath, userKeyPath)
+
+	CaCertContent, err := os.ReadFile(externalCertPath)
+	if err != nil {
+		log.Errorln("Failed to read ExternalCertFile: " + err.Error())
+		os.Exit(ErrorGeneric)
+	}
+
+	caPool := x509.NewCertPool()
+	if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
+		log.Errorln("Failed to append cert Content.")
+		os.Exit(ErrorGeneric)
+	}
+
+	creds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caPool,
+	})
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+	if err != nil {
+		log.Errorln("Cannot connect to CraneCtld: " + err.Error())
+		os.Exit(ErrorBackend)
+	}
+
+	stub = protos.NewCraneCtldClient(conn)
 
 	return stub
 }
