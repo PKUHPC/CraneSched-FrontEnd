@@ -77,7 +77,7 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if FlagRepeat == 0 {
-				log.Error("--repeat must > 0.")
+				log.Error("Invalid argument: --repeat must > 0.")
 				os.Exit(util.ErrorCmdArg)
 			}
 
