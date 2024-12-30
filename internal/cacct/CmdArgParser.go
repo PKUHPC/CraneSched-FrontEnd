@@ -54,11 +54,6 @@ var (
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-
-			if err := util.SignAndSaveUserCertificate(config); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("max-lines") {
