@@ -53,7 +53,7 @@ const (
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
-	DefaultJwtTokenPath = "~/.config/crane/token.pem"
+	DefaultUserConfigPath = "~/.config/crane"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"

@@ -20,7 +20,6 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -110,32 +109,10 @@ func GetUnixSocket(path string, mode fs.FileMode) (net.Listener, error) {
 	return socket, nil
 }
 
-type TokenAuth struct {
-	Token  string
-	UseTls bool
-}
-
-func (t *TokenAuth) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-	return map[string]string{
-		"Authorization": t.Token,
-	}, nil
-}
-
-func (t *TokenAuth) RequireTransportSecurity() bool {
-	return t.UseTls
-}
-
 func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
 
-	tokenFilePath, err := ExpandPath(DefaultJwtTokenPath)
-	if err != nil {
-		log.Errorln("Failed to get home dir: " + err.Error())
-		os.Exit(ErrorGeneric)
-	}
-	TokenContent, _ := os.ReadFile(tokenFilePath)
-	token_auth := TokenAuth{Token: string(TokenContent), UseTls: config.UseTls}
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
 			config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
@@ -144,7 +121,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 			log.Errorln("Failed to create TLS credentials " + err.Error())
 			os.Exit(ErrorGeneric)
 		}
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds), grpc.WithPerRPCCredentials(&token_auth))
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
 		if err != nil {
 			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
 			os.Exit(ErrorBackend)
@@ -154,7 +131,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	} else {
 		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithPerRPCCredentials(&token_auth))
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
 			os.Exit(ErrorBackend)

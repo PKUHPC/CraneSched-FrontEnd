@@ -45,6 +45,15 @@ func ExpandPath(path string) (string, error) {
 	return path, nil
 }
 
+func FileExists(path string) bool {
+	filePath, err := ExpandPath(path)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filePath)
+	return err == nil
+}
+
 func SaveFileWithPermissions(path string, content []byte, perm os.FileMode) error {
 	filePath, err := ExpandPath(path)
 	if err != nil {
