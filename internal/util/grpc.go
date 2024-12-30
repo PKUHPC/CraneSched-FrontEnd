@@ -113,6 +113,10 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
 
+	if err := SignAndSaveUserCertificate(config); err != ErrorSuccess {
+		os.Exit(err)
+	}
+
 	serverAddr = fmt.Sprintf("%s.%s:%s",
 		config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
 	userKeyPath, err := ExpandPath(DefaultUserConfigPath + "/user.key")
@@ -127,6 +131,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	if err != nil {
 		os.Exit(ErrorGeneric)
 	}
+
 	cert, _ := tls.LoadX509KeyPair(userCertPath, userKeyPath)
 
 	CaCertContent, err := os.ReadFile(externalCertPath)

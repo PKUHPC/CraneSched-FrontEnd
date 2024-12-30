@@ -17,15 +17,14 @@ import (
 func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 	var client protos.CraneCtldForCforedClient
 
-	uid := uint32(os.Getuid())
-
 	if FileExists(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath)) {
 		return ErrorSuccess
 	}
 
+	uid := uint32(os.Getuid())
+
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		log.Error("Error generating private key: %v\n", err)
 		return ErrorGeneric
 	}
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
@@ -37,7 +36,6 @@ func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 		return ErrorGeneric
 	}
 
-	// 创建 CSR 模板
 	csrTemplate := &x509.CertificateRequest{
 		Subject: pkix.Name{
 			CommonName: fmt.Sprintf("%d.%s", uid, config.SslConfig.DomainSuffix),
@@ -46,10 +44,8 @@ func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
 
-	// 生成 CSR
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
 	if err != nil {
-		log.Error("Error creating CSR: %v\n", err)
 		return ErrorGeneric
 	}
 
@@ -68,12 +64,12 @@ func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 
 	response, err := client.SignUserCertificate(context.Background(), request)
 	if err != nil {
-		GrpcErrorPrintf(err, "Failed to sign user certificate")
+		GrpcErrorPrintf(err, "Failed to authenticate user")
 		return ErrorNetwork
 	}
 
 	if !response.Ok {
-		log.Error("Failed to sign user certificate: ", ErrMsg(response.Reason))
+		log.Error("Failed to authenticate user: ", ErrMsg(response.Reason))
 		return ErrorBackend
 	}
 
