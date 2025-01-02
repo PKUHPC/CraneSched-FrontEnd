@@ -658,86 +658,45 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	return SummarizeReply(reply)
 }
 
-func SleepNode(nodeName string) util.CraneCmdError {
-	req := &protos.SleepCranedRequest{
-		Uid:      uint32(os.Getuid()),
-		CranedId: nodeName,
+func ControlNodePower(nodeName string, state string) util.CraneCmdError {
+	if state == "" {
+		log.Errorln("State must be specified")
+		return util.ErrorCmdArg
 	}
 
-	reply, err := stub.SleepCraned(context.Background(), req)
+	var action protos.NodePowerAction
+	state = strings.ToLower(state)
+	switch state {
+	case "sleep":
+		action = protos.NodePowerAction_TO_SLEEP
+	case "wakeup":
+		action = protos.NodePowerAction_TO_WAKE
+	case "shutdown":
+		action = protos.NodePowerAction_TO_SHUTDOWN
+	case "poweron":
+		action = protos.NodePowerAction_TO_POWER_ON
+	default:
+		log.Errorf("Invalid state given: %s. Valid states are: sleep, wakeup, shutdown, poweron", state)
+		return util.ErrorCmdArg
+	}
+
+	req := &protos.ControlNodePowerRequest{
+		Uid:      uint32(os.Getuid()),
+		CranedId: nodeName,
+		Action:   action,
+	}
+
+	reply, err := stub.ControlNodePower(context.Background(), req)
 	if err != nil {
-		log.Errorf("Failed to put node to sleep: %v", err)
-		return util.ErrorGeneric
+		log.Errorf("Failed to control node power: %v", err)
+		return util.ErrorNetwork
 	}
 
 	if !reply.Ok {
-		log.Errorf("Failed to put node to sleep: %s", reply.Reason)
+		log.Errorf("Failed to control node power: %s", reply.Reason)
 		return util.ErrorGeneric
 	}
 
-	fmt.Printf("Successfully put node %s to sleep\n", nodeName)
-	return util.ErrorSuccess
-}
-
-func WakeupNode(nodeName string) util.CraneCmdError {
-	req := &protos.WakeupCranedRequest{
-		Uid:      uint32(os.Getuid()),
-		CranedId: nodeName,
-	}
-
-	reply, err := stub.WakeupCraned(context.Background(), req)
-	if err != nil {
-		log.Errorf("Failed to wake up node: %v", err)
-		return util.ErrorGeneric
-	}
-
-	if !reply.Ok {
-		log.Errorf("Failed to wake up node: %s", reply.Reason)
-		return util.ErrorGeneric
-	}
-
-	fmt.Printf("Successfully woke up node %s\n", nodeName)
-	return util.ErrorSuccess
-}
-
-func ShutdownNode(nodeName string) util.CraneCmdError {
-	req := &protos.ShutdownCranedRequest{
-		Uid:      uint32(os.Getuid()),
-		CranedId: nodeName,
-	}
-
-	reply, err := stub.ShutdownCraned(context.Background(), req)
-	if err != nil {
-		log.Errorf("Failed to shutdown node: %v", err)
-		return util.ErrorGeneric
-	}
-
-	if !reply.Ok {
-		log.Errorf("Failed to shutdown node: %s", reply.Reason)
-		return util.ErrorGeneric
-	}
-
-	fmt.Printf("Successfully shutdown node %s\n", nodeName)
-	return util.ErrorSuccess
-}
-
-func PowerOnNode(nodeName string) util.CraneCmdError {
-	req := &protos.PowerOnCranedRequest{
-		Uid:      uint32(os.Getuid()),
-		CranedId: nodeName,
-	}
-
-	reply, err := stub.PowerOnCraned(context.Background(), req)
-	if err != nil {
-		log.Errorf("Failed to power on node: %v", err)
-		return util.ErrorGeneric
-	}
-
-	if !reply.Ok {
-		log.Errorf("Failed to power on node: %s", reply.Reason)
-		return util.ErrorGeneric
-	}
-
-	fmt.Printf("Successfully powered on node %s\n", nodeName)
+	fmt.Printf("Successfully changed power state of node %s to %s\n", nodeName, state)
 	return util.ErrorSuccess
 }

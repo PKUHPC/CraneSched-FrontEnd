@@ -608,6 +608,15 @@ message QueryCranedRemoteMetaReply {
   CranedRemoteMeta craned_remote_meta = 2;
 }
 
+message QueryCranedNICInfoRequest {}
+
+message QueryCranedNICInfoReply{
+  bool ok = 1;
+  string interface_name = 2;
+  string mac_address = 3;     
+  string error_message = 4; 
+}
+
 message StreamCrunRequest {
   enum CrunRequestType {
     TASK_REQUEST = 0;
@@ -745,43 +754,21 @@ message StreamCforedTaskIOReply {
   }
 }
 
-message SleepCranedRequest {
+enum NodePowerAction {
+  TO_SLEEP = 0;    
+  TO_WAKE = 1;      
+  TO_SHUTDOWN = 2;  
+  TO_POWER_ON = 3;  
+}
+
+message ControlNodePowerRequest {
   uint32 uid = 1;           
   string craned_id = 2;     
+  NodePowerAction action = 3;  
 }
 
-message SleepCranedReply {
+message ControlNodePowerReply {
   bool ok = 1;              
-  string reason = 2;        
-}
-
-message WakeupCranedRequest {
-  uint32 uid = 1;          
-  string craned_id = 2;     
-}
-
-message WakeupCranedReply {
-  bool ok = 1;              
-  string reason = 2;        
-}
-
-message ShutdownCranedRequest {
-  uint32 uid = 1;           
-  string craned_id = 2;     
-}
-
-message ShutdownCranedReply {
-  bool ok = 1;              
-  string reason = 2;        
-}
-
-message PowerOnCranedRequest {
-  uint32 uid = 1;           
-  string craned_id = 2;     
-}
-
-message PowerOnCranedReply {
-  bool ok = 1;             
   string reason = 2;        
 }
 
@@ -808,6 +795,7 @@ service CraneCtld {
   rpc QueryPartitionInfo(QueryPartitionInfoRequest) returns (QueryPartitionInfoReply);
   rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
+  rpc ControlNodePower(ControlNodePowerRequest) returns (ControlNodePowerReply);
 
   /* RPCs called from cacctmgr */
   rpc AddAccount(AddAccountRequest) returns (AddAccountReply);
@@ -833,11 +821,6 @@ service CraneCtld {
 
   /* common RPCs */
   rpc QueryTasksInfo(QueryTasksInfoRequest) returns (QueryTasksInfoReply);
-
-  rpc SleepCraned(SleepCranedRequest) returns (SleepCranedReply) {}
-  rpc WakeupCraned(WakeupCranedRequest) returns (WakeupCranedReply) {}
-  rpc ShutdownCraned(ShutdownCranedRequest) returns (ShutdownCranedReply) {}
-  rpc PowerOnCraned(PowerOnCranedRequest) returns (PowerOnCranedReply) {}
 }
 
 service Craned {
@@ -850,7 +833,8 @@ service Craned {
   rpc ReleaseCgroupForTasks(ReleaseCgroupForTasksRequest) returns(ReleaseCgroupForTasksReply);
 
   rpc QueryCranedRemoteMeta(QueryCranedRemoteMetaRequest) returns(QueryCranedRemoteMetaReply);
-
+  rpc QueryCranedNICInfo(QueryCranedNICInfoRequest) returns (QueryCranedNICInfoReply);
+  
   /*
   If the task is an interactive task, the resource uuid is also revoked.
    If there's no process in this interactive task, just deallocate all the resources.
