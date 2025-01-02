@@ -655,3 +655,46 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 
 	return SummarizeReply(reply)
 }
+
+func ControlNodePower(nodeName string, state string) util.CraneCmdError {
+	if state == "" {
+		log.Errorln("State must be specified")
+		return util.ErrorCmdArg
+	}
+
+	var action protos.NodePowerAction
+	state = strings.ToLower(state)
+	switch state {
+	case "sleep":
+		action = protos.NodePowerAction_TO_SLEEP
+	case "wakeup":
+		action = protos.NodePowerAction_TO_WAKE
+	case "shutdown":
+		action = protos.NodePowerAction_TO_SHUTDOWN
+	case "poweron":
+		action = protos.NodePowerAction_TO_POWER_ON
+	default:
+		log.Errorf("Invalid state given: %s. Valid states are: sleep, wakeup, shutdown, poweron", state)
+		return util.ErrorCmdArg
+	}
+
+	req := &protos.ControlNodePowerRequest{
+		Uid:      uint32(os.Getuid()),
+		CranedId: nodeName,
+		Action:   action,
+	}
+
+	reply, err := stub.ControlNodePower(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to control node power: %v", err)
+		return util.ErrorNetwork
+	}
+
+	if !reply.Ok {
+		log.Errorf("Failed to control node power: %s", reply.Reason)
+		return util.ErrorGeneric
+	}
+
+	fmt.Printf("Successfully changed power state of node %s to %s\n", nodeName, state)
+	return util.ErrorSuccess
+}

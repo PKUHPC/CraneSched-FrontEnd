@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 	"regexp"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -207,6 +208,33 @@ var (
 			}
 		},
 	}
+	powerCmd = &cobra.Command{
+		Use:   "power [flags] node_name[,node_name...]",
+		Short: "Control node power state",
+		Long:  "Control power state of the specified nodes (sleep/wakeup/shutdown/poweron)",
+		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			matched, _ := regexp.MatchString(`^([a-zA-Z0-9_-]+)(,[a-zA-Z0-9_-]+)*$`, args[0])
+			if !matched {
+				log.Error("node name list must follow the format " +
+					"<node_name> or '<node_name>,<node_name>,<node_name>...'")
+				os.Exit(util.ErrorCmdArg)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			nodeNames := strings.Split(args[0], ",")
+			for _, nodeName := range nodeNames {
+				if err := ControlNodePower(nodeName, FlagState); err != util.ErrorSuccess {
+					log.Errorf("Failed to control power state of node %s", nodeName)
+					os.Exit(err)
+				}
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -256,4 +284,15 @@ func init() {
 		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
 	}
 	RootCmd.AddCommand(releaseCmd)
+
+	RootCmd.AddCommand(powerCmd)
+	{
+		powerCmd.Flags().StringVarP(&FlagState, "state", "t", "",
+			"Set the node power state (sleep/wakeup/shutdown/poweron)")
+
+		err := powerCmd.MarkFlagRequired("state")
+		if err != nil {
+			return
+		}
+	}
 }
