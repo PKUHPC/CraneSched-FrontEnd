@@ -57,8 +57,6 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "The user does not belong to this account"
 	case protos.ErrCode_ERR_NO_ACCOUNT_SPECIFIED:
 		return "No account is specified for the user"
-	case protos.ErrCode_ERR_PASSWORD_MISMATCH:
-		return "The entered password is incorrect."
 	default:
 		break
 	}
