@@ -477,7 +477,6 @@ func init() {
 		addCmd.AddCommand(addUserCmd)
 		{
 			addUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Set the name of the user")
-			addUserCmd.Flags().StringVarP(&FlagUser.Password, "password", "P", "", "Set the password of the user")
 			addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Set the account of the user")
 			addUserCmd.Flags().StringSliceVarP(&FlagUserPartitions, "partition", "p", nil, "Set allowed partitions of the user (comma seperated list)")
 			addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "Set admin level (none/operator) of the user")
