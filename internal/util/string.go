@@ -287,22 +287,22 @@ func CheckFileLength(filepath string) error {
 
 func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if task.CpusPerTask <= 0 {
-		return fmt.Errorf("invalid --cpus-per-task")
+		return fmt.Errorf("--cpus-per-task must > 0")
 	}
 	if task.NtasksPerNode <= 0 {
-		return fmt.Errorf("invalid --ntasks-per-node")
+		return fmt.Errorf("--ntasks-per-node must > 0")
 	}
 	if task.NodeNum <= 0 {
-		return fmt.Errorf("invalid --nodes")
+		return fmt.Errorf("--nodes must > 0")
 	}
 	if task.TimeLimit.AsDuration() <= 0 {
-		return fmt.Errorf("invalid --time")
+		return fmt.Errorf("--time must > 0")
 	}
 	if !CheckNodeList(task.Nodelist) {
-		return fmt.Errorf("invalid --nodelist")
+		return fmt.Errorf("invalid format for --nodelist")
 	}
 	if !CheckNodeList(task.Excludes) {
-		return fmt.Errorf("invalid --exclude")
+		return fmt.Errorf("invalid format for --exclude")
 	}
 	return nil
 }
@@ -648,7 +648,7 @@ func ParseGres(gres string) *protos.DeviceMap {
 				result.NameTypeMap[name].TypeCountMap[gresType] = count
 			}
 		} else {
-			log.Errorf("Error parsing gres : %s\n", g)
+			log.Errorf("Error parsing gres: %s\n", g)
 		}
 	}
 
