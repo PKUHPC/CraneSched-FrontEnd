@@ -127,6 +127,8 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "User authentication failed"
 	case protos.ErrCode_ERR_DUPLICATE_CERTIFICATE:
 		return "The certificate has already been issued to the user. If the certificate is lost and needs to be reissued, please contact the administrator for assistance."
+	case protos.ErrCode_ERR_REVOKE_CERTIFICATE:
+		return "Revocation of the certificate failed, Please check the logs."
 	default:
 		break
 	}
