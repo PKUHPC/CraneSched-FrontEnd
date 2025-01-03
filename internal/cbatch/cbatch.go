@@ -90,11 +90,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			}
 			task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			ok := util.ParseDuration(arg.val, task.TimeLimit)
-			if !ok {
+			seconds, err := util.ParseTimeStrToSeconds(arg.val)
+			if err != nil {
 				log.Print("Invalid " + arg.name)
 				return false, nil
 			}
+			task.TimeLimit.Seconds = seconds
 		case "--mem":
 			memInByte, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
@@ -180,11 +181,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 
 	// TODO: Should use Changed() to check if the flag is set.
 	if FlagTime != "" {
-		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if !ok {
+		seconds, err := util.ParseTimeStrToSeconds(FlagTime)
+		if err != nil {
 			log.Errorln("Invalid --time")
 			return false, nil
 		}
+		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
@@ -256,10 +258,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	// Check the validity of the parameters
-	if len(task.Name) > util.MaxJobNameLength {
-		log.Errorf("Job name exceeds %v characters.", util.MaxJobNameLength)
-		return false, nil
-	}
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
 		log.Errorf("Invalid output file path: %v", err)
 		return false, nil
@@ -284,12 +282,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorln("Invalid --mail-type")
 			return false, nil
 		}
-	}
-
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableRes.CpuCoreLimit)
-		return false, nil
 	}
 
 	return true, task

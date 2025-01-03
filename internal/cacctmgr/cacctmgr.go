@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	OSUser "os/user"
 	"sort"
 	"strconv"
 	"strings"
@@ -312,16 +311,8 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	// FIXME: Move name validation to the backend?
 	// FIXME: Seperate this to Args of cobra package?
-	if account.Name == "=" {
-		log.Errorf("Account name empty")
-		return util.ErrorCmdArg
-	}
-	if !util.CheckNameValid(account.Name) {
-		log.Errorf("Name can only consist of letters, numbers, or underscores")
-		return util.ErrorCmdArg
-	}
-	if len(account.Name) > 30 {
-		log.Errorf("Name is too long (up to 30)")
+	if err := util.CheckNameValid(account.Name); err != nil {
+		log.Errorf("Account name error: %v",err)
 		return util.ErrorCmdArg
 	}
 
@@ -369,20 +360,13 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
-	if user.Name == "=" {
-		log.Errorf("User name empty")
-		return util.ErrorCmdArg
-	}
-	if !util.CheckNameValid(user.Name) {
-		log.Errorf("Name can only consist of letters, numbers, or underscores")
-		return util.ErrorCmdArg
-	}
-	if len(user.Name) > 30 {
-		log.Errorf("Name is too long (up to 30)")
+	if err := util.CheckNameValid(user.Name); err != nil {
+		log.Errorf("User name error: %v",err)
 		return util.ErrorCmdArg
 	}
 
-	lu, err := OSUser.Lookup(user.Name)
+	var err error
+	user.Uid, err = util.GetUidByUserName(user.Name)
 	if err != nil {
 		log.Error(err)
 		return util.ErrorCmdArg
@@ -393,11 +377,6 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	req.User = user
 	for _, par := range partition {
 		user.AllowedPartitionQosList = append(user.AllowedPartitionQosList, &protos.UserInfo_AllowedPartitionQos{PartitionName: par})
-	}
-
-	i64, err := strconv.ParseInt(lu.Uid, 10, 64)
-	if err == nil {
-		user.Uid = uint32(i64)
 	}
 
 	if level == "none" {
@@ -439,16 +418,8 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 }
 
 func AddQos(qos *protos.QosInfo) util.CraneCmdError {
-	if qos.Name == "=" {
-		log.Errorln("QoS name empty.")
-		return util.ErrorCmdArg
-	}
-	if !util.CheckNameValid(qos.Name) {
-		log.Errorf("Name can only consist of letters, numbers, or underscores")
-		return util.ErrorCmdArg
-	}
-	if len(qos.Name) > 30 {
-		log.Errorf("Name is too long (up to 30).")
+	if err := util.CheckNameValid(qos.Name); err != nil {
+		log.Errorf("Qos name error: %v",err)
 		return util.ErrorCmdArg
 	}
 
