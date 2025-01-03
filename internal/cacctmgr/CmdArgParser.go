@@ -59,6 +59,8 @@ var (
 	FlagJson           bool
 	FlagConfigFilePath string
 
+	FlagResetCredential bool
+
 	// These flags are implemented,
 	// but not added to any cmd!
 	FlagNoHeader bool
@@ -279,6 +281,14 @@ var (
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+
+			if cmd.Flags().Changed("reset-credential") {
+				err = ResetUserCredential(FlagUser.Name)
+				if err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+
 		},
 	}
 	modifyQosCmd = &cobra.Command{
@@ -586,6 +596,8 @@ func init() {
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
 
+			modifyUserCmd.Flags().BoolVarP(&FlagResetCredential, "reset-credential", "R", false, "Reset the user's credential")
+
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
 
@@ -593,7 +605,7 @@ func init() {
 			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
 			modifyUserCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			modifyUserCmd.MarkFlagsOneRequired("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition",
-				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account")
+				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account", "reset-credential")
 			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
