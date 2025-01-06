@@ -15,7 +15,7 @@ import (
 )
 
 func SignAndSaveUserCertificate(config *Config) CraneCmdError {
-	var client protos.CraneCtldForCforedClient
+	var client protos.SignServiceClient
 
 	if FileExists(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath)) {
 		return ErrorSuccess
@@ -58,7 +58,7 @@ func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 		return ErrorGeneric
 	}
 
-	client = GetStubToCtldForCfored(config)
+	client = GetStubToCtldForSign(config)
 
 	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.SslConfig.DomainSuffix)}
 

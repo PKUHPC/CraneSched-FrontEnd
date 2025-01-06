@@ -208,6 +208,24 @@ func GetStubToCtldForCfored(config *Config) protos.CraneCtldForCforedClient {
 	return stub
 }
 
+func GetStubToCtldForSign(config *Config) protos.SignServiceClient {
+	var serverAddr string
+	var stub protos.SignServiceClient
+
+	serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForSignListenPort)
+
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
+		os.Exit(ErrorBackend)
+	}
+
+	stub = protos.NewSignServiceClient(conn)
+
+	return stub
+
+}
+
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
