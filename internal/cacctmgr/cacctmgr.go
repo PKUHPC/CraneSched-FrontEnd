@@ -808,5 +808,15 @@ func ResetUserCredential(username string) util.CraneCmdError {
 	}
 
 	fmt.Printf("reset user %s credential succeeded.\n", username)
+
+	userCertPath, err := util.ExpandPath(util.DefaultUserConfigPath + "/user.pem")
+	if err != nil {
+		os.Exit(util.ErrorGeneric)
+	}
+
+	is_delete := util.RemoveFileIfExists(userCertPath)
+	if !is_delete {
+		fmt.Printf("Certificate deletion failed, please delete it manually.")
+	}
 	return util.ErrorSuccess
 }
