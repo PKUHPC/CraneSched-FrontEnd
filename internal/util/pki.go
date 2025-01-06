@@ -38,9 +38,9 @@ func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 
 	csrTemplate := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName: fmt.Sprintf("%d.%s", uid, config.SslConfig.DomainSuffix),
+			CommonName: fmt.Sprintf("%d.%s", uid, config.DomainSuffix),
 		},
-		DNSNames:           []string{fmt.Sprintf("*.%s", config.SslConfig.DomainSuffix), "localhost"},
+		DNSNames:           []string{fmt.Sprintf("*.%s", config.DomainSuffix), "localhost"},
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
 
@@ -60,7 +60,7 @@ func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 
 	client = GetStubToCtldForSign(config)
 
-	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.SslConfig.DomainSuffix)}
+	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.DomainSuffix)}
 
 	response, err := client.SignUserCertificate(context.Background(), request)
 	if err != nil {

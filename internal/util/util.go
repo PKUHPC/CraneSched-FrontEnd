@@ -35,6 +35,7 @@ type Config struct {
 	CraneBaseDir                 string       `yaml:"CraneBaseDir"`
 	CranedCforedSockPath         string       `yaml:"CranedCforedSockPath"`
 	Plugin                       PluginConfig `yaml:"Plugin"`
+	DomainSuffix                 string       `yaml:"DomainSuffix"`
 }
 
 type SSLConfig struct {
@@ -44,7 +45,6 @@ type SSLConfig struct {
 	CforedCertFilePath   string `yaml:"CforedCertFilePath"`
 	CforedKeyFilePath    string `yaml:"CforedKeyFilePath"`
 	InternalCaFilePath   string `yaml:"InternalCaFilePath"`
-	DomainSuffix         string `yaml:"DomainSuffix"`
 }
 
 type PluginConfig struct {

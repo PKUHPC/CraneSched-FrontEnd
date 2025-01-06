@@ -118,7 +118,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	}
 
 	serverAddr = fmt.Sprintf("%s.%s:%s",
-		config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
+		config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)
 	userKeyPath, err := ExpandPath(DefaultUserConfigPath + "/user.key")
 	if err != nil {
 		os.Exit(ErrorGeneric)
@@ -167,7 +167,7 @@ func GetStubToCtldForCfored(config *Config) protos.CraneCtldForCforedClient {
 
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldForCforedListenPort)
+			config.ControlMachine, config.DomainSuffix, config.CraneCtldForCforedListenPort)
 		cert, _ := tls.LoadX509KeyPair(config.SslConfig.CforedCertFilePath, config.SslConfig.CforedKeyFilePath)
 
 		CaCertContent, err := os.ReadFile(config.SslConfig.InternalCertFilePath)
