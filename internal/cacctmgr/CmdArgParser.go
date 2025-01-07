@@ -43,8 +43,9 @@ var (
 
 	// FlagSetLevel and FlagLevel are different as
 	// they have different default values.
-	FlagLevel    string
-	FlagSetLevel string
+	FlagLevel             string
+	FlagSetLevel          string
+	FlagSetDefaultAccount string
 
 	// UserInfo does not have these fields (while AccountInfo does),
 	// so we use separate flags for them.
@@ -240,6 +241,8 @@ var (
 			// Check if a flag was set explicitly
 			if cmd.Flags().Changed("admin-level") {
 				err = ModifyUser(protos.ModifyField_AdminLevel, FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
+			} else if cmd.Flags().Changed("default-account") {
+				err = ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -567,6 +570,7 @@ func init() {
 			// Set flags
 			modifyUserCmd.Flags().StringVarP(&FlagUserDefaultQos, "default-qos", "Q", "", "Set default QoS of the user")
 			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin-level", "L", "", "Set admin level (none/operator/admin) of the user")
+			modifyUserCmd.Flags().StringVarP(&FlagSetDefaultAccount, "default-account", "D", "", "Modify default account of the user")
 
 			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
 			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add a single partition to allowed partition list")
@@ -583,7 +587,7 @@ func init() {
 			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
 			modifyUserCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			modifyUserCmd.MarkFlagsOneRequired("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition",
-				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level")
+				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account")
 			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
