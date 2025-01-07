@@ -120,8 +120,8 @@ Supported format identifiers or string, string case insensitive:
 	%D/%ElapsedTime  - Display the elapsed time from the start of the job.
 	%E/%EndTime      - Display the end time of the job.
 	%e/%ExitCode     - Display the exit code of the job. 
-						If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
-						it formats as "0:<code>" or "<code>:0" based on the condition.
+                        If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
+                        it formats as "0:<code>" or "<code>:0" based on the condition.
 	%h/%Held         - Display the hold status of the job.
 	%j/%JobID        - Display the ID of the job.
 	%L/%NodeList     - Display the list of nodes the job is running on.
