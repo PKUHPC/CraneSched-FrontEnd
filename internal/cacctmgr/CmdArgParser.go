@@ -282,13 +282,6 @@ var (
 				os.Exit(err)
 			}
 
-			if cmd.Flags().Changed("reset-credential") {
-				err = ResetUserCredential(FlagUser.Name)
-				if err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-
 		},
 	}
 	modifyQosCmd = &cobra.Command{
@@ -460,7 +453,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := ResetUserCredential(args[0])
+			err := ResetUserCredential(args[0], FlagForce)
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
@@ -608,9 +601,6 @@ func init() {
 			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
-
-			modifyUserCmd.Flags().BoolVarP(&FlagResetCredential, "reset-credential", "R", false, "Reset the user's credential")
-
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
 
@@ -685,6 +675,6 @@ func init() {
 	/* -------------------------------------------------- resetCreds --------------------------------------------------- */
 	RootCmd.AddCommand(ResetCredsCmd)
 	{
-
+		ResetCredsCmd.Flags().BoolVarP(&FlagForce, "force", "", false, "Operation for handling mismatches between database and Vault data.")
 	}
 }

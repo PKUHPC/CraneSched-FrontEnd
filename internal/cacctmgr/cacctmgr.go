@@ -951,8 +951,8 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 }
 
-func ResetUserCredential(username string) util.CraneCmdError {
-	req := protos.ResetUserCredentialRequest{Username: username}
+func ResetUserCredential(username string, isForce bool) util.CraneCmdError {
+	req := protos.ResetUserCredentialRequest{Username: username, IsForce: isForce}
 	reply, err := stub.ResetUserCredential(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to reset user credential")
