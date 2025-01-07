@@ -451,11 +451,24 @@ var (
 		Use:   "reset [flags] name",
 		Short: "Reset the user's credential.",
 		Long:  "",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := ResetUserCredential(args[0], FlagForce)
-			if err != util.ErrorSuccess {
-				os.Exit(err)
+			// Check if args is empty.
+			if len(args) == 0 {
+				// If args[0] is not provided, check if the --force flag is set.
+				if !FlagForce {
+					fmt.Println("Caution! This operation is risky and should only be used when replacing all certificates. If you are sure to proceed, use the --force option.")
+					os.Exit(1)
+				}
+				err := ResetUserCredential("", FlagForce)
+				if err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				err := ResetUserCredential(args[0], FlagForce)
+				if err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}

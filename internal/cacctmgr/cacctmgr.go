@@ -951,8 +951,18 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 }
 
-func ResetUserCredential(username string, isForce bool) util.CraneCmdError {
-	req := protos.ResetUserCredentialRequest{Username: username, IsForce: isForce}
+func ResetUserCredential(value string, isForce bool) util.CraneCmdError {
+	var userList []string
+	if value != "" {
+		var err error
+		userList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.ResetUserCredentialRequest{UserList: userList, IsForce: isForce}
 	reply, err := stub.ResetUserCredential(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to reset user credential")
@@ -972,6 +982,6 @@ func ResetUserCredential(username string, isForce bool) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 
-	fmt.Printf("reset user %s credential succeeded.\n", username)
+	fmt.Printf("reset user %s credential succeeded.\n", value)
 	return util.ErrorSuccess
 }
