@@ -363,6 +363,11 @@ CforedCrunStateMachineLoop:
 							log.Debugf("[Crun->Cfored->Craned] Receive TASK_IO_FORWARD Request to task #%d, msg:\"%s\"", crunRequest.GetPayloadTaskIoForwardReq().GetTaskId(), crunRequest.GetPayloadTaskIoForwardReq().GetMsg())
 							gCranedChanKeeper.forwardCrunRequestToCranedChannels(crunRequest, execCranedIds)
 
+						case protos.StreamCrunRequest_TASK_X11_FORWARD:
+							log.Debugf("[Crun->Cfored->Craned] Receive Local TASK_X11_FORWARD to remote task #%d",
+								crunRequest.GetPayloadTaskX11ForwardReq().GetTaskId())
+							gCranedChanKeeper.forwardCrunRequestToCranedChannels(crunRequest, execCranedIds)
+
 						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
 							log.Debug("[Cfored<->Crun] Receive TaskCompletionRequest")
 							toCtldRequest := &protos.StreamCforedRequest{
@@ -403,7 +408,23 @@ CforedCrunStateMachineLoop:
 						}
 						log.Tracef("[Cfored<->Crun] fowarding msg %s to crun for taskid %d", taskMsg.GetPayloadTaskOutputReq().GetMsg(), taskId)
 						if err := toCrunStream.Send(reply); err != nil {
-							log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to calloc: %s. "+
+							log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
+								"The connection to crun was broken.", err.Error())
+							state = CancelTaskOfDeadCrun
+							break forwarding
+						}
+					} else if taskMsg.Type == protos.StreamTaskIORequest_CRANED_TASK_X11_OUTPUT {
+						reply = &protos.StreamCrunReply{
+							Type: protos.StreamCrunReply_TASK_X11_FORWARD,
+							Payload: &protos.StreamCrunReply_PayloadTaskX11ForwardReply{
+								PayloadTaskX11ForwardReply: &protos.StreamCrunReply_TaskX11ForwardReply{
+									Msg: taskMsg.GetPayloadTaskX11OutputReq().Msg,
+								},
+							},
+						}
+						log.Tracef("[Cfored<->Crun] forwarding x11 to crun for taskid %d", taskId)
+						if err := toCrunStream.Send(reply); err != nil {
+							log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
 								"The connection to crun was broken.", err.Error())
 							state = CancelTaskOfDeadCrun
 							break forwarding

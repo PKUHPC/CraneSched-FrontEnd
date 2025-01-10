@@ -23,6 +23,7 @@ import "C"
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"net"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -38,7 +39,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -53,6 +53,7 @@ const (
 	Forwarding    StateOfCrun = 4
 	TaskKilling   StateOfCrun = 5
 	WaitAck       StateOfCrun = 6
+	End           StateOfCrun = 7
 )
 
 type GlobalVariables struct {
@@ -71,11 +72,50 @@ type ReplyReceiveItem struct {
 	err   error
 }
 
-func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient,
-	replyChannel chan ReplyReceiveItem) {
+type StateMachineOfCrun struct {
+	task   *protos.TaskToCtld
+	taskId uint32 // This field will be set after ReqTaskId state
+
+	state StateOfCrun
+	err   util.CraneCmdError // Hold the final error of the state machine if any
+
+	// Hold grpc resources and will be freed in Close.
+	conn   *grpc.ClientConn
+	client protos.CraneForeDClient
+	stream grpc.BidiStreamingClient[protos.StreamCrunRequest, protos.StreamCrunReply]
+
+	sigs         chan os.Signal
+	savedPtyAttr unix.Termios
+
+	cforedReplyReceiver *CforedReplyReceiver
+
+	// These fields are used under Forwarding State.
+	taskFinishCtx           context.Context
+	taskFinishCb            context.CancelFunc
+	chanInputFromTerm       chan string
+	chanOutputFromRemote    chan string
+	chanX11InputFromLocal   chan []byte
+	chanX11OutputFromRemote chan []byte
+}
+type CforedReplyReceiver struct {
+	stream       protos.CraneForeD_CrunStreamClient
+	replyChannel chan ReplyReceiveItem
+}
+
+func (r *CforedReplyReceiver) GetReplyChannel() chan ReplyReceiveItem {
+	return r.replyChannel
+}
+
+func (r *CforedReplyReceiver) StartReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient) {
+	r.stream = stream
+	r.replyChannel = make(chan ReplyReceiveItem, 8)
+	go r.ReplyReceiveRoutine()
+}
+
+func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 	for {
-		cforedReply, err := stream.Recv()
-		replyChannel <- ReplyReceiveItem{
+		cforedReply, err := r.stream.Recv()
+		r.replyChannel <- ReplyReceiveItem{
 			reply: cforedReply,
 			err:   err,
 		}
@@ -90,400 +130,464 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient,
 	}
 }
 
-func StartCrunStream(task *protos.TaskToCtld) util.CraneCmdError {
+func (m *StateMachineOfCrun) Init(task *protos.TaskToCtld) {
+	m.task = task
+	m.state = ConnectCfored
+	m.err = util.ErrorSuccess
+
+	m.sigs = make(chan os.Signal, 1)
+	signal.Notify(m.sigs, syscall.SIGINT)
+}
+
+func (m *StateMachineOfCrun) Close() {
+	err := m.conn.Close()
+	if err != nil {
+		log.Errorf("Failed to close grpc conn: %s", err)
+	}
+
+	if FlagPty {
+		err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &m.savedPtyAttr)
+		if err != nil {
+			log.Errorf("Failed to restore stdin attr: %s", err.Error())
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) StateConnectCfored() {
 	config := util.ParseConfig(FlagConfigFilePath)
 
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
-	conn, err := grpc.Dial(unixSocketPath, opts...)
+
+	var err error
+	m.conn, err = grpc.Dial(unixSocketPath, opts...)
 	if err != nil {
 		log.Errorf("Failed to connect to local unix socket %s: %s",
 			unixSocketPath, err)
-		return util.ErrorBackend
+
+		m.err = util.ErrorBackend
+		m.state = End
+		return
 	}
-	defer func(conn *grpc.ClientConn) {
-		err := conn.Close()
+
+	m.client = protos.NewCraneForeDClient(m.conn)
+
+	log.Trace("Sending Task Req to Cfored")
+	m.stream, err = m.client.CrunStream(gVars.globalCtx)
+	if err != nil {
+		log.Errorf("Failed to create CrunStream: %s.", err)
+		m.err = util.ErrorNetwork
+		m.state = End
+		return
+	}
+
+	m.cforedReplyReceiver = new(CforedReplyReceiver)
+	m.cforedReplyReceiver.StartReplyReceiveRoutine(m.stream)
+
+	request := &protos.StreamCrunRequest{
+		Type: protos.StreamCrunRequest_TASK_REQUEST,
+		Payload: &protos.StreamCrunRequest_PayloadTaskReq{
+			PayloadTaskReq: &protos.StreamCrunRequest_TaskReq{
+				Task:    m.task,
+				CrunPid: int32(os.Getpid()),
+			},
+		},
+	}
+
+	if err := m.stream.Send(request); err != nil {
+		log.Errorf("Failed to send Task Request to CrunStream: %s. "+
+			"Connection to Crun is broken", err)
+		gVars.connectionBroken = true
+
+		m.state = End
+		m.err = util.ErrorNetwork
+		return
+	}
+
+	m.state = ReqTaskId
+}
+
+func (m *StateMachineOfCrun) StateReqTaskId() {
+	log.Trace("Waiting TaskId")
+	select {
+	case item := <-m.cforedReplyReceiver.GetReplyChannel():
+		cforedReply, err := item.reply, item.err
+
 		if err != nil {
-			log.Errorf("Failed to close grpc conn: %s", err)
-			os.Exit(util.ErrorNetwork)
-		}
-	}(conn)
-
-	client := protos.NewCraneForeDClient(conn)
-
-	var stream protos.CraneForeD_CrunStreamClient
-	var replyChannel chan ReplyReceiveItem
-
-	var request *protos.StreamCrunRequest
-	var taskId uint32
-
-	state := ConnectCfored
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT)
-
-	ret := util.ErrorSuccess
-CrunStateMachineLoop:
-	for {
-		switch state {
-		case ConnectCfored:
-			log.Trace("Sending Task Req to Cfored")
-			stream, err = client.CrunStream(gVars.globalCtx)
-			if err != nil {
-				log.Errorf("Failed to create CrunStream: %s.", err)
-				ret = util.ErrorNetwork
-				break CrunStateMachineLoop
-			}
-
-			replyChannel = make(chan ReplyReceiveItem, 8)
-			go ReplyReceiveRoutine(stream, replyChannel)
-
-			request = &protos.StreamCrunRequest{
-				Type: protos.StreamCrunRequest_TASK_REQUEST,
-				Payload: &protos.StreamCrunRequest_PayloadTaskReq{
-					PayloadTaskReq: &protos.StreamCrunRequest_TaskReq{
-						Task:    task,
-						CrunPid: int32(os.Getpid()),
-					},
-				},
-			}
-
-			if err := stream.Send(request); err != nil {
-				log.Errorf("Failed to send Task Request to CrunStream: %s. "+
-					"Connection to Crun is broken", err)
+			switch err {
+			case io.EOF:
+				fallthrough
+			default:
+				log.Errorf("Connection to Cfored broken when requesting "+
+					"task id: %s. Exiting...", err)
 				gVars.connectionBroken = true
-				ret = util.ErrorNetwork
-				break CrunStateMachineLoop
+				m.state = End
+				m.err = util.ErrorNetwork
+				return
 			}
+		}
 
-			state = ReqTaskId
+		if cforedReply.Type != protos.StreamCrunReply_TASK_ID_REPLY {
+			log.Errorln("Expect type TASK_ID_REPLY")
+			m.state = End
+			m.err = util.ErrorBackend
+			return
+		}
+		payload := cforedReply.GetPayloadTaskIdReply()
 
-		case ReqTaskId:
-			log.Trace("Waiting TaskId")
+		if payload.Ok {
+			m.taskId = payload.TaskId
+			fmt.Printf("Task id allocated: %d, waiting resources.\n", m.taskId)
+			m.state = WaitRes
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+			m.state = End
+			m.err = util.ErrorBackend
+			return
+		}
+	case sig := <-m.sigs:
+		if sig == syscall.SIGINT {
+			log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskId")
+		} else {
+			log.Tracef("Unhanled sig %s", sig.String())
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) StateWaitRes() {
+	log.Trace("Waiting Res Alloc")
+	select {
+	case item := <-m.cforedReplyReceiver.GetReplyChannel():
+		cforedReply, err := item.reply, item.err
+
+		if err != nil { // Failure Edge
+			switch err {
+			case io.EOF:
+				fallthrough
+			default:
+				log.Errorf("Connection to Cfored broken when waiting "+
+					"resource allocated: %s. Exiting...", err)
+				gVars.connectionBroken = true
+				m.state = End
+				m.err = util.ErrorNetwork
+				return
+			}
+		}
+
+		switch cforedReply.Type {
+		case protos.StreamCrunReply_TASK_RES_ALLOC_REPLY:
+			cforedPayload := cforedReply.GetPayloadTaskAllocReply()
+			Ok := cforedPayload.Ok
+
+			if Ok {
+				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+				m.state = WaitForward
+			} else {
+				log.Errorln("Failed to allocate task resource. Exiting...")
+				m.state = End
+				m.err = util.ErrorBackend
+				return
+			}
+		case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
+			log.Tracef("Received Task Cancel Request when wait res")
+			m.state = TaskKilling
+		}
+
+	case sig := <-m.sigs:
+		if sig == syscall.SIGINT {
+			log.Tracef("SIGINT Received. Cancelling the task...")
+			m.state = TaskKilling
+		} else {
+			log.Tracef("Unhandled sig %s", sig.String())
+			m.state = TaskKilling
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) StateWaitForward() {
+	select {
+	case item := <-m.cforedReplyReceiver.GetReplyChannel():
+		cforedReply, err := item.reply, item.err
+		if err != nil { // Failure Edge
+			switch err {
+			case io.EOF:
+				fallthrough
+			default:
+				log.Errorf("Connection to Cfored broken when waiting for forwarding user i/o "+
+					"%s. Exiting...", err)
+				gVars.connectionBroken = true
+				m.state = End
+				m.err = util.ErrorNetwork
+				return
+			}
+		}
+		switch cforedReply.Type {
+		case protos.StreamCrunReply_TASK_IO_FORWARD_READY:
+			cforedPayload := cforedReply.GetPayloadTaskIoForwardReadyReply()
+			Ok := cforedPayload.Ok
+			if Ok {
+				fmt.Println("Task io forward ready, waiting input.")
+				m.state = Forwarding
+				return
+			} else {
+				log.Errorln("Failed to wait for task io forward ready. Exiting...")
+				m.state = End
+				m.err = util.ErrorBackend
+				return
+			}
+		case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
+			m.state = TaskKilling
+		case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
+			// Task launch failed !
+			fmt.Println("Task failed ")
+			m.state = End
+			m.err = util.ErrorBackend
+			return
+		default:
+			log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
+			m.state = TaskKilling
+		}
+
+	case sig := <-m.sigs:
+		if sig == syscall.SIGINT {
+			m.state = TaskKilling
+		} else {
+			log.Tracef("Unhanled sig %s", sig.String())
+			m.state = TaskKilling
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) StateForwarding() {
+	var request *protos.StreamCrunRequest
+
+	if FlagPty {
+		ptyAttr := unix.Termios{}
+		err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
+		if err != nil {
+			log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
+			m.state = TaskKilling
+			m.err = util.ErrorSystem
+			return
+		}
+		m.savedPtyAttr = ptyAttr
+
+		termios.Cfmakeraw(&ptyAttr)
+		termios.Cfmakecbreak(&ptyAttr)
+		err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
+		if err != nil {
+			log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
+			m.state = TaskKilling
+			m.err = util.ErrorSystem
+			return
+		}
+	}
+
+	m.StartIOForward()
+
+	// Forward Terminal input to Cfored.
+	go func() {
+		for {
 			select {
-			case item := <-replyChannel:
-				cforedReply, err := item.reply, item.err
-
-				if err != nil {
-					switch err {
-					case io.EOF:
-						fallthrough
-					default:
-						log.Errorf("Connection to Cfored broken when requesting "+
-							"task id: %s. Exiting...", err)
-						gVars.connectionBroken = true
-						ret = util.ErrorNetwork
-						break CrunStateMachineLoop
-					}
-				}
-
-				if cforedReply.Type != protos.StreamCrunReply_TASK_ID_REPLY {
-					log.Errorln("Expect type TASK_ID_REPLY")
-					return util.ErrorBackend
-				}
-				payload := cforedReply.GetPayloadTaskIdReply()
-
-				if payload.Ok {
-					taskId = payload.TaskId
-					fmt.Printf("Task id allocated: %d, waiting resources.\n", taskId)
-					state = WaitRes
-				} else {
-					_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
-					ret = util.ErrorBackend
-					break CrunStateMachineLoop
-				}
-			case sig := <-sigs:
-				if sig == syscall.SIGINT {
-					log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskId")
-				} else {
-					log.Tracef("Unhanled sig %s", sig.String())
-				}
-			}
-
-		case WaitRes:
-			log.Trace("Waiting Res Alloc")
-			select {
-			case item := <-replyChannel:
-				cforedReply, err := item.reply, item.err
-
-				if err != nil { // Failure Edge
-					switch err {
-					case io.EOF:
-						fallthrough
-					default:
-						log.Errorf("Connection to Cfored broken when waiting "+
-							"resource allocated: %s. Exiting...", err)
-						gVars.connectionBroken = true
-						ret = util.ErrorNetwork
-						break CrunStateMachineLoop
-					}
-				}
-
-				switch cforedReply.Type {
-				case protos.StreamCrunReply_TASK_RES_ALLOC_REPLY:
-					cforedPayload := cforedReply.GetPayloadTaskAllocReply()
-					Ok := cforedPayload.Ok
-
-					if Ok {
-						fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
-						state = WaitForward
-					} else {
-						log.Errorln("Failed to allocate task resource. Exiting...")
-						ret = util.ErrorBackend
-						break CrunStateMachineLoop
-					}
-				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
-					log.Tracef("Received Task Cancel Request when wait res")
-					state = TaskKilling
-				}
-
-			case sig := <-sigs:
-				if sig == syscall.SIGINT {
-					log.Tracef("SIGINT Received. Cancelling the task...")
-					state = TaskKilling
-				} else {
-					log.Tracef("Unhandled sig %s", sig.String())
-					state = TaskKilling
-				}
-			}
-
-		case WaitForward:
-
-			select {
-			case item := <-replyChannel:
-				cforedReply, err := item.reply, item.err
-				if err != nil { // Failure Edge
-					switch err {
-					case io.EOF:
-						fallthrough
-					default:
-						log.Errorf("Connection to Cfored broken when waiting for forwarding user i/o "+
-							"%s. Exiting...", err)
-						gVars.connectionBroken = true
-						ret = util.ErrorNetwork
-						break CrunStateMachineLoop
-					}
-				}
-				switch cforedReply.Type {
-				case protos.StreamCrunReply_TASK_IO_FORWARD_READY:
-					cforedPayload := cforedReply.GetPayloadTaskIoForwardReadyReply()
-					Ok := cforedPayload.Ok
-					if Ok {
-						fmt.Println("Task io forward ready, waiting input.")
-						state = Forwarding
-					} else {
-						log.Errorln("Failed to wait for task io forward ready. Exiting...")
-						ret = util.ErrorBackend
-						break CrunStateMachineLoop
-					}
-				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
-					state = TaskKilling
-				case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
-					// Task launch failed !
-					fmt.Println("Task failed ")
-					ret = util.ErrorGeneric
-					break CrunStateMachineLoop
-				default:
-					log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
-					state = TaskKilling
-				}
-
-			case sig := <-sigs:
-				if sig == syscall.SIGINT {
-					state = TaskKilling
-				} else {
-					log.Tracef("Unhanled sig %s", sig.String())
-					state = TaskKilling
-				}
-			}
-
-		case Forwarding:
-
-			if FlagPty {
-				ptyAttr := unix.Termios{}
-				err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
-				if err != nil {
-					log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
-					state = TaskKilling
-					ret = util.ErrorGeneric
-					break CrunStateMachineLoop
-				}
-				originAttr := ptyAttr
-				termios.Cfmakeraw(&ptyAttr)
-				termios.Cfmakecbreak(&ptyAttr)
-				err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
-				if err != nil {
-					log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
-					state = TaskKilling
-					ret = util.ErrorGeneric
-					break CrunStateMachineLoop
-				}
-				defer func(fd uintptr, oldState *unix.Termios) {
-					err := termios.Tcsetattr(fd, termios.TCSANOW, &originAttr)
-					if err != nil {
-						log.Errorf("Failed to restore stdin attr: %s,killing", err.Error())
-						ret = util.ErrorGeneric
-					}
-
-				}(os.Stdin.Fd(), &originAttr)
-			}
-			chanInputFromTerm := make(chan string, 100)
-			chanOutputFromRemote := make(chan string, 5)
-			taskFinishCtx, taskFinishCb := context.WithCancel(context.Background())
-			StartIOForward(taskFinishCtx, taskFinishCb, chanInputFromTerm, chanOutputFromRemote)
-
-			go func(msgToTask chan string) {
-			forwardToCfored:
-				for {
-					select {
-					case msg := <-msgToTask:
-						request = &protos.StreamCrunRequest{
-							Type: protos.StreamCrunRequest_TASK_IO_FORWARD,
-							Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
-								PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
-									TaskId: taskId,
-									Msg:    msg,
-								},
-							},
-						}
-						if err := stream.Send(request); err != nil {
-							log.Errorf("Failed to send Task Request to CrunStream: %s. "+
-								"Connection to Crun is broken", err)
-							gVars.connectionBroken = true
-							break forwardToCfored
-						}
-					case <-taskFinishCtx.Done():
-						break forwardToCfored
-					}
-				}
-			}(chanInputFromTerm)
-
-			for state == Forwarding {
-				select {
-				case <-taskFinishCtx.Done():
-					request = &protos.StreamCrunRequest{
-						Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
-						Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
-							PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
-								TaskId: taskId,
-								Status: protos.TaskStatus_Completed,
-							},
+			case msg := <-m.chanInputFromTerm:
+				request = &protos.StreamCrunRequest{
+					Type: protos.StreamCrunRequest_TASK_IO_FORWARD,
+					Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
+						PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
+							TaskId: m.taskId,
+							Msg:    msg,
 						},
-					}
-
-					log.Debug("Sending TASK_COMPLETION_REQUEST with COMPLETED state...")
-					if err := stream.Send(request); err != nil {
-						log.Errorf("The connection to Cfored was broken: %s. "+
-							"Exiting...", err)
-						gVars.connectionBroken = true
-						ret = util.ErrorNetwork
-						break CrunStateMachineLoop
-					} else {
-						state = WaitAck
-					}
-
-				case item := <-replyChannel:
-					cforedReply, err := item.reply, item.err
-					if err != nil {
-						switch err {
-						case io.EOF:
-							fallthrough
-						default:
-							log.Errorf("The connection to Cfored was broken: %s. "+
-								"Killing task...", err)
-							ret = util.ErrorNetwork
-							gVars.connectionBroken = true
-							break CrunStateMachineLoop
-						}
-					} else {
-						switch cforedReply.Type {
-						case protos.StreamCrunReply_TASK_IO_FORWARD:
-							{
-								chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
-							}
-						case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
-							{
-								taskFinishCtx.Done()
-								log.Trace("Received TASK_CANCEL_REQUEST")
-								state = TaskKilling
-							}
-						case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
-							{
-								log.Debug("Task completed.")
-								break CrunStateMachineLoop
-							}
-						}
-					}
+					},
 				}
-			}
+				if err := m.stream.Send(request); err != nil {
+					log.Errorf("Failed to send Task Request to CrunStream: %s. "+
+						"Connection to Crun is broken", err)
+					gVars.connectionBroken = true
+					return
+				}
 
-		case TaskKilling:
+			case msg := <-m.chanX11InputFromLocal:
+				request = &protos.StreamCrunRequest{
+					Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
+					Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
+						PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
+							TaskId: m.taskId,
+							Msg:    msg,
+						},
+					},
+				}
+				if err := m.stream.Send(request); err != nil {
+					log.Errorf("Failed to send Task X11 Input to CrunStream: %s. "+
+						"Connection to Crun is broken", err)
+					gVars.connectionBroken = true
+					return
+				}
+
+			case <-m.taskFinishCtx.Done():
+				return
+			}
+		}
+	}()
+
+	for m.state == Forwarding {
+		select {
+		case <-m.taskFinishCtx.Done():
 			request = &protos.StreamCrunRequest{
 				Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
 					PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
-						TaskId: taskId,
-						Status: protos.TaskStatus_Cancelled,
+						TaskId: m.taskId,
+						Status: protos.TaskStatus_Completed,
 					},
 				},
 			}
 
-			if gVars.connectionBroken {
-				log.Errorf("The connection to Cfored was broken. Exiting...")
-				ret = util.ErrorNetwork
-				break CrunStateMachineLoop
-			}
-
-			log.Debug("Sending TASK_COMPLETION_REQUEST with CANCELLED state...")
-			if err := stream.Send(request); err != nil {
-				log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
+			log.Debug("Sending TASK_COMPLETION_REQUEST with COMPLETED state...")
+			if err := m.stream.Send(request); err != nil {
+				log.Errorf("The connection to Cfored was broken: %s. "+
+					"Exiting...", err)
 				gVars.connectionBroken = true
-				ret = util.ErrorNetwork
-				break CrunStateMachineLoop
+				m.state = End
+				m.err = util.ErrorNetwork
 			} else {
-				state = WaitAck
+				m.state = WaitAck
 			}
 
-		case WaitAck:
-			log.Debug("Waiting Ctld TASK_COMPLETION_ACK_REPLY")
-			item := <-replyChannel
+		case item := <-m.cforedReplyReceiver.replyChannel:
 			cforedReply, err := item.reply, item.err
-
 			if err != nil {
 				switch err {
 				case io.EOF:
 					fallthrough
 				default:
 					log.Errorf("The connection to Cfored was broken: %s. "+
-						"Exiting...", err)
+						"Killing task...", err)
 					gVars.connectionBroken = true
-					ret = util.ErrorNetwork
-					break CrunStateMachineLoop
+					m.err = util.ErrorNetwork
+					m.state = TaskKilling
+				}
+			} else {
+				switch cforedReply.Type {
+				case protos.StreamCrunReply_TASK_IO_FORWARD:
+					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
+
+				case protos.StreamCrunReply_TASK_X11_FORWARD:
+					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
+
+				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
+					m.taskFinishCtx.Done()
+					log.Trace("Received TASK_CANCEL_REQUEST")
+					m.state = TaskKilling
+
+				case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
+					log.Debug("Task completed.")
+					m.state = End
 				}
 			}
+		}
+	}
 
-			if cforedReply.Type != protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY {
-				log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
-				return util.ErrorBackend
-			}
+}
 
-			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
-				log.Debug("Task completed.")
-			} else {
-				log.Errorln("Failed to notify server of task completion")
-				return util.ErrorBackend
-			}
+func (m *StateMachineOfCrun) StateTaskKilling() {
+	request := &protos.StreamCrunRequest{
+		Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
+		Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
+			PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
+				TaskId: m.taskId,
+				Status: protos.TaskStatus_Cancelled,
+			},
+		},
+	}
 
+	if gVars.connectionBroken {
+		log.Errorf("The connection to Cfored was broken. Exiting...")
+		m.err = util.ErrorNetwork
+		m.state = End
+		return
+	}
+
+	log.Debug("Sending TASK_COMPLETION_REQUEST with CANCELLED state...")
+	if err := m.stream.Send(request); err != nil {
+		log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
+		gVars.connectionBroken = true
+		m.err = util.ErrorNetwork
+		m.state = End
+		return
+	} else {
+		m.state = WaitAck
+	}
+}
+
+func (m *StateMachineOfCrun) StateWaitAck() {
+	log.Debug("Waiting Ctld TASK_COMPLETION_ACK_REPLY")
+	item := <-m.cforedReplyReceiver.replyChannel
+	cforedReply, err := item.reply, item.err
+
+	if err != nil {
+		switch err {
+		case io.EOF:
+			fallthrough
+		default:
+			log.Errorf("The connection to Cfored was broken: %s. "+
+				"Exiting...", err)
+			gVars.connectionBroken = true
+			m.err = util.ErrorNetwork
+			m.state = End
+			return
+		}
+	}
+
+	if cforedReply.Type != protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY {
+		log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
+		m.err = util.ErrorBackend
+		m.state = End
+		return
+	}
+
+	if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
+		log.Debug("Task completed.")
+	} else {
+		log.Errorln("Failed to notify server of task completion")
+		m.err = util.ErrorBackend
+	}
+
+	m.state = End
+}
+
+func (m *StateMachineOfCrun) Run() {
+CrunStateMachineLoop:
+	for {
+		switch m.state {
+		case ConnectCfored:
+			m.StateConnectCfored()
+
+		case ReqTaskId:
+			m.StateReqTaskId()
+
+		case WaitRes:
+			m.StateWaitRes()
+
+		case WaitForward:
+			m.StateWaitForward()
+
+		case Forwarding:
+			m.StateForwarding()
+
+		case TaskKilling:
+			m.StateTaskKilling()
+
+		case WaitAck:
+			m.StateWaitAck()
+		case End:
 			break CrunStateMachineLoop
 		}
 	}
-	// Check if connection finished normally
-	return ret
 }
 
-func forwardingSigintHandlerRoutine(sigintCb func()) {
+func (m *StateMachineOfCrun) forwardingSigintHandlerRoutine() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
 
@@ -500,7 +604,7 @@ loop:
 				log.Tracef("Recv signal: %v", sig)
 				now := time.Now()
 				if lastSigint.Add(time.Second).After(now) {
-					sigintCb()
+					m.taskFinishCb()
 					break loop
 				} else {
 					lastSigint = now
@@ -515,14 +619,21 @@ loop:
 	log.Tracef("Signal processing goroutine exit.")
 }
 
-func fileWriterRoutine(fd uintptr, chanOutputFromTask chan string, ctx context.Context) {
-	file := os.NewFile(fd, "stdout")
+func (m *StateMachineOfCrun) StdoutWriterRoutine() {
+	file := os.NewFile(os.Stdout.Fd(), "stdout")
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("Failed to close stdout file: %s.", err)
+		}
+	}(file)
+
 	writer := bufio.NewWriter(file)
 
 writing:
 	for {
 		select {
-		case msg := <-chanOutputFromTask:
+		case msg := <-m.chanOutputFromRemote:
 			_, err := writer.WriteString(msg)
 
 			if err != nil {
@@ -535,20 +646,27 @@ writing:
 				break writing
 			}
 
-		case <-ctx.Done():
+		case <-m.taskFinishCtx.Done():
 			break writing
 		}
 	}
 }
 
-func fileReaderRoutine(fd uintptr, chanInputFromTerm chan string, ctx context.Context) {
+func (m *StateMachineOfCrun) StdinReaderRoutine() {
+	file := os.NewFile(os.Stdin.Fd(), "stdin")
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("Failed to close stdin file: %s.", err)
+		}
+	}(file)
 
-	file := os.NewFile(fd, "stdin")
 	reader := bufio.NewReader(file)
+
 reading:
 	for {
 		select {
-		case <-ctx.Done():
+		case <-m.taskFinishCtx.Done():
 			break reading
 
 		default:
@@ -558,36 +676,109 @@ reading:
 					if err == io.EOF {
 						break reading
 					}
-					log.Errorf("Failed to read from fd: %v\n", err)
+					log.Errorf("Failed to read from fd: %v", err)
 					break reading
 				}
-				chanInputFromTerm <- string(data)
+				m.chanInputFromTerm <- string(data)
 			} else {
 				data, err := reader.ReadString('\n')
 				if err != nil {
 					if err == io.EOF {
 						break reading
 					}
-					log.Errorf("Failed to read from fd: %v\n", err)
+					log.Errorf("Failed to read from fd: %v", err)
 					break reading
 				}
-				chanInputFromTerm <- data
+				m.chanInputFromTerm <- data
 			}
 
 		}
 	}
 }
 
-func StartIOForward(taskFinishCtx context.Context, taskFinishFunc context.CancelFunc,
-	chanInputFromTerm chan string, chanOutputFromTask chan string) {
+func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
+	var reader *bufio.Reader
+	var conn net.Conn
+	var err error
 
-	go forwardingSigintHandlerRoutine(taskFinishFunc)
-	go fileReaderRoutine(os.Stdin.Fd(), chanInputFromTerm, taskFinishCtx)
-	go fileWriterRoutine(os.Stdout.Fd(), chanOutputFromTask, taskFinishCtx)
+	x11meta := m.task.GetInteractiveMeta().GetX11Meta()
+	if x11meta.Port == 0 { // Unix Socket
+		conn, err = net.Dial("unix", x11meta.Target)
+		if err != nil {
+			log.Errorf("Failed to connect to X11 display by unix: %v", err)
+			return
+		}
+	} else { // Tcp socket
+		address := fmt.Sprintf("%s:%d", x11meta.Target, x11meta.Port)
+		conn, err = net.Dial("tcp", address)
+		if err != nil {
+			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
+			return
+		}
+	}
+	defer conn.Close()
 
+	go func() {
+		reader = bufio.NewReader(conn)
+		buffer := make([]byte, 4096)
+
+		for {
+			n, err := reader.Read(buffer)
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				log.Tracef("X11 fd has been closed and stop reading: %v", err)
+				return
+			}
+			data := make([]byte, n)
+			copy(data, buffer[:n])
+			m.chanX11InputFromLocal <- data
+			log.Tracef("Received data from x11 fd (len %d)", len(data))
+		}
+	}()
+
+	writer := bufio.NewWriter(conn)
+loop:
+	for {
+		select {
+		case <-m.taskFinishCtx.Done():
+			break loop
+
+		case msg := <-m.chanX11OutputFromRemote:
+			log.Tracef("Writing to x11 fd.")
+			_, err := writer.Write(msg)
+			if err != nil {
+				log.Errorf("Failed to write to x11 fd: %v", err)
+				break loop
+			}
+
+			err = writer.Flush()
+			if err != nil {
+				log.Errorf("Failed to flush data to x11 fd: %v", err)
+				break loop
+			}
+		}
+	}
 }
 
-func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
+func (m *StateMachineOfCrun) StartIOForward() {
+	m.chanInputFromTerm = make(chan string, 100)
+	m.chanOutputFromRemote = make(chan string, 20)
+	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
+
+	go m.forwardingSigintHandlerRoutine()
+	go m.StdinReaderRoutine()
+	go m.StdoutWriterRoutine()
+
+	if m.task.GetInteractiveMeta().X11 {
+		m.chanX11InputFromLocal = make(chan []byte, 100)
+		m.chanX11OutputFromRemote = make(chan []byte, 20)
+		go m.StartX11ReaderWriterRoutine()
+	}
+}
+
+func MainCrun(args []string) util.CraneCmdError {
 	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -728,5 +919,11 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	}
 	iaMeta.InteractiveType = protos.InteractiveTaskType_Crun
 
-	return StartCrunStream(task)
+	m := new(StateMachineOfCrun)
+
+	m.Init(task)
+	m.Run()
+	defer m.Close()
+
+	return m.err
 }

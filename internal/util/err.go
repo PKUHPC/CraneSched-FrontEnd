@@ -35,6 +35,7 @@ const (
 	ErrorNetwork       CraneCmdError = 3
 	ErrorBackend       CraneCmdError = 4
 	ErrorInvalidFormat CraneCmdError = 5
+	ErrorSystem        CraneCmdError = 6
 )
 
 var errMsgMap = map[protos.ErrCode]string{
