@@ -590,6 +590,16 @@ func StartIOForward(taskFinishCtx context.Context, taskFinishFunc context.Cancel
 func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	util.InitLogger(FlagDebugLevel)
 
+	// TODO: Move to proper position!
+	if FlagX11 {
+		cookie, err := util.X11GetXAuthCookie()
+		if err != nil {
+			log.Fatalf("Error: %v", err)
+		}
+		log.Printf("Retrieved X11 cookie: %s", cookie)
+		return util.ErrorSuccess
+	}
+
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	var err error
