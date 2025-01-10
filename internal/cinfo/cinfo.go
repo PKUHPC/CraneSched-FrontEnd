@@ -33,6 +33,96 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type FieldProcessor struct {
+	header string
+	process func(reply *protos.QueryClusterInfoReply, tableOutputCell [][]string)
+}
+
+var fieldMap = map[string]FieldProcessor{
+	"p":             {"Partition", ProcessPartition},
+	"partition":     {"Partition", ProcessPartition},
+	"a":             {"Avail", ProcessAvail},
+	"avail":         {"Avail", ProcessAvail},
+	"n":             {"Nodes", ProcessNodes},
+	"nodes":         {"Nodes", ProcessNodes},
+	"s":             {"State", ProcessState},
+	"state":         {"State", ProcessState},
+	"l":             {"NodeList", ProcessNodeList},
+	"nodelist":      {"NodeList", ProcessNodeList},
+}
+
+// Partition
+func ProcessPartition(reply *protos.QueryClusterInfoReply, tableOutputCell [][]string) {
+	tableIdx := 0
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			if commonCranedStateList.Count > 0 {
+				tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx], partitionCraned.Name)
+				tableIdx++
+			}
+		}
+	}
+}
+
+// Avail
+func ProcessAvail(reply *protos.QueryClusterInfoReply, tableOutputCell [][]string) {
+	tableIdx := 0
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			if commonCranedStateList.Count > 0 {
+				tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
+					 strings.ToLower(partitionCraned.State.String()[10:]))
+				tableIdx++
+			}
+		}
+	}
+}
+
+// Nodes
+func ProcessNodes(reply *protos.QueryClusterInfoReply, tableOutputCell [][]string) {
+	tableIdx := 0
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			if commonCranedStateList.Count > 0 {
+				tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
+					 strconv.FormatUint(uint64(commonCranedStateList.Count), 10))
+				tableIdx++
+			}
+		}
+	}
+}
+
+// State
+func ProcessState(reply *protos.QueryClusterInfoReply, tableOutputCell [][]string) {
+	tableIdx := 0
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			if commonCranedStateList.Count > 0 {
+				stateStr := strings.ToLower(commonCranedStateList.ResourceState.String()[6:])
+				if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
+					stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
+				}
+				tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx], stateStr)
+				tableIdx++
+			}
+		}
+	}
+}
+
+// NodeList
+func ProcessNodeList(reply *protos.QueryClusterInfoReply, tableOutputCell [][]string) {
+	tableIdx := 0
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			if commonCranedStateList.Count > 0 {
+				tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
+					 commonCranedStateList.CranedListRegex)
+				tableIdx++
+			}
+		}
+	}
+}
+
 func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string) {
 	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
@@ -88,84 +178,19 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 		}
 
 		// Parse format specifier
-		header := ""
 		field := FlagFormat[spec[4]:spec[5]]
 		if len(field) > 1 {
 			field = strings.ToLower(field)
 		}
-		switch field {
-		case "p", "partition":
-			header = "Partition"
-			tableIdx := 0
-			for _, partitionCraned := range reply.Partitions {
-				for _, commonCranedStateList := range partitionCraned.CranedLists {
-					cranedStateListCount := commonCranedStateList.Count
-					if  cranedStateListCount > 0 {
-						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx], partitionCraned.Name)
-						tableIdx++
-					}
-				}
-			}
-		case "a", "avail":
-			header = "Avail"
-			tableIdx := 0
-			for _, partitionCraned := range reply.Partitions {
-				for _, commonCranedStateList := range partitionCraned.CranedLists {
-					cranedStateListCount := commonCranedStateList.Count
-					if  cranedStateListCount > 0 {
-						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
-							strings.ToLower(partitionCraned.State.String()[10:]))
-						tableIdx++
-					}
-				}
-			}
-		case "n", "nodes":
-			header = "Nodes"
-			tableIdx := 0
-			for _, partitionCraned := range reply.Partitions {
-				for _, commonCranedStateList := range partitionCraned.CranedLists {
-					cranedStateListCount := commonCranedStateList.Count
-					if  cranedStateListCount > 0 {
-						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
-							strconv.FormatUint(uint64(commonCranedStateList.Count), 10))
-						tableIdx++
-					}
-				}
-			}
-		case "s", "state":
-			header = "State"
-			tableIdx := 0
-			for _, partitionCraned := range reply.Partitions {
-				for _, commonCranedStateList := range partitionCraned.CranedLists {
-					cranedStateListCount := commonCranedStateList.Count
-					if cranedStateListCount > 0 {
-						stateStr := strings.ToLower(commonCranedStateList.ResourceState.String()[6:])
-						if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
-							stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
-						}
-						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],  stateStr)
-						tableIdx++
-					}
-				}
-			}
-		case "l", "nodelist":
-			header = "NodeList"
-			tableIdx := 0
-			for _, partitionCraned := range reply.Partitions {
-				for _, commonCranedStateList := range partitionCraned.CranedLists {
-					cranedStateListCount := commonCranedStateList.Count
-					if cranedStateListCount > 0 {
-						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],  commonCranedStateList.CranedListRegex)
-						tableIdx++
-					}
-				}
-			}
-		default:
-			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +		
-			"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.")
-			os.Exit(util.ErrorInvalidFormat)
+
+		if processor, exists := fieldMap[field]; exists {
+			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
+			processor.process(reply, tableOutputCell)
+		} else {
+			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n" +		
+		 	"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
+			 os.Exit(util.ErrorInvalidFormat)
 		}
-		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
 	}
 	// Get the suffix of the format string
 	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
@@ -286,6 +311,9 @@ func Query() util.CraneCmdError {
 		header, tableData = FormatData(reply)
 		table.SetTablePadding("")
 		table.SetAutoFormatHeaders(false)
+	} else {
+		log.Errorf("Invalid argument: parameter empty.\n")
+		return util.ErrorCmdArg
 	}
 
 	table.AppendBulk(tableData)

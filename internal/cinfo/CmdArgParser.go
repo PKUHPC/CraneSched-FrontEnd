@@ -37,7 +37,6 @@ var (
 	FlagJson                 bool
 	FlagFormat               string
 	// FlagSummarize            bool
-	// FlagFormat               string
 	// FlagListReason           bool
 
 	RootCmd = &cobra.Command{
@@ -94,8 +93,6 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	//RootCmd.Flags().BoolVarP(&FlagSummarize, "summarize", "s", false,
 	//	"Display state summary only")
-	//RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
-	//	"Format specification")
 	//RootCmd.Flags().BoolVarP(&FlagListReason, "list-reasons", "R", false,
 	//	"Display reasons if nodes are down or drained")
 
