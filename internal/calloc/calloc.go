@@ -61,7 +61,7 @@ const (
 )
 
 type ReplyReceiveItem struct {
-	reply *protos.StreamCforedReply
+	reply *protos.StreamCallocReply
 	err   error
 }
 
@@ -166,7 +166,7 @@ CallocStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedReply_TASK_ID_REPLY {
+			if cforedReply.Type != protos.StreamCallocReply_TASK_ID_REPLY {
 				log.Errorln("Expect type TASK_ID_REPLY")
 				return util.ErrorBackend
 			}
@@ -199,7 +199,7 @@ CallocStateMachineLoop:
 			}
 
 			switch cforedReply.Type {
-			case protos.StreamCforedReply_TASK_RES_ALLOC_REPLY:
+			case protos.StreamCallocReply_TASK_RES_ALLOC_REPLY:
 				cforedPayload := cforedReply.GetPayloadTaskAllocReply()
 				Ok := cforedPayload.Ok
 
@@ -211,7 +211,7 @@ CallocStateMachineLoop:
 					break CallocStateMachineLoop
 				}
 
-			case protos.StreamCforedReply_TASK_CANCEL_REQUEST:
+			case protos.StreamCallocReply_TASK_CANCEL_REQUEST:
 				log.Tracef("Receive cancel request when wait res")
 				state = TaskKilling
 			}
@@ -255,17 +255,17 @@ CallocStateMachineLoop:
 					}
 				} else {
 					switch cforedReply.Type {
-					case protos.StreamCforedReply_TASK_CANCEL_REQUEST:
+					case protos.StreamCallocReply_TASK_CANCEL_REQUEST:
 						state = TaskKilling
 
-					case protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY:
+					case protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY:
 						fmt.Println("Task failed ")
 					}
 				}
 
 				cancelRequestChannel <- true
 				<-terminalExitChannel
-				if cforedReply.Type == protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY {
+				if cforedReply.Type == protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
 					break CallocStateMachineLoop
 				}
 			}
@@ -312,7 +312,7 @@ CallocStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY {
+			if cforedReply.Type != protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
 				log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
 				return util.ErrorBackend
 			}
