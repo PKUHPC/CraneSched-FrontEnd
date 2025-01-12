@@ -25,6 +25,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
+	"net"
 
 	"bufio"
 	"context"
@@ -92,8 +93,8 @@ type StateMachineOfCrun struct {
 	taskFinishCb            context.CancelFunc
 	chanInputFromTerm       chan string
 	chanOutputFromRemote    chan string
-	chanX11InputFromLocal   chan string
-	chanX11OutputFromRemote chan string
+	chanX11InputFromLocal   chan []byte
+	chanX11OutputFromRemote chan []byte
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
@@ -691,9 +692,73 @@ reading:
 	}
 }
 
+func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
+	var reader *bufio.Reader
+	var conn net.Conn
+	var err error
+
+	x11meta := m.task.GetInteractiveMeta().GetX11Meta()
+	if x11meta.Port == 0 { // Unix Socket
+		conn, err = net.Dial("unix", x11meta.Target)
+		if err != nil {
+			log.Errorf("Failed to connect to X11 display by unix: %v", err)
+			return
+		}
+	} else { // Tcp socket
+		address := fmt.Sprintf("%s:%d", x11meta.Target, x11meta.Port)
+		conn, err = net.Dial("tcp", address)
+		if err != nil {
+			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
+			return
+		}
+	}
+	defer conn.Close()
+
+	go func() {
+		reader = bufio.NewReader(conn)
+		buffer := make([]byte, 4096)
+
+		for {
+			n, err := reader.Read(buffer)
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				log.Errorf("Failed to read from fd: %v", err)
+				return
+			}
+			data := make([]byte, n)
+			copy(data, buffer[:n])
+			m.chanX11InputFromLocal <- data
+		}
+	}()
+
+	writer := bufio.NewWriter(conn)
+loop:
+	for {
+		select {
+		case <-m.taskFinishCtx.Done():
+			break loop
+
+		case msg := <-m.chanX11OutputFromRemote:
+			_, err := writer.Write(msg)
+			if err != nil {
+				log.Errorf("Failed to write to x11 fd: %v", err)
+				break loop
+			}
+
+			err = writer.Flush()
+			if err != nil {
+				log.Errorf("Failed to flush data to x11 fd: %v", err)
+				break loop
+			}
+		}
+	}
+}
+
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanInputFromTerm = make(chan string, 100)
-	m.chanOutputFromRemote = make(chan string, 5)
+	m.chanOutputFromRemote = make(chan string, 20)
 	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
 
 	go m.forwardingSigintHandlerRoutine()
@@ -701,7 +766,9 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	go m.StdoutWriterRoutine()
 
 	if m.task.GetInteractiveMeta().X11 {
-		// TODO: Start X11 reader and writer routine
+		m.chanX11InputFromLocal = make(chan []byte, 100)
+		m.chanX11OutputFromRemote = make(chan []byte, 20)
+		m.StartX11ReaderWriterRoutine()
 	}
 }
 

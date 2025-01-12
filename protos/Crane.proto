@@ -633,7 +633,7 @@ message StreamCrunRequest {
 
   message TaskX11ForwardReq {
     uint32 task_id = 1;
-    string msg = 2;
+    bytes msg = 2;
   }
 
   CrunRequestType type = 1;
@@ -685,7 +685,7 @@ message StreamCrunReply {
   }
 
   message TaskX11ForwardReply{
-    string msg = 1;
+    bytes msg = 1;
   }
 
   CforedCrunReplyType type = 1 ;
@@ -724,7 +724,7 @@ message StreamTaskIORequest {
 
   message CranedTaskX11OutputReq {
     uint32 task_id = 1;
-    string msg = 2;
+    bytes msg = 2;
   }
 
   CranedRequestType type = 1;
@@ -759,7 +759,7 @@ message StreamTaskIOReply {
 
   message CranedTaskX11InputReq {
     uint32 task_id = 1;
-    string msg = 2;
+    bytes msg = 2;
   }
 
   CranedReplyType type = 1;
