@@ -23,9 +23,10 @@ import "C"
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"net"
+
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
-	"net"
 
 	"bufio"
 	"context"
@@ -897,7 +898,6 @@ func MainCrun(args []string) util.CraneCmdError {
 
 	if FlagX11 {
 		interactiveMeta.X11 = true
-
 		port, target, err := util.GetX11Display()
 		if err != nil {
 			log.Warning("GetX11Display Error: %s. X11 will be disabled.", err)
@@ -916,9 +916,8 @@ func MainCrun(args []string) util.CraneCmdError {
 			interactiveMeta.X11 = false
 		}
 		log.Debugf("Retrieved X11 cookie: %s", cookie)
-
 		if interactiveMeta.X11 {
-			x11meta := interactiveMeta.GetX11Meta()
+			x11meta := &protos.MsgX11Meta{}
 			x11meta.Target = target
 			x11meta.Cookie = cookie
 			x11meta.Port = uint32(port)
