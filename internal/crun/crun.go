@@ -182,6 +182,7 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 	}
 
 	m.cforedReplyReceiver = new(CforedReplyReceiver)
+	m.cforedReplyReceiver.StartReplyReceiveRoutine(m.stream)
 
 	request := &protos.StreamCrunRequest{
 		Type: protos.StreamCrunRequest_TASK_REQUEST,
@@ -327,6 +328,7 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 			if Ok {
 				fmt.Println("Task io forward ready, waiting input.")
 				m.state = Forwarding
+				return
 			} else {
 				log.Errorln("Failed to wait for task io forward ready. Exiting...")
 				m.state = End
@@ -769,7 +771,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	if m.task.GetInteractiveMeta().X11 {
 		m.chanX11InputFromLocal = make(chan []byte, 100)
 		m.chanX11OutputFromRemote = make(chan []byte, 20)
-		m.StartX11ReaderWriterRoutine()
+		go m.StartX11ReaderWriterRoutine()
 	}
 }
 
@@ -918,6 +920,7 @@ func MainCrun(args []string) util.CraneCmdError {
 		log.Debugf("Retrieved X11 cookie: %s", cookie)
 		if interactiveMeta.X11 {
 			x11meta := &protos.MsgX11Meta{}
+			task.GetInteractiveMeta().X11Meta = x11meta
 			x11meta.Target = target
 			x11meta.Cookie = cookie
 			x11meta.Port = uint32(port)

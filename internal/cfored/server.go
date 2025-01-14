@@ -310,6 +310,9 @@ CforedCranedStateMachineLoop:
 					case protos.StreamTaskIORequest_CRANED_TASK_OUTPUT:
 						payload := cranedReq.GetPayloadTaskOutputReq()
 						gCranedChanKeeper.forwardRemoteIoToCrun(payload.GetTaskId(), cranedReq)
+					case protos.StreamTaskIORequest_CRANED_TASK_X11_OUTPUT:
+						payload := cranedReq.GetPayloadTaskX11OutputReq()
+						gCranedChanKeeper.forwardRemoteIoToCrun(payload.GetTaskId(), cranedReq)
 
 					case protos.StreamTaskIORequest_CRANED_UNREGISTER:
 						reply = &protos.StreamTaskIOReply{
