@@ -19,8 +19,6 @@
 package cacctmgr
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 	"math"
@@ -29,6 +27,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"

@@ -19,17 +19,6 @@
 package cwrapper
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/cacct"
-	"CraneFrontEnd/internal/cacctmgr"
-	"CraneFrontEnd/internal/calloc"
-	"CraneFrontEnd/internal/cbatch"
-	"CraneFrontEnd/internal/ccancel"
-	"CraneFrontEnd/internal/ccontrol"
-	"CraneFrontEnd/internal/cinfo"
-	"CraneFrontEnd/internal/cqueue"
-	"CraneFrontEnd/internal/crun"
-	"CraneFrontEnd/internal/util"
 	"errors"
 	"fmt"
 	"os"
@@ -38,6 +27,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cacct"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cacctmgr"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/calloc"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cbatch"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/ccancel"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/ccontrol"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cinfo"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cqueue"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/crun"
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"

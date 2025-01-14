@@ -19,9 +19,10 @@
 package main
 
 import (
-	"CraneFrontEnd/api"
-	"CraneFrontEnd/generated/protos"
 	"os"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/api"
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 
 	"bytes"
 	"fmt"

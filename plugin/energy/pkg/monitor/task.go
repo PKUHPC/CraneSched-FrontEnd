@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"CraneFrontEnd/plugin/energy/pkg/cgroup"
-	"CraneFrontEnd/plugin/energy/pkg/config"
-	"CraneFrontEnd/plugin/energy/pkg/db"
-	"CraneFrontEnd/plugin/energy/pkg/gpu"
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/cgroup"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/config"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/db"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/gpu"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/types"
 )
 
 type TaskMonitor struct {

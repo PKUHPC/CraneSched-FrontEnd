@@ -13,11 +13,12 @@ import (
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	logrus "github.com/sirupsen/logrus"
 
-	"CraneFrontEnd/api"
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/plugin/energy/pkg/config"
-	"CraneFrontEnd/plugin/energy/pkg/db"
-	"CraneFrontEnd/plugin/energy/pkg/monitor"
+	"github.com/PKUHPC/CraneSched-FrontEnd/api"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/config"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/db"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/monitor"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 )
 
 var log = logrus.WithField("component", "EnergyPlugin")

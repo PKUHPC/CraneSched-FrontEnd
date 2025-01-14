@@ -1,10 +1,11 @@
 package cfored
 
 import (
-	"CraneFrontEnd/generated/protos"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"math"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	log "github.com/sirupsen/logrus"
 )
 
 type StateOfCallocServer int

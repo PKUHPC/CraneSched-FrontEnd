@@ -21,8 +21,8 @@ package crun
 import "C"
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"

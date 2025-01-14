@@ -11,8 +11,8 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	logrus "github.com/sirupsen/logrus"
 
-	"CraneFrontEnd/plugin/energy/pkg/config"
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/config"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/types"
 )
 
 var log = logrus.WithField("component", "InfluxDB")

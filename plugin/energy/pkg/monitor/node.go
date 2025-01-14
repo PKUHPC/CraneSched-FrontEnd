@@ -3,13 +3,13 @@ package monitor
 import (
 	"time"
 
-	"CraneFrontEnd/plugin/energy/pkg/config"
-	"CraneFrontEnd/plugin/energy/pkg/db"
-	"CraneFrontEnd/plugin/energy/pkg/gpu"
-	"CraneFrontEnd/plugin/energy/pkg/ipmi"
-	"CraneFrontEnd/plugin/energy/pkg/rapl"
-	"CraneFrontEnd/plugin/energy/pkg/sysload"
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/config"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/db"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/gpu"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/ipmi"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/rapl"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/sysload"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/types"
 )
 
 type NodeMonitor struct {

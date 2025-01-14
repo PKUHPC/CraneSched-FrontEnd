@@ -19,9 +19,10 @@
 package ccancel
 
 import (
-	"CraneFrontEnd/internal/util"
 	"os"
 	"regexp"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	log "github.com/sirupsen/logrus"
 

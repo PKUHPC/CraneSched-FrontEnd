@@ -19,8 +19,9 @@
 package calloc
 
 import (
-	"CraneFrontEnd/internal/util"
 	"os"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	"github.com/spf13/cobra"
 )

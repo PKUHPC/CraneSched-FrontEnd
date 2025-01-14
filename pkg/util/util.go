@@ -19,10 +19,12 @@
 package util
 
 import (
-	"CraneFrontEnd/api"
-	"CraneFrontEnd/generated/protos"
 	"os"
 	"strings"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/api"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 )
 
 type Config struct {

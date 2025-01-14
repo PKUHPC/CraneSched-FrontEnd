@@ -19,12 +19,14 @@
 package cacctmgr
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"fmt"
 	"math"
 	"os"
 	"strings"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"

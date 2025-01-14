@@ -19,8 +19,6 @@
 package cqueue
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 	"os"
@@ -29,6 +27,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"

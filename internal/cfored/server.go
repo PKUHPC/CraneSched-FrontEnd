@@ -19,8 +19,6 @@
 package cfored
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 	"io"
@@ -29,6 +27,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
