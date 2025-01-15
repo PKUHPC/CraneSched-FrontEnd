@@ -298,20 +298,21 @@ CforedCranedStateMachineLoop:
 						case io.EOF:
 							fallthrough
 						default:
-							log.Errorf("[Cfored<->Craned] Craned %s unexpected down", cranedId)
+							log.Errorf("[Cfored<-Craned] Craned %s unexpected down", cranedId)
 							gCranedChanKeeper.CranedCrashAndRemoveAllChannel(cranedId)
 							state = CranedUnReg
 							break cranedIOForwarding
 						}
 					}
 
-					log.Tracef("[Cfored<->Craned] Receive type %s", cranedReq.Type.String())
+					log.Tracef("[Cfored<-Craned] Receive type %s", cranedReq.Type.String())
 					switch cranedReq.Type {
 					case protos.StreamTaskIORequest_CRANED_TASK_OUTPUT:
 						payload := cranedReq.GetPayloadTaskOutputReq()
 						gCranedChanKeeper.forwardRemoteIoToCrun(payload.GetTaskId(), cranedReq)
 					case protos.StreamTaskIORequest_CRANED_TASK_X11_OUTPUT:
 						payload := cranedReq.GetPayloadTaskX11OutputReq()
+						log.Tracef("[Cfored<-Craned] Forwarding remote X11 to local task #%d", payload.GetTaskId())
 						gCranedChanKeeper.forwardRemoteIoToCrun(payload.GetTaskId(), cranedReq)
 
 					case protos.StreamTaskIORequest_CRANED_UNREGISTER:
@@ -344,7 +345,7 @@ CforedCranedStateMachineLoop:
 						payload := crunReq.GetPayloadTaskIoForwardReq()
 						taskId := payload.GetTaskId()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored<->Craned] forwarding task %d input %s to craned %s", taskId, msg, cranedId)
+						log.Debugf("[Cfored->Craned] forwarding task %d input %s to craned %s", taskId, msg, cranedId)
 						reply = &protos.StreamTaskIOReply{
 							Type: protos.StreamTaskIOReply_CRANED_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
@@ -355,16 +356,16 @@ CforedCranedStateMachineLoop:
 							},
 						}
 						if err := toCranedStream.Send(reply); err != nil {
-							log.Debug("[Cfored<->Craned] Connection to craned was broken.")
+							log.Debug("[Cfored->Craned] Connection to craned was broken.")
 							state = CranedUnReg
 						}
 					case protos.StreamCrunRequest_TASK_X11_FORWARD:
 						payload := crunReq.GetPayloadTaskX11ForwardReq()
 						taskId := payload.GetTaskId()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored<->Craned] forwarding task %d x11 input to craned %s", taskId, cranedId)
+						log.Debugf("[Cfored->Craned] forwarding task %d x11 input to craned %s", taskId, cranedId)
 						reply = &protos.StreamTaskIOReply{
-							Type: protos.StreamTaskIOReply_CRANED_TASK_INPUT,
+							Type: protos.StreamTaskIOReply_CRANED_TASK_X11_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
 								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_CranedTaskX11InputReq{
 									TaskId: taskId,

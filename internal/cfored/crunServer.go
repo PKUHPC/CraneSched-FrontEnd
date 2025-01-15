@@ -364,7 +364,7 @@ CforedCrunStateMachineLoop:
 							gCranedChanKeeper.forwardCrunRequestToCranedChannels(crunRequest, execCranedIds)
 
 						case protos.StreamCrunRequest_TASK_X11_FORWARD:
-							log.Debugf("[Crun->Cfored->Craned] Receive TASK_X11_FORWARD Request to task #%d",
+							log.Debugf("[Crun->Cfored->Craned] Receive Local TASK_X11_FORWARD to remote task #%d",
 								crunRequest.GetPayloadTaskX11ForwardReq().GetTaskId())
 							gCranedChanKeeper.forwardCrunRequestToCranedChannels(crunRequest, execCranedIds)
 
@@ -422,7 +422,7 @@ CforedCrunStateMachineLoop:
 								},
 							},
 						}
-						log.Tracef("[Cfored<->Crun] fowarding x11 to crun for taskid %d", taskId)
+						log.Tracef("[Cfored<->Crun] forwarding x11 to crun for taskid %d", taskId)
 						if err := toCrunStream.Send(reply); err != nil {
 							log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
 								"The connection to crun was broken.", err.Error())

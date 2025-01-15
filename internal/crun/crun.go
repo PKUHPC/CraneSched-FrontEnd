@@ -408,7 +408,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					return
 				}
 
-			case msg := <-m.chanX11OutputFromRemote:
+			case msg := <-m.chanX11InputFromLocal:
 				request = &protos.StreamCrunRequest{
 					Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
 					Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
@@ -733,6 +733,7 @@ func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
 			}
 			data := make([]byte, n)
 			copy(data, buffer[:n])
+			log.Tracef("Received data from x11 fd: %s", string(data))
 			m.chanX11InputFromLocal <- data
 		}
 	}()
@@ -745,6 +746,7 @@ loop:
 			break loop
 
 		case msg := <-m.chanX11OutputFromRemote:
+			log.Tracef("Writing to x11 fd.")
 			_, err := writer.Write(msg)
 			if err != nil {
 				log.Errorf("Failed to write to x11 fd: %v", err)
