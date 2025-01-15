@@ -145,9 +145,11 @@ func (m *StateMachineOfCrun) Close() {
 		log.Errorf("Failed to close grpc conn: %s", err)
 	}
 
-	err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &m.savedPtyAttr)
-	if err != nil {
-		log.Errorf("Failed to restore stdin attr: %s", err.Error())
+	if FlagPty {
+		err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &m.savedPtyAttr)
+		if err != nil {
+			log.Errorf("Failed to restore stdin attr: %s", err.Error())
+		}
 	}
 }
 
@@ -381,7 +383,6 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			m.err = util.ErrorSystem
 			return
 		}
-
 	}
 
 	m.StartIOForward()
