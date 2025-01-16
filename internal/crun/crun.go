@@ -728,13 +728,13 @@ func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
 				if err == io.EOF {
 					return
 				}
-				log.Errorf("Failed to read from fd: %v", err)
+				log.Tracef("X11 fd has been closed and stop reading: %v", err)
 				return
 			}
 			data := make([]byte, n)
 			copy(data, buffer[:n])
-			log.Tracef("Received data from x11 fd: %s", string(data))
 			m.chanX11InputFromLocal <- data
+			log.Tracef("Received data from x11 fd (len %d)", len(data))
 		}
 	}()
 
