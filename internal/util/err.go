@@ -147,6 +147,20 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "Nodes num not enough for task"
 	case protos.ErrCode_ERR_BEYOND_TASK_ID:
 		return "System error occurred or the number of pending tasks exceeded maximum value"
+	case protos.ErrCode_ERR_CGROUP:
+		return "Error when manipulating cgroup"
+	case protos.ErrCode_ERR_SYSTEM_ERR:
+		return "Linux Error"
+	case protos.ErrCode_ERR_RPC_FAILURE:
+		return "RPC call failed"
+	case protos.ErrCode_ERR_GENERIC_FAILURE:
+		return "Generic failure"
+	case protos.ErrCode_ERR_NON_EXISTENT:
+		return "The object doesn't exist"
+	case protos.ErrCode_ERR_INVALID_PARAM:
+		return "Invalid Parameter"
+	case protos.ErrCode_ERR_PROTOBUF:
+		return "Error when using protobuf"
 	default:
 		break
 	}
