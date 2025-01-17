@@ -312,7 +312,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
 		return util.ErrorSuccess
 	} else {
-		log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reply.GetReason()))
+		log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
@@ -330,7 +330,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.ReasonList) > 0 {
+		if len(reply.GetCodeList()) > 0 {
 			return util.ErrorBackend
 		} else {
 			return util.ErrorSuccess
@@ -345,8 +345,8 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 		fmt.Printf("Job id allocated: %s.\n", strings.Join(taskIdListString, ", "))
 	}
 
-	if len(reply.ReasonList) > 0 {
-		for _, reason := range reply.ReasonList {
+	if len(reply.GetCodeList()) > 0 {
+		for _, reason := range reply.GetCodeList() {
 			log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reason))
 		}
 		
