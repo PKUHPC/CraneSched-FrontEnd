@@ -241,12 +241,18 @@ var (
 			// Check if a flag was set explicitly
 			if cmd.Flags().Changed("admin-level") {
 				err = ModifyUser(protos.ModifyField_AdminLevel, FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
-			} else if cmd.Flags().Changed("default-account") {
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+
+			if cmd.Flags().Changed("default-account") {
 				err = ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+
 			if cmd.Flags().Changed("set-allowed-partition") {
 				err = ModifyUser(protos.ModifyField_Partition, strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-partition") {
