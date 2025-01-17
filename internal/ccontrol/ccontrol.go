@@ -104,11 +104,19 @@ func formatMemToMB(data uint64) string {
 	}
 }
 
-func formatAllowAccounts(allowAccounts []string) string {
-	if len(allowAccounts) == 0 {
+func formatAllowedAccounts(allowedAccounts []string) string {
+	if len(allowedAccounts) == 0 {
 		return "ALL"
 	}
-	return strings.Join(allowAccounts, ",")
+	return strings.Join(allowedAccounts, ",")
+}
+
+func formatDeniedAccounts(allowedAccounts []string, deniedAccounts []string) string {
+	if len(allowedAccounts) != 0 || len(deniedAccounts) == 0 {
+		return "None"
+	}
+
+	return strings.Join(deniedAccounts, ",")
 }
 
 func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
@@ -214,14 +222,15 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	} else {
 		for _, partitionInfo := range reply.PartitionInfo {
 			fmt.Printf("PartitionName=%v State=%v\n"+
-				"\tAllowAccounts=%s\n"+
+				"\tAllowedAccounts=%s DeniedAccounts=%s\n"+
 				"\tTotalNodes=%d AliveNodes=%d\n"+
 				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
 				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
 				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
 				"\tHostList=%v\n\n",
 				partitionInfo.Name, partitionInfo.State.String()[10:],
-				formatAllowAccounts(partitionInfo.AllowAccounts),
+				formatAllowedAccounts(partitionInfo.AllowedAccounts),
+				formatDeniedAccounts(partitionInfo.AllowedAccounts, partitionInfo.DeniedAccounts),
 				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
 				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
@@ -638,18 +647,18 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	return SummarizeReply(reply)
 }
 
-func ModifyPartitionAllowAccounts(partition string, allowAccounts string) util.CraneCmdError {
-	allowedAccountList, _ := util.ParseStringParamList(allowAccounts, ",")
+func ModifyPartitionAllowedOrDeniedAccounts(partition string, isModifyAllowed bool, accounts string) util.CraneCmdError {
+	accountList, _ := util.ParseStringParamList(accounts, ",")
 
-	req := protos.ModifyPartitionAllowAccountsRequest{Uid: userUid, PartitionName: partition, AllowAccounts: allowedAccountList}
-	reply, err := stub.ModifyPartitionAllowAccounts(context.Background(), &req)
+	req := protos.ModifyPartitionAllowedOrDeniedAccountsRequest{Uid: userUid, PartitionName: partition, IsModifyAllowed: isModifyAllowed, Accounts: accountList}
+	reply, err := stub.ModifyPartitionAllowedOrDeniedAccounts(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
 		return util.ErrorNetwork
 	}
 
 	if !reply.GetOk() {
-		fmt.Printf("Modify partition %s failed: %s.\n", partition, util.ErrMsg(reply.GetReason()))
+		fmt.Printf("Modify partition %s failed: %s.\n", partition, util.ErrMsg(reply.GetErrCode()))
 		return util.ErrorBackend
 	}
 

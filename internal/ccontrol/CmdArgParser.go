@@ -28,19 +28,20 @@ import (
 )
 
 var (
-	FlagNodeName       string
-	FlagState          string
-	FlagReason         string
-	FlagPartitionName  string
-	FlagAllowAccounts  string
-	FlagTaskId         uint32
-	FlagTaskIds        string
-	FlagQueryAll       bool
-	FlagTimeLimit      string
-	FlagPriority       float64
-	FlagHoldTime       string
-	FlagConfigFilePath string
-	FlagJson           bool
+	FlagNodeName        string
+	FlagState           string
+	FlagReason          string
+	FlagPartitionName   string
+	FlagAllowedAccounts string
+	FlagDeniedAccounts  string
+	FlagTaskId          uint32
+	FlagTaskIds         string
+	FlagQueryAll        bool
+	FlagTimeLimit       string
+	FlagPriority        float64
+	FlagHoldTime        string
+	FlagConfigFilePath  string
+	FlagJson            bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -176,8 +177,14 @@ var (
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ModifyPartitionAllowAccounts(args[0], FlagAllowAccounts); err != util.ErrorSuccess {
-				os.Exit(err)
+			if cmd.Flags().Changed("allowed-accounts") {
+				if err := ModifyPartitionAllowedOrDeniedAccounts(args[0], true, FlagAllowedAccounts); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else if cmd.Flags().Changed("denied-accounts") {
+				if err := ModifyPartitionAllowedOrDeniedAccounts(args[0], false, FlagDeniedAccounts); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -273,12 +280,11 @@ func init() {
 
 		updateCmd.AddCommand(updatePartitionCmd)
 		{
-			updatePartitionCmd.Flags().StringVarP(&FlagAllowAccounts, "allow-accounts", "A", "", "Set the allow account list for the partition")
+			updatePartitionCmd.Flags().StringVarP(&FlagAllowedAccounts, "allowed-accounts", "A", "", "Set the allow account list for the partition")
+			updatePartitionCmd.Flags().StringVarP(&FlagDeniedAccounts, "denied-accounts", "D", "", "Set the denied account list for the partition")
 
-			err := updatePartitionCmd.MarkFlagRequired("allow-accounts")
-			if err != nil {
-				return
-			}
+			updatePartitionCmd.MarkFlagsMutuallyExclusive("allowed-accounts", "denied-accounts")
+			updatePartitionCmd.MarkFlagsOneRequired("allowed-accounts", "denied-accounts")
 		}
 	}
 	RootCmd.AddCommand(holdCmd)
