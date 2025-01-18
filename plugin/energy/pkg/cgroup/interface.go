@@ -7,7 +7,7 @@ import (
 )
 
 type CgroupReader interface {
-	GetCgroupStats() types.CgroupStats
+	GetCgroupStats() (types.CgroupStats, error)
 }
 
 type Version int
