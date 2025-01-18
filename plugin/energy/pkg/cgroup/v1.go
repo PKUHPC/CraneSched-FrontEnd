@@ -79,19 +79,14 @@ func NewV1Reader(cgroupName string) *V1Reader {
 	return &reader
 }
 
-func (r *V1Reader) GetCgroupStats() types.CgroupStats {
+func (r *V1Reader) GetCgroupStats() (types.CgroupStats, error) {
 	currentTime := time.Now()
 	stats := types.CgroupStats{}
 
-	v1Metrics, err := r.control.Stat(cgroups.IgnoreNotExist)
-	if err != nil {
-		log.Errorf("Failed to get cgroup stats: %v", err)
-		return stats
-	}
-
-	if v1Metrics == nil {
-		log.Error("Metrics is nil")
-		return stats
+	v1Metrics, err := r.control.Stat()
+	if err != nil || v1Metrics == nil {
+		log.Infof("Cgroup appears to be removed: metrics unavailable")
+		return stats, fmt.Errorf("cgroup no longer exists")
 	}
 
 	duration := currentTime.Sub(r.startTime).Seconds()
@@ -107,7 +102,7 @@ func (r *V1Reader) GetCgroupStats() types.CgroupStats {
 	}
 
 	r.logCgroupStats(stats)
-	return stats
+	return stats, nil
 }
 
 func (r *V1Reader) calculateCPUStats(v1Metrics *v1.Metrics) types.CPUStats {
