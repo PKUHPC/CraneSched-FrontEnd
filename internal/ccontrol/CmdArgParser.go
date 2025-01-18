@@ -185,6 +185,7 @@ var (
 				if err := ModifyPartitionAllowedOrDeniedAccounts(args[0], false, FlagDeniedAccounts); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
+				log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
 			}
 		},
 	}

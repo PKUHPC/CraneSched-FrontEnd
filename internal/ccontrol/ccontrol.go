@@ -112,7 +112,7 @@ func formatAllowedAccounts(allowedAccounts []string) string {
 }
 
 func formatDeniedAccounts(allowedAccounts []string, deniedAccounts []string) string {
-	if len(allowedAccounts) != 0 || len(deniedAccounts) == 0 {
+	if len(deniedAccounts) == 0 {
 		return "None"
 	}
 
