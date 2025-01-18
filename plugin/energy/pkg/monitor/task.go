@@ -159,7 +159,12 @@ func (t *Task) monitorResourceUsage() {
 	for {
 		select {
 		case <-ticker.C:
-			taskStats := t.cgroupReader.GetCgroupStats()
+			taskStats, err := t.cgroupReader.GetCgroupStats()
+			if err != nil {
+				log.Infof("Task %d monitor stopping, error: %v", t.taskID, err)
+				go t.StopMonitor()
+				return
+			}
 			metrics := t.gpuReader.GetBoundGpuMetrics(t.boundGPUs)
 			t.updateTaskStats(&taskStats, metrics)
 		case <-t.ctx.Done():
