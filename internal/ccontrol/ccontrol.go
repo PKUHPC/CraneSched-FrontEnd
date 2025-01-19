@@ -263,14 +263,14 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
-			fmt.Printf("Job %v is not running.\n", jobIds)
+			fmt.Printf("Job %v is not running.\n", jobIdList)
 		}
 		return util.ErrorSuccess
 	}
 
-	checkStringEmpty := func(s string) string {
+	formatHostNameStr := func(s string) string {
 		if len(s) == 0 {
-			return "unknown"
+			return "None"
 		} else {
 			return s
 		}
@@ -343,12 +343,12 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			"\tReqNodeList=%v ExecludeNodeList=%v \n",
 			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
-			timeStartStr, timeEndStr, taskInfo.Partition, checkStringEmpty(taskInfo.GetCranedList()),
-			checkStringEmpty(util.HostNameListToStr(taskInfo.GetExecutionNode())),
+			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExecutionNode())),
 			taskInfo.CmdLine, taskInfo.Cwd,
 			taskInfo.Priority, taskInfo.Qos, taskInfo.ResView.AllocatableRes.CpuCoreLimit, formatMemToMB(taskInfo.ResView.AllocatableRes.MemoryLimitBytes),
 			resourcesType, taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
-			checkStringEmpty(util.HostNameListToStr(taskInfo.GetReqNodes())), checkStringEmpty(util.HostNameListToStr(taskInfo.GetExcludeNodes())))
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())))
 	}
 
 	// If any job is requested but not returned, remind the user
@@ -543,7 +543,7 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		log.Errorf("ModifyJob failed: " + err.Error())
+		log.Errorf("ModifyJob failed: %v", err)
 		return util.ErrorNetwork
 	}
 
