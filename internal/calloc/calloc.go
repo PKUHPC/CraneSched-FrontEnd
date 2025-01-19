@@ -401,9 +401,9 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		task.Resources.DeviceMap = gresMap
 	}
 	if FlagTime != "" {
-		seconds, err := util.ParseTimeStrToSeconds(FlagTime)
+		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			log.Errorln("Invalid --time format: %v", err)
+			log.Errorf("Invalid argument: invalid --time: %v", err)
 			return util.ErrorCmdArg
 		}
 		task.TimeLimit.Seconds = seconds
@@ -444,6 +444,9 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+
+	// Set total limit of cpu cores
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {

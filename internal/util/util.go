@@ -63,10 +63,10 @@ const (
 	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength
 	MaxJobFilePathLengthForUnix    = 4096 - MaxJobFileNameLength
 
-	MaxAccountNameLength           = 30
-
 	MaxJobTimeLimit = 315576000000 // 10000 years
 	MaxJobTimeStamp = 253402300799 // 9999-12-31 23:59:59
+
+	MaxEntityNameLength = 30
 )
 
 func SplitEnvironEntry(env *string) (string, string, bool) {

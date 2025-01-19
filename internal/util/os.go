@@ -138,17 +138,15 @@ func GetParentProcessID(pid int) (int, error) {
 	return ppid, nil
 }
 
-
 func GetUidByUserName(userName string) (uint32, error) {
 	u, err := user.Lookup(userName)
 	if err != nil {
-		fmt.Printf("Failed to lookup user: %s\n", err)
 		return 0, err
 	}
 
 	i64, err := strconv.ParseInt(u.Uid, 10, 64)
 	if err != nil {
-		fmt.Printf("Failed to strconv uint32: %s\n", err)
+		// This should never happen
 		return 0, err
 	}
 	uid := uint32(i64)

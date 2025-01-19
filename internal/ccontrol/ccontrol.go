@@ -440,7 +440,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 }
 
 func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
-	seconds, err := util.ParseTimeStrToSeconds(timeLimit)
+	seconds, err := util.ParseDurationStrToSeconds(timeLimit)
 	if err != nil {
 		log.Errorln(err)
 		return util.ErrorCmdArg
@@ -496,18 +496,18 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 
 		// If a time limit for hold constraint is specified, parse it.
 		if FlagHoldTime != "" {
-			parsedSeconds, err := util.ParseTimeStrToSeconds(FlagHoldTime)
+			seconds, err := util.ParseDurationStrToSeconds(FlagHoldTime)
 			if err != nil {
 				log.Errorln(err)
 				return util.ErrorCmdArg
 			}
 
-			if parsedSeconds == 0 {
+			if seconds == 0 {
 				log.Errorln("Hold time must be greater than 0.")
 				return util.ErrorCmdArg
 			}
 
-			req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: parsedSeconds}
+			req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: seconds}
 		}
 	} else {
 		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: 0}
