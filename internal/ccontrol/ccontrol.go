@@ -263,7 +263,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
-			fmt.Printf("Job %v is not running.\n", jobIds)
+			fmt.Printf("Job %v is not running.\n", jobIdList)
 		}
 		return util.ErrorSuccess
 	}
