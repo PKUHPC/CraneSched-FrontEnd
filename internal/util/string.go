@@ -126,36 +126,38 @@ func ParseInterval(interval string, intervalpb *protos.TimeInterval) (err error)
 	return
 }
 
-func ParseDuration(time string, duration *durationpb.Duration) bool {
+func ParseTimeStrToSeconds(time string) (int64, error) {
 	re := regexp.MustCompile(`^((\d+)-)?(\d+):(\d+):(\d+)$`)
 	result := re.FindStringSubmatch(time)
 	if result == nil {
-		return false
+		return 0, fmt.Errorf("time format error")
 	}
 	var dd uint64 = 0
 	if result[1] != "" {
 		day, err := strconv.ParseUint(result[2], 10, 32)
 		if err != nil {
-			return false
+			return 0, fmt.Errorf("the day time format error")
 		}
 		dd = day
 	}
 	hh, err := strconv.ParseUint(result[3], 10, 32)
 	if err != nil {
-		return false
+		return 0, fmt.Errorf("the hour time format error")
 	}
+
 	mm, err := strconv.ParseUint(result[4], 10, 32)
 	if err != nil {
-		return false
+		return 0, fmt.Errorf("the minute time format error")
 	}
 	ss, err := strconv.ParseUint(result[5], 10, 32)
 	if err != nil {
-		return false
+		return 0, fmt.Errorf("the second time format error")
 	}
 
-	duration.Seconds = int64(24*60*60*dd + 60*60*hh + 60*mm + ss)
-	return true
+	seconds := int64(24*60*60*dd + 60*60*hh + 60*mm + ss)
+	return seconds, nil
 }
+
 
 func ParseTime(ts string) (time.Time, error) {
 	if strings.HasPrefix(ts, "now") {
@@ -163,14 +165,18 @@ func ParseTime(ts string) (time.Time, error) {
 		if ts == "now" {
 			t = time.Now()
 		} else if ts[3] == '+' {
+			var err error
 			durationShift := durationpb.New(time.Duration(0))
-			if !ParseDuration(ts[4:], durationShift) {
+			durationShift.Seconds, err = ParseTimeStrToSeconds(ts[4:])
+			if err != nil {
 				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
 			}
 			t = time.Now().Add(durationShift.AsDuration())
 		} else if ts[3] == '-' {
+			var err error
 			durationShift := durationpb.New(time.Duration(0))
-			if !ParseDuration(ts[4:], durationShift) {
+			durationShift.Seconds, err = ParseTimeStrToSeconds(ts[4:])
+			if err != nil {
 				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
 			}
 			t = time.Now().Add(-durationShift.AsDuration())
@@ -285,7 +291,21 @@ func CheckFileLength(filepath string) error {
 	return nil
 }
 
+func CheckJobNameLength(name string) error {
+	if len(name) > MaxJobNameLength {
+		return fmt.Errorf("Job name exceeds %v characters.", MaxJobNameLength)
+	}
+	return nil
+}
+
 func CheckTaskArgs(task *protos.TaskToCtld) error {
+	err := CheckJobNameLength(task.Name)
+	if err != nil {
+		return err
+	}
+	if len(task.Name) > MaxJobNameLength {
+		return fmt.Errorf("Job name exceeds %v characters.", MaxJobNameLength)
+	}
 	if task.CpusPerTask <= 0 {
 		return fmt.Errorf("--cpus-per-task must > 0")
 	}
@@ -304,6 +324,12 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if !CheckNodeList(task.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
+
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
+		return fmt.Errorf("Request too many cpus: %f", task.Resources.AllocatableRes.CpuCoreLimit)
+	}
+
 	return nil
 }
 
@@ -747,9 +773,19 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 	return jobIdList, nil
 }
 
-func CheckNameValid(name string) bool {
+func CheckNameValid(name string) error {
+	if name == "=" {
+		return fmt.Errorf("name empty")
+	}
+
 	var validStringPattern = `^[a-zA-Z0-9][a-zA-Z0-9_]*$`
 	re := regexp.MustCompile(validStringPattern)
+	if !re.MatchString(name) {
+		return fmt.Errorf("Name can only consist of letters, numbers, or underscores")
+	}
 
-	return re.MatchString(name)
+	if len(name) > MaxAccountNameLength {
+		return fmt.Errorf("Name is too long (up to %v)", MaxAccountNameLength)
+	}
+	return nil
 }

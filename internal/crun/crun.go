@@ -636,11 +636,12 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	task.NtasksPerNode = FlagNtasksPerNode
 
 	if FlagTime != "" {
-		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if !ok {
-			log.Errorln("Invalid argument: invalid format for --time")
+		seconds, err := util.ParseTimeStrToSeconds(FlagTime)
+		if err != nil {
+			log.Errorln("Invalid --time")
 			return util.ErrorCmdArg
 		}
+		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
@@ -684,22 +685,13 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	}
 
 	// Check the validity of the parameters
-	if len(task.Name) > util.MaxJobNameLength {
-		log.Errorf("Invalid argument: job name exceeds %v characters.", util.MaxJobNameLength)
-		return util.ErrorCmdArg
-	}
-
 	if err := util.CheckTaskArgs(task); err != nil {
 		log.Errorf("Invalid argument: %v", err)
 		return util.ErrorCmdArg
 	}
 
 	util.SetPropagatedEnviron(task)
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		log.Errorf("Invalid argument: requesting too many CPUs: %v", task.Resources.AllocatableRes.CpuCoreLimit)
-		return util.ErrorCmdArg
-	}
+
 	interactiveMeta := task.GetInteractiveMeta()
 	interactiveMeta.Pty = FlagPty
 
