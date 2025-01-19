@@ -25,10 +25,11 @@ import (
 	"strings"
 	"sync"
 
-	"CraneFrontEnd/api"
-	"CraneFrontEnd/generated/protos"
 	"os"
 	"time"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/api"
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"gopkg.in/yaml.v3"

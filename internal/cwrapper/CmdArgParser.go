@@ -19,9 +19,10 @@
 package cwrapper
 
 import (
-	"CraneFrontEnd/internal/util"
 	"os"
 	"strings"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	"github.com/spf13/cobra"
 )

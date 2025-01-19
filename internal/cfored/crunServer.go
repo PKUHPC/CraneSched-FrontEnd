@@ -19,10 +19,11 @@
 package cfored
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"io"
 	"math"
 	"sync/atomic"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 
 	log "github.com/sirupsen/logrus"
 )

@@ -19,11 +19,6 @@
 package cwrapper
 
 import (
-	"CraneFrontEnd/internal/cacct"
-	"CraneFrontEnd/internal/cbatch"
-	"CraneFrontEnd/internal/ccancel"
-	"CraneFrontEnd/internal/cinfo"
-	"CraneFrontEnd/internal/cqueue"
 	"errors"
 	"fmt"
 	"os"
@@ -32,6 +27,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cacct"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cbatch"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/ccancel"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cinfo"
+	"github.com/PKUHPC/CraneSched-FrontEnd/internal/cqueue"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"

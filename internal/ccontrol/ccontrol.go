@@ -19,8 +19,6 @@
 package ccontrol
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,6 +29,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	"gopkg.in/yaml.v3"
 

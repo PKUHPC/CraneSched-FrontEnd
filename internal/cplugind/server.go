@@ -19,12 +19,13 @@
 package cplugind
 
 import (
-	"CraneFrontEnd/api"
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"net"
 	"os"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/api"
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

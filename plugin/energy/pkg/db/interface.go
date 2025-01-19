@@ -1,7 +1,7 @@
 package db
 
 import (
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/types"
 )
 
 type DBInterface interface {

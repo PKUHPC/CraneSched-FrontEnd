@@ -19,10 +19,11 @@
 package cplugind
 
 import (
-	"CraneFrontEnd/internal/util"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"

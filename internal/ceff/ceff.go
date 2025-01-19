@@ -19,8 +19,6 @@
 package ceff
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -30,6 +28,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	log "github.com/sirupsen/logrus"

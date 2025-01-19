@@ -19,12 +19,13 @@
 package calloc
 
 import (
-	"CraneFrontEnd/internal/util"
 	"os"
 	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/pkg/util"
 
 	"github.com/pkg/term/termios"
 	log "github.com/sirupsen/logrus"

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"github.com/PKUHPC/CraneSched-FrontEnd/plugin/energy/pkg/types"
 )
 
 type NodeDataSubscriber struct {

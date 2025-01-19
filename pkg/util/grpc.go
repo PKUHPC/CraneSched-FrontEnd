@@ -19,7 +19,6 @@
 package util
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -27,6 +26,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+
+	"github.com/PKUHPC/CraneSched-FrontEnd/generated/protos"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

@@ -18,7 +18,7 @@
 
 package main
 
-import "CraneFrontEnd/internal/cplugind"
+import "github.com/PKUHPC/CraneSched-FrontEnd/internal/cplugind"
 
 func main() {
 	cplugind.ParseCmdArgs()
