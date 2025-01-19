@@ -68,14 +68,14 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--nodes", "-N":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
-				log.Error("Invalid argument: " + arg.name)
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
 			task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
 			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {
-				log.Error("Invalid argument: " + arg.name)
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
 			task.CpusPerTask = num
@@ -85,20 +85,21 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
-				log.Error("Invalid argument: " + arg.name)
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
 			task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
-			ok := util.ParseDuration(arg.val, task.TimeLimit)
-			if !ok {
-				log.Error("Invalid argument: " + arg.name)
+			seconds, err := util.ParseDurationStrToSeconds(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
+			task.TimeLimit.Seconds = seconds
 		case "--mem":
 			memInByte, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: %v", err)
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
 			task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
@@ -123,7 +124,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			} else {
 				val, err := strconv.ParseBool(arg.val)
 				if err != nil {
-					log.Error("Invalid argument: " + arg.name)
+					log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 					return false, nil
 				}
 				task.GetUserEnv = val
@@ -137,26 +138,26 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--extra-attr":
 			// Merge the extra attributes read from the file with the existing ones.
 			if !util.CheckTaskExtraAttr(arg.val) {
-				log.Errorln("Invalid argument: invalid JSON string in extra attributes. ")
+				log.Errorf("Invalid argument: %v in script: invalid JSON string", arg.name)
 				return false, nil
 			}
 			task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, arg.val)
 		case "--mail-type":
 			extra, err := sjson.Set(task.ExtraAttr, "mail.type", arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: invalid --mail-type: %v", err)
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
 			task.ExtraAttr = extra
 		case "--mail-user":
 			extra, err := sjson.Set(task.ExtraAttr, "mail.user", arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: invalid --mail-user: %v", err)
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
 			task.ExtraAttr = extra
 		default:
-			log.Errorf("Invalid argument: unrecognized '%s' is given in the script file", arg.name)
+			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
 		}
 	}
@@ -178,13 +179,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.Resources.DeviceMap = util.ParseGres(FlagGres)
 	}
 
-	// TODO: Should use Changed() to check if the flag is set.
 	if FlagTime != "" {
-		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if !ok {
-			log.Errorln("Invalid argument: invalid format for --time")
+		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --time: %v", err)
 			return false, nil
 		}
+		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
@@ -233,7 +234,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagExtraAttr != "" {
 		// Merge the extra attributes read from the file with the existing ones.
 		if !util.CheckTaskExtraAttr(FlagExtraAttr) {
-			log.Errorln("Invalid argument: invalid JSON string in --extra-attr.")
+			log.Errorln("Invalid argument: invalid --extra-attr: invalid JSON string")
 			return false, nil
 		}
 		task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, FlagExtraAttr)
@@ -255,11 +256,10 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.ExtraAttr = extra
 	}
 
+	// Set total limit of cpu cores
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+
 	// Check the validity of the parameters
-	if len(task.Name) > util.MaxJobNameLength {
-		log.Errorf("Invalid argument: job name exceeds %v characters.", util.MaxJobNameLength)
-		return false, nil
-	}
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
 		log.Errorf("Invalid argument: invalid output file path: %v", err)
 		return false, nil
@@ -284,12 +284,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorln("Invalid argument: invalid --mail-type")
 			return false, nil
 		}
-	}
-
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		log.Errorf("Invalid argument: requesting too many CPUs: %v", task.Resources.AllocatableRes.CpuCoreLimit)
-		return false, nil
 	}
 
 	return true, task

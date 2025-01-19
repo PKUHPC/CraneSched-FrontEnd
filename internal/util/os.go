@@ -21,6 +21,7 @@ package util
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"strconv"
 	"strings"
 	"syscall"
@@ -135,4 +136,20 @@ func GetParentProcessID(pid int) (int, error) {
 	}
 
 	return ppid, nil
+}
+
+func GetUidByUserName(userName string) (uint32, error) {
+	u, err := user.Lookup(userName)
+	if err != nil {
+		return 0, err
+	}
+
+	i64, err := strconv.ParseInt(u.Uid, 10, 64)
+	if err != nil {
+		// This should never happen
+		return 0, err
+	}
+	uid := uint32(i64)
+
+	return uid, nil
 }

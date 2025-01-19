@@ -38,10 +38,16 @@ func CancelTask(args []string) util.CraneCmdError {
 
 		FilterPartition: FlagPartition,
 		FilterAccount:   FlagAccount,
-		FilterTaskName:  FlagJobName,
 		FilterState:     protos.TaskStatus_Invalid,
 		FilterUsername:  FlagUserName,
 	}
+
+	err := util.CheckJobNameLength(FlagJobName)
+	if err != nil {
+		log.Errorf("Invalid job name: %v.", err)
+		return util.ErrorCmdArg
+	}
+	req.FilterTaskName = FlagJobName
 
 	if len(args) > 0 {
 		taskIds, err := util.ParseJobIdList(args[0], ",")

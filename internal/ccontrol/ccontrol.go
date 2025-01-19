@@ -27,7 +27,6 @@ import (
 	"math"
 	"os"
 	"os/user"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -441,7 +440,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 }
 
 func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
-	seconds, err := ParseTimeStrToSeconds(timeLimit)
+	seconds, err := util.ParseDurationStrToSeconds(timeLimit)
 	if err != nil {
 		log.Errorln(err)
 		return util.ErrorCmdArg
@@ -479,33 +478,6 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
 	return SummarizeReply(reply)
 }
 
-func ParseTimeStrToSeconds(time string) (int64, error) {
-	re := regexp.MustCompile(`((.*)-)?(.*):(.*):(.*)`)
-	result := re.FindAllStringSubmatch(time, -1)
-
-	if result == nil || len(result) != 1 {
-		return 0, fmt.Errorf("time format error")
-	}
-	var dd uint64
-	if result[0][2] != "" {
-		dd, _ = strconv.ParseUint(result[0][2], 10, 32)
-	}
-	hh, err := strconv.ParseUint(result[0][3], 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("the hour time format error")
-	}
-	mm, err := strconv.ParseUint(result[0][4], 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("the minute time format error")
-	}
-	ss, err := strconv.ParseUint(result[0][5], 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("the second time format error")
-	}
-	seconds := int64(60*60*24*dd + 60*60*hh + 60*mm + ss)
-	return seconds, nil
-}
-
 func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 	jobList, err := util.ParseJobIdList(jobs, ",")
 	if err != nil {
@@ -524,18 +496,18 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 
 		// If a time limit for hold constraint is specified, parse it.
 		if FlagHoldTime != "" {
-			parsedSeconds, err := ParseTimeStrToSeconds(FlagHoldTime)
+			seconds, err := util.ParseDurationStrToSeconds(FlagHoldTime)
 			if err != nil {
 				log.Errorln(err)
 				return util.ErrorCmdArg
 			}
 
-			if parsedSeconds == 0 {
+			if seconds == 0 {
 				log.Errorln("Hold time must be greater than 0.")
 				return util.ErrorCmdArg
 			}
 
-			req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: parsedSeconds}
+			req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: seconds}
 		}
 	} else {
 		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: 0}
@@ -543,7 +515,7 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		log.Errorf("ModifyJob failed: %v", err)
+		log.Errorf("Failed to modify the job: %v", err)
 		return util.ErrorNetwork
 	}
 
