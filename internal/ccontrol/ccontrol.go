@@ -515,7 +515,7 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		log.Errorf("ModifyJob failed: %v", err)
+		log.Errorf("Failed to modify the job: %v", err)
 		return util.ErrorNetwork
 	}
 

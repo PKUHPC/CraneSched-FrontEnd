@@ -167,21 +167,19 @@ func ParseTime(ts string) (time.Time, error) {
 		if ts == "now" {
 			t = time.Now()
 		} else if ts[3] == '+' {
-			var err error
-			durationShift := durationpb.New(time.Duration(0))
-			durationShift.Seconds, err = ParseDurationStrToSeconds(ts[4:])
+			// '+' adds offset to Now()
+			seconds, err := ParseDurationStrToSeconds(ts[4:])
 			if err != nil {
-				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
+				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
-			t = time.Now().Add(durationShift.AsDuration())
+			t = time.Now().Add(time.Duration(seconds) * time.Second)
 		} else if ts[3] == '-' {
-			var err error
-			durationShift := durationpb.New(time.Duration(0))
-			durationShift.Seconds, err = ParseDurationStrToSeconds(ts[4:])
+			// '-' subtracts offset from Now()
+			seconds, err := ParseDurationStrToSeconds(ts[4:])
 			if err != nil {
-				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
+				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
-			t = time.Now().Add(-durationShift.AsDuration())
+			t = time.Now().Add(-1 * time.Duration(seconds) * time.Second)
 		} else {
 			return t, fmt.Errorf("invalid time format")
 		}
