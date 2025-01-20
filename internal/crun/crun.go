@@ -67,7 +67,7 @@ type GlobalVariables struct {
 var gVars GlobalVariables
 
 type ReplyReceiveItem struct {
-	reply *protos.StreamCforedCrunReply
+	reply *protos.StreamCrunReply
 	err   error
 }
 
@@ -179,7 +179,7 @@ CrunStateMachineLoop:
 					}
 				}
 
-				if cforedReply.Type != protos.StreamCforedCrunReply_TASK_ID_REPLY {
+				if cforedReply.Type != protos.StreamCrunReply_TASK_ID_REPLY {
 					log.Errorln("Expect type TASK_ID_REPLY")
 					return util.ErrorBackend
 				}
@@ -222,7 +222,7 @@ CrunStateMachineLoop:
 				}
 
 				switch cforedReply.Type {
-				case protos.StreamCforedCrunReply_TASK_RES_ALLOC_REPLY:
+				case protos.StreamCrunReply_TASK_RES_ALLOC_REPLY:
 					cforedPayload := cforedReply.GetPayloadTaskAllocReply()
 					Ok := cforedPayload.Ok
 
@@ -234,7 +234,7 @@ CrunStateMachineLoop:
 						ret = util.ErrorBackend
 						break CrunStateMachineLoop
 					}
-				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
+				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
 					log.Tracef("Received Task Cancel Request when wait res")
 					state = TaskKilling
 				}
@@ -267,7 +267,7 @@ CrunStateMachineLoop:
 					}
 				}
 				switch cforedReply.Type {
-				case protos.StreamCforedCrunReply_TASK_IO_FORWARD_READY:
+				case protos.StreamCrunReply_TASK_IO_FORWARD_READY:
 					cforedPayload := cforedReply.GetPayloadTaskIoForwardReadyReply()
 					Ok := cforedPayload.Ok
 					if Ok {
@@ -278,9 +278,9 @@ CrunStateMachineLoop:
 						ret = util.ErrorBackend
 						break CrunStateMachineLoop
 					}
-				case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
+				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
 					state = TaskKilling
-				case protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY:
+				case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
 					// Task launch failed !
 					fmt.Println("Task failed ")
 					ret = util.ErrorGeneric
@@ -399,17 +399,17 @@ CrunStateMachineLoop:
 						}
 					} else {
 						switch cforedReply.Type {
-						case protos.StreamCforedCrunReply_TASK_IO_FORWARD:
+						case protos.StreamCrunReply_TASK_IO_FORWARD:
 							{
 								chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
 							}
-						case protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST:
+						case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
 							{
 								taskFinishCtx.Done()
 								log.Trace("Received TASK_CANCEL_REQUEST")
 								state = TaskKilling
 							}
-						case protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY:
+						case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
 							{
 								log.Debug("Task completed.")
 								break CrunStateMachineLoop
@@ -464,7 +464,7 @@ CrunStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY {
+			if cforedReply.Type != protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY {
 				log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
 				return util.ErrorBackend
 			}
@@ -590,16 +590,6 @@ func StartIOForward(taskFinishCtx context.Context, taskFinishFunc context.Cancel
 func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 	util.InitLogger(FlagDebugLevel)
 
-	// TODO: Move to proper position!
-	if FlagX11 {
-		cookie, err := util.X11GetXAuthCookie()
-		if err != nil {
-			log.Fatalf("Error: %v", err)
-		}
-		log.Printf("Retrieved X11 cookie: %s", cookie)
-		return util.ErrorSuccess
-	}
-
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	var err error
@@ -707,6 +697,29 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 
 	interactiveMeta := task.GetInteractiveMeta()
 	interactiveMeta.Pty = FlagPty
+
+	if FlagX11 {
+		target, port, err := util.GetX11Display()
+		if err != nil {
+			log.Errorf("Error in reading X11 $DISPLAY: %v", err)
+			return util.ErrorGeneric
+		}
+
+		cookie, err := util.GetX11AuthCookie()
+		if err != nil {
+			log.Errorf("Error in reading X11 xauth cookies: %v", err)
+			return util.ErrorGeneric
+		}
+
+		interactiveMeta.X11 = true
+		interactiveMeta.X11Meta = &protos.InteractiveTaskAdditionalMeta_X11Meta{
+			Cookie: cookie,
+			Target: target,
+			Port:   uint32(port),
+		}
+
+		log.Info("X11 forwarding enabled.")
+	}
 
 	interactiveMeta.ShScript = strings.Join(args, " ")
 	termEnv, exits := syscall.Getenv("TERM")

@@ -2,9 +2,10 @@ package cfored
 
 import (
 	"CraneFrontEnd/generated/protos"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"math"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type StateOfCallocServer int
@@ -22,7 +23,7 @@ const (
 func (cforedServer *GrpcCforedServer) CallocStream(toCallocStream protos.CraneForeD_CallocStreamServer) error {
 	var callocPid int32
 	var taskId uint32
-	var reply *protos.StreamCforedReply
+	var reply *protos.StreamCallocReply
 
 	requestChannel := make(chan grpcMessage[protos.StreamCallocRequest], 8)
 	go grpcStreamReceiver[protos.StreamCallocRequest](toCallocStream, requestChannel)
@@ -59,10 +60,10 @@ CforedStateMachineLoop:
 			}
 
 			if !gVars.ctldConnected.Load() {
-				reply = &protos.StreamCforedReply{
-					Type: protos.StreamCforedReply_TASK_ID_REPLY,
-					Payload: &protos.StreamCforedReply_PayloadTaskIdReply{
-						PayloadTaskIdReply: &protos.StreamCforedReply_TaskIdReply{
+				reply = &protos.StreamCallocReply{
+					Type: protos.StreamCallocReply_TASK_ID_REPLY,
+					Payload: &protos.StreamCallocReply_PayloadTaskIdReply{
+						PayloadTaskIdReply: &protos.StreamCallocReply_TaskIdReply{
 							Ok:            false,
 							FailureReason: "Cfored is not connected to CraneCtld.",
 						},
@@ -123,10 +124,10 @@ CforedStateMachineLoop:
 				Ok := ctldReply.GetPayloadTaskIdReply().Ok
 				taskId = ctldReply.GetPayloadTaskIdReply().TaskId
 
-				reply = &protos.StreamCforedReply{
-					Type: protos.StreamCforedReply_TASK_ID_REPLY,
-					Payload: &protos.StreamCforedReply_PayloadTaskIdReply{
-						PayloadTaskIdReply: &protos.StreamCforedReply_TaskIdReply{
+				reply = &protos.StreamCallocReply{
+					Type: protos.StreamCallocReply_TASK_ID_REPLY,
+					Payload: &protos.StreamCallocReply_PayloadTaskIdReply{
+						PayloadTaskIdReply: &protos.StreamCallocReply_TaskIdReply{
 							Ok:            Ok,
 							TaskId:        taskId,
 							FailureReason: ctldReply.GetPayloadTaskIdReply().FailureReason,
@@ -175,10 +176,10 @@ CforedStateMachineLoop:
 				switch ctldReply.Type {
 				case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
 					ctldPayload := ctldReply.GetPayloadTaskResAllocReply()
-					reply = &protos.StreamCforedReply{
-						Type: protos.StreamCforedReply_TASK_RES_ALLOC_REPLY,
-						Payload: &protos.StreamCforedReply_PayloadTaskAllocReply{
-							PayloadTaskAllocReply: &protos.StreamCforedReply_TaskResAllocatedReply{
+					reply = &protos.StreamCallocReply{
+						Type: protos.StreamCallocReply_TASK_RES_ALLOC_REPLY,
+						Payload: &protos.StreamCallocReply_PayloadTaskAllocReply{
+							PayloadTaskAllocReply: &protos.StreamCallocReply_TaskResAllocatedReply{
 								Ok:                   ctldPayload.Ok,
 								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
 							},
@@ -252,10 +253,10 @@ CforedStateMachineLoop:
 			log.Debug("[Cfored<->Calloc] Enter State WAIT_CALLOC_CANCEL. " +
 				"Sending TASK_CANCEL_REQUEST...")
 
-			reply = &protos.StreamCforedReply{
-				Type: protos.StreamCforedReply_TASK_CANCEL_REQUEST,
-				Payload: &protos.StreamCforedReply_PayloadTaskCancelRequest{
-					PayloadTaskCancelRequest: &protos.StreamCforedReply_TaskCancelRequest{
+			reply = &protos.StreamCallocReply{
+				Type: protos.StreamCallocReply_TASK_CANCEL_REQUEST,
+				Payload: &protos.StreamCallocReply_PayloadTaskCancelRequest{
+					PayloadTaskCancelRequest: &protos.StreamCallocReply_TaskCancelRequest{
 						TaskId: taskId,
 					},
 				},
@@ -311,10 +312,10 @@ CforedStateMachineLoop:
 					ctldReply.GetPayloadTaskCompletionAck().GetTaskId())
 			}
 
-			reply = &protos.StreamCforedReply{
-				Type: protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY,
-				Payload: &protos.StreamCforedReply_PayloadTaskCompletionAckReply{
-					PayloadTaskCompletionAckReply: &protos.StreamCforedReply_TaskCompletionAckReply{
+			reply = &protos.StreamCallocReply{
+				Type: protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY,
+				Payload: &protos.StreamCallocReply_PayloadTaskCompletionAckReply{
+					PayloadTaskCompletionAckReply: &protos.StreamCallocReply_TaskCompletionAckReply{
 						Ok: true,
 					},
 				},

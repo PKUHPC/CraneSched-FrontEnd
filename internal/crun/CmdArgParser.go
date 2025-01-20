@@ -88,5 +88,5 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
-	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11")
+	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11 forwarding (insecure)")
 }
