@@ -695,8 +695,8 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 
 	util.SetPropagatedEnviron(task)
 
-	interactiveMeta := task.GetInteractiveMeta()
-	interactiveMeta.Pty = FlagPty
+	iaMeta := task.GetInteractiveMeta()
+	iaMeta.Pty = FlagPty
 
 	if FlagX11 {
 		target, port, err := util.GetX11Display()
@@ -711,22 +711,22 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 			return util.ErrorGeneric
 		}
 
-		interactiveMeta.X11 = true
-		interactiveMeta.X11Meta = &protos.InteractiveTaskAdditionalMeta_X11Meta{
+		iaMeta.X11 = true
+		iaMeta.X11Meta = &protos.InteractiveTaskAdditionalMeta_X11Meta{
 			Cookie: cookie,
 			Target: target,
 			Port:   uint32(port),
 		}
 
-		log.Info("X11 forwarding enabled.")
+		log.Infof("X11 forwarding enabled (%v:%d)", target, port)
 	}
 
-	interactiveMeta.ShScript = strings.Join(args, " ")
+	iaMeta.ShScript = strings.Join(args, " ")
 	termEnv, exits := syscall.Getenv("TERM")
 	if exits {
-		interactiveMeta.TermEnv = termEnv
+		iaMeta.TermEnv = termEnv
 	}
-	interactiveMeta.InteractiveType = protos.InteractiveTaskType_Crun
+	iaMeta.InteractiveType = protos.InteractiveTaskType_Crun
 
 	return StartCrunStream(task)
 }
