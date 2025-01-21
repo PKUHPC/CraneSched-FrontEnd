@@ -167,13 +167,13 @@ func GetX11Display() (string, uint32, error) {
 	displayRegex := regexp.MustCompile(`^(?P<host>[a-zA-Z0-9._-]*):(?P<display>\d+)\.(?P<screen>\d+)$`)
 	match := displayRegex.FindStringSubmatch(display)
 	if match == nil {
-		return "", 0, errors.New("invalid DISPLAY format")
+		return "", 0, fmt.Errorf("invalid DISPLAY format: %s", display)
 	}
 
 	host := match[1]
 	port, err := strconv.ParseUint(match[2], 10, 16)
 	if err != nil {
-		return "", 0, errors.New("invalid DISPLAY format")
+		return "", 0, fmt.Errorf("invalid DISPLAY format: %s", display)
 	}
 
 	log.Debugf("X11 host: %s, port: %d", host, port)
@@ -198,10 +198,10 @@ func GetX11AuthCookie() (string, error) {
 	err := cmd.Run()
 	if err != nil {
 		log.Debugf("Error running xauth command: %v. Stderr: %s", err, stderr.String())
-		return "", errors.New("cannot use X11 forwarding")
+		return "", fmt.Errorf("failed to run xauth: %v", err)
 	}
 
-	log.Debugf("Get xauth list $DISPLAY: %s", stdout.String())
+	log.Debugf("Got xauth cookies: %s", stdout.String())
 
 	result := stdout.String()
 	cookieRegex := regexp.MustCompile(cookiePattern)
@@ -209,15 +209,15 @@ func GetX11AuthCookie() (string, error) {
 
 	match := cookieRegex.FindStringSubmatch(result)
 	if match == nil {
-		log.Debugf("Could not retrieve magic cookie, checking for wildcard cookie.")
+		log.Debugf("MAGIC cookie not found, checking wildcard cookies")
 		match = wildcardRegex.FindStringSubmatch(result)
 		if match == nil {
-			return "", errors.New("could not retrieve magic cookie, cannot use X11 forwarding")
+			return "", errors.New("MAGIC cookie not found")
 		}
 	}
 
 	if len(match) < 2 {
-		return "", errors.New("invalid match format for magic cookie")
+		return "", errors.New("invalid format for MAGIC cookie")
 	}
 
 	return match[1], nil

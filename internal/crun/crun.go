@@ -718,7 +718,7 @@ func MainCrun(cmd *cobra.Command, args []string) util.CraneCmdError {
 			Port:   uint32(port),
 		}
 
-		log.Infof("X11 forwarding enabled (%v:%d)", target, port)
+		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)
 	}
 
 	iaMeta.ShScript = strings.Join(args, " ")
