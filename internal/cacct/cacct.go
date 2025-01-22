@@ -248,9 +248,6 @@ func QueryJob() util.CraneCmdError {
 			header, tableData = FormatData(reply)
 			table.SetTablePadding("")
 			table.SetAutoFormatHeaders(false)
-		} else {
-			log.Errorf("Invalid argument: parameter empty.\n")
-			return util.ErrorCmdArg
 		}
 
 		if FlagFilterStartTime != "" {
