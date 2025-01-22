@@ -555,6 +555,13 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 		return util.ErrorCmdArg
 	}
 
+	if modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_Description {
+		if len(valueList) != 1 {
+			log.Errorf("Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
+			return util.ErrorCmdArg
+		}
+	}
+
 	req := protos.ModifyAccountRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
@@ -618,6 +625,13 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 	if err != nil {
 		log.Errorf("Invalid value list specified: %v.\n", err)
 		return util.ErrorCmdArg
+	}
+
+	if modifyField == protos.ModifyField_AdminLevel || modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_DefaultAccount {
+		if len(valueList) != 1 {
+			log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
+			return util.ErrorCmdArg
+		}
 	}
 
 	req := protos.ModifyUserRequest{
