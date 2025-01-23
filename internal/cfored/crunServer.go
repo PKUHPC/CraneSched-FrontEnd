@@ -43,7 +43,7 @@ const (
 func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_CrunStreamServer) error {
 	var crunPid int32
 	var taskId uint32
-	var reply *protos.StreamCforedCrunReply
+	var reply *protos.StreamCrunReply
 
 	var execCranedIds []string
 	var crunPty bool
@@ -53,7 +53,7 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	TaskIoRequestChannel := make(chan *protos.StreamCforedTaskIORequest, 2)
+	TaskIoRequestChannel := make(chan *protos.StreamTaskIORequest, 2)
 	taskId = math.MaxUint32
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
@@ -87,10 +87,10 @@ CforedCrunStateMachineLoop:
 			}
 
 			if !gVars.ctldConnected.Load() {
-				reply = &protos.StreamCforedCrunReply{
-					Type: protos.StreamCforedCrunReply_TASK_ID_REPLY,
-					Payload: &protos.StreamCforedCrunReply_PayloadTaskIdReply{
-						PayloadTaskIdReply: &protos.StreamCforedCrunReply_TaskIdReply{
+				reply = &protos.StreamCrunReply{
+					Type: protos.StreamCrunReply_TASK_ID_REPLY,
+					Payload: &protos.StreamCrunReply_PayloadTaskIdReply{
+						PayloadTaskIdReply: &protos.StreamCrunReply_TaskIdReply{
 							Ok:            false,
 							FailureReason: "Cfored is not connected to CraneCtld.",
 						},
@@ -171,10 +171,10 @@ CforedCrunStateMachineLoop:
 					// Crun was down when CrunWaitCtldAllocTaskId, just cancel task.
 					state = CancelTaskOfDeadCrun
 				} else {
-					reply = &protos.StreamCforedCrunReply{
-						Type: protos.StreamCforedCrunReply_TASK_ID_REPLY,
-						Payload: &protos.StreamCforedCrunReply_PayloadTaskIdReply{
-							PayloadTaskIdReply: &protos.StreamCforedCrunReply_TaskIdReply{
+					reply = &protos.StreamCrunReply{
+						Type: protos.StreamCrunReply_TASK_ID_REPLY,
+						Payload: &protos.StreamCrunReply_PayloadTaskIdReply{
+							PayloadTaskIdReply: &protos.StreamCrunReply_TaskIdReply{
 								Ok:            Ok,
 								TaskId:        taskId,
 								FailureReason: ctldReply.GetPayloadTaskIdReply().FailureReason,
@@ -229,10 +229,10 @@ CforedCrunStateMachineLoop:
 				switch ctldReply.Type {
 				case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
 					ctldPayload := ctldReply.GetPayloadTaskResAllocReply()
-					reply = &protos.StreamCforedCrunReply{
-						Type: protos.StreamCforedCrunReply_TASK_RES_ALLOC_REPLY,
-						Payload: &protos.StreamCforedCrunReply_PayloadTaskAllocReply{
-							PayloadTaskAllocReply: &protos.StreamCforedCrunReply_TaskResAllocatedReply{
+					reply = &protos.StreamCrunReply{
+						Type: protos.StreamCrunReply_TASK_RES_ALLOC_REPLY,
+						Payload: &protos.StreamCrunReply_PayloadTaskAllocReply{
+							PayloadTaskAllocReply: &protos.StreamCrunReply_TaskResAllocatedReply{
 								Ok:                   ctldPayload.Ok,
 								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
 							},
@@ -313,10 +313,10 @@ CforedCrunStateMachineLoop:
 				}
 
 			case <-readyChannel:
-				reply = &protos.StreamCforedCrunReply{
-					Type: protos.StreamCforedCrunReply_TASK_IO_FORWARD_READY,
-					Payload: &protos.StreamCforedCrunReply_PayloadTaskIoForwardReadyReply{
-						PayloadTaskIoForwardReadyReply: &protos.StreamCforedCrunReply_TaskIOForwardReadyReply{
+				reply = &protos.StreamCrunReply{
+					Type: protos.StreamCrunReply_TASK_IO_FORWARD_READY,
+					Payload: &protos.StreamCrunReply_PayloadTaskIoForwardReadyReply{
+						PayloadTaskIoForwardReadyReply: &protos.StreamCrunReply_TaskIOForwardReadyReply{
 							Ok: true,
 						},
 					},
@@ -392,11 +392,11 @@ CforedCrunStateMachineLoop:
 						break forwarding
 					}
 
-					if taskMsg.Type == protos.StreamCforedTaskIORequest_CRANED_TASK_OUTPUT {
-						reply = &protos.StreamCforedCrunReply{
-							Type: protos.StreamCforedCrunReply_TASK_IO_FORWARD,
-							Payload: &protos.StreamCforedCrunReply_PayloadTaskIoForwardReply{
-								PayloadTaskIoForwardReply: &protos.StreamCforedCrunReply_TaskIOForwardReply{
+					if taskMsg.Type == protos.StreamTaskIORequest_CRANED_TASK_OUTPUT {
+						reply = &protos.StreamCrunReply{
+							Type: protos.StreamCrunReply_TASK_IO_FORWARD,
+							Payload: &protos.StreamCrunReply_PayloadTaskIoForwardReply{
+								PayloadTaskIoForwardReply: &protos.StreamCrunReply_TaskIOForwardReply{
 									Msg: taskMsg.GetPayloadTaskOutputReq().Msg,
 								},
 							},
@@ -418,10 +418,10 @@ CforedCrunStateMachineLoop:
 		case CrunWaitTaskCancel:
 			log.Debug("[Cfored<->Crun] Enter State WAIT_CRUN_CANCEL. Sending TASK_CANCEL_REQUEST to Crun...")
 
-			reply = &protos.StreamCforedCrunReply{
-				Type: protos.StreamCforedCrunReply_TASK_CANCEL_REQUEST,
-				Payload: &protos.StreamCforedCrunReply_PayloadTaskCancelRequest{
-					PayloadTaskCancelRequest: &protos.StreamCforedCrunReply_TaskCancelRequest{
+			reply = &protos.StreamCrunReply{
+				Type: protos.StreamCrunReply_TASK_CANCEL_REQUEST,
+				Payload: &protos.StreamCrunReply_PayloadTaskCancelRequest{
+					PayloadTaskCancelRequest: &protos.StreamCrunReply_TaskCancelRequest{
 						TaskId: taskId,
 					},
 				},
@@ -484,10 +484,10 @@ CforedCrunStateMachineLoop:
 					ctldReply.GetPayloadTaskCompletionAck().GetTaskId())
 			}
 
-			reply = &protos.StreamCforedCrunReply{
-				Type: protos.StreamCforedCrunReply_TASK_COMPLETION_ACK_REPLY,
-				Payload: &protos.StreamCforedCrunReply_PayloadTaskCompletionAckReply{
-					PayloadTaskCompletionAckReply: &protos.StreamCforedCrunReply_TaskCompletionAckReply{
+			reply = &protos.StreamCrunReply{
+				Type: protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY,
+				Payload: &protos.StreamCrunReply_PayloadTaskCompletionAckReply{
+					PayloadTaskCompletionAckReply: &protos.StreamCrunReply_TaskCompletionAckReply{
 						Ok: true,
 					},
 				},
