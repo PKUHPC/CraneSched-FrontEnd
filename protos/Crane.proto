@@ -273,7 +273,8 @@ message DeleteAccountRequest {
 
 message DeleteAccountReply {
   bool ok = 1;
-  ErrCode code = 2;
+  ErrCode reason = 2;
+  repeated ErrorRecord err_recode_list = 3;
 }
 
 message DeleteUserRequest {
@@ -284,7 +285,8 @@ message DeleteUserRequest {
 
 message DeleteUserReply {
   bool ok = 1;
-  ErrCode code = 2;
+  ErrCode reason = 2;
+  repeated ErrorRecord err_recode_list = 3;
 }
 
 message DeleteQosRequest {
@@ -294,7 +296,8 @@ message DeleteQosRequest {
 
 message DeleteQosReply {
   bool ok = 1;
-  ErrCode code = 2;
+  ErrCode reason = 2;
+  repeated ErrorRecord err_recode_list = 3;
 }
 
 message ModifyAccountRequest {
@@ -308,7 +311,8 @@ message ModifyAccountRequest {
 
 message ModifyAccountReply {
   bool ok = 1;
-  ErrCode code = 2;
+  ErrCode reason = 2;
+  repeated ErrorRecord err_recode_list = 3;
 }
 
 message ModifyUserRequest {
@@ -324,7 +328,8 @@ message ModifyUserRequest {
 
 message ModifyUserReply {
   bool ok = 1;
-  ErrCode code = 2;
+  ErrCode reason = 2;
+repeated ErrorRecord err_recode_list = 3;
 }
 
 message ModifyQosRequest {
@@ -383,7 +388,8 @@ message BlockAccountOrUserRequest {
 
 message BlockAccountOrUserReply {
   bool ok = 1;
-  ErrCode code = 2;
+  ErrCode reason = 2;
+  repeated ErrorRecord err_recode_list = 3;
 }
 
 message ModifyPartitionAclRequest {
