@@ -169,16 +169,16 @@ CtldClientStateMachineLoop:
 					switch ctldReply.Type {
 
 					case protos.StreamCtldReply_TASK_ID_REPLY:
-						callocPid := ctldReply.GetPayloadTaskIdReply().Pid
+						frontPid := ctldReply.GetPayloadTaskIdReply().Pid
 
 						gVars.ctldReplyChannelMapMtx.Lock()
 
-						toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[callocPid]
+						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[frontPid]
 						if ok {
-							toCallocCtlReplyChannel <- ctldReply
+							toFrontCtlReplyChannel <- ctldReply
 						} else {
-							log.Fatalf("[Cfored<->Ctld] Calloc pid %d shall exist "+
-								"in ctldReplyChannelMapByPid!", callocPid)
+							log.Fatalf("[Cfored<->Ctld] Front pid %d shall exist "+
+								"in ctldReplyChannelMapByPid!", frontPid)
 						}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()

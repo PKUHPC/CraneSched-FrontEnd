@@ -38,25 +38,25 @@ message AllocatableResource {
   uint64 memory_sw_limit_bytes = 3;
 }
 
-message TypeCountMap{
-  map <string/*Type*/, uint64> type_count_map = 1;
+message TypeCountMap {
+  map<string /*Type*/, uint64> type_count_map = 1;
   uint64 total = 2;
 }
 
-message DeviceMap{
+message DeviceMap {
   map<string /*name*/, TypeCountMap> name_type_map = 1;
 }
 
-message Slots{
+message Slots {
   repeated string slots = 1;
 }
 
-message DeviceTypeSlotsMap{
+message DeviceTypeSlotsMap {
   map<string /*Type*/, Slots /*index of slot*/> type_slots_map = 1;
 }
 
-message DedicatedResourceInNode{
-  map <string /*device name*/, DeviceTypeSlotsMap> name_type_map = 1;
+message DedicatedResourceInNode {
+  map<string /*device name*/, DeviceTypeSlotsMap> name_type_map = 1;
 }
 
 message ResourceInNode {
@@ -65,7 +65,7 @@ message ResourceInNode {
 }
 
 message ResourceV2 {
-  map <string /*craned id*/, ResourceInNode> each_node_res = 1;
+  map<string /*craned id*/, ResourceInNode> each_node_res = 1;
 }
 
 message ResourceView {
@@ -131,6 +131,8 @@ message TaskToCtld {
   bool requeue_if_failed = 12;
   bool get_user_env = 13;
 
+  uint32 gid = 14; // egid
+
   oneof payload {
     BatchTaskAdditionalMeta batch_meta = 21;
     InteractiveTaskAdditionalMeta interactive_meta = 22;
@@ -155,7 +157,6 @@ message RuntimeAttrOfTask {
   // Fields that won't change after this task is accepted.
   uint32 task_id = 1;
   int64 task_db_id = 3;
-  int32 gid = 4;
   string username = 5;
 
   // Fields that will change after this task is accepted.
@@ -187,20 +188,21 @@ message TaskToD {
 
   string partition = 8;
   uint32 uid = 9;
+  uint32 gid = 10;
 
   oneof payload {
-    BatchTaskAdditionalMeta batch_meta = 10;
-    InteractiveTaskAdditionalMeta interactive_meta = 11;
+    BatchTaskAdditionalMeta batch_meta = 11;
+    InteractiveTaskAdditionalMeta interactive_meta = 12;
   }
 
-  map<string, string> env = 12;
-  string cwd = 13;
+  map<string, string> env = 13;
+  string cwd = 14;
 
-  repeated string allocated_nodes = 14;
+  repeated string allocated_nodes = 15;
 
-  string name = 15;
-  string account = 16;
-  string qos = 17;
+  string name = 16;
+  string account = 17;
+  string qos = 18;
 
   repeated string excludes = 19;
   repeated string nodelist = 20;
@@ -218,11 +220,22 @@ message BatchTaskAdditionalMeta {
   string error_file_pattern = 4;
 }
 
-message InteractiveTaskAdditionalMeta{
+message InteractiveTaskAdditionalMeta {
   string cfored_name = 1;
   string sh_script = 2;
   string term_env = 3;
   InteractiveTaskType interactive_type = 4;
+  
+  bool pty = 5;
+  bool x11 = 6;
+
+  message X11Meta {
+    string target = 1;
+    uint32 port = 2;
+    string cookie = 3;
+  }
+
+  X11Meta x11_meta = 7;
 }
 
 message TaskInfo {
@@ -392,13 +405,12 @@ enum ErrCode {
   ERR_CODE_COUNT  = 65;
 }
 
-
 enum EntityType {
   Account = 0;
   User = 1;
 }
 
-enum OperatorType {
+enum OperationType {
   Overwrite = 0;
   Add = 1;
   Delete = 2;
@@ -410,14 +422,15 @@ enum ModifyField {
   Qos = 1;
   DefaultQos = 2;
   // account and qos
-  Description = 3;
+  Description = 10;
   // user
-  AdminLevel = 4;
+  AdminLevel = 20;
+  DefaultAccount = 21;
   // qos
-  Priority = 5;
-  MaxJobsPerUser = 6;
-  MaxCpusPerUser = 7;
-  MaxTimeLimitPerTask = 8;
+  Priority = 30;
+  MaxJobsPerUser = 31;
+  MaxCpusPerUser = 32;
+  MaxTimeLimitPerTask = 33;
 }
 
 message AccountInfo {
@@ -443,13 +456,13 @@ message AccountInfo {
 //       The c++ code and database representation use a Map<account name, AttrsInAccount> to contain
 //       in ONE UserInfo message all the information belonging to different accounts.
 message UserInfo {
-  enum AdminLevel{
+  enum AdminLevel {
     None = 0;
     Operator = 1;
     Admin = 2;
     Root = 3;
   };
-  message AllowedPartitionQos{
+  message AllowedPartitionQos {
     string partition_name = 1;
     repeated string qos_list = 2;
     string default_qos = 3;

@@ -224,9 +224,10 @@ message ModifyTaskReply {
 }
 
 message ModifyCranedStateRequest{
-  repeated string craned_ids = 1;
-  CranedControlState new_state = 2;
-  string reason = 3;
+  uint32 uid = 1;
+  repeated string craned_ids = 2;
+  CranedControlState new_state = 3;
+  string reason = 4;
 }
 
 message ModifyCranedStateReply{
@@ -301,7 +302,7 @@ message ModifyAccountRequest {
   ModifyField modify_field = 2;   //modify item field
   string value = 3;   //new value
   string name = 4;
-  OperatorType type = 5;
+  OperationType type = 5;
   bool force = 6;
 }
 
@@ -316,7 +317,7 @@ message ModifyUserRequest {
   string value = 3;   //new value
   string name = 4;
   string partition = 5;
-  OperatorType type = 6;
+  OperationType type = 6;
   string account = 8;
   bool force = 9;
 }
@@ -400,8 +401,7 @@ message QueryTaskEnvVariablesRequest{
 
 message QueryTaskEnvVariablesReply{
   bool ok = 1;
-  repeated string name = 2;
-  repeated string value = 3;
+  map<string/*name*/, string/*value*/> env_map = 2;
 }
 
 message QueryTaskEnvVariablesForwardRequest{
@@ -411,8 +411,7 @@ message QueryTaskEnvVariablesForwardRequest{
 
 message QueryTaskEnvVariablesForwardReply{
   bool ok = 1;
-  repeated string name = 2;
-  repeated string value = 3;
+  map<string/*name*/, string/*value*/> env_map = 2;
 }
 
 message QueryClusterInfoRequest {
@@ -473,7 +472,7 @@ message StreamCallocRequest {
   }
 }
 
-message StreamCforedReply {
+message StreamCallocReply {
   enum CforedReplyType {
     TASK_ID_REPLY = 0;
     TASK_RES_ALLOC_REPLY = 1;
@@ -640,7 +639,7 @@ message StreamCrunRequest {
   }
 }
 
-message StreamCforedCrunReply {
+message StreamCrunReply {
   enum CforedCrunReplyType {
     TASK_ID_REPLY = 0;
     TASK_RES_ALLOC_REPLY = 1;
@@ -689,7 +688,7 @@ message StreamCforedCrunReply {
   }
 }
 
-message StreamCforedTaskIORequest {
+message StreamTaskIORequest {
   enum CranedRequestType{
     CRANED_REGISTER = 0;
     CRANED_TASK_OUTPUT = 1;
@@ -717,7 +716,7 @@ message StreamCforedTaskIORequest {
   }
 }
 
-message StreamCforedTaskIOReply {
+message StreamTaskIOReply {
   enum CranedReplyType {
     CRANED_REGISTER_REPLY = 0;
     CRANED_TASK_INPUT = 1;
@@ -828,8 +827,8 @@ service Craned {
 }
 
 service CraneForeD {
-  rpc CallocStream(stream StreamCallocRequest) returns(stream StreamCforedReply);
-  rpc CrunStream(stream StreamCrunRequest) returns(stream StreamCforedCrunReply);
-  rpc TaskIOStream(stream StreamCforedTaskIORequest) returns(stream StreamCforedTaskIOReply);
+  rpc CallocStream(stream StreamCallocRequest) returns(stream StreamCallocReply);
+  rpc CrunStream(stream StreamCrunRequest) returns(stream StreamCrunReply);
+  rpc TaskIOStream(stream StreamTaskIORequest) returns(stream StreamTaskIOReply);
   rpc QueryTaskIdFromPort(QueryTaskIdFromPortRequest) returns (QueryTaskIdFromPortReply);
 }

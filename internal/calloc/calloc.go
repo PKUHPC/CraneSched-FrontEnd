@@ -61,7 +61,7 @@ const (
 )
 
 type ReplyReceiveItem struct {
-	reply *protos.StreamCforedReply
+	reply *protos.StreamCallocReply
 	err   error
 }
 
@@ -166,7 +166,7 @@ CallocStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedReply_TASK_ID_REPLY {
+			if cforedReply.Type != protos.StreamCallocReply_TASK_ID_REPLY {
 				log.Errorln("Expect type TASK_ID_REPLY")
 				return util.ErrorBackend
 			}
@@ -199,7 +199,7 @@ CallocStateMachineLoop:
 			}
 
 			switch cforedReply.Type {
-			case protos.StreamCforedReply_TASK_RES_ALLOC_REPLY:
+			case protos.StreamCallocReply_TASK_RES_ALLOC_REPLY:
 				cforedPayload := cforedReply.GetPayloadTaskAllocReply()
 				Ok := cforedPayload.Ok
 
@@ -211,7 +211,7 @@ CallocStateMachineLoop:
 					break CallocStateMachineLoop
 				}
 
-			case protos.StreamCforedReply_TASK_CANCEL_REQUEST:
+			case protos.StreamCallocReply_TASK_CANCEL_REQUEST:
 				log.Tracef("Receive cancel request when wait res")
 				state = TaskKilling
 			}
@@ -255,17 +255,17 @@ CallocStateMachineLoop:
 					}
 				} else {
 					switch cforedReply.Type {
-					case protos.StreamCforedReply_TASK_CANCEL_REQUEST:
+					case protos.StreamCallocReply_TASK_CANCEL_REQUEST:
 						state = TaskKilling
 
-					case protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY:
+					case protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY:
 						fmt.Println("Task failed ")
 					}
 				}
 
 				cancelRequestChannel <- true
 				<-terminalExitChannel
-				if cforedReply.Type == protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY {
+				if cforedReply.Type == protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
 					break CallocStateMachineLoop
 				}
 			}
@@ -312,7 +312,7 @@ CallocStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCforedReply_TASK_COMPLETION_ACK_REPLY {
+			if cforedReply.Type != protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
 				log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
 				return util.ErrorBackend
 			}
@@ -351,6 +351,9 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 
+	// Get egid using os.Getgid() instead of using user.Current()
+	gid := os.Getgid()
+
 	uid, err := strconv.Atoi(gVars.user.Uid)
 	if err != nil {
 		log.Errorf("Failed to convert uid to int: %s", err.Error())
@@ -376,6 +379,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		},
 		Type:            protos.TaskType_Interactive,
 		Uid:             uint32(uid),
+		Gid:             uint32(gid),
 		NodeNum:         1,
 		NtasksPerNode:   1,
 		CpusPerTask:     1,
@@ -384,7 +388,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
 
-		// Todo: Propagate Env by --export here!
+		// TODO: Propagate Env by --export here!
 		Env: make(map[string]string),
 	}
 
@@ -397,16 +401,17 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		task.Resources.DeviceMap = gresMap
 	}
 	if FlagTime != "" {
-		ok := util.ParseDuration(FlagTime, task.TimeLimit)
-		if !ok {
-			log.Errorln("Invalid --time format.")
+		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --time: %v", err)
 			return util.ErrorCmdArg
 		}
+		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			log.Errorln(err)
+			log.Errorf("Invalid argument: %v", err)
 			return util.ErrorCmdArg
 		}
 		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
@@ -440,21 +445,15 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
 
+	// Set total limit of cpu cores
+	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+
 	// Check the validity of the parameters
-	if len(task.Name) > util.MaxJobNameLength {
-		log.Errorf("Job name exceeds %v characters.", util.MaxJobNameLength)
-		return util.ErrorCmdArg
-	}
 	if err := util.CheckTaskArgs(task); err != nil {
-		log.Errorln(err)
+		log.Errorf("Invalid argument: %v", err)
 		return util.ErrorCmdArg
 	}
 	util.SetPropagatedEnviron(task)
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		log.Errorf("Request too many CPUs: %v", task.Resources.AllocatableRes.CpuCoreLimit)
-		return util.ErrorCmdArg
-	}
 
 	return StartCallocStream(task)
 }

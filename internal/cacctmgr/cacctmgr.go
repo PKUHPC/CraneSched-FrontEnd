@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	OSUser "os/user"
 	"sort"
 	"strconv"
 	"strings"
@@ -133,7 +132,7 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
-		if info.MaxTimeLimitPerTask >= uint64(util.InvalidDuration().Seconds) {
+		if info.MaxTimeLimitPerTask >= util.MaxJobTimeLimit {
 			timeLimitStr = "unlimited"
 		} else {
 			timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))
@@ -310,18 +309,8 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 }
 
 func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
-	// FIXME: Move name validation to the backend?
-	// FIXME: Seperate this to Args of cobra package?
-	if account.Name == "=" {
-		log.Errorf("Account name empty")
-		return util.ErrorCmdArg
-	}
-	if !util.CheckNameValid(account.Name) {
-		log.Errorf("Name can only consist of letters, numbers, or underscores")
-		return util.ErrorCmdArg
-	}
-	if len(account.Name) > 30 {
-		log.Errorf("Name is too long (up to 30)")
+	if err := util.CheckEntityName(account.Name); err != nil {
+		log.Errorf("Failed to add account: invalid account name: %v", err)
 		return util.ErrorCmdArg
 	}
 
@@ -340,14 +329,14 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 			}
 		}
 		if !find {
-			log.Errorf("Default QoS %s not contain in allowed QoS list", account.DefaultQos)
+			log.Errorf("Failed to add account: default QoS %s is not in allowed QoS list", account.DefaultQos)
 			return util.ErrorCmdArg
 		}
 	}
 
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add the account")
+		util.GrpcErrorPrintf(err, "Failed to add account: ")
 		return util.ErrorNetwork
 	}
 
@@ -360,31 +349,24 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("Add account succeeded.")
+		fmt.Println("Account added successfully.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Add account failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to add account: %s.\n", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
-	if user.Name == "=" {
-		log.Errorf("User name empty")
-		return util.ErrorCmdArg
-	}
-	if !util.CheckNameValid(user.Name) {
-		log.Errorf("Name can only consist of letters, numbers, or underscores")
-		return util.ErrorCmdArg
-	}
-	if len(user.Name) > 30 {
-		log.Errorf("Name is too long (up to 30)")
+	var err error
+	if err = util.CheckEntityName(user.Name); err != nil {
+		log.Errorf("Failed to add user: invalid user name: %v", err)
 		return util.ErrorCmdArg
 	}
 
-	lu, err := OSUser.Lookup(user.Name)
+	user.Uid, err = util.GetUidByUserName(user.Name)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("Failed to add user: %v", err)
 		return util.ErrorCmdArg
 	}
 
@@ -395,11 +377,6 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 		user.AllowedPartitionQosList = append(user.AllowedPartitionQosList, &protos.UserInfo_AllowedPartitionQos{PartitionName: par})
 	}
 
-	i64, err := strconv.ParseInt(lu.Uid, 10, 64)
-	if err == nil {
-		user.Uid = uint32(i64)
-	}
-
 	if level == "none" {
 		user.AdminLevel = protos.UserInfo_None
 	} else if level == "operator" {
@@ -407,7 +384,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	} else if level == "admin" {
 		user.AdminLevel = protos.UserInfo_Admin
 	} else {
-		log.Errorf("Unknown admin level, valid values: none, operator, admin.")
+		log.Errorf("Failed to add user: unknown admin level, valid values: none, operator, admin.")
 		return util.ErrorCmdArg
 	}
 
@@ -417,7 +394,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 
 	reply, err := stub.AddUser(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add the user")
+		util.GrpcErrorPrintf(err, "Failed to add user: ")
 		return util.ErrorNetwork
 	}
 
@@ -430,25 +407,17 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("Add user succeeded.")
+		fmt.Println("User added successfully.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Add user failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to add user: %s.\n", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
 
 func AddQos(qos *protos.QosInfo) util.CraneCmdError {
-	if qos.Name == "=" {
-		log.Errorln("QoS name empty.")
-		return util.ErrorCmdArg
-	}
-	if !util.CheckNameValid(qos.Name) {
-		log.Errorf("Name can only consist of letters, numbers, or underscores")
-		return util.ErrorCmdArg
-	}
-	if len(qos.Name) > 30 {
-		log.Errorf("Name is too long (up to 30).")
+	if err := util.CheckEntityName(qos.Name); err != nil {
+		log.Errorf("Failed to add QoS: invalid QoS name: %v", err)
 		return util.ErrorCmdArg
 	}
 
@@ -458,7 +427,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add the QoS")
+		util.GrpcErrorPrintf(err, "Failed to add QoS: ")
 		return util.ErrorNetwork
 	}
 
@@ -471,10 +440,10 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("Add QoS succeeded.")
+		fmt.Println("QoS added successfully.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Add QoS failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to add QoS: %s.\n", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
@@ -557,7 +526,7 @@ func DeleteQos(name string) util.CraneCmdError {
 	}
 }
 
-func ModifyAccount(modify_field protos.ModifyField, new_value string, name string, requestType protos.OperatorType) util.CraneCmdError {
+func ModifyAccount(modify_field protos.ModifyField, new_value string, name string, requestType protos.OperationType) util.CraneCmdError {
 	req := protos.ModifyAccountRequest{
 		Uid:         userUid,
 		ModifyField: modify_field,
@@ -590,7 +559,7 @@ func ModifyAccount(modify_field protos.ModifyField, new_value string, name strin
 	}
 }
 
-func ModifyUser(modify_field protos.ModifyField, new_value string, name string, account string, partition string, requestType protos.OperatorType) util.CraneCmdError {
+func ModifyUser(modify_field protos.ModifyField, new_value string, name string, account string, partition string, requestType protos.OperationType) util.CraneCmdError {
 	if modify_field == protos.ModifyField_AdminLevel {
 		if new_value != "none" && new_value != "operator" && new_value != "admin" {
 			log.Errorf("Unknown admin level, valid values: none, operator, admin.")

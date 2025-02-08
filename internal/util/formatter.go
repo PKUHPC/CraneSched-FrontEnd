@@ -41,9 +41,14 @@ var mo = protojson.MarshalOptions{
 
 func (f FormatterJson) FormatReply(reply interface{}) string {
 	if msg, ok := reply.(protoreflect.ProtoMessage); ok {
-		output, _ := mo.Marshal(msg)
+		output, err := mo.Marshal(msg)
+		if err != nil {
+			log.Errorf("Failed to marshal proto message: %v\n", err)
+			os.Exit(ErrorInvalidFormat)
+		}
 		return string(output)
 	} else {
+		// This should never happen
 		log.Errorf("Type %T is not ProtoMessage.\n", reply)
 		os.Exit(ErrorInvalidFormat)
 	}

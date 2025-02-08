@@ -54,6 +54,8 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagGres          string
+	FlagPty           bool
+	FlagX11           bool
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -85,4 +87,6 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
+	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11 forwarding (insecure)")
 }

@@ -126,35 +126,39 @@ func ParseInterval(interval string, intervalpb *protos.TimeInterval) (err error)
 	return
 }
 
-func ParseDuration(time string, duration *durationpb.Duration) bool {
+func ParseDurationStrToSeconds(duration string) (int64, error) {
 	re := regexp.MustCompile(`^((\d+)-)?(\d+):(\d+):(\d+)$`)
-	result := re.FindStringSubmatch(time)
+	result := re.FindStringSubmatch(duration)
 	if result == nil {
-		return false
+		return 0, fmt.Errorf("invalid duration format: %s", duration)
 	}
+
 	var dd uint64 = 0
 	if result[1] != "" {
 		day, err := strconv.ParseUint(result[2], 10, 32)
 		if err != nil {
-			return false
+			return 0, fmt.Errorf("invalid day format: %s", result[2])
 		}
 		dd = day
 	}
+
 	hh, err := strconv.ParseUint(result[3], 10, 32)
 	if err != nil {
-		return false
-	}
-	mm, err := strconv.ParseUint(result[4], 10, 32)
-	if err != nil {
-		return false
-	}
-	ss, err := strconv.ParseUint(result[5], 10, 32)
-	if err != nil {
-		return false
+		return 0, fmt.Errorf("invalid hour format: %s", result[3])
 	}
 
-	duration.Seconds = int64(24*60*60*dd + 60*60*hh + 60*mm + ss)
-	return true
+	mm, err := strconv.ParseUint(result[4], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid minute format: %s", result[4])
+	}
+
+	ss, err := strconv.ParseUint(result[5], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid second format: %s", result[5])
+	}
+
+	seconds := int64(24*60*60*dd + 60*60*hh + 60*mm + ss)
+	return seconds, nil
 }
 
 func ParseTime(ts string) (time.Time, error) {
@@ -163,17 +167,19 @@ func ParseTime(ts string) (time.Time, error) {
 		if ts == "now" {
 			t = time.Now()
 		} else if ts[3] == '+' {
-			durationShift := durationpb.New(time.Duration(0))
-			if !ParseDuration(ts[4:], durationShift) {
-				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
+			// '+' adds offset to Now()
+			seconds, err := ParseDurationStrToSeconds(ts[4:])
+			if err != nil {
+				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
-			t = time.Now().Add(durationShift.AsDuration())
+			t = time.Now().Add(time.Duration(seconds) * time.Second)
 		} else if ts[3] == '-' {
-			durationShift := durationpb.New(time.Duration(0))
-			if !ParseDuration(ts[4:], durationShift) {
-				return t, fmt.Errorf("duration {%s} is invalid", ts[4:])
+			// '-' subtracts offset from Now()
+			seconds, err := ParseDurationStrToSeconds(ts[4:])
+			if err != nil {
+				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
-			t = time.Now().Add(-durationShift.AsDuration())
+			t = time.Now().Add(-1 * time.Duration(seconds) * time.Second)
 		} else {
 			return t, fmt.Errorf("invalid time format")
 		}
@@ -285,25 +291,57 @@ func CheckFileLength(filepath string) error {
 	return nil
 }
 
+func CheckJobNameLength(name string) error {
+	if len(name) > MaxJobNameLength {
+		return fmt.Errorf("name is too long (up to %v)", MaxJobNameLength)
+	}
+	return nil
+}
+
 func CheckTaskArgs(task *protos.TaskToCtld) error {
+	if err := CheckJobNameLength(task.Name); err != nil {
+		return err
+	}
 	if task.CpusPerTask <= 0 {
-		return fmt.Errorf("Invalid --cpus-per-task")
+		return fmt.Errorf("--cpus-per-task must > 0")
 	}
 	if task.NtasksPerNode <= 0 {
-		return fmt.Errorf("Invalid --ntasks-per-node")
+		return fmt.Errorf("--ntasks-per-node must > 0")
 	}
 	if task.NodeNum <= 0 {
-		return fmt.Errorf("Invalid --nodes")
+		return fmt.Errorf("--nodes must > 0")
 	}
 	if task.TimeLimit.AsDuration() <= 0 {
-		return fmt.Errorf("Invalid --time")
+		return fmt.Errorf("--time must > 0")
 	}
 	if !CheckNodeList(task.Nodelist) {
-		return fmt.Errorf("Invalid --nodelist")
+		return fmt.Errorf("invalid format for --nodelist")
 	}
 	if !CheckNodeList(task.Excludes) {
-		return fmt.Errorf("Invalid --exclude")
+		return fmt.Errorf("invalid format for --exclude")
 	}
+	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
+		return fmt.Errorf("requesting too many CPUs: %f", task.Resources.AllocatableRes.CpuCoreLimit)
+	}
+
+	return nil
+}
+
+func CheckEntityName(name string) error {
+	if name == "=" {
+		return fmt.Errorf("name empty")
+	}
+
+	if len(name) > MaxEntityNameLength {
+		return fmt.Errorf("name is too long (up to %v)", MaxEntityNameLength)
+	}
+
+	var validStringPattern = `^[a-zA-Z0-9][a-zA-Z0-9_]*$`
+	re := regexp.MustCompile(validStringPattern)
+	if !re.MatchString(name) {
+		return fmt.Errorf("name can only contain letters, numbers or underscores")
+	}
+
 	return nil
 }
 
@@ -431,7 +469,7 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 
 func InvalidDuration() *durationpb.Duration {
 	return &durationpb.Duration{
-		Seconds: 315576000000,
+		Seconds: MaxJobTimeLimit,
 		Nanos:   0,
 	}
 }
@@ -648,7 +686,7 @@ func ParseGres(gres string) *protos.DeviceMap {
 				result.NameTypeMap[name].TypeCountMap[gresType] = count
 			}
 		} else {
-			log.Errorf("Error parsing gres : %s\n", g)
+			log.Errorf("Error parsing gres: %s\n", g)
 		}
 	}
 
@@ -745,11 +783,4 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 	}
 
 	return jobIdList, nil
-}
-
-func CheckNameValid(name string) bool {
-	var validStringPattern = `^[a-zA-Z0-9][a-zA-Z0-9_]*$`
-	re := regexp.MustCompile(validStringPattern)
-
-	return re.MatchString(name)
 }

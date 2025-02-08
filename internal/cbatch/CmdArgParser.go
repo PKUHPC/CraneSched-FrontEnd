@@ -77,7 +77,7 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if FlagRepeat == 0 {
-				log.Error("--repeat must > 0.")
+				log.Error("Invalid argument: --repeat must > 0.")
 				os.Exit(util.ErrorCmdArg)
 			}
 
@@ -101,6 +101,7 @@ var (
 
 			task.GetBatchMeta().ShScript = shScript
 			task.Uid = uint32(os.Getuid())
+			task.Gid = uint32(os.Getgid())
 			task.CmdLine = strings.Join(os.Args, " ")
 
 			// Process the content of --get-user-env

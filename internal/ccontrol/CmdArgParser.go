@@ -32,7 +32,6 @@ var (
 	FlagState          string
 	FlagReason         string
 	FlagPartitionName  string
-	FlagTaskId         uint32
 	FlagTaskIds        string
 	FlagQueryAll       bool
 	FlagTimeLimit      string

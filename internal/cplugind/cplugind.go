@@ -77,7 +77,7 @@ var RootCmd = &cobra.Command{
 		// Init plugins
 		log.Info("Initializing plugins...")
 		for _, p := range gPluginMap {
-			if err := (*p).Init(p.Meta); err != nil {
+			if err := (*p).Load(p.Meta); err != nil {
 				log.Errorf("Failed to init plugin: %v", err)
 				os.Exit(util.ErrorGeneric)
 			}
@@ -112,6 +112,12 @@ var RootCmd = &cobra.Command{
 		case syscall.SIGTERM:
 			log.Infof("Received SIGTERM, exiting...")
 			pd.Stop()
+		}
+
+		// After stopping gRPC server, unload plugins
+		if err := UnloadPlugins(); err != nil {
+			log.Errorf("Failed to unload plugins: %v", err)
+			os.Exit(util.ErrorGeneric)
 		}
 	},
 }
