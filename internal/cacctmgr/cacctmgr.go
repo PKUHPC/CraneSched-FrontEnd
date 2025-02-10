@@ -44,9 +44,9 @@ type ServerAddr struct {
 	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
 }
 
-func PrintAllUsers(userList []*protos.UserInfo) {
+func PrintUserList(userList []*protos.UserInfo) {
 	if len(userList) == 0 {
-		fmt.Println("There is no user in crane.")
+		fmt.Println("Can't find any User.")
 		return
 	}
 
@@ -115,9 +115,9 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	table.Render()
 }
 
-func PrintAllQos(qosList []*protos.QosInfo) {
+func PrintQosList(qosList []*protos.QosInfo) {
 	if len(qosList) == 0 {
-		fmt.Println("There is no QoS in crane")
+		fmt.Println("Can't find any QoS.")
 		return
 	}
 
@@ -166,9 +166,9 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	table.Render()
 }
 
-func PrintAllAccount(accountList []*protos.AccountInfo) {
+func PrintAccountList(accountList []*protos.AccountInfo) {
 	if len(accountList) == 0 {
-		fmt.Println("There is no account in crane")
+		fmt.Println("Can't find any Account.")
 		return
 	}
 
@@ -731,7 +731,7 @@ func ShowAccounts() util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		PrintAllAccount(reply.AccountList)
+		PrintAccountList(reply.AccountList)
 		return util.ErrorSuccess
 	} else {
 		fmt.Println(util.ErrMsg(reply.GetCode()))
@@ -767,7 +767,7 @@ func ShowUser(value string, account string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		PrintAllUsers(reply.UserList)
+		PrintUserList(reply.UserList)
 		return util.ErrorSuccess
 	} else {
 		fmt.Println(util.ErrMsg(reply.GetCode()))
@@ -801,7 +801,7 @@ func ShowQos(value string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		PrintAllQos(reply.QosList)
+		PrintQosList(reply.QosList)
 		return util.ErrorSuccess
 	} else {
 		if value == "" {
