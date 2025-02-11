@@ -161,6 +161,8 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "Invalid Parameter"
 	case protos.ErrCode_ERR_PROTOBUF:
 		return "Error when using protobuf"
+	case protos.ErrCode_ERR_MAX_JOB_COUNT_PER_USER:
+		return "job max count is empty or exceeds the limit"
 	default:
 		break
 	}
