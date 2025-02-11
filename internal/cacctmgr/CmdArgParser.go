@@ -621,7 +621,7 @@ func init() {
 			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
 			modifyUserCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			modifyUserCmd.MarkFlagsOneRequired("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition",
-				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account", "reset-credential")
+				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account")
 			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
