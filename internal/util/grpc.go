@@ -32,7 +32,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -229,10 +228,6 @@ func GetStubToCtldForSign(config *Config) protos.SignServiceClient {
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
-		if rpcErr.Code() == grpccodes.Unavailable {
-			log.Errorf("%s: Connection to CraneCtld is broken.", s)
-		} else {
-			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
-		}
+		log.Errorf("%s: gRPC error code %s.", s, rpcErr.Message())
 	}
 }
