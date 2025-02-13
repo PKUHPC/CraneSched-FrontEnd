@@ -108,9 +108,9 @@ func GetUnixSocket(path string, mode fs.FileMode) (net.Listener, error) {
 	return socket, nil
 }
 
-func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
+func GetStubToCtldSecureByConfig(config *Config) protos.CraneCtldSecureClient {
 	var serverAddr string
-	var stub protos.CraneCtldClient
+	var stub protos.CraneCtldSecureClient
 
 	if err := SignAndSaveUserCertificate(config); err != ErrorSuccess {
 		os.Exit(err)
@@ -155,7 +155,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 		os.Exit(ErrorBackend)
 	}
 
-	stub = protos.NewCraneCtldClient(conn)
+	stub = protos.NewCraneCtldSecureClient(conn)
 
 	return stub
 }
@@ -207,9 +207,9 @@ func GetStubToCtldForCfored(config *Config) protos.CraneCtldForCforedClient {
 	return stub
 }
 
-func GetStubToCtldForSign(config *Config) protos.SignServiceClient {
+func GetStubToCtldPlain(config *Config) protos.CraneCtldPlainClient {
 	var serverAddr string
-	var stub protos.SignServiceClient
+	var stub protos.CraneCtldPlainClient
 
 	serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForSignListenPort)
 
@@ -219,10 +219,9 @@ func GetStubToCtldForSign(config *Config) protos.SignServiceClient {
 		os.Exit(ErrorBackend)
 	}
 
-	stub = protos.NewSignServiceClient(conn)
+	stub = protos.NewCraneCtldPlainClient(conn)
 
 	return stub
-
 }
 
 func GrpcErrorPrintf(err error, format string, a ...any) {

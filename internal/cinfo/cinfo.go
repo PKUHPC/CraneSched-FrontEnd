@@ -34,7 +34,7 @@ import (
 
 func Query() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
-	stub := util.GetStubToCtldByConfig(config)
+	stub := util.GetStubToCtldPlain(config)
 
 	var resourceStateList []protos.CranedResourceState
 	var controlStateList []protos.CranedControlState
