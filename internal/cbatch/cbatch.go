@@ -267,7 +267,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 
 func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
-	stub := util.GetStubToCtldByConfig(config)
+	stub := util.GetStubToCtldSecureByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
 
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
@@ -295,7 +295,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 
 func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
-	stub := util.GetStubToCtldByConfig(config)
+	stub := util.GetStubToCtldSecureByConfig(config)
 	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
 
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)

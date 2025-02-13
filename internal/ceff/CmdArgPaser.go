@@ -39,7 +39,7 @@ var (
 			var err util.CraneCmdError
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldByConfig(config)
+			stub = util.GetStubToCtldPlain(config)
 			dbConfig, err = GetInfluxDbConfig(config)
 			if err != util.ErrorSuccess {
 				os.Exit(err)
