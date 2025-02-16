@@ -71,8 +71,7 @@ type ReplyReceiveItem struct {
 	err   error
 }
 
-func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient,
-	replyChannel chan ReplyReceiveItem) {
+func ReplyReceiveRoutine(stream protos.CraneForeD_CrunStreamClient, replyChannel chan ReplyReceiveItem) {
 	for {
 		cforedReply, err := stream.Recv()
 		replyChannel <- ReplyReceiveItem{
@@ -97,10 +96,9 @@ func StartCrunStream(task *protos.TaskToCtld) util.CraneCmdError {
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
-	conn, err := grpc.Dial(unixSocketPath, opts...)
+	conn, err := grpc.NewClient(unixSocketPath, opts...)
 	if err != nil {
-		log.Errorf("Failed to connect to local unix socket %s: %s",
-			unixSocketPath, err)
+		log.Errorf("Failed to connect to local unix socket %s: %s", unixSocketPath, err)
 		return util.ErrorBackend
 	}
 	defer func(conn *grpc.ClientConn) {
