@@ -109,13 +109,13 @@ func GetUnixSocket(path string, mode fs.FileMode) (net.Listener, error) {
 }
 
 // TODO: Refactor this to return ErrCodes instead of exiting.
-func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
+func GetStubToCtldByConfigAndLeaderId(config *Config, id int) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
 
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)
+			config.ControlMachine[id].Hostname, config.DomainSuffix, config.ControlMachine[id].ListenPort)
 
 		ServerCertContent, err := os.ReadFile(config.ServerCertFilePath)
 		if err != nil {
@@ -156,7 +156,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 			NextProtos: []string{"h2"},
 		})
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+		conn, err := grpc.NewClient(serverAddr, grpc.WithTransportCredentials(creds))
 		if err != nil {
 			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
 			os.Exit(ErrorBackend)
@@ -164,9 +164,9 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		stub = protos.NewCraneCtldClient(conn)
 	} else {
-		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine[id].Hostname, config.ControlMachine[id].ListenPort)
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
 			os.Exit(ErrorBackend)
@@ -176,6 +176,11 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	}
 
 	return stub
+}
+
+func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
+	id := GetLeaderIdFromFile()
+	return GetStubToCtldByConfigAndLeaderId(config, id)
 }
 
 func GrpcErrorPrintf(err error, format string, a ...any) {
