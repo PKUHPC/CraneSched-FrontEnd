@@ -91,7 +91,7 @@ func StartCallocStream(task *protos.TaskToCtld) util.CraneCmdError {
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
-	conn, err := grpc.Dial(unixSocketPath, opts...)
+	conn, err := grpc.NewClient(unixSocketPath, opts...)
 	if err != nil {
 		log.Errorf("Failed to connect to local unix socket %s: %s",
 			unixSocketPath, err)
