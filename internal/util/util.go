@@ -27,8 +27,8 @@ import (
 
 type Config struct {
 	ClusterName         string `yaml:"ClusterName"`
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+	ControlMachine      []ControlMachine `yaml:"ControlMachine"`
+	CraneCtldListenPort string           `yaml:"CraneCtldListenPort"`
 	CranedNodeList      []ConfigNodesList `yaml:"Nodes"`
 
 	UseTls             bool   `yaml:"UseTls"`
@@ -40,6 +40,13 @@ type Config struct {
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
 	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
 	Plugin               PluginConfig `yaml:"Plugin"`
+}
+
+type ControlMachine struct {
+	Hostname   string `yaml:"hostname"`
+	RaftPort   int    `yaml:"raftPort"`
+	ListenAddr string `yaml:"listenAddr"`
+	ListenPort string `yaml:"listenPort"`
 }
 
 type PluginConfig struct {
@@ -70,7 +77,8 @@ const (
 	DefaultConfigPath   = "/etc/crane/config.yaml"
 	DefaultCraneBaseDir = "/var/crane/"
 
-	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
+	DefaultPersistentDataPath = "frontend/data.db"
+	DefaultPlugindSocketPath  = "cplugind/cplugind.sock"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"
