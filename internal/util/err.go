@@ -124,7 +124,7 @@ func ErrMsg(err_code protos.ErrCode) string {
 	case protos.ErrCode_ERR_UPDATE_DATABASE:
 		return "Fail to update data in database"
 	case protos.ErrCode_ERR_SIGN_CERTIFICATE:
-		return "User authentication failed"
+		return "User certificate issuance failed, please contact the administrator."
 	case protos.ErrCode_ERR_DUPLICATE_CERTIFICATE:
 		return "The certificate has already been issued to the user. If the certificate is lost and needs to be reissued, please contact the administrator for assistance."
 	case protos.ErrCode_ERR_REVOKE_CERTIFICATE:

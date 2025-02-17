@@ -10,6 +10,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func SignAndSaveUserCertificate(config *Config) CraneCmdError {
@@ -73,7 +75,7 @@ func DoSignAndSaveUserCertificate(config *Config) CraneCmdError {
 	}
 
 	if !response.Ok {
-		fmt.Printf("Failed to authenticate user: %s.\n", ErrMsg(response.Reason))
+		log.Error("Failed to authenticate user: ", ErrMsg(response.Reason))
 		return ErrorBackend
 	}
 
