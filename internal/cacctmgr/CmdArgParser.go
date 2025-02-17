@@ -59,6 +59,8 @@ var (
 	FlagJson           bool
 	FlagConfigFilePath string
 
+	FlagResetCredential bool
+
 	// These flags are implemented,
 	// but not added to any cmd!
 	FlagNoHeader bool
@@ -74,7 +76,7 @@ var (
 			// if they do not declare their own.
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldByConfig(config)
+			stub = util.GetStubToCtldSecureByConfig(config)
 			userUid = uint32(os.Getuid())
 		},
 	}
@@ -279,6 +281,7 @@ var (
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
+
 		},
 	}
 	modifyQosCmd = &cobra.Command{
@@ -443,6 +446,32 @@ var (
 			}
 		},
 	}
+
+	ResetCredsCmd = &cobra.Command{
+		Use:   "reset [flags] name",
+		Short: "Reset the user's credential.",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			// Check if args is empty.
+			if len(args) == 0 {
+				// If args[0] is not provided, check if the --force flag is set.
+				if !FlagForce {
+					fmt.Println("Caution! This operation is risky and should only be used when replacing all certificates. If you are sure to proceed, use the --force option.")
+					os.Exit(1)
+				}
+				err := ResetUserCredential("", FlagForce)
+				if err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				err := ResetUserCredential(args[0], FlagForce)
+				if err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+		},
+	}
 )
 
 func ParseCmdArgs() {
@@ -585,7 +614,6 @@ func init() {
 			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add a single QoS to allowed QoS list")
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete a single QoS from allowed QoS list")
-
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
 
@@ -655,5 +683,11 @@ func init() {
 				log.Fatalln("Can't mark 'account' flag required")
 			}
 		}
+	}
+
+	/* -------------------------------------------------- resetCreds --------------------------------------------------- */
+	RootCmd.AddCommand(ResetCredsCmd)
+	{
+		ResetCredsCmd.Flags().BoolVarP(&FlagForce, "force", "", false, "Operation for handling mismatches between database and Vault data.")
 	}
 }

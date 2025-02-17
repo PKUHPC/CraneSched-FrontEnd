@@ -26,18 +26,25 @@ import (
 )
 
 type Config struct {
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+	ControlMachine               string       `yaml:"ControlMachine"`
+	CraneCtldListenPort          string       `yaml:"CraneCtldListenPort"`
+	CraneCtldForCforedListenPort string       `yaml:"CraneCtldForCforedListenPort"`
+	CraneCtldPlainListenPort     string       `yaml:"CraneCtldPlainListenPort"`
+	SslConfig                    SSLConfig    `yaml:"SSL"`
+	UseTls                       bool         `yaml:"UseTls"`
+	CraneBaseDir                 string       `yaml:"CraneBaseDir"`
+	CranedCforedSockPath         string       `yaml:"CranedCforedSockPath"`
+	Plugin                       PluginConfig `yaml:"Plugin"`
+	DomainSuffix                 string       `yaml:"DomainSuffix"`
+}
 
-	UseTls             bool   `yaml:"UseTls"`
-	ServerCertFilePath string `yaml:"ServerCertFilePath"`
-	ServerKeyFilePath  string `yaml:"ServerKeyFilePath"`
-	CaCertFilePath     string `yaml:"CaCertFilePath"`
-	DomainSuffix       string `yaml:"DomainSuffix"`
-
-	CraneBaseDir         string       `yaml:"CraneBaseDir"`
-	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
-	Plugin               PluginConfig `yaml:"Plugin"`
+type SSLConfig struct {
+	ExternalCertFilePath string `yaml:"CranectldExternalCertFilePath"`
+	InternalCertFilePath string `yaml:"CranectldInternalCertFilePath"`
+	ServerKeyFilePath    string `yaml:"ServerKeyFilePath"`
+	CforedCertFilePath   string `yaml:"CforedCertFilePath"`
+	CforedKeyFilePath    string `yaml:"CforedKeyFilePath"`
+	InternalCaFilePath   string `yaml:"InternalCaFilePath"`
 }
 
 type PluginConfig struct {
@@ -53,6 +60,8 @@ const (
 	DefaultCraneBaseDir = "/var/crane/"
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
+
+	DefaultUserConfigPath = "~/.config/crane"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"
