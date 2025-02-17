@@ -29,7 +29,7 @@ type Config struct {
 	ControlMachine               string       `yaml:"ControlMachine"`
 	CraneCtldListenPort          string       `yaml:"CraneCtldListenPort"`
 	CraneCtldForCforedListenPort string       `yaml:"CraneCtldForCforedListenPort"`
-	CraneCtldForSignListenPort   string       `yaml:"CraneCtldForSignListenPort"`
+	CraneCtldPlainListenPort     string       `yaml:"CraneCtldPlainListenPort"`
 	SslConfig                    SSLConfig    `yaml:"SSL"`
 	UseTls                       bool         `yaml:"UseTls"`
 	CraneBaseDir                 string       `yaml:"CraneBaseDir"`

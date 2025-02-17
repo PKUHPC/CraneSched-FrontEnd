@@ -202,7 +202,7 @@ func GetStubToCtldPlain(config *Config) protos.CraneCtldPlainClient {
 	var serverAddr string
 	var stub protos.CraneCtldPlainClient
 
-	serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForSignListenPort)
+	serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldPlainListenPort)
 
 	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
