@@ -137,7 +137,7 @@ func GetStubToCtldSecureByConfig(config *Config) protos.CraneCtldSecureClient {
 
 	tlsConfig, err := UpdateTLSConfig(config)
 	if err != nil {
-		log.Fatalf("Failed to load initial TLS configuration %v", err)
+		log.Fatalf("Failed to load user certificate: %v", err)
 	}
 
 	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithUnaryInterceptor(RefreshCertInterceptor(refreshCertificateFunc, updateConnFunc)))
@@ -227,6 +227,10 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 	externalCertPath, err := ExpandPath(DefaultUserConfigPath + "/external.pem")
 	if err != nil {
 		return nil, err
+	}
+
+	if !FileExists(userKeyPath) || !FileExists(userCertPath) || !FileExists(externalCertPath) {
+		return nil, fmt.Errorf("certificate files not found")
 	}
 
 	cert, err := tls.LoadX509KeyPair(userCertPath, userKeyPath)
