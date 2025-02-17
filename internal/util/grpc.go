@@ -283,6 +283,11 @@ func RefreshCertInterceptor(refreshCertificateFunc func() CraneCmdError, updateC
 
 		rpcErr, _ := status.FromError(err)
 		if (rpcErr.Code() == grpccodes.Unavailable && strings.Contains(rpcErr.Message(), "certificate")) || rpcErr.Code() == grpccodes.Unauthenticated {
+			pem_path, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
+			if err != nil {
+				return fmt.Errorf("failed to refresh certificate")
+			}
+			RemoveFileIfExists(pem_path)
 			if refreshErr := refreshCertificateFunc(); refreshErr != ErrorSuccess {
 				return fmt.Errorf("failed to refresh certificate")
 			}
