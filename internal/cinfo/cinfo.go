@@ -27,11 +27,153 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 )
 
+func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string) {
+	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
+	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
+	if specifiers == nil {
+		log.Errorln("Invalid format specifier.")
+		os.Exit(util.ErrorInvalidFormat)
+	}
+	tableOutputWidth := make([]int, 0, len(specifiers))
+	tableOutputHeader := make([]string, 0, len(specifiers))
+	tableLen := 0
+	if len(reply.Partitions ) > 0 && reply.Partitions[0].CranedLists[0].Count > 0{
+		tableLen = len(reply.Partitions) * int(reply.Partitions[0].CranedLists[0].Count)
+	}
+	tableOutputCell := make([][]string, tableLen)
+
+	// Get the prefix of the format string
+	if specifiers[0][0] != 0 {
+		prefix := FlagFormat[0:specifiers[0][0]]
+		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputHeader = append(tableOutputHeader, prefix)
+		for j := 0; j < tableLen; j++ {
+			tableOutputCell[j] = append(tableOutputCell[j], prefix)
+		}
+	}
+	for i, spec := range specifiers {
+		// Get the padding string between specifiers
+		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
+			padding := FlagFormat[specifiers[i-1][1]:spec[0]]
+			tableOutputWidth = append(tableOutputWidth, -1)
+			tableOutputHeader = append(tableOutputHeader, padding)
+			for j := 0; j < tableLen; j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], padding)
+			}
+		}
+		// Parse width specifier
+		if spec[2] == -1 {
+			// w/o width specifier
+			tableOutputWidth = append(tableOutputWidth, -1)
+		} else {
+			// with width specifier
+			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
+			if err != nil {
+				log.Errorln("Invalid width specifier.")
+				os.Exit(util.ErrorInvalidFormat)
+			}
+			tableOutputWidth = append(tableOutputWidth, int(width))
+		}
+
+		// Parse format specifier
+		header := ""
+		field := FlagFormat[spec[4]:spec[5]]
+		if len(field) > 1 {
+			field = strings.ToLower(field)
+		}
+		switch field {
+		// a-Account, c-AllocCPUs, e-ExitCode, j-JobId, n-JobName, P-Partition, t-State, u-Uid
+		// l-TimeLimit, S-StartTime, E-EndTime, D-ElapsedTime s-SubmitTime, N-NodeNum, U-UserName q-Qos,
+		// r-ReqNodes, x-ExcludeNodes, h-Held, p-Priority, L-NodeList, T-JobType, m-MemPerNode, R-Reason
+		case "p", "partition":
+			header = "Partition"
+			// for j := 0; j < tableLen; j++ {
+			// 	tableOutputCell[j] = append(tableOutputCell[j], reply.Partitions[j].Name)
+			// }
+			for i, partitionCraned := range reply.Partitions {
+				for j, commonCranedStateList := range partitionCraned.CranedLists {
+					cranedStateListCount := commonCranedStateList.Count
+					if  cranedStateListCount > 0 {
+						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
+						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx], partitionCraned.Name)
+					}
+				}
+			}
+		case "a", "avail":
+			header = "Avail"
+			for i, partitionCraned := range reply.Partitions {
+				for j, commonCranedStateList := range partitionCraned.CranedLists {
+					cranedStateListCount := commonCranedStateList.Count
+					if  cranedStateListCount > 0 {
+						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
+						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
+							strings.ToLower(partitionCraned.State.String()[10:]))
+					}
+				}
+			}
+		case "n", "nodes":
+			header = "Nodes"
+			for i, partitionCraned := range reply.Partitions {
+				for j, commonCranedStateList := range partitionCraned.CranedLists {
+					cranedStateListCount := commonCranedStateList.Count
+					if  cranedStateListCount > 0 {
+						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
+						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],
+							strconv.FormatUint(uint64(commonCranedStateList.Count), 10))
+					}
+				}
+			}
+		case "s", "state":
+			header = "State"
+			for i, partitionCraned := range reply.Partitions {
+				for j, commonCranedStateList := range partitionCraned.CranedLists {
+					cranedStateListCount := commonCranedStateList.Count
+					if cranedStateListCount > 0 {
+						stateStr := strings.ToLower(commonCranedStateList.ResourceState.String()[6:])
+						if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
+							stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
+						}
+						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
+						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],  stateStr)
+					}
+				}
+			}
+		case "l", "nodelist":
+			header = "NodeList"
+			for i, partitionCraned := range reply.Partitions {
+				for j, commonCranedStateList := range partitionCraned.CranedLists {
+					cranedStateListCount := commonCranedStateList.Count
+					if cranedStateListCount > 0 {
+						tableIdx := uint32(i) * cranedStateListCount + uint32(j)
+						tableOutputCell[tableIdx] = append(tableOutputCell[tableIdx],  commonCranedStateList.CranedListRegex)
+					}
+				}
+			}
+		default:
+			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +		
+			"p/Partition, a/Avail, n/Nodes, j/State, l/NodeList.")
+			os.Exit(util.ErrorInvalidFormat)
+		}
+		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
+	}
+	// Get the suffix of the format string
+	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
+		suffix := FlagFormat[specifiers[len(specifiers)-1][1]:]
+		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputHeader = append(tableOutputHeader, suffix)
+		for j := 0; j < tableLen; j++ {
+			tableOutputCell[j] = append(tableOutputCell[j], suffix)
+		}
+	}
+	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+}
+		
 func Query() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
@@ -134,6 +276,13 @@ func Query() util.CraneCmdError {
 			}
 		}
 	}
+
+	if FlagFormat != "" {
+		header, tableData = FormatData(reply)
+		table.SetTablePadding("")
+		table.SetAutoFormatHeaders(false)
+	}
+
 	table.AppendBulk(tableData)
 	if !FlagNoHeader {
 		table.SetHeader(header)
