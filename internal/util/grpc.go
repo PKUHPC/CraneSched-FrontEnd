@@ -178,6 +178,18 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	return stub
 }
 
+func GetStubToRALMServiceByConfig(config *Config) (protos.RALMServiceClient, error) {
+	serverAddr := "localhost:50001"
+
+	log.Debugf("Connecting to RALM service on %s", serverAddr)
+	conn, err := grpc.NewClient(serverAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return protos.NewRALMServiceClient(conn), err
+}
+
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
