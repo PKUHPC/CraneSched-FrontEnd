@@ -45,23 +45,23 @@ var (
 		Short:   "Display and modify the specified entity",
 		Long:    "",
 		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.DetectNetworkProxy()
-			config := util.ParseConfig(FlagConfigFilePath)
-			secureStub = util.GetStubToCtldSecureByConfig(config)
-			plainStub = util.GetStubToCtldPlain(config)
-		},
 	}
 	showCmd = &cobra.Command{
 		Use:   "show",
 		Short: "Display details of the specified entity",
 		Long:  "",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+			config := util.ParseConfig(FlagConfigFilePath)
+			plainStub = util.GetStubToCtldPlain(config)
+		},
 	}
 	showNodeCmd = &cobra.Command{
 		Use:   "node [flags] [node_name]",
 		Short: "Display details of the nodes, default is all",
 		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
+
+		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				FlagNodeName = ""
@@ -128,6 +128,11 @@ var (
 		Aliases: []string{"modify"},
 		Short:   "Modify attributes of the specified entity",
 		Long:    "",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+			config := util.ParseConfig(FlagConfigFilePath)
+			secureStub = util.GetStubToCtldSecureByConfig(config)
+		},
 	}
 	updateJobCmd = &cobra.Command{
 		Use:   "job [flags]",
@@ -165,6 +170,11 @@ var (
 		Use:   "hold [flags] job_id[,job_id...]",
 		Short: "prevent specified job from starting. ",
 		Long:  "",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+			config := util.ParseConfig(FlagConfigFilePath)
+			secureStub = util.GetStubToCtldSecureByConfig(config)
+		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			err := cobra.ExactArgs(1)(cmd, args)
 			if err != nil {
