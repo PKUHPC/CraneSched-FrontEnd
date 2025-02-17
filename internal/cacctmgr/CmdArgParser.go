@@ -95,9 +95,6 @@ var (
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := AddAccount(&FlagAccount); err != util.ErrorSuccess {
-				// TODO: 判断是否是证书错误，证书错误即再次申请。
-				// 两种情况：1. 证书无效，连接没有建立
-				// 2. 证书有效，但是已被revoked
 				os.Exit(err)
 			}
 		},

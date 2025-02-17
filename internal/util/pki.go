@@ -10,16 +10,20 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func SignAndSaveUserCertificate(config *Config) CraneCmdError {
-	var client protos.CraneCtldPlainClient
 
 	if FileExists(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath)) {
 		return ErrorSuccess
 	}
+
+	return DoSignAndSaveUserCertificate(config)
+}
+
+func DoSignAndSaveUserCertificate(config *Config) CraneCmdError {
+
+	var client protos.CraneCtldPlainClient
 
 	uid := uint32(os.Getuid())
 
@@ -69,7 +73,7 @@ func SignAndSaveUserCertificate(config *Config) CraneCmdError {
 	}
 
 	if !response.Ok {
-		log.Error("Failed to authenticate user: ", ErrMsg(response.Reason))
+		fmt.Printf("Failed to authenticate user: %s.\n", ErrMsg(response.Reason))
 		return ErrorBackend
 	}
 

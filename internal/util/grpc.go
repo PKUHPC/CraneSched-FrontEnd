@@ -20,6 +20,7 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -27,8 +28,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
+	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -118,38 +122,25 @@ func GetStubToCtldSecureByConfig(config *Config) protos.CraneCtldSecureClient {
 
 	serverAddr = fmt.Sprintf("%s.%s:%s",
 		config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)
-	userKeyPath, err := ExpandPath(DefaultUserConfigPath + "/user.key")
-	if err != nil {
-		os.Exit(ErrorGeneric)
-	}
-	userCertPath, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
-	if err != nil {
-		os.Exit(ErrorGeneric)
-	}
-	externalCertPath, err := ExpandPath(DefaultUserConfigPath + "/external.pem")
-	if err != nil {
-		os.Exit(ErrorGeneric)
+
+	refreshCertificateFunc := func() CraneCmdError {
+		return DoSignAndSaveUserCertificate(config)
 	}
 
-	cert, _ := tls.LoadX509KeyPair(userCertPath, userKeyPath)
+	updateConnFunc := func() (*grpc.ClientConn, error) {
+		tlsConfig, err := UpdateTLSConfig(config)
+		if err != nil {
+			return nil, err
+		}
+		return grpc.Dial(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	}
 
-	CaCertContent, err := os.ReadFile(externalCertPath)
+	tlsConfig, err := UpdateTLSConfig(config)
 	if err != nil {
-		log.Errorln("Failed to read ExternalCertFile: " + err.Error())
-		os.Exit(ErrorGeneric)
+		log.Fatalf("Failed to load initial TLS configuration %v", err)
 	}
 
-	caPool := x509.NewCertPool()
-	if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
-		log.Errorln("Failed to append cert Content.")
-		os.Exit(ErrorGeneric)
-	}
-
-	creds := credentials.NewTLS(&tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      caPool,
-	})
-	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithUnaryInterceptor(RefreshCertInterceptor(refreshCertificateFunc, updateConnFunc)))
 	if err != nil {
 		log.Errorln("Cannot connect to CraneCtld: " + err.Error())
 		os.Exit(ErrorBackend)
@@ -224,9 +215,89 @@ func GetStubToCtldPlain(config *Config) protos.CraneCtldPlainClient {
 	return stub
 }
 
+func UpdateTLSConfig(config *Config) (*tls.Config, error) {
+	userKeyPath, err := ExpandPath(DefaultUserConfigPath + "/user.key")
+	if err != nil {
+		return nil, err
+	}
+	userCertPath, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
+	if err != nil {
+		return nil, err
+	}
+	externalCertPath, err := ExpandPath(DefaultUserConfigPath + "/external.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := tls.LoadX509KeyPair(userCertPath, userKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load client certificate: %v", err)
+	}
+
+	CaCertContent, err := os.ReadFile(externalCertPath)
+	if err != nil {
+		return nil, err
+	}
+
+	caPool := x509.NewCertPool()
+	if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
+		return nil, fmt.Errorf("failed to append cert Content")
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caPool,
+	}
+
+	return tlsConfig, nil
+}
+
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
-		log.Errorf("%s: gRPC error code %s.", s, rpcErr.Message())
+		if rpcErr.Code() == grpccodes.Unavailable {
+			log.Errorf("%s: Connection to CraneCtld is broken.", s)
+		} else if rpcErr.Code() == grpccodes.Unauthenticated {
+			log.Errorf("%s: Authentication failed.", s)
+		} else {
+			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
+		}
+	}
+}
+
+func RefreshCertInterceptor(refreshCertificateFunc func() CraneCmdError, updateConnFunc func() (*grpc.ClientConn, error)) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply interface{},
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		var err error
+
+		err = invoker(ctx, method, req, reply, cc, opts...)
+		if err == nil {
+			return nil
+		}
+
+		rpcErr, _ := status.FromError(err)
+		if (rpcErr.Code() == grpccodes.Unavailable && strings.Contains(rpcErr.Message(), "certificate")) || rpcErr.Code() == grpccodes.Unauthenticated {
+			if refreshErr := refreshCertificateFunc(); refreshErr != ErrorSuccess {
+				return fmt.Errorf("failed to refresh certificate")
+			}
+
+			newConn, err := updateConnFunc()
+			if err != nil {
+				return fmt.Errorf("failed to refresh certificate")
+			}
+			cc.Close()
+			err = invoker(ctx, method, req, reply, newConn, opts...)
+			if err == nil {
+				return nil
+			}
+		}
+
+		return err
 	}
 }
