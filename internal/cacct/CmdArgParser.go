@@ -112,7 +112,8 @@ func init() {
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format.
-Fields are identified by a percent sign (%) followed by a character or string. 
+
+Fields are identified by a percent sign (%) followed by a character or string.
 Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field. 
 Supported format identifiers or string, string case insensitive:
 	%a/%Account      - Display the account associated with the job.
@@ -141,6 +142,7 @@ Supported format identifiers or string, string case insensitive:
 	%U/%UserName     - Display the username of the job.
 	%u/%Uid          - Display the uid of the job.
 	%x/%ExcludeNodes - Display the excludenodes of the job.
+
 Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
 If the format is invalid or unrecognized, the program will terminate with an error message.
