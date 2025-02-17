@@ -226,6 +226,11 @@ var (
 		Use:   "release [flags] job_id[,job_id...]",
 		Short: "permit specified job to start. ",
 		Long:  "",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+			config := util.ParseConfig(FlagConfigFilePath)
+			secureStub = util.GetStubToCtldSecureByConfig(config)
+		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			err := cobra.ExactArgs(1)(cmd, args)
 			if err != nil {
