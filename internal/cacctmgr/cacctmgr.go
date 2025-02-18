@@ -560,7 +560,13 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 
 	valueList, err = util.ParseStringParamList(newValue, ",")
 	if err != nil {
-		log.Errorf("Invalid value list specified: %v.\n", err)
+		if modifyField == protos.ModifyField_Qos {
+			log.Errorf("Invalid qos list specified: %v.\n", err)
+		} else if modifyField == protos.ModifyField_Partition {
+			log.Errorf("Invalid partition list specified: %v.\n", err)
+		} else {
+			log.Errorf("Invalid value list specified: %v.\n", err)
+		}
 		return util.ErrorCmdArg
 	}
 
@@ -578,22 +584,6 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 		Name:        name,
 		Type:        requestType,
 		Force:       FlagForce,
-	}
-
-	if modifyField == protos.ModifyField_Qos {
-		_, err := util.ParseStringParamList(newValue, ",")
-		if err != nil {
-			log.Errorf("Invalid qos list specified: %v.\n", err)
-			return util.ErrorCmdArg
-		}
-	}
-
-	if modifyField == protos.ModifyField_Partition {
-		_, err := util.ParseStringParamList(newValue, ",")
-		if err != nil {
-			log.Errorf("Invalid partition list specified: %v.\n", err)
-			return util.ErrorCmdArg
-		}
 	}
 
 	reply, err := stub.ModifyAccount(context.Background(), &req)
