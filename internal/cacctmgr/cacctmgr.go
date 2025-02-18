@@ -477,8 +477,8 @@ func DeleteAccount(value string) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Failed to delete account: \n")
-		for _, errRecode := range reply.ErrRecodeList {
-			fmt.Printf("%s: %s \n", errRecode.ErrValue, util.ErrMsg(errRecode.ErrCode))
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -512,8 +512,8 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Failed to remove user: \n")
-		for _, errRecode := range reply.ErrRecodeList {
-			fmt.Printf("%s: %s \n", errRecode.ErrValue, util.ErrMsg(errRecode.ErrCode))
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -547,8 +547,8 @@ func DeleteQos(value string) util.CraneCmdError {
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Failed to delete QoS: \n")
-		for _, errRecode := range reply.ErrRecodeList {
-			fmt.Printf("%s: %s \n", errRecode.ErrValue, util.ErrMsg(errRecode.ErrCode))
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -615,8 +615,8 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Failed to modify information:\n")
-		for _, errRecode := range reply.ErrRecodeList {
-			fmt.Printf("%s: %s \n", errRecode.ErrValue, util.ErrMsg(errRecode.ErrCode))
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -676,8 +676,8 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 		return util.ErrorSuccess
 	} else {
 		fmt.Printf("Modify information failed: \n")
-		for _, errRecode := range reply.ErrRecodeList {
-			fmt.Printf("%s: %s \n", errRecode.ErrValue, util.ErrMsg(errRecode.ErrCode))
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -879,8 +879,8 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 		fmt.Printf("Block %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
-		for _, errRecode := range reply.ErrRecodeList {
-			fmt.Printf("%s: %s \n", errRecode.ErrValue, util.ErrMsg(errRecode.ErrCode))
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -917,8 +917,8 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 		fmt.Printf("Unblock %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
-		for _, errRecode := range reply.ErrRecodeList {
-			fmt.Printf("%s: %s \n", errRecode.ErrValue, util.ErrMsg(errRecode.ErrCode))
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
