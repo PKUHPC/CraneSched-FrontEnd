@@ -111,7 +111,7 @@ func formatAllowedAccounts(allowedAccounts []string) string {
 	return strings.Join(allowedAccounts, ",")
 }
 
-func formatDeniedAccounts(allowedAccounts []string, deniedAccounts []string) string {
+func formatDeniedAccounts(deniedAccounts []string) string {
 	if len(deniedAccounts) == 0 {
 		return "None"
 	}
@@ -230,7 +230,7 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				"\tHostList=%v\n\n",
 				partitionInfo.Name, partitionInfo.State.String()[10:],
 				formatAllowedAccounts(partitionInfo.AllowedAccounts),
-				formatDeniedAccounts(partitionInfo.AllowedAccounts, partitionInfo.DeniedAccounts),
+				formatDeniedAccounts(partitionInfo.DeniedAccounts),
 				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
 				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
