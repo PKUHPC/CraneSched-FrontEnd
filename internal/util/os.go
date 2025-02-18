@@ -170,7 +170,15 @@ func GetX11Display() (string, uint32, error) {
 		return "", 0, fmt.Errorf("invalid DISPLAY format: %s", display)
 	}
 
+	var err error
 	host := match[1]
+	if host == "" || host == "localhost" {
+		if host, err = os.Hostname(); err != nil {
+			return "", 0, fmt.Errorf("failed to get hostname: %v", err)
+		}
+		log.Debugf("Host in $DISPLAY (%v) is invalid, using hostname: %s", display, host)
+	}
+
 	port, err := strconv.ParseUint(match[2], 10, 16)
 	if err != nil {
 		return "", 0, fmt.Errorf("invalid DISPLAY format: %s", display)
