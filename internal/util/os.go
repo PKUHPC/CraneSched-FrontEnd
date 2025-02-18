@@ -176,7 +176,7 @@ func GetX11Display() (string, uint32, error) {
 		if host, err = os.Hostname(); err != nil {
 			return "", 0, fmt.Errorf("failed to get hostname: %v", err)
 		}
-		log.Debugf("Host in DISPLAY is '%s', fallback to hostname '%s'", display, host)
+		log.Debugf("Host in $DISPLAY (%v) is invalid, using hostname: %s", display, host)
 	}
 
 	port, err := strconv.ParseUint(match[2], 10, 16)
