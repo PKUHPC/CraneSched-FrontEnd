@@ -28,18 +28,18 @@ import (
 )
 
 var (
-	FlagNodeName       string
-	FlagState          string
-	FlagReason         string
-	FlagPartitionName  string
-	FlagLicenseName    string
-	FlagTaskIds        string
-	FlagQueryAll       bool
-	FlagTimeLimit      string
-	FlagPriority       float64
-	FlagHoldTime       string
-	FlagConfigFilePath string
-	FlagJson           bool
+	FlagNodeName        string
+	FlagState           string
+	FlagReason          string
+	FlagPartitionName   string
+	FlagLicenseNameList string
+	FlagTaskIds         string
+	FlagQueryAll        bool
+	FlagTimeLimit       string
+	FlagPriority        float64
+	FlagHoldTime        string
+	FlagConfigFilePath  string
+	FlagJson            bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
