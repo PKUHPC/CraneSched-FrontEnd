@@ -578,7 +578,12 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 }
 
 func ShowLicenses(licenseName string, queryAll bool) util.CraneCmdError {
-	licenseNameList := strings.Split(licenseName, ",")
+	var licenseNameList []string
+
+	if licenseName != "" {
+		licenseNameList = strings.Split(licenseName, ",")
+	}
+
 	req := &protos.QueryLicensesInfoRequest{LicenseNameList: licenseNameList}
 	reply, err := stub.QueryLicensesInfo(context.Background(), req)
 	if err != nil {
