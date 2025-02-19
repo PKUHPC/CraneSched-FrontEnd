@@ -28,17 +28,18 @@ import (
 )
 
 var (
-	FlagNodeName       string
-	FlagState          string
-	FlagReason         string
-	FlagPartitionName  string
-	FlagTaskIds        string
-	FlagQueryAll       bool
-	FlagTimeLimit      string
-	FlagPriority       float64
-	FlagHoldTime       string
-	FlagConfigFilePath string
-	FlagJson           bool
+	FlagNodeName        string
+	FlagState           string
+	FlagReason          string
+	FlagPartitionName   string
+	FlagLicenseNameList string
+	FlagTaskIds         string
+	FlagQueryAll        bool
+	FlagTimeLimit       string
+	FlagPriority        float64
+	FlagHoldTime        string
+	FlagConfigFilePath  string
+	FlagJson            bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -88,6 +89,24 @@ var (
 				FlagQueryAll = false
 			}
 			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	showLicenseCmd = &cobra.Command{
+		Use:   "lic [flags] [license_name]",
+		Short: "Display details of the licenses, default is all",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				FlagLicenseNameList = ""
+				FlagQueryAll = true
+			} else {
+				FlagLicenseNameList = args[0]
+				FlagQueryAll = false
+			}
+			if err := ShowLicenses(FlagLicenseNameList, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -225,6 +244,7 @@ func init() {
 	{
 		showCmd.AddCommand(showNodeCmd)
 		showCmd.AddCommand(showPartitionCmd)
+		showCmd.AddCommand(showLicenseCmd)
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
 	}
