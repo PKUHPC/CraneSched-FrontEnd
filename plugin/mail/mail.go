@@ -217,3 +217,11 @@ func (p *MailPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 func (p *MailPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	log.Infoln("DestroyCgroupHook is called!")
 }
+
+func (p *MailPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {}
+
+func (p *MailPlugin) GetCranedInfoHook(ctx *api.PluginContext) {}
+
+func (p *MailPlugin) GetCranedListHook(ctx *api.PluginContext) {}
+
+func (p *MailPlugin) RegisterCranedHook(ctx *api.PluginContext) {}

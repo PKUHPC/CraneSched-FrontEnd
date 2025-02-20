@@ -220,6 +220,14 @@ func getBoundGPUs(res *protos.DedicatedResourceInNode, gpuType string) []int {
 	return boundGPUs
 }
 
+func (p EnergyPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {}
+
+func (p EnergyPlugin) GetCranedInfoHook(ctx *api.PluginContext) {}
+
+func (p EnergyPlugin) GetCranedListHook(ctx *api.PluginContext) {}
+
+func (p EnergyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")
