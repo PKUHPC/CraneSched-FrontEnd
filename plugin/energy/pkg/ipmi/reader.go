@@ -2,6 +2,8 @@ package ipmi
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,17 +52,21 @@ var powerSensors = []SensorConfig{
 		Scale:     2.0,
 		MaxValue:  500.0,
 	},
+}
+
+// Sensor configuration for Huawei openEuler systems
+var openEulerPowerSensors = []SensorConfig{
 	{
-		Name:      "FAN_Power",
-		SensorNum: 0xde,
-		Scale:     1.0,
-		MaxValue:  100.0,
+		Name:      "Total_Power",
+		SensorNum: 0x25, // Power sensor ID from ipmitool (0x25)
+		Scale:     7.0,  // No scaling needed, direct watt value
+		MaxValue:  1000.0,
 	},
 	{
-		Name:      "HDD_Power",
-		SensorNum: 0xdf,
-		Scale:     1.0,
-		MaxValue:  50.0,
+		Name:      "CPU_Power",
+		SensorNum: 0x8, // CPU Power sensor ID from ipmitool (0x8)
+		Scale:     2.0, // No scaling needed, direct watt value
+		MaxValue:  500.0,
 	},
 }
 
@@ -76,7 +82,22 @@ func NewIPMIReader() *IPMIReader {
 	reader.ipmi = i
 	reader.HasIPMI = true
 
+	// Detect system type and select appropriate sensor configuration
+	if isOpenEulerSystem() {
+		log.Infof("Detected openEuler system, using openEuler IPMI sensor configuration")
+		powerSensors = openEulerPowerSensors
+	}
+
 	return reader
+}
+
+func isOpenEulerSystem() bool {
+	osReleaseContent, err := os.ReadFile("/etc/os-release")
+	if err == nil && strings.Contains(string(osReleaseContent), "openEuler") {
+		return true
+	}
+
+	return false
 }
 
 func (r *IPMIReader) getPowerUsage(sensor SensorConfig) (float64, error) {
@@ -118,13 +139,14 @@ func (r *IPMIReader) getPowerUsage(sensor SensorConfig) (float64, error) {
 	return power, nil
 }
 
-func (r *IPMIReader) GetMetrics() (*types.IPMIMetrics, error) {
+func (r *IPMIReader) GetMetrics() *types.IPMIMetrics {
 	if !r.HasIPMI {
-		return &types.IPMIMetrics{}, fmt.Errorf("IPMI not available")
+		log.Warnf("IPMI not available")
+		return &types.IPMIMetrics{}
 	}
 
 	if time.Since(r.LastPowerTime) < MetricsCacheDuration && r.metricsCache != nil {
-		return r.metricsCache, nil
+		return r.metricsCache
 	}
 
 	currentTime := time.Now()
@@ -137,10 +159,6 @@ func (r *IPMIReader) GetMetrics() (*types.IPMIMetrics, error) {
 				metrics.Power = reading
 			case "CPU_Power":
 				metrics.CPUPower = reading
-			case "FAN_Power":
-				metrics.FanPower = reading
-			case "HDD_Power":
-				metrics.HDDPower = reading
 			}
 		} else {
 			log.Warnf("Failed to get %s: %v", sensor.Name, err)
@@ -160,14 +178,13 @@ func (r *IPMIReader) GetMetrics() (*types.IPMIMetrics, error) {
 	r.LastCPUPower = metrics.CPUPower
 	r.metricsCache = metrics
 
-	return metrics, nil
+	return metrics
 }
 
 func (r *IPMIReader) LogMetrics(metrics *types.IPMIMetrics) {
-	log.Infof("IPMI Metrics:")
-	log.Infof("Power: %.2f W, Energy: %.2f J", metrics.Power, metrics.Energy)
-	log.Infof("CPU Power: %.2f W, CPU Energy: %.2f J", metrics.CPUPower, metrics.CPUEnergy)
-	log.Infof("Fan Power: %.2f W, HDD Power: %.2f W", metrics.FanPower, metrics.HDDPower)
+	log.Debugf("IPMI Metrics:")
+	log.Debugf("Power: %.2f W, Energy: %.2f J", metrics.Power, metrics.Energy)
+	log.Debugf("CPU Power: %.2f W, CPU Energy: %.2f J", metrics.CPUPower, metrics.CPUEnergy)
 }
 
 func (r *IPMIReader) Close() error {

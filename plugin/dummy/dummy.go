@@ -114,6 +114,12 @@ func (dp DummyPlugin) NodeEventHook(ctx *api.PluginContext) {
 	log.Tracef("InsetEventHookReq: \n%v", req.String())
 }
 
+func (dp DummyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
+
+func (dp DummyPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {}
+
+func (dp DummyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")
