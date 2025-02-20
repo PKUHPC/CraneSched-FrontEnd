@@ -130,8 +130,16 @@ func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 
 	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 
-	boundGPUs := getBoundGPUs(req.Resource, globalMonitor.config.Monitor.GPUType)
-	globalMonitor.monitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundGPUs)
+	requestCpu := req.Resource.AllocatableResInNode.CpuCoreLimit
+	requestMemory := req.Resource.AllocatableResInNode.MemoryLimitBytes
+	boundGPUs := getBoundGPUs(req.Resource.DedicatedResInNode, globalMonitor.config.Monitor.GPUType)
+	resourceRequest := monitor.ResourceRequest{
+		ReqCPU:    requestCpu,
+		ReqMemory: requestMemory,
+		ReqGPUs:   boundGPUs,
+	}
+
+	globalMonitor.monitor.TaskMonitor.Start(req.TaskId, req.Cgroup, resourceRequest)
 }
 
 func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
@@ -219,6 +227,12 @@ func getBoundGPUs(res *protos.DedicatedResourceInNode, gpuType string) []int {
 
 	return boundGPUs
 }
+
+func (p EnergyPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {}
+
+func (p EnergyPlugin) GetCranedListHook(ctx *api.PluginContext) {}
+
+func (p EnergyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +

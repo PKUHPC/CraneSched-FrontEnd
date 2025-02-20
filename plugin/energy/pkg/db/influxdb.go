@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/plugin/energy/pkg/config"
@@ -22,12 +20,7 @@ type InfluxDB struct {
 	org        string
 	nodeBucket string
 	taskBucket string
-
-	buffer    []*types.NodeData
-	bufferMu  sync.Mutex
-	batchSize int
-
-	enabled *config.Enabled
+	enabled    *config.Enabled
 }
 
 func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
@@ -41,8 +34,6 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 		org:        config.DB.InfluxDB.Org,
 		nodeBucket: config.DB.InfluxDB.NodeBucket,
 		taskBucket: config.DB.InfluxDB.TaskBucket,
-		batchSize:  config.DB.BatchSize,
-		buffer:     make([]*types.NodeData, 0, config.DB.BatchSize),
 		enabled:    &config.Monitor.Enabled,
 	}
 
@@ -56,139 +47,99 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 		return nil, fmt.Errorf("failed to create task bucket: %v", err)
 	}
 
-	flushTime, err := time.ParseDuration(config.DB.FlushTime)
-	if err != nil {
-		log.Errorf("Invalid flush time format: %v, using default 30s", err)
-		flushTime = 30 * time.Second
-	}
-	go db.periodicFlush(flushTime)
-
 	return db, nil
 }
 
 func (db *InfluxDB) SaveNodeEnergy(data *types.NodeData) error {
-	db.bufferMu.Lock()
-	db.buffer = append(db.buffer, data)
-
-	if len(db.buffer) >= db.batchSize {
-		buffer := db.buffer
-		db.buffer = make([]*types.NodeData, 0, db.batchSize)
-		db.bufferMu.Unlock()
-		return db.writeBatch(buffer)
-	}
-
-	db.bufferMu.Unlock()
-	return nil
-}
-
-func (db *InfluxDB) writeBatch(dataList []*types.NodeData) error {
-	log.Infof("Batch saving node energy data, count: %d", len(dataList))
-
-	if len(dataList) == 0 {
-		return fmt.Errorf("no data to write")
-	}
+	log.Infof("Saving node energy data")
 
 	writeAPI := db.client.WriteAPIBlocking(db.org, db.nodeBucket)
-	points := make([]*write.Point, 0, len(dataList))
 
-	for _, data := range dataList {
-		tags := map[string]string{}
-		fields := map[string]interface{}{}
-		enabledModules := make([]string, 0)
+	tags := map[string]string{}
+	fields := map[string]interface{}{}
+	enabledModules := make([]string, 0)
 
-		fields["cpu_utilization"] = data.SystemLoad.CPUUtil
-		fields["cpu_load_1"] = data.SystemLoad.CPULoad1
-		fields["cpu_load_5"] = data.SystemLoad.CPULoad5
-		fields["cpu_load_15"] = data.SystemLoad.CPULoad15
-		fields["cpu_frequencies"] = data.SystemLoad.Frequencies
-		fields["cpu_temperature"] = data.SystemLoad.CPUTemperature
+	currentTime := time.Now()
+	roundedTime := currentTime.Truncate(time.Minute)
+	fields["minute_time"] = roundedTime.Unix()
 
-		fields["memory_utilization"] = data.SystemLoad.MemoryUtil
-		fields["memory_used_gb"] = data.SystemLoad.MemoryUsed
-		fields["memory_total_gb"] = data.SystemLoad.MemoryTotal
+	fields["cpu_utilization"] = data.SystemLoad.CPUUtil
+	fields["cpu_load_1"] = data.SystemLoad.CPULoad1
+	fields["cpu_load_5"] = data.SystemLoad.CPULoad5
+	fields["cpu_load_15"] = data.SystemLoad.CPULoad15
+	fields["cpu_frequencies"] = data.SystemLoad.Frequencies
+	fields["cpu_temperature"] = data.SystemLoad.CPUTemperature
 
-		fields["disk_utilization"] = data.SystemLoad.DiskUtil
-		fields["disk_io_mb_ps"] = data.SystemLoad.DiskIO
+	fields["memory_utilization"] = data.SystemLoad.MemoryUtil
+	fields["memory_used_gb"] = data.SystemLoad.MemoryUsed
+	fields["memory_total_gb"] = data.SystemLoad.MemoryTotal
 
-		fields["network_io_mb_ps"] = data.SystemLoad.NetworkIO
-		fields["network_rx_mb_ps"] = data.SystemLoad.NetworkRx
-		fields["network_tx_mb_ps"] = data.SystemLoad.NetworkTx
-		enabledModules = append(enabledModules, "system")
+	fields["disk_utilization"] = data.SystemLoad.DiskUtil
+	fields["disk_io_mb_ps"] = data.SystemLoad.DiskIO
 
-		fields["rapl_package_energy_j"] = data.RAPL.Package
-		fields["rapl_core_energy_j"] = data.RAPL.Core
-		fields["rapl_uncore_energy_j"] = data.RAPL.Uncore
-		fields["rapl_dram_energy_j"] = data.RAPL.DRAM
-		fields["rapl_gt_energy_j"] = data.RAPL.GT
-		enabledModules = append(enabledModules, "rapl")
+	fields["network_io_mb_ps"] = data.SystemLoad.NetworkIO
+	fields["network_rx_mb_ps"] = data.SystemLoad.NetworkRx
+	fields["network_tx_mb_ps"] = data.SystemLoad.NetworkTx
+	enabledModules = append(enabledModules, "system")
 
-		fields["ipmi_power_w"] = data.IPMI.Power
-		fields["ipmi_energy_j"] = data.IPMI.Energy
-		fields["ipmi_cpu_power_w"] = data.IPMI.CPUPower
-		fields["ipmi_cpu_energy_j"] = data.IPMI.CPUEnergy
-		fields["ipmi_fan_power_w"] = data.IPMI.FanPower
-		fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
-		enabledModules = append(enabledModules, "ipmi")
+	fields["rapl_package_energy_j"] = data.RAPL.Package
+	fields["rapl_core_energy_j"] = data.RAPL.Core
+	fields["rapl_uncore_energy_j"] = data.RAPL.Uncore
+	fields["rapl_dram_energy_j"] = data.RAPL.DRAM
+	fields["rapl_gt_energy_j"] = data.RAPL.GT
+	enabledModules = append(enabledModules, "rapl")
 
-		fields["gpu_energy_j"] = data.GPU.Energy
-		fields["gpu_power_w"] = data.GPU.Power
-		fields["gpu_utilization"] = data.GPU.Util
-		fields["gpu_memory_utilization"] = data.GPU.MemUtil
-		fields["gpu_temperature"] = data.GPU.Temp
-		enabledModules = append(enabledModules, "gpu")
+	fields["ipmi_power_w"] = data.IPMI.Power
+	fields["ipmi_energy_j"] = data.IPMI.Energy
+	fields["ipmi_cpu_power_w"] = data.IPMI.CPUPower
+	fields["ipmi_cpu_energy_j"] = data.IPMI.CPUEnergy
+	fields["ipmi_fan_power_w"] = data.IPMI.FanPower
+	fields["ipmi_disk_power_w"] = data.IPMI.HDDPower
+	enabledModules = append(enabledModules, "ipmi")
 
-		// set total energy (priority: IPMI > RAPL > GPU)
-		if db.enabled.IPMI {
-			fields["total_energy_j"] = data.IPMI.Energy
-			tags["energy_source"] = "ipmi"
-		} else if db.enabled.RAPL {
-			fields["total_energy_j"] = data.RAPL.Package
-			tags["energy_source"] = "rapl"
-		} else if db.enabled.GPU {
-			fields["total_energy_j"] = data.GPU.Energy
-			tags["energy_source"] = "gpu"
-		} else {
-			return fmt.Errorf("no energy source enabled")
-		}
+	fields["gpu_energy_j"] = data.GPU.Energy
+	fields["gpu_power_w"] = data.GPU.Power
+	fields["gpu_utilization"] = data.GPU.Util
+	fields["gpu_memory_utilization"] = data.GPU.MemUtil
+	fields["gpu_temperature"] = data.GPU.Temp
+	enabledModules = append(enabledModules, "gpu")
 
-		tags["node_id"] = data.NodeID
-		tags["enabled_modules"] = strings.Join(enabledModules, ",")
+	fields["task_count"] = data.TaskMetrics.TaskCount
+	fields["req_cpu_ratio"] = data.TaskMetrics.ReqCPURatio
+	fields["req_memory_rate"] = data.TaskMetrics.ReqMemoryRate
+	fields["avg_req_cpu_per_task"] = data.TaskMetrics.AvgReqCPUPerTask
+	fields["avg_req_memory_gb_per_task"] = data.TaskMetrics.AvgReqMemoryGBPerTask
+	fields["avg_task_runtime"] = data.TaskMetrics.AvgTaskRuntime
 
-		p := influxdb2.NewPoint(
-			db.nodeBucket,
-			tags,
-			fields,
-			time.Now(),
-		)
-		points = append(points, p)
+	// set total energy (priority: IPMI > RAPL > GPU)
+	if db.enabled.IPMI {
+		fields["total_energy_j"] = data.IPMI.Energy
+		tags["energy_source"] = "ipmi"
+	} else if db.enabled.RAPL {
+		fields["total_energy_j"] = data.RAPL.Package
+		tags["energy_source"] = "rapl"
+	} else if db.enabled.GPU {
+		fields["total_energy_j"] = data.GPU.Energy
+		tags["energy_source"] = "gpu"
+	} else {
+		return fmt.Errorf("no energy source enabled")
 	}
 
-	if err := writeAPI.WritePoint(context.Background(), points...); err != nil {
-		return fmt.Errorf("failed to write batch data: %v", err)
+	tags["node_id"] = data.NodeID
+	tags["enabled_modules"] = strings.Join(enabledModules, ",")
+
+	p := influxdb2.NewPoint(
+		db.nodeBucket,
+		tags,
+		fields,
+		currentTime,
+	)
+
+	if err := writeAPI.WritePoint(context.Background(), p); err != nil {
+		return fmt.Errorf("failed to write data: %v", err)
 	}
 
 	return nil
-}
-
-// flush buffer periodically
-func (db *InfluxDB) periodicFlush(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		db.bufferMu.Lock()
-		if len(db.buffer) > 0 {
-			buffer := db.buffer
-			db.buffer = make([]*types.NodeData, 0, db.batchSize)
-			db.bufferMu.Unlock()
-
-			if err := db.writeBatch(buffer); err != nil {
-				log.Errorf("Failed to flush buffer: %v", err)
-			}
-		} else {
-			db.bufferMu.Unlock()
-		}
-	}
 }
 
 func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
@@ -234,14 +185,6 @@ func (db *InfluxDB) SaveTaskEnergy(taskData *types.TaskData) error {
 }
 
 func (db *InfluxDB) Close() error {
-	db.bufferMu.Lock()
-	if len(db.buffer) > 0 {
-		if err := db.writeBatch(db.buffer); err != nil {
-			log.Errorf("Failed to flush buffer: %v", err)
-		}
-	}
-	db.bufferMu.Unlock()
-
 	db.client.Close()
 	return nil
 }

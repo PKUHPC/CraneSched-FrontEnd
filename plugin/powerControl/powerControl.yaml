@@ -1,0 +1,36 @@
+Predictor:
+  URL: "http://localhost:5000"       
+  SleepTimeThresholdSeconds: 70     
+  IdleReserveRatio: 0.2               
+  CheckIntervalSeconds: 60        
+  CPUsPerNode: 32                     
+  ForecastMinutes: 2               
+  LookbackMinutes: 30                
+  CheckpointPath: "/root/CraneSched-FrontEnd/plugin/powerControl/predictor/model/checkpoint.pth"
+  ScalersPath: "/root/CraneSched-FrontEnd/plugin/powerControl/predictor/model/dataset_scalers.pkl"
+  NodeStateChangeFile: "/root/CraneSched-FrontEnd/plugin/powerControl/log/node_state_changes.csv"
+  ClusterStateFile: "/root/CraneSched-FrontEnd/plugin/powerControl/log/cluster_state.csv"
+  PredictorScript: "/root/CraneSched-FrontEnd/plugin/powerControl/predictor/predictor.py"
+
+InfluxDB:
+  URL: "http://localhost:8086"
+  Token: "s31miLb7Q6O1d0z0HCGIuYI7MMg3WHD-ekSrSnLjj8Vo-bRDqypR1PcWXDKqfG8UZmPtuPRCECis4HboId6TUQ=="
+  Org: "pku"
+  Bucket: "energy_node"
+
+IPMI:
+  User: "ADMIN"                       
+  Password: "Admin@123"
+  NodeStateCheckIntervalSeconds: 30
+  PowerOffMaxNodesPerBatch: 10       
+  PowerOffBatchIntervalSeconds: 60    
+  ExcludeNodes:                    
+    - "craned2"
+  NodeBMCMapping:                 
+    craned175: "10.129.227.172"
+    craned1: "10.129.227.189"
+
+SSH:
+  User: "root"
+  Password: "hyq"
+  
