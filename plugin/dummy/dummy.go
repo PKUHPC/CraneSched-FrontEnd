@@ -102,6 +102,14 @@ func (dp DummyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	log.Tracef("DestroyCgroupHookReq: \n%v", req.String())
 }
 
+func (dp DummyPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {}
+
+func (dp DummyPlugin) GetCranedInfoHook(ctx *api.PluginContext) {}
+
+func (dp DummyPlugin) GetCranedListHook(ctx *api.PluginContext) {}
+
+func (dp DummyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")

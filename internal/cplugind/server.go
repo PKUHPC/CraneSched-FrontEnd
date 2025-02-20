@@ -119,3 +119,59 @@ func (pd *PluginDaemon) DestroyCgroupHook(ctx context.Context, req *protos.Destr
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) ExecutePowerActionHook(ctx context.Context, req *protos.ExecutePowerActionHookRequest) (*protos.ExecutePowerActionHookReply, error) {
+	log.Tracef("ExecutePowerActionHook request received: %v", req)
+	reply := &protos.ExecutePowerActionHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).ExecutePowerActionHook)
+	}
+
+	c := api.NewContext(ctx, req, api.ExecutePowerActionHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
+
+func (pd *PluginDaemon) GetCranedInfoHook(ctx context.Context, req *protos.GetCranedInfoHookRequest) (*protos.GetCranedInfoHookReply, error) {
+	log.Tracef("GetCranedInfo request received: %v", req)
+	reply := &protos.GetCranedInfoHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).GetCranedInfoHook)
+	}
+
+	c := api.NewContext(ctx, req, api.GetCranedInfoHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
+
+func (pd *PluginDaemon) GetCranedListHook(ctx context.Context, req *protos.GetCranedListHookRequest) (*protos.GetCranedListHookReply, error) {
+	log.Tracef("GetCranedList request received: %v", req)
+	reply := &protos.GetCranedListHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).GetCranedListHook)
+	}
+
+	c := api.NewContext(ctx, req, api.GetCranedListHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
+
+func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.RegisterCranedHookRequest) (*protos.RegisterCranedHookReply, error) {
+	log.Tracef("RegisterCraned request received: %v", req)
+	reply := &protos.RegisterCranedHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).RegisterCranedHook)
+	}
+
+	c := api.NewContext(ctx, req, api.RegisterCranedHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
