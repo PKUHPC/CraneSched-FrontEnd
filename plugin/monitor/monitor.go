@@ -359,6 +359,12 @@ func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	log.Infof("Monitoring stopped for job #%v", req.TaskId)
 }
 
+func (p *MonitorPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {}
+
+func (p *MonitorPlugin) GetCranedListHook(ctx *api.PluginContext) {}
+
+func (p *MonitorPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")

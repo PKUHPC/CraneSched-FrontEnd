@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
+	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"CraneFrontEnd/plugin/energy/pkg/cgroup"
@@ -23,7 +24,7 @@ type TaskMonitor struct {
 	mutex sync.RWMutex
 }
 
-func (m *TaskMonitor) Start(taskID uint32, cgroupName string, boundGPUs []int) {
+func (m *TaskMonitor) Start(taskID uint32, cgroupName string, resourceRequest ResourceRequest) {
 	log.Infof("Starting task monitor for task: %d, cgroup name: %s", taskID, cgroupName)
 
 	if !m.config.Enabled.Task {
@@ -37,7 +38,7 @@ func (m *TaskMonitor) Start(taskID uint32, cgroupName string, boundGPUs []int) {
 		return
 	}
 
-	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config, boundGPUs)
+	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config, resourceRequest)
 	if err != nil {
 		log.Errorf("Failed to create task monitor: %v", err)
 		return
@@ -70,9 +71,10 @@ func (m *TaskMonitor) Close() {
 type Task struct {
 	taskID       uint32
 	cgroupName   string
-	boundGPUs    []int
 	samplePeriod time.Duration
 	config       *config.MonitorConfig
+
+	resourceRequest ResourceRequest
 
 	data        *types.TaskData
 	sampleCount int
@@ -85,6 +87,12 @@ type Task struct {
 	subscriber *NodeDataSubscriber
 }
 
+type ResourceRequest struct {
+	ReqCPU    float64
+	ReqMemory uint64
+	ReqGPUs   []int
+}
+
 func getNodeID() string {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -93,17 +101,7 @@ func getNodeID() string {
 	return hostname
 }
 
-var gpuPatterns = map[string]*struct {
-	pattern *regexp.Regexp
-	vendor  string
-}{
-	"nvidia": {
-		pattern: regexp.MustCompile(`/dev/nvidia(\d+)`),
-		vendor:  "nvidia",
-	},
-}
-
-func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig, boundGPUs []int) (*Task, error) {
+func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig, resourceRequest ResourceRequest) (*Task, error) {
 	cgroupReader, err := cgroup.NewCgroupReader(cgroup.V1, cgroupName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cgroup reader: %v", err)
@@ -113,13 +111,13 @@ func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, confi
 	startTime := time.Now()
 
 	return &Task{
-		taskID:       taskID,
-		cgroupName:   cgroupName,
-		samplePeriod: samplePeriod,
-		config:       config,
-		boundGPUs:    boundGPUs,
-		ctx:          ctx,
-		cancel:       cancel,
+		taskID:          taskID,
+		cgroupName:      cgroupName,
+		samplePeriod:    samplePeriod,
+		config:          config,
+		resourceRequest: resourceRequest,
+		ctx:             ctx,
+		cancel:          cancel,
 		subscriber: &NodeDataSubscriber{
 			Ch:        make(chan *types.NodeData, 10),
 			StartTime: startTime,
@@ -165,7 +163,7 @@ func (t *Task) monitorResourceUsage() {
 				go t.StopMonitor()
 				return
 			}
-			metrics := t.gpuReader.GetBoundGpuMetrics(t.boundGPUs)
+			metrics := t.gpuReader.GetBoundGpuMetrics(t.resourceRequest.ReqGPUs)
 			t.updateTaskStats(&taskStats, metrics)
 		case <-t.ctx.Done():
 			return
@@ -286,4 +284,36 @@ func (t *Task) logTaskStats() {
 	log.Infof("  Disk write operations count: %d", t.data.CgroupStats.IOStats.WriteOperations)
 	log.Infof("  Disk read operations: %.2f IOPS", t.data.CgroupStats.IOStats.ReadOpsPerSec)
 	log.Infof("  Disk write operations: %.2f IOPS", t.data.CgroupStats.IOStats.WriteOpsPerSec)
+}
+
+func (m *TaskMonitor) GetTaskMetrics() *types.TaskMetrics {
+	metrics := &types.TaskMetrics{}
+	totalCPURequest := 0.0
+	totalMemoryRequest := 0.0
+	totalRuntime := 0.0
+
+	cpuCores := float64(runtime.NumCPU())
+	var memInfo syscall.Sysinfo_t
+	syscall.Sysinfo(&memInfo)
+	totalMemoryBytes := float64(memInfo.Totalram)
+
+	m.mutex.RLock()
+	metrics.TaskCount = len(m.tasks)
+
+	for _, task := range m.tasks {
+		totalCPURequest += task.resourceRequest.ReqCPU
+		totalMemoryRequest += float64(task.resourceRequest.ReqMemory)
+		totalRuntime += time.Since(task.data.StartTime).Minutes()
+	}
+	m.mutex.RUnlock()
+
+	if metrics.TaskCount > 0 {
+		metrics.ReqCPURatio = totalCPURequest / cpuCores
+		metrics.AvgReqCPUPerTask = totalCPURequest / float64(metrics.TaskCount)
+		metrics.ReqMemoryRate = totalMemoryRequest / totalMemoryBytes
+		metrics.AvgReqMemoryGBPerTask = (totalMemoryRequest / float64(metrics.TaskCount)) / (1024 * 1024 * 1024) // 转换为GB
+		metrics.AvgTaskRuntime = totalRuntime / float64(metrics.TaskCount)
+	}
+
+	return metrics
 }

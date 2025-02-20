@@ -30,10 +30,8 @@ type Enabled struct {
 }
 
 type DBConfig struct {
-	Type      string          `mapstructure:"Type"`
-	BatchSize int             `mapstructure:"BatchSize"`
-	FlushTime string          `mapstructure:"FlushInterval"`
-	InfluxDB  *InfluxDBConfig `mapstructure:"Influxdb"`
+	Type     string          `mapstructure:"Type"`
+	InfluxDB *InfluxDBConfig `mapstructure:"Influxdb"`
 }
 
 type InfluxDBConfig struct {
@@ -65,15 +63,6 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func validateConfig(cfg *Config) error {
-
-	if cfg.DB.BatchSize <= 0 {
-		return fmt.Errorf("batch size must be greater than 0")
-	}
-
-	if cfg.DB.FlushTime == "" {
-		return fmt.Errorf("flush interval must be specified")
-	}
-
 	switch cfg.DB.Type {
 	case "influxdb":
 		if cfg.DB.InfluxDB == nil {
@@ -111,8 +100,6 @@ func PrintConfig(cfg *Config) {
 	// Database
 	log.Infof("Database Configuration:")
 	log.Infof("  Type: %s", cfg.DB.Type)
-	log.Infof("  Batch Size: %d", cfg.DB.BatchSize)
-	log.Infof("  Flush Time: %s", cfg.DB.FlushTime)
 
 	switch cfg.DB.Type {
 	case "influxdb":
