@@ -6,6 +6,6 @@ import (
 
 type DBInterface interface {
 	SaveNodeEnergy(*types.NodeData) error
-	SaveTaskEnergy(*types.TaskData) error
+	SaveJobEnergy(*types.JobData) error
 	Close() error
 }

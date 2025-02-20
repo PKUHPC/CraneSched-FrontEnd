@@ -701,8 +701,16 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		req.Reason = reason
 	case "resume":
 		req.NewState = protos.CranedControlState_CRANE_NONE
+	case "on":
+		req.NewState = protos.CranedControlState_CRANE_POWERON
+	case "off":
+		req.NewState = protos.CranedControlState_CRANE_POWEROFF
+	case "sleep":
+		req.NewState = protos.CranedControlState_CRANE_SLEEP
+	case "wake":
+		req.NewState = protos.CranedControlState_CRANE_WAKE
 	default:
-		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
+		log.Errorf("Invalid state given: %s. Valid states are: drain, resume, on, off, sleep, wake.\n", state)
 		return util.ErrorCmdArg
 	}
 

@@ -94,6 +94,12 @@ func (p *EventPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
 
 func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
 
+func (p *EventPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
+
+func (p *EventPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {}
+
+func (p *EventPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
 func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
 	if !ok {
@@ -126,10 +132,18 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 		if reason == "" {
 			reason = " "
 		}
+		var stateValue int32
+		if controlState, ok := event.State.StateType.(*protos.CranedState_ControlState); ok {
+			stateValue = int32(controlState.ControlState)
+		} else if powerState, ok := event.State.StateType.(*protos.CranedState_PowerState); ok {
+			stateValue = int32(powerState.PowerState)
+		} else {
+			stateValue = -1 // unknown state type
+		}
 		fields := map[string]any{
 			"uid":        event.Uid,
 			"start_time": event.StartTime.AsTime().UnixNano(),
-			"state":      int32(event.State),
+			"state":      stateValue,
 			"reason":     reason,
 		}
 

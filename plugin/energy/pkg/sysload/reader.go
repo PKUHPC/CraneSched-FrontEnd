@@ -44,24 +44,27 @@ func (s *SystemLoadReader) Close() {
 	s.lastUpdateTime = time.Time{}
 }
 
-func (s *SystemLoadReader) GetCPUUtilization() (float64, error) {
+func (s *SystemLoadReader) GetCPUUtilization() float64 {
 	percents, err := cpu.Percent(0, false)
 	if err != nil {
-		return 0, fmt.Errorf("get CPU utilization: %v", err)
+		log.Errorf("failed to get CPU utilization: %v", err)
+		return 0
 	}
 	if len(percents) == 0 {
-		return 0, fmt.Errorf("no CPU utilization data")
+		log.Errorf("no CPU utilization data")
+		return 0
 	}
-	return percents[0], nil
+	return percents[0]
 }
 
-func (s *SystemLoadReader) GetDiskIO() (float64, error) {
+func (s *SystemLoadReader) GetDiskIO() float64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	diskIO, err := disk.IOCounters()
 	if err != nil {
-		return 0, fmt.Errorf("get disk IO: %v", err)
+		log.Errorf("get disk IO: %v", err)
+		return 0
 	}
 
 	var totalRead, totalWrite uint64
@@ -78,12 +81,13 @@ func (s *SystemLoadReader) GetDiskIO() (float64, error) {
 	if s.lastDiskIO == nil || s.lastUpdateTime.IsZero() {
 		s.lastDiskIO = current
 		s.lastUpdateTime = time.Now()
-		return 0, nil
+		return 0
 	}
 
 	duration := time.Since(s.lastUpdateTime).Seconds()
 	if duration <= 0 {
-		return 0, fmt.Errorf("invalid time duration")
+		log.Errorf("invalid time duration")
+		return 0
 	}
 
 	readSpeed := float64(totalRead-s.lastDiskIO.ReadBytes) / (1024 * 1024 * duration)
@@ -92,13 +96,14 @@ func (s *SystemLoadReader) GetDiskIO() (float64, error) {
 	s.lastDiskIO = current
 	s.lastUpdateTime = time.Now()
 
-	return readSpeed + writeSpeed, nil
+	return readSpeed + writeSpeed
 }
 
-func (s *SystemLoadReader) GetCPUTemperature() (float64, error) {
+func (s *SystemLoadReader) GetCPUTemperature() float64 {
 	temps, err := host.SensorsTemperatures()
 	if err != nil {
-		return 0, fmt.Errorf("get CPU temperature: %v", err)
+		log.Errorf("get CPU temperature: %v", err)
+		return 0
 	}
 
 	var total float64
@@ -111,20 +116,23 @@ func (s *SystemLoadReader) GetCPUTemperature() (float64, error) {
 	}
 
 	if count == 0 {
-		return 0, fmt.Errorf("no valid CPU temperature sensors found")
+		log.Warnf("no valid CPU temperature sensors found")
+		return 0
 	}
 
-	return total / float64(count), nil
+	return total / float64(count)
 }
 
-func (s *SystemLoadReader) GetCPUFrequency() (float64, error) {
+func (s *SystemLoadReader) GetCPUFrequency() float64 {
 	freqs, err := cpu.Info()
 	if err != nil {
-		return 0, fmt.Errorf("get CPU frequency: %v", err)
+		log.Errorf("get CPU frequency: %v", err)
+		return 0
 	}
 
 	if len(freqs) == 0 {
-		return 0, fmt.Errorf("no CPU frequency data")
+		log.Errorf("no CPU frequency data")
+		return 0
 	}
 
 	var total float64
@@ -132,37 +140,40 @@ func (s *SystemLoadReader) GetCPUFrequency() (float64, error) {
 		total += freq.Mhz
 	}
 
-	return total / float64(len(freqs)), nil
+	return total / float64(len(freqs))
 }
 
-func (s *SystemLoadReader) GetCPULoad() (float64, float64, float64, error) {
+func (s *SystemLoadReader) GetCPULoad() (float64, float64, float64) {
 	loadInfo, err := load.Avg()
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("get CPU load: %v", err)
+		log.Errorf("get CPU load: %v", err)
+		return 0, 0, 0
 	}
-	return loadInfo.Load1, loadInfo.Load5, loadInfo.Load15, nil
+	return loadInfo.Load1, loadInfo.Load5, loadInfo.Load15
 }
 
 func bytesToGB(bytes uint64) float64 {
 	return float64(bytes) / (1024 * 1024 * 1024)
 }
 
-func (s *SystemLoadReader) GetMemoryDetails() (float64, float64, float64, error) {
+func (s *SystemLoadReader) GetMemoryDetails() (float64, float64, float64) {
 	memInfo, err := mem.VirtualMemory()
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("get memory info: %v", err)
+		log.Errorf("get memory info: %v", err)
+		return 0, 0, 0
 	}
 
 	usedGB := bytesToGB(memInfo.Used)
 	totalGB := bytesToGB(memInfo.Total)
 
-	return memInfo.UsedPercent, usedGB, totalGB, nil
+	return memInfo.UsedPercent, usedGB, totalGB
 }
 
-func (s *SystemLoadReader) GetDiskUtilization() (float64, error) {
+func (s *SystemLoadReader) GetDiskUtilization() float64 {
 	parts, err := disk.Partitions(false)
 	if err != nil {
-		return 0, fmt.Errorf("get disk partitions: %v", err)
+		log.Errorf("get disk partitions: %v", err)
+		return 0
 	}
 
 	var totalSize, usedSize uint64
@@ -176,10 +187,11 @@ func (s *SystemLoadReader) GetDiskUtilization() (float64, error) {
 	}
 
 	if totalSize == 0 {
-		return 0, fmt.Errorf("no valid disk partitions found")
+		log.Errorf("no valid disk partitions found")
+		return 0
 	}
 
-	return float64(usedSize) / float64(totalSize) * 100, nil
+	return float64(usedSize) / float64(totalSize) * 100
 }
 
 func (s *SystemLoadReader) GetNetworkDetails() (float64, float64, float64, error) {
@@ -230,7 +242,7 @@ func (s *SystemLoadReader) GetNetworkDetails() (float64, float64, float64, error
 	return totalSpeed, rxSpeed, txSpeed, nil
 }
 
-func (s *SystemLoadReader) GetMetrics() (*types.SystemLoadMetrics, error) {
+func (s *SystemLoadReader) GetMetrics() *types.SystemLoadMetrics {
 	metrics := &types.SystemLoadMetrics{}
 	var errs []error
 
@@ -239,44 +251,20 @@ func (s *SystemLoadReader) GetMetrics() (*types.SystemLoadMetrics, error) {
 
 	go func() {
 		defer wg.Done()
-		if util, err := s.GetCPUUtilization(); err == nil {
-			metrics.CPUUtil = util
-		} else {
-			errs = append(errs, err)
-		}
+		metrics.CPUUtil = s.GetCPUUtilization()
 
-		if load1, load5, load15, err := s.GetCPULoad(); err == nil {
-			metrics.CPULoad1 = load1
-			metrics.CPULoad5 = load5
-			metrics.CPULoad15 = load15
-		} else {
-			errs = append(errs, err)
-		}
+		metrics.CPULoad1, metrics.CPULoad5, metrics.CPULoad15 = s.GetCPULoad()
 	}()
 
 	go func() {
 		defer wg.Done()
-		if util, used, total, err := s.GetMemoryDetails(); err == nil {
-			metrics.MemoryUtil = util
-			metrics.MemoryUsed = used
-			metrics.MemoryTotal = total
-		} else {
-			errs = append(errs, err)
-		}
+		metrics.MemoryUtil, metrics.MemoryUsed, metrics.MemoryTotal = s.GetMemoryDetails()
 	}()
 
 	go func() {
 		defer wg.Done()
-		if io, err := s.GetDiskIO(); err == nil {
-			metrics.DiskIO = io
-		} else {
-			errs = append(errs, err)
-		}
-		if util, err := s.GetDiskUtilization(); err == nil {
-			metrics.DiskUtil = util
-		} else {
-			errs = append(errs, err)
-		}
+		metrics.DiskIO = s.GetDiskIO()
+		metrics.DiskUtil = s.GetDiskUtilization()
 	}()
 
 	go func() {
@@ -292,29 +280,21 @@ func (s *SystemLoadReader) GetMetrics() (*types.SystemLoadMetrics, error) {
 
 	go func() {
 		defer wg.Done()
-		if temp, err := s.GetCPUTemperature(); err == nil {
-			metrics.CPUTemperature = temp
-		} else {
-			errs = append(errs, err)
-		}
+		metrics.CPUTemperature = s.GetCPUTemperature()
 	}()
 
 	go func() {
 		defer wg.Done()
-		if freq, err := s.GetCPUFrequency(); err == nil {
-			metrics.Frequencies = freq
-		} else {
-			errs = append(errs, err)
-		}
+		metrics.Frequencies = s.GetCPUFrequency()
 	}()
 
 	wg.Wait()
 
 	if len(errs) > 0 {
-		return metrics, fmt.Errorf("errors collecting metrics: %v", errs)
+		log.Errorf("errors collecting metrics: %v", errs)
 	}
 
-	return metrics, nil
+	return metrics
 }
 
 func isCPUTemp(sensorKey string) bool {
@@ -328,15 +308,15 @@ func isCPUTemp(sensorKey string) bool {
 }
 
 func (s *SystemLoadReader) LogMetrics(metrics *types.SystemLoadMetrics) {
-	log.Printf("System Load Metrics:")
-	log.Printf("CPU: %.2f%% (Load: %.2f, %.2f, %.2f)",
+	log.Debugf("System Load Metrics:")
+	log.Debugf("CPU: %.2f%% (Load: %.2f, %.2f, %.2f)",
 		metrics.CPUUtil, metrics.CPULoad1, metrics.CPULoad5, metrics.CPULoad15)
-	log.Printf("CPU Temperature: %.1f°C, Frequency: %.1f MHz",
+	log.Debugf("CPU Temperature: %.1f°C, Frequency: %.1f MHz",
 		metrics.CPUTemperature, metrics.Frequencies)
-	log.Printf("Memory: %.2f%% (Used: %.2f GB, Total: %.2f GB)",
+	log.Debugf("Memory: %.2f%% (Used: %.2f GB, Total: %.2f GB)",
 		metrics.MemoryUtil, metrics.MemoryUsed, metrics.MemoryTotal)
-	log.Printf("Disk: %.2f%% (IO: %.2f MB/s)",
+	log.Debugf("Disk: %.2f%% (IO: %.2f MB/s)",
 		metrics.DiskUtil, metrics.DiskIO)
-	log.Printf("Network: %.2f MB/s (Rx: %.2f MB/s, Tx: %.2f MB/s)",
+	log.Debugf("Network: %.2f MB/s (Rx: %.2f MB/s, Tx: %.2f MB/s)",
 		metrics.NetworkIO, metrics.NetworkRx, metrics.NetworkTx)
 }

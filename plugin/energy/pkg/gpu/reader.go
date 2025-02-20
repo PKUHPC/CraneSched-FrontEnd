@@ -84,9 +84,10 @@ func (r *Reader) init() error {
 	return nil
 }
 
-func (r *Reader) GetMetrics() (*types.GPUMetrics, error) {
+func (r *Reader) GetMetrics() *types.GPUMetrics {
 	if !r.hasGPU {
-		return &types.GPUMetrics{}, fmt.Errorf("no GPU available")
+		log.Warnf("no GPU available")
+		return &types.GPUMetrics{}
 	}
 
 	metrics := &types.GPUMetrics{}
@@ -113,7 +114,7 @@ func (r *Reader) GetMetrics() (*types.GPUMetrics, error) {
 		metrics.Temp /= float64(activeDevices)
 	}
 
-	return metrics, nil
+	return metrics
 }
 
 func (r *Reader) GetDeviceMetrics(index int) (*types.GPUMetrics, error) {
@@ -165,9 +166,9 @@ func (r *Reader) GetBoundGpuMetrics(indices []int) *types.GPUMetrics {
 	activeDevices := 0
 
 	if len(indices) == 1 && indices[0] == -1 {
-		metrics, err := r.GetMetrics()
-		if err != nil {
-			log.Errorf("Failed to get all GPU metrics: %v", err)
+		metrics := r.GetMetrics()
+		if metrics == nil {
+			log.Errorf("Failed to get all GPU metrics")
 			return nil
 		}
 		return metrics
@@ -207,8 +208,8 @@ func (r *Reader) GetDeviceCount() int {
 }
 
 func (r *Reader) LogMetrics(metrics *types.GPUMetrics) {
-	log.Infof("GPU Metrics: power=%.2f W, energy=%.2f J, util=%.2f%%", metrics.Power, metrics.Energy, metrics.Util)
-	log.Infof("GPU Metrics: mem_util=%.2f%%, temp=%.1f°C", metrics.MemUtil, metrics.Temp)
+	log.Debugf("GPU Metrics: power=%.2f W, energy=%.2f J, util=%.2f%%", metrics.Power, metrics.Energy, metrics.Util)
+	log.Debugf("GPU Metrics: mem_util=%.2f%%, temp=%.1f°C", metrics.MemUtil, metrics.Temp)
 }
 
 func (r *Reader) Close() error {
