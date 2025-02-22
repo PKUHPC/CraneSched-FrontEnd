@@ -43,6 +43,8 @@ var (
 	FlagStartTime       string
 	FlagDuration        string
 	FlagNodes           string
+	FlagAccount         string
+	FlagUser            string
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -322,6 +324,8 @@ func init() {
 			createReservationCmd.Flags().StringVarP(&FlagDuration, "duration", "d", "", "Specify the duration of the reservation")
 			createReservationCmd.Flags().StringVarP(&FlagPartitionName, "partition", "p", "", "Specify the partition of the reservation")
 			createReservationCmd.Flags().StringVarP(&FlagNodes, "nodes", "N", "", "Specify the nodes of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagAccount, "account", "a", "", "Specify the account of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagUser, "user", "u", "", "Specify the user of the reservation")
 
 			err := createReservationCmd.MarkFlagRequired("name")
 			if err != nil {
@@ -332,6 +336,10 @@ func init() {
 				return
 			}
 			err = createReservationCmd.MarkFlagRequired("duration")
+			if err != nil {
+				return
+			}
+			err = createReservationCmd.MarkFlagRequired("account")
 			if err != nil {
 				return
 			}

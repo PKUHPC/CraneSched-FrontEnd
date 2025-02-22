@@ -710,6 +710,22 @@ func CreateReservation() util.CraneCmdError {
 		req.Partition = FlagPartitionName
 	}
 
+	if FlagAccount != "" {
+		req.AccountList, err = util.ParseStringParamList(FlagAccount, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if FlagUser != "" {
+		req.UserList, err = util.ParseStringParamList(FlagUser, ",")
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
+	}
+
 	reply, err := stub.CreateReservation(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to create reservation")
