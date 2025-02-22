@@ -27,10 +27,173 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 )
+
+// Define the flattened data structure
+type FlattenedData struct {
+	PartitionName       string
+	Avail      string
+	CranedListRegex     string
+	ResourceState       string
+	ControlState        string
+	CranedListCount     uint64
+}
+
+// Flatten the nested structure into a one-dimensional array
+func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
+	var flattened []FlattenedData
+	for _, partitionCraned := range reply.Partitions {
+		for _, commonCranedStateList := range partitionCraned.CranedLists {
+			if commonCranedStateList.Count > 0 {
+				flattened = append(flattened, FlattenedData{
+					PartitionName:   partitionCraned.Name,
+					Avail:  strings.ToLower(partitionCraned.State.String()[10:]),
+					CranedListRegex: commonCranedStateList.CranedListRegex,
+					ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
+					ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
+					CranedListCount: uint64(commonCranedStateList.Count),
+				})
+			}
+		}
+	}
+	return flattened
+}
+
+type FieldProcessor struct {
+	header string
+	process func(flattened []FlattenedData, tableOutputCell [][]string)
+}
+
+var fieldMap = map[string]FieldProcessor{
+	"p":             {"Partition", ProcessPartition},
+	"partition":     {"Partition", ProcessPartition},
+	"a":             {"Avail", ProcessAvail},
+	"avail":         {"Avail", ProcessAvail},
+	"n":             {"Nodes", ProcessNodes},
+	"nodes":         {"Nodes", ProcessNodes},
+	"s":             {"State", ProcessState},
+	"state":         {"State", ProcessState},
+	"l":             {"NodeList", ProcessNodeList},
+	"nodelist":      {"NodeList", ProcessNodeList},
+}
+
+/// Partition
+func ProcessPartition(flattened []FlattenedData, tableOutputCell [][]string) {
+	for idx, data := range flattened {
+		tableOutputCell[idx] = append(tableOutputCell[idx], data.PartitionName)
+	}
+}
+
+// Avail
+func ProcessAvail(flattened []FlattenedData, tableOutputCell [][]string) {
+	for idx, data := range flattened {
+		tableOutputCell[idx] = append(tableOutputCell[idx], data.Avail)
+	}
+}
+
+// Nodes
+func ProcessNodes(flattened []FlattenedData, tableOutputCell [][]string) {
+	for idx, data := range flattened {
+		tableOutputCell[idx] = append(tableOutputCell[idx], strconv.FormatUint(data.CranedListCount, 10))
+	}
+}
+
+// State
+func ProcessState(flattened []FlattenedData, tableOutputCell [][]string) {
+	for idx, data := range flattened {
+		stateStr := data.ResourceState
+		if data.ControlState != "none" {
+			stateStr += "(" + data.ControlState + ")"
+		}
+		tableOutputCell[idx] = append(tableOutputCell[idx], stateStr)
+	}
+}
+
+// NodeList
+func ProcessNodeList(flattened []FlattenedData, tableOutputCell [][]string) {
+	for idx, data := range flattened {
+		tableOutputCell[idx] = append(tableOutputCell[idx], data.CranedListRegex)
+	}
+}
+
+func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string) {
+	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
+	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
+	if specifiers == nil {
+		log.Errorln("Invalid format specifier.")
+		os.Exit(util.ErrorInvalidFormat)
+	}
+
+	tableOutputWidth := make([]int, 0, len(specifiers))
+	tableOutputHeader := make([]string, 0, len(specifiers))
+	flattened := FlattenReplyData(reply)
+	tableLen := len(flattened)
+	tableOutputCell := make([][]string, tableLen)
+
+	// Get the prefix of the format string
+	if specifiers[0][0] != 0 {
+		prefix := FlagFormat[0:specifiers[0][0]]
+		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputHeader = append(tableOutputHeader, prefix)
+		for j := 0; j < tableLen; j++ {
+			tableOutputCell[j] = append(tableOutputCell[j], prefix)
+		}
+	}
+
+	for i, spec := range specifiers {
+		// Get the padding string between specifiers
+		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
+			padding := FlagFormat[specifiers[i-1][1]:spec[0]]
+			tableOutputWidth = append(tableOutputWidth, -1)
+			tableOutputHeader = append(tableOutputHeader, padding)
+			for j := 0; j < tableLen; j++ {
+				tableOutputCell[j] = append(tableOutputCell[j], padding)
+			}
+		}
+		// Parse width specifier
+		if spec[2] == -1 {
+			// w/o width specifier
+			tableOutputWidth = append(tableOutputWidth, -1)
+		} else {
+			// with width specifier
+			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
+			if err != nil {
+				log.Errorln("Invalid width specifier.")
+				os.Exit(util.ErrorInvalidFormat)
+			}
+			tableOutputWidth = append(tableOutputWidth, int(width))
+		}
+
+		// Parse format specifier
+		field := FlagFormat[spec[4]:spec[5]]
+		if len(field) > 1 {
+			field = strings.ToLower(field)
+		}
+
+		if processor, exists := fieldMap[field]; exists {
+			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
+			processor.process(flattened, tableOutputCell)
+		} else {
+			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n" +		
+		 	"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
+			 os.Exit(util.ErrorInvalidFormat)
+		}
+	}
+	// Get the suffix of the format string
+	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
+		suffix := FlagFormat[specifiers[len(specifiers)-1][1]:]
+		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputHeader = append(tableOutputHeader, suffix)
+		for j := 0; j < tableLen; j++ {
+			tableOutputCell[j] = append(tableOutputCell[j], suffix)
+		}
+	}
+	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+}
 
 func Query() util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
@@ -134,6 +297,13 @@ func Query() util.CraneCmdError {
 			}
 		}
 	}
+
+	if FlagFormat != "" {
+		header, tableData = FormatData(reply)
+		table.SetTablePadding("")
+		table.SetAutoFormatHeaders(false)
+	}
+
 	table.AppendBulk(tableData)
 	if !FlagNoHeader {
 		table.SetHeader(header)

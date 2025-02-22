@@ -127,69 +127,135 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, util.CraneCmdError) {
 func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	header := []string{"JobId", "Partition", "Name", "User",
-		"Account", "Status", "Type", "Time", "TimeLimit", "Nodes", "NodeList/Reason"}
+	var header []string
 	tableData := make([][]string, len(reply.TaskInfoList))
-	for i := 0; i < len(reply.TaskInfoList); i++ {
-		var timeLimitStr string
-		if reply.TaskInfoList[i].TimeLimit.Seconds >= util.MaxJobTimeLimit {
-			timeLimitStr = "unlimited"
-		} else {
-			timeLimitStr = util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds)
-		}
+	if  FlagFull {
+		header = []string{"JobId", "JobName", "UserName", "Partition", 
+		 "Account", "NodeNum", "AllocCPUs", "MemPerNode", "Status", "Time", "TimeLimit", 
+		 "StartTime", "SubmitTime", "Type", "Qos",  "Held", "Priority", "NodeList/Reason"}
+		for i := 0; i < len(reply.TaskInfoList); i++ {
+			taskInfo := reply.TaskInfoList[i]
 
-		var timeElapsedStr string
-		if reply.TaskInfoList[i].Status == protos.TaskStatus_Running {
-			timeElapsedStr = util.SecondTimeFormat(reply.TaskInfoList[i].ElapsedTime.Seconds)
-		} else {
-			timeElapsedStr = "-"
-		}
-
-		var reasonOrListStr string
-		if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
-			reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
-		} else {
-			reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
-		}
-
-		tableData[i] = []string{
-			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-			reply.TaskInfoList[i].Partition,
-			reply.TaskInfoList[i].Name,
-			reply.TaskInfoList[i].Username,
-			reply.TaskInfoList[i].Account,
-			reply.TaskInfoList[i].Status.String(),
-			reply.TaskInfoList[i].Type.String(),
-			timeElapsedStr,
-			timeLimitStr,
-			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
-			reasonOrListStr,
-		}
-	}
-
-	if FlagFormat != "" {
-		header, tableData = FormatData(reply)
-		table.SetTablePadding("")
-		table.SetAutoFormatHeaders(false)
-	}
-
-	if FlagStartTime {
-		header = append(header, "StartTime")
-		for i := 0; i < len(tableData); i++ {
-			startTime := reply.TaskInfoList[i].StartTime
-			if startTime.Seconds != 0 {
-				tableData[i] = append(tableData[i],
-					startTime.AsTime().In(time.Local).
-						Format("2006-01-02 15:04:05"))
+			var timeElapsedStr string
+			if reply.TaskInfoList[i].Status == protos.TaskStatus_Running {
+				timeElapsedStr = util.SecondTimeFormat(reply.TaskInfoList[i].ElapsedTime.Seconds)
 			} else {
-				tableData[i] = append(tableData[i], "")
+				timeElapsedStr = "-"
+			}
+
+			var timeLimitStr string
+			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+				timeLimitStr = "unlimited"
+			} else {
+				timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
+			}
+
+			startTimeStr := "unknown"
+			startTime := taskInfo.StartTime.AsTime()
+			if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) &&
+			startTime.Before(time.Now()) {
+				startTimeStr = startTime.In(time.Local).Format("2006-01-02 15:04:05")
+			}
+
+			submitTimeStr := "unknown"
+			submitTime := taskInfo.SubmitTime.AsTime()
+			if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+				submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
+			}
+
+
+			var reasonOrListStr string
+			if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
+				reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
+			} else {
+				reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
+			}
+
+			tableData[i] = []string {
+				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
+				taskInfo.Name,
+				taskInfo.Username,
+				taskInfo.Partition,
+				taskInfo.Account,
+				strconv.FormatUint(uint64(taskInfo.NodeNum), 10),
+				strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
+				strconv.FormatUint(taskInfo.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10),
+				taskInfo.Status.String(),
+				timeElapsedStr,
+				timeLimitStr,
+				startTimeStr,
+				submitTimeStr,
+				reply.TaskInfoList[i].Type.String(),
+				taskInfo.Qos,
+				strconv.FormatBool(taskInfo.Held),
+				strconv.FormatUint(uint64(taskInfo.Priority), 10),
+				reasonOrListStr}
+		}
+	} else {
+		header = []string{"JobId", "Partition", "Name", "User",
+			"Account", "Status", "Type", "Time", "TimeLimit", "Nodes", "NodeList/Reason"}
+
+		for i := 0; i < len(reply.TaskInfoList); i++ {
+			var timeLimitStr string
+			if reply.TaskInfoList[i].TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+				timeLimitStr = "unlimited"
+			} else {
+				timeLimitStr = util.SecondTimeFormat(reply.TaskInfoList[i].TimeLimit.Seconds)
+			}
+
+			var timeElapsedStr string
+			if reply.TaskInfoList[i].Status == protos.TaskStatus_Running {
+				timeElapsedStr = util.SecondTimeFormat(reply.TaskInfoList[i].ElapsedTime.Seconds)
+			} else {
+				timeElapsedStr = "-"
+			}
+
+			var reasonOrListStr string
+			if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
+				reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
+			} else {
+				reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
+			}
+
+			tableData[i] = []string{
+				strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
+				reply.TaskInfoList[i].Partition,
+				reply.TaskInfoList[i].Name,
+				reply.TaskInfoList[i].Username,
+				reply.TaskInfoList[i].Account,
+				reply.TaskInfoList[i].Status.String(),
+				reply.TaskInfoList[i].Type.String(),
+				timeElapsedStr,
+				timeLimitStr,
+				strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
+				reasonOrListStr,
 			}
 		}
-	}
-	if FlagFilterQos != "" {
-		header = append(header, "QoS")
-		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
+
+		if FlagFormat != "" {
+			header, tableData = FormatData(reply)
+			table.SetTablePadding("")
+			table.SetAutoFormatHeaders(false)
+		}
+
+		if FlagStartTime {
+			header = append(header, "StartTime")
+			for i := 0; i < len(tableData); i++ {
+				startTime := reply.TaskInfoList[i].StartTime
+				if startTime.Seconds != 0 {
+					tableData[i] = append(tableData[i],
+						startTime.AsTime().In(time.Local).
+							Format("2006-01-02 15:04:05"))
+				} else {
+					tableData[i] = append(tableData[i], "")
+				}
+			}
+		}
+		if FlagFilterQos != "" {
+			header = append(header, "QoS")
+			for i := 0; i < len(tableData); i++ {
+				tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
+			}
 		}
 	}
 
@@ -224,12 +290,175 @@ func Query() util.CraneCmdError {
 	return QueryTableOutput(reply)
 }
 
+func ProcessAccount(task *protos.TaskInfo) string {
+	return task.Account
+}
+
+func ProcessCpuPerNode(task *protos.TaskInfo) string {
+	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
+}
+
+func ProcessAllocCpus(task *protos.TaskInfo) string {
+	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+}
+
+func ProcessNodeNum(task *protos.TaskInfo) string {
+	return strconv.FormatUint(uint64(task.NodeNum), 10)
+}
+
+func ProcessElapsedTime(task *protos.TaskInfo) string {
+	if task.Status == protos.TaskStatus_Running {
+		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
+	}
+	return "-"
+}
+
+func ProcessJobId(task *protos.TaskInfo) string {
+	return strconv.FormatUint(uint64(task.TaskId), 10)
+}
+
+func ProcessTimeLimit(task *protos.TaskInfo) string {
+	if task.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+		return "unlimited"
+	}
+	return util.SecondTimeFormat(task.TimeLimit.Seconds)
+}
+
+func ProcessStartTime(task *protos.TaskInfo) string {
+	startTime := task.StartTime.AsTime()
+	if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) && startTime.Before(time.Now()) {
+		return startTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
+}
+
+func ProcessSubmitTime(task *protos.TaskInfo) string {
+	submitTime := task.SubmitTime.AsTime()
+	if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		return submitTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
+}
+
+func ProcessNodeList(task *protos.TaskInfo) string {
+	return task.GetCranedList()
+}
+
+func ProcessMemPerNode(task *protos.TaskInfo) string {
+	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+}
+
+func ProcessName(task *protos.TaskInfo) string {
+	return task.Name
+}
+
+func ProcessState(task *protos.TaskInfo) string {
+	return task.Status.String()
+}
+
+func ProcessPriority(task *protos.TaskInfo) string {
+	return strconv.FormatUint(uint64(task.Priority), 10)
+}
+
+func ProcessPartition(task *protos.TaskInfo) string {
+	return task.Partition
+}
+
+func ProcessQoS(task *protos.TaskInfo) string {
+	return task.Qos
+}
+
+func ProcessJobType(task *protos.TaskInfo) string {
+	return task.Type.String()
+}
+
+func ProcessUser(task *protos.TaskInfo) string {
+	return task.Username
+}
+
+func ProcessUid(task *protos.TaskInfo) string {
+	return strconv.FormatUint(uint64(task.Uid), 10)
+}
+
+func ProcessReason(task *protos.TaskInfo) string {
+	if task.Status == protos.TaskStatus_Pending {
+		return task.GetPendingReason()
+	}
+	return " "
+}
+
+func ProcessReqNodes(task *protos.TaskInfo) string {
+	return strings.Join(task.ReqNodes, ",")
+}
+
+func ProcessExcludeNodes(task *protos.TaskInfo) string {
+	return strings.Join(task.ExcludeNodes, ",")
+}
+
+func ProcessHeld(task *protos.TaskInfo) string {
+	return strconv.FormatBool(task.Held)
+}
+
+type FieldProcessor struct {
+	header string
+	process func(task *protos.TaskInfo) string
+}
+
+var fieldMap = map[string]FieldProcessor{
+	"a":         {"Account", ProcessAccount},
+	"account":   {"Account", ProcessAccount},
+	"c":         {"CpuPerNode", ProcessCpuPerNode},
+	"cpupernode": {"CpuPerNode", ProcessCpuPerNode},
+	"C":         {"AllocCpus", ProcessAllocCpus},
+	"alloccpus": {"AllocCpus", ProcessAllocCpus},
+	"N":         {"NodeNum", ProcessNodeNum},
+	"nodenum":   {"NodeNum", ProcessNodeNum},
+	"e":         {"ElapsedTime", ProcessElapsedTime},
+	"elapsedtime": {"ElapsedTime", ProcessElapsedTime},
+	"j":         {"JobId", ProcessJobId},
+	"jobid":     {"JobId", ProcessJobId},
+	"l":         {"TimeLimit", ProcessTimeLimit},
+	"timelimit": {"TimeLimit", ProcessTimeLimit},
+	"S":         {"StartTime", ProcessStartTime},
+	"starttime": {"StartTime", ProcessStartTime},
+	"s":         {"SubmitTime", ProcessSubmitTime},
+	"submittime": {"SubmitTime", ProcessSubmitTime},
+	"L":         {"NodeList(Reason)", ProcessNodeList},
+	"nodelist":  {"NodeList(Reason)", ProcessNodeList},
+	"m":         {"MemPerNode", ProcessMemPerNode},
+	"mempernode": {"MemPerNode", ProcessMemPerNode},
+	"n":         {"Name", ProcessName},
+	"name":      {"Name", ProcessName},
+	"t":         {"State", ProcessState},
+	"state":     {"State", ProcessState},
+	"p":         {"Priority", ProcessPriority},
+	"priority":  {"Priority", ProcessPriority},
+	"P":         {"Partition", ProcessPartition},
+	"partition": {"Partition", ProcessPartition},
+	"q":         {"QoS", ProcessQoS},
+	"qos":       {"QoS", ProcessQoS},
+	"T":         {"JobType", ProcessJobType},
+	"jobtype":   {"JobType", ProcessJobType},
+	"u":         {"User", ProcessUser},
+	"user":      {"User", ProcessUser},
+	"U":         {"Uid", ProcessUid},
+	"uid":       {"Uid", ProcessUid},
+	"R":         {"Reason", ProcessReason},
+	"reason":    {"Reason", ProcessReason},
+	"r":         {"ReqNodes", ProcessReqNodes},
+	"reqnodes":  {"ReqNodes", ProcessReqNodes},
+	"x":         {"ExcludeNodes", ProcessExcludeNodes},
+	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
+	"h":         {"Held", ProcessHeld},
+	"held":      {"Held", ProcessHeld},
+}
+
 // FormatData formats the output data according to the format string.
 // The format string can accept specifiers in the form of %.<width><format character>.
 // Besides, it can contain prefix, padding and suffix strings, e.g.,
 // "prefix%j_xx%t_x%.5L(Suffix)"
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
-	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z])`)
+	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
 		log.Errorln("Invalid format specifier.")
@@ -276,141 +505,27 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		}
 
 		// Parse format specifier
-		header := ""
-		switch FlagFormat[spec[4]:spec[5]] {
-		// a-Account, c-CpuPerNode, C-AllocCpus, e-ElapsedTime, j-JobId, l-TimeLimit, L-NodeList, m-MemPerNode,
-		// n-Name, N-Nodes, p-Priority, P-Partition, r-Reason, s-SubmitTime, t-State, T-Type, u-User
-		case "a":
-			header = "Account"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Account)
-			}
-		case "c":
-			header = "CpuPerNode"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatFloat(
-					reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64))
-			}
-		case "C":
-			header = "AllocCpus"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatFloat(
-					reply.TaskInfoList[j].ResView.AllocatableRes.CpuCoreLimit*float64(reply.TaskInfoList[j].NodeNum), 'f', 2, 64))
-			}
-		case "D":
-			header = "NodeNum"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], strconv.FormatUint(uint64(reply.TaskInfoList[j].NodeNum), 10))
-			}
-		case "e":
-			header = "Time"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				if reply.TaskInfoList[j].Status == protos.TaskStatus_Running {
-					tableOutputCell[j] = append(tableOutputCell[j],
-						util.SecondTimeFormat(reply.TaskInfoList[j].ElapsedTime.Seconds))
-				} else {
-					tableOutputCell[j] = append(tableOutputCell[j], "-")
-				}
-			}
-		case "j":
-			header = "JobId"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j],
-					strconv.FormatUint(uint64(reply.TaskInfoList[j].TaskId), 10))
-			}
-		case "l":
-			header = "TimeLimit"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].TimeLimit.String())
-			}
-		case "L":
-			header = "NodeList(Reason)"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].GetCranedList())
-			}
-		case "m":
-			header = "MemPerNode"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j],
-					strconv.FormatUint(reply.TaskInfoList[j].ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10))
-			}
-		case "n":
-			header = "Name"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Name)
-			}
-		case "N":
-			header = "Nodes"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j],
-					strconv.FormatUint(uint64(reply.TaskInfoList[j].NodeNum), 10))
-			}
-		case "t":
-			header = "Status"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Status.String())
-			}
-		case "p":
-			header = "Priority"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j],
-					strconv.FormatUint(uint64(reply.TaskInfoList[j].Priority), 10))
-			}
-		case "P":
-			header = "Partition"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Partition)
-			}
-		case "q":
-			header = "QoS"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j],
-					reply.TaskInfoList[j].Qos)
-			}
-		case "s":
-			header = "SubmitTime"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j],
-					reply.TaskInfoList[j].SubmitTime.AsTime().
-						In(time.Local).Format("2006-01-02 15:04:05"))
-			}
-		case "T":
-			header = "Type"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Type.String())
-			}
-		case "u":
-			header = "User"
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], reply.TaskInfoList[j].Username)
-			}
-		case "r":
-			header = "Reason"
-			var reasonOrListStr string
-			for j := 0; j < len(reply.TaskInfoList); j++ {
+		field := FlagFormat[spec[4]:spec[5]]
+		if len(field) > 1 {
+			field = strings.ToLower(field)
+		}
 
-				if reply.TaskInfoList[j].Status == protos.TaskStatus_Pending {
-					reasonOrListStr = reply.TaskInfoList[j].GetPendingReason()
-				} else {
-					reasonOrListStr = " "
-				}
-
-				tableOutputCell[j] = append(tableOutputCell[j], reasonOrListStr)
-			}
-
-		default:
-			// a-Account, c-AllocCPUs, D-NodeNum, e-ElapsedTime, j-JobId,
-			// l-TimeLimit, L-NodeList, n-Name, N-Nodes,
-			// M-MemPerNode, p-Priority, P-Partition, r-Reason, s-SubmitTime,
-			// t-State,T-Type, u-User
-			log.Errorln("Invalid format specifier, shorthand reference:\n" +
-				"a-Account, c-CpuPerNode, C-AllocCpus, D-NodeNum, e-ElapsedTime, j-JobId, \n" +
-				"l-TimeLimit, L-NodeList, m-MemPerNode, n-Name, N-Nodes,\n" +
-				"M-MemPerNode, p-Priority, P-Partition, r-Reason, s-SubmitTime,\n" +
-				"t-State, T-Type, u-User")
+		//a-Account, c-CpuPerNode, C-AllocCPUs, e-ElapsedTime, h-Held, j-JobID, l-TimeLimit, L-NodeList,
+		//m-MemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, R-Reason, r-ReqNodes, s-SubmitTime,
+		//S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes
+		fieldProcessor, found := fieldMap[field]
+		if !found {
+			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n" +
+	 		"a/Account, c/CpuPerNode, C/AllocCPUs, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, L/NodeList,\n" +
+	 		"m/MemPerNode, n/Name, N/NodeNum, p/Priority, P/Partition, q/Qos, R/Reason, r/ReqNodes, s/SubmitTime,\n" +
+	 		"S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes.", field)
 			os.Exit(util.ErrorInvalidFormat)
 		}
-		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(header))
+
+		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(fieldProcessor.header))
+		for j, task := range reply.TaskInfoList {
+			tableOutputCell[j] = append(tableOutputCell[j], fieldProcessor.process(task))
+		}
 	}
 
 	// Get the suffix of the format string
