@@ -31,7 +31,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"
 
 	log "github.com/sirupsen/logrus"
@@ -682,9 +681,8 @@ func CreateReservation() util.CraneCmdError {
 		log.Errorln(err)
 		return util.ErrorCmdArg
 	}
-	duration := durationpb.New(time.Duration(0))
-	ok := util.ParseDuration(FlagDuration, duration)
-	if !ok || duration.AsDuration() < 0 {
+	duration, err := util.ParseDurationStrToSeconds(FlagDuration)
+	if err != nil || duration <= 0 {
 		log.Errorln("Invalid duration specified.")
 		return util.ErrorCmdArg
 	}
@@ -692,9 +690,15 @@ func CreateReservation() util.CraneCmdError {
 	req := &protos.CreateReservationRequest{
 		ReservationName:  FlagReservationName,
 		StartTimeSeconds: start_time.Unix(),
-		DurationSeconds:  duration.GetSeconds(),
-		Partition:        FlagPartitionName,
-		CranedRegex:      FlagNodes,
+		DurationSeconds:  duration,
+	}
+
+	if FlagNodes != "" {
+		req.CranedRegex = FlagNodes
+	}
+
+	if FlagPartitionName != "" {
+		req.Partition = FlagPartitionName
 	}
 
 	reply, err := stub.CreateReservation(context.Background(), req)

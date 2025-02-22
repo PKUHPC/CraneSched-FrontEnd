@@ -335,10 +335,6 @@ func init() {
 			if err != nil {
 				return
 			}
-			err = createReservationCmd.MarkFlagRequired("nodes")
-			if err != nil {
-				return
-			}
 		}
 	}
 
