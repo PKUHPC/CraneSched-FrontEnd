@@ -231,11 +231,19 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 }
 
 func ShowReservations(reservationName string, queryAll bool) util.CraneCmdError {
-	req := &protos.QueryReservationInfoRequest{ReservationName: reservationName}
+	req := &protos.QueryReservationInfoRequest{
+		Uid:             uint32(os.Getuid()),
+		ReservationName: reservationName,
+	}
 	reply, err := stub.QueryReservationInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show reservations")
 		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		log.Errorf("Failed to retrive the information of reservation %s: %s", reservationName, reply.GetReason())
+		return util.ErrorBackend
 	}
 
 	if FlagJson {
@@ -688,6 +696,7 @@ func CreateReservation() util.CraneCmdError {
 	}
 
 	req := &protos.CreateReservationRequest{
+		Uid:              uint32(os.Getuid()),
 		ReservationName:  FlagReservationName,
 		StartTimeSeconds: start_time.Unix(),
 		DurationSeconds:  duration,
@@ -717,7 +726,10 @@ func CreateReservation() util.CraneCmdError {
 }
 
 func DeleteReservation(ReservationName string) util.CraneCmdError {
-	req := &protos.DeleteReservationRequest{ReservationName: ReservationName}
+	req := &protos.DeleteReservationRequest{
+		Uid:             uint32(os.Getuid()),
+		ReservationName: ReservationName,
+	}
 	reply, err := stub.DeleteReservation(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete reservation")
