@@ -49,6 +49,9 @@ var (
 	FlagStdoutPath    string
 	FlagStderrPath    string
 
+	FlagInterpreter string
+	FlagContainer   string
+
 	FlagWrappedScript string
 
 	FlagExtraAttr string
@@ -152,6 +155,8 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "Redirection path of standard output of the script")
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
 	RootCmd.Flags().StringVar(&FlagWrappedScript, "wrap", "", "Wrap command string in a sh script and submit")
+	RootCmd.Flags().StringVar(&FlagInterpreter, "interpreter", "", "Interpreter used to run the script")
+	RootCmd.Flags().StringVar(&FlagContainer, "container", "", "Path to the OCI Bundle used to run the script")
 	RootCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
