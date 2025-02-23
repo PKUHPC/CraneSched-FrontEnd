@@ -903,7 +903,7 @@ func MainCrun(args []string) util.CraneCmdError {
 		}
 
 		iaMeta.X11 = true
-		iaMeta.X11Meta = &protos.InteractiveTaskAdditionalMeta_X11Meta{
+		iaMeta.X11Meta = &protos.X11Meta{
 			Cookie: cookie,
 			Target: target,
 			Port:   uint32(port),
