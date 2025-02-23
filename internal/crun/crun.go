@@ -763,17 +763,20 @@ loop:
 }
 
 func (m *StateMachineOfCrun) StartIOForward() {
+	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
+
 	m.chanInputFromTerm = make(chan string, 100)
 	m.chanOutputFromRemote = make(chan string, 20)
-	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
+
+	m.chanX11InputFromLocal = make(chan []byte, 100)
+	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigintHandlerRoutine()
 	go m.StdinReaderRoutine()
 	go m.StdoutWriterRoutine()
 
-	if m.task.GetInteractiveMeta().X11 {
-		m.chanX11InputFromLocal = make(chan []byte, 100)
-		m.chanX11OutputFromRemote = make(chan []byte, 20)
+	iaMeta := m.task.GetInteractiveMeta()
+	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
 		go m.StartX11ReaderWriterRoutine()
 	}
 }
@@ -904,9 +907,10 @@ func MainCrun(args []string) util.CraneCmdError {
 
 		iaMeta.X11 = true
 		iaMeta.X11Meta = &protos.X11Meta{
-			Cookie: cookie,
-			Target: target,
-			Port:   uint32(port),
+			Cookie:           cookie,
+			Target:           target,
+			Port:             port,
+			EnableForwarding: FlagX11Fwd,
 		}
 
 		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)

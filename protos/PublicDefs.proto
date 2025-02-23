@@ -225,6 +225,8 @@ message X11Meta {
   string target = 1;
   uint32 port = 2;
   string cookie = 3;
+
+  bool enable_forwarding = 4;
 }
 
 message InteractiveTaskAdditionalMeta {
