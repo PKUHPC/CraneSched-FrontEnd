@@ -88,17 +88,17 @@ func GetX11AuthCookie() (string, error) {
 	return match[1], nil
 }
 
-// GetX11Display extracts the local TCP port and hostname/socket path
+// GetX11DisplayEx extracts the local TCP port and hostname/socket path
 // from the DISPLAY environment variable. If the DISPLAY variable indicates
 // a UNIX socket, the returned port will be 0 and the target will point
 // to the local UNIX socket path.
 //
 // It will return an error if the DISPLAY environment variable is not set
 // or cannot be parsed correctly.
-func getX11DisplayEx() (port uint16, target string, err error) {
+func GetX11DisplayEx() (target string, port uint16, err error) {
 	display := os.Getenv("DISPLAY")
 	if display == "" {
-		return 0, "", errors.New("no DISPLAY environment variable set, cannot set up X11 forwarding")
+		return "", 0, errors.New("no DISPLAY environment variable set, cannot set up X11 forwarding")
 	}
 
 	// Handle UNIX socket paths (e.g., ":0", ":0.0")
@@ -112,16 +112,16 @@ func getX11DisplayEx() (port uint16, target string, err error) {
 		// Build the UNIX socket path
 		socketPath := filepath.Join("/tmp/.X11-unix", "X"+display[1:])
 		if _, err := os.Stat(socketPath); err != nil {
-			return 0, "", fmt.Errorf("cannot stat local X11 socket `%s`: %w", socketPath, err)
+			return "", 0, fmt.Errorf("cannot stat local X11 socket `%s`: %w", socketPath, err)
 		}
 
-		return 0, socketPath, nil
+		return socketPath, 0, nil
 	}
 
 	// Handle TCP/IP connections (e.g., "localhost:89", "localhost/unix:89.0")
 	colonIndex := strings.Index(display, ":")
 	if colonIndex == -1 {
-		return 0, "", errors.New("error parsing DISPLAY environment variable, cannot use X11 forwarding")
+		return "", 0, errors.New("error parsing DISPLAY environment variable, cannot use X11 forwarding")
 	}
 
 	// Split hostname and port
@@ -137,10 +137,10 @@ func getX11DisplayEx() (port uint16, target string, err error) {
 	// Convert port to an integer and apply X11 TCP port offset
 	portInt, err := strconv.Atoi(portPart)
 	if err != nil {
-		return 0, "", fmt.Errorf("invalid port number in DISPLAY: %w", err)
+		return "", 0, fmt.Errorf("invalid port number in DISPLAY: %w", err)
 	}
 
-	return uint16(portInt + X11TcpPortOffset), hostname, nil
+	return hostname, uint16(portInt + X11TcpPortOffset), nil
 }
 
 func x11GetXAuthCookieEx() (cookie string, err error) {

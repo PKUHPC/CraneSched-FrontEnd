@@ -893,23 +893,32 @@ func MainCrun(args []string) util.CraneCmdError {
 	iaMeta.Pty = FlagPty
 
 	if FlagX11 {
-		target, port, err := util.GetX11Display()
+		target, port, err := util.GetX11DisplayEx()
 		if err != nil {
 			log.Errorf("Error in reading X11 $DISPLAY: %v", err)
-			return util.ErrorGeneric
+			return util.ErrorSystem
+		}
+
+		if target == "" || target == "localhost" {
+			if target, err = os.Hostname(); err != nil {
+				log.Errorf("failed to get hostname: %v", err)
+				return util.ErrorSystem
+			}
+			log.Debugf("Host in $DISPLAY (%v) is invalid, using hostname: %s",
+				port-util.X11TcpPortOffset, target)
 		}
 
 		cookie, err := util.GetX11AuthCookie()
 		if err != nil {
 			log.Errorf("Error in reading X11 xauth cookies: %v", err)
-			return util.ErrorGeneric
+			return util.ErrorSystem
 		}
 
 		iaMeta.X11 = true
 		iaMeta.X11Meta = &protos.X11Meta{
 			Cookie:           cookie,
 			Target:           target,
-			Port:             port,
+			Port:             uint32(port),
 			EnableForwarding: FlagX11Fwd,
 		}
 
