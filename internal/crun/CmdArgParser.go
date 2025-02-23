@@ -34,7 +34,7 @@ var (
 			util.DetectNetworkProxy()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := MainCrun(cmd, args); err != util.ErrorSuccess {
+			if err := MainCrun(args); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -56,6 +56,7 @@ var (
 	FlagGres          string
 	FlagPty           bool
 	FlagX11           bool
+	FlagX11Fwd        bool
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -83,10 +84,15 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
 	RootCmd.Flags().StringVarP(&FlagCwd, "chdir", "D", "", "Working directory of the job")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
+
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
-	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11 forwarding (insecure)")
+
+	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11")
+	RootCmd.Flags().BoolVar(&FlagX11Fwd, "x11-forwarding", false, "Enable X11 forwarding by Crane (secure). Default is false (with insecure direct X11 connection)")
 }
