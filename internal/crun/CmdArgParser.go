@@ -59,6 +59,8 @@ var (
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
+
+	FlagReservation string
 )
 
 func ParseCmdArgs() {
@@ -89,4 +91,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
 	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11 forwarding (insecure)")
+	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 }

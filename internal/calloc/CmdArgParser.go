@@ -45,6 +45,8 @@ var (
 	FlagConfigFilePath string
 	FlagDebugLevel     string
 
+	FlagReservation string
+
 	RootCmd = &cobra.Command{
 		Use:     "calloc",
 		Short:   "Allocate resource and create terminal",
@@ -87,4 +89,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 }
