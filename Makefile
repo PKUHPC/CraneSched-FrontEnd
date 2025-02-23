@@ -62,10 +62,13 @@ all: build plugin
 build: protos
 plugin: protos
 
+# FIXME: This is a workaround for sub-packages in proto files
+# We have to refactor the proto layout and CMakeLists in future
 protos: 
 	@echo "- Generating Protobuf files..."
 	@mkdir -p ./generated/protos
-	@protoc --go_out=generated --go-grpc_out=generated --proto_path=protos protos/*.proto
+	@protoc --go_out=paths=source_relative:generated/protos --go-grpc_out=paths=source_relative:generated/protos --proto_path=protos protos/*.proto
+	@mkdir -p ./generated/protos/supervisor && mv generated/protos/Supervisor*.go ./generated/protos/supervisor
 	@echo "  - Summary:"
 	@echo "    - Protobuf files generated in ./generated/protos/"
 
