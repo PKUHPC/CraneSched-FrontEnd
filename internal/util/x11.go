@@ -15,6 +15,79 @@ import (
 
 const X11TcpPortOffset = 6000 // X11 TCP port offset
 
+func GetX11Display() (string, uint32, error) {
+	display := os.Getenv("DISPLAY")
+	if display == "" {
+		return "", 0, errors.New("DISPLAY environment variable not set")
+	}
+
+	displayRegex := regexp.MustCompile(`^(?P<host>[a-zA-Z0-9._-]*):(?P<display>\d+)\.(?P<screen>\d+)$`)
+	match := displayRegex.FindStringSubmatch(display)
+	if match == nil {
+		return "", 0, fmt.Errorf("invalid DISPLAY format: %s", display)
+	}
+
+	var err error
+	host := match[1]
+	if host == "" || host == "localhost" {
+		if host, err = os.Hostname(); err != nil {
+			return "", 0, fmt.Errorf("failed to get hostname: %v", err)
+		}
+		log.Debugf("Host in $DISPLAY (%v) is invalid, using hostname: %s", display, host)
+	}
+
+	port, err := strconv.ParseUint(match[2], 10, 16)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid DISPLAY format: %s", display)
+	}
+
+	log.Debugf("X11 host: %s, port: %d", host, port)
+
+	return host, uint32(port), nil
+}
+
+func GetX11AuthCookie() (string, error) {
+	const cookiePattern = `(?m)[a-zA-Z0-9./_-]+:[0-9]+\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
+	const wildcardPattern = `(?m)#ffff#[0-9a-fA-F./_-]+#:[0-9]+\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
+
+	display := os.Getenv("DISPLAY")
+	if display == "" {
+		return "", errors.New("DISPLAY environment variable not set")
+	}
+
+	cmd := exec.Command("xauth", "list", display)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		log.Debugf("Error running xauth command: %v. Stderr: %s", err, stderr.String())
+		return "", fmt.Errorf("failed to run xauth: %v", err)
+	}
+
+	log.Debugf("Got xauth cookies: %s", stdout.String())
+
+	result := stdout.String()
+	cookieRegex := regexp.MustCompile(cookiePattern)
+	wildcardRegex := regexp.MustCompile(wildcardPattern)
+
+	match := cookieRegex.FindStringSubmatch(result)
+	if match == nil {
+		log.Debugf("MAGIC cookie not found, checking wildcard cookies")
+		match = wildcardRegex.FindStringSubmatch(result)
+		if match == nil {
+			return "", errors.New("MAGIC cookie not found")
+		}
+	}
+
+	if len(match) < 2 {
+		return "", errors.New("invalid format for MAGIC cookie")
+	}
+
+	return match[1], nil
+}
+
 // GetX11Display extracts the local TCP port and hostname/socket path
 // from the DISPLAY environment variable. If the DISPLAY variable indicates
 // a UNIX socket, the returned port will be 0 and the target will point
@@ -22,7 +95,7 @@ const X11TcpPortOffset = 6000 // X11 TCP port offset
 //
 // It will return an error if the DISPLAY environment variable is not set
 // or cannot be parsed correctly.
-func GetX11Display() (port uint16, target string, err error) {
+func getX11DisplayEx() (port uint16, target string, err error) {
 	display := os.Getenv("DISPLAY")
 	if display == "" {
 		return 0, "", errors.New("no DISPLAY environment variable set, cannot set up X11 forwarding")
@@ -70,7 +143,7 @@ func GetX11Display() (port uint16, target string, err error) {
 	return uint16(portInt + X11TcpPortOffset), hostname, nil
 }
 
-func X11GetXAuthCookie() (cookie string, err error) {
+func x11GetXAuthCookieEx() (cookie string, err error) {
 	const cookiePattern = `(?m)[a-zA-Z0-9./_-]+:[0-9]+\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
 	const wildcardPattern = `(?m)#ffff#[0-9a-fA-F./_-]+#:[0-9]+\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
 
