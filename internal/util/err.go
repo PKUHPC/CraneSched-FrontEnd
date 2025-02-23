@@ -42,11 +42,13 @@ func ErrMsg(err_code protos.ErrCode) string {
 	case protos.ErrCode_ERR_INVALID_UID:
 		return "The user UID being operated on does not exist in the system"
 	case protos.ErrCode_ERR_INVALID_OP_USER:
-		return "you are not a user of Crane"
+		return "You are not a user of Crane"
 	case protos.ErrCode_ERR_INVALID_USER:
 		return "The entered user is not a user of Crane"
 	case protos.ErrCode_ERR_PERMISSION_USER:
 		return "Your permission is insufficient"
+	case protos.ErrCode_ERR_BLOCKED_USER:
+		return "The user has been blocked"
 	case protos.ErrCode_ERR_USER_DUPLICATE_ACCOUNT:
 		return "The user already exists in this account"
 	case protos.ErrCode_ERR_USER_ALLOWED_ACCOUNT:
@@ -70,6 +72,8 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "The account already exists in the crane"
 	case protos.ErrCode_ERR_DELETE_ACCOUNT:
 		return "The account has child account or users, unable to delete."
+	case protos.ErrCode_ERR_BLOCKED_ACCOUNT:
+		return "The account has been blocked"
 	}
 
 	switch err_code {
@@ -85,6 +89,10 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return "The user does not contain any partitions, operation cannot be performed."
 	case protos.ErrCode_ERR_CHILD_HAS_PARTITION:
 		return "The partition is currently being used by the child accounts or users of the account, operation cannot be performed. You can use a forced operation to ignore this constraint"
+	case protos.ErrCode_ERR_HAS_NO_QOS_IN_PARTITION:
+		return "The user has no QoS available for this partition to be used"
+	case protos.ErrCode_ERR_HAS_ALLOWED_QOS_IN_PARTITION:
+		return "The qos you set is not in partition's allowed qos list"
 	}
 
 	switch err_code {
@@ -123,6 +131,38 @@ func ErrMsg(err_code protos.ErrCode) string {
 	switch err_code {
 	case protos.ErrCode_ERR_UPDATE_DATABASE:
 		return "Fail to update data in database"
+	case protos.ErrCode_ERR_NO_RESOURCE:
+		return "Resource not enough for task"
+	case protos.ErrCode_ERR_INVALID_NODE_NUM:
+		return "Nodes partition not enough for task"
+	case protos.ErrCode_ERR_INVAILD_NODE_LIST:
+		return "Invalid node list"
+	case protos.ErrCode_ERR_INVAILD_EX_NODE_LIST:
+		return "Invalid exclude node list"
+	case protos.ErrCode_ERR_TIME_TIMIT_BEYOND:
+		return "Time-limit reached the user's limit"
+	case protos.ErrCode_ERR_CPUS_PER_TASK_BEYOND:
+		return "cpus-per-task reached the user's limit"
+	case protos.ErrCode_ERR_NO_ENOUGH_NODE:
+		return "Nodes num not enough for task"
+	case protos.ErrCode_ERR_BEYOND_TASK_ID:
+		return "System error occurred or the number of pending tasks exceeded maximum value"
+	case protos.ErrCode_ERR_CGROUP:
+		return "Error when manipulating cgroup"
+	case protos.ErrCode_ERR_SYSTEM_ERR:
+		return "Linux Error"
+	case protos.ErrCode_ERR_RPC_FAILURE:
+		return "RPC call failed"
+	case protos.ErrCode_ERR_GENERIC_FAILURE:
+		return "Generic failure"
+	case protos.ErrCode_ERR_NON_EXISTENT:
+		return "The object doesn't exist"
+	case protos.ErrCode_ERR_INVALID_PARAM:
+		return "Invalid Parameter"
+	case protos.ErrCode_ERR_PROTOBUF:
+		return "Error when using protobuf"
+	case protos.ErrCode_ERR_MAX_JOB_COUNT_PER_USER:
+		return "job max count is empty or exceeds the limit"
 	default:
 		break
 	}
