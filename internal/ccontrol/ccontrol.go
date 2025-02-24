@@ -260,24 +260,22 @@ func ShowReservations(reservationName string, queryAll bool) util.CraneCmdError 
 		}
 	} else {
 		for _, reservationInfo := range reply.ReservationInfoList {
-			fmt.Printf("ReservationName=%v StartTime=%v Duration=%v\n"+
-				"\tPartition=%v CranedRegex=%v\n"+
-				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
-				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
-				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n\n",
-				reservationInfo.ReservationName, reservationInfo.StartTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"),
-				reservationInfo.Duration.AsDuration().String(),
-				reservationInfo.Partition, reservationInfo.CranedRegex,
-				math.Abs(reservationInfo.ResTotal.AllocatableRes.CpuCoreLimit),
-				math.Abs(reservationInfo.ResAvail.AllocatableRes.CpuCoreLimit),
-				math.Abs(reservationInfo.ResAlloc.AllocatableRes.CpuCoreLimit),
-				formatMemToMB(reservationInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
-				formatMemToMB(reservationInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
-				formatMemToMB(reservationInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
-				formatDeviceMap(reservationInfo.ResTotal.GetDeviceMap()),
-				formatDeviceMap(reservationInfo.ResAvail.GetDeviceMap()),
-				formatDeviceMap(reservationInfo.ResAlloc.GetDeviceMap()),
-			)
+			str := fmt.Sprintf("ReservationName=%v StartTime=%v Duration=%v\n", reservationInfo.ReservationName, reservationInfo.StartTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"), reservationInfo.Duration.AsDuration().String())
+			if reservationInfo.Partition != "" && reservationInfo.CranedRegex != "" {
+				str += fmt.Sprintf("Partition=%v CranedRegex=%v\n", reservationInfo.Partition, reservationInfo.CranedRegex)
+			} else if reservationInfo.Partition != "" {
+				str += fmt.Sprintf("Partition=%v\n", reservationInfo.Partition)
+			} else if reservationInfo.CranedRegex != "" {
+				str += fmt.Sprintf("CranedRegex=%v\n", reservationInfo.CranedRegex)
+			}
+			str += fmt.Sprintf("AccountList=%v\n", reservationInfo.AccountList)
+			if len(reservationInfo.UsersList) > 0 {
+				str += fmt.Sprintf("UsersList=%v\n", reservationInfo.UsersList)
+			}
+			str += fmt.Sprintf("TotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n", math.Abs(reservationInfo.ResTotal.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAvail.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAlloc.AllocatableRes.CpuCoreLimit))
+			str += fmt.Sprintf("TotalMem=%s AvailMem=%s AllocMem=%s\n", formatMemToMB(reservationInfo.ResTotal.AllocatableRes.MemoryLimitBytes), formatMemToMB(reservationInfo.ResAvail.AllocatableRes.MemoryLimitBytes), formatMemToMB(reservationInfo.ResAlloc.AllocatableRes.MemoryLimitBytes))
+			str += fmt.Sprintf("TotalGres=%s AvailGres=%s AllocGres=%s\n", formatDeviceMap(reservationInfo.ResTotal.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAvail.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAlloc.GetDeviceMap()))
+			fmt.Println(str)
 		}
 	}
 	return util.ErrorSuccess
