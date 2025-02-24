@@ -444,6 +444,9 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+	if FlagReservation != "" {
+		task.Reservation = FlagReservation
+	}
 
 	// Set total limit of cpu cores
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)

@@ -58,6 +58,8 @@ var (
 	FlagConfigFilePath string
 	FlagJson           bool
 
+	FlagReservation string
+
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
 		Short:   "Submit batch job",
@@ -156,4 +158,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 }

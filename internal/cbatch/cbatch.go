@@ -156,6 +156,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.ExtraAttr = extra
+		case "-r", "--reservation":
+			task.Reservation = arg.val
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -254,6 +256,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			return false, nil
 		}
 		task.ExtraAttr = extra
+	}
+	if FlagReservation != "" {
+		task.Reservation = FlagReservation
 	}
 
 	// Set total limit of cpu cores
