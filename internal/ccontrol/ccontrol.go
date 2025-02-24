@@ -732,6 +732,15 @@ func CreateReservation() util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s created successfully.\n", FlagReservationName)
 	} else {
@@ -750,6 +759,15 @@ func DeleteReservation(ReservationName string) util.CraneCmdError {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete reservation")
 		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
 	}
 
 	if reply.GetOk() {
