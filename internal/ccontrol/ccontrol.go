@@ -241,14 +241,14 @@ func ShowReservations(reservationName string, queryAll bool) util.CraneCmdError 
 		return util.ErrorNetwork
 	}
 
-	if !reply.GetOk() {
-		log.Errorf("Failed to retrive the information of reservation %s: %s", reservationName, reply.GetReason())
-		return util.ErrorBackend
-	}
-
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		return util.ErrorSuccess
+	}
+
+	if !reply.GetOk() {
+		log.Errorf("Failed to retrive the information of reservation %s: %s", reservationName, reply.GetReason())
+		return util.ErrorBackend
 	}
 
 	if len(reply.ReservationInfoList) == 0 {
