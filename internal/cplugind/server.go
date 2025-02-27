@@ -119,3 +119,17 @@ func (pd *PluginDaemon) DestroyCgroupHook(ctx context.Context, req *protos.Destr
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) InsertEventHook(ctx context.Context, req *protos.InsertEventHookRequest) (*protos.InsertEventHookReply, error) {
+	log.Tracef("InsertEventHook request received: %v", req)
+	reply := &protos.InsertEventHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).InsertEventHook)
+	}
+
+	c := api.NewContext(ctx, req, api.InsertEventHook, &hs)
+	c.Start()
+
+	return reply, nil
+}

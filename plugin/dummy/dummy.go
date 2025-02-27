@@ -102,6 +102,18 @@ func (dp DummyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	log.Tracef("DestroyCgroupHookReq: \n%v", req.String())
 }
 
+func (dp DummyPlugin) InsertEventHook(ctx *api.PluginContext) {
+	log.Infoln("InsertEventHook is called!")
+
+	req, ok := ctx.Request().(*protos.InsertEventHookRequest)
+	if !ok {
+		log.Errorln("Invalid request type, expected InsertEventHookRequest.")
+		return
+	}
+
+	log.Tracef(" InsetEventHookReq: \n%v", req.String())
+}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")

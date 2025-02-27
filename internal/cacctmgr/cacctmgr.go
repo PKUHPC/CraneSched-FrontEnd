@@ -28,20 +28,47 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+	"encoding/json"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/xlab/treeprint"
+	"gopkg.in/yaml.v3"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 )
 
 var (
 	userUid uint32
 	stub    protos.CraneCtldClient
+	dbConfig *util.InfluxDbConfig
+	systemInfo *util.SystemInfo
 )
 
 type ServerAddr struct {
 	ControlMachine      string `yaml:"ControlMachine"`
 	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+}
+
+type ResourceUsageRecord struct {
+	ClusterName      string
+	NodeName         string
+	Uid              uint64
+	StartTime        int64
+	EndTime          int64
+	State            string
+	Reason           string
+	Timestamp        time.Time
+}
+
+type EventInfoJson struct {
+	ClusterName         string                    `json:"cluster_name"`
+	NodeName            string                    `json:"node_name"`
+	Uid                 uint64                    `json:"uid"`
+	StartTime           string                    `json:"start_time"`
+	EndTime             string                    `json:"end_time"`
+	State               string                    `json:"state"`
+	Reason              string                    `json:"reason"`
 }
 
 func PrintAllUsers(userList []*protos.UserInfo) {
@@ -784,4 +811,297 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 		fmt.Println(util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
+}
+
+// Extracts the InfluxDB configuration from the specified YAML configuration files
+func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmdError) {
+	if !config.Plugin.Enabled {
+		log.Errorf("Plugin is not enabled")
+		return nil, util.ErrorCmdArg
+	}
+
+	var eventConfigPath string
+	for _, plugin := range config.Plugin.Plugins {
+		if plugin.Name == "event" {
+			eventConfigPath = plugin.Config
+			break
+		}
+	}
+
+	if eventConfigPath == "" {
+		log.Errorf("event plugin not found")
+		return nil, util.ErrorCmdArg
+	}
+
+	confFile, err := os.ReadFile(eventConfigPath)
+	if err != nil {
+		log.Errorf("Failed to read config file %s: %v.", eventConfigPath, err)
+		return nil, util.ErrorCmdArg
+	}
+
+	dbConf := &struct {
+		Database *util.InfluxDbConfig `yaml:"Database"`
+	}{}
+	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
+		log.Errorf("Failed to parse YAML config file: %v", err)
+		return nil, util.ErrorCmdArg
+	}
+	if dbConf.Database == nil {
+		log.Errorf("Database section not found in YAML")
+		return nil, util.ErrorCmdArg
+	}
+
+	return dbConf.Database, util.ErrorSuccess
+}
+
+func MissingElements(NodeNameList []string, nodes []string) []string {
+    nodeNameSet := make(map[string]struct{})
+    for _, name := range NodeNameList {
+        nodeNameSet[name] = struct{}{}
+    }
+
+    missing := []string{}
+    for _, node := range nodes {
+        if _, exists := nodeNameSet[node]; !exists {
+            missing = append(missing, node)
+        }
+    }
+
+    return missing
+}
+
+func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
+	if len(clusterName) == 0 {
+		return nil, fmt.Errorf("clusterName empty")
+	}
+
+	if len(nodes) > 0 {
+		missingList := MissingElements(systemInfo.NodeNameList, nodes)
+		if len(missingList) > 0 {
+			return nil, fmt.Errorf("input nodes: %v error", missingList)
+		}
+	} else {
+		nodes = systemInfo.NodeNameList
+	}
+
+	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
+	defer client.Close()
+
+	ctx := context.Background()
+	if pong, err := client.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
+	} else if !pong {
+		return nil, fmt.Errorf("failed to ping InfluxDB: not pong")
+	}
+
+	nodeNameFilters := make([]string, len(nodes))
+	for i, nodeName := range nodes {
+		nodeNameFilters[i] = fmt.Sprintf(`r["node_name"] == "%s"`, nodeName)
+	}
+	nodeNameCondition := strings.Join(nodeNameFilters, " or ")
+
+	clusterNameCondition := fmt.Sprintf(`r["cluster_name"] == "%s"`, clusterName)
+
+	fluxQuery := fmt.Sprintf(`
+	from(bucket: "%s")
+	|> range(start: 0)
+	|> filter(fn: (r) => 
+	    r["_measurement"] == "%s" and 
+		(r["_field"] == "state" or r["_field"] == "uid" or 
+		r["_field"] == "reason" or r["_field"] == "start_time") and
+		(%s) and (%s))`, eventConfig.Bucket,
+		eventConfig.Measurement, nodeNameCondition, clusterNameCondition)
+
+	queryAPI := client.QueryAPI(eventConfig.Org)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := queryAPI.Query(ctx, fluxQuery)
+	if err != nil {
+		return nil, fmt.Errorf("execute query failed: %w", err)
+	}
+
+	// Parse and aggregate the query results
+	dataMap := make(map[string]*ResourceUsageRecord)
+	for result.Next() {
+		record := result.Record()
+	
+		clusterName := fmt.Sprintf("%v", record.ValueByKey("cluster_name"))
+		nodeName := fmt.Sprintf("%v", record.ValueByKey("node_name"))
+		field := fmt.Sprintf("%v", record.Field())
+		timestamp := record.Time()
+	
+		key := fmt.Sprintf("%s:%s:%s", clusterName, nodeName, timestamp)
+		if _, exists := dataMap[key]; !exists {
+			dataMap[key] = &ResourceUsageRecord {
+				ClusterName: clusterName,
+				NodeName:    nodeName,
+				Timestamp:   timestamp,
+			}
+		}
+	
+		switch field {
+		case "uid":
+			if uid, ok := record.Value().(uint64); ok {
+				dataMap[key].Uid = uid
+			}
+		case "start_time":
+			if startTime, ok := record.Value().(int64); ok {
+				dataMap[key].StartTime = startTime
+			}
+		case "state":
+			if state, ok := record.Value().(int64); ok {
+				dataMap[key].State = stateToString(state)
+			}
+		case "reason":
+			if reason, ok := record.Value().(string); ok {
+				dataMap[key].Reason = reason
+			}
+		}
+	}	
+	
+	if result.Err() != nil {
+		return nil, fmt.Errorf("query parsing error: %w", result.Err())
+	}
+
+	var records []*ResourceUsageRecord
+	for _, record := range dataMap {
+		records = append(records, record)
+	}
+	
+	if len(records) == 0 {
+		return nil, fmt.Errorf("no matching data available")
+	}
+
+	sort.SliceStable(records, func(i, j int) bool {
+		return records[i].Timestamp.Before(records[j].Timestamp)
+	})
+	
+	return records, nil
+}
+
+
+func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
+	nodeNames := []string{} 
+	var ok bool
+	if len(nodeRegex) != 0 {
+		nodeNames, ok = util.ParseHostList(nodeRegex)
+		if !ok {
+			log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
+			return util.ErrorCmdArg
+		}
+	}
+
+	// Query Resource Usage Records in InfluxDB
+	result, err := QueryInfluxDbDataByTags(dbConfig, systemInfo.ClusterName, nodeNames)
+	if err != nil {
+		log.Errorf("Failed to query job info from InfluxDB: %v", err)
+		return util.ErrorBackend
+	}
+
+	filteredRecords, err := SortRecords(result)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return util.ErrorCmdArg
+	}
+
+
+	if FlagJson {
+		EventjsonList := []*EventInfoJson{}
+		for _, record := range filteredRecords {
+			startTime := formatNanoTime(record.StartTime)
+			endTime := formatNanoTime(record.EndTime)
+			jsonEvent := &EventInfoJson{
+				ClusterName: record.ClusterName,
+				NodeName: record.NodeName,
+				Uid:record.Uid,
+				StartTime:startTime,
+				EndTime:endTime,
+				State:record.State,
+				Reason:record.Reason,
+			}
+			EventjsonList = append(EventjsonList, jsonEvent)
+		}
+		jsonData, err := json.MarshalIndent(EventjsonList, "", "  ")
+		if err != nil {
+			log.Errorf("Error marshalling to JSON: %v", err)
+			return util.ErrorBackend
+		}
+		fmt.Println(string(jsonData))
+		return util.ErrorSuccess
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetBorder(true)
+	table.SetHeader([]string{"Node", "StartTime", "EndTime", "State", "Reason", "Uid"})
+
+	for _, record := range filteredRecords {
+		startTime := formatNanoTime(record.StartTime)
+		endTime := formatNanoTime(record.EndTime)
+		table.Append([]string{
+			record.NodeName,
+			startTime,
+			endTime,
+			record.State,
+			record.Reason,
+			strconv.FormatUint(record.Uid, 10),
+		})
+	}
+
+	table.Render()
+	return util.ErrorSuccess
+}
+
+func formatNanoTime(ns int64) string {
+	if ns == 0 || time.Unix(0, int64(ns)).Year() == 1970 {
+		return "Unknown"
+	}
+	return time.Unix(0, int64(ns)).In(time.Local).Format("2006-01-02 15:04:05")
+}
+
+// stateToString converts a state value to a readable string
+func stateToString(state int64) string {
+	stateMap := map[int64]string{
+		0: "Resume",
+		1: "Drain",
+	}
+	if str, exists := stateMap[state]; exists {
+		return str
+	}
+	return "Unknown"
+}
+
+func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error) {
+	if len(records) == 0 {
+		return nil, fmt.Errorf("records list is empty")
+	}
+
+	// Sort the records by NodeName in ascending order
+	sort.SliceStable(records, func(i, j int) bool {
+		return records[i].NodeName < records[j].NodeName
+	})
+
+	drainMap := make(map[string]*ResourceUsageRecord)
+	var filteredRecords []*ResourceUsageRecord
+	for _, currentRecord := range records {
+		if currentRecord.State == "Resume" {
+			if previousRecord, exists := drainMap[currentRecord.NodeName]; exists {
+				previousRecord.EndTime = currentRecord.StartTime
+				continue
+			}
+		} else if currentRecord.State == "Drain" {
+			drainMap[currentRecord.NodeName] = currentRecord
+		}
+
+		filteredRecords = append(filteredRecords, currentRecord)
+	}
+
+	if FlagNumLimit > 0 && len(filteredRecords) > int(FlagNumLimit) {
+		sort.SliceStable(filteredRecords, func(i, j int) bool {
+			return filteredRecords[i].StartTime < filteredRecords[j].StartTime
+		})
+		filteredRecords = filteredRecords[len(filteredRecords) - int(FlagNumLimit):]
+	}
+
+	return filteredRecords, nil
 }

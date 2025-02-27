@@ -23,11 +23,14 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"os"
 	"strings"
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
+	ClusterName         string `yaml:"ClusterName"`
 	ControlMachine      string `yaml:"ControlMachine"`
 	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+	CranedNodeList      []ConfigNodesList `yaml:"Nodes"`
 
 	UseTls             bool   `yaml:"UseTls"`
 	ServerCertFilePath string `yaml:"ServerCertFilePath"`
@@ -45,6 +48,27 @@ type PluginConfig struct {
 	SockPath string           `yaml:"PlugindSockPath"`
 	LogLevel string           `yaml:"PlugindDebugLevel"`
 	Plugins  []api.PluginMeta `yaml:"Plugins"`
+}
+
+// InfluxDB Config represents the structure of the database configuration
+type InfluxDbConfig struct {
+	Username    string `yaml:"Username"`
+	Bucket      string `yaml:"Bucket"`
+	Org         string `yaml:"Org"`
+	Token       string `yaml:"Token"`
+	Measurement string `yaml:"Measurement"`
+	Url         string `yaml:"Url"`
+}
+
+type ConfigNodesList struct {
+    Name   string `yaml:"name"`
+    CPU    int    `yaml:"cpu"`
+    Memory string `yaml:"memory"`
+}
+
+type SystemInfo struct {
+	ClusterName      string
+	NodeNameList     []string
 }
 
 // Path = BaseDir + Dir + Name
@@ -130,4 +154,32 @@ func SetPropagatedEnviron(task *protos.TaskToCtld) {
 			}
 		}
 	}
+}
+
+func GetSystemInfo(config *Config) (*SystemInfo, CraneCmdError) {
+    systemInfo := &SystemInfo{
+        NodeNameList: []string{},
+    }
+	systemInfo.ClusterName = config.ClusterName
+	if len(config.CranedNodeList) == 0 {
+		log.Errorf("Nodes in config yaml file err\n")
+		return nil, ErrorCmdArg
+	}
+    
+	nodeNameSet := make(map[string]struct{})
+    for i := 0; i < len(config.CranedNodeList); i++ {
+        nodeNames, ok := ParseHostList(config.CranedNodeList[i].Name)
+        if !ok || len(nodeNames) == 0 {
+            log.Errorf("Invalid node pattern: %s.\n", config.CranedNodeList[i].Name)
+            continue
+        }
+
+        for _, nodeName := range nodeNames {
+            if _, exists := nodeNameSet[nodeName]; !exists {
+                systemInfo.NodeNameList = append(systemInfo.NodeNameList, nodeName)
+                nodeNameSet[nodeName] = struct{}{}
+            }
+        }
+    }
+    return systemInfo, ErrorSuccess
 }
