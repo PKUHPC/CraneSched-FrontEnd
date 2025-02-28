@@ -648,9 +648,19 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 }
 
 func ModifyPartitionAllowedOrDeniedAccounts(partition string, isModifyAllowed bool, accounts string) util.CraneCmdError {
-	accountList, _ := util.ParseStringParamList(accounts, ",")
+	var accountList []string
 
-	req := protos.ModifyPartitionAllowedOrDeniedAccountsRequest{Uid: userUid, PartitionName: partition, IsModifyAllowed: isModifyAllowed, Accounts: accountList}
+	if accounts != "" && accounts != "ALL" && accounts != "all" {
+		accountList, _ = util.ParseStringParamList(accounts, ",")
+	}
+
+	req := protos.ModifyPartitionAllowedOrDeniedAccountsRequest{
+		Uid:             userUid,
+		PartitionName:   partition,
+		IsModifyAllowed: isModifyAllowed,
+		Accounts:        accountList,
+	}
+
 	reply, err := stub.ModifyPartitionAllowedOrDeniedAccounts(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
