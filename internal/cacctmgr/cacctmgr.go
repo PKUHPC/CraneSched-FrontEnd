@@ -1096,11 +1096,13 @@ func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error)
 		filteredRecords = append(filteredRecords, currentRecord)
 	}
 
+	// Sort the records by StartTime
+	sort.SliceStable(filteredRecords, func(i, j int) bool {
+		return filteredRecords[i].StartTime > filteredRecords[j].StartTime
+	})
+
 	if FlagNumLimit > 0 && len(filteredRecords) > int(FlagNumLimit) {
-		sort.SliceStable(filteredRecords, func(i, j int) bool {
-			return filteredRecords[i].StartTime < filteredRecords[j].StartTime
-		})
-		filteredRecords = filteredRecords[len(filteredRecords) - int(FlagNumLimit):]
+		filteredRecords = filteredRecords[:FlagNumLimit]
 	}
 
 	return filteredRecords, nil
