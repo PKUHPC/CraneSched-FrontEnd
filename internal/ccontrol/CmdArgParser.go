@@ -178,11 +178,11 @@ var (
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("allowed-accounts") {
-				if err := ModifyPartitionAllowedOrDeniedAccounts(args[0], true, FlagAllowedAccounts); err != util.ErrorSuccess {
+				if err := ModifyPartitionAcl(args[0], true, FlagAllowedAccounts); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			} else if cmd.Flags().Changed("denied-accounts") {
-				if err := ModifyPartitionAllowedOrDeniedAccounts(args[0], false, FlagDeniedAccounts); err != util.ErrorSuccess {
+				if err := ModifyPartitionAcl(args[0], false, FlagDeniedAccounts); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 				log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
