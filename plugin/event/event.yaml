@@ -1,4 +1,4 @@
-# Configuration file for the monitor plugin
+# Configuration file for the event plugin
 
 # InfluxDB Configuration
 Database:
@@ -8,8 +8,3 @@ Database:
   Token: "your_token"
   Measurement: "ResourceUsage"
   Url: "http://localhost:8086"
-
-# Monitoring interval in milliseconds
-Interval: 1000
-# Buffer size for writing data to InfluxDB
-BufferSize: 32

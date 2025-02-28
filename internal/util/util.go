@@ -160,13 +160,13 @@ func GetSystemInfo(config *Config) (*SystemInfo, CraneCmdError) {
     systemInfo := &SystemInfo{
         NodeNameList: []string{},
     }
-	systemInfo.ClusterName = config.ClusterName
-	if len(config.CranedNodeList) == 0 {
-		log.Errorf("Nodes in config yaml file err\n")
-		return nil, ErrorCmdArg
-	}
+    systemInfo.ClusterName = config.ClusterName
+    if len(config.CranedNodeList) == 0 {
+        log.Errorf("Nodes in config yaml file err\n")
+        return nil, ErrorCmdArg
+    }
     
-	nodeNameSet := make(map[string]struct{})
+    nodeNameSet := make(map[string]struct{})
     for i := 0; i < len(config.CranedNodeList); i++ {
         nodeNames, ok := ParseHostList(config.CranedNodeList[i].Name)
         if !ok || len(nodeNames) == 0 {

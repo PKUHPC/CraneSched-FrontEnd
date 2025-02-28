@@ -340,7 +340,7 @@ var (
 		Use:           "show",
 		Aliases:       []string{"search", "query", "find"},
 		SilenceErrors: true,
-		Short:         "Show or find information of entities",
+		Short:         "Show or find a specific entity",
 		Long:          "",
 	}
 	showAccountCmd = &cobra.Command{

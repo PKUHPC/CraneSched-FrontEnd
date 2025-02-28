@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -29,13 +30,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"encoding/json"
 
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/xlab/treeprint"
 	"gopkg.in/yaml.v3"
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 )
 
 var (
@@ -951,7 +951,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 			}
 		case "state":
 			if state, ok := record.Value().(int64); ok {
-				dataMap[key].State = stateToString(state)
+				dataMap[key].State = StateToString(state)
 			}
 		case "reason":
 			if reason, ok := record.Value().(string); ok {
@@ -1007,11 +1007,11 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 
 
 	if FlagJson {
-		EventjsonList := []*EventInfoJson{}
+		eventJsonList := []*EventInfoJson{}
 		for _, record := range filteredRecords {
-			startTime := formatNanoTime(record.StartTime)
-			endTime := formatNanoTime(record.EndTime)
-			jsonEvent := &EventInfoJson{
+			startTime := FormatNanoTime(record.StartTime)
+			endTime := FormatNanoTime(record.EndTime)
+			eventJson := &EventInfoJson{
 				ClusterName: record.ClusterName,
 				NodeName: record.NodeName,
 				Uid:record.Uid,
@@ -1020,9 +1020,9 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 				State:record.State,
 				Reason:record.Reason,
 			}
-			EventjsonList = append(EventjsonList, jsonEvent)
+			eventJsonList = append(eventJsonList, eventJson)
 		}
-		jsonData, err := json.MarshalIndent(EventjsonList, "", "  ")
+		jsonData, err := json.MarshalIndent(eventJsonList, "", "  ")
 		if err != nil {
 			log.Errorf("Error marshalling to JSON: %v", err)
 			return util.ErrorBackend
@@ -1036,8 +1036,8 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 	table.SetHeader([]string{"Node", "StartTime", "EndTime", "State", "Reason", "Uid"})
 
 	for _, record := range filteredRecords {
-		startTime := formatNanoTime(record.StartTime)
-		endTime := formatNanoTime(record.EndTime)
+		startTime := FormatNanoTime(record.StartTime)
+		endTime := FormatNanoTime(record.EndTime)
 		table.Append([]string{
 			record.NodeName,
 			startTime,
@@ -1052,15 +1052,15 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func formatNanoTime(ns int64) string {
+func FormatNanoTime(ns int64) string {
 	if ns == 0 || time.Unix(0, int64(ns)).Year() == 1970 {
 		return "Unknown"
 	}
 	return time.Unix(0, int64(ns)).In(time.Local).Format("2006-01-02 15:04:05")
 }
 
-// stateToString converts a state value to a readable string
-func stateToString(state int64) string {
+// StateToString converts a state value to a readable string
+func StateToString(state int64) string {
 	stateMap := map[int64]string{
 		0: "Resume",
 		1: "Drain",
@@ -1096,7 +1096,7 @@ func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error)
 		filteredRecords = append(filteredRecords, currentRecord)
 	}
 
-	// Sort the records by StartTime
+	// Sort the filteredRecords by StartTime
 	sort.SliceStable(filteredRecords, func(i, j int) bool {
 		return filteredRecords[i].StartTime > filteredRecords[j].StartTime
 	})

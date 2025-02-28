@@ -111,7 +111,7 @@ func (dp DummyPlugin) InsertEventHook(ctx *api.PluginContext) {
 		return
 	}
 
-	log.Tracef(" InsetEventHookReq: \n%v", req.String())
+	log.Tracef("InsetEventHookReq: \n%v", req.String())
 }
 
 func main() {

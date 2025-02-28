@@ -51,7 +51,6 @@ type config struct {
 type EventPlugin struct {
 	config
 	client   influxdb2.Client
-	//eventMutex sync.RWMutex
 }
 
 type EventInfo struct {
