@@ -47,8 +47,8 @@ func GetX11Display() (string, uint32, error) {
 }
 
 func GetX11AuthCookie() (string, error) {
-	const cookiePattern = `(?m)[a-zA-Z0-9./_-]+:[0-9]+\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
-	const wildcardPattern = `(?m)#ffff#[0-9a-fA-F./_-]+#:[0-9]+\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
+	const cookiePattern = `(?m)[a-zA-Z0-9./_-]+:[0-9]*\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
+	const wildcardPattern = `(?m)#ffff#[0-9a-fA-F./_-]+#:[0-9]*\s+MIT-MAGIC-COOKIE-1\s+([0-9a-fA-F]+)$`
 
 	display := os.Getenv("DISPLAY")
 	if display == "" {
