@@ -332,7 +332,7 @@ message TrimmedPartitionInfo {
 
 enum ErrCode {
   SUCCESS = 0;  // Success
-  
+
   ERR_INVALID_UID = 1;   // Invalid UID passed
   ERR_INVALID_OP_USER = 2; // Invalid operation user
   ERR_INVALID_USER = 3;  // Invalid user
@@ -412,7 +412,6 @@ enum ErrCode {
 
   ERR_MAX_JOB_COUNT_PER_USER = 65;
   ERR_USER_NO_PRIVILEGE = 66;
-  __ERR_CODE_COUNT = 67;
 }
 
 enum EntityType {
