@@ -95,14 +95,14 @@ func GetX11AuthCookie() (string, error) {
 //
 // It will return an error if the DISPLAY environment variable is not set
 // or cannot be parsed correctly.
-func GetX11DisplayEx() (target string, port uint16, err error) {
+func GetX11DisplayEx(noUnix bool) (target string, port uint16, err error) {
 	display := os.Getenv("DISPLAY")
 	if display == "" {
 		return "", 0, errors.New("no DISPLAY environment variable set, cannot set up X11 forwarding")
 	}
 
 	// Handle UNIX socket paths (e.g., ":0", ":0.0")
-	if strings.HasPrefix(display, ":") {
+	if !noUnix && strings.HasPrefix(display, ":") {
 		// Extract the display number (and ignore screen number, if present)
 		periodIndex := strings.Index(display, ".")
 		if periodIndex != -1 {

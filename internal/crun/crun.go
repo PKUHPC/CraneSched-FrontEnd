@@ -893,13 +893,13 @@ func MainCrun(args []string) util.CraneCmdError {
 	iaMeta.Pty = FlagPty
 
 	if FlagX11 {
-		target, port, err := util.GetX11DisplayEx()
+		target, port, err := util.GetX11DisplayEx(!FlagX11Fwd)
 		if err != nil {
 			log.Errorf("Error in reading X11 $DISPLAY: %v", err)
 			return util.ErrorSystem
 		}
 
-		if target == "" || target == "localhost" {
+		if !FlagX11Fwd && (target == "" || target == "localhost") {
 			if target, err = os.Hostname(); err != nil {
 				log.Errorf("failed to get hostname: %v", err)
 				return util.ErrorSystem
