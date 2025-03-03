@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"sync"
 	"time"
 
 	"CraneFrontEnd/plugin/energy/pkg/config"
@@ -20,6 +21,9 @@ type NodeMonitor struct {
 	ipmiReader    *ipmi.IPMIReader
 	gpuReader     *gpu.Reader
 	sysLoadReader *sysload.SystemLoadReader
+
+	taskCount   uint32
+	taskCountMu sync.Mutex
 
 	stopCh chan struct{}
 }
@@ -91,6 +95,8 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		case <-ticker.C:
 			data := metricsCollector()
 			r.broadcastNodeData(data)
+
+			data.TaskCount = r.GetTaskCount()
 			if err := db.GetInstance().SaveNodeEnergy(data); err != nil {
 				log.Errorf("Error saving node energy data: %v", err)
 			}
@@ -114,6 +120,22 @@ func (r *NodeMonitor) broadcastNodeData(data *types.NodeData) {
 		}
 		return true
 	})
+}
+
+func (r *NodeMonitor) UpdateTaskCount(increment bool) {
+	r.taskCountMu.Lock()
+	defer r.taskCountMu.Unlock()
+	if increment {
+		r.taskCount++
+	} else {
+		r.taskCount--
+	}
+}
+
+func (r *NodeMonitor) GetTaskCount() uint32 {
+	r.taskCountMu.Lock()
+	defer r.taskCountMu.Unlock()
+	return r.taskCount
 }
 
 func (r *NodeMonitor) Close() {
