@@ -102,12 +102,12 @@ func (dp DummyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	log.Tracef("DestroyCgroupHookReq: \n%v", req.String())
 }
 
-func (dp DummyPlugin) InsertEventHook(ctx *api.PluginContext) {
-	log.Infoln("InsertEventHook is called!")
+func (dp DummyPlugin) NodeEventHook(ctx *api.PluginContext) {
+	log.Infoln("NodeEventHook is called!")
 
-	req, ok := ctx.Request().(*protos.InsertEventHookRequest)
+	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected InsertEventHookRequest.")
+		log.Errorln("Invalid request type, expected NodeEventHook.")
 		return
 	}
 

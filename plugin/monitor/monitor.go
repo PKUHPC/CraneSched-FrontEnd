@@ -91,7 +91,7 @@ type MonitorPlugin struct {
 // Dummy implementations
 func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {}
 func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)   {}
-func (dp *MonitorPlugin) InsertEventHook(ctx *api.PluginContext) {}
+func (dp *MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {}
 
 func getProcCount(cgroupPath string) (uint64, error) {
 	content, err := os.ReadFile(cgroupPath)

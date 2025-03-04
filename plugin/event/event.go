@@ -53,15 +53,6 @@ type EventPlugin struct {
 	client   influxdb2.Client
 }
 
-type EventInfo struct {
-	StartTime    time.Time
-	EndTime      time.Time
-	NodeName     string
-	ClusterName  string
-	Reason       string
-	State        protos.CranedControlState
-	Uid          uint32
-}
 
 func (p *EventPlugin) Name() string {
 	return "Event"
@@ -113,10 +104,10 @@ func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	log.Infoln("DestroyCgroupHook is called!")
 }
 
-func (p EventPlugin) InsertEventHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.InsertEventHookRequest)
+func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected InsertEventHook.")
+		log.Errorln("Invalid request type, expected NodeEventHook.")
 		return
 	}
 

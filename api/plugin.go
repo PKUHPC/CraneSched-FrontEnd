@@ -25,7 +25,7 @@ const (
 	EndHook
 	CreateCgroupHook
 	DestroyCgroupHook
-	InsertEventHook
+	NodeEventHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -61,5 +61,5 @@ type Plugin interface {
 	EndHook(ctx *PluginContext)
 	CreateCgroupHook(ctx *PluginContext)
 	DestroyCgroupHook(ctx *PluginContext)
-	InsertEventHook(ctx *PluginContext)
+	NodeEventHook(ctx *PluginContext)
 }

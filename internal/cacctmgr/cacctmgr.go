@@ -39,10 +39,10 @@ import (
 )
 
 var (
-	userUid uint32
-	stub    protos.CraneCtldClient
-	dbConfig *util.InfluxDbConfig
-	systemInfo *util.SystemInfo
+	userUid       uint32
+	stub          protos.CraneCtldClient
+	config        *util.Config
+	dbConfig      *util.InfluxDbConfig
 )
 
 type ServerAddr struct {
@@ -854,10 +854,10 @@ func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmd
 	return dbConf.Database, util.ErrorSuccess
 }
 
-func MissingElements(NodeNameList []string, nodes []string) []string {
+func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) []string {
     nodeNameSet := make(map[string]struct{})
-    for _, name := range NodeNameList {
-        nodeNameSet[name] = struct{}{}
+    for _, configNode := range ConfigNodesList {
+        nodeNameSet[configNode.Name] = struct{}{}
     }
 
     missing := []string{}
@@ -876,12 +876,16 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	}
 
 	if len(nodes) > 0 {
-		missingList := MissingElements(systemInfo.NodeNameList, nodes)
+		missingList := MissingElements(config.CranedNodeList, nodes)
 		if len(missingList) > 0 {
 			return nil, fmt.Errorf("input nodes: %v error", missingList)
 		}
 	} else {
-		nodes = systemInfo.NodeNameList
+		var err error
+		nodes, err = util.GetValidNodeList(config.CranedNodeList)
+		if err!= nil {
+			return nil, err
+		}
 	}
 
 	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
@@ -951,7 +955,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 			}
 		case "state":
 			if state, ok := record.Value().(int64); ok {
-				dataMap[key].State = StateToString(state)
+				dataMap[key].State = util.StateToString(state)
 			}
 		case "reason":
 			if reason, ok := record.Value().(string); ok {
@@ -993,7 +997,7 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 	}
 
 	// Query Resource Usage Records in InfluxDB
-	result, err := QueryInfluxDbDataByTags(dbConfig, systemInfo.ClusterName, nodeNames)
+	result, err := QueryInfluxDbDataByTags(dbConfig, config.ClusterName, nodeNames)
 	if err != nil {
 		log.Errorf("Failed to query job info from InfluxDB: %v", err)
 		return util.ErrorBackend
@@ -1059,17 +1063,6 @@ func FormatNanoTime(ns int64) string {
 	return time.Unix(0, int64(ns)).In(time.Local).Format("2006-01-02 15:04:05")
 }
 
-// StateToString converts a state value to a readable string
-func StateToString(state int64) string {
-	stateMap := map[int64]string{
-		0: "Resume",
-		1: "Drain",
-	}
-	if str, exists := stateMap[state]; exists {
-		return str
-	}
-	return "Unknown"
-}
 
 func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error) {
 	if len(records) == 0 {

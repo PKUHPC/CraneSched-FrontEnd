@@ -121,7 +121,7 @@ func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {}
 
 func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {}
 
-func (p EnergyPlugin) InsertEventHook(ctx *api.PluginContext) {}
+func (p EnergyPlugin) NodeEventHook(ctx *api.PluginContext) {}
 
 func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)

@@ -74,18 +74,9 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// The PersistentPreRun functions will be inherited and executed by children (sub-commands)
 			// if they do not declare their own.
-			var err util.CraneCmdError
 			util.DetectNetworkProxy()
-			config := util.ParseConfig(FlagConfigFilePath)
+			config = util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-			dbConfig, err = GetInfluxDbConfig(config)
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-			systemInfo, err = util.GetSystemInfo(config)
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
 			userUid = uint32(os.Getuid())
 		},
 	}
@@ -399,7 +390,7 @@ var (
 	
 	showEventCmd = &cobra.Command{
 		Use:   "event",
-		Short: "Display event table",
+		Short: "Display the node event table",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("max-lines") {
@@ -407,6 +398,11 @@ var (
 					log.Error("Output line number limit must be greater than 0.")
 					os.Exit(util.ErrorCmdArg)
 				}
+			}
+			var err util.CraneCmdError
+			dbConfig, err = GetInfluxDbConfig(config)
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 			QueryEventInfoByNodes(FlagNodeList)
 		},
