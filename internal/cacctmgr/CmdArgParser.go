@@ -337,7 +337,7 @@ var (
 	showAccountCmd = &cobra.Command{
 		Use:     "account",
 		Aliases: []string{"accounts"},
-		Short:   "Find and display information of account",
+		Short:   "Display information about specific account entities",
 		Long:    "",
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -355,7 +355,7 @@ var (
 	showUserCmd = &cobra.Command{
 		Use:     "user",
 		Aliases: []string{"users"},
-		Short:   "Find and display information of user",
+		Short:   "Display information about specific user entities",
 		Long:    "",
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -372,7 +372,7 @@ var (
 	}
 	showQosCmd = &cobra.Command{
 		Use:   "qos [flags] name",
-		Short: "Find and display information of a specific QoS",
+		Short: "Display information about specific QoS entities",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -399,11 +399,14 @@ var (
 					os.Exit(util.ErrorCmdArg)
 				}
 			}
+
 			var err util.CraneCmdError
-			dbConfig, err = GetInfluxDbConfig(config)
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			dbConfigInitOnce.Do(func() {
+				dbConfig, err = GetInfluxDbConfig(config)
+				if err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			})
 			QueryEventInfoByNodes(FlagNodeList)
 		},
 	}

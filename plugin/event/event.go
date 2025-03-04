@@ -132,11 +132,15 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 			"cluster_name":   event.ClusterName,
 			"node_name":    event.NodeName,
 		}
+		reason := event.Reason
+		if reason == "" {
+			reason = " "
+		}
 		fields := map[string]interface{}{
 			"uid":          event.Uid,
 			"start_time":   event.StartTime.AsTime().UnixNano(),
 			"state":        int32(event.State),
-			"reason":       event.Reason,
+			"reason":       reason,
 		}
 		
 		point := influxdb2.NewPoint(dbConfig.Measurement, tags, fields, time.Now())

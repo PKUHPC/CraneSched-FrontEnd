@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"sync"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/olekukonko/tablewriter"
@@ -43,6 +44,7 @@ var (
 	stub          protos.CraneCtldClient
 	config        *util.Config
 	dbConfig      *util.InfluxDbConfig
+	dbConfigInitOnce sync.Once
 )
 
 type ServerAddr struct {
