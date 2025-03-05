@@ -109,8 +109,8 @@ func TrimTableExcept(rows *[][]string, excepts ...int) {
 			if removal[j] {
 				continue
 			}
-			if len(cell) > 30 {
-				(*rows)[i][j] = cell[:30] + "..."
+			if len(cell) > 20 {
+				(*rows)[i][j] = cell[:20] + "..."
 			}
 		}
 	}
