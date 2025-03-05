@@ -154,7 +154,7 @@ func PrintQosList(qosList []*protos.QosInfo) {
 	// Table format control
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
-	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"})
+	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerU", "MaxJobsPerA", "MaxCpusPerU", "MaxSJobsPerU", "MaxSJobsPerA", "MaxTimeLimitPerTask"})
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -169,18 +169,39 @@ func PrintQosList(qosList []*protos.QosInfo) {
 		} else {
 			jobsPerUserStr = strconv.FormatUint(uint64(info.MaxJobsPerUser), 10)
 		}
+		var jobsPerAccountStr string
+		if info.MaxJobsPerAccount == math.MaxUint32 {
+			jobsPerAccountStr = "unlimited"
+		} else {
+			jobsPerAccountStr = strconv.FormatUint(uint64(info.MaxJobsPerAccount), 10)
+		}
 		var cpusPerUserStr string
 		if info.MaxCpusPerUser == math.MaxUint32 {
 			cpusPerUserStr = "unlimited"
 		} else {
 			cpusPerUserStr = strconv.FormatUint(uint64(info.MaxCpusPerUser), 10)
 		}
+		var submitJobsPerUserStr string
+		if info.MaxSubmitJobsPerUser == math.MaxUint32 {
+			submitJobsPerUserStr = "unlimited"
+		} else {
+			submitJobsPerUserStr = strconv.FormatUint(uint64(info.MaxSubmitJobsPerUser), 10)
+		}
+		var submitJobsPerAccountStr string
+		if info.MaxSubmitJobsPerAccount == math.MaxUint32 {
+			submitJobsPerAccountStr = "unlimited"
+		} else {
+			submitJobsPerAccountStr = strconv.FormatUint(uint64(info.MaxSubmitJobsPerAccount), 10)
+		}
 		tableData = append(tableData, []string{
 			info.Name,
 			info.Description,
 			fmt.Sprint(info.Priority),
 			fmt.Sprint(jobsPerUserStr),
+			fmt.Sprint(jobsPerAccountStr),
 			fmt.Sprint(cpusPerUserStr),
+			fmt.Sprint(submitJobsPerUserStr),
+			fmt.Sprint(submitJobsPerAccountStr),
 			fmt.Sprint(timeLimitStr)})
 	}
 

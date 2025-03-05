@@ -313,8 +313,23 @@ var (
 					os.Exit(err)
 				}
 			}
+			if cmd.Flags().Changed("max-jobs-per-account") {
+				if err := ModifyQos(protos.ModifyField_MaxJobsPerAccount, fmt.Sprint(FlagQos.MaxJobsPerAccount), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
 			if cmd.Flags().Changed("max-cpus-per-user") {
 				if err := ModifyQos(protos.ModifyField_MaxCpusPerUser, fmt.Sprint(FlagQos.MaxCpusPerUser), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("max-submit-jobs-per-user") {
+				if err := ModifyQos(protos.ModifyField_MaxSubmitJobsPerUser, fmt.Sprint(FlagQos.MaxSubmitJobsPerUser), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("max-submit-jobs-per-account") {
+				if err := ModifyQos(protos.ModifyField_MaxSubmitJobsPerAccount, fmt.Sprint(FlagQos.MaxSubmitJobsPerAccount), FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
@@ -520,7 +535,10 @@ func init() {
 			addQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set the description of the QoS")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerAccount, "max-jobs-per-account", "j", math.MaxUint32, "Set the maximum number of jobs per account")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "s", math.MaxUint32, "Set the maximum number of submit jobs per user")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "S", math.MaxUint32, "Set the maximum number of submit jobs per account")
 			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
@@ -633,7 +651,10 @@ func init() {
 			modifyQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set description of the QoS")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerAccount, "max-jobs-per-account", "j", math.MaxUint32, "Set the maximum number of jobs per account")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "s", math.MaxUint32, "Set the maximum number of submit jobs per user")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "S", math.MaxUint32, "Set the maximum number of submit jobs per account")
 			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
 
 			// Rules
