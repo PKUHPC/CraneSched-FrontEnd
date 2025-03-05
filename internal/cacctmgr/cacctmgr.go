@@ -856,39 +856,29 @@ func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmd
 	return dbConf.Database, util.ErrorSuccess
 }
 
-func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) []string {
-    nodeNameSet := make(map[string]struct{})
-    for _, configNode := range ConfigNodesList {
-        nodeNameSet[configNode.Name] = struct{}{}
-    }
+func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
+	nodeNameSet := make(map[string]struct{})
+	nodeNameList, err := util.GetValidNodeList(config.CranedNodeList)
+	if err != nil {
+		return nil, err
+	}
 
-    missing := []string{}
-    for _, node := range nodes {
-        if _, exists := nodeNameSet[node]; !exists {
-            missing = append(missing, node)
-        }
-    }
+	for _, name := range nodeNameList {
+		nodeNameSet[name] = struct{}{}
+	}
 
-    return missing
+	missing := []string{}
+	for _, node := range nodes {
+		if _, exists := nodeNameSet[node]; !exists {
+			missing = append(missing, node)
+		}
+	}
+
+	return missing, nil
 }
 
-func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
-	if len(clusterName) == 0 {
-		return nil, fmt.Errorf("clusterName empty")
-	}
 
-	if len(nodes) > 0 {
-		missingList := MissingElements(config.CranedNodeList, nodes)
-		if len(missingList) > 0 {
-			return nil, fmt.Errorf("input nodes: %v error", missingList)
-		}
-	} else {
-		var err error
-		nodes, err = util.GetValidNodeList(config.CranedNodeList)
-		if err!= nil {
-			return nil, err
-		}
-	}
+func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
 
 	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
 	defer client.Close()
@@ -998,6 +988,30 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 		}
 	}
 
+	if len(nodeNames) > 0 {
+		missingList, err := MissingElements(config.CranedNodeList, nodeNames)
+		if err != nil {
+			log.Errorf("Invalid input for nodes: %v", err)
+			return util.ErrorCmdArg
+		}
+		if len(missingList) > 0 {
+			log.Errorf("Invalid input nodes: %v", missingList)
+			return util.ErrorCmdArg
+		}
+	} else {
+		var err error
+		nodeNames, err = util.GetValidNodeList(config.CranedNodeList)
+		if err!= nil {
+			log.Errorf("Invalid input for nodes: %v", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(config.ClusterName) == 0 {
+		log.Errorf("ClusterName empty")
+		return util.ErrorCmdArg
+	}
+
 	// Query Resource Usage Records in InfluxDB
 	result, err := QueryInfluxDbDataByTags(dbConfig, config.ClusterName, nodeNames)
 	if err != nil {
@@ -1007,7 +1021,7 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 
 	filteredRecords, err := SortRecords(result)
 	if err != nil {
-		fmt.Println("Error:", err)
+		log.Errorf("Failed to sort records: %v", err)
 		return util.ErrorCmdArg
 	}
 
@@ -1030,7 +1044,7 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 		}
 		jsonData, err := json.MarshalIndent(eventJsonList, "", "  ")
 		if err != nil {
-			log.Errorf("Error marshalling to JSON: %v", err)
+			log.Errorf("Failed to marshal data to JSON: %v", err)
 			return util.ErrorBackend
 		}
 		fmt.Println(string(jsonData))
