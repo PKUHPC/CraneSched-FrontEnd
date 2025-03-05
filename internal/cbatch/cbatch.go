@@ -391,7 +391,11 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneC
 
 		// Shebang
 		if num == 1 && strings.HasPrefix(scanner.Text(), "#!") {
-			*args = append(*args, CbatchArg{name: "--interpreter", val: scanner.Text()})
+			*args = append(*args, CbatchArg{
+				name: "--interpreter",
+				val:  strings.TrimPrefix(scanner.Text(), "#!"),
+			})
+			*sh = append(*sh, scanner.Text())
 			continue
 		}
 
