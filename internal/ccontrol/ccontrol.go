@@ -675,7 +675,7 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) u
 	}
 
 	if !reply.GetOk() {
-		fmt.Printf("Modify partition %s failed: %s.\n", partition, util.ErrMsg(reply.GetErrCode()))
+		fmt.Printf("Modify partition %s failed: %s.\n", partition, util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 
