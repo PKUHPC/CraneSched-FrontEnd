@@ -37,7 +37,8 @@ import (
 )
 
 var (
-	stub protos.CraneCtldClient
+	userUid uint32
+	stub    protos.CraneCtldClient
 )
 
 func formatDeviceMap(data *protos.DeviceMap) string {
@@ -101,6 +102,21 @@ func formatMemToMB(data uint64) string {
 	} else {
 		return fmt.Sprintf("%vM", data/B2MBRatio)
 	}
+}
+
+func formatAllowedAccounts(allowedAccounts []string) string {
+	if len(allowedAccounts) == 0 {
+		return "ALL"
+	}
+	return strings.Join(allowedAccounts, ",")
+}
+
+func formatDeniedAccounts(deniedAccounts []string) string {
+	if len(deniedAccounts) == 0 {
+		return "None"
+	}
+
+	return strings.Join(deniedAccounts, ",")
 }
 
 func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
@@ -206,12 +222,15 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	} else {
 		for _, partitionInfo := range reply.PartitionInfo {
 			fmt.Printf("PartitionName=%v State=%v\n"+
+				"\tAllowedAccounts=%s DeniedAccounts=%s\n"+
 				"\tTotalNodes=%d AliveNodes=%d\n"+
 				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
 				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
 				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
 				"\tHostList=%v\n\n",
 				partitionInfo.Name, partitionInfo.State.String()[10:],
+				formatAllowedAccounts(partitionInfo.AllowedAccounts),
+				formatDeniedAccounts(partitionInfo.DeniedAccounts),
 				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
 				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
 				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
@@ -626,4 +645,40 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	}
 
 	return SummarizeReply(reply)
+}
+
+func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) util.CraneCmdError {
+	var accountList []string
+
+	accountList, _ = util.ParseStringParamList(accounts, ",")
+
+	req := protos.ModifyPartitionAclRequest{
+		Uid:           userUid,
+		Partition:     partition,
+		IsAllowedList: isAllowedList,
+		Accounts:      accountList,
+	}
+
+	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if !reply.GetOk() {
+		fmt.Printf("Modify partition %s failed: %s.\n", partition, util.ErrMsg(reply.GetCode()))
+		return util.ErrorBackend
+	}
+
+	fmt.Printf("Modify partition %s succeeded.\n", partition)
+	return util.ErrorSuccess
 }
