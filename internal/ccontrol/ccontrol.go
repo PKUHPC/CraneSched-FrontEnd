@@ -665,6 +665,15 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) u
 		return util.ErrorNetwork
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
 	if !reply.GetOk() {
 		fmt.Printf("Modify partition %s failed: %s.\n", partition, util.ErrMsg(reply.GetErrCode()))
 		return util.ErrorBackend
