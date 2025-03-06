@@ -58,7 +58,9 @@ CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 # Targets
 .PHONY: all protos build clean install plugin plugin-energy plugin-other
 
-all: protos build plugin
+all: build plugin
+build: protos
+plugin: protos
 
 protos: 
 	@echo "- Generating Protobuf files..."
