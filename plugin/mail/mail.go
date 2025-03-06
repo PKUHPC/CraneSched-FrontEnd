@@ -217,3 +217,7 @@ func (p *MailPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 func (p *MailPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	log.Infoln("DestroyCgroupHook is called!")
 }
+
+func (p *MailPlugin) NodeEventHook(ctx *api.PluginContext) {
+	log.Infoln("NodeEventHook is called!")
+}
