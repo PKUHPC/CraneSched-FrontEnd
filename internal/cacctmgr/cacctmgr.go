@@ -606,7 +606,11 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 	} else {
 		fmt.Printf("Failed to modify information:\n")
 		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+			} else {
+				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			}
 		}
 		return util.ErrorBackend
 	}
@@ -667,7 +671,11 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 	} else {
 		fmt.Printf("Modify information failed: \n")
 		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+			} else {
+				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			}
 		}
 		return util.ErrorBackend
 	}
