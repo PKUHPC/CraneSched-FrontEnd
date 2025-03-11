@@ -815,8 +815,8 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 	}
 }
 
-// Extracts the InfluxDB configuration from the specified YAML configuration files
-func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmdError) {
+// Extracts the EventPlugin InfluxDB configuration from the specified YAML configuration files
+func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmdError) {
 	if !config.Plugin.Enabled {
 		log.Errorf("Plugin is not enabled")
 		return nil, util.ErrorCmdArg

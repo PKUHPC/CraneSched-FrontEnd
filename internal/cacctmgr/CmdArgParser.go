@@ -402,7 +402,7 @@ var (
 
 			var err util.CraneCmdError
 			dbConfigInitOnce.Do(func() {
-				dbConfig, err = GetInfluxDbConfig(config)
+				dbConfig, err = GetEventPluginConfig(config)
 				if err != util.ErrorSuccess {
 					os.Exit(err)
 				}
