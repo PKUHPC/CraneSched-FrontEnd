@@ -54,6 +54,8 @@ var (
 	FlagUserPartitions  []string
 	FlagUserQosList     []string
 
+	FlagMaxTimeLimitPerTask string
+
 	FlagForce          bool
 	FlagFull           bool
 	FlagJson           bool
@@ -317,7 +319,7 @@ var (
 				}
 			}
 			if cmd.Flags().Changed("max-time-limit-per-task") {
-				if err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagQos.Name); err != util.ErrorSuccess {
+				if err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimitPerTask, FlagQos.Name); err != util.ErrorSuccess {
 					os.Exit(err)
 				}
 			}
@@ -496,7 +498,8 @@ func init() {
 			addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
+			addQosCmd.Flags().StringVarP(&FlagMaxTimeLimitPerTask, "max-time-limit-per-task", "T", "",
+				"Set the maximum time limit per job (format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds) (default 315576000000 seconds)")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -609,8 +612,8 @@ func init() {
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
-
+			modifyQosCmd.Flags().StringVarP(&FlagMaxTimeLimitPerTask, "max-time-limit-per-task", "T", "",
+				"Set the maximum time limit per job (format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds) (default 315576000000 seconds)")
 			// Rules
 			if err := modifyQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
