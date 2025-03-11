@@ -729,10 +729,13 @@ func ShowAccounts() util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		PrintAccountList(reply.AccountList)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
+		fmt.Println(util.ErrMsg(reply.RichErrorList[0].Code))
 		return util.ErrorBackend
 	}
 }
@@ -765,10 +768,13 @@ func ShowUser(value string, account string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		PrintUserList(reply.UserList)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
+		fmt.Println(util.ErrMsg(reply.RichErrorList[0].Code))
 		return util.ErrorBackend
 	}
 }
@@ -799,11 +805,14 @@ func ShowQos(value string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		PrintQosList(reply.QosList)
 		return util.ErrorSuccess
 	} else {
 		if value == "" {
-			fmt.Printf("Can't find any QoS. %s.\n", util.ErrMsg(reply.GetCode()))
+			fmt.Printf("Can't find any QoS. %s.\n", util.ErrMsg(reply.RichErrorList[0].Code))
 		} else {
 			fmt.Printf("Can't find QoS %s.\n", value)
 		}
@@ -838,10 +847,13 @@ func FindAccount(value string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		PrintAccountTable(reply.AccountList)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
+		fmt.Println(util.ErrMsg(reply.RichErrorList[0].Code))
 		return util.ErrorBackend
 	}
 }
