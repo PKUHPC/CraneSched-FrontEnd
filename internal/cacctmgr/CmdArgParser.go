@@ -326,12 +326,12 @@ var (
 		},
 	}
 
-	/* ---------------------------------------------------- show/find ---------------------------------------------------- */
+	/* ---------------------------------------------------- show ---------------------------------------------------- */
 	showCmd = &cobra.Command{
 		Use:           "show",
 		Aliases:       []string{"search", "query", "find"},
 		SilenceErrors: true,
-		Short:         "Show or find a specific entity",
+		Short:         "Display information about a specific entity",
 		Long:          "",
 	}
 	showAccountCmd = &cobra.Command{
@@ -387,7 +387,7 @@ var (
 			}
 		},
 	}
-	
+
 	showEventCmd = &cobra.Command{
 		Use:   "event",
 		Short: "Display the node event table",
@@ -656,7 +656,7 @@ func init() {
 		{
 			showEventCmd.Flags().StringVarP(&FlagNodeList, "NodeList", "n", "", "Input NodeList")
 			showEventCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
-			"Limit the number of lines in the output, default is 0 (no limit)")
+				"Limit the number of lines in the output, default is 0 (no limit)")
 		}
 
 		showCmd.PersistentFlags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
