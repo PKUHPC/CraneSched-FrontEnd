@@ -63,6 +63,8 @@ var (
 	// but not added to any cmd!
 	FlagNoHeader bool
 	FlagFormat   string
+	FlagNodeList string
+	FlagNumLimit uint32
 
 	RootCmd = &cobra.Command{
 		Use:     "cacctmgr",
@@ -73,7 +75,7 @@ var (
 			// The PersistentPreRun functions will be inherited and executed by children (sub-commands)
 			// if they do not declare their own.
 			util.DetectNetworkProxy()
-			config := util.ParseConfig(FlagConfigFilePath)
+			config = util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 			userUid = uint32(os.Getuid())
 		},
@@ -324,18 +326,18 @@ var (
 		},
 	}
 
-	/* ---------------------------------------------------- find ---------------------------------------------------- */
-	findCmd = &cobra.Command{
+	/* ---------------------------------------------------- show ---------------------------------------------------- */
+	showCmd = &cobra.Command{
 		Use:           "show",
 		Aliases:       []string{"search", "query", "find"},
 		SilenceErrors: true,
-		Short:         "Find a specific entity",
+		Short:         "Display information about a specific entity",
 		Long:          "",
 	}
-	findAccountCmd = &cobra.Command{
+	showAccountCmd = &cobra.Command{
 		Use:     "account",
 		Aliases: []string{"accounts"},
-		Short:   "Find and display information of account",
+		Short:   "Display information about specific account entities",
 		Long:    "",
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -350,10 +352,10 @@ var (
 			}
 		},
 	}
-	findUserCmd = &cobra.Command{
+	showUserCmd = &cobra.Command{
 		Use:     "user",
 		Aliases: []string{"users"},
-		Short:   "Find and display information of user",
+		Short:   "Display information about specific user entities",
 		Long:    "",
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -368,9 +370,9 @@ var (
 			}
 		},
 	}
-	findQosCmd = &cobra.Command{
+	showQosCmd = &cobra.Command{
 		Use:   "qos [flags] name",
-		Short: "Find and display information of a specific QoS",
+		Short: "Display information about specific QoS entities",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -383,6 +385,29 @@ var (
 					os.Exit(err)
 				}
 			}
+		},
+	}
+
+	showEventCmd = &cobra.Command{
+		Use:   "event",
+		Short: "Display the node event table",
+		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			if cmd.Flags().Changed("max-lines") {
+				if FlagNumLimit == 0 {
+					log.Error("Output line number limit must be greater than 0.")
+					os.Exit(util.ErrorCmdArg)
+				}
+			}
+
+			var err util.CraneCmdError
+			dbConfigInitOnce.Do(func() {
+				dbConfig, err = GetEventPluginConfig(config)
+				if err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			})
+			QueryEventInfoByNodes(FlagNodeList)
 		},
 	}
 	/* --------------------------------------------------- block ---------------------------------------------------- */
@@ -618,17 +643,23 @@ func init() {
 		}
 	}
 
-	/* ---------------------------------------------------- find ---------------------------------------------------- */
-	RootCmd.AddCommand(findCmd)
+	/* ---------------------------------------------------- show/find ---------------------------------------------------- */
+	RootCmd.AddCommand(showCmd)
 	{
-		findCmd.AddCommand(findAccountCmd)
-		findCmd.AddCommand(findQosCmd)
-		findCmd.AddCommand(findUserCmd)
+		showCmd.AddCommand(showAccountCmd)
+		showCmd.AddCommand(showQosCmd)
+		showCmd.AddCommand(showUserCmd)
 		{
-			findUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Display the user under the specified account")
+			showUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Display the user under the specified account")
+		}
+		showCmd.AddCommand(showEventCmd)
+		{
+			showEventCmd.Flags().StringVarP(&FlagNodeList, "NodeList", "n", "", "Input NodeList")
+			showEventCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
+				"Limit the number of lines in the output, default is 0 (no limit)")
 		}
 
-		findCmd.PersistentFlags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
+		showCmd.PersistentFlags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	}
 
 	/* --------------------------------------------------- block ---------------------------------------------------- */

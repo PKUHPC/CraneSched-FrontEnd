@@ -210,10 +210,8 @@ func (p *MailPlugin) EndHook(ctx *api.PluginContext) {
 	}
 }
 
-func (p *MailPlugin) CreateCgroupHook(ctx *api.PluginContext) {
-	log.Infoln("CreateCgroupHook is called!")
-}
+func (p *MailPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
 
-func (p *MailPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
-	log.Infoln("DestroyCgroupHook is called!")
-}
+func (p *MailPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
+
+func (p *MailPlugin) NodeEventHook(ctx *api.PluginContext) {}
