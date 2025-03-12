@@ -216,6 +216,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_MISSING_DEPENDENCY:      "One or more dependency jobs may not exist or have ended",
 	protos.ErrCode_ERR_DB_INSERT_FAILED:        "Database insertion failed due to internal error",
 	protos.ErrCode_ERR_LUA_FAILED:              "Lua script validation failed",
+	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_ACCOUNT: "The number of tasks for the current account has reached its limit",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
