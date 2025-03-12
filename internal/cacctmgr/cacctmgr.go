@@ -46,7 +46,6 @@ type ServerAddr struct {
 
 func PrintUserList(userList []*protos.UserInfo) {
 	if len(userList) == 0 {
-		fmt.Println("Can't find any User.")
 		return
 	}
 
@@ -117,7 +116,6 @@ func PrintUserList(userList []*protos.UserInfo) {
 
 func PrintQosList(qosList []*protos.QosInfo) {
 	if len(qosList) == 0 {
-		fmt.Println("Can't find any QoS.")
 		return
 	}
 
@@ -168,7 +166,6 @@ func PrintQosList(qosList []*protos.QosInfo) {
 
 func PrintAccountList(accountList []*protos.AccountInfo) {
 	if len(accountList) == 0 {
-		fmt.Println("Can't find any Account.")
 		return
 	}
 
@@ -728,16 +725,20 @@ func ShowAccounts() util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
+
+	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		PrintAccountList(reply.AccountList)
-		return util.ErrorSuccess
-	} else {
-		fmt.Println(util.ErrMsg(reply.RichErrorList[0].Code))
-		return util.ErrorBackend
 	}
+
+	PrintAccountList(reply.AccountList)
+
+	return util.ErrorSuccess
 }
 
 func ShowUser(value string, account string) util.CraneCmdError {
@@ -767,16 +768,20 @@ func ShowUser(value string, account string) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
+
+	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		PrintUserList(reply.UserList)
-		return util.ErrorSuccess
-	} else {
-		fmt.Println(util.ErrMsg(reply.RichErrorList[0].Code))
-		return util.ErrorBackend
 	}
+
+	PrintUserList(reply.UserList)
+
+	return util.ErrorSuccess
 }
 
 func ShowQos(value string) util.CraneCmdError {
@@ -804,20 +809,20 @@ func ShowQos(value string) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
+
+	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		PrintQosList(reply.QosList)
-		return util.ErrorSuccess
-	} else {
-		if value == "" {
-			fmt.Printf("Can't find any QoS. %s.\n", util.ErrMsg(reply.RichErrorList[0].Code))
-		} else {
-			fmt.Printf("Can't find QoS %s.\n", value)
-		}
-		return util.ErrorBackend
 	}
+
+	PrintQosList(reply.QosList)
+
+	return util.ErrorSuccess
 }
 
 func FindAccount(value string) util.CraneCmdError {
@@ -846,16 +851,20 @@ func FindAccount(value string) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
+
+	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		PrintAccountTable(reply.AccountList)
-		return util.ErrorSuccess
-	} else {
-		fmt.Println(util.ErrMsg(reply.RichErrorList[0].Code))
-		return util.ErrorBackend
 	}
+
+	PrintAccountList(reply.AccountList)
+
+	return util.ErrorSuccess
 }
 
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
