@@ -50,9 +50,8 @@ type config struct {
 
 type EventPlugin struct {
 	config
-	client   influxdb2.Client
+	client influxdb2.Client
 }
-
 
 func (p *EventPlugin) Name() string {
 	return "Event"
@@ -87,22 +86,13 @@ func (p *EventPlugin) Unload(meta api.PluginMeta) error {
 	return nil
 }
 
-func (p *EventPlugin) StartHook(ctx *api.PluginContext) {
-	log.Infoln("StartHook is called!")
-}
+func (p *EventPlugin) StartHook(ctx *api.PluginContext) {}
 
-func (p *EventPlugin) EndHook(ctx *api.PluginContext) {
-	log.Infoln("EndHook is called!")
+func (p *EventPlugin) EndHook(ctx *api.PluginContext) {}
 
-}
+func (p *EventPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
 
-func (p *EventPlugin) CreateCgroupHook(ctx *api.PluginContext) {
-	log.Infoln("CreateCgroupHook is called!")
-}
-
-func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
-	log.Infoln("DestroyCgroupHook is called!")
-}
+func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
 
 func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
@@ -113,7 +103,7 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 
 	dbConfig := p.Database
 	p.client = influxdb2.NewClientWithOptions(dbConfig.Url, dbConfig.Token,
-		 influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
+		influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
 	defer p.client.Close()
 
 	influxdbCtx := context.Background()
@@ -127,22 +117,22 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 	log.Infof("InfluxDB client is created: %v", p.client.ServerURL())
 
 	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
-	for _, event := range req.GetEventInfoList()  {
+	for _, event := range req.GetEventInfoList() {
 		tags := map[string]string{
-			"cluster_name":   event.ClusterName,
+			"cluster_name": event.ClusterName,
 			"node_name":    event.NodeName,
 		}
 		reason := event.Reason
 		if reason == "" {
 			reason = " "
 		}
-		fields := map[string]interface{}{
-			"uid":          event.Uid,
-			"start_time":   event.StartTime.AsTime().UnixNano(),
-			"state":        int32(event.State),
-			"reason":       reason,
+		fields := map[string]any{
+			"uid":        event.Uid,
+			"start_time": event.StartTime.AsTime().UnixNano(),
+			"state":      int32(event.State),
+			"reason":     reason,
 		}
-		
+
 		point := influxdb2.NewPoint(dbConfig.Measurement, tags, fields, time.Now())
 
 		if err := writer.WritePoint(influxdbCtx, point); err != nil {
@@ -151,6 +141,6 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 		}
 
 		log.Tracef("Recorded cluster_name: %v, uid: %v, node_name: %s, state: %d, start_time: %s, Reason: %s",
-		event.ClusterName, event.Uid, event.NodeName, event.State, event.StartTime.AsTime().Format(time.RFC3339), event.Reason) 
+			event.ClusterName, event.Uid, event.NodeName, event.State, event.StartTime.AsTime().Format(time.RFC3339), event.Reason)
 	}
 }
