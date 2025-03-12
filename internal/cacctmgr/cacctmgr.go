@@ -421,6 +421,17 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
+	if FlagMaxTimeLimitPerTask != "" {
+		seconds, err := util.ParseDurationStrToSeconds(FlagMaxTimeLimitPerTask)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --max-time-limit-per-task: %v", err)
+			return util.ErrorCmdArg
+		}
+		qos.MaxTimeLimitPerTask = uint64(seconds)
+	} else {
+		qos.MaxTimeLimitPerTask = util.MaxJobTimeLimit
+	}
+
 	req := new(protos.AddQosRequest)
 	req.Uid = userUid
 	req.Qos = qos
@@ -602,11 +613,21 @@ func ModifyUser(modify_field protos.ModifyField, new_value string, name string, 
 }
 
 func ModifyQos(modify_field protos.ModifyField, new_value string, name string) util.CraneCmdError {
+
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
 		ModifyField: modify_field,
 		Value:       new_value,
 		Name:        name,
+	}
+
+	if modify_field == protos.ModifyField_MaxTimeLimitPerTask {
+		seconds, err := util.ParseDurationStrToSeconds(new_value)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --max-time-limit-per-task: %v", err)
+			return util.ErrorCmdArg
+		}
+		req.Value = fmt.Sprint(seconds)
 	}
 
 	reply, err := stub.ModifyQos(context.Background(), &req)
