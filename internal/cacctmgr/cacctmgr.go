@@ -154,7 +154,7 @@ func PrintQosList(qosList []*protos.QosInfo) {
 	// Table format control
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
-	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerU", "MaxJobsPerA", "MaxCpusPerU", "MaxSJobsPerU", "MaxSJobsPerA", "MaxTimeLimitPerTask"})
+	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPU", "MaxJobsPA", "MaxCpusPU", "MaxSubJobsPU", "MaxSubJobsPA", "MaxTimeLimitPerTask"})
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
