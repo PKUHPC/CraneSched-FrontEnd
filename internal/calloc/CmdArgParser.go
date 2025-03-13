@@ -41,6 +41,7 @@ var (
 	FlagExcludes      string
 	FlagGetUserEnv    bool
 	FlagExport        string
+	FlagExclusive     bool
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -87,4 +88,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 }

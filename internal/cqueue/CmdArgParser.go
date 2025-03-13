@@ -115,8 +115,10 @@ func init() {
 Supported format identifiers or string, string case insensitive:
 	%a/%Account      - Display the account associated with the job.
 	%C/%AllocCpus    - Display the cpus allocated to the job.
+	%k/%ReqCpus      - Display the cpus requested to the job.
 	%c/%CpuPerNode   - Display the requested cpu per node of the job.
 	%e/%ElapsedTime  - Display the elapsed time from the start of the job. 
+	%X/%Exclusive    - Display the exclusive status of the job.
 	%h/%Held         - Display the hold state of the job.
 	%j/%JobID        - Display the ID of the job.
 	%L/%NodeList     - Display the list of nodes the job is running on.

@@ -46,7 +46,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	task := new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
 	task.Resources = &protos.ResourceView{
-		AllocatableRes: &protos.AllocatableResource{
+		ReqAllocatableRes: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
 			MemoryLimitBytes:   0,
 			MemorySwLimitBytes: 0,
@@ -102,8 +102,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
-			task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
-			task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+			task.Resources.ReqAllocatableRes.MemoryLimitBytes = memInByte
+			task.Resources.ReqAllocatableRes.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			task.PartitionName = arg.val
 		case "-J", "--job-name":
@@ -156,6 +156,17 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.ExtraAttr = extra
+		case "--exclusive":
+			if arg.val == "" {
+				task.GetUserEnv = true
+			} else {
+				val, err := strconv.ParseBool(arg.val)
+				if err != nil {
+					log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+					return false, nil
+				}
+				task.Exclusive = val
+			}
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -193,8 +204,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorf("Invalid argument: %v", err)
 			return false, nil
 		}
-		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.Resources.ReqAllocatableRes.MemoryLimitBytes = memInByte
+		task.Resources.ReqAllocatableRes.MemorySwLimitBytes = memInByte
 	}
 
 	if FlagPartition != "" {
@@ -220,6 +231,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 	if FlagGetUserEnv {
 		task.GetUserEnv = true
+	}
+	if FlagExclusive {
+		task.Exclusive = true
 	}
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
@@ -257,7 +271,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	// Set total limit of cpu cores
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	task.Resources.ReqAllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {

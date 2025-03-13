@@ -160,8 +160,8 @@ func QueryJob() util.CraneCmdError {
 	tableData := make([][]string, len(reply.TaskInfoList))
 	if  FlagFull {
 			header = []string{"JobId", "JobName", "UserName", "Partition", 
-			"NodeNum", "Account", "AllocCPUs", "MemPerNode", "State", "TimeLimit",
-			 "StartTime", "EndTime", "SubmitTime", "Qos",  "Held", "Priority", "CranedList", "ExitCode"}
+			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "MemPerNode", "State", "TimeLimit",
+			 "StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode"}
 
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
@@ -209,14 +209,17 @@ func QueryJob() util.CraneCmdError {
 				taskInfo.Partition,
 				strconv.FormatUint(uint64(taskInfo.NodeNum), 10),
 				taskInfo.Account,
-				strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
-				strconv.FormatUint(taskInfo.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10),
+				ProcessReqCPUs(taskInfo),
+				ProcessReqMemPerNode(taskInfo),
+				ProcessAllocCPUs(taskInfo),
+				ProcessMemPerNode(taskInfo),
 				taskInfo.Status.String(),
 				timeLimitStr,
 				startTimeStr,
 				endTimeStr,
 				submitTimeStr,
 				taskInfo.Qos,
+				ProcessExclusive(taskInfo),
 				strconv.FormatBool(taskInfo.Held),
 				strconv.FormatUint(uint64(taskInfo.Priority), 10),
 				taskInfo.GetCranedList(),
@@ -317,8 +320,19 @@ func ProcessAccount(task *protos.TaskInfo) string {
 	return task.Account
 }
 
+// ReqCPUs
+func ProcessReqCPUs(task *protos.TaskInfo) string {
+	if task.ResView.ReqAllocatableRes == nil {
+		return "unkown"
+	}
+	return strconv.FormatFloat(task.ResView.ReqAllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+}
+
 // AllocCPUs
 func ProcessAllocCPUs(task *protos.TaskInfo) string {
+	if task.ResView.ReqAllocatableRes == nil {
+		return "unkown"
+	}
 	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
 }
 
@@ -472,9 +486,24 @@ func ProcessReason(task *protos.TaskInfo) string {
 	return " "
 }
 
+// ReqMemPerNode
+func ProcessReqMemPerNode(task *protos.TaskInfo) string {
+	if task.ResView.ReqAllocatableRes == nil {
+		return "unkown"
+	}
+	return strconv.FormatUint(task.ResView.ReqAllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+}
+
 // MemPerNode
 func ProcessMemPerNode(task *protos.TaskInfo) string {
+	if task.ResView.AllocatableRes == nil {
+		return "unkown"
+	}
 	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+}
+
+func ProcessExclusive(task *protos.TaskInfo) string {
+	return strconv.FormatBool(task.Exclusive)
 }
 
 var fieldProcessors = map[string]FieldProcessor{
@@ -482,6 +511,8 @@ var fieldProcessors = map[string]FieldProcessor{
 	"account":   {"Account", ProcessAccount},
 	"c":         {"AllocCPUs", ProcessAllocCPUs},
 	"alloccpus": {"AllocCPUs", ProcessAllocCPUs},
+	"C":         {"ReqCpus", ProcessReqCPUs},
+	"reqcpus"  : {"ReqCpus", ProcessReqCPUs},
 	"e":         {"ExitCode", ProcessExitCode},
 	"exitcode":  {"ExitCode", ProcessExitCode},
 	"j":         {"JobID", ProcessJobID},
@@ -526,6 +557,8 @@ var fieldProcessors = map[string]FieldProcessor{
 	"reason":    {"Reason", ProcessReason},
 	"m":         {"MemPerNode", ProcessMemPerNode},
 	"mempernode": {"MemPerNode", ProcessMemPerNode},
+	"X":         {"Exclusive", ProcessExclusive},
+	"exclusive":  {"Exclusive", ProcessExclusive},
 }
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
@@ -582,7 +615,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
 				"a/Account, c/AllocCPUs, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, L/NodeList, l/TimeLimit,\n" +
 				"m/MemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
-				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, x/ExcludeNodes.")
+				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, x/ExcludeNodes, C/ReqCpus, X/Exclusive.")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 
