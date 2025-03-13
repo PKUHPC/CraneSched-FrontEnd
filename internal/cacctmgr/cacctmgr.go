@@ -870,7 +870,7 @@ func FindAccount(value string) util.CraneCmdError {
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
 	var entityList []string
-	if value != "" {
+	if value != "all" {
 		var err error
 		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
@@ -899,6 +899,10 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 		return util.ErrorSuccess
 	} else {
 		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				break
+			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
@@ -908,7 +912,7 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
 	var entityList []string
-	if value != "" {
+	if value != "all" {
 		var err error
 		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
@@ -937,6 +941,10 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 		return util.ErrorSuccess
 	} else {
 		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				break
+			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
