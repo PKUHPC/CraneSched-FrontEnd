@@ -34,13 +34,10 @@ message ChildProcessReady {
 message InitSupervisorRequest {
   uint32 job_id = 1;
   string debug_level = 2;
-  string craned_unix_socket_path = 3;
-  string crane_base_dir = 4;
-  string crane_script_dir = 5;
-
-  message PluginConfig {
-    string socket_path = 1;
-  }
+  string craned_id = 3;
+  string craned_unix_socket_path = 4;
+  string crane_base_dir = 5;
+  string crane_script_dir = 6;
 
   message ContainerConfig {
     string temp_dir = 1;
@@ -51,9 +48,15 @@ message InitSupervisorRequest {
     string kill_cmd = 5;
     string delete_cmd = 6;
   }
+  ContainerConfig container_config = 7;
 
-  ContainerConfig container_config = 6;
-  PluginConfig plugin_config = 7;
+  message PluginConfig {
+    string socket_path = 1;
+  }
+  PluginConfig plugin_config = 8;
+
+  TaskToD step_spec = 9;
+  map<string, string> env = 10;
 }
 
 
