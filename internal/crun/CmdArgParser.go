@@ -57,6 +57,7 @@ var (
 	FlagPty           bool
 	FlagX11           bool
 	FlagX11Fwd        bool
+	FlagExclusive     bool
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -95,4 +96,5 @@ func init() {
 
 	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11")
 	RootCmd.Flags().BoolVar(&FlagX11Fwd, "x11-forwarding", false, "Enable X11 forwarding by Crane (secure). Default is false (with insecure direct X11 connection)")
+	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 }

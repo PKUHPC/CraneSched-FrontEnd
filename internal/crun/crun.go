@@ -802,7 +802,7 @@ func MainCrun(args []string) util.CraneCmdError {
 		TimeLimit:     util.InvalidDuration(),
 		PartitionName: "",
 		Resources: &protos.ResourceView{
-			AllocatableRes: &protos.AllocatableResource{
+			ReqAllocatableRes: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
 				MemoryLimitBytes:   0,
 				MemorySwLimitBytes: 0,
@@ -843,8 +843,8 @@ func MainCrun(args []string) util.CraneCmdError {
 			log.Errorf("Invalid argument: %v", err)
 			return util.ErrorCmdArg
 		}
-		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.Resources.ReqAllocatableRes.MemoryLimitBytes = memInByte
+		task.Resources.ReqAllocatableRes.MemorySwLimitBytes = memInByte
 	}
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
@@ -877,9 +877,12 @@ func MainCrun(args []string) util.CraneCmdError {
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+	if FlagExclusive {
+		task.Exclusive = true
+	}
 
 	// Set total limit of cpu cores
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	task.Resources.ReqAllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {

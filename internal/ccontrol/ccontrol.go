@@ -302,7 +302,6 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		timeStartStr := "unknown"
 		timeEndStr := "unknown"
 		runTimeStr := "unknown"
-		resourcesType := "ReqRes"
 
 		var timeLimitStr string
 
@@ -331,12 +330,6 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
 		}
 
-		// elapsed_time and resources
-		if taskInfo.Status == protos.TaskStatus_Running {
-			runTimeStr = util.SecondTimeFormat(taskInfo.ElapsedTime.Seconds)
-			resourcesType = "AllocRes"
-		}
-
 		// uid and gid (egid)
 		craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
 		if err != nil {
@@ -357,15 +350,18 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
 			"\tCmdLine=\"%v\" Workdir=%v\n"+
 			"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
-			"\t%s=node=%d cpu=%.2f gres=%s\n"+
-			"\tReqNodeList=%v ExecludeNodeList=%v \n",
+			"\tReqRes=node=%d cpu=%.2f gres=%s\n"+
+			"\tAllocRes=node=%d cpu=%.2f gres=%s\n"+
+			"\tExclusive=%v ReqNodeList=%v ExecludeNodeList=%v \n",
 			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
 			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExecutionNode())),
 			taskInfo.CmdLine, taskInfo.Cwd,
 			taskInfo.Priority, taskInfo.Qos, taskInfo.ResView.AllocatableRes.CpuCoreLimit, formatMemToMB(taskInfo.ResView.AllocatableRes.MemoryLimitBytes),
-			resourcesType, taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
+			taskInfo.NodeNum, taskInfo.ResView.ReqAllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
+			taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
+			strconv.FormatBool(taskInfo.Exclusive),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())))
 	}
 
