@@ -323,6 +323,17 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
 		return fmt.Errorf("requesting too many CPUs: %f", task.Resources.AllocatableRes.CpuCoreLimit)
 	}
+	if task.ExtraAttr != "" {
+		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
+		mailtype := gjson.Get(task.ExtraAttr, "mail.type")
+		mailuser := gjson.Get(task.ExtraAttr, "mail.user")
+		if mailtype.Exists() != mailuser.Exists() {
+			return fmt.Errorf("incomplete mail arguments")
+		}
+		if mailtype.Exists() && !CheckMailType(mailtype.String()) {
+			return fmt.Errorf("invalid --mail-type")
+		}
+	}
 
 	return nil
 }
