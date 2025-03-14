@@ -31,7 +31,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -272,19 +271,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorf("Invalid argument: %v", err)
 		return false, nil
 	}
-	if task.ExtraAttr != "" {
-		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
-		mailtype := gjson.Get(task.ExtraAttr, "mail.type")
-		mailuser := gjson.Get(task.ExtraAttr, "mail.user")
-		if mailtype.Exists() != mailuser.Exists() {
-			log.Errorln("Invalid argument: incomplete mail arguments")
-			return false, nil
-		}
-		if mailtype.Exists() && !util.CheckMailType(mailtype.String()) {
-			log.Errorln("Invalid argument: invalid --mail-type")
-			return false, nil
-		}
-	}
 
 	return true, task
 }
@@ -349,7 +335,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 		for _, reason := range reply.GetCodeList() {
 			log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reason))
 		}
-		
+
 		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
