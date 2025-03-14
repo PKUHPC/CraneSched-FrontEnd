@@ -124,6 +124,7 @@ Supported format identifiers or string, string case insensitive:
                         If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
                         it formats as "0:<code>" or "<code>:0" based on the condition.
 	%h/%Held         - Display the hold status of the job.
+	%b/%Blocked      - Display the Block state of the job.
 	%j/%JobID        - Display the ID of the job.
 	%L/%NodeList     - Display the list of nodes the job is running on.
 	%l/%TimeLimit    - Display the time limit of the job.
