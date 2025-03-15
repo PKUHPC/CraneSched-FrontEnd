@@ -161,7 +161,7 @@ func QueryJob() util.CraneCmdError {
 	if  FlagFull {
 			header = []string{"JobId", "JobName", "UserName", "Partition", 
 			"NodeNum", "Account", "AllocCPUs", "MemPerNode", "State", "TimeLimit",
-			 "StartTime", "EndTime", "SubmitTime", "Qos",  "Held", "Priority", "CranedList", "ExitCode"}
+			 "StartTime", "EndTime", "SubmitTime", "Qos",  "Held", "Blocked", "Priority", "CranedList", "ExitCode"}
 
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
@@ -218,6 +218,7 @@ func QueryJob() util.CraneCmdError {
 				submitTimeStr,
 				taskInfo.Qos,
 				strconv.FormatBool(taskInfo.Held),
+				strconv.FormatBool(taskInfo.Blocked),
 				strconv.FormatUint(uint64(taskInfo.Priority), 10),
 				taskInfo.GetCranedList(),
 				exitCode}
@@ -477,6 +478,11 @@ func ProcessMemPerNode(task *protos.TaskInfo) string {
 	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
 }
 
+// Blocked
+func ProcessBlocked(task *protos.TaskInfo) string {
+	return strconv.FormatBool(task.Blocked)
+}
+
 var fieldProcessors = map[string]FieldProcessor{
 	"a":         {"Account", ProcessAccount},
 	"account":   {"Account", ProcessAccount},
@@ -526,6 +532,8 @@ var fieldProcessors = map[string]FieldProcessor{
 	"reason":    {"Reason", ProcessReason},
 	"m":         {"MemPerNode", ProcessMemPerNode},
 	"mempernode": {"MemPerNode", ProcessMemPerNode},
+	"b":         {"Blocked", ProcessBlocked},
+	"Blocked":   {"Blocked", ProcessBlocked},
 }
 
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
@@ -582,7 +590,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
 				"a/Account, c/AllocCPUs, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, L/NodeList, l/TimeLimit,\n" +
 				"m/MemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
-				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, x/ExcludeNodes.")
+				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, x/ExcludeNodes, b/Blocked.")
 			os.Exit(util.ErrorInvalidFormat)
 		}
 

@@ -132,7 +132,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 	if  FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition", 
 		 "Account", "NodeNum", "AllocCPUs", "MemPerNode", "Status", "Time", "TimeLimit", 
-		 "StartTime", "SubmitTime", "Type", "Qos",  "Held", "Priority", "NodeList/Reason"}
+		 "StartTime", "SubmitTime", "Type", "Qos",  "Held", "Blocked", "Priority", "NodeList/Reason"}
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
 
@@ -188,6 +188,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 				reply.TaskInfoList[i].Type.String(),
 				taskInfo.Qos,
 				strconv.FormatBool(taskInfo.Held),
+				strconv.FormatBool(taskInfo.Blocked),
 				strconv.FormatUint(uint64(taskInfo.Priority), 10),
 				reasonOrListStr}
 		}
@@ -399,6 +400,10 @@ func ProcessHeld(task *protos.TaskInfo) string {
 	return strconv.FormatBool(task.Held)
 }
 
+func ProcessBlocked(task *protos.TaskInfo) string {
+	return strconv.FormatBool(task.Blocked)
+}
+
 type FieldProcessor struct {
 	header string
 	process func(task *protos.TaskInfo) string
@@ -451,6 +456,8 @@ var fieldMap = map[string]FieldProcessor{
 	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
 	"h":         {"Held", ProcessHeld},
 	"held":      {"Held", ProcessHeld},
+	"b":         {"Blocked", ProcessBlocked},
+	"Blocked":   {"Blocked", ProcessBlocked},
 }
 
 // FormatData formats the output data according to the format string.
@@ -512,13 +519,13 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 
 		//a-Account, c-CpuPerNode, C-AllocCPUs, e-ElapsedTime, h-Held, j-JobID, l-TimeLimit, L-NodeList,
 		//m-MemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, R-Reason, r-ReqNodes, s-SubmitTime,
-		//S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes
+		//S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes b-Blocked
 		fieldProcessor, found := fieldMap[field]
 		if !found {
 			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n" +
 	 		"a/Account, c/CpuPerNode, C/AllocCPUs, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, L/NodeList,\n" +
 	 		"m/MemPerNode, n/Name, N/NodeNum, p/Priority, P/Partition, q/Qos, R/Reason, r/ReqNodes, s/SubmitTime,\n" +
-	 		"S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes.", field)
+	 		"S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes, b/Blocked.", field)
 			os.Exit(util.ErrorInvalidFormat)
 		}
 
