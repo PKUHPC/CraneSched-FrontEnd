@@ -10,9 +10,7 @@ Monitor:
     System: true 
 
 Database:
-  Type: "influxdb"          
-  BatchSize: 10              
-  FlushInterval: "30s"     
+  Type: "influxdb"            
   Influxdb:
     Url: "YOUR_INFLUXDB_URL"
     Token: "YOUR_INFLUXDB_TOKEN"

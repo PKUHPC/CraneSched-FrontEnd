@@ -20,6 +20,7 @@ type NodeMonitor struct {
 	ipmiReader    *ipmi.IPMIReader
 	gpuReader     *gpu.Reader
 	sysLoadReader *sysload.SystemLoadReader
+	taskMonitor   *TaskMonitor
 
 	stopCh chan struct{}
 }
@@ -68,6 +69,10 @@ func (r *NodeMonitor) collectNodeEnergy() {
 			}
 		} else {
 			r.config.Enabled.System = false
+		}
+
+		if r.taskMonitor != nil {
+			data.TaskMetrics = r.taskMonitor.GetTaskMetrics()
 		}
 
 		if r.raplReader != nil {

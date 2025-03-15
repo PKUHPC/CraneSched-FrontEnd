@@ -45,6 +45,13 @@ func NewMonitor(config config.MonitorConfig) *Monitor {
 		sysLoadReader = sysload.NewSystemLoadReader()
 	}
 
+	taskMonitor := &TaskMonitor{
+		samplePeriod: duration,
+		config:       &config,
+		tasks:        make(map[uint32]*Task),
+		mutex:        sync.RWMutex{},
+	}
+
 	return &Monitor{
 		NodeMonitor: &NodeMonitor{
 			samplePeriod:  duration,
@@ -53,14 +60,10 @@ func NewMonitor(config config.MonitorConfig) *Monitor {
 			ipmiReader:    ipmiReader,
 			gpuReader:     gpuReader,
 			sysLoadReader: sysLoadReader,
+			taskMonitor:   taskMonitor,
 			stopCh:        make(chan struct{}),
 		},
-		TaskMonitor: &TaskMonitor{
-			samplePeriod: duration,
-			config:       &config,
-			tasks:        make(map[uint32]*Task),
-			mutex:        sync.RWMutex{},
-		},
+		TaskMonitor: taskMonitor,
 	}
 }
 
