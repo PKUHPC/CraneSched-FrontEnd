@@ -26,7 +26,6 @@ import (
 	"net"
 
 	"github.com/pkg/term/termios"
-	"github.com/tidwall/sjson"
 	"golang.org/x/sys/unix"
 
 	"bufio"
@@ -710,7 +709,7 @@ func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
 			return
 		}
 	} else { // TCP socket
-		address := fmt.Sprintf("%s:%d", x11meta.Target, x11meta.Port)
+		address := net.JoinHostPort(x11meta.Target, fmt.Sprintf("%d", x11meta.Port))
 		conn, err = net.Dial("tcp", address)
 		if err != nil {
 			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
@@ -822,9 +821,10 @@ func MainCrun(args []string) util.CraneCmdError {
 		CmdLine: strings.Join(args, " "),
 		Cwd:     gVars.cwd,
 
-		// TODO: use --export here!
 		Env: make(map[string]string),
 	}
+
+	structExtraFromCli := &util.JobExtraAttrs{}
 
 	task.NodeNum = FlagNodes
 	task.CpusPerTask = FlagCpuPerTask
@@ -880,27 +880,22 @@ func MainCrun(args []string) util.CraneCmdError {
 	}
 
 	if FlagExtraAttr != "" {
-		if !util.CheckTaskExtraAttr(FlagExtraAttr) {
-			log.Errorln("Invalid argument: invalid --extra-attr: invalid JSON string")
-			return util.ErrorCmdArg
-		}
-		task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, FlagExtraAttr)
+		structExtraFromCli.ExtraAttr = FlagExtraAttr
 	}
 	if FlagMailType != "" {
-		extra, err := sjson.Set(task.ExtraAttr, "mail.type", FlagMailType)
-		if err != nil {
-			log.Errorf("Invalid argument: invalid --mail-type: %v", err)
-			return util.ErrorCmdArg
-		}
-		task.ExtraAttr = extra
+		structExtraFromCli.MailType = FlagMailType
 	}
 	if FlagMailUser != "" {
-		extra, err := sjson.Set(task.ExtraAttr, "mail.user", FlagMailUser)
-		if err != nil {
-			log.Errorf("Invalid argument: invalid --mail-user: %v", err)
-			return util.ErrorCmdArg
-		}
-		task.ExtraAttr = extra
+		structExtraFromCli.MailUser = FlagMailUser
+	}
+	if FlagComment != "" {
+		structExtraFromCli.Comment = FlagComment
+	}
+
+	// Marshal extra attributes
+	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
+		log.Errorf("Invalid argument: %v", err)
+		return util.ErrorCmdArg
 	}
 
 	// Set total limit of cpu cores

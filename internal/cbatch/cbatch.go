@@ -31,7 +31,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/tidwall/sjson"
 )
 
 type CbatchArg struct {
@@ -60,6 +59,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	task.NodeNum = 1
 	task.GetUserEnv = false
 	task.Env = make(map[string]string)
+
+	structExtraFromScript := util.JobExtraAttrs{}
+	structExtraFromCli := util.JobExtraAttrs{}
 
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range args {
@@ -135,30 +137,23 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		case "--extra-attr":
-			// Merge the extra attributes read from the file with the existing ones.
-			if !util.CheckTaskExtraAttr(arg.val) {
-				log.Errorf("Invalid argument: %v in script: invalid JSON string", arg.name)
-				return false, nil
-			}
-			task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, arg.val)
+			structExtraFromScript.ExtraAttr = arg.val
 		case "--mail-type":
-			extra, err := sjson.Set(task.ExtraAttr, "mail.type", arg.val)
-			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
-			}
-			task.ExtraAttr = extra
+			structExtraFromScript.MailType = arg.val
 		case "--mail-user":
-			extra, err := sjson.Set(task.ExtraAttr, "mail.user", arg.val)
-			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
-			}
-			task.ExtraAttr = extra
+			structExtraFromScript.MailUser = arg.val
+		case "--comment":
+			structExtraFromScript.Comment = arg.val
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
 		}
+	}
+
+	var extraFromScript string
+	if err := structExtraFromScript.Marshal(&extraFromScript); err != nil {
+		log.Errorf("Invalid argument: %v", err)
+		return false, nil
 	}
 
 	// ************* set parameter values based on the command line *********************
@@ -229,31 +224,26 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagStderrPath != "" {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
-
 	if FlagExtraAttr != "" {
-		// Merge the extra attributes read from the file with the existing ones.
-		if !util.CheckTaskExtraAttr(FlagExtraAttr) {
-			log.Errorln("Invalid argument: invalid --extra-attr: invalid JSON string")
-			return false, nil
-		}
-		task.ExtraAttr = util.AmendTaskExtraAttr(task.ExtraAttr, FlagExtraAttr)
+		structExtraFromCli.ExtraAttr = FlagExtraAttr
 	}
 	if FlagMailType != "" {
-		extra, err := sjson.Set(task.ExtraAttr, "mail.type", FlagMailType)
-		if err != nil {
-			log.Errorf("Invalid argument: invalid --mail-type: %v", err)
-			return false, nil
-		}
-		task.ExtraAttr = extra
+		structExtraFromCli.MailType = FlagMailType
 	}
 	if FlagMailUser != "" {
-		extra, err := sjson.Set(task.ExtraAttr, "mail.user", FlagMailUser)
-		if err != nil {
-			log.Errorf("Invalid argument: invalid --mail-user: %v", err)
-			return false, nil
-		}
-		task.ExtraAttr = extra
+		structExtraFromCli.MailUser = FlagMailUser
 	}
+	if FlagComment != "" {
+		structExtraFromCli.Comment = FlagComment
+	}
+
+	// Set and check the extra attributes
+	var extraFromCli string
+	if err := structExtraFromCli.Marshal(&extraFromCli); err != nil {
+		log.Errorf("Invalid argument: %v", err)
+		return false, nil
+	}
+	task.ExtraAttr = util.AmendJobExtraAttrs(extraFromScript, extraFromCli)
 
 	// Set total limit of cpu cores
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)

@@ -32,6 +32,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 )
 
 var (
@@ -129,11 +130,11 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 	util.SetBorderlessTable(table)
 	var header []string
 	tableData := make([][]string, len(reply.TaskInfoList))
-	if  FlagFull {
-		header = []string{"JobId", "JobName", "UserName", "Partition", 
-		 "Account", "NodeNum", "AllocCPUs", "MemPerNode", "Status", "Time", "TimeLimit", 
-		 "StartTime", "SubmitTime", "Type", "Qos",  "Held", "Priority", "NodeList/Reason"}
-		for i := 0; i < len(reply.TaskInfoList); i++ {
+	if FlagFull {
+		header = []string{"JobId", "JobName", "UserName", "Partition",
+			"Account", "NodeNum", "AllocCPUs", "MemPerNode", "Status", "Time", "TimeLimit",
+			"StartTime", "SubmitTime", "Type", "Qos", "Held", "Priority", "NodeList/Reason"}
+		for i := range reply.TaskInfoList {
 			taskInfo := reply.TaskInfoList[i]
 
 			var timeElapsedStr string
@@ -153,7 +154,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 			startTimeStr := "unknown"
 			startTime := taskInfo.StartTime.AsTime()
 			if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) &&
-			startTime.Before(time.Now()) {
+				startTime.Before(time.Now()) {
 				startTimeStr = startTime.In(time.Local).Format("2006-01-02 15:04:05")
 			}
 
@@ -163,7 +164,6 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 				submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
 			}
 
-
 			var reasonOrListStr string
 			if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
 				reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
@@ -171,7 +171,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdError {
 				reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
 			}
 
-			tableData[i] = []string {
+			tableData[i] = []string{
 				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
 				taskInfo.Name,
 				taskInfo.Username,
@@ -290,10 +290,12 @@ func Query() util.CraneCmdError {
 	return QueryTableOutput(reply)
 }
 
+// 'a' group
 func ProcessAccount(task *protos.TaskInfo) string {
 	return task.Account
 }
 
+// 'c' group
 func ProcessCpuPerNode(task *protos.TaskInfo) string {
 	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
 }
@@ -302,10 +304,7 @@ func ProcessAllocCpus(task *protos.TaskInfo) string {
 	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
 }
 
-func ProcessNodeNum(task *protos.TaskInfo) string {
-	return strconv.FormatUint(uint64(task.NodeNum), 10)
-}
-
+// 'e' group
 func ProcessElapsedTime(task *protos.TaskInfo) string {
 	if task.Status == protos.TaskStatus_Running {
 		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
@@ -313,15 +312,83 @@ func ProcessElapsedTime(task *protos.TaskInfo) string {
 	return "-"
 }
 
+// 'h' group
+func ProcessHeld(task *protos.TaskInfo) string {
+	return strconv.FormatBool(task.Held)
+}
+
+// 'j' group
 func ProcessJobId(task *protos.TaskInfo) string {
 	return strconv.FormatUint(uint64(task.TaskId), 10)
 }
 
+// 'k' group
+func ProcessComment(task *protos.TaskInfo) string {
+	if !gjson.Valid(task.ExtraAttr) {
+		return ""
+	}
+	return gjson.Get(task.ExtraAttr, "comment").String()
+}
+
+// 'l' group
 func ProcessTimeLimit(task *protos.TaskInfo) string {
 	if task.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
 		return "unlimited"
 	}
 	return util.SecondTimeFormat(task.TimeLimit.Seconds)
+}
+
+func ProcessNodeList(task *protos.TaskInfo) string {
+	return task.GetCranedList()
+}
+
+// 'm' group
+func ProcessMemPerNode(task *protos.TaskInfo) string {
+	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+}
+
+// 'n' group
+func ProcessName(task *protos.TaskInfo) string {
+	return task.Name
+}
+
+func ProcessNodeNum(task *protos.TaskInfo) string {
+	return strconv.FormatUint(uint64(task.NodeNum), 10)
+}
+
+// 'p' group
+func ProcessPriority(task *protos.TaskInfo) string {
+	return strconv.FormatUint(uint64(task.Priority), 10)
+}
+
+func ProcessPartition(task *protos.TaskInfo) string {
+	return task.Partition
+}
+
+// 'q' group
+func ProcessQoS(task *protos.TaskInfo) string {
+	return task.Qos
+}
+
+// 'r' group
+func ProcessReqNodes(task *protos.TaskInfo) string {
+	return strings.Join(task.ReqNodes, ",")
+}
+
+func ProcessReason(task *protos.TaskInfo) string {
+	if task.Status == protos.TaskStatus_Pending {
+		return task.GetPendingReason()
+	}
+	return " "
+}
+
+// 's' group
+func ProcessSubmitTime(task *protos.TaskInfo) string {
+	submitTime := task.SubmitTime.AsTime()
+	if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		return submitTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
 }
 
 func ProcessStartTime(task *protos.TaskInfo) string {
@@ -332,46 +399,16 @@ func ProcessStartTime(task *protos.TaskInfo) string {
 	return "unknown"
 }
 
-func ProcessSubmitTime(task *protos.TaskInfo) string {
-	submitTime := task.SubmitTime.AsTime()
-	if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-		return submitTime.In(time.Local).Format("2006-01-02 15:04:05")
-	}
-	return "unknown"
-}
-
-func ProcessNodeList(task *protos.TaskInfo) string {
-	return task.GetCranedList()
-}
-
-func ProcessMemPerNode(task *protos.TaskInfo) string {
-	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
-}
-
-func ProcessName(task *protos.TaskInfo) string {
-	return task.Name
-}
-
+// 't' group
 func ProcessState(task *protos.TaskInfo) string {
 	return task.Status.String()
-}
-
-func ProcessPriority(task *protos.TaskInfo) string {
-	return strconv.FormatUint(uint64(task.Priority), 10)
-}
-
-func ProcessPartition(task *protos.TaskInfo) string {
-	return task.Partition
-}
-
-func ProcessQoS(task *protos.TaskInfo) string {
-	return task.Qos
 }
 
 func ProcessJobType(task *protos.TaskInfo) string {
 	return task.Type.String()
 }
 
+// 'u' group
 func ProcessUser(task *protos.TaskInfo) string {
 	return task.Username
 }
@@ -380,77 +417,96 @@ func ProcessUid(task *protos.TaskInfo) string {
 	return strconv.FormatUint(uint64(task.Uid), 10)
 }
 
-func ProcessReason(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Pending {
-		return task.GetPendingReason()
-	}
-	return " "
-}
-
-func ProcessReqNodes(task *protos.TaskInfo) string {
-	return strings.Join(task.ReqNodes, ",")
-}
-
+// 'x' group
 func ProcessExcludeNodes(task *protos.TaskInfo) string {
 	return strings.Join(task.ExcludeNodes, ",")
 }
 
-func ProcessHeld(task *protos.TaskInfo) string {
-	return strconv.FormatBool(task.Held)
-}
-
 type FieldProcessor struct {
-	header string
+	header  string
 	process func(task *protos.TaskInfo) string
 }
 
 var fieldMap = map[string]FieldProcessor{
-	"a":         {"Account", ProcessAccount},
-	"account":   {"Account", ProcessAccount},
-	"c":         {"CpuPerNode", ProcessCpuPerNode},
+	// 'a' group
+	"a":       {"Account", ProcessAccount},
+	"account": {"Account", ProcessAccount},
+
+	// 'c' group
+	"c":          {"CpuPerNode", ProcessCpuPerNode},
 	"cpupernode": {"CpuPerNode", ProcessCpuPerNode},
-	"C":         {"AllocCpus", ProcessAllocCpus},
-	"alloccpus": {"AllocCpus", ProcessAllocCpus},
-	"N":         {"NodeNum", ProcessNodeNum},
-	"nodenum":   {"NodeNum", ProcessNodeNum},
-	"e":         {"ElapsedTime", ProcessElapsedTime},
+	"C":          {"AllocCpus", ProcessAllocCpus},
+	"alloccpus":  {"AllocCpus", ProcessAllocCpus},
+
+	// 'e' group
+	"e":           {"ElapsedTime", ProcessElapsedTime},
 	"elapsedtime": {"ElapsedTime", ProcessElapsedTime},
-	"j":         {"JobId", ProcessJobId},
-	"jobid":     {"JobId", ProcessJobId},
+
+	// 'h' group
+	"h":    {"Held", ProcessHeld},
+	"held": {"Held", ProcessHeld},
+
+	// 'j' group
+	"j":     {"JobId", ProcessJobId},
+	"jobid": {"JobId", ProcessJobId},
+
+	// 'k' group
+	"k":       {"Comment", ProcessComment},
+	"comment": {"Comment", ProcessComment},
+
+	// 'l' group
 	"l":         {"TimeLimit", ProcessTimeLimit},
 	"timelimit": {"TimeLimit", ProcessTimeLimit},
-	"S":         {"StartTime", ProcessStartTime},
-	"starttime": {"StartTime", ProcessStartTime},
-	"s":         {"SubmitTime", ProcessSubmitTime},
-	"submittime": {"SubmitTime", ProcessSubmitTime},
 	"L":         {"NodeList(Reason)", ProcessNodeList},
 	"nodelist":  {"NodeList(Reason)", ProcessNodeList},
-	"m":         {"MemPerNode", ProcessMemPerNode},
+
+	// 'm' group
+	"m":          {"MemPerNode", ProcessMemPerNode},
 	"mempernode": {"MemPerNode", ProcessMemPerNode},
-	"n":         {"Name", ProcessName},
-	"name":      {"Name", ProcessName},
-	"t":         {"State", ProcessState},
-	"state":     {"State", ProcessState},
+
+	// 'n' group
+	"n":       {"Name", ProcessName},
+	"name":    {"Name", ProcessName},
+	"N":       {"NodeNum", ProcessNodeNum},
+	"nodenum": {"NodeNum", ProcessNodeNum},
+
+	// 'p' group
 	"p":         {"Priority", ProcessPriority},
 	"priority":  {"Priority", ProcessPriority},
 	"P":         {"Partition", ProcessPartition},
 	"partition": {"Partition", ProcessPartition},
-	"q":         {"QoS", ProcessQoS},
-	"qos":       {"QoS", ProcessQoS},
-	"T":         {"JobType", ProcessJobType},
-	"jobtype":   {"JobType", ProcessJobType},
-	"u":         {"User", ProcessUser},
-	"user":      {"User", ProcessUser},
-	"U":         {"Uid", ProcessUid},
-	"uid":       {"Uid", ProcessUid},
-	"R":         {"Reason", ProcessReason},
-	"reason":    {"Reason", ProcessReason},
-	"r":         {"ReqNodes", ProcessReqNodes},
-	"reqnodes":  {"ReqNodes", ProcessReqNodes},
-	"x":         {"ExcludeNodes", ProcessExcludeNodes},
+
+	// 'q' group
+	"q":   {"QoS", ProcessQoS},
+	"qos": {"QoS", ProcessQoS},
+
+	// 'r' group
+	"r":        {"ReqNodes", ProcessReqNodes},
+	"reqnodes": {"ReqNodes", ProcessReqNodes},
+	"R":        {"Reason", ProcessReason},
+	"reason":   {"Reason", ProcessReason},
+
+	// 's' group
+	"s":          {"SubmitTime", ProcessSubmitTime},
+	"submittime": {"SubmitTime", ProcessSubmitTime},
+	"S":          {"StartTime", ProcessStartTime},
+	"starttime":  {"StartTime", ProcessStartTime},
+
+	// 't' group
+	"t":       {"State", ProcessState},
+	"state":   {"State", ProcessState},
+	"T":       {"JobType", ProcessJobType},
+	"jobtype": {"JobType", ProcessJobType},
+
+	// 'u' group
+	"u":    {"User", ProcessUser},
+	"user": {"User", ProcessUser},
+	"U":    {"Uid", ProcessUid},
+	"uid":  {"Uid", ProcessUid},
+
+	// 'x' group
+	"x":            {"ExcludeNodes", ProcessExcludeNodes},
 	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
-	"h":         {"Held", ProcessHeld},
-	"held":      {"Held", ProcessHeld},
 }
 
 // FormatData formats the output data according to the format string.
@@ -510,15 +566,15 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			field = strings.ToLower(field)
 		}
 
-		//a-Account, c-CpuPerNode, C-AllocCPUs, e-ElapsedTime, h-Held, j-JobID, l-TimeLimit, L-NodeList,
-		//m-MemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, R-Reason, r-ReqNodes, s-SubmitTime,
-		//S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes
+		// a-Account, c-CpuPerNode, C-AllocCPUs, e-ElapsedTime, h-Held, j-JobID, k-Comment, l-TimeLimit, L-NodeList,
+		// m-MemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, R-Reason, r-ReqNodes, s-SubmitTime,
+		// S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes
 		fieldProcessor, found := fieldMap[field]
 		if !found {
-			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n" +
-	 		"a/Account, c/CpuPerNode, C/AllocCPUs, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, L/NodeList,\n" +
-	 		"m/MemPerNode, n/Name, N/NodeNum, p/Priority, P/Partition, q/Qos, R/Reason, r/ReqNodes, s/SubmitTime,\n" +
-	 		"S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes.", field)
+			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n"+
+				"a/Account, c/CpuPerNode, C/AllocCPUs, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, k/Comment, L/NodeList,\n"+
+				"m/MemPerNode, n/Name, N/NodeNum, p/Priority, P/Partition, q/Qos, R/Reason, r/ReqNodes, s/SubmitTime,\n"+
+				"S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes.", field)
 			os.Exit(util.ErrorInvalidFormat)
 		}
 

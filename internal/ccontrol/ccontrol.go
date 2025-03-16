@@ -34,6 +34,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 )
 
 var (
@@ -294,6 +295,13 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		}
 	}
 
+	formatJobComment := func(s string) string {
+		if gjson.Valid(s) {
+			return gjson.Get(s, "comment").String()
+		}
+		return ""
+	}
+
 	// Track if any job requested is not returned
 	printed := map[uint32]bool{}
 
@@ -358,7 +366,8 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			"\tCmdLine=\"%v\" Workdir=%v\n"+
 			"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
 			"\t%s=node=%d cpu=%.2f gres=%s\n"+
-			"\tReqNodeList=%v ExecludeNodeList=%v \n",
+			"\tReqNodeList=%v ExecludeNodeList=%v\n"+
+			"\tComment=%v\n",
 			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
 			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
@@ -366,7 +375,8 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			taskInfo.CmdLine, taskInfo.Cwd,
 			taskInfo.Priority, taskInfo.Qos, taskInfo.ResView.AllocatableRes.CpuCoreLimit, formatMemToMB(taskInfo.ResView.AllocatableRes.MemoryLimitBytes),
 			resourcesType, taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())))
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())), formatJobComment(taskInfo.ExtraAttr),
+		)
 	}
 
 	// If any job is requested but not returned, remind the user
