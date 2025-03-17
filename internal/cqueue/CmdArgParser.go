@@ -118,6 +118,7 @@ Supported format identifiers or string, string case insensitive:
 	%c/%CpuPerNode   - Display the requested cpu per node of the job.
 	%e/%ElapsedTime  - Display the elapsed time from the start of the job. 
 	%h/%Held         - Display the hold state of the job.
+	%b/Blocked       - Display the Block state of the job.
 	%j/%JobID        - Display the ID of the job.
 	%L/%NodeList     - Display the list of nodes the job is running on.
 	%l/%TimeLimit    - Display the time limit for the job.
