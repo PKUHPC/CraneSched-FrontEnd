@@ -806,34 +806,35 @@ type JobExtraAttrs struct {
 func (j *JobExtraAttrs) Marshal(r *string) error {
 	var err error
 
+	extra := j.ExtraAttr
+	if extra != "" && gjson.Valid(extra) {
+		return fmt.Errorf("invalid --extra-attr: invalid JSON string")
+	}
+
 	if j.MailType != "" {
 		if !CheckMailType(j.MailType) {
 			return fmt.Errorf("invalid --mail-type")
 		}
-		j.ExtraAttr, err = sjson.Set(j.ExtraAttr, "mail.type", j.MailType)
+		extra, err = sjson.Set(extra, "mail.type", j.MailType)
 		if err != nil {
 			return fmt.Errorf("invalid --mail-type: %v", err)
 		}
 	}
 
 	if j.MailUser != "" {
-		j.ExtraAttr, err = sjson.Set(j.ExtraAttr, "mail.user", j.MailUser)
+		extra, err = sjson.Set(extra, "mail.user", j.MailUser)
 		if err != nil {
 			return fmt.Errorf("invalid --mail-user: %v", err)
 		}
 	}
 
 	if j.Comment != "" {
-		j.ExtraAttr, err = sjson.Set(j.ExtraAttr, "comment", j.Comment)
+		extra, err = sjson.Set(extra, "comment", j.Comment)
 		if err != nil {
 			return fmt.Errorf("invalid --comment: %v", err)
 		}
 	}
 
-	if j.ExtraAttr != "" && !gjson.Valid(j.ExtraAttr) {
-		return fmt.Errorf("invalid --extra-attr: invalid JSON string")
-	}
-
-	*r = j.ExtraAttr
+	*r = extra
 	return nil
 }
