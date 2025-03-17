@@ -172,7 +172,8 @@ message RuntimeAttrOfTask {
   bool held = 18;
   ResourceV2 resources = 19;
   double cached_priority = 20;
-  bool blocked = 21;
+  bool blocked_by_account = 21;
+  bool blocked_by_user = 22;
 }
 
 message TaskToD {
@@ -339,7 +340,7 @@ message TrimmedPartitionInfo {
 
 message RichError {
   ErrCode code = 1;
-   string description = 2;
+  string description = 2;
 }
 
 enum ErrCode {
