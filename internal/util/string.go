@@ -234,24 +234,6 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
-func CheckTaskExtraAttr(attr string) bool {
-	return gjson.Valid(attr)
-}
-
-// Merge two JSON strings.
-// If there are overlapping keys, values from the second JSON take precedence.
-func AmendTaskExtraAttr(origin, new string) string {
-	result := gjson.Parse(new)
-	result.ForEach(func(key, value gjson.Result) bool {
-		var err error
-		// Use sjson to set/override the value in the first JSON
-		origin, err = sjson.Set(origin, key.String(), value.Value())
-		return err == nil
-	})
-
-	return origin
-}
-
 func CheckMailType(mailtype string) bool {
 	return mailtype == "NONE" ||
 		mailtype == "BEGIN" ||
@@ -794,4 +776,65 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 	}
 
 	return jobIdList, nil
+}
+
+// Merge two JSON strings.
+// If there are overlapping keys, values from the second JSON take precedence.
+func AmendJobExtraAttrs(origin, new string) string {
+	if origin == "" {
+		return new
+	}
+
+	result := gjson.Parse(new)
+	result.ForEach(func(key, value gjson.Result) bool {
+		var err error
+		// Use sjson to set/override the value in the first JSON
+		origin, err = sjson.Set(origin, key.String(), value.Value())
+		return err == nil
+	})
+
+	return origin
+}
+
+type JobExtraAttrs struct {
+	ExtraAttr string
+	MailType  string
+	MailUser  string
+	Comment   string
+}
+
+func (j *JobExtraAttrs) Marshal(r *string) error {
+	var err error
+
+	extra := j.ExtraAttr
+	if extra != "" && gjson.Valid(extra) {
+		return fmt.Errorf("invalid --extra-attr: invalid JSON string")
+	}
+
+	if j.MailType != "" {
+		if !CheckMailType(j.MailType) {
+			return fmt.Errorf("invalid --mail-type")
+		}
+		extra, err = sjson.Set(extra, "mail.type", j.MailType)
+		if err != nil {
+			return fmt.Errorf("invalid --mail-type: %v", err)
+		}
+	}
+
+	if j.MailUser != "" {
+		extra, err = sjson.Set(extra, "mail.user", j.MailUser)
+		if err != nil {
+			return fmt.Errorf("invalid --mail-user: %v", err)
+		}
+	}
+
+	if j.Comment != "" {
+		extra, err = sjson.Set(extra, "comment", j.Comment)
+		if err != nil {
+			return fmt.Errorf("invalid --comment: %v", err)
+		}
+	}
+
+	*r = extra
+	return nil
 }

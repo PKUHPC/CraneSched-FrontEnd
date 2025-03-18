@@ -45,6 +45,7 @@ var (
 	FlagExtraAttr string
 	FlagMailType  string
 	FlagMailUser  string
+	FlagComment   string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -94,4 +95,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
+	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 }
