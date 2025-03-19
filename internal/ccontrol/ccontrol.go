@@ -38,8 +38,8 @@ import (
 )
 
 var (
-	userUid uint32
-	stub    protos.CraneCtldClient
+	secureStub protos.CraneCtldSecureClient
+	plainStub  protos.CraneCtldPlainClient
 )
 
 func formatDeviceMap(data *protos.DeviceMap) string {
@@ -122,7 +122,7 @@ func formatDeniedAccounts(deniedAccounts []string) string {
 
 func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
-	reply, err := stub.QueryCranedInfo(context.Background(), req)
+	reply, err := plainStub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
 		return util.ErrorNetwork
@@ -203,7 +203,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 
 func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 	req := &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
-	reply, err := stub.QueryPartitionInfo(context.Background(), req)
+	reply, err := plainStub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
 		return util.ErrorNetwork
@@ -262,7 +262,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 	}
 
 	req = &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
-	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	reply, err := plainStub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show jobs")
 		return util.ErrorNetwork
@@ -489,7 +489,7 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneCmdError {
 			TimeLimitSeconds: seconds,
 		},
 	}
-	reply, err := stub.ModifyTask(context.Background(), req)
+	reply, err := secureStub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
 		return util.ErrorNetwork
@@ -542,7 +542,7 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: 0}
 	}
 
-	reply, err := stub.ModifyTask(context.Background(), req)
+	reply, err := secureStub.ModifyTask(context.Background(), req)
 	if err != nil {
 		log.Errorf("Failed to modify the job: %v", err)
 		return util.ErrorNetwork
@@ -589,7 +589,7 @@ func ChangeTaskPriority(taskStr string, priority float64) util.CraneCmdError {
 		},
 	}
 
-	reply, err := stub.ModifyTask(context.Background(), req)
+	reply, err := secureStub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task priority")
 		return util.ErrorNetwork
@@ -639,7 +639,7 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		return util.ErrorCmdArg
 	}
 
-	reply, err := stub.ModifyNode(context.Background(), req)
+	reply, err := secureStub.ModifyNode(context.Background(), req)
 	if err != nil {
 		log.Errorf("Failed to modify node state: %v.\n", err)
 		return util.ErrorNetwork
@@ -663,13 +663,12 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) u
 	accountList, _ = util.ParseStringParamList(accounts, ",")
 
 	req := protos.ModifyPartitionAclRequest{
-		Uid:           userUid,
 		Partition:     partition,
 		IsAllowedList: isAllowedList,
 		Accounts:      accountList,
 	}
 
-	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
+	reply, err := secureStub.ModifyPartitionAcl(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
 		return util.ErrorNetwork
