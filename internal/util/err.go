@@ -107,6 +107,10 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_USER_NO_PRIVILEGE:      "User has insufficient privilege",
 	protos.ErrCode_ERR_NOT_IN_ALLOWED_LIST:    "The account does not have permission to run jobs in this partition. Please contact the administrator to add it to the allowed list",
 	protos.ErrCode_ERR_IN_DENIED_LIST:         "The account has been denied access to this partition. Please contact the security administrator if access is required",
+	protos.ErrCode_ERR_SIGN_CERTIFICATE:       "The user failed to issue the certificate, please contact the administrator for assistance",
+	protos.ErrCode_ERR_DUPLICATE_CERTIFICATE:  "The certificate has already been issued to the user. If the certificate is lost and needs to be reissued, please contact the administrator for assistance",
+	protos.ErrCode_ERR_REVOKE_CERTIFICATE:     "Revocation of the certificate failed, Please check the logs",
+	protos.ErrCode_ERR_IDENTITY_MISMATCH:      "User information does not match, unable to submit the task.",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
