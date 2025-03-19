@@ -663,13 +663,12 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) u
 	accountList, _ = util.ParseStringParamList(accounts, ",")
 
 	req := protos.ModifyPartitionAclRequest{
-		Uid:           userUid,
 		Partition:     partition,
 		IsAllowedList: isAllowedList,
 		Accounts:      accountList,
 	}
 
-	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
+	reply, err := secureStub.ModifyPartitionAcl(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
 		return util.ErrorNetwork
