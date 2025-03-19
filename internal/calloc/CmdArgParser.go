@@ -42,6 +42,11 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 
+	FlagExtraAttr string
+	FlagMailType  string
+	FlagMailUser  string
+	FlagComment   string
+
 	FlagConfigFilePath string
 	FlagDebugLevel     string
 
@@ -87,4 +92,8 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
+	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
+	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
+	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 }

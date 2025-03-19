@@ -73,9 +73,8 @@ type EventInfoJson struct {
 	Reason              string                    `json:"reason"`
 }
 
-func PrintAllUsers(userList []*protos.UserInfo) {
+func PrintUserList(userList []*protos.UserInfo) {
 	if len(userList) == 0 {
-		fmt.Println("There is no user in crane.")
 		return
 	}
 
@@ -144,9 +143,8 @@ func PrintAllUsers(userList []*protos.UserInfo) {
 	table.Render()
 }
 
-func PrintAllQos(qosList []*protos.QosInfo) {
+func PrintQosList(qosList []*protos.QosInfo) {
 	if len(qosList) == 0 {
-		fmt.Println("There is no QoS in crane")
 		return
 	}
 
@@ -195,9 +193,8 @@ func PrintAllQos(qosList []*protos.QosInfo) {
 	table.Render()
 }
 
-func PrintAllAccount(accountList []*protos.AccountInfo) {
+func PrintAccountList(accountList []*protos.AccountInfo) {
 	if len(accountList) == 0 {
-		fmt.Println("There is no account in crane")
 		return
 	}
 
@@ -477,12 +474,19 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	}
 }
 
-func DeleteAccount(name string) util.CraneCmdError {
-	req := protos.DeleteAccountRequest{Uid: userUid, Name: name}
+func DeleteAccount(value string) util.CraneCmdError {
+
+	accountList, err := util.ParseStringParamList(value, ",")
+	if err != nil {
+		log.Errorf("Invalid user list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+
+	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList}
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete account %s", name)
+		util.GrpcErrorPrintf(err, "Failed to delete account %s", value)
 		return util.ErrorNetwork
 	}
 
@@ -495,20 +499,29 @@ func DeleteAccount(name string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Successfully deleted account '%s'.\n", name)
+		fmt.Printf("Successfully deleted account '%s'.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to delete account %s: %s.\n", name, util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to delete account: \n")
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		return util.ErrorBackend
 	}
 }
 
-func DeleteUser(name string, account string) util.CraneCmdError {
-	req := protos.DeleteUserRequest{Uid: userUid, Name: name, Account: account}
+func DeleteUser(value string, account string) util.CraneCmdError {
+
+	userList, err := util.ParseStringParamList(value, ",")
+	if err != nil {
+		log.Errorf("Invalid user list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+	req := protos.DeleteUserRequest{Uid: userUid, UserList: userList, Account: account}
 
 	reply, err := stub.DeleteUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to remove user %s", name)
+		util.GrpcErrorPrintf(err, "Failed to remove user %s", value)
 		return util.ErrorNetwork
 	}
 
@@ -521,20 +534,29 @@ func DeleteUser(name string, account string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Successfully removed user '%s'.\n", name)
+		fmt.Printf("Successfully removed user '%s'.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to remove user '%s': %s.\n", name, util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to remove user: \n")
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		return util.ErrorBackend
 	}
 }
 
-func DeleteQos(name string) util.CraneCmdError {
-	req := protos.DeleteQosRequest{Uid: userUid, Name: name}
+func DeleteQos(value string) util.CraneCmdError {
+
+	qosList, err := util.ParseStringParamList(value, ",")
+	if err != nil {
+		log.Errorf("Invalid user list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList}
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", name)
+		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", value)
 		return util.ErrorNetwork
 	}
 
@@ -547,19 +569,44 @@ func DeleteQos(name string) util.CraneCmdError {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Successfully deleted QoS '%s'.\n", name)
+		fmt.Printf("Successfully deleted QoS '%s'.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to delete QoS '%s': %s.\n", name, util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to delete QoS: \n")
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		return util.ErrorBackend
 	}
 }
 
-func ModifyAccount(modify_field protos.ModifyField, new_value string, name string, requestType protos.OperationType) util.CraneCmdError {
+func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.CraneCmdError {
+	var valueList []string
+	var err error
+
+	valueList, err = util.ParseStringParamList(newValue, ",")
+	if err != nil {
+		if modifyField == protos.ModifyField_Qos {
+			log.Errorf("Invalid qos list specified: %v.\n", err)
+		} else if modifyField == protos.ModifyField_Partition {
+			log.Errorf("Invalid partition list specified: %v.\n", err)
+		} else {
+			log.Errorf("Invalid value list specified: %v.\n", err)
+		}
+		return util.ErrorCmdArg
+	}
+
+	if modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_Description {
+		if len(valueList) != 1 {
+			log.Errorf("Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
+			return util.ErrorCmdArg
+		}
+	}
+
 	req := protos.ModifyAccountRequest{
 		Uid:         userUid,
-		ModifyField: modify_field,
-		Value:       new_value,
+		ModifyField: modifyField,
+		ValueList:   valueList,
 		Name:        name,
 		Type:        requestType,
 		Force:       FlagForce,
@@ -583,23 +630,46 @@ func ModifyAccount(modify_field protos.ModifyField, new_value string, name strin
 		fmt.Println("Information was successfully modified.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to modify information: %s.\n", util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to modify information:\n")
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+			} else {
+				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			}
+		}
 		return util.ErrorBackend
 	}
 }
 
-func ModifyUser(modify_field protos.ModifyField, new_value string, name string, account string, partition string, requestType protos.OperationType) util.CraneCmdError {
-	if modify_field == protos.ModifyField_AdminLevel {
-		if new_value != "none" && new_value != "operator" && new_value != "admin" {
+func ModifyUser(modifyField protos.ModifyField, newValue string, name string, account string, partition string, requestType protos.OperationType) util.CraneCmdError {
+	if modifyField == protos.ModifyField_AdminLevel {
+		if newValue != "none" && newValue != "operator" && newValue != "admin" {
 			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
+			return util.ErrorCmdArg
+		}
+	}
+
+	var valueList []string
+	var err error
+
+	valueList, err = util.ParseStringParamList(newValue, ",")
+	if err != nil {
+		log.Errorf("Invalid value list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+
+	if modifyField == protos.ModifyField_AdminLevel || modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_DefaultAccount {
+		if len(valueList) != 1 {
+			log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
 			return util.ErrorCmdArg
 		}
 	}
 
 	req := protos.ModifyUserRequest{
 		Uid:         userUid,
-		ModifyField: modify_field,
-		Value:       new_value,
+		ModifyField: modifyField,
+		ValueList:   valueList,
 		Name:        name,
 		Partition:   partition,
 		Type:        requestType,
@@ -625,16 +695,23 @@ func ModifyUser(modify_field protos.ModifyField, new_value string, name string, 
 		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Modify information failed: \n")
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+			} else {
+				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			}
+		}
 		return util.ErrorBackend
 	}
 }
 
-func ModifyQos(modify_field protos.ModifyField, new_value string, name string) util.CraneCmdError {
+func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
-		ModifyField: modify_field,
-		Value:       new_value,
+		ModifyField: modifyField,
+		Value:       newValue,
 		Name:        name,
 	}
 
@@ -677,17 +754,35 @@ func ShowAccounts() util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
-		PrintAllAccount(reply.AccountList)
-		return util.ErrorSuccess
-	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+
+	if !reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 	}
+
+	PrintAccountList(reply.AccountList)
+
+	return util.ErrorSuccess
 }
 
-func ShowUser(name string, account string) util.CraneCmdError {
-	req := protos.QueryUserInfoRequest{Uid: userUid, Name: name, Account: account}
+func ShowUser(value string, account string) util.CraneCmdError {
+
+	var userList []string
+	if value != "" {
+		var err error
+		userList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.QueryUserInfoRequest{Uid: userUid, UserList: userList, Account: account}
 	reply, err := stub.QueryUserInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the user")
@@ -702,17 +797,33 @@ func ShowUser(name string, account string) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
-		PrintAllUsers(reply.UserList)
-		return util.ErrorSuccess
-	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+
+	if !reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 	}
+
+	PrintUserList(reply.UserList)
+
+	return util.ErrorSuccess
 }
 
-func ShowQos(name string) util.CraneCmdError {
-	req := protos.QueryQosInfoRequest{Uid: userUid, Name: name}
+func ShowQos(value string) util.CraneCmdError {
+	var qosList []string
+	if value != "" {
+		var err error
+		qosList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+	req := protos.QueryQosInfoRequest{Uid: userUid, QosList: qosList}
 	reply, err := stub.QueryQosInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the QoS")
@@ -727,21 +838,34 @@ func ShowQos(name string) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
-		PrintAllQos(reply.QosList)
-		return util.ErrorSuccess
-	} else {
-		if name == "" {
-			fmt.Printf("Can't find any QoS. %s.\n", util.ErrMsg(reply.GetCode()))
-		} else {
-			fmt.Printf("Can't find QoS %s.\n", name)
+
+	if !reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return util.ErrorBackend
 	}
+
+	PrintQosList(reply.QosList)
+
+	return util.ErrorSuccess
 }
 
-func FindAccount(name string) util.CraneCmdError {
-	req := protos.QueryAccountInfoRequest{Uid: userUid, Name: name}
+func FindAccount(value string) util.CraneCmdError {
+	var accountList []string
+	if value != "" {
+		var err error
+		accountList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid account list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: accountList}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to find the account")
@@ -756,17 +880,35 @@ func FindAccount(name string) util.CraneCmdError {
 			return util.ErrorBackend
 		}
 	}
-	if reply.GetOk() {
-		PrintAccountTable(reply.AccountList)
-		return util.ErrorSuccess
-	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+
+	if !reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 	}
+
+	PrintAccountList(reply.AccountList)
+
+	return util.ErrorSuccess
 }
 
-func BlockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
-	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, Name: name, Account: account}
+func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
+
+	var entityList []string
+	if value != "all" {
+		var err error
+		entityList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid account/user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to block the entity")
@@ -782,16 +924,33 @@ func BlockAccountOrUser(name string, entityType protos.EntityType, account strin
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Block %s succeeded.\n", name)
+		fmt.Printf("Block %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		return util.ErrorBackend
 	}
 }
 
-func UnblockAccountOrUser(name string, entityType protos.EntityType, account string) util.CraneCmdError {
-	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, Name: name, Account: account}
+func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
+
+	var entityList []string
+	if value != "all" {
+		var err error
+		entityList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid account/user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to unblock the entity")
@@ -807,10 +966,16 @@ func UnblockAccountOrUser(name string, entityType protos.EntityType, account str
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Unblock %s succeeded.\n", name)
+		fmt.Printf("Unblock %s succeeded.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
 		return util.ErrorBackend
 	}
 }

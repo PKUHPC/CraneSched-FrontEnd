@@ -268,39 +268,39 @@ message AddQosReply {
 
 message DeleteAccountRequest {
   uint32 uid = 1;
-  string name = 2;
+  repeated string account_list = 2;
 }
 
 message DeleteAccountReply {
   bool ok = 1;
-  ErrCode code = 2;
+  repeated RichError rich_error_list = 2;
 }
 
 message DeleteUserRequest {
   uint32 uid = 1;
-  string name = 2;
+  repeated string user_list = 2;
   string account = 3;
 }
 
 message DeleteUserReply {
   bool ok = 1;
-  ErrCode code = 2;
+  repeated RichError rich_error_list = 2;
 }
 
 message DeleteQosRequest {
   uint32 uid = 1;
-  string name = 2;
+  repeated string qos_list = 2;
 }
 
 message DeleteQosReply {
   bool ok = 1;
-  ErrCode code = 2;
+  repeated RichError rich_error_list = 2;
 }
 
 message ModifyAccountRequest {
   uint32 uid = 1;
   ModifyField modify_field = 2;   //modify item field
-  string value = 3;   //new value
+  repeated string value_list = 3;   //new value
   string name = 4;
   OperationType type = 5;
   bool force = 6;
@@ -308,13 +308,13 @@ message ModifyAccountRequest {
 
 message ModifyAccountReply {
   bool ok = 1;
-  ErrCode code = 2;
+  repeated RichError rich_error_list = 2;
 }
 
 message ModifyUserRequest {
   uint32 uid = 1;
   ModifyField modify_field = 2;   //modify item field
-  string value = 3;   //new value
+  repeated string value_list = 3;   //new value
   string name = 4;
   string partition = 5;
   OperationType type = 6;
@@ -324,7 +324,7 @@ message ModifyUserRequest {
 
 message ModifyUserReply {
   bool ok = 1;
-  ErrCode code = 2;
+  repeated RichError rich_error_list = 2;
 }
 
 message ModifyQosRequest {
@@ -341,47 +341,60 @@ message ModifyQosReply {
 
 message QueryAccountInfoRequest {
   uint32 uid = 1;
-  string name = 2;
+  repeated string account_list = 2;
 }
 
 message QueryAccountInfoReply {
   bool ok = 1;
-  ErrCode code = 2;
-  repeated AccountInfo account_list = 3;
+  repeated AccountInfo account_list = 2;
+  repeated RichError rich_error_list = 3;
 }
 
 message QueryUserInfoRequest {
   uint32 uid = 1;
-  string name = 2;
+  repeated string user_list = 2;
   string account = 3;
 }
 
 message QueryUserInfoReply {
   bool ok = 1;
-  ErrCode code = 2;
-  repeated UserInfo user_list = 3;
+  repeated UserInfo user_list = 2;
+  repeated RichError rich_error_list = 3;
 }
 
 message QueryQosInfoRequest {
   uint32 uid = 1;
-  string name = 2;
+  repeated string qos_list = 2;
 }
 
 message QueryQosInfoReply {
   bool ok = 1;
-  ErrCode code = 2;
-  repeated QosInfo qos_list = 5;
+  repeated QosInfo qos_list = 2;
+  repeated RichError rich_error_list = 3;
 }
 
 message BlockAccountOrUserRequest {
   uint32 uid = 1;
   bool block = 2;
   EntityType entity_type = 3;
-  string name = 4;
+  repeated string entity_list = 4;
   string account = 5;
 }
 
 message BlockAccountOrUserReply {
+  bool ok = 1;
+  repeated RichError rich_error_list = 2;
+}
+
+message ModifyPartitionAclRequest {
+  uint32 uid = 1;
+  string partition = 2;
+  bool is_allowed_list = 3;
+  repeated string accounts = 4;
+}
+
+
+message ModifyPartitionAclReply {
   bool ok = 1;
   ErrCode code = 2;
 }
@@ -613,6 +626,7 @@ message StreamCrunRequest {
     TASK_REQUEST = 0;
     TASK_COMPLETION_REQUEST = 1;
     TASK_IO_FORWARD = 2;
+    TASK_X11_FORWARD = 3;
   }
 
   message TaskReq {
@@ -630,12 +644,18 @@ message StreamCrunRequest {
     string msg = 2;
   }
 
+  message TaskX11ForwardReq {
+    uint32 task_id = 1;
+    bytes msg = 2;
+  }
+
   CrunRequestType type = 1;
 
   oneof payload {
     TaskReq payload_task_req = 2;
     TaskCompleteReq payload_task_complete_req = 3;
     TaskIOForwardReq payload_task_io_forward_req = 4;
+    TaskX11ForwardReq payload_task_x11_forward_req = 5;
   }
 }
 
@@ -647,6 +667,7 @@ message StreamCrunReply {
     TASK_COMPLETION_ACK_REPLY = 3;
     TASK_IO_FORWARD = 4;
     TASK_IO_FORWARD_READY = 5;
+    TASK_X11_FORWARD = 6;
   }
 
   message TaskIdReply {
@@ -676,6 +697,10 @@ message StreamCrunReply {
     string msg = 1;
   }
 
+  message TaskX11ForwardReply{
+    bytes msg = 1;
+  }
+
   CforedCrunReplyType type = 1 ;
 
   oneof payload {
@@ -685,6 +710,7 @@ message StreamCrunReply {
     TaskCompletionAckReply payload_task_completion_ack_reply = 5;
     TaskIOForwardReadyReply payload_task_io_forward_ready_reply = 6;
     TaskIOForwardReply payload_task_io_forward_reply = 7;
+    TaskX11ForwardReply payload_task_x11_forward_reply = 8;
   }
 }
 
@@ -693,6 +719,7 @@ message StreamTaskIORequest {
     CRANED_REGISTER = 0;
     CRANED_TASK_OUTPUT = 1;
     CRANED_UNREGISTER = 2;
+    CRANED_TASK_X11_OUTPUT = 3;
   }
 
   message CranedRegisterReq {
@@ -708,11 +735,17 @@ message StreamTaskIORequest {
     string craned_id = 1;
   }
 
+  message CranedTaskX11OutputReq {
+    uint32 task_id = 1;
+    bytes msg = 2;
+  }
+
   CranedRequestType type = 1;
   oneof payload {
     CranedRegisterReq payload_register_req = 2;
     CranedTaskOutputReq payload_task_output_req = 3;
     CranedUnRegisterReq payload_unregister_req = 4;
+    CranedTaskX11OutputReq payload_task_x11_output_req = 5;
   }
 }
 
@@ -721,6 +754,7 @@ message StreamTaskIOReply {
     CRANED_REGISTER_REPLY = 0;
     CRANED_TASK_INPUT = 1;
     CRANED_UNREGISTER_REPLY = 2;
+    CRANED_TASK_X11_INPUT = 3;
   }
 
   message CranedRegisterReply {
@@ -736,12 +770,18 @@ message StreamTaskIOReply {
     bool ok = 1;
   }
 
+  message CranedTaskX11InputReq {
+    uint32 task_id = 1;
+    bytes msg = 2;
+  }
+
   CranedReplyType type = 1;
 
   oneof payload {
     CranedRegisterReply payload_craned_register_reply = 2;
     CranedTaskInputReq payload_task_input_req = 3;
     CranedUnregisterReply payload_craned_unregister_reply = 4;
+    CranedTaskX11InputReq payload_task_x11_input_req = 5;
   }
 }
 
@@ -768,6 +808,7 @@ service CraneCtld {
   rpc QueryPartitionInfo(QueryPartitionInfoRequest) returns (QueryPartitionInfoReply);
   rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
+  rpc ModifyPartitionAcl(ModifyPartitionAclRequest) returns (ModifyPartitionAclReply);
 
   /* RPCs called from cacctmgr */
   rpc AddAccount(AddAccountRequest) returns (AddAccountReply);

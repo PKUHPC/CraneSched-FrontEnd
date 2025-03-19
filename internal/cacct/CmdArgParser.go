@@ -125,6 +125,7 @@ Supported format identifiers or string, string case insensitive:
                         it formats as "0:<code>" or "<code>:0" based on the condition.
 	%h/%Held         - Display the hold status of the job.
 	%j/%JobID        - Display the ID of the job.
+	%k/%Comment      - Display the comment of the job.
 	%L/%NodeList     - Display the list of nodes the job is running on.
 	%l/%TimeLimit    - Display the time limit of the job.
 	%m/%MemPerNode   - Display the requested mem per node of the job.

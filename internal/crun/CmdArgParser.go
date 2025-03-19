@@ -26,19 +26,6 @@ import (
 )
 
 var (
-	RootCmd = &cobra.Command{
-		Use:     "crun [flags] executable",
-		Short:   "Allocate resource and run executable interactive",
-		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.DetectNetworkProxy()
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := MainCrun(cmd, args); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
 	FlagNtasksPerNode uint32
@@ -55,10 +42,31 @@ var (
 	FlagExport        string
 	FlagGres          string
 	FlagPty           bool
-	FlagX11           bool
+
+	FlagX11    bool
+	FlagX11Fwd bool
+
+	FlagExtraAttr string
+	FlagMailType  string
+	FlagMailUser  string
+	FlagComment   string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
+
+	RootCmd = &cobra.Command{
+		Use:     "crun [flags] executable",
+		Short:   "Allocate resource and run executable interactive",
+		Version: util.Version(),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.DetectNetworkProxy()
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := MainCrun(args); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 func ParseCmdArgs() {
@@ -83,10 +91,20 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
 	RootCmd.Flags().StringVarP(&FlagCwd, "chdir", "D", "", "Working directory of the job")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
+
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
-	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Run with X11 forwarding (insecure)")
+
+	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Enable X11 support, default is false. If not with --x11-forwarding, direct X11 is used (insecure)")
+	RootCmd.Flags().BoolVar(&FlagX11Fwd, "x11-forwarding", false, "Enable X11 forwarding by CraneSched (secure), default is false")
+
+	RootCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
+	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
+	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
+	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 }

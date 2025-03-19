@@ -221,6 +221,14 @@ message BatchTaskAdditionalMeta {
   string error_file_pattern = 4;
 }
 
+message X11Meta {
+  string target = 1;
+  uint32 port = 2;
+  string cookie = 3;
+
+  bool enable_forwarding = 4;
+}
+
 message InteractiveTaskAdditionalMeta {
   string cfored_name = 1;
   string sh_script = 2;
@@ -228,14 +236,8 @@ message InteractiveTaskAdditionalMeta {
   InteractiveTaskType interactive_type = 4;
 
   bool pty = 5;
+
   bool x11 = 6;
-
-  message X11Meta {
-    string target = 1;
-    uint32 port = 2;
-    string cookie = 3;
-  }
-
   X11Meta x11_meta = 7;
 }
 
@@ -296,6 +298,9 @@ message PartitionInfo {
   ResourceView res_total = 6;
   ResourceView res_avail = 7;
   ResourceView res_alloc = 8;
+
+  repeated string allowed_accounts = 9;
+  repeated string denied_accounts = 10;
 }
 
 message CranedInfo {
@@ -330,9 +335,14 @@ message TrimmedPartitionInfo {
   repeated TrimmedCranedInfo craned_lists = 3;
 }
 
+message RichError {
+  ErrCode code = 1;
+   string description = 2;
+}
+
 enum ErrCode {
   SUCCESS = 0;  // Success
-  
+
   ERR_INVALID_UID = 1;   // Invalid UID passed
   ERR_INVALID_OP_USER = 2; // Invalid operation user
   ERR_INVALID_USER = 3;  // Invalid user
@@ -412,7 +422,8 @@ enum ErrCode {
 
   ERR_MAX_JOB_COUNT_PER_USER = 65;
   ERR_USER_NO_PRIVILEGE = 66;
-  __ERR_CODE_COUNT = 67;
+  ERR_NOT_IN_ALLOWED_LIST = 67;  // The current account is not in the allowed account list for the partition.
+  ERR_IN_DENIED_LIST = 68;  // The current account has been explicitly added to the deny list for the partition.
 }
 
 enum EntityType {

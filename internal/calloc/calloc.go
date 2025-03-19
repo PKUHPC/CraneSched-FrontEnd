@@ -388,9 +388,10 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
 
-		// TODO: Propagate Env by --export here!
 		Env: make(map[string]string),
 	}
+
+	structExtraFromCli := &util.JobExtraAttrs{}
 
 	task.NodeNum = FlagNodes
 	task.CpusPerTask = FlagCpuPerTask
@@ -443,6 +444,25 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	}
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
+	}
+
+	if FlagExtraAttr != "" {
+		structExtraFromCli.ExtraAttr = FlagExtraAttr
+	}
+	if FlagMailType != "" {
+		structExtraFromCli.MailType = FlagMailType
+	}
+	if FlagMailUser != "" {
+		structExtraFromCli.MailUser = FlagMailUser
+	}
+	if FlagComment != "" {
+		structExtraFromCli.Comment = FlagComment
+	}
+
+	// Marshal extra attributes
+	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
+		log.Errorf("Invalid argument: %v", err)
+		return util.ErrorCmdArg
 	}
 
 	// Set total limit of cpu cores
