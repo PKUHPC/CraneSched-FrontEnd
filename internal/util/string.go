@@ -778,6 +778,46 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 	return jobIdList, nil
 }
 
+// StateToString converts a state value to a readable string
+func StateToString(state int64) string {
+	stateMap := map[int64]string{
+		0: "Resume",
+		1: "Drain",
+	}
+	if str, exists := stateMap[state]; exists {
+		return str
+	}
+	return "Unknown"
+}
+
+func GetValidNodeList(CranedNodeList []ConfigNodesList) ([]string, error) {
+    if len(CranedNodeList) == 0 {
+        return nil, fmt.Errorf("Nodes in config yaml file err")
+    }
+    
+    nodeNameSet := make(map[string]struct{})
+    var nodeNameList []string
+    for _, cranedNode := range CranedNodeList {
+        nodeNames, ok := ParseHostList(cranedNode.Name)
+        if !ok || len(nodeNames) == 0 {
+            continue
+        }
+
+        for _, nodeName := range nodeNames {
+            if _, exists := nodeNameSet[nodeName]; !exists {
+                nodeNameList = append(nodeNameList, nodeName)
+                nodeNameSet[nodeName] = struct{}{}
+            }
+        }
+    }
+
+    if len(nodeNameList) == 0 {
+        return nil, fmt.Errorf("no valid nodes found after parsing")
+    }
+
+    return nodeNameList, nil
+}
+
 // Merge two JSON strings.
 // If there are overlapping keys, values from the second JSON take precedence.
 func AmendJobExtraAttrs(origin, new string) string {

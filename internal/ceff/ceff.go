@@ -38,18 +38,8 @@ import (
 
 var (
 	stub     protos.CraneCtldClient
-	dbConfig *InfluxDbConfig
+	dbConfig *util.InfluxDbConfig
 )
-
-// InfluxDB Config represents the structure of the database configuration in monitor.yaml
-type InfluxDbConfig struct {
-	Username    string `yaml:"Username"`
-	Bucket      string `yaml:"Bucket"`
-	Org         string `yaml:"Org"`
-	Token       string `yaml:"Token"`
-	Measurement string `yaml:"Measurement"`
-	Url         string `yaml:"Url"`
-}
 
 type ResourceUsageRecord struct {
 	TaskID      int64
@@ -83,7 +73,7 @@ type CeffTaskInfo struct {
 var isFirstCall = true //Used for multi-job print
 
 // Extracts the InfluxDB configuration from the specified YAML configuration files
-func GetInfluxDbConfig(config *util.Config) (*InfluxDbConfig, util.CraneCmdError) {
+func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmdError) {
 	if !config.Plugin.Enabled {
 		log.Errorf("Plugin is not enabled")
 		return nil, util.ErrorCmdArg
@@ -109,7 +99,7 @@ func GetInfluxDbConfig(config *util.Config) (*InfluxDbConfig, util.CraneCmdError
 	}
 
 	dbConf := &struct {
-		Database *InfluxDbConfig `yaml:"Database"`
+		Database *util.InfluxDbConfig `yaml:"Database"`
 	}{}
 	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
 		log.Errorf("Failed to parse YAML config file: %v", err)
@@ -123,7 +113,7 @@ func GetInfluxDbConfig(config *util.Config) (*InfluxDbConfig, util.CraneCmdError
 	return dbConf.Database, util.ErrorSuccess
 }
 
-func QueryInfluxDbDataByTags(moniterConfig *InfluxDbConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
+func QueryInfluxDbDataByTags(moniterConfig *util.InfluxDbConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
 	if len(hostNames) == 0 {
 		return nil, fmt.Errorf("job not found")
 	}

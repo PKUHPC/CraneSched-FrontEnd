@@ -26,8 +26,10 @@ import (
 )
 
 type Config struct {
+	ClusterName         string `yaml:"ClusterName"`
 	ControlMachine      string `yaml:"ControlMachine"`
 	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+	CranedNodeList      []ConfigNodesList `yaml:"Nodes"`
 
 	UseTls             bool   `yaml:"UseTls"`
 	ServerCertFilePath string `yaml:"ServerCertFilePath"`
@@ -45,6 +47,22 @@ type PluginConfig struct {
 	SockPath string           `yaml:"PlugindSockPath"`
 	LogLevel string           `yaml:"PlugindDebugLevel"`
 	Plugins  []api.PluginMeta `yaml:"Plugins"`
+}
+
+// InfluxDB Config represents the structure of the database configuration
+type InfluxDbConfig struct {
+	Username    string `yaml:"Username"`
+	Bucket      string `yaml:"Bucket"`
+	Org         string `yaml:"Org"`
+	Token       string `yaml:"Token"`
+	Measurement string `yaml:"Measurement"`
+	Url         string `yaml:"Url"`
+}
+
+type ConfigNodesList struct {
+    Name   string `yaml:"name"`
+    CPU    int    `yaml:"cpu"`
+    Memory string `yaml:"memory"`
 }
 
 // Path = BaseDir + Dir + Name
