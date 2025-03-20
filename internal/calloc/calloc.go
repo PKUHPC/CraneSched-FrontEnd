@@ -398,7 +398,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
-		task.Resources.DeviceMap = gresMap
+		task.Resources.ReqDeviceMap = gresMap
 	}
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)

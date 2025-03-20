@@ -848,7 +848,7 @@ func MainCrun(args []string) util.CraneCmdError {
 	}
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
-		task.Resources.DeviceMap = gresMap
+		task.Resources.ReqDeviceMap = gresMap
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition

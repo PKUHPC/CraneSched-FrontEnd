@@ -81,7 +81,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.CpusPerTask = num
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
-			task.Resources.DeviceMap = gresMap
+			task.Resources.ReqDeviceMap = gresMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -157,16 +157,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			}
 			task.ExtraAttr = extra
 		case "--exclusive":
-			if arg.val == "" {
-				task.GetUserEnv = true
-			} else {
-				val, err := strconv.ParseBool(arg.val)
-				if err != nil {
-					log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-					return false, nil
-				}
-				task.Exclusive = val
+			val, err := strconv.ParseBool(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
 			}
+			task.Exclusive = val
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -187,7 +183,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("gres") {
-		task.Resources.DeviceMap = util.ParseGres(FlagGres)
+		task.Resources.ReqDeviceMap = util.ParseGres(FlagGres)
 	}
 
 	if FlagTime != "" {
