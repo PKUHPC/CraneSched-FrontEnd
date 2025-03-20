@@ -322,17 +322,11 @@ func ProcessAccount(task *protos.TaskInfo) string {
 
 // ReqCPUs
 func ProcessReqCPUs(task *protos.TaskInfo) string {
-	if task.ResView.ReqAllocatableRes == nil {
-		return "unkown"
-	}
-	return strconv.FormatFloat(task.ResView.ReqAllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
 }
 
 // AllocCPUs
 func ProcessAllocCPUs(task *protos.TaskInfo) string {
-	if task.ResView.ReqAllocatableRes == nil {
-		return "unkown"
-	}
 	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
 }
 
@@ -488,16 +482,14 @@ func ProcessReason(task *protos.TaskInfo) string {
 
 // ReqMemPerNode
 func ProcessReqMemPerNode(task *protos.TaskInfo) string {
-	if task.ResView.ReqAllocatableRes == nil {
-		return "unkown"
-	}
-	return strconv.FormatUint(task.ResView.ReqAllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+
+	return strconv.FormatUint(task.ReqResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
 }
 
 // MemPerNode
 func ProcessMemPerNode(task *protos.TaskInfo) string {
-	if task.ResView.AllocatableRes == nil {
-		return "unkown"
+	 if task.ResView.AllocatableRes == nil {
+	 	return "unkown"
 	}
 	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
 }

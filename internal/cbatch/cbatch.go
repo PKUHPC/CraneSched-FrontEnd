@@ -45,8 +45,8 @@ type CbatchArg struct {
 func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
-	task.Resources = &protos.ResourceView{
-		ReqAllocatableRes: &protos.AllocatableResource{
+	task.ReqResources = &protos.ResourceView{
+		AllocatableRes: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
 			MemoryLimitBytes:   0,
 			MemorySwLimitBytes: 0,
@@ -81,7 +81,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.CpusPerTask = num
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
-			task.Resources.ReqDeviceMap = gresMap
+			task.ReqResources.DeviceMap = gresMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -102,8 +102,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
-			task.Resources.ReqAllocatableRes.MemoryLimitBytes = memInByte
-			task.Resources.ReqAllocatableRes.MemorySwLimitBytes = memInByte
+			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
+			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			task.PartitionName = arg.val
 		case "-J", "--job-name":
@@ -183,7 +183,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("gres") {
-		task.Resources.ReqDeviceMap = util.ParseGres(FlagGres)
+		task.ReqResources.DeviceMap = util.ParseGres(FlagGres)
 	}
 
 	if FlagTime != "" {
@@ -200,8 +200,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorf("Invalid argument: %v", err)
 			return false, nil
 		}
-		task.Resources.ReqAllocatableRes.MemoryLimitBytes = memInByte
-		task.Resources.ReqAllocatableRes.MemorySwLimitBytes = memInByte
+		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
+		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 	}
 
 	if FlagPartition != "" {
@@ -267,7 +267,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	// Set total limit of cpu cores
-	task.Resources.ReqAllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {

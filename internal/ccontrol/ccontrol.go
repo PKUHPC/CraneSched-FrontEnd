@@ -359,7 +359,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExecutionNode())),
 			taskInfo.CmdLine, taskInfo.Cwd,
 			taskInfo.Priority, taskInfo.Qos, taskInfo.ResView.AllocatableRes.CpuCoreLimit, formatMemToMB(taskInfo.ResView.AllocatableRes.MemoryLimitBytes),
-			taskInfo.NodeNum, taskInfo.ResView.ReqAllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.ReqDeviceMap),
+			taskInfo.NodeNum, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ReqResView.DeviceMap),
 			taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
 			strconv.FormatBool(taskInfo.Exclusive),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())))

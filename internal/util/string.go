@@ -320,8 +320,8 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if !CheckNodeList(task.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	if task.Resources.ReqAllocatableRes.CpuCoreLimit > 1e6 {
-		return fmt.Errorf("requesting too many CPUs: %f", task.Resources.ReqAllocatableRes.CpuCoreLimit)
+	if task.ReqResources.AllocatableRes.CpuCoreLimit > 1e6 {
+		return fmt.Errorf("requesting too many CPUs: %f", task.ReqResources.AllocatableRes.CpuCoreLimit)
 	}
 
 	return nil
