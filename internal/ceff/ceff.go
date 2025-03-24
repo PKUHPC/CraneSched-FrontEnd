@@ -361,7 +361,12 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(taskInfo.AllocMemTotal) / float64(taskInfo.NodeNum) / (1024 * 1024)
+	mallocMemMbPerNode := 0.0
+	if taskInfo.NodeNum == 0 {
+		return fmt.Errorf("Node num empty")
+	} else {
+		mallocMemMbPerNode = float64(taskInfo.AllocMemTotal) / float64(taskInfo.NodeNum) / (1024 * 1024)
+	}
 	totalMallocMemMb := float64(taskInfo.AllocMemTotal)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
