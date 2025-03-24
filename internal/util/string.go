@@ -784,3 +784,12 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 
 	return jobIdList, nil
 }
+
+func FormatMemToMB(data uint64) string {
+	var B2MBRatio uint64 = 1024 * 1024
+	if data == 0 {
+		return "0"
+	} else {
+		return fmt.Sprintf("%vM", data/B2MBRatio)
+	}
+}

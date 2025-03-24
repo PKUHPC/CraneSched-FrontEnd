@@ -242,7 +242,7 @@ func QueryJob() util.CraneCmdError {
 				taskInfo.Name,
 				taskInfo.Partition,
 				taskInfo.Account,
-				strconv.FormatFloat(taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
+				strconv.FormatFloat(taskInfo.ReqResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
 				taskInfo.Status.String(),
 				exitCode}
 		}
@@ -327,7 +327,7 @@ func ProcessReqCPUs(task *protos.TaskInfo) string {
 
 // AllocCPUs
 func ProcessAllocCPUs(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+	return strconv.FormatFloat(task.AllocCpusTotal, 'f', 2, 64)
 }
 
 // ExitCode
@@ -488,10 +488,10 @@ func ProcessReqMemPerNode(task *protos.TaskInfo) string {
 
 // MemPerNode
 func ProcessMemPerNode(task *protos.TaskInfo) string {
-	 if task.ResView.AllocatableRes == nil {
+	 if task.ReqResView.AllocatableRes == nil {
 	 	return "unkown"
 	}
-	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+	return strconv.FormatUint(task.ReqResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
 }
 
 func ProcessExclusive(task *protos.TaskInfo) string {

@@ -296,8 +296,8 @@ func ProcessAccount(task *protos.TaskInfo) string {
 	return task.Account
 }
 
-func ProcessCpuPerNode(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
+func ProcessReqCpuPerNode(task *protos.TaskInfo) string {
+	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
 }
 
 func ProcessReqCPUs(task *protos.TaskInfo) string {
@@ -305,7 +305,7 @@ func ProcessReqCPUs(task *protos.TaskInfo) string {
 }
 
 func ProcessAllocCpus(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+	return strconv.FormatFloat(task.AllocCpusTotal, 'f', 2, 64)
 }
 
 func ProcessNodeNum(task *protos.TaskInfo) string {
@@ -351,15 +351,14 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 }
 
 func ProcessReqMemPerNode(task *protos.TaskInfo) string {
-
 	return strconv.FormatUint(task.ReqResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
 }
 
 func ProcessMemPerNode(task *protos.TaskInfo) string {
-	if task.ResView.AllocatableRes == nil {
+	if task.ReqResView.AllocatableRes == nil {
 		return "unknown"
 	}
-	return strconv.FormatUint(task.ResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+	return strconv.FormatUint(task.ReqResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
 }
 
 func ProcessName(task *protos.TaskInfo) string {
@@ -425,8 +424,8 @@ type FieldProcessor struct {
 var fieldMap = map[string]FieldProcessor{
 	"a":         {"Account", ProcessAccount},
 	"account":   {"Account", ProcessAccount},
-	"c":         {"CpuPerNode", ProcessCpuPerNode},
-	"cpupernode": {"CpuPerNode", ProcessCpuPerNode},
+	"c":         {"CpuPerNode", ProcessReqCpuPerNode},
+	"cpupernode":{"CpuPerNode", ProcessReqCpuPerNode},
 	"k":         {"ReqCpus", ProcessReqCPUs},
 	"reqcpus":   {"ReqCpus", ProcessReqCPUs},
 	"C":         {"AllocCpus", ProcessAllocCpus},
