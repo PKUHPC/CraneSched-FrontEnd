@@ -20,11 +20,11 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-	"regexp"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"os"
+	"regexp"
+	"strconv"
 )
 
 var (
@@ -48,6 +48,8 @@ var (
 	FlagNodes           string
 	FlagAccount         string
 	FlagUser            string
+	FlagServerHostName  string
+	FlagRaftPort        uint32
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -150,6 +152,28 @@ var (
 			}
 		},
 	}
+	showServerClusterCmd = &cobra.Command{
+		Use:   "serverCluster",
+		Short: "Display information about the Raft service node cluster",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := ShowServerCluster(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	showServerNodeCmd = &cobra.Command{
+		Use:   "serverNode [server_id]",
+		Short: "Display status of the current leader service node",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := ShowServerNode(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 	updateCmd = &cobra.Command{
 		Use:     "update",
 		Aliases: []string{"modify"},
@@ -192,14 +216,7 @@ var (
 		Use:   "partition [flags] partition_name",
 		Short: "Modify partition partition attributes",
 		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		},
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("allowed-accounts") {
 				if err := ModifyPartitionAcl(args[0], true, FlagAllowedAccounts); err != util.ErrorSuccess {
@@ -291,6 +308,59 @@ var (
 			}
 		},
 	}
+	addCmd = &cobra.Command{
+		Use:   "add",
+		Short: "Add some config",
+		Long:  "",
+	}
+	addServerNodeCmd = &cobra.Command{
+		Use:   "serverNode [flags]",
+		Short: "Add a server node",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := AddServerNode(FlagServerHostName, FlagRaftPort); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	deleteServerNodeCmd = &cobra.Command{
+		Use:   "serverNode [server_id]",
+		Short: "remove a server node",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			id, err := strconv.Atoi(args[0])
+			if err != nil {
+				log.Errorf("Failed to convert server id to int: %s", err.Error())
+				os.Exit(util.ErrorCmdArg)
+			}
+			if err := RemoveServerNode(id); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	yieldLeadershipCmd = &cobra.Command{
+		Use:   "yieldLeadership [next_server_id]",
+		Short: "Yield leadership to other server node, id = [next_server_id], empty parameter 'id' represents priority determination",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var id = -1
+			var err error
+			if len(args) > 0 {
+				id, err = strconv.Atoi(args[0])
+				if err != nil {
+					log.Errorf("Failed to convert server id to int: %s", err.Error())
+					os.Exit(util.ErrorCmdArg)
+				}
+			}
+
+			if err := YieldLeadership(id); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -302,8 +372,7 @@ func ParseCmdArgs() {
 
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
-		"Path to configuration file")
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 
 	RootCmd.AddCommand(showCmd)
@@ -313,6 +382,8 @@ func init() {
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
 		showCmd.AddCommand(showReservationsCmd)
+		showCmd.AddCommand(showServerClusterCmd)
+		showCmd.AddCommand(showServerNodeCmd)
 	}
 
 	RootCmd.AddCommand(updateCmd)
@@ -387,5 +458,20 @@ func init() {
 	RootCmd.AddCommand(deleteCmd)
 	{
 		deleteCmd.AddCommand(deleteReservationCmd)
+		deleteCmd.AddCommand(deleteServerNodeCmd)
 	}
+	RootCmd.AddCommand(addCmd)
+	{
+		addCmd.AddCommand(addServerNodeCmd)
+		{
+			addServerNodeCmd.Flags().StringVarP(&FlagServerHostName, "host_name", "n", "", "Specify the node name")
+			addServerNodeCmd.Flags().Uint32VarP(&FlagRaftPort, "port", "r", 10009, "Raft port is used for communication within the Raft protocol itself")
+
+			err := addServerNodeCmd.MarkFlagRequired("host_name")
+			if err != nil {
+				return
+			}
+		}
+	}
+	RootCmd.AddCommand(yieldLeadershipCmd)
 }

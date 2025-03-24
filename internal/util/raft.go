@@ -27,6 +27,10 @@ func UpdateLeaderIdToFile(leaderId int) {
 	}
 }
 
+func CurrentLeaderId() int {
+	return ps.data.LeaderId
+}
+
 func QueryLeaderFromCtld(config *Config) int {
 	var stub protos.CraneCtldClient
 	l := len(config.ControlMachine)
