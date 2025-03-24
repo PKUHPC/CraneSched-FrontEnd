@@ -116,33 +116,36 @@ func init() {
 Fields are identified by a percent sign (%) followed by a character or string.
 Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field. 
 Supported format identifiers or string, string case insensitive:
-	%a/%Account      - Display the account associated with the job.
-	%c/%AllocCpus    - Display the number of allocated CPUs, formatted to two decimal places.
-	%D/%ElapsedTime  - Display the elapsed time from the start of the job.
-	%E/%EndTime      - Display the end time of the job.
-	%e/%ExitCode     - Display the exit code of the job. 
-                        If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
-                        it formats as "0:<code>" or "<code>:0" based on the condition.
-	%h/%Held         - Display the hold status of the job.
-	%j/%JobID        - Display the ID of the job.
-	%k/%Comment      - Display the comment of the job.
-	%L/%NodeList     - Display the list of nodes the job is running on.
-	%l/%TimeLimit    - Display the time limit of the job.
-	%m/%MemPerNode   - Display the requested mem per node of the job.
-	%N/%NodeNum      - Display the node num of the job.
-	%n/%JobName      - Display the name of the job.
-	%P/%Partition    - Display the partition associated with the job.
-	%p/%Priority     - Display the priority of the job.
-	%q/%Qos          - Display the QoS of the job.
-	%R/%Reason       - Display the reason of pending.
-	%r/%ReqNodes     - Display the reqnodes of the job.
-	%S/%StartTime    - Display the start time of the job.
-	%s/%SubmitTime   - Display the submit time num of the job.
-	%t/%State        - Display the state of the job.
-	%T/%JobType      - Display the job type.
-	%U/%UserName     - Display the username of the job.
-	%u/%Uid          - Display the uid of the job.
-	%x/%ExcludeNodes - Display the excludenodes of the job.
+	%a/%Account           - Display the account associated with the job.
+	%c/%AllocCpus         - Display the number of allocated CPUs, formatted to two decimal places.
+	%C/%ReqCpus           - Display the number of requested CPUs, formatted to two decimal places
+	%D/%ElapsedTime       - Display the elapsed time from the start of the job.
+	%E/%EndTime           - Display the end time of the job.
+	%e/%ExitCode          - Display the exit code of the job. 
+                             If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
+                             it formats as "0:<code>" or "<code>:0" based on the condition.
+	%h/%Held              - Display the hold status of the job.
+	%j/%JobID             - Display the ID of the job.
+	%k/%Comment           - Display the comment of the job.
+	%L/%NodeList          - Display the list of nodes the job is running on.
+	%l/%TimeLimit         - Display the time limit of the job.
+	%M/%ReqMemPerNode     - Display the requested mem per node of the job.
+	%m/%AllocMemPerNode   - Display the allocted mem per node of the job.
+	%N/%NodeNum           - Display the node num of the job.
+	%n/%JobName           - Display the name of the job.
+	%P/%Partition         - Display the partition associated with the job.
+	%p/%Priority          - Display the priority of the job.
+	%q/%Qos               - Display the QoS of the job.
+	%R/%Reason            - Display the reason of pending.
+	%r/%ReqNodes          - Display the reqnodes of the job.
+	%S/%StartTime         - Display the start time of the job.
+	%s/%SubmitTime        - Display the submit time num of the job.
+	%t/%State             - Display the state of the job.
+	%T/%JobType           - Display the job type.
+	%U/%UserName          - Display the username of the job.
+	%u/%Uid               - Display the uid of the job.
+	%x/%ExcludeNodes      - Display the excludenodes of the job.
+	%X/%Exclusive         - Display the exclusive status of the job.
 
 Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
