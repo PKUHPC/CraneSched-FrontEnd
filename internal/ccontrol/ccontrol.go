@@ -177,25 +177,15 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 				"\tPatition=%s RunningJob=%d Version=%s\n"+
 				"\tOs=%s\n"+
 				"\tBootTime=%s CranedStartTime=%s\n"+
-				"\tLastBusyTime=%s\n",
-				nodeInfo.Hostname, stateStr,
-				nodeInfo.ResTotal.AllocatableResInNode.CpuCoreLimit,
-				math.Abs(nodeInfo.ResAlloc.AllocatableResInNode.CpuCoreLimit),
-				math.Abs(nodeInfo.ResAvail.AllocatableResInNode.CpuCoreLimit),
+				"\tLastBusyTime=%s\n", nodeInfo.Hostname, stateStr, nodeInfo.ResTotal.AllocatableResInNode.CpuCoreLimit, math.Abs(nodeInfo.ResAlloc.AllocatableResInNode.CpuCoreLimit), math.Abs(nodeInfo.ResAvail.AllocatableResInNode.CpuCoreLimit),
 
-				formatMemToMB(nodeInfo.ResTotal.AllocatableResInNode.MemoryLimitBytes),
-				formatMemToMB(nodeInfo.ResAlloc.AllocatableResInNode.MemoryLimitBytes),
-				formatMemToMB(nodeInfo.ResAvail.AllocatableResInNode.MemoryLimitBytes),
+				formatMemToMB(nodeInfo.ResTotal.AllocatableResInNode.MemoryLimitBytes), formatMemToMB(nodeInfo.ResAlloc.AllocatableResInNode.MemoryLimitBytes), formatMemToMB(nodeInfo.ResAvail.AllocatableResInNode.MemoryLimitBytes),
 
-				formatDedicatedResource(nodeInfo.ResTotal.GetDedicatedResInNode()),
-				formatDedicatedResource(nodeInfo.ResAlloc.GetDedicatedResInNode()),
-				formatDedicatedResource(nodeInfo.ResAvail.GetDedicatedResInNode()),
+				formatDedicatedResource(nodeInfo.ResTotal.GetDedicatedResInNode()), formatDedicatedResource(nodeInfo.ResAlloc.GetDedicatedResInNode()), formatDedicatedResource(nodeInfo.ResAvail.GetDedicatedResInNode()),
 
 				strings.Join(nodeInfo.PartitionNames, ","), nodeInfo.RunningTaskNum, CranedVersion,
 
-				CranedOs,
-				SystemBootTimeStr, CranedStartTimeStr,
-				LastBusyTimeStr)
+				CranedOs, SystemBootTimeStr, CranedStartTimeStr, LastBusyTimeStr)
 		}
 	}
 	return util.ErrorSuccess
@@ -228,21 +218,7 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
 				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
 				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
-				"\tHostList=%v\n\n",
-				partitionInfo.Name, partitionInfo.State.String()[10:],
-				formatAllowedAccounts(partitionInfo.AllowedAccounts),
-				formatDeniedAccounts(partitionInfo.DeniedAccounts),
-				partitionInfo.TotalNodes, partitionInfo.AliveNodes,
-				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
-				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
-				math.Abs(partitionInfo.ResAlloc.AllocatableRes.CpuCoreLimit),
-				formatMemToMB(partitionInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
-				formatMemToMB(partitionInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
-				formatMemToMB(partitionInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
-				formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
-				formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
-				formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
-				partitionInfo.Hostlist)
+				"\tHostList=%v\n\n", partitionInfo.Name, partitionInfo.State.String()[10:], formatAllowedAccounts(partitionInfo.AllowedAccounts), formatDeniedAccounts(partitionInfo.DeniedAccounts), partitionInfo.TotalNodes, partitionInfo.AliveNodes, math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit), math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit), math.Abs(partitionInfo.ResAlloc.AllocatableRes.CpuCoreLimit), formatMemToMB(partitionInfo.ResTotal.AllocatableRes.MemoryLimitBytes), formatMemToMB(partitionInfo.ResAvail.AllocatableRes.MemoryLimitBytes), formatMemToMB(partitionInfo.ResAlloc.AllocatableRes.MemoryLimitBytes), formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()), formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()), formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()), partitionInfo.Hostlist)
 		}
 	}
 	return util.ErrorSuccess
@@ -437,6 +413,51 @@ func ShowConfig(path string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
+func ShowServerCluster() util.CraneCmdError {
+	req := &protos.QueryRaftServerListRequest{}
+	reply, err := stub.QueryRaftServerList(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query raft server list")
+		return util.ErrorNetwork
+	}
+
+	if len(reply.ServerList) < 0 {
+		util.GrpcErrorPrintf(err, "Empty raft server list")
+		return util.ErrorBackend
+	}
+
+	for _, server := range reply.ServerList {
+		fmt.Printf("server id: %d: %s", server.Id, server.EndPoint)
+		if server.Role == protos.QueryRaftServerListReply_Leader {
+			fmt.Printf(" (Leader)")
+		}
+		fmt.Println()
+	}
+
+	return util.ErrorSuccess
+}
+
+func ShowServerNode() util.CraneCmdError {
+	req := &protos.QueryRaftNodeInfoRequest{}
+
+	reply, err := stub.QueryRaftNodeInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query raft server")
+		return util.ErrorNetwork
+	}
+
+	fmt.Printf("Server id: %d\nLeader id: %d\nRaft log range: ", reply.ServerId, reply.LeaderId)
+	if reply.StartIndex >= reply.NextSlot {
+		// Start index can be the same as next slot when the log store is empty.
+		fmt.Println("(empty)")
+	} else {
+		fmt.Printf("%d - %d\n", reply.StartIndex, reply.NextSlot)
+	}
+	fmt.Printf("Last committed index: %d\ncurrent term: %d\nLast snapshot log index: %d\nLast snapshot log term: %d\n", reply.CommittedLogIdx, reply.CurTerm, reply.LastSnapshotLogIdx, reply.LastSnapshotLogTerm)
+
+	return util.ErrorSuccess
+}
+
 func SummarizeReply(proto interface{}) util.CraneCmdError {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
@@ -445,8 +466,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		}
 		if len(reply.NotModifiedTasks) > 0 {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n",
-					reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
 			return util.ErrorBackend
 		}
@@ -457,8 +477,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
-					reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 			}
 			return util.ErrorBackend
 		}
@@ -558,6 +577,90 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 	}
 
 	return SummarizeReply(reply)
+}
+
+func AddServerNode(hostName string, raftPort uint32) util.CraneCmdError {
+	req := &protos.AddRaftNodeRequest{
+		HostName: hostName,
+		RaftPort: raftPort,
+	}
+
+	reply, err := stub.AddRaftNode(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to add server node")
+		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		fmt.Printf("Failed to add server node: %s\n", reply.GetReason())
+		return util.ErrorBackend
+	} else {
+		fmt.Printf("Added server node successfully, assigned server Id: %d\n", reply.ServerId)
+	}
+
+	return util.ErrorSuccess
+}
+
+func RemoveServerNode(serverId int) util.CraneCmdError {
+	req := &protos.RemoveRaftNodeRequest{
+		ServerId: int32(serverId),
+	}
+
+	reply, err := stub.RemoveRaftNode(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to remove server node")
+		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		fmt.Printf("Failed to remove server node: %s\n", reply.GetReason())
+		return util.ErrorBackend
+	} else {
+		fmt.Println("Remove server node successfully")
+	}
+
+	return util.ErrorSuccess
+}
+
+func YieldLeadership(id int) util.CraneCmdError {
+	if id == util.CurrentLeaderId() {
+		fmt.Println("This node is already the current leader, will do nothing")
+		return util.ErrorCmdArg
+	}
+	req := &protos.YieldLeadershipRequest{
+		NextServerId: int32(id),
+	}
+
+	reply, err := stub.YieldLeadership(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to yield leadership")
+		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		fmt.Println("Failed to yield leadership")
+		return util.ErrorBackend
+	} else {
+		fmt.Println("Yield request submitted successfully")
+		if id != -1 {
+			util.UpdateLeaderIdToFile(id)
+		} else {
+			req := &protos.QueryLeaderIdRequest{}
+
+			for {
+				time.Sleep(400 * time.Millisecond)
+				log.Println("Attempting to query current leader ID...")
+				reply, err := stub.QueryLeaderId(context.Background(), req)
+				if err == nil && reply.LeaderId > 0 {
+					log.Printf("Leader id was changed to %d, caching the value.\n", reply.GetLeaderId())
+					util.UpdateLeaderIdToFile(int(reply.GetLeaderId()))
+					break
+				}
+			}
+		}
+	}
+
+	return util.ErrorSuccess
 }
 
 func ChangeTaskPriority(taskStr string, priority float64) util.CraneCmdError {
