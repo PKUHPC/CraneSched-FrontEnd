@@ -412,8 +412,8 @@ func ProcessReqMemPerNode(task *protos.TaskInfo) string {
 
 // AllocMemPerNode (m)
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
-	if task.ReqResView.AllocatableRes == nil {
-		return "unkown"
+	if task.NodeNum == 0 {
+		return "0"
    }
    return strconv.FormatUint(task.AllocMemTotal / uint64(task.NodeNum) /(1024*1024), 10)
 }
