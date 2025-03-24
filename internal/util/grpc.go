@@ -217,6 +217,75 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	return stub
 }
 
+func GetStubToCtldForInternalByConfig(config *Config) protos.CraneCtldForInternalClient {
+	var serverAddr string
+	var stub protos.CraneCtldForInternalClient
+
+	if config.UseTls {
+		serverAddr = fmt.Sprintf("%s.%s:%s",
+			config.ControlMachine, config.DomainSuffix, config.CraneCtldForInternalListenPort)
+
+		ServerCertContent, err := os.ReadFile(config.ServerCertFilePath)
+		if err != nil {
+			log.Errorln("Read server certificate error: " + err.Error())
+			os.Exit(ErrorGeneric)
+		}
+
+		ServerKeyContent, err := os.ReadFile(config.ServerKeyFilePath)
+		if err != nil {
+			log.Errorln("Read server key error: " + err.Error())
+			os.Exit(ErrorGeneric)
+		}
+
+		CaCertContent, err := os.ReadFile(config.CaCertFilePath)
+		if err != nil {
+			log.Errorln("Read CA certifacate error: " + err.Error())
+			os.Exit(ErrorGeneric)
+		}
+
+		tlsKeyPair, err := tls.X509KeyPair(ServerCertContent, ServerKeyContent)
+		if err != nil {
+			log.Errorln("tlsKeyPair error: " + err.Error())
+			os.Exit(ErrorGeneric)
+		}
+
+		caPool := x509.NewCertPool()
+		if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
+			log.Errorln("AppendCertsFromPEM error: " + err.Error())
+			os.Exit(ErrorGeneric)
+		}
+
+		creds := credentials.NewTLS(&tls.Config{
+			Certificates:       []tls.Certificate{tlsKeyPair},
+			RootCAs:            caPool,
+			InsecureSkipVerify: false,
+			// NextProtos is a list of supported application level protocols, in
+			// order of preference.
+			NextProtos: []string{"h2"},
+		})
+
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+		if err != nil {
+			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
+			os.Exit(ErrorBackend)
+		}
+
+		stub = protos.NewCraneCtldForInternalClient(conn)
+	} else {
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForInternalListenPort)
+
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
+			os.Exit(ErrorBackend)
+		}
+
+		stub = protos.NewCraneCtldForInternalClient(conn)
+	}
+
+	return stub
+}
+
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
