@@ -42,6 +42,7 @@ var (
 	FlagExport        string
 	FlagGres          string
 	FlagPty           bool
+	FlagExclusive     bool
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -110,4 +111,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
+	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 }
