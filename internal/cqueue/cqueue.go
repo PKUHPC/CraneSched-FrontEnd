@@ -348,6 +348,9 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 
 // 'm' group
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
+	if task.NodeNum == 0 {
+		return "0"
+   }
 	return strconv.FormatUint(task.AllocMemTotal / uint64(task.NodeNum) / (1024*1024) , 10)
 }
 
