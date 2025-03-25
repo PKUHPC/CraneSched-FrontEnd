@@ -96,15 +96,6 @@ func formatDedicatedResource(data *protos.DedicatedResourceInNode) string {
 	return kvString
 }
 
-func formatMemToMB(data uint64) string {
-	var B2MBRatio uint64 = 1024 * 1024
-	if data == 0 {
-		return "0"
-	} else {
-		return fmt.Sprintf("%vM", data/B2MBRatio)
-	}
-}
-
 func formatAllowedAccounts(allowedAccounts []string) string {
 	if len(allowedAccounts) == 0 {
 		return "ALL"
@@ -183,9 +174,9 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 				math.Abs(nodeInfo.ResAlloc.AllocatableResInNode.CpuCoreLimit),
 				math.Abs(nodeInfo.ResAvail.AllocatableResInNode.CpuCoreLimit),
 
-				formatMemToMB(nodeInfo.ResTotal.AllocatableResInNode.MemoryLimitBytes),
-				formatMemToMB(nodeInfo.ResAlloc.AllocatableResInNode.MemoryLimitBytes),
-				formatMemToMB(nodeInfo.ResAvail.AllocatableResInNode.MemoryLimitBytes),
+				util.FormatMemToMB(nodeInfo.ResTotal.AllocatableResInNode.MemoryLimitBytes),
+				util.FormatMemToMB(nodeInfo.ResAlloc.AllocatableResInNode.MemoryLimitBytes),
+				util.FormatMemToMB(nodeInfo.ResAvail.AllocatableResInNode.MemoryLimitBytes),
 
 				formatDedicatedResource(nodeInfo.ResTotal.GetDedicatedResInNode()),
 				formatDedicatedResource(nodeInfo.ResAlloc.GetDedicatedResInNode()),
@@ -236,9 +227,9 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				math.Abs(partitionInfo.ResTotal.AllocatableRes.CpuCoreLimit),
 				math.Abs(partitionInfo.ResAvail.AllocatableRes.CpuCoreLimit),
 				math.Abs(partitionInfo.ResAlloc.AllocatableRes.CpuCoreLimit),
-				formatMemToMB(partitionInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
-				formatMemToMB(partitionInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
-				formatMemToMB(partitionInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
+				util.FormatMemToMB(partitionInfo.ResTotal.AllocatableRes.MemoryLimitBytes),
+				util.FormatMemToMB(partitionInfo.ResAvail.AllocatableRes.MemoryLimitBytes),
+				util.FormatMemToMB(partitionInfo.ResAlloc.AllocatableRes.MemoryLimitBytes),
 				formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
@@ -310,7 +301,6 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		timeStartStr := "unknown"
 		timeEndStr := "unknown"
 		runTimeStr := "unknown"
-		resourcesType := "ReqRes"
 
 		var timeLimitStr string
 
@@ -339,12 +329,6 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
 		}
 
-		// elapsed_time and resources
-		if taskInfo.Status == protos.TaskStatus_Running {
-			runTimeStr = util.SecondTimeFormat(taskInfo.ElapsedTime.Seconds)
-			resourcesType = "AllocRes"
-		}
-
 		// uid and gid (egid)
 		craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
 		if err != nil {
@@ -357,6 +341,11 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			return util.ErrorGeneric
 		}
 
+		allocDeviceTotal := "None"
+		if len(taskInfo.AllocDeviceTotal) != 0 {
+			allocDeviceTotal = taskInfo.AllocDeviceTotal
+		}
+
 		printed[taskInfo.TaskId] = true
 
 		fmt.Printf("JobId=%v JobName=%v\n"+
@@ -365,17 +354,22 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
 			"\tCmdLine=\"%v\" Workdir=%v\n"+
 			"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
-			"\t%s=node=%d cpu=%.2f gres=%s\n"+
+			"\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n"+
+			"\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n"+
 			"\tReqNodeList=%v ExecludeNodeList=%v\n"+
-			"\tComment=%v\n",
+			"\tExclusive=%v Comment=%v\n",
 			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
 			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExecutionNode())),
 			taskInfo.CmdLine, taskInfo.Cwd,
-			taskInfo.Priority, taskInfo.Qos, taskInfo.ResView.AllocatableRes.CpuCoreLimit, formatMemToMB(taskInfo.ResView.AllocatableRes.MemoryLimitBytes),
-			resourcesType, taskInfo.NodeNum, taskInfo.ResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), formatDeviceMap(taskInfo.ResView.DeviceMap),
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())), formatJobComment(taskInfo.ExtraAttr),
+			taskInfo.Priority, taskInfo.Qos, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit, util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes),
+			taskInfo.NodeNum, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum),
+			util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(taskInfo.NodeNum)),
+			formatDeviceMap(taskInfo.ReqResView.DeviceMap),
+			taskInfo.NodeNum, taskInfo.AllocCpusTotal, util.FormatMemToMB(taskInfo.AllocMemTotal), allocDeviceTotal,
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr),
 		)
 	}
 

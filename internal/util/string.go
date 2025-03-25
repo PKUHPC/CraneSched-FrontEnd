@@ -302,8 +302,8 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if !CheckNodeList(task.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	if task.Resources.AllocatableRes.CpuCoreLimit > 1e6 {
-		return fmt.Errorf("requesting too many CPUs: %f", task.Resources.AllocatableRes.CpuCoreLimit)
+	if task.ReqResources.AllocatableRes.CpuCoreLimit > 1e6 {
+		return fmt.Errorf("requesting too many CPUs: %f", task.ReqResources.AllocatableRes.CpuCoreLimit)
 	}
 	if task.ExtraAttr != "" {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
@@ -877,4 +877,13 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 
 	*r = extra
 	return nil
+}
+
+func FormatMemToMB(data uint64) string {
+	var B2MBRatio uint64 = 1024 * 1024
+	if data == 0 {
+		return "0"
+	} else {
+		return fmt.Sprintf("%vM", data/B2MBRatio)
+	}
 }

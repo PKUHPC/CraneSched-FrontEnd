@@ -48,6 +48,7 @@ var (
 	FlagExport        string
 	FlagStdoutPath    string
 	FlagStderrPath    string
+	FlagExclusive     bool
 
 	FlagWrappedScript string
 
@@ -158,4 +159,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 }
