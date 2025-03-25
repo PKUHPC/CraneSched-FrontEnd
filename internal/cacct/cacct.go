@@ -321,7 +321,7 @@ func ProcessAccount(task *protos.TaskInfo) string {
 	return task.Account
 }
 
-// ReqCPUs
+// ReqCPUs (C)
 func ProcessReqCPUs(task *protos.TaskInfo) string {
 	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
 }
@@ -557,8 +557,8 @@ var fieldProcessors = map[string]FieldProcessor{
 	"reqmempernode": {"ReqMemPerNode", ProcessReqMemPerNode},
 
 	// Group m
-	"m":          {"AllocMemPerNode", ProcessAllocMemPerNode},
-	"mempernode": {"AllocMemPerNode", ProcessAllocMemPerNode},
+	"m":               {"AllocMemPerNode", ProcessAllocMemPerNode},
+	"allocmempernode": {"AllocMemPerNode", ProcessAllocMemPerNode},
 
 	// Group N
 	"N":       {"NodeNum", ProcessNodeNum},
