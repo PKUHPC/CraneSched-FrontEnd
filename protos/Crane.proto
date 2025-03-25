@@ -814,7 +814,7 @@ message StreamTaskIOReply {
     bool ok = 1;
   }
 
-  message SupervisorTaskInputReq {
+  message TaskInputReq {
     uint32 task_id = 1;
     uint32 step_id = 2;
     string msg = 3;
@@ -826,7 +826,8 @@ message StreamTaskIOReply {
 
   message TaskX11InputReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    uint32 step_id = 2;
+    bytes msg = 3;
   }
 
   SupervisorReplyType type = 1;

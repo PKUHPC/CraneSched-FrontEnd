@@ -369,7 +369,7 @@ CforedCrunStateMachineLoop:
 						case protos.StreamCrunRequest_TASK_X11_FORWARD:
 							log.Debugf("[Crun->Cfored->Craned] Receive Local TASK_X11_FORWARD to remote task #%d",
 								crunRequest.GetPayloadTaskX11ForwardReq().GetTaskId())
-							gCranedChanKeeper.forwardCrunRequestToCranedChannels(taskId, stepId, crunRequest)
+							gCranedChanKeeper.forwardCrunRequestToSupervisor(taskId, stepId, crunRequest)
 
 						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
 							log.Debug("[Cfored<-Crun] Receive TaskCompletionRequest.")
@@ -437,6 +437,7 @@ CforedCrunStateMachineLoop:
 						break forwarding
 					}
 				}
+			}
 
 		case CrunWaitTaskCancel:
 			log.Debug("[Cfored<->Crun] Enter State WAIT_CRUN_CANCEL. Sending TASK_CANCEL_REQUEST to Crun...")
