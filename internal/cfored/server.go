@@ -53,7 +53,7 @@ type SupervisorChannelKeeper struct {
 
 	taskIORequestChannelMtx sync.Mutex
 	// I/O message from Supervisor to Crun
-	taskIORequestChannelMap map[StepIdentifier]chan *protos.StreamCforedTaskIORequest
+	taskIORequestChannelMap map[StepIdentifier]chan *protos.StreamTaskIORequest
 }
 
 var gCranedChanKeeper *SupervisorChannelKeeper
@@ -62,7 +62,7 @@ func NewCranedChannelKeeper() *SupervisorChannelKeeper {
 	keeper := &SupervisorChannelKeeper{}
 	keeper.toSupervisorChannelCV = sync.NewCond(&keeper.toSupervisorChannelMtx)
 	keeper.toSupervisorChannels = make(map[StepIdentifier]map[string]*CrunRequestSupervisorChannel)
-	keeper.taskIORequestChannelMap = make(map[StepIdentifier]chan *protos.StreamCforedTaskIORequest)
+	keeper.taskIORequestChannelMap = make(map[StepIdentifier]chan *protos.StreamTaskIORequest)
 	return keeper
 }
 
@@ -161,13 +161,13 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(taskId uin
 	}
 }
 
-func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(taskId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamCforedTaskIORequest) {
+func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(taskId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamTaskIORequest) {
 	keeper.taskIORequestChannelMtx.Lock()
 	keeper.taskIORequestChannelMap[StepIdentifier{taskId: taskId, StepId: stepId}] = ioToCrunChannel
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
-func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, stepId uint32, ioToCrun *protos.StreamCforedTaskIORequest) {
+func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, stepId uint32, ioToCrun *protos.StreamTaskIORequest) {
 	keeper.taskIORequestChannelMtx.Lock()
 	channel, exist := keeper.taskIORequestChannelMap[StepIdentifier{taskId: taskId, StepId: stepId}]
 	if exist {
@@ -304,7 +304,7 @@ CforedSupervisorStateMachineLoop:
 					case protos.StreamTaskIORequest_TASK_OUTPUT:
 						gCranedChanKeeper.forwardRemoteIoToCrun(taskId, stepId, supervisorReq)
 
-					case protos.StreamTaskIORequest_CRANED_TASK_X11_OUTPUT:
+					case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
 						log.Tracef("[Cfored<-Craned] Forwarding remote X11 to local task #%d", taskId)
 						gCranedChanKeeper.forwardRemoteIoToCrun(taskId, stepId, supervisorReq)
 
@@ -338,10 +338,10 @@ CforedSupervisorStateMachineLoop:
 						payload := crunReq.GetPayloadTaskIoForwardReq()
 						msg := payload.GetMsg()
 						log.Debugf("[Cfored->Supervisor] forwarding task %d step%d input %s to Suerpvisor on Craned %s", taskId, stepId, msg, cranedId)
-						reply = &protos.StreamCforedTaskIOReply{
-							Type: protos.StreamCforedTaskIOReply_SUPERVISOR_TASK_INPUT,
-							Payload: &protos.StreamCforedTaskIOReply_PayloadTaskInputReq{
-								PayloadTaskInputReq: &protos.StreamCforedTaskIOReply_SupervisorTaskInputReq{
+						reply = &protos.StreamTaskIOReply{
+							Type: protos.StreamTaskIOReply_TASK_INPUT,
+							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
+								PayloadTaskInputReq: &protos.StreamTaskIOReply_TaskInputReq{
 									TaskId: taskId,
 									StepId: stepId,
 									Msg:    msg,
@@ -357,9 +357,9 @@ CforedSupervisorStateMachineLoop:
 						msg := payload.GetMsg()
 						log.Debugf("[Cfored->Supervisor] forwarding task %d step%d x11 input %s to Suerpvisor on Craned %s", taskId, stepId, msg, cranedId)
 						reply = &protos.StreamTaskIOReply{
-							Type: protos.StreamTaskIOReply_CRANED_TASK_X11_INPUT,
+							Type: protos.StreamTaskIOReply_TASK_X11_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
-								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_CranedTaskX11InputReq{
+								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_TaskX11InputReq{
 									TaskId: taskId,
 									StepId: stepId,
 									Msg:    msg,
