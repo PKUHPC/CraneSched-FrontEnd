@@ -382,7 +382,7 @@ func ProcessQoS(task *protos.TaskInfo) string {
 	return task.Qos
 }
 
-// 'Q' group
+// 'Q' groupProcessReqCpus
 func ProcessReqCPUs(task *protos.TaskInfo) string {
 	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
 }
@@ -455,10 +455,10 @@ var fieldMap = map[string]FieldProcessor{
 	"account": {"Account", ProcessAccount},
 
 	// 'c' group
-	"c":          {"ReqCpuPerNode", ProcessReqCpuPerNode},
-	"cpupernode": {"ReqCpuPerNode", ProcessReqCpuPerNode},
-	"C":          {"AllocCpus", ProcessAllocCpus},
-	"alloccpus":  {"AllocCpus", ProcessAllocCpus},
+	"c":             {"ReqCpuPerNode", ProcessReqCpuPerNode},
+	"reqcpupernode": {"ReqCpuPerNode", ProcessReqCpuPerNode},
+	"C":             {"AllocCpus", ProcessAllocCpus},
+	"alloccpus":     {"AllocCpus", ProcessAllocCpus},
 
 	// 'e' group
 	"e":           {"ElapsedTime", ProcessElapsedTime},
@@ -483,10 +483,10 @@ var fieldMap = map[string]FieldProcessor{
 	"nodelist":  {"NodeList(Reason)", ProcessNodeList},
 
 	// 'm' group
-	"m":             {"AllocMemPerNode", ProcessAllocMemPerNode},
-	"mempernode":    {"AllocMemPerNode", ProcessAllocMemPerNode},
-	"M":             {"ReqMemPerNode", ProcessReqMemPerNode},
-	"reqmempernode": {"ReqMemPerNode", ProcessReqMemPerNode},
+	"m":               {"AllocMemPerNode", ProcessAllocMemPerNode},
+	"allocmempernode": {"AllocMemPerNode", ProcessAllocMemPerNode},
+	"M":               {"ReqMemPerNode", ProcessReqMemPerNode},
+	"reqmempernode":   {"ReqMemPerNode", ProcessReqMemPerNode},
 
 	// 'n' group
 	"n":       {"Name", ProcessName},
@@ -501,8 +501,10 @@ var fieldMap = map[string]FieldProcessor{
 	"partition": {"Partition", ProcessPartition},
 
 	// 'q' group
-	"q":   {"QoS", ProcessQoS},
-	"qos": {"QoS", ProcessQoS},
+	"q":       {"QoS", ProcessQoS},
+	"qos":     {"QoS", ProcessQoS},
+	"Q":       {"ReqCpus", ProcessReqCPUs},
+	"reqcpus": {"ReqCpus", ProcessReqCPUs},
 
 	// 'r' group
 	"r":        {"ReqNodes", ProcessReqNodes},
