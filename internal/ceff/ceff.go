@@ -333,6 +333,9 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 		fmt.Printf("JobState: %v (exit code %d)\n", taskInfo.Status.String(), taskInfo.ExitCode)
 	}
 
+	if taskInfo.NodeNum == 0 {
+		return fmt.Errorf("the number of nodes is empty")
+	}
 	cpuTotal := taskInfo.AllocCpusTotal
 	if math.Abs(cpuTotal-1) < 1e-9 {
 		fmt.Printf("Cores: %.2f\n", cpuTotal)
@@ -361,12 +364,7 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := 0.0
-	if taskInfo.NodeNum == 0 {
-		return fmt.Errorf("Node num empty")
-	} else {
-		mallocMemMbPerNode = float64(taskInfo.AllocMemTotal) / float64(taskInfo.NodeNum) / (1024 * 1024)
-	}
+	mallocMemMbPerNode := float64(taskInfo.AllocMemTotal) / float64(taskInfo.NodeNum) / (1024 * 1024)
 	totalMallocMemMb := float64(taskInfo.AllocMemTotal)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
@@ -403,6 +401,9 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 		return nil, fmt.Errorf("failed to get groupname for GID %d: %w", taskInfo.Gid, err)
 	}
 
+	if taskInfo.NodeNum == 0 {
+		return nil, fmt.Errorf("the number of nodes is empty")
+	}
 	cpuTotal := taskInfo.AllocCpusTotal
 	coresPerNode := cpuTotal / float64(taskInfo.NodeNum)
 	taskJsonInfo := &CeffTaskInfo{
@@ -436,8 +437,8 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := cpuTotal / float64(taskInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := mallocMemMbPerNode * float64(taskInfo.NodeNum)
+	mallocMemMbPerNode := float64(taskInfo.AllocMemTotal) / float64(taskInfo.NodeNum) / (1024 * 1024)
+	totalMallocMemMb := float64(taskInfo.AllocMemTotal)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
