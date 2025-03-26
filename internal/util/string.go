@@ -878,3 +878,18 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 	*r = extra
 	return nil
 }
+
+func ConvertSliceToString(slice interface{}, separator string) (string, error) {
+	switch valList := slice.(type) {
+	case []uint32:
+		strSlice := make([]string, len(valList))
+		for i, num := range valList {
+			strSlice[i] = strconv.Itoa(int(num))
+		}
+		return strings.Join(strSlice, separator), nil
+	case []string:
+		return strings.Join(valList, separator), nil
+	default:
+		return "", fmt.Errorf("Unsupported slice type. Only []uint32 and []string are supported")
+	}
+}

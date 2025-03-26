@@ -87,7 +87,12 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		fmt.Printf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
+		taskIdListString, err := util.ConvertSliceToString(reply.CancelledTasks, ",")
+		if err != nil {
+			log.Errorf("The returned job list type is not supported: %v.\n", err)
+			os.Exit(util.ErrorBackend)
+		}
+		fmt.Printf("Jobs %s cancelled successfully.\n", taskIdListString)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
