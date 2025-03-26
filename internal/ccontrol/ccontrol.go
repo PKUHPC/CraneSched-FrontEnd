@@ -451,12 +451,12 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
 		if len(reply.ModifiedTasks) > 0 {
-			taskIdListString, err := util.ConvertSliceToString(reply.ModifiedTasks, ",")
+			ModifiedTasksString, err := util.ConvertSliceToString(reply.ModifiedTasks, ",")
 			if err != nil {
 				log.Errorf("The returned job list type is not supported: %v.\n", err)
 				os.Exit(util.ErrorBackend)
 			}
-			fmt.Printf("Jobs %s modified successfully.\n", taskIdListString)
+			fmt.Printf("Jobs %s modified successfully.\n", ModifiedTasksString)
 		}
 		if len(reply.NotModifiedTasks) > 0 {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
