@@ -313,12 +313,12 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	}
 
 	if len(reply.TaskIdList) > 0 {
-		taskIdListString, err := util.ConvertSliceToString(reply.TaskIdList, ",")
+        taskIdListString, err := util.ConvertSliceToString(reply.TaskIdList, ",")
         if err != nil {
             log.Errorf("The returned job list type is not supported: %v.\n", err)
             os.Exit(util.ErrorBackend)
         }
-		fmt.Printf("Job id allocated: %s.\n", taskIdListString)
+        fmt.Printf("Job id allocated: %s.\n", taskIdListString)
 	}
 
 	if len(reply.GetCodeList()) > 0 {

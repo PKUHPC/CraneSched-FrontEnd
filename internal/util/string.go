@@ -890,6 +890,6 @@ func ConvertSliceToString(slice interface{}, separator string) (string, error) {
 	case []string:
 		return strings.Join(valList, separator), nil
 	default:
-		return "", fmt.Errorf("Unsupported slice type. Only []uint32 and []string are supported")
+		return "", fmt.Errorf("Only []uint32 and []string are supported")
 	}
 }
