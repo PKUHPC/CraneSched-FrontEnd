@@ -847,7 +847,7 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 	var err error
 
 	extra := j.ExtraAttr
-	if extra != "" && gjson.Valid(extra) {
+	if extra != "" && !gjson.Valid(extra) {
 		return fmt.Errorf("invalid --extra-attr: invalid JSON string")
 	}
 
