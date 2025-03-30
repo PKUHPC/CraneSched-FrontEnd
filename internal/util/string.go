@@ -791,31 +791,31 @@ func StateToString(state int64) string {
 }
 
 func GetValidNodeList(CranedNodeList []ConfigNodesList) ([]string, error) {
-    if len(CranedNodeList) == 0 {
-        return nil, fmt.Errorf("Nodes in config yaml file err")
-    }
-    
-    nodeNameSet := make(map[string]struct{})
-    var nodeNameList []string
-    for _, cranedNode := range CranedNodeList {
-        nodeNames, ok := ParseHostList(cranedNode.Name)
-        if !ok || len(nodeNames) == 0 {
-            continue
-        }
+	if len(CranedNodeList) == 0 {
+		return nil, fmt.Errorf("Nodes in config yaml file err")
+	}
 
-        for _, nodeName := range nodeNames {
-            if _, exists := nodeNameSet[nodeName]; !exists {
-                nodeNameList = append(nodeNameList, nodeName)
-                nodeNameSet[nodeName] = struct{}{}
-            }
-        }
-    }
+	nodeNameSet := make(map[string]struct{})
+	var nodeNameList []string
+	for _, cranedNode := range CranedNodeList {
+		nodeNames, ok := ParseHostList(cranedNode.Name)
+		if !ok || len(nodeNames) == 0 {
+			continue
+		}
 
-    if len(nodeNameList) == 0 {
-        return nil, fmt.Errorf("no valid nodes found after parsing")
-    }
+		for _, nodeName := range nodeNames {
+			if _, exists := nodeNameSet[nodeName]; !exists {
+				nodeNameList = append(nodeNameList, nodeName)
+				nodeNameSet[nodeName] = struct{}{}
+			}
+		}
+	}
 
-    return nodeNameList, nil
+	if len(nodeNameList) == 0 {
+		return nil, fmt.Errorf("no valid nodes found after parsing")
+	}
+
+	return nodeNameList, nil
 }
 
 // Merge two JSON strings.
@@ -847,7 +847,7 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 	var err error
 
 	extra := j.ExtraAttr
-	if extra != "" && gjson.Valid(extra) {
+	if extra != "" && !gjson.Valid(extra) {
 		return fmt.Errorf("invalid --extra-attr: invalid JSON string")
 	}
 
