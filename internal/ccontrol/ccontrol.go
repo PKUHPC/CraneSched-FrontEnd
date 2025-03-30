@@ -282,11 +282,11 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
-			jobIdListString, err := util.ConvertSliceToString(jobIdList, ",")
+			jobIdListString, err := util.ConvertSliceToString(jobIdList, ", ")
 			if err != nil {
 				log.Errorf("The returned job list type is not supported: %v.\n", err)
 				os.Exit(util.ErrorBackend)
-			}	
+			}
 			fmt.Printf("Job %s is not running.\n", jobIdListString)
 		}
 		return util.ErrorSuccess
@@ -393,11 +393,11 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			}
 		}
 		if len(notRunningJobs) > 0 {
-			notRunningJobsString, err := util.ConvertSliceToString(notRunningJobs, ",")
+			notRunningJobsString, err := util.ConvertSliceToString(notRunningJobs, ", ")
 			if err != nil {
 				log.Errorf("The returned job list type is not supported: %v.\n", err)
 				os.Exit(util.ErrorBackend)
-			}			
+			}
 			fmt.Printf("Job %s is not running.\n", notRunningJobsString)
 		}
 	}
@@ -451,7 +451,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
 		if len(reply.ModifiedTasks) > 0 {
-			ModifiedTasksString, err := util.ConvertSliceToString(reply.ModifiedTasks, ",")
+			ModifiedTasksString, err := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
 			if err != nil {
 				log.Errorf("The returned job list type is not supported: %v.\n", err)
 				os.Exit(util.ErrorBackend)
@@ -468,7 +468,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		return util.ErrorSuccess
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
-			nodeListString, err := util.ConvertSliceToString(reply.ModifiedNodes, ",")
+			nodeListString, err := util.ConvertSliceToString(reply.ModifiedNodes, ", ")
 			if err != nil {
 				log.Errorf("The returned node list is invalid: %v.\n", err)
 				os.Exit(util.ErrorBackend)
