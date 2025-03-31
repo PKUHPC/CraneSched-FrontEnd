@@ -543,7 +543,7 @@ func ShowServerNode() util.CraneCmdError {
 	} else {
 		fmt.Printf("%d - %d\n", reply.StartIndex, reply.NextSlot)
 	}
-	fmt.Printf("Last committed index: %d\ncurrent term: %d\nLast snapshot log index: %d\nLast snapshot log term: %d\n", reply.CommittedLogIdx, reply.CurTerm, reply.LastSnapshotLogIdx, reply.LastSnapshotLogTerm)
+	fmt.Printf("Last committed index: %d\nCurrent term: %d\nLast snapshot log index: %d\nLast snapshot log term: %d\n", reply.CommittedLogIdx, reply.CurTerm, reply.LastSnapshotLogIdx, reply.LastSnapshotLogTerm)
 
 	return util.ErrorSuccess
 }

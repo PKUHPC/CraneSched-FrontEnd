@@ -3,6 +3,7 @@ package util
 import (
 	"CraneFrontEnd/generated/protos"
 	"context"
+	"fmt"
 )
 
 var ps *PersistentStorage
@@ -32,6 +33,7 @@ func CurrentLeaderId() int {
 }
 
 func QueryLeaderFromCtld(config *Config) int {
+	fmt.Println("Attempting to query current leader ID")
 	var stub protos.CraneCtldClient
 	l := len(config.ControlMachine)
 	for i := 1; i < l; i++ {

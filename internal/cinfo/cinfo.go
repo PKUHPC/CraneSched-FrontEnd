@@ -305,11 +305,12 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		log.Println("Attempting to query current leader ID")
 		id := util.QueryLeaderFromCtld(config)
 		if id >= 0 {
 			util.UpdateLeaderIdToFile(id)
 			log.Printf("Leader ID was changed to %d, please try again!\n", id)
+		} else {
+			log.Errorln("Failed to query current leader ID, broken backend.")
 		}
 		return util.ErrorNetwork
 	}
