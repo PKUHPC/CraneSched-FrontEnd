@@ -74,7 +74,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
-		os.Exit(util.ErrorNetwork)
+		return util.ErrorNetwork
 	}
 
 	if FlagJson {
@@ -87,11 +87,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		cancelledTasksString, err := util.ConvertSliceToString(reply.CancelledTasks, ",")
-		if err != nil {
-			log.Errorf("The returned job list type is not supported: %v.\n", err)
-			os.Exit(util.ErrorBackend)
-		}
+		cancelledTasksString := util.ConvertSliceToString(reply.CancelledTasks, ", ")
 		fmt.Printf("Jobs %s cancelled successfully.\n", cancelledTasksString)
 	}
 
@@ -99,7 +95,7 @@ func CancelTask(args []string) util.CraneCmdError {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
 			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		os.Exit(util.ErrorBackend)
+		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
 }

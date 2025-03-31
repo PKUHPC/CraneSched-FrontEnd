@@ -282,11 +282,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
-			jobIdListString, err := util.ConvertSliceToString(jobIdList, ", ")
-			if err != nil {
-				log.Errorf("The returned job list type is not supported: %v.\n", err)
-				os.Exit(util.ErrorBackend)
-			}
+			jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
 			fmt.Printf("Job %s is not running.\n", jobIdListString)
 		}
 		return util.ErrorSuccess
@@ -393,11 +389,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			}
 		}
 		if len(notRunningJobs) > 0 {
-			notRunningJobsString, err := util.ConvertSliceToString(notRunningJobs, ", ")
-			if err != nil {
-				log.Errorf("The returned job list type is not supported: %v.\n", err)
-				os.Exit(util.ErrorBackend)
-			}
+			notRunningJobsString := util.ConvertSliceToString(notRunningJobs, ", ")
 			fmt.Printf("Job %s is not running.\n", notRunningJobsString)
 		}
 	}
@@ -451,12 +443,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
 		if len(reply.ModifiedTasks) > 0 {
-			modifiedTasksString, err := util.ConvertSliceToString(reply.ModifiedTasks, ",")
-			if err != nil {
-				if err != nil {
-				log.Errorf("The returned job list type is not supported: %v.\n", err)
-				os.Exit(util.ErrorBackend)
-			}
+			modifiedTasksString := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
 			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
 		}
 		if len(reply.NotModifiedTasks) > 0 {
@@ -469,11 +456,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		return util.ErrorSuccess
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
-			nodeListString, err := util.ConvertSliceToString(reply.ModifiedNodes, ", ")
-			if err != nil {
-				log.Errorf("The returned node listis not supported: %v.\n", err)
-				os.Exit(util.ErrorBackend)
-			}
+			nodeListString := util.ConvertSliceToString(reply.ModifiedNodes, ", ")
 			fmt.Printf("Nodes %s modified successfully.\n", nodeListString)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
