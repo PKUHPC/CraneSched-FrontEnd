@@ -266,6 +266,25 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 
 func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	config := util.ParseConfig(FlagConfigFilePath)
+
+	// If estimation is enabled,
+	// the request will be sent to the estimation service at first.
+	if FlagEstimation {
+		ralmStub, err := util.GetStubToRALMServiceByConfig(config)
+		if err != nil {
+			util.GrpcErrorPrintf(err, "Failed to connect to RALM service")
+			return util.ErrorNetwork
+		}
+
+		reply, err := ralmStub.Estimate(context.Background(), &protos.EstimationRequest{Task: task})
+		if err != nil {
+			util.GrpcErrorPrintf(err, "Failed to estimate the job")
+			return util.ErrorNetwork
+		}
+
+		task = reply.GetTask()
+	}
+
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
 
