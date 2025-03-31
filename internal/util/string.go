@@ -338,6 +338,14 @@ func CheckEntityName(name string) error {
 	return nil
 }
 
+func CheckOpenModeValid(openModeStr string) error {
+	if openModeStr == "append" || openModeStr == "truncate" {
+		return nil
+	}
+
+	return  fmt.Errorf("invalid open-mode format, valid format: append, truncate")
+}
+
 func ParseHostList(hostStr string) ([]string, bool) {
 	nameStr := strings.ReplaceAll(hostStr, " ", "")
 	nameStr += ","
@@ -877,17 +885,4 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 
 	*r = extra
 	return nil
-}
-
-func CheckOpenModeValid(openModeStr string) error {
-	openModeMap := map[string]struct{}{
-		"append":   {},
-		"truncate": {},
-	}
-
-	if _, exists := openModeMap[openModeStr]; exists {
-		return  nil
-	}
-
-	return  fmt.Errorf("invalid open-mode format, valid format: append, truncate")
 }
