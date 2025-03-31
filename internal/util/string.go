@@ -338,12 +338,14 @@ func CheckEntityName(name string) error {
 	return nil
 }
 
-func CheckOpenModeValid(openModeStr string) error {
-	if openModeStr == "append" || openModeStr == "truncate" {
-		return nil
+func CheckOpenModeValid(openModeStr string) (bool, error) {
+	if openModeStr == "append" {
+		return true, nil
+	} else if openModeStr == "truncate" {
+		return false, nil
 	}
 
-	return  fmt.Errorf("invalid open-mode format, valid format: append, truncate")
+	return  true, fmt.Errorf("invalid open-mode format, valid format: append, truncate")
 }
 
 func ParseHostList(hostStr string) ([]string, bool) {

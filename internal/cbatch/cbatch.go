@@ -31,6 +31,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 )
 
 type CbatchArg struct {
@@ -145,12 +146,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--comment":
 			structExtraFromScript.Comment = arg.val
 		case "--open-mode":
-			err := util.CheckOpenModeValid(arg.val)
+			openModeAppend, err := util.CheckOpenModeValid(arg.val)
 			if err != nil {
 				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
-			task.OpenMode = arg.val
+			task.OpenModeAppend = proto.Bool(openModeAppend)
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -244,12 +245,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		structExtraFromCli.Comment = FlagComment
 	}
 	if FlagOpenMode != "" {
-		err := util.CheckOpenModeValid(FlagOpenMode)
+		openModeAppend, err := util.CheckOpenModeValid(FlagOpenMode)
 		if err != nil {
 			log.Errorf("Invalid argument: %v", err)
 			return false, nil
 		}
-		task.OpenMode = FlagOpenMode
+		task.OpenModeAppend = proto.Bool(openModeAppend)
 	}
 
 	// Set and check the extra attributes

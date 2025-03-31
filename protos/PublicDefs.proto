@@ -146,7 +146,7 @@ message TaskToCtld {
 
   string excludes = 34;
   string nodelist = 35;
-  string open_mode = 36;
+  optional bool open_mode_append = 36;
 }
 
 message TaskInEmbeddedDb {
