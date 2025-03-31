@@ -48,6 +48,7 @@ var (
 	FlagExport        string
 	FlagStdoutPath    string
 	FlagStderrPath    string
+	FlagOpenMode      string
 
 	FlagWrappedScript string
 
@@ -158,4 +159,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
 }
