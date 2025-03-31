@@ -135,6 +135,10 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.GetBatchMeta().OutputFilePattern = arg.val
 		case "-e", "--error":
 			task.GetBatchMeta().ErrorFilePattern = arg.val
+		case "--interpreter":
+			task.GetBatchMeta().Interpreter = arg.val
+		case "--container":
+			task.Container = arg.val
 		case "--extra-attr":
 			structExtraFromScript.ExtraAttr = arg.val
 		case "--mail-type":
@@ -223,6 +227,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagStderrPath != "" {
 		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
+	if FlagInterpreter != "" {
+		task.GetBatchMeta().Interpreter = FlagInterpreter
+	}
+	if FlagContainer != "" {
+		task.Container = FlagContainer
+	}
+
 	if FlagExtraAttr != "" {
 		structExtraFromCli.ExtraAttr = FlagExtraAttr
 	}
@@ -347,6 +358,18 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneC
 
 	for scanner.Scan() {
 		num++
+
+		// Shebang
+		if num == 1 && strings.HasPrefix(scanner.Text(), "#!") {
+			*args = append(*args, CbatchArg{
+				name: "--interpreter",
+				val:  strings.TrimPrefix(scanner.Text(), "#!"),
+			})
+			*sh = append(*sh, scanner.Text())
+			continue
+		}
+
+		// Arguments
 		reC := regexp.MustCompile(`^#CBATCH`)
 		reS := regexp.MustCompile(`^#SBATCH`)
 		reL := regexp.MustCompile(`^#BSUB`)
