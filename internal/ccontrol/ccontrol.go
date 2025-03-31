@@ -282,7 +282,8 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		if queryAll {
 			fmt.Println("No job is running.")
 		} else {
-			fmt.Printf("Job %v is not running.\n", jobIdList)
+			jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
+			fmt.Printf("Job %s is not running.\n", jobIdListString)
 		}
 		return util.ErrorSuccess
 	}
@@ -388,7 +389,8 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			}
 		}
 		if len(notRunningJobs) > 0 {
-			fmt.Printf("Job %v is not running.\n", notRunningJobs)
+			notRunningJobsString := util.ConvertSliceToString(notRunningJobs, ", ")
+			fmt.Printf("Job %s is not running.\n", notRunningJobsString)
 		}
 	}
 
@@ -441,7 +443,8 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
 		if len(reply.ModifiedTasks) > 0 {
-			fmt.Printf("Jobs %v modified successfully.\n", reply.ModifiedTasks)
+			modifiedTasksString := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
+			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
 		}
 		if len(reply.NotModifiedTasks) > 0 {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
@@ -453,7 +456,8 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 		return util.ErrorSuccess
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
-			fmt.Printf("Nodes %v modified successfully.\n", reply.ModifiedNodes)
+			nodeListString := util.ConvertSliceToString(reply.ModifiedNodes, ", ")
+			fmt.Printf("Nodes %s modified successfully.\n", nodeListString)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {

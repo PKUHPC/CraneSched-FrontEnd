@@ -27,7 +27,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -314,11 +313,8 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	}
 
 	if len(reply.TaskIdList) > 0 {
-		taskIdListString := make([]string, len(reply.TaskIdList))
-		for i, taskId := range reply.TaskIdList {
-			taskIdListString[i] = strconv.FormatUint(uint64(taskId), 10)
-		}
-		fmt.Printf("Job id allocated: %s.\n", strings.Join(taskIdListString, ", "))
+		taskIdListString := util.ConvertSliceToString(reply.TaskIdList, ", ")
+		fmt.Printf("Job id allocated: %s.\n", taskIdListString)
 	}
 
 	if len(reply.GetCodeList()) > 0 {

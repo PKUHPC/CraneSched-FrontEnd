@@ -74,7 +74,7 @@ func CancelTask(args []string) util.CraneCmdError {
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
-		os.Exit(util.ErrorNetwork)
+		return util.ErrorNetwork
 	}
 
 	if FlagJson {
@@ -87,14 +87,15 @@ func CancelTask(args []string) util.CraneCmdError {
 	}
 
 	if len(reply.CancelledTasks) > 0 {
-		fmt.Printf("Jobs %v cancelled successfully.\n", reply.CancelledTasks)
+		cancelledTasksString := util.ConvertSliceToString(reply.CancelledTasks, ", ")
+		fmt.Printf("Jobs %s cancelled successfully.\n", cancelledTasksString)
 	}
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
 			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		os.Exit(util.ErrorBackend)
+		return util.ErrorBackend
 	}
 	return util.ErrorSuccess
 }

@@ -792,7 +792,7 @@ func StateToString(state int64) string {
 
 func GetValidNodeList(CranedNodeList []ConfigNodesList) ([]string, error) {
 	if len(CranedNodeList) == 0 {
-		return nil, fmt.Errorf("Nodes in config yaml file err")
+		return nil, fmt.Errorf("nodes in config yaml file err")
 	}
 
 	nodeNameSet := make(map[string]struct{})
@@ -877,4 +877,12 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 
 	*r = extra
 	return nil
+}
+
+func ConvertSliceToString[T any](slice []T, sep string) string {
+	str := make([]string, len(slice))
+	for i, v := range slice {
+		str[i] = fmt.Sprint(v)
+	}
+	return strings.Join(str, sep)
 }
