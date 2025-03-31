@@ -143,6 +143,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			structExtraFromScript.MailUser = arg.val
 		case "--comment":
 			structExtraFromScript.Comment = arg.val
+		case "-r", "--reservation":
+			task.Reservation = arg.val
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -243,6 +245,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		return false, nil
 	}
 	task.ExtraAttr = util.AmendJobExtraAttrs(extraFromScript, extraFromCli)
+	if FlagReservation != "" {
+		task.Reservation = FlagReservation
+	}
 
 	// Set total limit of cpu cores
 	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
