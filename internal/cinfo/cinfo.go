@@ -24,10 +24,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"regexp"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
@@ -35,12 +35,12 @@ import (
 
 // Define the flattened data structure
 type FlattenedData struct {
-	PartitionName       string
-	Avail      string
-	CranedListRegex     string
-	ResourceState       string
-	ControlState        string
-	CranedListCount     uint64
+	PartitionName   string
+	Avail           string
+	CranedListRegex string
+	ResourceState   string
+	ControlState    string
+	CranedListCount uint64
 }
 
 // Flatten the nested structure into a one-dimensional array
@@ -51,7 +51,7 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 			if commonCranedStateList.Count > 0 {
 				flattened = append(flattened, FlattenedData{
 					PartitionName:   partitionCraned.Name,
-					Avail:  strings.ToLower(partitionCraned.State.String()[10:]),
+					Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
 					CranedListRegex: commonCranedStateList.CranedListRegex,
 					ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
 					ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
@@ -64,24 +64,24 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 }
 
 type FieldProcessor struct {
-	header string
+	header  string
 	process func(flattened []FlattenedData, tableOutputCell [][]string)
 }
 
 var fieldMap = map[string]FieldProcessor{
-	"p":             {"Partition", ProcessPartition},
-	"partition":     {"Partition", ProcessPartition},
-	"a":             {"Avail", ProcessAvail},
-	"avail":         {"Avail", ProcessAvail},
-	"n":             {"Nodes", ProcessNodes},
-	"nodes":         {"Nodes", ProcessNodes},
-	"s":             {"State", ProcessState},
-	"state":         {"State", ProcessState},
-	"l":             {"NodeList", ProcessNodeList},
-	"nodelist":      {"NodeList", ProcessNodeList},
+	"p":         {"Partition", ProcessPartition},
+	"partition": {"Partition", ProcessPartition},
+	"a":         {"Avail", ProcessAvail},
+	"avail":     {"Avail", ProcessAvail},
+	"n":         {"Nodes", ProcessNodes},
+	"nodes":     {"Nodes", ProcessNodes},
+	"s":         {"State", ProcessState},
+	"state":     {"State", ProcessState},
+	"l":         {"NodeList", ProcessNodeList},
+	"nodelist":  {"NodeList", ProcessNodeList},
 }
 
-/// Partition
+// / Partition
 func ProcessPartition(flattened []FlattenedData, tableOutputCell [][]string) {
 	for idx, data := range flattened {
 		tableOutputCell[idx] = append(tableOutputCell[idx], data.PartitionName)
@@ -178,9 +178,9 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
 			processor.process(flattened, tableOutputCell)
 		} else {
-			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n" +		
-		 	"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
-			 os.Exit(util.ErrorInvalidFormat)
+			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
+				"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
+			os.Exit(util.ErrorInvalidFormat)
 		}
 	}
 	// Get the suffix of the format string
@@ -265,11 +265,12 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		log.Println("Attempting to query current leader ID")
 		id := util.QueryLeaderFromCtld(config)
 		if id >= 0 {
 			util.UpdateLeaderIdToFile(id)
 			log.Printf("Leader ID was changed to %d, please try again!\n", id)
+		} else {
+			log.Errorln("Failed to query current leader ID, broken backend.")
 		}
 		return util.ErrorNetwork
 	}
@@ -358,8 +359,7 @@ func Query() util.CraneCmdError {
 		}
 
 		if len(redList) > 0 {
-			log.Infof("Requested nodes do not exist or do not meet the given filter condition: %s.",
-				util.HostNameListToStr(redList))
+			log.Infof("Requested nodes do not exist or do not meet the given filter condition: %s.", util.HostNameListToStr(redList))
 		}
 	}
 	return util.ErrorSuccess
