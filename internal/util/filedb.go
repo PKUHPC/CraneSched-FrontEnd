@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gofrs/flock"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -20,10 +21,22 @@ type PersistentStorage struct {
 
 func NewPersistentStorage(file string) *PersistentStorage {
 	dir := filepath.Dir(file)
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		log.Errorf("Failed to create directories: %s %v", dir, err)
-		return nil
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0777)
+		if err != nil {
+			log.Errorf("Failed to create directories: %s %v", dir, err)
+			return nil
+		}
+
+		err = os.Chmod(dir, 0777)
+		if err != nil {
+			fmt.Println("Error changing directories permissions:", err)
+			return nil
+		}
+
+	} else if err != nil {
+		fmt.Println("Error checking directory:", err)
 	}
 
 	lock := flock.New(file + ".lock") // 创建文件锁
@@ -36,6 +49,7 @@ func NewPersistentStorage(file string) *PersistentStorage {
 func (ps *PersistentStorage) LoadData() error {
 	err := ps.flock.RLock()
 	if err != nil {
+		log.Errorf("Failed to lock data file: %s\n", err)
 		return err
 	}
 	defer ps.flock.Unlock()
@@ -49,6 +63,17 @@ func (ps *PersistentStorage) LoadData() error {
 			if err != nil {
 				return err
 			}
+			err = os.Chmod(ps.file, 0777)
+			if err != nil {
+				fmt.Println("Error changing file permissions:", err)
+				return nil
+			}
+			err = os.Chmod(ps.file+".lock", 0777)
+			if err != nil {
+				fmt.Println("Error changing file permissions:", err)
+				return nil
+			}
+
 			defer file.Close()
 			// write to file
 			encoder := json.NewEncoder(file)
