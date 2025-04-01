@@ -9,7 +9,7 @@ import (
 var ps *PersistentStorage
 
 func GetLeaderIdFromFile() int {
-	ps = NewPersistentStorage(DefaultCraneBaseDir + DefaultPersistentDataPath)
+	ps = NewPersistentStorage(DefaultTempBaseDir + DefaultPersistentDataPath)
 	if ps == nil {
 		return -2
 	}

@@ -76,6 +76,7 @@ type ConfigNodesList struct {
 const (
 	DefaultConfigPath   = "/etc/crane/config.yaml"
 	DefaultCraneBaseDir = "/var/crane/"
+	DefaultTempBaseDir  = "/tmp/crane/"
 
 	DefaultPersistentDataPath = "frontend/data.db"
 	DefaultPlugindSocketPath  = "cplugind/cplugind.sock"
