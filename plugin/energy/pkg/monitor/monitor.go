@@ -17,7 +17,7 @@ var log = logrus.WithField("component", "Monitor")
 
 type Monitor struct {
 	NodeMonitor *NodeMonitor
-	TaskMonitor *TaskMonitor
+	JobMonitor  *JobMonitor
 }
 
 func NewMonitor(config config.MonitorConfig) *Monitor {
@@ -45,6 +45,13 @@ func NewMonitor(config config.MonitorConfig) *Monitor {
 		sysLoadReader = sysload.NewSystemLoadReader()
 	}
 
+	jobMonitor := &JobMonitor{
+		samplePeriod: duration,
+		config:       &config,
+		jobs:         make(map[uint32]*Job),
+		mutex:        sync.RWMutex{},
+	}
+
 	return &Monitor{
 		NodeMonitor: &NodeMonitor{
 			samplePeriod:  duration,
@@ -53,18 +60,14 @@ func NewMonitor(config config.MonitorConfig) *Monitor {
 			ipmiReader:    ipmiReader,
 			gpuReader:     gpuReader,
 			sysLoadReader: sysLoadReader,
+			jobMonitor:    jobMonitor,
 			stopCh:        make(chan struct{}),
 		},
-		TaskMonitor: &TaskMonitor{
-			samplePeriod: duration,
-			config:       &config,
-			tasks:        make(map[uint32]*Task),
-			mutex:        sync.RWMutex{},
-		},
+		JobMonitor: jobMonitor,
 	}
 }
 
 func (sm *Monitor) Close() {
 	sm.NodeMonitor.Close()
-	sm.TaskMonitor.Close()
+	sm.JobMonitor.Close()
 }

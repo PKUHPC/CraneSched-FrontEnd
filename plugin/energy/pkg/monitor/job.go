@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
+	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"CraneFrontEnd/plugin/energy/pkg/cgroup"
@@ -15,66 +16,67 @@ import (
 	"CraneFrontEnd/plugin/energy/pkg/types"
 )
 
-type TaskMonitor struct {
+type JobMonitor struct {
 	samplePeriod time.Duration
 	config       *config.MonitorConfig
 
-	tasks map[uint32]*Task
+	jobs  map[uint32]*Job
 	mutex sync.RWMutex
 }
 
-func (m *TaskMonitor) Start(taskID uint32, cgroupName string, boundGPUs []int) {
-	log.Infof("Starting task monitor for task: %d, cgroup name: %s", taskID, cgroupName)
+func (m *JobMonitor) Start(jobID uint32, cgroupName string, resourceRequest ResourceRequest) {
+	log.Infof("Starting job monitor for job: %d, cgroup name: %s", jobID, cgroupName)
 
-	if !m.config.Enabled.Task {
-		log.Warnf("Task monitor is not enabled, skipping task: %d, %s", taskID, cgroupName)
+	if !m.config.Enabled.Job {
+		log.Warnf("Job monitor is not enabled, skipping job: %d, %s", jobID, cgroupName)
 		return
 	}
 
-	// If neither RAPL nor IPMI is enabled, the task energy cannot be calculated, skip this task
+	// If neither RAPL nor IPMI is enabled, the job energy cannot be calculated, skip this job
 	if !m.config.Enabled.RAPL && !m.config.Enabled.IPMI {
-		log.Warnf("No energy metrics enabled, skipping task: %d, %s", taskID, cgroupName)
+		log.Warnf("No energy metrics enabled, skipping job: %d, %s", jobID, cgroupName)
 		return
 	}
 
-	task, err := NewTask(taskID, cgroupName, m.samplePeriod, m.config, boundGPUs)
+	job, err := NewJob(jobID, cgroupName, m.samplePeriod, m.config, resourceRequest)
 	if err != nil {
-		log.Errorf("Failed to create task monitor: %v", err)
+		log.Errorf("Failed to create job monitor: %v", err)
 		return
 	}
 
 	m.mutex.Lock()
-	m.tasks[taskID] = task
+	m.jobs[jobID] = job
 	m.mutex.Unlock()
 
-	task.StartMonitor()
+	job.StartMonitor()
 }
 
-func (m *TaskMonitor) Stop(taskID uint32) {
+func (m *JobMonitor) Stop(jobID uint32) {
 	m.mutex.Lock()
-	if task, exists := m.tasks[taskID]; exists {
-		task.StopMonitor()
-		delete(m.tasks, taskID)
+	if job, exists := m.jobs[jobID]; exists {
+		job.StopMonitor()
+		delete(m.jobs, jobID)
 	}
 	m.mutex.Unlock()
 }
 
-func (m *TaskMonitor) Close() {
+func (m *JobMonitor) Close() {
 	m.mutex.Lock()
-	for _, task := range m.tasks {
-		task.StopMonitor()
+	for _, job := range m.jobs {
+		job.StopMonitor()
 	}
 	m.mutex.Unlock()
 }
 
-type Task struct {
-	taskID       uint32
+type Job struct {
+	jobID        uint32
 	cgroupName   string
-	boundGPUs    []int
 	samplePeriod time.Duration
 	config       *config.MonitorConfig
 
-	data        *types.TaskData
+	resourceRequest ResourceRequest
+
+	data        *types.JobData
 	sampleCount int
 
 	cgroupReader cgroup.CgroupReader
@@ -85,6 +87,12 @@ type Task struct {
 	subscriber *NodeDataSubscriber
 }
 
+type ResourceRequest struct {
+	ReqCPU    float64
+	ReqMemory uint64
+	ReqGPUs   []int
+}
+
 func getNodeID() string {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -93,17 +101,7 @@ func getNodeID() string {
 	return hostname
 }
 
-var gpuPatterns = map[string]*struct {
-	pattern *regexp.Regexp
-	vendor  string
-}{
-	"nvidia": {
-		pattern: regexp.MustCompile(`/dev/nvidia(\d+)`),
-		vendor:  "nvidia",
-	},
-}
-
-func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig, boundGPUs []int) (*Task, error) {
+func NewJob(jobID uint32, cgroupName string, samplePeriod time.Duration, config *config.MonitorConfig, resourceRequest ResourceRequest) (*Job, error) {
 	cgroupReader, err := cgroup.NewCgroupReader(cgroup.V1, cgroupName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cgroup reader: %v", err)
@@ -112,20 +110,20 @@ func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, confi
 	ctx, cancel := context.WithCancel(context.Background())
 	startTime := time.Now()
 
-	return &Task{
-		taskID:       taskID,
-		cgroupName:   cgroupName,
-		samplePeriod: samplePeriod,
-		config:       config,
-		boundGPUs:    boundGPUs,
-		ctx:          ctx,
-		cancel:       cancel,
+	return &Job{
+		jobID:           jobID,
+		cgroupName:      cgroupName,
+		samplePeriod:    samplePeriod,
+		config:          config,
+		resourceRequest: resourceRequest,
+		ctx:             ctx,
+		cancel:          cancel,
 		subscriber: &NodeDataSubscriber{
 			Ch:        make(chan *types.NodeData, 10),
 			StartTime: startTime,
 		},
-		data: &types.TaskData{
-			TaskID:    taskID,
+		data: &types.JobData{
+			JobID:     jobID,
 			NodeID:    getNodeID(),
 			StartTime: startTime,
 		},
@@ -134,46 +132,46 @@ func NewTask(taskID uint32, cgroupName string, samplePeriod time.Duration, confi
 	}, nil
 }
 
-func (t *Task) StartMonitor() {
-	GetSubscriberManagerInstance().AddSubscriber(t.taskID, t.subscriber)
+func (t *Job) StartMonitor() {
+	GetSubscriberManagerInstance().AddSubscriber(t.jobID, t.subscriber)
 
 	go t.monitorResourceUsage()
 	go t.collectData()
 }
 
-func (t *Task) StopMonitor() {
-	log.Infof("Stopping task monitor for task: %d", t.taskID)
+func (t *Job) StopMonitor() {
+	log.Infof("Stopping job monitor for job: %d", t.jobID)
 
 	t.cancel()
-	GetSubscriberManagerInstance().DeleteSubscriber(t.taskID)
+	GetSubscriberManagerInstance().DeleteSubscriber(t.jobID)
 
 	if err := t.gpuReader.Close(); err != nil {
 		log.Errorf("Failed to close GPU reader: %v", err)
 	}
 }
 
-func (t *Task) monitorResourceUsage() {
+func (t *Job) monitorResourceUsage() {
 	ticker := time.NewTicker(t.samplePeriod)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			taskStats, err := t.cgroupReader.GetCgroupStats()
+			jobStats, err := t.cgroupReader.GetCgroupStats()
 			if err != nil {
-				log.Infof("Task %d monitor stopping, error: %v", t.taskID, err)
+				log.Infof("Job %d monitor stopping, error: %v", t.jobID, err)
 				go t.StopMonitor()
 				return
 			}
-			metrics := t.gpuReader.GetBoundGpuMetrics(t.boundGPUs)
-			t.updateTaskStats(&taskStats, metrics)
+			metrics := t.gpuReader.GetBoundGpuMetrics(t.resourceRequest.ReqGPUs)
+			t.updateJobStats(&jobStats, metrics)
 		case <-t.ctx.Done():
 			return
 		}
 	}
 }
 
-func (t *Task) updateTaskStats(stats *types.CgroupStats, metrics *types.GPUMetrics) {
+func (t *Job) updateJobStats(stats *types.CgroupStats, metrics *types.GPUMetrics) {
 	// The resource usage in cgroup is cumulative, so no need to accumulate, just update directly
 	t.data.CgroupStats.CPUStats.UsageSeconds = stats.CPUStats.UsageSeconds
 	t.data.CgroupStats.IOStats.ReadMB = stats.IOStats.ReadMB
@@ -197,22 +195,22 @@ func (t *Task) updateTaskStats(stats *types.CgroupStats, metrics *types.GPUMetri
 	t.sampleCount++
 }
 
-func (t *Task) collectData() {
+func (t *Job) collectData() {
 	for {
 		select {
 		case data := <-t.subscriber.Ch:
 			t.updateEnergy(data)
 		case <-t.ctx.Done():
 			t.calculateStats()
-			if err := db.GetInstance().SaveTaskEnergy(t.data); err != nil {
-				log.Errorf("Error saving task energy data: %v", err)
+			if err := db.GetInstance().SaveJobEnergy(t.data); err != nil {
+				log.Errorf("Error saving job energy data: %v", err)
 			}
 			return
 		}
 	}
 }
 
-func (t *Task) updateEnergy(nodeData *types.NodeData) {
+func (t *Job) updateEnergy(nodeData *types.NodeData) {
 	// If IPMI is enabled, use IPMI energy data preferentially
 	if t.config.Enabled.IPMI {
 		t.data.CPUEnergy += nodeData.IPMI.CPUEnergy
@@ -221,7 +219,7 @@ func (t *Task) updateEnergy(nodeData *types.NodeData) {
 	}
 }
 
-func (t *Task) calculateStats() {
+func (t *Job) calculateStats() {
 	if t.sampleCount < 2 {
 		log.Errorf("Insufficient samples for statistics")
 		return
@@ -234,10 +232,10 @@ func (t *Task) calculateStats() {
 	t.calculateAverages(sampleCount)
 	t.calculateEnergy()
 
-	t.logTaskStats()
+	t.logJobStats()
 }
 
-func (t *Task) calculateAverages(sampleCount float64) {
+func (t *Job) calculateAverages(sampleCount float64) {
 	t.data.CgroupStats.CPUStats.Utilization /= sampleCount
 	t.data.CgroupStats.MemoryStats.UsageMB /= sampleCount
 	t.data.CgroupStats.MemoryStats.Utilization /= sampleCount
@@ -249,7 +247,7 @@ func (t *Task) calculateAverages(sampleCount float64) {
 	t.data.CgroupStats.GPUStats.MemoryUtil /= sampleCount
 }
 
-func (t *Task) calculateEnergy() {
+func (t *Job) calculateEnergy() {
 	t.data.CPUEnergy = t.data.CPUEnergy * (t.data.CgroupStats.CPUStats.Utilization / 100.0)
 	t.data.TotalEnergy = t.data.CPUEnergy + t.data.GPUEnergy
 	if duration := t.data.Duration.Seconds(); duration > 0 {
@@ -257,9 +255,9 @@ func (t *Task) calculateEnergy() {
 	}
 }
 
-func (t *Task) logTaskStats() {
-	log.Infof("Task Statistics for %d:", t.taskID)
-	log.Infof("  Task ID: %d", t.taskID)
+func (t *Job) logJobStats() {
+	log.Infof("Job Statistics for %d:", t.jobID)
+	log.Infof("  Job ID: %d", t.jobID)
 	log.Infof("  Node ID: %s", t.data.NodeID)
 	log.Infof("  Duration: %.2f seconds", t.data.Duration.Seconds())
 
@@ -286,4 +284,36 @@ func (t *Task) logTaskStats() {
 	log.Infof("  Disk write operations count: %d", t.data.CgroupStats.IOStats.WriteOperations)
 	log.Infof("  Disk read operations: %.2f IOPS", t.data.CgroupStats.IOStats.ReadOpsPerSec)
 	log.Infof("  Disk write operations: %.2f IOPS", t.data.CgroupStats.IOStats.WriteOpsPerSec)
+}
+
+func (m *JobMonitor) GetJobMetrics() *types.JobMetrics {
+	metrics := &types.JobMetrics{}
+	totalCPURequest := 0.0
+	totalMemoryRequest := 0.0
+	totalRuntime := 0.0
+
+	cpuCores := float64(runtime.NumCPU())
+	var memInfo syscall.Sysinfo_t
+	syscall.Sysinfo(&memInfo)
+	totalMemoryBytes := float64(memInfo.Totalram)
+
+	m.mutex.RLock()
+	metrics.JobCount = len(m.jobs)
+
+	for _, job := range m.jobs {
+		totalCPURequest += job.resourceRequest.ReqCPU
+		totalMemoryRequest += float64(job.resourceRequest.ReqMemory)
+		totalRuntime += time.Since(job.data.StartTime).Minutes()
+	}
+	m.mutex.RUnlock()
+
+	if metrics.JobCount > 0 {
+		metrics.ReqCPURate = totalCPURequest / cpuCores
+		metrics.AvgReqCPUPerJob = totalCPURequest / float64(metrics.JobCount)
+		metrics.ReqMemoryRate = totalMemoryRequest / totalMemoryBytes
+		metrics.AvgReqMemoryGBPerJob = (totalMemoryRequest / float64(metrics.JobCount)) / (1024 * 1024 * 1024) // 转换为GB
+		metrics.AvgJobRuntime = totalRuntime / float64(metrics.JobCount)
+	}
+
+	return metrics
 }

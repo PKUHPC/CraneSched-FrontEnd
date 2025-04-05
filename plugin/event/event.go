@@ -94,6 +94,12 @@ func (p *EventPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
 
 func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
 
+func (p *EventPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {}
+
+func (p *EventPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {}
+
+func (p *EventPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
 func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
 	if !ok {

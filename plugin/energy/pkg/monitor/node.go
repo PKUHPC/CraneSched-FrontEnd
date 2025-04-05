@@ -20,6 +20,7 @@ type NodeMonitor struct {
 	ipmiReader    *ipmi.IPMIReader
 	gpuReader     *gpu.Reader
 	sysLoadReader *sysload.SystemLoadReader
+	jobMonitor    *JobMonitor
 
 	stopCh chan struct{}
 }
@@ -70,6 +71,10 @@ func (r *NodeMonitor) collectNodeEnergy() {
 			r.config.Enabled.System = false
 		}
 
+		if r.jobMonitor != nil {
+			data.JobMetrics = r.jobMonitor.GetJobMetrics()
+		}
+
 		if r.raplReader != nil {
 			r.raplReader.LogMetrics(&data.RAPL)
 		}
@@ -108,7 +113,7 @@ func (r *NodeMonitor) broadcastNodeData(data *types.NodeData) {
 				select {
 				case sub.Ch <- data:
 				default:
-					log.Warnf("task %v channel full, skipping data", key)
+					log.Warnf("job %v channel full, skipping data", key)
 				}
 			}
 		}
