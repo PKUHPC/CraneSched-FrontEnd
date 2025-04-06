@@ -217,6 +217,7 @@ message TaskToD {
 
 message BatchTaskAdditionalMeta {
   string sh_script = 1;
+  optional bool open_mode_append = 2;
   string output_file_pattern = 3;
   string error_file_pattern = 4;
 }
@@ -337,7 +338,7 @@ message TrimmedPartitionInfo {
 
 message RichError {
   ErrCode code = 1;
-   string description = 2;
+  string description = 2;
 }
 
 enum ErrCode {

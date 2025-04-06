@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 )
 
 type CbatchArg struct {
@@ -37,7 +38,7 @@ type CbatchArg struct {
 	val  string
 }
 
-// Merge and validate arguments from the file and the command line,
+// ProcessCbatchArgs Merge and validate arguments from the file and the command line,
 // then return the constructed TaskToCtld.
 func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
@@ -143,6 +144,15 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			structExtraFromScript.MailUser = arg.val
 		case "--comment":
 			structExtraFromScript.Comment = arg.val
+		case "--open-mode":
+			if arg.val == util.OpenModeAppend {
+				task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
+			} else if arg.val == util.OpenModeTruncate {
+				task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
+			} else {
+				log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
+				return false, nil
+			}
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -234,6 +244,16 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
+	}
+	if FlagOpenMode != "" {
+		if FlagOpenMode == util.OpenModeAppend {
+			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
+		} else if FlagOpenMode == util.OpenModeTruncate {
+			task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
+		} else {
+			log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
+			return false, nil
+		}
 	}
 
 	// Set and check the extra attributes
@@ -327,7 +347,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	return util.ErrorSuccess
 }
 
-// Split the job script into two parts: the arguments and the shell script.
+// ParseCbatchScript Split the job script into two parts: the arguments and the shell script.
 func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneCmdError {
 	file, err := os.Open(path)
 	if err != nil {
