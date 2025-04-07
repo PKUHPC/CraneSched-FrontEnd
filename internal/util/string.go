@@ -239,6 +239,7 @@ func CheckMailType(mailtype string) bool {
 		mailtype == "BEGIN" ||
 		mailtype == "END" ||
 		mailtype == "FAIL" ||
+		mailtype == "TIMELIMIT" ||
 		mailtype == "ALL"
 }
 
