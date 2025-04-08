@@ -954,6 +954,8 @@ func MainCrun(args []string) util.CraneCmdError {
 		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)
 	}
 
+	iaMeta.Mpi = FlagMpi
+
 	iaMeta.ShScript = strings.Join(args, " ")
 	termEnv, exits := syscall.Getenv("TERM")
 	if exits {
