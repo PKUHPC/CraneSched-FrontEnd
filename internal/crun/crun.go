@@ -1877,6 +1877,8 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)
 	}
 
+	iaMeta.Mpi = FlagMpi
+
 	termEnv, exits := syscall.Getenv("TERM")
 	if exits {
 		iaMeta.TermEnv = termEnv
