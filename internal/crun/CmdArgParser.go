@@ -45,6 +45,8 @@ var (
 	FlagX11    bool
 	FlagX11Fwd bool
 
+	FlagMpi string
+
 	FlagExtraAttr string
 	FlagMailType  string
 	FlagMailUser  string
@@ -100,6 +102,8 @@ func init() {
 
 	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Enable X11 support, default is false. If not with --x11-forwarding, direct X11 is used (insecure)")
 	RootCmd.Flags().BoolVar(&FlagX11Fwd, "x11-forwarding", false, "Enable X11 forwarding by CraneSched (secure), default is false")
+
+	RootCmd.Flags().StringVarP(&FlagMpi, "mpi", "", "", "MPI used for the job")
 
 	RootCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL (default is NONE)")
