@@ -878,6 +878,9 @@ func MainCrun(args []string) util.CraneCmdError {
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+	if FlagReservation != "" {
+		task.Reservation = FlagReservation
+	}
 
 	if FlagExtraAttr != "" {
 		structExtraFromCli.ExtraAttr = FlagExtraAttr

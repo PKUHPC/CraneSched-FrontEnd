@@ -42,6 +42,12 @@ var (
 	FlagHoldTime        string
 	FlagConfigFilePath  string
 	FlagJson            bool
+	FlagReservationName string
+	FlagStartTime       string
+	FlagDuration        string
+	FlagNodes           string
+	FlagAccount         string
+	FlagUser            string
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -92,6 +98,24 @@ var (
 				FlagQueryAll = false
 			}
 			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	showReservationsCmd = &cobra.Command{
+		Use:   "reservation [flags] [reservation_name]",
+		Short: "Display details of the reservations, default is all",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				FlagReservationName = ""
+				FlagQueryAll = true
+			} else {
+				FlagReservationName = args[0]
+				FlagQueryAll = false
+			}
+			if err := ShowReservations(FlagReservationName, FlagQueryAll); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -235,6 +259,38 @@ var (
 			}
 		},
 	}
+	createCmd = &cobra.Command{
+		Use:   "create",
+		Short: "Create a new entity",
+		Long:  "",
+	}
+	createReservationCmd = &cobra.Command{
+		Use:   "reservation [flags]",
+		Short: "Create a new reservation",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := CreateReservation(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	deleteCmd = &cobra.Command{
+		Use:   "delete",
+		Short: "Delete the specified entity",
+		Long:  "",
+	}
+	deleteReservationCmd = &cobra.Command{
+		Use:   "reservation reservation_name",
+		Short: "Delete the specified reservation",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := DeleteReservation(args[0]); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -256,6 +312,7 @@ func init() {
 		showCmd.AddCommand(showPartitionCmd)
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
+		showCmd.AddCommand(showReservationsCmd)
 	}
 
 	RootCmd.AddCommand(updateCmd)
@@ -288,9 +345,47 @@ func init() {
 			updatePartitionCmd.MarkFlagsOneRequired("allowed-accounts", "denied-accounts")
 		}
 	}
+
 	RootCmd.AddCommand(holdCmd)
 	{
 		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
 	}
+
 	RootCmd.AddCommand(releaseCmd)
+
+	RootCmd.AddCommand(createCmd)
+	{
+		createCmd.AddCommand(createReservationCmd)
+		{
+			createReservationCmd.Flags().StringVarP(&FlagReservationName, "name", "n", "", "Specify the name of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagStartTime, "start-time", "s", "", "Specify the start time of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagDuration, "duration", "d", "", "Specify the duration of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagPartitionName, "partition", "p", "", "Specify the partition of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagNodes, "nodes", "N", "", "Specify the nodes of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagAccount, "account", "a", "", "Specify the account of the reservation")
+			createReservationCmd.Flags().StringVarP(&FlagUser, "user", "u", "", "Specify the user of the reservation")
+
+			err := createReservationCmd.MarkFlagRequired("name")
+			if err != nil {
+				return
+			}
+			err = createReservationCmd.MarkFlagRequired("start-time")
+			if err != nil {
+				return
+			}
+			err = createReservationCmd.MarkFlagRequired("duration")
+			if err != nil {
+				return
+			}
+			err = createReservationCmd.MarkFlagRequired("account")
+			if err != nil {
+				return
+			}
+		}
+	}
+
+	RootCmd.AddCommand(deleteCmd)
+	{
+		deleteCmd.AddCommand(deleteReservationCmd)
+	}
 }
