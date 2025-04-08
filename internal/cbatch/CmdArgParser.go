@@ -131,6 +131,10 @@ func ParseCmdArgs() {
 	}
 }
 
+// init initializes the CLI by setting the RootCmd version template and registering command-line flags.
+// It configures parameters for resource allocation (nodes, CPUs per task, memory, time limits), job metadata
+// (job name, partition, account, QoS, working directory), output redirection, and execution options (script wrapping,
+// JSON output, file open mode). It also sets up email notifications with the supported values including TIMELIMIT.
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",

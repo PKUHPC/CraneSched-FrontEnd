@@ -72,6 +72,7 @@ func ParseCmdArgs() {
 	}
 }
 
+// init initializes the CLI application's root command by setting its version template and registering both persistent and standard flags. These flags configure application settings (such as the configuration file path and debug level) along with job and resource management parameters including resource allocation, environment options, and notification preferences.
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")

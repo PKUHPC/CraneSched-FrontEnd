@@ -234,6 +234,7 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
+// CheckMailType returns true if the provided mail type matches one of the allowed types: "NONE", "BEGIN", "END", "FAIL", "TIMELIMIT", or "ALL".
 func CheckMailType(mailtype string) bool {
 	return mailtype == "NONE" ||
 		mailtype == "BEGIN" ||

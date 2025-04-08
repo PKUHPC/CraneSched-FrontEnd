@@ -75,6 +75,7 @@ func ParseCmdArgs() {
 	}
 }
 
+// init configures the crun CLI by setting the version template and defining flags for job configuration. It establishes both persistent settings (such as the configuration file path and debug level) and command-specific parameters (including node allocation, CPU resources, memory, runtime, job attributes, and notification options).
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
