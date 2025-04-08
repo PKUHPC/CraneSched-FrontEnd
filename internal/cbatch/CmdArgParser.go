@@ -155,7 +155,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
 	RootCmd.Flags().StringVar(&FlagWrappedScript, "wrap", "", "Wrap command string in a sh script and submit")
 	RootCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
-	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, ALL (default is NONE)")
+	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
