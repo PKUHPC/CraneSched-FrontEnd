@@ -117,8 +117,8 @@ Fields are identified by a percent sign (%) followed by a character or string.
 Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field. 
 Supported format identifiers or string, string case insensitive:
 	%a/%Account           - Display the account associated with the job.
-	%c/%AllocCpus         - Display the number of allocated CPUs, formatted to two decimal places.
 	%C/%ReqCpus           - Display the number of requested CPUs, formatted to two decimal places
+	%c/%AllocCpus         - Display the number of allocated CPUs, formatted to two decimal places.
 	%D/%ElapsedTime       - Display the elapsed time from the start of the job.
 	%E/%EndTime           - Display the end time of the job.
 	%e/%ExitCode          - Display the exit code of the job. 

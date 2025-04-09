@@ -114,8 +114,8 @@ func init() {
 	
 Supported format identifiers or string, string case insensitive:
 	%a/%Account            - Display the account associated with the job.
-	%C/%AllocCpus          - Display the cpus allocated to the job.
-	%c/%CpuPerNode         - Display the requested cpu per node of the job.
+	%C/%ReqCpus            - Display the cpus requested to the job.
+	%c/%AllocCpus          - Display the cpus allocated to the job.
 	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
 	%h/%Held               - Display the hold state of the job.
 	%j/%JobID              - Display the ID of the job.
@@ -129,7 +129,7 @@ Supported format identifiers or string, string case insensitive:
 	%o/%Command            - Display the command line of the job.
 	%P/%Partition          - Display the partition the job is running in.
 	%p/%Priority           - Display the priority of the job.
-	%Q/%ReqCpus            - Display the cpus requested to the job.
+	%Q/%CpuPerNode         - Display the requested cpu per node of the job.
 	%q/%QoS                - Display the Quality of Service level for the job.
 	%R/%Reason             - Display the reason of pending.
 	%r/%ReqNodes           - Display the reqnodes of the job.

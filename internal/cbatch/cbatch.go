@@ -254,6 +254,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
 	}
+	if FlagExclusive {
+		task.Exclusive = true
+	}
 	if FlagOpenMode != "" {
 		if FlagOpenMode == util.OpenModeAppend {
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
