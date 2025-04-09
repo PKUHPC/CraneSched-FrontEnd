@@ -41,6 +41,7 @@ var (
 	FlagExcludes      string
 	FlagGetUserEnv    bool
 	FlagExport        string
+	FlagExclusive     bool
 
 	FlagExtraAttr string
 	FlagMailType  string
@@ -96,4 +97,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
+	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 }
