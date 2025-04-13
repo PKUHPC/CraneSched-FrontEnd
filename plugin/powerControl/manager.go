@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -18,28 +19,25 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type PowerController struct {
-	config    *Config
-	powerTool PowerTool
+type PowerManager struct {
+	config          *Config
+	powerTool       PowerTool
+	excludeNodesMap map[string]struct{}
 
 	nodesInfo map[string]*NodeInfo
 	nodeMutex sync.RWMutex
-
-	runningjobs map[string]int // jobID -> number of nodes
-	jobMutex    sync.RWMutex
 
 	stopChan chan struct{}
 }
 
 type PredictionRequest struct {
-	AvgNodesPerjob float64 `json:"avg_nodes_per_job"`
-	TotalNodes     int     `json:"total_nodes"`
+	TotalNodes int `json:"total_nodes"`
 }
 
-func NewPowerController(config *Config) *PowerController {
+func NewPowerManager(config *Config) *PowerManager {
 	files := []string{
-		config.Predictor.NodeStateChangeFile,
-		config.Predictor.ClusterStateFile,
+		config.PowerControl.NodeStateChangeFile,
+		config.PowerControl.ClusterStateFile,
 	}
 	for _, file := range files {
 		if _, err := os.Stat(file); err == nil {
@@ -51,12 +49,17 @@ func NewPowerController(config *Config) *PowerController {
 		}
 	}
 
-	controller := &PowerController{
-		config:      config,
-		powerTool:   NewIPMITool(config),
-		nodesInfo:   make(map[string]*NodeInfo),
-		stopChan:    make(chan struct{}),
-		runningjobs: make(map[string]int),
+	excludeNodesMap := make(map[string]struct{})
+	for _, node := range config.IPMI.ExcludeNodes {
+		excludeNodesMap[node] = struct{}{}
+	}
+
+	controller := &PowerManager{
+		config:          config,
+		powerTool:       NewIPMITool(config),
+		nodesInfo:       make(map[string]*NodeInfo),
+		stopChan:        make(chan struct{}),
+		excludeNodesMap: excludeNodesMap,
 	}
 
 	controller.StartPowerStateMonitor()
@@ -64,7 +67,7 @@ func NewPowerController(config *Config) *PowerController {
 	return controller
 }
 
-func (c *PowerController) RegisterNode(nodeID string) {
+func (c *PowerManager) RegisterNode(nodeID string) {
 	c.nodeMutex.Lock()
 	defer c.nodeMutex.Unlock()
 
@@ -78,15 +81,15 @@ func (c *PowerController) RegisterNode(nodeID string) {
 	}
 }
 
-func (c *PowerController) StartAutoPowerControl() {
+func (c *PowerManager) StartAutoPowerManager() {
 	go func() {
-		ticker := time.NewTicker(time.Duration(c.config.Predictor.CheckIntervalSeconds) * time.Second)
+		ticker := time.NewTicker(time.Duration(c.config.PowerControl.CheckIntervalSeconds) * time.Second)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ticker.C:
-				wake, on, sleep, off := c.ExecutePowerControl()
+				wake, on, sleep, off := c.Start()
 				log.Infof("Auto power control executed: wake=%d, on=%d, sleep=%d, off=%d",
 					wake, on, sleep, off)
 			case <-c.stopChan:
@@ -96,19 +99,19 @@ func (c *PowerController) StartAutoPowerControl() {
 	}()
 }
 
-func (c *PowerController) StopAutoPowerControl() {
+func (c *PowerManager) StopAutoPowerManager() {
 	close(c.stopChan)
 }
 
-func (c *PowerController) AddJobToNode(nodeID string, jobID string) bool {
+func (c *PowerManager) AddJobToNode(nodeID string, jobID string) bool {
 	return c.updateNodeJob(nodeID, jobID, true)
 }
 
-func (c *PowerController) RemoveJobFromNode(nodeID string, jobID string) bool {
+func (c *PowerManager) RemoveJobFromNode(nodeID string, jobID string) bool {
 	return c.updateNodeJob(nodeID, jobID, false)
 }
 
-func (c *PowerController) GetNodesByState(states ...NodeState) []string {
+func (c *PowerManager) GetNodesByState(states ...NodeState) []string {
 	c.nodeMutex.RLock()
 	defer c.nodeMutex.RUnlock()
 
@@ -124,40 +127,25 @@ func (c *PowerController) GetNodesByState(states ...NodeState) []string {
 	return nodes
 }
 
-func (c *PowerController) AddRunningjob(jobID string, nodeCount int) {
-	c.jobMutex.Lock()
-	defer c.jobMutex.Unlock()
-	c.runningjobs[jobID] = nodeCount
-}
+func (c *PowerManager) Start() (int, int, int, int) {
+	nodesToWake, nodesToPowerOn, nodesToSleep, nodesToPowerOff := c.makeDecision()
 
-func (c *PowerController) RemoveRunningjob(jobID string) {
-	c.jobMutex.Lock()
-	defer c.jobMutex.Unlock()
-	delete(c.runningjobs, jobID)
-}
+	if !c.config.PowerControl.EnableSleep {
+		if len(nodesToWake) > 0 {
+			log.Warnf("EnableSleep is disabled, Try to power on nodes: %v", nodesToWake)
+			nodesToPowerOn = append(nodesToPowerOn, nodesToWake...)
+			nodesToWake = nil
+		}
 
-func (c *PowerController) GetAverageNodesPerjob() float64 {
-	c.jobMutex.RLock()
-	defer c.jobMutex.RUnlock()
-
-	jobCount := len(c.runningjobs)
-	if jobCount == 0 {
-		return 0
+		if len(nodesToSleep) > 0 {
+			log.Warnf("EnableSleep is disabled, Try to power off nodes: %v", nodesToSleep)
+			nodesToPowerOff = append(nodesToPowerOff, nodesToSleep...)
+			nodesToSleep = nil
+		}
 	}
-
-	totalNodes := 0
-	for _, nodeCount := range c.runningjobs {
-		totalNodes += nodeCount
-	}
-
-	return float64(totalNodes) / float64(jobCount)
-}
-
-func (c *PowerController) ExecutePowerControl() (int, int, int, int) {
-	nodesToWake, nodesToPowerOn, nodesToSleep, nodesToShutdown := c.makeDecision()
 
 	if len(nodesToWake) > 0 {
-		if err := c.powerOnNodes(nodesToWake); err != nil {
+		if err := c.wakeupNodes(nodesToWake); err != nil {
 			log.Errorf("Failed to wake up nodes: %v", err)
 		}
 	}
@@ -169,22 +157,22 @@ func (c *PowerController) ExecutePowerControl() (int, int, int, int) {
 	}
 
 	if len(nodesToSleep) > 0 {
-		if err := c.powerOffNodes(nodesToSleep); err != nil {
+		if err := c.sleepNodes(nodesToSleep); err != nil {
 			log.Errorf("Failed to sleep nodes: %v", err)
 		}
 	}
 
-	if len(nodesToShutdown) > 0 {
-		if err := c.powerOffNodes(nodesToShutdown); err != nil {
-			log.Errorf("Failed to shutdown nodes: %v", err)
+	if len(nodesToPowerOff) > 0 {
+		if err := c.powerOffNodes(nodesToPowerOff); err != nil {
+			log.Errorf("Failed to power off nodes: %v", err)
 		}
 	}
 
 	return len(nodesToWake), len(nodesToPowerOn),
-		len(nodesToSleep), len(nodesToShutdown)
+		len(nodesToSleep), len(nodesToPowerOff)
 }
 
-func (c *PowerController) updateNodeJob(nodeID string, jobID string, isAdd bool) bool {
+func (c *PowerManager) updateNodeJob(nodeID string, jobID string, isAdd bool) bool {
 	c.nodeMutex.Lock()
 	defer c.nodeMutex.Unlock()
 
@@ -213,7 +201,7 @@ func (c *PowerController) updateNodeJob(nodeID string, jobID string, isAdd bool)
 	return false
 }
 
-func (c *PowerController) updateNodeState(nodeID string, newState NodeState) {
+func (c *PowerManager) updateNodeState(nodeID string, newState NodeState) {
 	currentTime := time.Now()
 
 	if _, exists := c.nodesInfo[nodeID]; !exists {
@@ -235,24 +223,33 @@ func (c *PowerController) updateNodeState(nodeID string, newState NodeState) {
 	}
 }
 
-func (c *PowerController) getPredictedActiveNodeCount() int {
-	avgNodes := c.GetAverageNodesPerjob()
-
-	reqBody := PredictionRequest{
-		AvgNodesPerjob: avgNodes,
-		TotalNodes:     len(c.nodesInfo),
+func (c *PowerManager) getPredictedActiveNodeCount() int {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
 	}
 
+	reqBody := PredictionRequest{
+		TotalNodes: len(c.nodesInfo),
+	}
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		log.Errorf("Failed to marshal prediction request: %v", err)
 		return -1
 	}
 
-	resp, err := http.Post(fmt.Sprintf("%s/predict", c.config.Predictor.URL),
-		"application/json",
-		bytes.NewBuffer(jsonData))
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		fmt.Sprintf("%s/predict", c.config.Predictor.URL),
+		bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Errorf("Failed to create request: %v", err)
+		return -1
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Errorf("Failed to get prediction: %v", err)
 		return -1
@@ -282,7 +279,7 @@ func (c *PowerController) getPredictedActiveNodeCount() int {
 	return predResp.Prediction
 }
 
-func (c *PowerController) makeDecision() ([]string, []string, []string, []string) {
+func (c *PowerManager) makeDecision() ([]string, []string, []string, []string) {
 	currentTime := time.Now()
 
 	predictedActiveNodeCount := c.getPredictedActiveNodeCount()
@@ -330,16 +327,16 @@ func (c *PowerController) makeDecision() ([]string, []string, []string, []string
 		currentIdleNodeCount,
 		len(sleepNodes),
 		len(poweredOffNodes),
-		nodesToWake,
-		nodesToPowerOn,
-		nodesToSleep,
-		nodesToPowerOff,
+		len(nodesToWake),
+		len(nodesToPowerOn),
+		len(nodesToSleep),
+		len(nodesToPowerOff),
 	)
 
 	return nodesToWake, nodesToPowerOn, nodesToSleep, nodesToPowerOff
 }
 
-func (c *PowerController) getNodesForWakeUpOrPowerOn(
+func (c *PowerManager) getNodesForWakeUpOrPowerOn(
 	currentTime time.Time,
 	predictedActiveNodeCount int,
 	currentActiveNodeCount int,
@@ -347,7 +344,7 @@ func (c *PowerController) getNodesForWakeUpOrPowerOn(
 	sleepingNodes []string,
 	poweredOffNodes []string,
 ) ([]string, []string) {
-	requiredIdleNodeCount := int(math.Ceil(float64(len(c.nodesInfo)) * c.config.Predictor.IdleReserveRatio))
+	requiredIdleNodeCount := int(math.Ceil(float64(len(c.nodesInfo)) * c.config.PowerControl.IdleReserveRatio))
 	totalAvailableNodeCount := currentActiveNodeCount + currentIdleNodeCount
 	requiredTotalNodeCount := predictedActiveNodeCount + requiredIdleNodeCount
 
@@ -417,7 +414,7 @@ func (c *PowerController) getNodesForWakeUpOrPowerOn(
 	return nodesToWake, nodesToPowerOn
 }
 
-func (c *PowerController) getNodesForSleepOrPowerOff(
+func (c *PowerManager) getNodesForSleepOrPowerOff(
 	currentTime time.Time,
 	predictedActiveNodeCount int,
 	currentActiveNodeCount int,
@@ -428,7 +425,7 @@ func (c *PowerController) getNodesForSleepOrPowerOff(
 	var nodesToPowerOff []string
 
 	if len(idleNodes) > 0 {
-		requiredIdleCount := int(math.Ceil(float64(len(c.nodesInfo)) * c.config.Predictor.IdleReserveRatio))
+		requiredIdleCount := int(math.Ceil(float64(len(c.nodesInfo)) * c.config.PowerControl.IdleReserveRatio))
 		currentIdleNodeCount := len(idleNodes)
 
 		nodesCanSleepCount := currentIdleNodeCount - requiredIdleCount
@@ -439,7 +436,12 @@ func (c *PowerController) getNodesForSleepOrPowerOff(
 				return c.nodesInfo[sortedIdleNodes[i]].LastStateChangeTime.Before(
 					c.nodesInfo[sortedIdleNodes[j]].LastStateChangeTime)
 			})
-			nodesToSleep = sortedIdleNodes[:nodesCanSleepCount]
+
+			if c.config.PowerControl.EnableSleep {
+				nodesToSleep = sortedIdleNodes[:nodesCanSleepCount]
+			} else {
+				nodesToPowerOff = sortedIdleNodes[:nodesCanSleepCount]
+			}
 		}
 	}
 
@@ -447,7 +449,7 @@ func (c *PowerController) getNodesForSleepOrPowerOff(
 		log.Infof("node %s last state change time: %s", node, c.nodesInfo[node].LastStateChangeTime)
 		sleepTime := currentTime.Sub(c.nodesInfo[node].LastStateChangeTime)
 		log.Infof("node %s sleep time: %s", node, sleepTime)
-		if sleepTime >= time.Duration(c.config.Predictor.SleepTimeThresholdSeconds)*time.Second {
+		if sleepTime >= time.Duration(c.config.PowerControl.SleepTimeThresholdSeconds)*time.Second {
 			nodesToPowerOff = append(nodesToPowerOff, node)
 		}
 	}
@@ -470,7 +472,7 @@ func (c *PowerController) getNodesForSleepOrPowerOff(
 	return nodesToSleep, nodesToPowerOff
 }
 
-func (c *PowerController) StartPowerStateMonitor() {
+func (c *PowerManager) StartPowerStateMonitor() {
 	go func() {
 		ticker := time.NewTicker(time.Duration(c.config.IPMI.NodeStateCheckIntervalSeconds) * time.Second)
 		defer ticker.Stop()
@@ -486,7 +488,7 @@ func (c *PowerController) StartPowerStateMonitor() {
 	}()
 }
 
-func (c *PowerController) checkPowerState() {
+func (c *PowerManager) checkPowerState() {
 	c.nodeMutex.Lock()
 	defer c.nodeMutex.Unlock()
 
@@ -582,26 +584,26 @@ func (c *PowerController) checkPowerState() {
 	}
 }
 
-func (c *PowerController) recordClusterState(
+func (c *PowerManager) recordClusterState(
 	currentTime time.Time,
 	prediction int,
 	activeCount int,
 	idleCount int,
 	sleepCount int,
 	powerOffCount int,
-	nodesToWake []string,
-	nodesToPowerOn []string,
-	nodesToSleep []string,
-	nodesToPowerOff []string,
+	toWakeCount int,
+	toPowerOnCount int,
+	toSleepCount int,
+	toPowerOffCount int,
 ) {
-	dir := filepath.Dir(c.config.Predictor.ClusterStateFile)
+	dir := filepath.Dir(c.config.PowerControl.ClusterStateFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Warnf("Failed to create directory %s: %v", dir, err)
 		return
 	}
 
-	if _, err := os.Stat(c.config.Predictor.ClusterStateFile); os.IsNotExist(err) {
-		file, err := os.Create(c.config.Predictor.ClusterStateFile)
+	if _, err := os.Stat(c.config.PowerControl.ClusterStateFile); os.IsNotExist(err) {
+		file, err := os.Create(c.config.PowerControl.ClusterStateFile)
 		if err != nil {
 			log.Warnf("Failed to create cluster state file: %v", err)
 			return
@@ -618,10 +620,10 @@ func (c *PowerController) recordClusterState(
 			"WakingUp",
 			"ToSleeping",
 			"PoweringOff",
-			"ToWakeNodes",
-			"ToPowerOnNodes",
-			"ToSleepNodes",
-			"ToPowerOffNodes",
+			"ToWake",
+			"ToPowerOn",
+			"ToSleep",
+			"ToPowerOff",
 		}
 		if err := writer.Write(headers); err != nil {
 			log.Warnf("Failed to write headers: %v", err)
@@ -632,7 +634,7 @@ func (c *PowerController) recordClusterState(
 		file.Close()
 	}
 
-	file, err := os.OpenFile(c.config.Predictor.ClusterStateFile, os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(c.config.PowerControl.ClusterStateFile, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Warnf("Failed to open cluster state file: %v", err)
 		return
@@ -671,10 +673,10 @@ func (c *PowerController) recordClusterState(
 		fmt.Sprintf("%d", wakingUpCount),
 		fmt.Sprintf("%d", toSleepingCount),
 		fmt.Sprintf("%d", poweringOffCount),
-		strings.Join(nodesToWake, ";"),
-		strings.Join(nodesToPowerOn, ";"),
-		strings.Join(nodesToSleep, ";"),
-		strings.Join(nodesToPowerOff, ";"),
+		fmt.Sprintf("%d", toWakeCount),
+		fmt.Sprintf("%d", toPowerOnCount),
+		fmt.Sprintf("%d", toSleepCount),
+		fmt.Sprintf("%d", toPowerOffCount),
 	}
 
 	if err := writer.Write(record); err != nil {
@@ -682,25 +684,33 @@ func (c *PowerController) recordClusterState(
 	}
 }
 
-func (c *PowerController) recordStateChange(time time.Time, nodeID string, oldState, newState NodeState) {
-	if _, err := os.Stat(c.config.Predictor.NodeStateChangeFile); os.IsNotExist(err) {
-		file, err := os.Create(c.config.Predictor.NodeStateChangeFile)
+func (c *PowerManager) recordStateChange(time time.Time, nodeID string, oldState, newState NodeState) {
+	dir := filepath.Dir(c.config.PowerControl.NodeStateChangeFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Errorf("Failed to create directory %s: %v", dir, err)
+		return
+	}
+
+	if _, err := os.Stat(c.config.PowerControl.NodeStateChangeFile); os.IsNotExist(err) {
+		file, err := os.Create(c.config.PowerControl.NodeStateChangeFile)
 		if err != nil {
-			panic(fmt.Sprintf("Failed to create state change log: %v", err))
+			log.Errorf("Failed to create state change log: %v", err)
+			return
 		}
 		defer file.Close()
 
 		writer := csv.NewWriter(file)
-		err = writer.Write([]string{"time", "node_id", "old_state", "new_state"})
-		if err != nil {
-			panic(fmt.Sprintf("Failed to write header: %v", err))
+		if err := writer.Write([]string{"time", "node_id", "old_state", "new_state"}); err != nil {
+			log.Errorf("Failed to write header: %v", err)
+			return
 		}
 		writer.Flush()
 	}
 
-	file, err := os.OpenFile(c.config.Predictor.NodeStateChangeFile, os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(c.config.PowerControl.NodeStateChangeFile, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to open state change log: %v", err))
+		log.Errorf("Failed to open state change log: %v", err)
+		return
 	}
 	defer file.Close()
 

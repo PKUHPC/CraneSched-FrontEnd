@@ -40,7 +40,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.raplReader != nil {
-			if raplData, err := r.raplReader.GetMetrics(); err == nil && raplData != nil {
+			if raplData := r.raplReader.GetMetrics(); raplData != nil {
 				data.RAPL = *raplData
 			}
 		} else {
@@ -48,7 +48,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.ipmiReader != nil {
-			if ipmiData, err := r.ipmiReader.GetMetrics(); err == nil && ipmiData != nil {
+			if ipmiData := r.ipmiReader.GetMetrics(); ipmiData != nil {
 				data.IPMI = *ipmiData
 			}
 		} else {
@@ -56,7 +56,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.gpuReader != nil {
-			if gpuData, err := r.gpuReader.GetMetrics(); err == nil && gpuData != nil {
+			if gpuData := r.gpuReader.GetMetrics(); gpuData != nil {
 				data.GPU = *gpuData
 			}
 		} else {
@@ -64,7 +64,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.sysLoadReader != nil {
-			if sysData, err := r.sysLoadReader.GetMetrics(); err == nil && sysData != nil {
+			if sysData := r.sysLoadReader.GetMetrics(); sysData != nil {
 				data.SystemLoad = *sysData
 			}
 		} else {

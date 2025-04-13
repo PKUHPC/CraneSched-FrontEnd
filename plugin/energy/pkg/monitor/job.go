@@ -256,34 +256,34 @@ func (t *Job) calculateEnergy() {
 }
 
 func (t *Job) logJobStats() {
-	log.Infof("Job Statistics for %d:", t.jobID)
-	log.Infof("  Job ID: %d", t.jobID)
-	log.Infof("  Node ID: %s", t.data.NodeID)
-	log.Infof("  Duration: %.2f seconds", t.data.Duration.Seconds())
+	log.Debugf("Job Statistics for %d:", t.jobID)
+	log.Debugf("  Job ID: %d", t.jobID)
+	log.Debugf("  Node ID: %s", t.data.NodeID)
+	log.Debugf("  Duration: %.2f seconds", t.data.Duration.Seconds())
 
-	log.Infof("Energy Statistics:")
-	log.Infof("  Total energy: %.2f J", t.data.TotalEnergy)
-	log.Infof("  Average power: %.2f W", t.data.AveragePower)
-	log.Infof("  CPU energy: %.2f J (utilization: %.2f%%)",
+	log.Debugf("Energy Statistics:")
+	log.Debugf("  Total energy: %.2f J", t.data.TotalEnergy)
+	log.Debugf("  Average power: %.2f W", t.data.AveragePower)
+	log.Debugf("  CPU energy: %.2f J (utilization: %.2f%%)",
 		t.data.CPUEnergy, t.data.CgroupStats.CPUStats.Utilization)
-	log.Infof("  GPU energy: %.2f J (utilization: %.2f%%)",
+	log.Debugf("  GPU energy: %.2f J (utilization: %.2f%%)",
 		t.data.GPUEnergy, t.data.CgroupStats.GPUStats.Utilization)
 
-	log.Infof("Resource Usage Statistics:")
-	log.Infof("  CPU utilization: %.2f%%", t.data.CgroupStats.CPUStats.Utilization)
-	log.Infof("  CPU usage: %.2f seconds", t.data.CgroupStats.CPUStats.UsageSeconds)
-	log.Infof("  GPU utilization: %.2f%%", t.data.CgroupStats.GPUStats.Utilization)
-	log.Infof("  GPU memory utilization: %.2f%%", t.data.CgroupStats.GPUStats.MemoryUtil)
-	log.Infof("  Memory utilization: %.2f%%", t.data.CgroupStats.MemoryStats.Utilization)
-	log.Infof("  Memory usage: %.2f MB", t.data.CgroupStats.MemoryStats.UsageMB)
-	log.Infof("  Disk read: %.2f MB (%.2f MB/s)",
+	log.Debugf("Resource Usage Statistics:")
+	log.Debugf("  CPU utilization: %.2f%%", t.data.CgroupStats.CPUStats.Utilization)
+	log.Debugf("  CPU usage: %.2f seconds", t.data.CgroupStats.CPUStats.UsageSeconds)
+	log.Debugf("  GPU utilization: %.2f%%", t.data.CgroupStats.GPUStats.Utilization)
+	log.Debugf("  GPU memory utilization: %.2f%%", t.data.CgroupStats.GPUStats.MemoryUtil)
+	log.Debugf("  Memory utilization: %.2f%%", t.data.CgroupStats.MemoryStats.Utilization)
+	log.Debugf("  Memory usage: %.2f MB", t.data.CgroupStats.MemoryStats.UsageMB)
+	log.Debugf("  Disk read: %.2f MB (%.2f MB/s)",
 		t.data.CgroupStats.IOStats.ReadMB, t.data.CgroupStats.IOStats.ReadMBPS)
-	log.Infof("  Disk write: %.2f MB (%.2f MB/s)",
+	log.Debugf("  Disk write: %.2f MB (%.2f MB/s)",
 		t.data.CgroupStats.IOStats.WriteMB, t.data.CgroupStats.IOStats.WriteMBPS)
-	log.Infof("  Disk read operations count: %d", t.data.CgroupStats.IOStats.ReadOperations)
-	log.Infof("  Disk write operations count: %d", t.data.CgroupStats.IOStats.WriteOperations)
-	log.Infof("  Disk read operations: %.2f IOPS", t.data.CgroupStats.IOStats.ReadOpsPerSec)
-	log.Infof("  Disk write operations: %.2f IOPS", t.data.CgroupStats.IOStats.WriteOpsPerSec)
+	log.Debugf("  Disk read operations count: %d", t.data.CgroupStats.IOStats.ReadOperations)
+	log.Debugf("  Disk write operations count: %d", t.data.CgroupStats.IOStats.WriteOperations)
+	log.Debugf("  Disk read operations: %.2f IOPS", t.data.CgroupStats.IOStats.ReadOpsPerSec)
+	log.Debugf("  Disk write operations: %.2f IOPS", t.data.CgroupStats.IOStats.WriteOpsPerSec)
 }
 
 func (m *JobMonitor) GetJobMetrics() *types.JobMetrics {
@@ -311,16 +311,16 @@ func (m *JobMonitor) GetJobMetrics() *types.JobMetrics {
 		metrics.ReqCPURate = totalCPURequest / cpuCores
 		metrics.AvgReqCPUPerJob = totalCPURequest / float64(metrics.JobCount)
 		metrics.ReqMemoryRate = totalMemoryRequest / totalMemoryBytes
-		metrics.AvgReqMemoryGBPerJob = (totalMemoryRequest / float64(metrics.JobCount)) / (1024 * 1024 * 1024) // 转换为GB
+		metrics.AvgReqMemoryGBPerJob = (totalMemoryRequest / float64(metrics.JobCount)) / (1024 * 1024 * 1024)
 		metrics.AvgJobRuntime = totalRuntime / float64(metrics.JobCount)
 	}
 
-	log.Infof("Job metrics: %+v", metrics)
-	log.Infof("ReqCPURate: %f", metrics.ReqCPURate)
-	log.Infof("AvgReqCPUPerJob: %f", metrics.AvgReqCPUPerJob)
-	log.Infof("ReqMemoryRate: %f", metrics.ReqMemoryRate)
-	log.Infof("AvgReqMemoryGBPerJob: %f", metrics.AvgReqMemoryGBPerJob)
-	log.Infof("AvgJobRuntime: %f", metrics.AvgJobRuntime)
+	log.Debugf("Job metrics: %+v", metrics)
+	log.Debugf("ReqCPURate: %f", metrics.ReqCPURate)
+	log.Debugf("AvgReqCPUPerJob: %f", metrics.AvgReqCPUPerJob)
+	log.Debugf("ReqMemoryRate: %f", metrics.ReqMemoryRate)
+	log.Debugf("AvgReqMemoryGBPerJob: %f", metrics.AvgReqMemoryGBPerJob)
+	log.Debugf("AvgJobRuntime: %f", metrics.AvgJobRuntime)
 
 	return metrics
 }

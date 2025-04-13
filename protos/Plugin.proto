@@ -95,7 +95,6 @@ message ExecutePowerActionHookRequest {
 
 message ExecutePowerActionHookReply {
     bool ok = 1;
-    string error = 2;
 }
 
 message GetCranedByPowerStateHookSyncRequest {
@@ -113,7 +112,6 @@ message RegisterCranedHookRequest {
 
 message RegisterCranedHookReply {
     bool ok = 1;
-    string error = 2;
 }
 
 service CranePluginD {

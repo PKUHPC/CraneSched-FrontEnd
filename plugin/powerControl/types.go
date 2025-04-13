@@ -26,8 +26,13 @@ type PredictionResponse struct {
 	Error      string `json:"error,omitempty"`
 }
 
+type NetworkInterface struct {
+	MAC string
+	IP  string
+}
+
 type PowerTool interface {
-	RegisterNode(nodeID, mac, ip string) error
+	RegisterNode(nodeID string, interfaces []NetworkInterface) error
 	GetPowerState(nodeID string) (bool, error)
 	CheckNodeAlive(nodeID string) bool
 

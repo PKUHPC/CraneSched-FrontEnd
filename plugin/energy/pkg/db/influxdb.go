@@ -15,6 +15,11 @@ import (
 
 var log = logrus.WithField("component", "InfluxDB")
 
+const (
+	maxRetries    = 3
+	retryInterval = 5 * time.Second
+)
+
 type InfluxDB struct {
 	client     influxdb2.Client
 	org        string
@@ -24,9 +29,27 @@ type InfluxDB struct {
 }
 
 func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
-	client := influxdb2.NewClient(config.DB.InfluxDB.URL, config.DB.InfluxDB.Token)
-	if _, err := client.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
+	var client influxdb2.Client
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		client = influxdb2.NewClient(config.DB.InfluxDB.URL, config.DB.InfluxDB.Token)
+		_, err = client.Ping(context.Background())
+
+		if err == nil {
+			break
+		}
+
+		log.Warnf("Failed to connect to InfluxDB (attempt %d/%d): %v", i+1, maxRetries, err)
+		client.Close()
+
+		if i < maxRetries-1 {
+			time.Sleep(retryInterval)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to ping InfluxDB after %d attempts: %v", maxRetries, err)
 	}
 
 	db := &InfluxDB{

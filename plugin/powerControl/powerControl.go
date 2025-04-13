@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +20,8 @@ var _ api.Plugin = PowerControlPlugin{}
 
 var (
 	PluginInstance = PowerControlPlugin{}
-	controller     *PowerController
+	manager        *PowerManager
+	predictorCmd   *exec.Cmd // Global variable to track predictor process
 )
 
 type PowerControlPlugin struct{}
@@ -30,6 +34,28 @@ func (p PowerControlPlugin) Version() string {
 	return "v0.0.1"
 }
 
+func setupLogging(logFilePath string) error {
+	if logFilePath == "" {
+		log.Warn("PowerControlLogFile not configured, logging to stdout only")
+		return nil
+	}
+
+	logDir := filepath.Dir(logFilePath)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %v", err)
+	}
+
+	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %v", err)
+	}
+
+	// Set log output to both file and stdout
+	log.SetOutput(io.MultiWriter(os.Stdout, file))
+	log.Infof("Log file configured at: %s", logFilePath)
+	return nil
+}
+
 func (p PowerControlPlugin) Load(meta api.PluginMeta) error {
 	log.Info("PowerControl plugin is loading...")
 
@@ -38,12 +64,16 @@ func (p PowerControlPlugin) Load(meta api.PluginMeta) error {
 		return fmt.Errorf("failed to load config: %v", err)
 	}
 
+	if err := setupLogging(config.PowerControl.PowerControlLogFile); err != nil {
+		return fmt.Errorf("failed to setup logging: %v", err)
+	}
+
 	if err := StartPredictorService(config, meta.Config); err != nil {
 		return fmt.Errorf("failed to start predictor service: %v", err)
 	}
 
-	controller = NewPowerController(config)
-	controller.StartAutoPowerControl()
+	manager = NewPowerManager(config)
+	manager.StartAutoPowerManager()
 
 	log.Info("PowerControl plugin loaded successfully")
 	return nil
@@ -51,9 +81,9 @@ func (p PowerControlPlugin) Load(meta api.PluginMeta) error {
 
 func StartPredictorService(config *Config, configPath string) error {
 	log.Infof("Starting predictor service with config: %s", configPath)
-	cmd := exec.Command("python3", config.Predictor.PredictorScript, "--config", configPath)
+	predictorCmd = exec.Command("python3", config.PowerControl.PredictorScript, "--config", configPath)
 
-	if err := cmd.Start(); err != nil {
+	if err := predictorCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start predictor service: %v", err)
 	}
 
@@ -63,15 +93,25 @@ func StartPredictorService(config *Config, configPath string) error {
 
 func (p PowerControlPlugin) Unload(meta api.PluginMeta) error {
 	log.Info("PowerControl plugin is unloading...")
-	controller.StopAutoPowerControl()
+
+	// Stop the predictor process
+	if predictorCmd != nil && predictorCmd.Process != nil {
+		if err := predictorCmd.Process.Kill(); err != nil {
+			log.Errorf("Failed to kill predictor process: %v", err)
+		}
+		// Wait for the process to fully terminate
+		if err := predictorCmd.Wait(); err != nil {
+			log.Errorf("Error waiting for predictor process to exit: %v", err)
+		}
+	}
+
+	manager.StopAutoPowerManager()
 	return nil
 }
 
 func (p PowerControlPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.ExecutePowerActionHookRequest)
 	if !ok {
-		ctx.Set("ok", false)
-		ctx.Set("error", "invalid request type, expected ExecutePowerActionHookRequest")
 		return
 	}
 
@@ -80,26 +120,23 @@ func (p PowerControlPlugin) ExecutePowerActionHook(ctx *api.PluginContext) {
 
 	switch req.Action {
 	case protos.PowerAction_WAKEUP:
-		err = controller.wakeUpNode(req.CranedId)
+		err = manager.wakeUpNode(req.CranedId)
 	case protos.PowerAction_POWERON:
-		err = controller.powerOnNode(req.CranedId)
+		err = manager.powerOnNode(req.CranedId)
 	case protos.PowerAction_SLEEP:
-		err = controller.sleepNode(req.CranedId)
+		err = manager.sleepNode(req.CranedId)
 	case protos.PowerAction_POWEROFF:
-		err = controller.powerOffNode(req.CranedId)
+		err = manager.powerOffNode(req.CranedId)
 	default:
 		err = fmt.Errorf("unknown power action: %v", req.Action)
 	}
 
 	if err != nil {
 		log.Errorf("Failed to execute power action: %v", err)
-		ctx.Set("ok", false)
-		ctx.Set("error", err.Error())
 		return
 	}
 
 	log.Infof("Successfully executed power action %v on node %s", req.Action, req.CranedId)
-	ctx.Set("ok", true)
 }
 
 func (p PowerControlPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {
@@ -126,7 +163,7 @@ func (p PowerControlPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext
 		return
 	}
 
-	nodes := controller.GetNodesByState(state)
+	nodes := manager.GetNodesByState(state)
 	log.Infof("Found %d nodes", len(nodes))
 	ctx.Set("craned_ids", nodes)
 }
@@ -134,83 +171,80 @@ func (p PowerControlPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext
 func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.RegisterCranedHookRequest)
 	if !ok {
-		ctx.Set("ok", false)
-		ctx.Set("error", "invalid request type, expected RegisterCranedHookRequest")
 		return
 	}
 
-	var bestMac, bestIP string
-	var bestScore int = -1
+	var validInterfaces []NetworkInterface
 
 	for _, networkInterface := range req.NetworkInterfaces {
+		log.Infof("Checking interface: name=%s, MAC=%s, IPs=%v",
+			networkInterface.Name,
+			networkInterface.MacAddress,
+			networkInterface.Ipv4Addresses)
+
 		if networkInterface.MacAddress == "" || len(networkInterface.Ipv4Addresses) == 0 {
+			log.Infof("Skipping interface %s: empty MAC or no IP addresses", networkInterface.Name)
 			continue
 		}
 
-		score := 0
 		ip := networkInterface.Ipv4Addresses[0]
-		log.Infof("Checking interface %s with IP %s", networkInterface.Name, ip)
+		mac := networkInterface.MacAddress
+		name := networkInterface.Name
 
-		if strings.HasPrefix(ip, "10.") {
-			score += 1
+		// Skip loopback interfaces
+		if strings.HasPrefix(name, "lo") || ip == "127.0.0.1" {
+			log.Infof("Skipping loopback interface %s", name)
+			continue
 		}
 
-		// 172.16.x.x - 172.31.x.x
-		if strings.HasPrefix(ip, "172.") {
-			secondOctet, _ := strconv.Atoi(strings.Split(ip, ".")[1])
-			if secondOctet >= 16 && secondOctet <= 31 {
-				score += 1
-			}
+		// Skip virtual network interfaces
+		if strings.HasPrefix(name, "veth") || strings.HasPrefix(name, "virbr") ||
+			strings.HasPrefix(name, "docker") || strings.HasPrefix(name, "br-") {
+			log.Infof("Skipping virtual interface %s", name)
+			continue
 		}
 
-		// 192.168.x.x
-		if strings.HasPrefix(ip, "192.168.") {
-			score += 8
-		}
-
-		// Skip docker/container network interfaces (usually 172.17.x.x)
+		// Skip Docker network
 		if strings.HasPrefix(ip, "172.17.") {
+			log.Infof("Skipping Docker network interface %s", name)
 			continue
 		}
 
-		// Skip interfaces with special MAC prefixes
-		macUpper := strings.ToUpper(networkInterface.MacAddress)
-		if strings.HasPrefix(macUpper, "02:42:") { // Docker default MAC prefix
+		// Skip virtual MAC addresses
+		macUpper := strings.ToUpper(mac)
+		if strings.HasPrefix(macUpper, "02:42:") || // Docker default
+			strings.HasPrefix(macUpper, "00:16:3E:") || // Xen
+			strings.HasPrefix(macUpper, "00:50:56:") || // VMware
+			strings.HasPrefix(macUpper, "00:0C:29:") { // VMware
+			log.Infof("Skipping virtual MAC address %s", mac)
 			continue
 		}
 
-		if score > bestScore {
-			bestScore = score
-			bestMac = networkInterface.MacAddress
-			bestIP = ip
-			log.Infof("Found better interface for node %s: MAC=%s, IP=%s, score=%d",
-				req.CranedId, bestMac, bestIP, bestScore)
-		}
+		validInterfaces = append(validInterfaces, NetworkInterface{
+			MAC: mac,
+			IP:  ip,
+		})
+
+		log.Infof("Added valid interface for node %s: MAC=%s, IP=%s",
+			req.CranedId, mac, ip)
 	}
 
-	if bestMac == "" || bestIP == "" {
-		ctx.Set("ok", false)
-		ctx.Set("error", "no valid network interface found (requires both MAC and IPv4)")
+	if len(validInterfaces) == 0 {
+		log.Errorf("no valid network interface found for node %s", req.CranedId)
 		return
 	}
 
-	controller.RegisterNode(req.CranedId)
+	manager.RegisterNode(req.CranedId)
 
-	err := controller.powerTool.RegisterNode(req.CranedId, bestMac, bestIP)
+	err := manager.powerTool.RegisterNode(req.CranedId, validInterfaces)
 	if err != nil {
-		ctx.Set("ok", false)
-		ctx.Set("error", fmt.Sprintf("failed to register node: %v", err))
 		return
 	}
-
-	ctx.Set("ok", true)
 }
 
 func (p PowerControlPlugin) StartHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.StartHookRequest)
 	if !ok {
-		ctx.Set("ok", false)
-		ctx.Set("error", "invalid request type, expected StartHookRequest")
 		return
 	}
 
@@ -219,27 +253,16 @@ func (p PowerControlPlugin) StartHook(ctx *api.PluginContext) {
 		log.Infof("Start hook for task %v", taskID)
 		log.Infof("task.GetExecutionNode(): %v", task.GetExecutionNode())
 		nodes := task.GetExecutionNode()
-		if len(nodes) == 0 {
-			log.Errorf("Failed to parse craned list: %v", task.GetCranedList())
-			continue
-		}
-
-		controller.AddRunningjob(taskID, len(nodes))
 
 		for _, node := range nodes {
-			controller.AddJobToNode(node, taskID)
+			manager.AddJobToNode(node, taskID)
 		}
 	}
-
-	avgNodes := controller.GetAverageNodesPerjob()
-	log.Infof("Current running jobs stats - Average nodes per job: %.2f", avgNodes)
 }
 
 func (p PowerControlPlugin) EndHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.EndHookRequest)
 	if !ok {
-		ctx.Set("ok", false)
-		ctx.Set("error", "invalid request type, expected EndHookRequest")
 		return
 	}
 
@@ -248,20 +271,11 @@ func (p PowerControlPlugin) EndHook(ctx *api.PluginContext) {
 		log.Infof("End hook for task %v", taskID)
 		log.Infof("task.GetExecutionNode(): %v", task.GetExecutionNode())
 		nodes := task.GetExecutionNode()
-		if len(nodes) == 0 {
-			log.Errorf("Failed to parse craned list: %v", task.GetCranedList())
-			continue
-		}
-
-		controller.RemoveRunningjob(taskID)
 
 		for _, node := range nodes {
-			controller.RemoveJobFromNode(node, taskID)
+			manager.RemoveJobFromNode(node, taskID)
 		}
 	}
-
-	avgNodes := controller.GetAverageNodesPerjob()
-	log.Infof("Current running jobs stats - Average nodes per job: %.2f", avgNodes)
 }
 
 func (p PowerControlPlugin) CreateCgroupHook(ctx *api.PluginContext) {}

@@ -11,53 +11,62 @@ import (
 )
 
 type HostInfo struct {
-	MAC      string
-	IP       string
-	IPMIHost string
+	BMCHost    string
+	Interfaces []NetworkInterface
 }
 
 type IPMITool struct {
-	hostInfos  map[string]HostInfo
-	bmcMapping map[string]string
-	ipmiUser   string
-	ipmiPass   string
-	sshUser    string
-	sshPass    string
+	hostInfos map[string]HostInfo
+	BMCUser   string
+	BMCPass   string
+	sshUser   string
+	sshPass   string
 
 	mu sync.RWMutex
 }
 
 func NewIPMITool(config *Config) *IPMITool {
+	hostInfos := make(map[string]HostInfo)
+	for nodeID, bmcHost := range config.IPMI.NodeBMCMapping {
+		hostInfos[nodeID] = HostInfo{
+			BMCHost:    bmcHost,
+			Interfaces: make([]NetworkInterface, 0),
+		}
+	}
+
 	return &IPMITool{
-		hostInfos:  make(map[string]HostInfo),
-		bmcMapping: config.IPMI.NodeBMCMapping,
-		ipmiUser:   config.IPMI.User,
-		ipmiPass:   config.IPMI.Password,
-		sshUser:    config.SSH.User,
-		sshPass:    config.SSH.Password,
+		hostInfos: hostInfos,
+		BMCUser:   config.IPMI.User,
+		BMCPass:   config.IPMI.Password,
+		sshUser:   config.SSH.User,
+		sshPass:   config.SSH.Password,
 	}
 }
 
-func (i *IPMITool) RegisterNode(nodeID, mac, ip string) error {
-	if nodeID == "" || mac == "" || ip == "" {
-		return fmt.Errorf("all parameters (nodeID, mac, ip) are required")
+func (i *IPMITool) RegisterNode(nodeID string, interfaces []NetworkInterface) error {
+	if nodeID == "" || len(interfaces) == 0 {
+		return fmt.Errorf("nodeID and interfaces are required")
 	}
 
-	IPMIHost, exists := i.bmcMapping[nodeID]
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	info, exists := i.hostInfos[nodeID]
 	if !exists {
 		return fmt.Errorf("no BMC mapping found for node %s", nodeID)
 	}
 
-	i.mu.Lock()
-	i.hostInfos[nodeID] = HostInfo{
-		MAC:      mac,
-		IP:       ip,
-		IPMIHost: IPMIHost,
-	}
-	i.mu.Unlock()
+	info.Interfaces = interfaces
+	i.hostInfos[nodeID] = info
 
-	log.Infof("Node registered: %s (MAC: %s, IP: %s, BMC: %s)",
-		nodeID, mac, ip, IPMIHost)
+	var interfaceDetails []string
+	for _, iface := range interfaces {
+		interfaceDetails = append(interfaceDetails,
+			fmt.Sprintf("(MAC: %s, IP: %s)", iface.MAC, iface.IP))
+	}
+
+	log.Infof("Node registered: %s (BMC: %s) with %d interfaces: %s",
+		nodeID, info.BMCHost, len(interfaces), strings.Join(interfaceDetails, ", "))
 	return nil
 }
 
@@ -72,9 +81,9 @@ func (i *IPMITool) PowerOn(nodeID string) error {
 
 	cmd := exec.Command("ipmitool",
 		"-I", "lanplus",
-		"-H", info.IPMIHost,
-		"-U", i.ipmiUser,
-		"-P", i.ipmiPass,
+		"-H", info.BMCHost,
+		"-U", i.BMCUser,
+		"-P", i.BMCPass,
 		"power", "on")
 
 	output, err := cmd.CombinedOutput()
@@ -101,9 +110,9 @@ func (i *IPMITool) PowerOff(nodeID string) error {
 
 	cmd := exec.Command("ipmitool",
 		"-I", "lanplus",
-		"-H", info.IPMIHost,
-		"-U", i.ipmiUser,
-		"-P", i.ipmiPass,
+		"-H", info.BMCHost,
+		"-U", i.BMCUser,
+		"-P", i.BMCPass,
 		"power", "off")
 
 	output, err := cmd.CombinedOutput()
@@ -128,40 +137,47 @@ func (i *IPMITool) WakeUp(nodeID string) error {
 		return fmt.Errorf("no configuration found for node %s", nodeID)
 	}
 
-	mac := make([]byte, 6)
-	macParts := strings.Split(info.MAC, ":")
-	if len(macParts) != 6 {
-		return fmt.Errorf("invalid MAC address format: %s", info.MAC)
-	}
-
-	for i := 0; i < 6; i++ {
-		var value byte
-		if _, err := fmt.Sscanf(macParts[i], "%02x", &value); err != nil {
-			return fmt.Errorf("invalid MAC address part: %s", macParts[i])
+	for _, iface := range info.Interfaces {
+		mac := make([]byte, 6)
+		macParts := strings.Split(iface.MAC, ":")
+		if len(macParts) != 6 {
+			log.Errorf("invalid MAC address format: %s", iface.MAC)
+			continue
 		}
-		mac[i] = value
+
+		for i := 0; i < 6; i++ {
+			var value byte
+			if _, err := fmt.Sscanf(macParts[i], "%02x", &value); err != nil {
+				log.Errorf("invalid MAC address part: %s", macParts[i])
+				continue
+			}
+			mac[i] = value
+		}
+
+		packet := make([]byte, 102)
+		for i := 0; i < 6; i++ {
+			packet[i] = 0xFF
+		}
+		for i := 1; i <= 16; i++ {
+			copy(packet[i*6:], mac)
+		}
+
+		conn, err := net.Dial("udp", "255.255.255.255:9")
+		if err != nil {
+			log.Errorf("failed to create UDP connection: %v", err)
+			continue
+		}
+		defer conn.Close()
+
+		_, err = conn.Write(packet)
+		if err != nil {
+			log.Errorf("failed to send WoL packet: %v", err)
+			continue
+		}
+
+		log.Infof("Wake-on-LAN packet sent to %s (%s)", nodeID, iface.MAC)
 	}
 
-	packet := make([]byte, 102)
-	for i := 0; i < 6; i++ {
-		packet[i] = 0xFF
-	}
-	for i := 1; i <= 16; i++ {
-		copy(packet[i*6:], mac)
-	}
-
-	conn, err := net.Dial("udp", "255.255.255.255:9")
-	if err != nil {
-		return fmt.Errorf("failed to create UDP connection: %v", err)
-	}
-	defer conn.Close()
-
-	_, err = conn.Write(packet)
-	if err != nil {
-		return fmt.Errorf("failed to send WoL packet: %v", err)
-	}
-
-	log.Infof("Wake-on-LAN packet sent to %s (%s)", nodeID, info.MAC)
 	return nil
 }
 
@@ -178,7 +194,7 @@ func (i *IPMITool) Sleep(nodeID string) error {
 		"ssh",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "ConnectTimeout=10",
-		fmt.Sprintf("%s@%s", i.sshUser, info.IP),
+		fmt.Sprintf("%s@%s", i.sshUser, info.Interfaces[0].IP),
 		"systemctl suspend")
 
 	output, err := sshCmd.CombinedOutput()
@@ -186,7 +202,7 @@ func (i *IPMITool) Sleep(nodeID string) error {
 		return fmt.Errorf("failed to execute sleep command: %v, output: %s", err, string(output))
 	}
 
-	log.Infof("Sleep command sent to %s (%s)", nodeID, info.IP)
+	log.Infof("Sleep command sent to %s (%s)", nodeID, info.Interfaces[0].IP)
 	return nil
 }
 
@@ -201,9 +217,9 @@ func (i *IPMITool) GetPowerState(nodeID string) (bool, error) {
 
 	cmd := exec.Command("ipmitool",
 		"-I", "lanplus",
-		"-H", info.IPMIHost,
-		"-U", i.ipmiUser,
-		"-P", i.ipmiPass,
+		"-H", info.BMCHost,
+		"-U", i.BMCUser,
+		"-P", i.BMCPass,
 		"power", "status")
 
 	output, err := cmd.CombinedOutput()
@@ -224,7 +240,7 @@ func (i *IPMITool) CheckNodeAlive(nodeID string) bool {
 		return false
 	}
 
-	cmd := exec.Command("ping", "-c", "1", "-W", "3", info.IP)
+	cmd := exec.Command("ping", "-c", "1", "-W", "3", info.Interfaces[0].IP)
 	err := cmd.Run()
 
 	return err == nil

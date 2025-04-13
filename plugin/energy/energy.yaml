@@ -16,4 +16,4 @@ Database:
     Token: "YOUR_INFLUXDB_TOKEN"
     Org: "YOUR_INFLUXDB_ORG_NAME"
     NodeBucket: "YOUR_NODE_BUCKET_NAME"
-    JobBucket: "YOUR_TASK_BUCKET_NAME"
+    JobBucket: "YOUR_JOB_BUCKET_NAME"
