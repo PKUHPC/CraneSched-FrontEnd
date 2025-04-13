@@ -168,6 +168,10 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 			score += 8
 		}
 
+		if strings.HasPrefix(ip, "192.168.11.") {
+			score += 8
+		}
+
 		// Skip docker/container network interfaces (usually 172.17.x.x)
 		if strings.HasPrefix(ip, "172.17.") {
 			continue
