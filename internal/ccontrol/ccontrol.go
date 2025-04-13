@@ -682,6 +682,7 @@ func ExecutePowerAction(cranedIds []string, action string) util.CraneCmdError {
 
 	for _, cranedId := range cranedIds {
 		req := &protos.ExecutePowerActionRequest{
+			Uid:      uint32(os.Getuid()),
 			CranedId: cranedId,
 			Action:   powerAction,
 		}
@@ -694,7 +695,7 @@ func ExecutePowerAction(cranedIds []string, action string) util.CraneCmdError {
 		}
 
 		if !reply.Ok {
-			log.Errorf("Failed to execute power action on craned '%s': %s", cranedId, reply.Error)
+			log.Errorf("Failed to execute power action on craned '%s'", cranedId)
 			failedCraneds = append(failedCraneds, cranedId)
 		} else {
 			successCraneds = append(successCraneds, cranedId)

@@ -7,7 +7,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (c *PowerController) wakeupNodes(nodeIDs []string) error {
+func (c *PowerManager) filterExcludedNodes(nodeIDs []string) []string {
+	var allowedNodes []string
+	for _, nodeID := range nodeIDs {
+		if _, excluded := c.excludeNodesMap[nodeID]; !excluded {
+			allowedNodes = append(allowedNodes, nodeID)
+		} else {
+			log.Infof("Node %s is excluded from power management", nodeID)
+		}
+	}
+	return allowedNodes
+}
+
+func (c *PowerManager) wakeupNodes(nodeIDs []string) error {
 	for _, nodeID := range nodeIDs {
 		err := c.wakeUpNode(nodeID)
 		if err != nil {
@@ -17,22 +29,8 @@ func (c *PowerController) wakeupNodes(nodeIDs []string) error {
 	return nil
 }
 
-func (c *PowerController) sleepNodes(nodeIDs []string) error {
-	var allowedNodes []string
-	for _, nodeID := range nodeIDs {
-		excluded := false
-		for _, excludedNode := range c.config.IPMI.ExcludeNodes {
-			if nodeID == excludedNode {
-				log.Infof("Node %s is excluded from power management", nodeID)
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
-			allowedNodes = append(allowedNodes, nodeID)
-		}
-	}
-
+func (c *PowerManager) sleepNodes(nodeIDs []string) error {
+	allowedNodes := c.filterExcludedNodes(nodeIDs)
 	for _, nodeID := range allowedNodes {
 		if err := c.sleepNode(nodeID); err != nil {
 			return err
@@ -41,7 +39,7 @@ func (c *PowerController) sleepNodes(nodeIDs []string) error {
 	return nil
 }
 
-func (c *PowerController) powerOnNodes(nodeIDs []string) error {
+func (c *PowerManager) powerOnNodes(nodeIDs []string) error {
 	for _, nodeID := range nodeIDs {
 		err := c.powerOnNode(nodeID)
 		if err != nil {
@@ -51,23 +49,9 @@ func (c *PowerController) powerOnNodes(nodeIDs []string) error {
 	return nil
 }
 
-func (c *PowerController) powerOffNodes(nodeIDs []string) error {
-	var allowedNodes []string
-	for _, nodeID := range nodeIDs {
-		excluded := false
-		for _, excludedNode := range c.config.IPMI.ExcludeNodes {
-			if nodeID == excludedNode {
-				log.Infof("Node %s is excluded from power management", nodeID)
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
-			allowedNodes = append(allowedNodes, nodeID)
-		}
-	}
-
-	if len(allowedNodes) == 0 {
+func (c *PowerManager) powerOffNodes(nodeIDs []string) error {
+	allowedNodes := c.filterExcludedNodes(nodeIDs)
+	if allowedNodes == nil {
 		return nil
 	}
 
@@ -103,7 +87,7 @@ func (c *PowerController) powerOffNodes(nodeIDs []string) error {
 	return nil
 }
 
-func (c *PowerController) wakeUpNode(nodeID string) error {
+func (c *PowerManager) wakeUpNode(nodeID string) error {
 	c.nodeMutex.Lock()
 	defer c.nodeMutex.Unlock()
 
@@ -128,7 +112,7 @@ func (c *PowerController) wakeUpNode(nodeID string) error {
 	return nil
 }
 
-func (c *PowerController) powerOnNode(nodeID string) error {
+func (c *PowerManager) powerOnNode(nodeID string) error {
 	c.nodeMutex.Lock()
 	defer c.nodeMutex.Unlock()
 
@@ -153,7 +137,7 @@ func (c *PowerController) powerOnNode(nodeID string) error {
 	return nil
 }
 
-func (c *PowerController) sleepNode(nodeID string) error {
+func (c *PowerManager) sleepNode(nodeID string) error {
 	c.nodeMutex.Lock()
 	defer c.nodeMutex.Unlock()
 
@@ -178,7 +162,7 @@ func (c *PowerController) sleepNode(nodeID string) error {
 	return nil
 }
 
-func (c *PowerController) powerOffNode(nodeID string) error {
+func (c *PowerManager) powerOffNode(nodeID string) error {
 	c.nodeMutex.Lock()
 	defer c.nodeMutex.Unlock()
 

@@ -11,8 +11,10 @@ CONFIG = {
     'total_nodes': 5,
     'cpus_per_node': 96,      # 每节点96核心
     'mem_per_node': 300,      # 每节点内存300GB
-    'interval': 300,          # 5分钟提交一次
-    'max_jobs': None,
+    'submission_config': {
+        'lambda_rate': 2.5,    # 改为平均每20分钟提交一次任务
+        'min_interval': 60,    # 保持最小间隔1分钟不变
+    },
     
     # 工作时间配置（周一至周五 9:00-17:00）
     'working_hours': {
@@ -20,7 +22,7 @@ CONFIG = {
         'node_std': 0.3,       
         'cpu_usage': 0.08,     # 平均使用8个核心 (96 * 0.08 ≈ 8)
         'mem_usage': 0.15,     # 内存使用率与CPU使用率相同
-        'mean_duration': 15,   # 10分钟
+        'mean_duration': 30,   
     },
     
     # 非工作时间配置
@@ -29,17 +31,17 @@ CONFIG = {
         'node_std': 0.4,       
         'cpu_usage': 0.08,      # 平均使用8个核心
         'mem_usage': 0.2,      # 内存使用率与CPU使用率相同
-        'mean_duration': 20,   # 15分钟
+        'mean_duration': 30,   # 15分钟
     },
     
     # 突发任务配置
     'burst': {
-        'probability': 0.03,   
+        'probability': 0.05,   # 保持不变
         'node_multiplier': 1.5,
         'cpu_multiplier': 1.2, # 突发任务使用约10个核心 (8 * 1.2 ≈ 10)
         'mem_multiplier': 1.2, # 内存倍数与CPU倍数相同
-        'min_jobs': 2,        
-        'max_jobs': 3,        
+        'min_jobs': 3,        
+        'max_jobs': 5,        
     }
 }
 
@@ -73,7 +75,7 @@ def submit_job(num_nodes, num_cpus_per_node, duration_minutes, job_name):
         ]
         
         subprocess.run(cmd, check=True)
-        logging.info(f"Submitted job {job_name}: nodes={num_nodes}, cpus={num_cpus_per_node}, mem={mem_per_task}GB, actual_duration={duration_minutes}m, time_limit={time_limit}")
+        print(f"Submitted job {job_name}: nodes={num_nodes}, cpus={num_cpus_per_node}, mem={mem_per_task}GB, actual_duration={duration_minutes}m, time_limit={time_limit}")
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to submit job {job_name}: {e}")
 
@@ -103,13 +105,39 @@ def generate_jobs():
     job_counter = 0
     
     while True:
-        current_time = datetime.now()
+        # 决定本次提交的任务数量（使用泊松分布）
+        num_jobs = max(1, np.random.poisson(3)) 
+        print(f"Submitting {num_jobs} jobs")
         
-        # 获取当前时间的负载模式
-        mean_nodes, std_nodes, mean_duration, mean_cpus = generate_workload_pattern(
-            current_time,
-            current_time.weekday()
-        )
+        # 提交常规任务
+        for _ in range(num_jobs):
+            # 80%概率使用1个节点，20%概率使用2个节点
+            num_nodes = 2 if random.random() < 0.2 else 1
+            
+            # 生成CPU请求数
+            num_cpus = max(1, min(
+                int(round(np.random.normal(
+                    CONFIG['cpus_per_node'] * CONFIG['working_hours']['cpu_usage'],
+                    2
+                ))),
+                CONFIG['cpus_per_node']
+            ))
+            
+            # 生成更多样化的运行时间
+            duration_patterns = [
+                (0.6, CONFIG['working_hours']['mean_duration'], 20),      # 60%常规任务
+                (0.3, CONFIG['working_hours']['mean_duration'] * 2, 40),  # 30%长任务
+                (0.1, CONFIG['working_hours']['mean_duration'] * 0.5, 10) # 10%短任务
+            ]
+            
+            pattern = random.choices(
+                duration_patterns,
+                weights=[p[0] for p in duration_patterns]
+            )[0]
+            duration = max(5, int(round(np.random.normal(pattern[1], pattern[2]))))
+            
+            submit_job(num_nodes, num_cpus, duration, f"test-job-{job_counter}")
+            job_counter += 1
         
         # 随机生成突发任务
         if random.random() < CONFIG['burst']['probability']:
@@ -118,12 +146,10 @@ def generate_jobs():
                 CONFIG['burst']['max_jobs']
             )
             for _ in range(num_burst_jobs):
-                # 限制节点数最多为2
                 num_nodes = min(2, max(1, int(round(np.random.normal(1.5, 0.5)))))
-                
                 num_cpus = max(1, min(
                     int(round(np.random.normal(
-                        mean_cpus * CONFIG['burst']['cpu_multiplier'],
+                        CONFIG['cpus_per_node'] * CONFIG['working_hours']['cpu_usage'] * CONFIG['burst']['cpu_multiplier'],
                         2
                     ))),
                     CONFIG['cpus_per_node']
@@ -131,50 +157,28 @@ def generate_jobs():
                 duration = max(5, int(round(np.random.normal(30, 10))))
                 submit_job(num_nodes, num_cpus, duration, f"burst-job-{job_counter}")
                 job_counter += 1
+    
+            
+        # 生成下一次提交的等待时间
+        next_interval = np.random.exponential(1.0 / CONFIG['submission_config']['lambda_rate'])
+        wait_time = max(
+            CONFIG['submission_config']['min_interval'],
+            int(next_interval * 3600)
+        )
         
-        # 生成常规任务
-        # 80%概率使用1个节点，20%概率使用2个节点
-        num_nodes = 2 if random.random() < 0.2 else 1
-        
-        # 生成CPU请求数
-        num_cpus = max(1, min(
-            int(round(np.random.normal(mean_cpus, 2))),
-            CONFIG['cpus_per_node']
-        ))
-        
-        # 生成更多样化的运行时间
-        duration_patterns = [
-            (0.6, mean_duration, 20),      # 60%常规任务
-            (0.3, mean_duration * 2, 40),  # 30%长任务
-            (0.1, mean_duration * 0.5, 10) # 10%短任务
-        ]
-        
-        pattern = random.choices(
-            duration_patterns,
-            weights=[p[0] for p in duration_patterns]
-        )[0]
-        duration = max(5, int(round(np.random.normal(pattern[1], pattern[2]))))
-        
-        submit_job(num_nodes, num_cpus, duration, f"test-job-{job_counter}")
-        job_counter += 1
-        
-        if CONFIG['max_jobs'] and job_counter >= CONFIG['max_jobs']:
-            logging.info(f"Reached maximum number of jobs ({CONFIG['max_jobs']})")
-            break
-        
-        time.sleep(CONFIG['interval'])
+        print(f"Waiting {wait_time} seconds until next submission")
+        time.sleep(wait_time)
 
 def main():
-    logging.info("Starting job generator")
-    logging.info(f"Total nodes in cluster: {CONFIG['total_nodes']}")
-    logging.info(f"CPUs per node: {CONFIG['cpus_per_node']}")
-    logging.info(f"Submission interval: {CONFIG['interval']} seconds")
-    logging.info(f"Max jobs: {CONFIG['max_jobs'] if CONFIG['max_jobs'] else 'unlimited'}")
+    print("Starting job generator")
+    print(f"Total nodes in cluster: {CONFIG['total_nodes']}")
+    print(f"CPUs per node: {CONFIG['cpus_per_node']}")
+    print(f"Submission interval: {CONFIG['submission_config']['min_interval']} seconds")
     
     try:
         generate_jobs()
     except KeyboardInterrupt:
-        logging.info("Job generator stopped by user")
+        print("Job generator stopped by user")
     except Exception as e:
         logging.error(f"Job generator failed: {e}")
 

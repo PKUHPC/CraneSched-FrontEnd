@@ -145,16 +145,6 @@ func (pd *PluginDaemon) ExecutePowerActionHook(ctx context.Context, req *protos.
 	c := api.NewContext(ctx, req, api.ExecutePowerActionHook, &hs)
 	c.Start()
 
-	if c.Get("ok").(bool) {
-		log.Info("ExecutePowerActionHook completed successfully for node: ", req.CranedId)
-		reply.Ok = true
-	} else {
-		errMsg := c.Get("error").(string)
-		log.Error("ExecutePowerActionHook failed for node: ", req.CranedId, ", error: ", errMsg)
-		reply.Ok = false
-		reply.Error = errMsg
-	}
-
 	return reply, nil
 }
 
@@ -189,16 +179,6 @@ func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.Regi
 
 	c := api.NewContext(ctx, req, api.RegisterCranedHook, &hs)
 	c.Start()
-
-	if c.Get("ok").(bool) {
-		log.Info("RegisterCranedHook completed successfully for node: ", req.CranedId)
-		reply.Ok = true
-	} else {
-		errMsg := c.Get("error").(string)
-		log.Error("RegisterCranedHook failed for node: ", req.CranedId, ", error: ", errMsg)
-		reply.Ok = false
-		reply.Error = errMsg
-	}
 
 	return reply, nil
 }

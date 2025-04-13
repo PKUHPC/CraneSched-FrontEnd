@@ -9,18 +9,25 @@ import (
 )
 
 type Config struct {
+	PowerControl struct {
+		PredictorScript     string `yaml:"PredictorScript"`
+		PowerControlLogFile string `yaml:"PowerControlLogFile"`
+		NodeStateChangeFile string `yaml:"NodeStateChangeFile"`
+		ClusterStateFile    string `yaml:"ClusterStateFile"`
+	} `yaml:"PowerControl"`
+
 	Predictor struct {
+		Debug                     bool    `yaml:"Debug"`
 		URL                       string  `yaml:"URL"`
+		CheckpointFile            string  `yaml:"CheckpointFile"`
+		ScalersFile               string  `yaml:"ScalersFile"`
+		PredictorLogFile          string  `yaml:"PredictorLogFile"`
+		EnableSleep               bool    `yaml:"EnableSleep"`
 		SleepTimeThresholdSeconds int     `yaml:"SleepTimeThresholdSeconds"`
 		IdleReserveRatio          float64 `yaml:"IdleReserveRatio"`
 		CheckIntervalSeconds      int     `yaml:"CheckIntervalSeconds"`
 		ForecastMinutes           int     `yaml:"ForecastMinutes"`
 		LookbackMinutes           int     `yaml:"LookbackMinutes"`
-		CheckpointPath            string  `yaml:"CheckpointPath"`
-		ScalersPath               string  `yaml:"ScalersPath"`
-		NodeStateChangeFile       string  `yaml:"NodeStateChangeFile"`
-		ClusterStateFile          string  `yaml:"ClusterStateFile"`
-		PredictorScript           string  `yaml:"PredictorScript"`
 	} `yaml:"Predictor"`
 
 	InfluxDB struct {
@@ -69,18 +76,24 @@ func LoadConfig(path string) (*Config, error) {
 func PrintConfig(cfg *Config) {
 	log.Info("Power Control Plugin Configuration:")
 	log.Info("----------------------------------------")
+	log.Info("PowerControl:")
+	log.Infof("  PredictorScript: %s", cfg.PowerControl.PredictorScript)
+	log.Infof("  PowerControlLogFile: %s", cfg.PowerControl.PowerControlLogFile)
+	log.Infof("  NodeStateChangeFile: %s", cfg.PowerControl.NodeStateChangeFile)
+	log.Infof("  ClusterStateFile: %s", cfg.PowerControl.ClusterStateFile)
+
 	log.Info("Predictor:")
+	log.Infof("  Debug: %t", cfg.Predictor.Debug)
 	log.Infof("  URL: %s", cfg.Predictor.URL)
+	log.Infof("  CheckpointFile: %s", cfg.Predictor.CheckpointFile)
+	log.Infof("  ScalersFile: %s", cfg.Predictor.ScalersFile)
+	log.Infof("  PredictorLogFile: %s", cfg.Predictor.PredictorLogFile)
+	log.Infof("  EnableSleep: %t", cfg.Predictor.EnableSleep)
 	log.Infof("  SleepTimeThreshold: %d", cfg.Predictor.SleepTimeThresholdSeconds)
 	log.Infof("  IdleReserveRatio: %.2f", cfg.Predictor.IdleReserveRatio)
 	log.Infof("  CheckInterval: %d", cfg.Predictor.CheckIntervalSeconds)
 	log.Infof("  ForecastMinutes: %d", cfg.Predictor.ForecastMinutes)
 	log.Infof("  LookbackMinutes: %d", cfg.Predictor.LookbackMinutes)
-	log.Infof("  CheckpointPath: %s", cfg.Predictor.CheckpointPath)
-	log.Infof("  ScalersPath: %s", cfg.Predictor.ScalersPath)
-	log.Infof("  NodeStateFile: %s", cfg.Predictor.NodeStateChangeFile)
-	log.Infof("  PredictionFile: %s", cfg.Predictor.ClusterStateFile)
-	log.Infof("  PredictorScript: %s", cfg.Predictor.PredictorScript)
 
 	log.Info("IPMI:")
 	log.Infof("  User: %s", cfg.IPMI.User)
@@ -94,20 +107,47 @@ func PrintConfig(cfg *Config) {
 }
 
 func validateConfig(config *Config) error {
+	if config.PowerControl.PredictorScript == "" {
+		return fmt.Errorf("PowerControl.PredictorScript cannot be empty")
+	}
+	if config.PowerControl.PowerControlLogFile == "" {
+		return fmt.Errorf("PowerControl.PowerControlLogFile cannot be empty")
+	}
+	if config.PowerControl.NodeStateChangeFile == "" {
+		return fmt.Errorf("PowerControl.NodeStateChangeFile cannot be empty")
+	}
+	if config.PowerControl.ClusterStateFile == "" {
+		return fmt.Errorf("PowerControl.ClusterStateFile cannot be empty")
+	}
+
 	if config.Predictor.URL == "" {
 		return fmt.Errorf("Predictor.URL cannot be empty")
 	}
-	if config.Predictor.PredictorScript == "" {
-		return fmt.Errorf("Predictor.PredictorScript cannot be empty")
+	if config.Predictor.CheckpointFile == "" {
+		return fmt.Errorf("Predictor.CheckpointFile cannot be empty")
 	}
-	if config.Predictor.SleepTimeThresholdSeconds <= 0 {
-		return fmt.Errorf("Predictor.SleepTimeThresholdSeconds must be positive")
+	if config.Predictor.ScalersFile == "" {
+		return fmt.Errorf("Predictor.ScalersFile cannot be empty")
+	}
+	if config.Predictor.PredictorLogFile == "" {
+		return fmt.Errorf("Predictor.PredictorLogFile cannot be empty")
+	}
+	if config.Predictor.EnableSleep {
+		if config.Predictor.SleepTimeThresholdSeconds <= 0 {
+			return fmt.Errorf("Predictor.SleepTimeThresholdSeconds must be positive")
+		}
 	}
 	if config.Predictor.IdleReserveRatio < 0 || config.Predictor.IdleReserveRatio > 1 {
 		return fmt.Errorf("Predictor.IdleReserveRatio must be between 0 and 1")
 	}
 	if config.Predictor.CheckIntervalSeconds <= 0 {
 		return fmt.Errorf("Predictor.CheckIntervalSeconds must be positive")
+	}
+	if config.Predictor.ForecastMinutes <= 0 {
+		return fmt.Errorf("Predictor.ForecastMinutes must be positive")
+	}
+	if config.Predictor.LookbackMinutes <= 0 {
+		return fmt.Errorf("Predictor.LookbackMinutes must be positive")
 	}
 
 	if config.InfluxDB.URL == "" {
