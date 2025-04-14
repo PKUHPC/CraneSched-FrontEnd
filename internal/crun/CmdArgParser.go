@@ -42,6 +42,7 @@ var (
 	FlagExport        string
 	FlagGres          string
 	FlagPty           bool
+	FlagStdoutPath    string
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -107,4 +108,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
+	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "Redirection path of standard output of the script")
 }

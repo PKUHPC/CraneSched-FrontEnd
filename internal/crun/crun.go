@@ -892,6 +892,10 @@ func MainCrun(args []string) util.CraneCmdError {
 		structExtraFromCli.Comment = FlagComment
 	}
 
+	if FlagStdoutPath != "" {
+		task.GetInteractiveMeta().OutputFilePattern = FlagStdoutPath
+	}
+
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		log.Errorf("Invalid argument: %v", err)
