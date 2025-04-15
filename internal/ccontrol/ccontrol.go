@@ -228,6 +228,7 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
 				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
 				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
+				"\tDefaultMemPerCPU=%s MaxMemPerCPU=%s\n"+
 				"\tHostList=%v\n\n",
 				partitionInfo.Name, partitionInfo.State.String()[10:],
 				formatAllowedAccounts(partitionInfo.AllowedAccounts),
@@ -242,6 +243,8 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
+				formatMemToMB(partitionInfo.DefaultMemPerCpu),
+				formatMemToMB(partitionInfo.MaxMemPerCpu),
 				partitionInfo.Hostlist)
 		}
 	}
