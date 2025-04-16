@@ -54,6 +54,8 @@ var (
 	FlagConfigFilePath string
 	FlagDebugLevel     string
 
+	FlagReservation string
+
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
 		Short:   "Allocate resource and run executable interactive",
@@ -107,4 +109,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
+	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 }

@@ -461,6 +461,55 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 	return resList, true
 }
 
+func ParsePosNegList(posNegStr string) ([]string, []string, error) {
+	posList := []string{}
+	negList := []string{}
+
+	if posNegStr == "" {
+		return posList, negList, nil
+	}
+
+	posSet := make(map[string]bool)
+	negSet := make(map[string]bool)
+
+	hostList := strings.Split(posNegStr, ",")
+	for _, host := range hostList {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			return nil, nil, fmt.Errorf("empty field")
+		}
+		if host[0] == '-' {
+			negSet[host[1:]] = true
+		} else if host[0] == '+' {
+			posSet[host[1:]] = true
+		} else {
+			posSet[host] = true
+		}
+	}
+
+	if len(posSet) < len(negSet) {
+		for str := range posSet {
+			if _, ok := negSet[str]; ok {
+				return nil, nil, fmt.Errorf("item %s is in both positive and negative list", str)
+			}
+		}
+	} else {
+		for str := range negSet {
+			if _, ok := posSet[str]; ok {
+				return nil, nil, fmt.Errorf("item %s is in both positive and negative list", str)
+			}
+		}
+	}
+
+	for str := range posSet {
+		posList = append(posList, str)
+	}
+	for str := range negSet {
+		negList = append(negList, str)
+	}
+	return posList, negList, nil
+}
+
 func InvalidDuration() *durationpb.Duration {
 	return &durationpb.Duration{
 		Seconds: MaxJobTimeLimit,
