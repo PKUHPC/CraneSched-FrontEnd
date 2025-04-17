@@ -10,12 +10,12 @@ type Expr struct {
 }
 
 type Filter struct {
-	Key   string         `parser:"@Ident Space? '='? Space?"`
-	Value []parser.Value `parser:"@@ ( ( Comma | Space (?! Ident Space? '=')) @@ )* Space?"`
+	Key   string         `parser:"@Ident ( '=' | Space )"`
+	Value []parser.Value `parser:"@@ ( ( Comma | Space (?! Ident '=')) @@ )* Space?"`
 }
 
 type Operation struct {
-	Key      string       `parser:"@Ident Space?"`
-	Operator string       `parser:"@Operator Space?"`
+	Key      string       `parser:"@Ident"`
+	Operator string       `parser:"@Operator"`
 	Value    parser.Value `parser:"@@ Space?"`
 }

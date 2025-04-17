@@ -10,11 +10,11 @@ type Expr struct {
 }
 
 type Filter struct {
-	Key   string         `parser:"@Ident '='?"`
+	Key   string         `parser:"@Ident ( '=' | Space )"`
 	Value []parser.Value `parser:"@@ ( Comma @@ )* Space?"` // comma separated
 }
 
 type Operation struct {
-	Key   string       `parser:"@Ident ( '=' | Space )?"`
-	Value parser.Value `parser:"@@"`
+	Key   string       `parser:"@Ident ( '=' | Space )"`
+	Value parser.Value `parser:"@@ Space?"`
 }
