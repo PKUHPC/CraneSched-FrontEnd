@@ -75,7 +75,7 @@ func (r *RAPLReader) discoverDomains() error {
 	return nil
 }
 
-func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
+func (r *RAPLReader) GetMetrics() *types.RAPLMetrics {
 	metrics := &types.RAPLMetrics{}
 
 	for name, domain := range r.domains {
@@ -113,7 +113,7 @@ func (r *RAPLReader) GetMetrics() (*types.RAPLMetrics, error) {
 		}
 	}
 
-	return metrics, nil
+	return metrics
 }
 
 func (r *RAPLReader) readDomainEnergy(domain *RAPLDomain) (float64, error) {
@@ -156,8 +156,8 @@ func (r *RAPLReader) readMaxEnergyRange(path string) (float64, error) {
 }
 
 func (r *RAPLReader) LogMetrics(metrics *types.RAPLMetrics) {
-	log.Printf("RAPL Metrics:")
-	log.Printf("Package: %.2f J, Core: %.2f J, Uncore: %.2f J, DRAM: %.2f J, GT: %.2f J",
+	log.Debugf("RAPL Metrics:")
+	log.Debugf("Package: %.2f J, Core: %.2f J, Uncore: %.2f J, DRAM: %.2f J, GT: %.2f J",
 		metrics.Package, metrics.Core, metrics.Uncore, metrics.DRAM, metrics.GT)
 }
 

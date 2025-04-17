@@ -42,6 +42,7 @@ var (
 	FlagHoldTime        string
 	FlagConfigFilePath  string
 	FlagJson            bool
+	FlagPowerAction     string
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -235,6 +236,22 @@ var (
 			}
 		},
 	}
+	powerCmd = &cobra.Command{
+		Use:   "power [flags] craned_id[,craned_id...]",
+		Short: "Control node power state (wake/sleep/on/off)",
+		Long:  "Execute power control actions on specified craneds",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			cranedIds, err := util.ParseStringParamList(args[0], ",")
+			if err != nil {
+				log.Errorf("Invalid craned_id list: %v", err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			if err := ExecutePowerAction(cranedIds, FlagPowerAction); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -293,4 +310,13 @@ func init() {
 		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
 	}
 	RootCmd.AddCommand(releaseCmd)
+	RootCmd.AddCommand(powerCmd)
+	{
+		powerCmd.Flags().StringVarP(&FlagPowerAction, "action", "a", "",
+			"Power action to execute (wake/sleep/on/off)")
+		err := powerCmd.MarkFlagRequired("action")
+		if err != nil {
+			return
+		}
+	}
 }

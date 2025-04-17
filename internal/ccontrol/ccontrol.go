@@ -664,6 +664,74 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	return SummarizeReply(reply)
 }
 
+func ExecutePowerAction(cranedIds []string, action string) util.CraneCmdError {
+	var powerAction protos.PowerAction
+	switch strings.ToLower(action) {
+	case "wake":
+		powerAction = protos.PowerAction_WAKEUP
+	case "on":
+		powerAction = protos.PowerAction_POWERON
+	case "sleep":
+		powerAction = protos.PowerAction_SLEEP
+	case "off":
+		powerAction = protos.PowerAction_POWEROFF
+	default:
+		log.Errorf("Invalid power action: %s. Must be one of: wake, on, sleep, off", action)
+		return util.ErrorCmdArg
+	}
+
+	var failedCraneds []string
+	var successCraneds []string
+
+	for _, cranedId := range cranedIds {
+		req := &protos.ExecutePowerActionRequest{
+			Uid:      uint32(os.Getuid()),
+			CranedId: cranedId,
+			Action:   powerAction,
+		}
+
+		reply, err := stub.ExecutePowerAction(context.Background(), req)
+		if err != nil {
+			log.Errorf("Failed to execute power action on craned '%s': %v", cranedId, err)
+			failedCraneds = append(failedCraneds, cranedId)
+			continue
+		}
+
+		if !reply.Ok {
+			log.Errorf("Failed to execute power action on craned '%s'", cranedId)
+			failedCraneds = append(failedCraneds, cranedId)
+		} else {
+			successCraneds = append(successCraneds, cranedId)
+		}
+	}
+
+	if FlagJson {
+		result := struct {
+			Success []string `json:"success"`
+			Failed  []string `json:"failed"`
+		}{
+			Success: successCraneds,
+			Failed:  failedCraneds,
+		}
+		jsonBytes, _ := json.Marshal(result)
+		fmt.Println(string(jsonBytes))
+	} else {
+		if len(successCraneds) > 0 {
+			fmt.Printf("Successfully executed power action '%s' on craneds: %s\n",
+				action, strings.Join(successCraneds, ","))
+		}
+		if len(failedCraneds) > 0 {
+			fmt.Printf("Failed to execute power action '%s' on craneds: %s\n",
+				action, strings.Join(failedCraneds, ","))
+		}
+	}
+
+	if len(failedCraneds) > 0 {
+		return util.ErrorBackend
+	}
+	return util.ErrorSuccess
+}
+
 func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) util.CraneCmdError {
 	var accountList []string
 

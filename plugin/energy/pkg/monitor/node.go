@@ -20,6 +20,7 @@ type NodeMonitor struct {
 	ipmiReader    *ipmi.IPMIReader
 	gpuReader     *gpu.Reader
 	sysLoadReader *sysload.SystemLoadReader
+	jobMonitor    *JobMonitor
 
 	stopCh chan struct{}
 }
@@ -39,7 +40,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.raplReader != nil {
-			if raplData, err := r.raplReader.GetMetrics(); err == nil && raplData != nil {
+			if raplData := r.raplReader.GetMetrics(); raplData != nil {
 				data.RAPL = *raplData
 			}
 		} else {
@@ -47,7 +48,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.ipmiReader != nil {
-			if ipmiData, err := r.ipmiReader.GetMetrics(); err == nil && ipmiData != nil {
+			if ipmiData := r.ipmiReader.GetMetrics(); ipmiData != nil {
 				data.IPMI = *ipmiData
 			}
 		} else {
@@ -55,7 +56,7 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.gpuReader != nil {
-			if gpuData, err := r.gpuReader.GetMetrics(); err == nil && gpuData != nil {
+			if gpuData := r.gpuReader.GetMetrics(); gpuData != nil {
 				data.GPU = *gpuData
 			}
 		} else {
@@ -63,11 +64,15 @@ func (r *NodeMonitor) collectNodeEnergy() {
 		}
 
 		if r.sysLoadReader != nil {
-			if sysData, err := r.sysLoadReader.GetMetrics(); err == nil && sysData != nil {
+			if sysData := r.sysLoadReader.GetMetrics(); sysData != nil {
 				data.SystemLoad = *sysData
 			}
 		} else {
 			r.config.Enabled.System = false
+		}
+
+		if r.jobMonitor != nil {
+			data.JobMetrics = r.jobMonitor.GetJobMetrics()
 		}
 
 		if r.raplReader != nil {
@@ -108,7 +113,7 @@ func (r *NodeMonitor) broadcastNodeData(data *types.NodeData) {
 				select {
 				case sub.Ch <- data:
 				default:
-					log.Warnf("task %v channel full, skipping data", key)
+					log.Warnf("job %v channel full, skipping data", key)
 				}
 			}
 		}
