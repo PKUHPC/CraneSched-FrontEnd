@@ -891,6 +891,15 @@ func MainCrun(args []string) util.CraneCmdError {
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
 	}
+	if FlagStdinPath != "" {
+		task.GetInteractiveMeta().InputFilePattern = FlagStdinPath
+	}
+	if FlagStdoutPath != "" {
+		task.GetInteractiveMeta().OutputFilePattern = FlagStdoutPath
+	}
+	if FlagStderrPath != "" {
+		task.GetInteractiveMeta().ErrorFilePattern = FlagStderrPath
+	}
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {

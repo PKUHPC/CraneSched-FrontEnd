@@ -107,6 +107,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_USER_NO_PRIVILEGE:      "User has insufficient privilege",
 	protos.ErrCode_ERR_NOT_IN_ALLOWED_LIST:    "The account does not have permission to run jobs in this partition. Please contact the administrator to add it to the allowed list",
 	protos.ErrCode_ERR_IN_DENIED_LIST:         "The account has been denied access to this partition. Please contact the security administrator if access is required",
+	protos.ErrCode_ERR_OPEN_FILE:              "Error when open file",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
