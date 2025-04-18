@@ -336,7 +336,7 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	if taskInfo.NodeNum == 0 {
 		return fmt.Errorf("the number of nodes is empty")
 	}
-	cpuTotal := taskInfo.AllocCpusTotal
+	cpuTotal := taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
 	if math.Abs(cpuTotal-1) < 1e-9 {
 		fmt.Printf("Cores: %.2f\n", cpuTotal)
 	} else {
@@ -364,8 +364,9 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(taskInfo.AllocMemTotal) / float64(taskInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(taskInfo.AllocMemTotal)
+	mallocMemMbPerNode := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes) /
+						 float64(taskInfo.NodeNum) / (1024 * 1024)
+	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
@@ -404,7 +405,7 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 	if taskInfo.NodeNum == 0 {
 		return nil, fmt.Errorf("the number of nodes is empty")
 	}
-	cpuTotal := taskInfo.AllocCpusTotal
+	cpuTotal := taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
 	coresPerNode := cpuTotal / float64(taskInfo.NodeNum)
 	taskJsonInfo := &CeffTaskInfo{
 		JobID:        taskInfo.TaskId,
@@ -437,8 +438,8 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(taskInfo.AllocMemTotal) / float64(taskInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(taskInfo.AllocMemTotal)
+	mallocMemMbPerNode := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes) / float64(taskInfo.NodeNum) / (1024 * 1024)
+	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
