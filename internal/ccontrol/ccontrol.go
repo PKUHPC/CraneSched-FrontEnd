@@ -407,8 +407,8 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 		}
 
 		allocDeviceTotal := "None"
-		if len(taskInfo.AllocDeviceTotal) != 0 {
-			allocDeviceTotal = taskInfo.AllocDeviceTotal
+		if len(taskInfo.AllocatedResView.DeviceMap) != 0 {
+			allocDeviceTotal = taskInfo.AllocatedResView.DeviceMap
 		}
 
 		printed[taskInfo.TaskId] = true
@@ -428,12 +428,15 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExecutionNode())),
 			taskInfo.CmdLine, taskInfo.Cwd,
-			taskInfo.Priority, taskInfo.Qos, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit, util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes),
+			taskInfo.Priority, taskInfo.Qos, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit,
+			util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes),
 			taskInfo.NodeNum, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum),
 			util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(taskInfo.NodeNum)),
 			formatDeviceMap(taskInfo.ReqResView.DeviceMap),
-			taskInfo.NodeNum, taskInfo.AllocCpusTotal, util.FormatMemToMB(taskInfo.AllocMemTotal), allocDeviceTotal,
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())), formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+			taskInfo.NodeNum, taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit, 
+			util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes), allocDeviceTotal,
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
 			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr),
 		)
 	}
