@@ -737,14 +737,12 @@ func ParseGres(gres string) *protos.DeviceMap {
 }
 
 func GetDeviceMapStr(resourceView *protos.ResourceView) string {
-	if resourceView.DeviceMap == nil ||
-	resourceView.DeviceMap.NameTypeMap == nil ||
-	len(resourceView.DeviceMap.NameTypeMap) == 0 {
+	if resourceView.DeviceMap == nil || resourceView.DeviceMap.NameTypeMap == nil || len(resourceView.DeviceMap.NameTypeMap) == 0 {
 		return "None"
 	}
 
 	var result strings.Builder
-	isFirstDevice := true      
+	isFirstDevice := true
 
 	for deviceName, typeCountMap := range resourceView.DeviceMap.NameTypeMap {
 		if !isFirstDevice {
@@ -752,9 +750,13 @@ func GetDeviceMapStr(resourceView *protos.ResourceView) string {
 		} else {
 			isFirstDevice = false
 		}
-		result.WriteString(fmt.Sprintf("%s:", deviceName))
+
+		result.WriteString(deviceName)
+		result.WriteString(":")
+
 		if typeCountMap.Total > 0 {
-			result.WriteString(fmt.Sprintf("untyped:%d", typeCountMap.Total))
+			result.WriteString("untyped:")
+			result.WriteString(strconv.FormatUint(typeCountMap.Total, 10))
 		}
 
 		isFirstType := typeCountMap.Total == 0
@@ -765,7 +767,9 @@ func GetDeviceMapStr(resourceView *protos.ResourceView) string {
 				isFirstType = false
 			}
 
-			result.WriteString(fmt.Sprintf("%s:%d", typeName, count))
+			result.WriteString(typeName)
+			result.WriteString(":")
+			result.WriteString(strconv.FormatUint(count, 10))
 		}
 	}
 
