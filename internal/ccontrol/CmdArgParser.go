@@ -48,8 +48,6 @@ var (
 	FlagNodes           string
 	FlagAccount         string
 	FlagUser            string
-	FlagServerHostName  string
-	FlagRaftPort        uint32
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -152,24 +150,13 @@ var (
 			}
 		},
 	}
-	showServerClusterCmd = &cobra.Command{
-		Use:   "serverCluster",
-		Short: "Display information about the Raft service node cluster",
+	showLeaderCmd = &cobra.Command{
+		Use:   "leader",
+		Short: "Display the information about the leader controller and raft cluster",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowServerCluster(); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	showServerNodeCmd = &cobra.Command{
-		Use:   "serverNode [server_id]",
-		Short: "Display status of the current leader service node",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowServerNode(); err != util.ErrorSuccess {
+			if err := showLeader(); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -227,6 +214,28 @@ var (
 					os.Exit(err)
 				}
 				log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
+			}
+		},
+	}
+	updateLeaderCmd = &cobra.Command{
+		Use:   "leader [flags] server_id/hostname",
+		Short: "Yield leadership to other server node, empty parameter 'id' represents priority determination",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
+			if len(args) == 0 {
+				err = YieldLeadership(-1)
+			} else {
+				if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
+					err = YieldLeadership(int32(id))
+				} else {
+					err = YieldLeadership(args[0])
+				}
+			}
+
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}
@@ -308,55 +317,43 @@ var (
 			}
 		},
 	}
-	addCmd = &cobra.Command{
-		Use:   "add",
-		Short: "Add some config",
-		Long:  "",
-	}
-	addServerNodeCmd = &cobra.Command{
-		Use:   "serverNode [flags]",
-		Short: "Add a server node",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := AddServerNode(FlagServerHostName, FlagRaftPort); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	deleteServerNodeCmd = &cobra.Command{
-		Use:   "serverNode [server_id]",
-		Short: "remove a server node",
+	deleteFollowerCmd = &cobra.Command{
+		Use:   "follower [flags] server_id/hostname",
+		Short: "delete a follower from raft cluster",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			id, err := strconv.Atoi(args[0])
-			if err != nil {
-				log.Errorf("Failed to convert server id to int: %s", err.Error())
-				os.Exit(util.ErrorCmdArg)
+			var err util.CraneCmdError
+			if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
+				err = RemoveFollower(int32(id))
+			} else {
+				err = RemoveFollower(args[0])
 			}
-			if err := RemoveServerNode(id); err != util.ErrorSuccess {
+
+			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
 	}
-	yieldLeadershipCmd = &cobra.Command{
-		Use:   "yieldLeadership [next_server_id]",
-		Short: "Yield leadership to other server node, id = [next_server_id], empty parameter 'id' represents priority determination",
+	addCmd = &cobra.Command{
+		Use:   "add",
+		Short: "add a new entity",
 		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
+	}
+	addFollowerCmd = &cobra.Command{
+		Use:   "follower [flags] server_id/hostname",
+		Short: "Add a follower to raft cluster",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			var id = -1
-			var err error
-			if len(args) > 0 {
-				id, err = strconv.Atoi(args[0])
-				if err != nil {
-					log.Errorf("Failed to convert server id to int: %s", err.Error())
-					os.Exit(util.ErrorCmdArg)
-				}
+			var err util.CraneCmdError
+			if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
+				err = AddFollower(int32(id))
+			} else {
+				err = AddFollower(args[0])
 			}
 
-			if err := YieldLeadership(id); err != util.ErrorSuccess {
+			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -382,8 +379,7 @@ func init() {
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
 		showCmd.AddCommand(showReservationsCmd)
-		showCmd.AddCommand(showServerClusterCmd)
-		showCmd.AddCommand(showServerNodeCmd)
+		showCmd.AddCommand(showLeaderCmd)
 	}
 
 	RootCmd.AddCommand(updateCmd)
@@ -415,6 +411,8 @@ func init() {
 			updatePartitionCmd.MarkFlagsMutuallyExclusive("allowed-accounts", "denied-accounts")
 			updatePartitionCmd.MarkFlagsOneRequired("allowed-accounts", "denied-accounts")
 		}
+
+		updateCmd.AddCommand(updateLeaderCmd)
 	}
 
 	RootCmd.AddCommand(holdCmd)
@@ -458,20 +456,10 @@ func init() {
 	RootCmd.AddCommand(deleteCmd)
 	{
 		deleteCmd.AddCommand(deleteReservationCmd)
-		deleteCmd.AddCommand(deleteServerNodeCmd)
+		deleteCmd.AddCommand(deleteFollowerCmd)
 	}
 	RootCmd.AddCommand(addCmd)
 	{
-		addCmd.AddCommand(addServerNodeCmd)
-		{
-			addServerNodeCmd.Flags().StringVarP(&FlagServerHostName, "host_name", "n", "", "Specify the node name")
-			addServerNodeCmd.Flags().Uint32VarP(&FlagRaftPort, "port", "r", 10009, "Raft port is used for communication within the Raft protocol itself")
-
-			err := addServerNodeCmd.MarkFlagRequired("host_name")
-			if err != nil {
-				return
-			}
-		}
+		addCmd.AddCommand(addFollowerCmd)
 	}
-	RootCmd.AddCommand(yieldLeadershipCmd)
 }
