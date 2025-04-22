@@ -3,6 +3,7 @@ module CraneFrontEnd
 go 1.22
 
 require (
+	github.com/alecthomas/participle/v2 v2.1.4
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/containerd/cgroups v1.1.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
