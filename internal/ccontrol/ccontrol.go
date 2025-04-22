@@ -236,8 +236,8 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
-				formatMemToMB(partitionInfo.DefaultMemPerCpu),
-				formatMemToMB(partitionInfo.MaxMemPerCpu),
+				util.FormatMemToMB(partitionInfo.DefaultMemPerCpu),
+				util.FormatMemToMB(partitionInfo.MaxMemPerCpu),
 				partitionInfo.Hostlist)
 		}
 	}
@@ -295,7 +295,7 @@ func ShowReservations(reservationName string, queryAll bool) util.CraneCmdError 
 				str += fmt.Sprintf("DeniedUsers=%s\n", strings.Join(reservationInfo.DeniedUsers, ","))
 			}
 			str += fmt.Sprintf("TotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n", math.Abs(reservationInfo.ResTotal.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAvail.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAlloc.AllocatableRes.CpuCoreLimit))
-			str += fmt.Sprintf("TotalMem=%s AvailMem=%s AllocMem=%s\n", formatMemToMB(reservationInfo.ResTotal.AllocatableRes.MemoryLimitBytes), formatMemToMB(reservationInfo.ResAvail.AllocatableRes.MemoryLimitBytes), formatMemToMB(reservationInfo.ResAlloc.AllocatableRes.MemoryLimitBytes))
+			str += fmt.Sprintf("TotalMem=%s AvailMem=%s AllocMem=%s\n", util.FormatMemToMB(reservationInfo.ResTotal.AllocatableRes.MemoryLimitBytes), util.FormatMemToMB(reservationInfo.ResAvail.AllocatableRes.MemoryLimitBytes), util.FormatMemToMB(reservationInfo.ResAlloc.AllocatableRes.MemoryLimitBytes))
 			str += fmt.Sprintf("TotalGres=%s AvailGres=%s AllocGres=%s\n", formatDeviceMap(reservationInfo.ResTotal.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAvail.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAlloc.GetDeviceMap()))
 			fmt.Println(str)
 		}
