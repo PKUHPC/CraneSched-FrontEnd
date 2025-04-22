@@ -503,11 +503,13 @@ func ShowConfig(path string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func ShowServerCluster() util.CraneCmdError {
-	req := &protos.QueryRaftServerListRequest{}
-	reply, err := stub.QueryRaftServerList(context.Background(), req)
+func showLeader() util.CraneCmdError {
+	req := &protos.QueryLeaderInfoRequest{}
+	reply, err := stub.QueryLeaderInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query raft server list")
+		util.GrpcErrorPrintf(err, "Failed to query leader info")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
 
@@ -516,27 +518,18 @@ func ShowServerCluster() util.CraneCmdError {
 		return util.ErrorBackend
 	}
 
+	fmt.Println("Raft server list:")
 	for _, server := range reply.ServerList {
-		fmt.Printf("server id: %d: %s", server.Id, server.EndPoint)
-		if server.Role == protos.QueryRaftServerListReply_Leader {
+		fmt.Printf("-- Id: %d: %s", server.Id, server.EndPoint)
+		if server.Role == protos.QueryLeaderInfoReply_Leader {
 			fmt.Printf(" (Leader)")
+		} else if server.Role == protos.QueryLeaderInfoReply_Offline {
+			fmt.Printf(" (offline)")
 		}
 		fmt.Println()
 	}
 
-	return util.ErrorSuccess
-}
-
-func ShowServerNode() util.CraneCmdError {
-	req := &protos.QueryRaftNodeInfoRequest{}
-
-	reply, err := stub.QueryRaftNodeInfo(context.Background(), req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query raft server")
-		return util.ErrorNetwork
-	}
-
-	fmt.Printf("Server id: %d\nLeader id: %d\nRaft log range: ", reply.ServerId, reply.LeaderId)
+	fmt.Printf("Reply server id: %d\nLeader id: %d\nRaft log range: ", reply.ServerId, reply.LeaderId)
 	if reply.StartIndex >= reply.NextSlot {
 		// Start index can be the same as next slot when the log store is empty.
 		fmt.Println("(empty)")
@@ -673,15 +666,24 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 	return SummarizeReply(reply)
 }
 
-func AddServerNode(hostName string, raftPort uint32) util.CraneCmdError {
-	req := &protos.AddRaftNodeRequest{
-		HostName: hostName,
-		RaftPort: raftPort,
+func AddFollower(key interface{}) util.CraneCmdError {
+	req := &protos.AddFollowerRequest{}
+
+	switch k := key.(type) {
+	case int32:
+		req.Key = &protos.AddFollowerRequest_ServerId{ServerId: k}
+	case string:
+		req.Key = &protos.AddFollowerRequest_HostName{HostName: k}
+	default:
+		fmt.Println("Wrong key type")
+		return util.ErrorCmdArg
 	}
 
-	reply, err := stub.AddRaftNode(context.Background(), req)
+	reply, err := stub.AddFollower(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add server node")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
 
@@ -689,20 +691,30 @@ func AddServerNode(hostName string, raftPort uint32) util.CraneCmdError {
 		fmt.Printf("Failed to add server node: %s\n", reply.GetReason())
 		return util.ErrorBackend
 	} else {
-		fmt.Printf("Added server node successfully, assigned server Id: %d\n", reply.ServerId)
+		fmt.Println("Added server node successfully!")
 	}
 
 	return util.ErrorSuccess
 }
 
-func RemoveServerNode(serverId int) util.CraneCmdError {
-	req := &protos.RemoveRaftNodeRequest{
-		ServerId: int32(serverId),
+func RemoveFollower(key interface{}) util.CraneCmdError {
+	req := &protos.RemoveFollowerRequest{}
+
+	switch k := key.(type) {
+	case int32:
+		req.Key = &protos.RemoveFollowerRequest_ServerId{ServerId: k}
+	case string:
+		req.Key = &protos.RemoveFollowerRequest_HostName{HostName: k}
+	default:
+		fmt.Println("Wrong key type")
+		return util.ErrorCmdArg
 	}
 
-	reply, err := stub.RemoveRaftNode(context.Background(), req)
+	reply, err := stub.RemoveFollower(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to remove server node")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
 
@@ -716,11 +728,25 @@ func RemoveServerNode(serverId int) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func YieldLeadership(id int) util.CraneCmdError {
-	if id == util.CurrentLeaderId() {
-		fmt.Println("This node is already the current leader, will do nothing")
+func YieldLeadership(key interface{}) util.CraneCmdError {
+	var id int
+
+	switch k := key.(type) {
+	case int32:
+		id = int(k)
+	case string:
+		config := util.ParseConfig(FlagConfigFilePath)
+		id = util.HostName2ServerId(config, k)
+	default:
+		fmt.Println("Wrong key type")
 		return util.ErrorCmdArg
 	}
+
+	if id == util.CurrentLeaderId() {
+		fmt.Println("This node is already the current leader, will do nothing")
+		return util.ErrorGeneric
+	}
+
 	req := &protos.YieldLeadershipRequest{
 		NextServerId: int32(id),
 	}
@@ -728,6 +754,8 @@ func YieldLeadership(id int) util.CraneCmdError {
 	reply, err := stub.YieldLeadership(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to yield leadership")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
 
