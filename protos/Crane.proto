@@ -267,12 +267,13 @@ message ModifyCranedStateReply {
   repeated string not_modified_reasons = 4;
 }
 
-message QueryRaftServerListRequest {}
+message QueryLeaderInfoRequest {}
 
-message QueryRaftServerListReply {
+message QueryLeaderInfoReply {
   enum RaftRole {
     Leader = 0;
-    Fellow = 1;
+    Follower = 1;
+    Offline = 2;
   }
 
   message RaftServer {
@@ -282,37 +283,37 @@ message QueryRaftServerListReply {
   }
 
   repeated RaftServer server_list = 1;
-}
 
-message QueryRaftNodeInfoRequest {}
-
-message QueryRaftNodeInfoReply{
-  int32 server_id = 1;
-  int32 leader_id = 2;
-  uint64 start_index = 3;
-  uint64 next_slot = 4;
-  uint64 committed_log_idx = 5;
-  uint64 cur_term = 6;
-  uint64 last_snapshot_log_idx = 7;
-  uint64 last_snapshot_log_term = 8;
-}
-
-message AddRaftNodeRequest{
-  string host_name = 1;
-  uint32 raft_port = 2;
-}
-
-message AddRaftNodeReply {
-  bool ok = 1;
   int32 server_id = 2;
-  string reason = 3;
+  int32 leader_id = 3;
+  uint64 start_index = 4;
+  uint64 next_slot = 5;
+  uint64 committed_log_idx = 6;
+  uint64 cur_term = 7;
+  uint64 last_snapshot_log_idx = 8;
+  uint64 last_snapshot_log_term = 9;
 }
 
-message RemoveRaftNodeRequest{
-  int32 server_id = 1;
+message AddFollowerRequest{
+  oneof key {
+    string host_name = 1;
+    int32 server_id = 2;
+  }
 }
 
-message RemoveRaftNodeReply{
+message AddFollowerReply {
+  bool ok = 1;
+  string reason = 2;
+}
+
+message RemoveFollowerRequest{
+  oneof key {
+    string host_name = 1;
+    int32 server_id = 2;
+  }
+}
+
+message RemoveFollowerReply{
   bool ok = 1;
   string reason = 2;
 }
@@ -481,6 +482,7 @@ message ModifyPartitionAclRequest {
   bool is_allowed_list = 3;
   repeated string accounts = 4;
 }
+
 
 message ModifyPartitionAclReply {
   bool ok = 1;
@@ -943,10 +945,9 @@ service CraneCtld {
   rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
   rpc ModifyPartitionAcl(ModifyPartitionAclRequest) returns (ModifyPartitionAclReply);
-  rpc QueryRaftServerList(QueryRaftServerListRequest) returns (QueryRaftServerListReply);
-  rpc QueryRaftNodeInfo(QueryRaftNodeInfoRequest) returns (QueryRaftNodeInfoReply);
-  rpc AddRaftNode(AddRaftNodeRequest) returns (AddRaftNodeReply);
-  rpc RemoveRaftNode(RemoveRaftNodeRequest) returns (RemoveRaftNodeReply);
+  rpc QueryLeaderInfo(QueryLeaderInfoRequest) returns (QueryLeaderInfoReply);
+  rpc AddFollower(AddFollowerRequest) returns (AddFollowerReply);
+  rpc RemoveFollower(RemoveFollowerRequest) returns (RemoveFollowerReply);
   rpc YieldLeadership(YieldLeadershipRequest) returns (YieldLeadershipReply);
 
   /* RPCs called from cacctmgr */

@@ -4,6 +4,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"context"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 )
 
 var ps *PersistentStorage
@@ -32,6 +33,16 @@ func CurrentLeaderId() int {
 	return ps.data.LeaderId
 }
 
+func HostName2ServerId(config *Config, hostname string) int {
+	for i := 0; i < len(config.ControlMachine); i++ {
+		if config.ControlMachine[i].Hostname == hostname {
+			return i
+		}
+	}
+
+	return -2
+}
+
 func QueryLeaderFromCtld(config *Config) int {
 	fmt.Println("Attempting to query current leader ID")
 	var stub protos.CraneCtldClient
@@ -48,4 +59,14 @@ func QueryLeaderFromCtld(config *Config) int {
 		}
 	}
 	return -2
+}
+
+func QueryAndUpdateLeaderId(config *Config) {
+	id := QueryLeaderFromCtld(config)
+	if id >= 0 {
+		UpdateLeaderIdToFile(id)
+		log.Printf("Leader ID was changed to %d, please try again!\n", id)
+	} else {
+		log.Errorln("Failed to query current leader ID, broken backend.")
+	}
 }
