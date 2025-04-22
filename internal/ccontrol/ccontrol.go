@@ -406,10 +406,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			return util.ErrorGeneric
 		}
 
-		allocDeviceTotal := "None"
-		if len(taskInfo.AllocatedResView.DeviceMap) != 0 {
-			allocDeviceTotal = taskInfo.AllocatedResView.DeviceMap
-		}
+		allocDeviceTotal := util.GetDeviceMapStr(taskInfo.AllocatedResView)
 
 		printed[taskInfo.TaskId] = true
 
