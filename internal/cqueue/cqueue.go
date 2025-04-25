@@ -300,7 +300,7 @@ func ProcessAccount(task *protos.TaskInfo) string {
 
 // 'c' group
 func ProcessAllocCpus(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
+	return strconv.FormatFloat(task.AllocatedResView.AllocatableRes.CpuCoreLimit * float64(task.NodeNum), 'f', 2, 64)
 }
 
 // 'C' group
@@ -348,11 +348,8 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 
 // 'm' group
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
-	if task.NodeNum == 0 {
-		return "0"
-   }
-	return strconv.FormatUint(task.ReqResView.AllocatableRes.MemoryLimitBytes /
-		 	uint64(task.NodeNum) / (1024*1024) , 10)
+   return strconv.FormatUint(
+	task.AllocatedResView.AllocatableRes.MemoryLimitBytes / (1024*1024), 10)
 }
 
 // 'M' group
@@ -388,7 +385,7 @@ func ProcessQoS(task *protos.TaskInfo) string {
 	return task.Qos
 }
 
-// 'Q' groupProcessReqCpus
+// 'Q' group
 func ProcessReqCPUs(task *protos.TaskInfo) string {
 	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
 }
@@ -603,9 +600,9 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			field = strings.ToLower(field)
 		}
 
-		//a/Account, c/AllocCPUs, C/ReqCpus, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, L/NodeList, k/Comment,
-		//m/AllocMemPerNode, M/ReqMemPerNode, n/Name, N/NodeNum, p/Priority, P/Partition, q/Qos, Q/ReqCpuPerNode, r/ReqNodes,
-		//R/Reason, s/SubmitTime, S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes, X/Exclusive.
+		//a-Account, c-AllocCPUs, C-ReqCpus, e-ElapsedTime, h-Held, j-JobID, l-TimeLimit, L-NodeList, k-Comment,
+		//m-AllocMemPerNode, M-ReqMemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, Q-ReqCpuPerNode, r-ReqNodes,
+		//R-Reason, s-SubmitTime, S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes, X-Exclusive.
 		fieldProcessor, found := fieldMap[field]
 		if !found {
 			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n"+
