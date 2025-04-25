@@ -348,13 +348,12 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 
 // 'm' group
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
-   return strconv.FormatUint(
-	task.AllocatedResView.AllocatableRes.MemoryLimitBytes / (1024*1024), 10)
+   return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes)
 }
 
 // 'M' group
 func ProcessReqMemPerNode(task *protos.TaskInfo) string {
-	return strconv.FormatUint(task.ReqResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+	return util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes)
 }
 
 // 'n' group
