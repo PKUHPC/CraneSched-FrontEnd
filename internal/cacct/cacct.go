@@ -407,13 +407,12 @@ func ProcessTimeLimit(task *protos.TaskInfo) string {
 
 // ReqMemPerNode (M)
 func ProcessReqMemPerNode(task *protos.TaskInfo) string {
-	return strconv.FormatUint(task.ReqResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+	return util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes)
 }
 
 // AllocMemPerNode (m)
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {	
-   return strconv.FormatUint(
-	task.AllocatedResView.AllocatableRes.MemoryLimitBytes/(1024*1024), 10)
+   return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes)
 }
 
 // NodeNum (N)
