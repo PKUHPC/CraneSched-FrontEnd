@@ -736,46 +736,6 @@ func ParseGres(gres string) *protos.DeviceMap {
 	return result
 }
 
-func GetDeviceMapStr(resourceView *protos.ResourceView) string {
-	if resourceView.DeviceMap == nil || resourceView.DeviceMap.NameTypeMap == nil || len(resourceView.DeviceMap.NameTypeMap) == 0 {
-		return "None"
-	}
-
-	var result strings.Builder
-	isFirstDevice := true
-
-	for deviceName, typeCountMap := range resourceView.DeviceMap.NameTypeMap {
-		if !isFirstDevice {
-			result.WriteString("; ")
-		} else {
-			isFirstDevice = false
-		}
-
-		result.WriteString(deviceName)
-		result.WriteString(":")
-
-		if typeCountMap.Total > 0 {
-			result.WriteString("untyped:")
-			result.WriteString(strconv.FormatUint(typeCountMap.Total, 10))
-		}
-
-		isFirstType := typeCountMap.Total == 0
-		for typeName, count := range typeCountMap.TypeCountMap {
-			if !isFirstType {
-				result.WriteString(",")
-			} else {
-				isFirstType = false
-			}
-
-			result.WriteString(typeName)
-			result.WriteString(":")
-			result.WriteString(strconv.FormatUint(count, 10))
-		}
-	}
-
-	return result.String()
-}
-
 func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 	state = strings.ToLower(state)
 	switch state {

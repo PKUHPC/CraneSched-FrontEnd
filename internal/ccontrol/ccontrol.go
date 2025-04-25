@@ -406,8 +406,6 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			return util.ErrorGeneric
 		}
 
-		allocDeviceTotal := util.GetDeviceMapStr(taskInfo.AllocatedResView)
-
 		printed[taskInfo.TaskId] = true
 
 		fmt.Printf("JobId=%v JobName=%v\n"+
@@ -430,8 +428,9 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			taskInfo.NodeNum, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum),
 			util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(taskInfo.NodeNum)),
 			formatDeviceMap(taskInfo.ReqResView.DeviceMap),
-			taskInfo.NodeNum, taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit, 
-			util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes), allocDeviceTotal,
+			taskInfo.NodeNum, taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum),
+			util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes*uint64(taskInfo.NodeNum)),
+			formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
 			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr),
