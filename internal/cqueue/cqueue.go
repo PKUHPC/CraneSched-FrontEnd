@@ -300,7 +300,7 @@ func ProcessAccount(task *protos.TaskInfo) string {
 
 // 'c' group
 func ProcessAllocCpus(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.AllocatedResView.AllocatableRes.CpuCoreLimit * float64(task.NodeNum), 'f', 2, 64)
+	return strconv.FormatFloat(task.AllocatedResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
 }
 
 // 'C' group
@@ -348,7 +348,11 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 
 // 'm' group
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
-   return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes)
+	if task.NodeNum == 0 {
+		return "0M"
+   	}
+   	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
+			uint64(task.NodeNum))
 }
 
 // 'M' group
