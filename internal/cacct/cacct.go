@@ -243,7 +243,7 @@ func QueryJob() util.CraneCmdError {
 				taskInfo.Name,
 				taskInfo.Partition,
 				taskInfo.Account,
-				strconv.FormatFloat(taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum), 'f', 2, 64),
+				strconv.FormatFloat(taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64),
 				taskInfo.Status.String(),
 				exitCode}
 		}
@@ -328,7 +328,7 @@ func ProcessReqCPUs(task *protos.TaskInfo) string {
 
 // AllocCPUs (c)
 func ProcessAllocCPUs(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.AllocatedResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+	return strconv.FormatFloat(task.AllocatedResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
 }
 
 // ElapsedTime (D)
@@ -411,8 +411,12 @@ func ProcessReqMemPerNode(task *protos.TaskInfo) string {
 }
 
 // AllocMemPerNode (m)
-func ProcessAllocMemPerNode(task *protos.TaskInfo) string {	
-   return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes)
+func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
+	if task.NodeNum == 0 {
+		return "0M"
+	}
+	allocMemPerNode := task.AllocatedResView.AllocatableRes.MemoryLimitBytes / uint64(task.NodeNum)
+    return util.FormatMemToMB(allocMemPerNode)
 }
 
 // NodeNum (N)
