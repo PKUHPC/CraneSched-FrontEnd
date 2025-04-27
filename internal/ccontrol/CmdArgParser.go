@@ -22,6 +22,8 @@ import (
 	"CraneFrontEnd/internal/util"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -293,11 +295,425 @@ var (
 	}
 )
 
-// ParseCmdArgs executes the root command.
+// ParseCmdArgs
 func ParseCmdArgs() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
+	args := os.Args
+
+	// detect cobra special flags
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" || strings.Contains(arg, "completion") || arg == "--version" || arg == "-v" {
+			if err := RootCmd.Execute(); err != nil {
+				os.Exit(util.ErrorGeneric)
+			}
+			return
+		}
 	}
+
+	if len(args) < 2 {
+		RootCmd.Help()
+		return
+	}
+
+	result := parseAndExecuteWithCustomParser(args)
+
+	if result == util.ErrorSuccess {
+		return
+	} else {
+		if err := RootCmd.Execute(); err != nil {
+			os.Exit(util.ErrorGeneric)
+		}
+	}
+
+}
+
+// parseAndExecuteWithCustomParser
+func parseAndExecuteWithCustomParser(args []string) int {
+	cmdStr := strings.Join(args[1:], " ")
+
+	command, err := ParseCControlCommand(cmdStr)
+	if err != nil {
+		log.Debugf("error parse command: %v", err)
+		return util.ErrorCmdArg
+	}
+
+	if len(command.Flags) > 0 {
+		for i, flag := range command.Flags {
+			println(i, ":", flag.Name, "=", flag.Value)
+		}
+	}
+
+	if !command.IsValid() {
+		log.Debug("invalid command format")
+		return util.ErrorCmdArg
+	}
+
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub = util.GetStubToCtldByConfig(config)
+	userUid = uint32(os.Getuid())
+
+	processGlobalFlags(command)
+
+	action := command.GetAction()
+
+	switch action {
+	case "show":
+		return executeShowCommand(command)
+	case "update":
+		return executeUpdateCommand(command)
+	case "hold":
+		return executeHoldCommand(command)
+	case "release":
+		return executeReleaseCommand(command)
+	default:
+		log.Debugf("unknown action type: %s", action)
+		return util.ErrorCmdArg
+	}
+}
+
+// processGlobalFlags
+func processGlobalFlags(command *CControlCommand) {
+	jsonFlag, hasJson := command.GetFlag("json")
+	if hasJson && jsonFlag != "" {
+		FlagJson = true
+	}
+
+	configPath, hasConfig := command.GetFlag("config")
+	if hasConfig && configPath != "" {
+		FlagConfigFilePath = configPath
+	}
+}
+
+// executeShowCommand
+func executeShowCommand(command *CControlCommand) int {
+	resource := command.GetResource()
+
+	switch resource {
+	case "node":
+		return executeShowNodeCommand(command)
+	case "partition":
+		return executeShowPartitionCommand(command)
+	case "job":
+		return executeShowJobCommand(command)
+	case "config":
+		return executeShowConfigCommand()
+	case "reservation":
+		return executeShowReservationCommand(command)
+	default:
+		log.Debugf("unknown resource type: %s", resource)
+		return util.ErrorCmdArg
+	}
+}
+
+// executeShowNodeCommand
+func executeShowNodeCommand(command *CControlCommand) int {
+	nodeName, hasNodeName := command.GetFirstArg()
+	if hasNodeName {
+		FlagNodeName = nodeName
+		FlagQueryAll = false
+	} else {
+		FlagNodeName = ""
+		FlagQueryAll = true
+	}
+
+	if err := ShowNodes(FlagNodeName, FlagQueryAll); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeShowPartitionCommand
+func executeShowPartitionCommand(command *CControlCommand) int {
+	partitionName, hasPartitionName := command.GetFirstArg()
+	if hasPartitionName {
+		FlagPartitionName = partitionName
+		FlagQueryAll = false
+	} else {
+		FlagPartitionName = ""
+		FlagQueryAll = true
+	}
+
+	if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeShowJobCommand
+func executeShowJobCommand(command *CControlCommand) int {
+	jobIds, hasJobIds := command.GetFirstArg()
+	if hasJobIds {
+		FlagQueryAll = false
+	} else {
+		FlagQueryAll = true
+	}
+
+	if err := ShowJobs(jobIds, FlagQueryAll); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeShowConfigCommand
+func executeShowConfigCommand() int {
+	if err := ShowConfig(FlagConfigFilePath); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeShowReservationCommand
+func executeShowReservationCommand(command *CControlCommand) int {
+	reservationName, hasReservationName := command.GetFirstArg()
+	if hasReservationName {
+		FlagReservationName = reservationName
+		FlagQueryAll = false
+	} else {
+		FlagReservationName = ""
+		FlagQueryAll = true
+	}
+
+	if err := ShowReservations(FlagReservationName, FlagQueryAll); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeUpdateCommand
+func executeUpdateCommand(command *CControlCommand) int {
+	resource := command.GetResource()
+
+	println("resource: ", resource)
+	switch resource {
+	case "node":
+		return executeUpdateNodeCommand(command)
+	case "job":
+		return executeUpdateJobCommand(command)
+	case "partition":
+		return executeUpdatePartitionCommand(command)
+	default:
+		log.Debugf("unknown resource type: %s", resource)
+		return util.ErrorCmdArg
+	}
+}
+
+// executeUpdateNodeCommand
+func executeUpdateNodeCommand(command *CControlCommand) int {
+
+	nodeName, hasNodeName := command.GetFirstArg()
+	if hasNodeName {
+		FlagNodeName = nodeName
+	} else {
+		nameFlag, hasName := command.GetFlag("name")
+		if hasName {
+			FlagNodeName = nameFlag
+		} else {
+			nameShort, hasNameShort := command.GetFlag("n")
+			if hasNameShort {
+				FlagNodeName = nameShort
+			}
+		}
+	}
+
+	if FlagNodeName == "" {
+		log.Debug("no node name specified")
+		return util.ErrorCmdArg
+	}
+
+	stateFlag, hasState := command.GetFlag("state")
+	if !hasState {
+		stateShort, hasStateShort := command.GetFlag("t")
+		if hasStateShort {
+			stateFlag = stateShort
+			hasState = true
+		}
+	}
+
+	reasonFlag, hasReason := command.GetFlag("reason")
+	if !hasReason {
+		reasonShort, hasReasonShort := command.GetFlag("r")
+		if hasReasonShort {
+			reasonFlag = reasonShort
+			hasReason = true
+		}
+	}
+
+	if !hasState {
+		log.Debug("no state specified")
+		return util.ErrorCmdArg
+	}
+
+	FlagState = stateFlag
+	if hasReason {
+		FlagReason = reasonFlag
+	}
+
+	if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeUpdateJobCommand
+func executeUpdateJobCommand(command *CControlCommand) int {
+
+	jobFlagLong, hasJobLong := command.GetFlag("job")
+	if hasJobLong && jobFlagLong != "" {
+		FlagTaskIds = jobFlagLong
+		println("Found job ID from --job flag:", FlagTaskIds)
+	} else {
+		jobFlagShort, hasJobShort := command.GetFlag("J")
+		if hasJobShort && jobFlagShort != "" {
+			FlagTaskIds = jobFlagShort
+			println("Found job ID from -J flag:", FlagTaskIds)
+		}
+	}
+
+	if FlagTaskIds == "" {
+		log.Debug("no job id specified")
+		return util.ErrorCmdArg
+	}
+
+	timeLimitFlag, hasTimeLimit := command.GetFlag("time-limit")
+	if !hasTimeLimit {
+		timeLimitShort, hasTimeLimitShort := command.GetFlag("T")
+		if hasTimeLimitShort {
+			timeLimitFlag = timeLimitShort
+			hasTimeLimit = true
+		}
+	}
+
+	priorityFlag, hasPriority := command.GetFlag("priority")
+	if !hasPriority {
+		priorityShort, hasPriorityShort := command.GetFlag("P")
+		if hasPriorityShort {
+			priorityFlag = priorityShort
+			hasPriority = true
+		}
+	}
+
+	if !hasTimeLimit && !hasPriority {
+		log.Debug("there is no attribute to be modified")
+		return util.ErrorCmdArg
+	}
+
+	if hasTimeLimit {
+		FlagTimeLimit = timeLimitFlag
+		if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
+			os.Exit(err)
+		}
+	}
+
+	if hasPriority {
+		priority, _ := strconv.ParseFloat(priorityFlag, 64)
+		FlagPriority = priority
+		if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
+			os.Exit(err)
+		}
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeUpdatePartitionCommand
+func executeUpdatePartitionCommand(command *CControlCommand) int {
+
+	partitionName, hasPartitionName := command.GetFirstArg()
+	if !hasPartitionName {
+		log.Debug("no partition name specified")
+		return util.ErrorCmdArg
+	}
+
+	allowedAccounts, hasAllowedAccounts := command.GetFlag("allowed-accounts")
+	if !hasAllowedAccounts {
+		allowedShort, hasAllowedShort := command.GetFlag("A")
+		if hasAllowedShort {
+			allowedAccounts = allowedShort
+			hasAllowedAccounts = true
+		}
+	}
+
+	deniedAccounts, hasDeniedAccounts := command.GetFlag("denied-accounts")
+	if !hasDeniedAccounts {
+		deniedShort, hasDeniedShort := command.GetFlag("D")
+		if hasDeniedShort {
+			deniedAccounts = deniedShort
+			hasDeniedAccounts = true
+		}
+	}
+
+	if hasAllowedAccounts {
+		FlagAllowedAccounts = allowedAccounts
+		if err := ModifyPartitionAcl(partitionName, true, FlagAllowedAccounts); err != util.ErrorSuccess {
+			os.Exit(err)
+		}
+	} else if hasDeniedAccounts {
+		FlagDeniedAccounts = deniedAccounts
+		if err := ModifyPartitionAcl(partitionName, false, FlagDeniedAccounts); err != util.ErrorSuccess {
+			os.Exit(err)
+		}
+		log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
+	} else {
+		log.Debug("has no allowed-accounts or denied-accounts")
+		return util.ErrorCmdArg
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeHoldCommand
+func executeHoldCommand(command *CControlCommand) int {
+	if len(command.Flags2) > 0 {
+		println("flags count:", len(command.Flags2))
+		for i, flag := range command.Flags2 {
+			println("flag", i, ":", flag.Name, "=", flag.Value)
+		}
+	}
+
+	jobIds := command.GetHoldOrReleaseID()
+	if jobIds == "" {
+		log.Debug("no job id specified")
+		return util.ErrorCmdArg
+	}
+
+	timeFlag, hasTime := command.GetFlag2("time-limit")
+	if !hasTime {
+		timeShort, hasTimeShort := command.GetFlag2("t")
+		if hasTimeShort {
+			timeFlag = timeShort
+			hasTime = true
+		}
+	}
+
+	if hasTime && timeFlag != "" {
+		FlagHoldTime = timeFlag
+	}
+
+	if err := HoldReleaseJobs(jobIds, true); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
+}
+
+// executeReleaseCommand
+func executeReleaseCommand(command *CControlCommand) int {
+	jobIds := command.GetHoldOrReleaseID()
+	if jobIds == "" {
+		log.Debug("no job id specified")
+		return util.ErrorCmdArg
+	}
+
+	if err := HoldReleaseJobs(jobIds, false); err != util.ErrorSuccess {
+		os.Exit(err)
+	}
+
+	return util.ErrorSuccess
 }
 
 func init() {
