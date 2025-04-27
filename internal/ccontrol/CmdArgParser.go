@@ -336,12 +336,6 @@ func parseAndExecuteWithCustomParser(args []string) int {
 		return util.ErrorCmdArg
 	}
 
-	if len(command.PrimaryFlags) > 0 {
-		for i, flag := range command.PrimaryFlags {
-			println(i, ":", flag.Name, "=", flag.Value)
-		}
-	}
-
 	if !command.IsValid() {
 		log.Debug("invalid command format")
 		return util.ErrorCmdArg
@@ -372,12 +366,12 @@ func parseAndExecuteWithCustomParser(args []string) int {
 
 // processGlobalFlags
 func processGlobalFlags(command *CControlCommand) {
-	jsonFlag, hasJson := command.GetFlag("json")
+	jsonFlag, hasJson := getFlag(command, "json", "")
 	if hasJson && jsonFlag != "" {
 		FlagJson = true
 	}
 
-	configPath, hasConfig := command.GetFlag("config")
+	configPath, hasConfig := getFlag(command, "config", "C")
 	if hasConfig && configPath != "" {
 		FlagConfigFilePath = configPath
 	}
@@ -487,7 +481,6 @@ func executeShowReservationCommand(command *CControlCommand) int {
 func executeUpdateCommand(command *CControlCommand) int {
 	resource := command.GetResource()
 
-	println("resource: ", resource)
 	switch resource {
 	case "node":
 		return executeUpdateNodeCommand(command)
@@ -508,14 +501,9 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 	if hasNodeName {
 		FlagNodeName = nodeName
 	} else {
-		nameFlag, hasName := command.GetFlag("name")
+		nameFlag, hasName := getFlag(command, "name", "n")
 		if hasName {
 			FlagNodeName = nameFlag
-		} else {
-			nameShort, hasNameShort := command.GetFlag("n")
-			if hasNameShort {
-				FlagNodeName = nameShort
-			}
 		}
 	}
 
@@ -524,23 +512,8 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	stateFlag, hasState := command.GetFlag("state")
-	if !hasState {
-		stateShort, hasStateShort := command.GetFlag("t")
-		if hasStateShort {
-			stateFlag = stateShort
-			hasState = true
-		}
-	}
-
-	reasonFlag, hasReason := command.GetFlag("reason")
-	if !hasReason {
-		reasonShort, hasReasonShort := command.GetFlag("r")
-		if hasReasonShort {
-			reasonFlag = reasonShort
-			hasReason = true
-		}
-	}
+	stateFlag, hasState := getFlag(command, "state", "t")
+	reasonFlag, hasReason := getFlag(command, "reason", "r")
 
 	if !hasState {
 		log.Debug("no state specified")
@@ -562,16 +535,9 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 // executeUpdateJobCommand
 func executeUpdateJobCommand(command *CControlCommand) int {
 
-	jobFlagLong, hasJobLong := command.GetFlag("job")
+	jobFlagLong, hasJobLong := getFlag(command, "job", "J")
 	if hasJobLong && jobFlagLong != "" {
 		FlagTaskIds = jobFlagLong
-		println("Found job ID from --job flag:", FlagTaskIds)
-	} else {
-		jobFlagShort, hasJobShort := command.GetFlag("J")
-		if hasJobShort && jobFlagShort != "" {
-			FlagTaskIds = jobFlagShort
-			println("Found job ID from -J flag:", FlagTaskIds)
-		}
 	}
 
 	if FlagTaskIds == "" {
@@ -579,23 +545,8 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	timeLimitFlag, hasTimeLimit := command.GetFlag("time-limit")
-	if !hasTimeLimit {
-		timeLimitShort, hasTimeLimitShort := command.GetFlag("T")
-		if hasTimeLimitShort {
-			timeLimitFlag = timeLimitShort
-			hasTimeLimit = true
-		}
-	}
-
-	priorityFlag, hasPriority := command.GetFlag("priority")
-	if !hasPriority {
-		priorityShort, hasPriorityShort := command.GetFlag("P")
-		if hasPriorityShort {
-			priorityFlag = priorityShort
-			hasPriority = true
-		}
-	}
+	timeLimitFlag, hasTimeLimit := getFlag(command, "time-limit", "T")
+	priorityFlag, hasPriority := getFlag(command, "priority", "P")
 
 	if !hasTimeLimit && !hasPriority {
 		log.Debug("there is no attribute to be modified")
@@ -633,23 +584,8 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	allowedAccounts, hasAllowedAccounts := command.GetFlag("allowed-accounts")
-	if !hasAllowedAccounts {
-		allowedShort, hasAllowedShort := command.GetFlag("A")
-		if hasAllowedShort {
-			allowedAccounts = allowedShort
-			hasAllowedAccounts = true
-		}
-	}
-
-	deniedAccounts, hasDeniedAccounts := command.GetFlag("denied-accounts")
-	if !hasDeniedAccounts {
-		deniedShort, hasDeniedShort := command.GetFlag("D")
-		if hasDeniedShort {
-			deniedAccounts = deniedShort
-			hasDeniedAccounts = true
-		}
-	}
+	allowedAccounts, hasAllowedAccounts := getFlag(command, "allowed-accounts", "A")
+	deniedAccounts, hasDeniedAccounts := getFlag(command, "denied-accounts", "D")
 
 	if hasAllowedAccounts {
 		FlagAllowedAccounts = allowedAccounts
@@ -670,6 +606,24 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 	return util.ErrorSuccess
 }
 
+// getFlag
+func getFlag(command *CControlCommand, longName, shortName string) (string, bool) {
+	value, hasValue := command.GetFlag(longName)
+	if !hasValue {
+		value, hasValue = command.GetFlag(shortName)
+	}
+	return value, hasValue
+}
+
+// getSecondaryFlag
+func getSecondaryFlag(command *CControlCommand, longName, shortName string) (string, bool) {
+	value, hasValue := command.GetSecondaryFlag(longName)
+	if !hasValue {
+		value, hasValue = command.GetSecondaryFlag(shortName)
+	}
+	return value, hasValue
+}
+
 // executeHoldCommand
 func executeHoldCommand(command *CControlCommand) int {
 
@@ -679,14 +633,7 @@ func executeHoldCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	timeFlag, hasTime := command.GetFlag2("time-limit")
-	if !hasTime {
-		timeShort, hasTimeShort := command.GetFlag2("t")
-		if hasTimeShort {
-			timeFlag = timeShort
-			hasTime = true
-		}
-	}
+	timeFlag, hasTime := getSecondaryFlag(command, "time-limit", "t")
 
 	if hasTime && timeFlag != "" {
 		FlagHoldTime = timeFlag

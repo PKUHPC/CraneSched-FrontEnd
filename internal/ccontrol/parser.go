@@ -128,12 +128,12 @@ func (c *CControlCommand) GetSecondaryFlag(name string) (string, bool) {
 	return "", false
 }
 
-// GetFlag
+// GetFlag (save for backward compatibility)
 func (c *CControlCommand) GetFlag(name string) (string, bool) {
 	return c.GetPrimaryFlag(name)
 }
 
-// GetFlag2
+// GetFlag2 (save for backward compatibility)
 func (c *CControlCommand) GetFlag2(name string) (string, bool) {
 	return c.GetSecondaryFlag(name)
 }
