@@ -349,7 +349,7 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 // 'm' group
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 	if task.NodeNum == 0 {
-		return "0M"
+		return "0"
    	}
    	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
 			uint64(task.NodeNum))
