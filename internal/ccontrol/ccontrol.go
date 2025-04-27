@@ -414,10 +414,7 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
 			"\tCmdLine=\"%v\" Workdir=%v\n"+
 			"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
-			"\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n"+
-			"\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n"+
-			"\tReqNodeList=%v ExecludeNodeList=%v\n"+
-			"\tExclusive=%v Comment=%v\n",
+			"\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n",
 			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
 			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
@@ -428,13 +425,22 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 			taskInfo.NodeNum, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum),
 			util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(taskInfo.NodeNum)),
 			formatDeviceMap(taskInfo.ReqResView.DeviceMap),
-			taskInfo.NodeNum, taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
+		)
+
+		if taskInfo.Status == protos.TaskStatus_Running {
+			fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
+			taskInfo.NodeNum,
+			taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
 			util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
 			formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr),
-		)
+			)
+		}
+
+		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+		"\tExclusive=%v Comment=%v\n",
+		formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
+		formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+		strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
 	}
 
 	// If any job is requested but not returned, remind the user

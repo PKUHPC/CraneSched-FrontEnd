@@ -243,7 +243,7 @@ func QueryJob() util.CraneCmdError {
 				taskInfo.Name,
 				taskInfo.Partition,
 				taskInfo.Account,
-				strconv.FormatFloat(taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64),
+				ProcessAllocCPUs(taskInfo),
 				taskInfo.Status.String(),
 				exitCode}
 		}
@@ -413,7 +413,7 @@ func ProcessReqMemPerNode(task *protos.TaskInfo) string {
 // AllocMemPerNode (m)
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 	if task.NodeNum == 0 {
-		return "0M"
+		return "0"
 	}
 	allocMemPerNode := task.AllocatedResView.AllocatableRes.MemoryLimitBytes / uint64(task.NodeNum)
     return util.FormatMemToMB(allocMemPerNode)
