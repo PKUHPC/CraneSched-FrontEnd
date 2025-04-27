@@ -503,19 +503,9 @@ func scontrol() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			for _, arg := range args {
-				if arg == "--help" || arg == "-h" {
-					allArgs := append([]string{"ccontrol"}, args...)
-					originalArgs := os.Args
-					os.Args = allArgs
-					ccontrol.ParseCmdArgs()
-					os.Args = originalArgs
-					return
-				}
-			}
-
 			// Find the sub command
 			firstSubCmd := ""
+			leadingFlags := make([]string, 0)
 			for idx, arg := range args {
 				if !strings.HasPrefix(arg, "-") {
 					// Omit flags before the first subcommand
@@ -523,6 +513,7 @@ func scontrol() *cobra.Command {
 					args = args[idx+1:]
 					break
 				}
+				leadingFlags = append(leadingFlags, arg)
 			}
 
 			// Convert XXX=YYY into xxx YYY
@@ -620,7 +611,7 @@ func scontrol() *cobra.Command {
 			}
 
 			// use ccontrol to parse the arguments
-			allArgs := append([]string{"ccontrol"}, convertedArgs...)
+			allArgs := append([]string{"ccontrol"}, append(leadingFlags, convertedArgs...)...)
 			originalArgs := os.Args
 			os.Args = allArgs
 			ccontrol.ParseCmdArgs()
