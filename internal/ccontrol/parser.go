@@ -23,14 +23,17 @@ type ActionType struct {
 	Update  bool `parser:"| @'update'"`
 	Hold    bool `parser:"| @'hold'"`
 	Release bool `parser:"| @'release'"`
+	Create  bool `parser:"| @'create'"`
+	Delete  bool `parser:"| @'delete'"`
 }
 
 // ResourceType
 type ResourceType struct {
-	Node      bool `parser:"@'node'"`
-	Partition bool `parser:"| @'partition'"`
-	Job       bool `parser:"| @'job'"`
-	Config    bool `parser:"| @'config'"`
+	Node        bool `parser:"@'node'"`
+	Partition   bool `parser:"| @'partition'"`
+	Job         bool `parser:"| @'job'"`
+	Config      bool `parser:"| @'config'"`
+	Reservation bool `parser:"| @'reservation'"`
 }
 
 // Flag
@@ -72,6 +75,10 @@ func (a ActionType) String() string {
 		return "hold"
 	case a.Release:
 		return "release"
+	case a.Create:
+		return "create"
+	case a.Delete:
+		return "delete"
 	default:
 		return ""
 	}
@@ -87,6 +94,8 @@ func (r ResourceType) String() string {
 		return "job"
 	case r.Config:
 		return "config"
+	case r.Reservation:
+		return "reservation"
 	default:
 		return ""
 	}

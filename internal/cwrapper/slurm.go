@@ -503,6 +503,17 @@ func scontrol() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
+			for _, arg := range args {
+				if arg == "--help" || arg == "-h" {
+					allArgs := append([]string{"ccontrol"}, args...)
+					originalArgs := os.Args
+					os.Args = allArgs
+					ccontrol.ParseCmdArgs()
+					os.Args = originalArgs
+					return
+				}
+			}
+
 			// Find the sub command
 			firstSubCmd := ""
 			for idx, arg := range args {
@@ -608,33 +619,12 @@ func scontrol() *cobra.Command {
 				log.Debug("Unknown subcommand: ", firstSubCmd)
 			}
 
-			// Find the matching subcommand
-			subcmd, convertedArgs, err := ccontrol.RootCmd.Traverse(convertedArgs)
-			if err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			// Parse the flags
-			ccontrol.RootCmd.PersistentPreRun(cmd, convertedArgs)
-			subcmd.InitDefaultHelpFlag()
-			if err = subcmd.ParseFlags(convertedArgs); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-			convertedArgs = subcmd.Flags().Args()
-
-			// Validate the arguments and flags
-			if err := Validate(subcmd, convertedArgs); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			if subcmd.Runnable() {
-				subcmd.Run(subcmd, convertedArgs)
-			} else {
-				subcmd.Help()
-			}
+			// use ccontrol to parse the arguments
+			allArgs := append([]string{"ccontrol"}, convertedArgs...)
+			originalArgs := os.Args
+			os.Args = allArgs
+			ccontrol.ParseCmdArgs()
+			os.Args = originalArgs
 		},
 	}
 

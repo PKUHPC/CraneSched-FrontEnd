@@ -20,13 +20,12 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -42,7 +41,7 @@ var (
 	FlagTimeLimit       string
 	FlagPriority        float64
 	FlagHoldTime        string
-	FlagConfigFilePath  string
+	FlagConfigFilePath  string = util.DefaultConfigPath
 	FlagJson            bool
 	FlagReservationName string
 	FlagStartTime       string
@@ -50,299 +49,126 @@ var (
 	FlagNodes           string
 	FlagAccount         string
 	FlagUser            string
-
-	RootCmd = &cobra.Command{
-		Use:     "ccontrol",
-		Short:   "Display and modify the specified entity",
-		Long:    "",
-		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.DetectNetworkProxy()
-			config := util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldByConfig(config)
-			userUid = uint32(os.Getuid())
-		},
-	}
-	showCmd = &cobra.Command{
-		Use:   "show",
-		Short: "Display details of the specified entity",
-		Long:  "",
-	}
-	showNodeCmd = &cobra.Command{
-		Use:   "node [flags] [node_name]",
-		Short: "Display details of the nodes, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				FlagNodeName = ""
-				FlagQueryAll = true
-			} else {
-				FlagNodeName = args[0]
-				FlagQueryAll = false
-			}
-			if err := ShowNodes(FlagNodeName, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	showPartitionCmd = &cobra.Command{
-		Use:   "partition [flags] [partition_name]",
-		Short: "Display details of the partitions, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				FlagPartitionName = ""
-				FlagQueryAll = true
-			} else {
-				FlagPartitionName = args[0]
-				FlagQueryAll = false
-			}
-			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	showReservationsCmd = &cobra.Command{
-		Use:   "reservation [flags] [reservation_name]",
-		Short: "Display details of the reservations, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				FlagReservationName = ""
-				FlagQueryAll = true
-			} else {
-				FlagReservationName = args[0]
-				FlagQueryAll = false
-			}
-			if err := ShowReservations(FlagReservationName, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	showJobCmd = &cobra.Command{
-		Use:   "job [flags] [job_id,...]",
-		Short: "Display details of the jobs, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			jobIds := ""
-			if len(args) == 0 {
-				FlagQueryAll = true
-				jobIds = ""
-			} else {
-				FlagQueryAll = false
-				jobIds = args[0]
-			}
-			if err := ShowJobs(jobIds, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	showConfigCmd = &cobra.Command{
-		Use:   "config",
-		Short: "Display the configuration file in key-value format",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowConfig(FlagConfigFilePath); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	updateCmd = &cobra.Command{
-		Use:     "update",
-		Aliases: []string{"modify"},
-		Short:   "Modify attributes of the specified entity",
-		Long:    "",
-	}
-	updateJobCmd = &cobra.Command{
-		Use:   "job [flags]",
-		Short: "Modify job attributes",
-		Long:  "",
-		Run: func(cmd *cobra.Command, args []string) {
-			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") {
-				log.Error("No attribute to modify")
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			if len(FlagTimeLimit) != 0 {
-				if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-			if cmd.Flags().Changed("priority") {
-				if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-		},
-	}
-	updateNodeCmd = &cobra.Command{
-		Use:   "node [flags]",
-		Short: "Modify node attributes",
-		Long:  "",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	updatePartitionCmd = &cobra.Command{
-		Use:   "partition [flags] partition_name",
-		Short: "Modify partition partition attributes",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if cmd.Flags().Changed("allowed-accounts") {
-				if err := ModifyPartitionAcl(args[0], true, FlagAllowedAccounts); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			} else if cmd.Flags().Changed("denied-accounts") {
-				if err := ModifyPartitionAcl(args[0], false, FlagDeniedAccounts); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-				log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
-			}
-		},
-	}
-	holdCmd = &cobra.Command{
-		Use:   "hold [flags] job_id[,job_id...]",
-		Short: "prevent specified job from starting. ",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-			matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
-			if !matched {
-				log.Error("job id list must follow the format " +
-					"<job_id> or '<job_id>,<job_id>,<job_id>...'")
-				os.Exit(util.ErrorCmdArg)
-			}
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := HoldReleaseJobs(args[0], true); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	releaseCmd = &cobra.Command{
-		Use:   "release [flags] job_id[,job_id...]",
-		Short: "permit specified job to start. ",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-			matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
-			if !matched {
-				log.Error("job id list must follow the format " +
-					"<job_id> or '<job_id>,<job_id>,<job_id>...'")
-				os.Exit(util.ErrorCmdArg)
-			}
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := HoldReleaseJobs(args[0], false); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	createCmd = &cobra.Command{
-		Use:   "create",
-		Short: "Create a new entity",
-		Long:  "",
-	}
-	createReservationCmd = &cobra.Command{
-		Use:   "reservation [flags]",
-		Short: "Create a new reservation",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := CreateReservation(); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	deleteCmd = &cobra.Command{
-		Use:   "delete",
-		Short: "Delete the specified entity",
-		Long:  "",
-	}
-	deleteReservationCmd = &cobra.Command{
-		Use:   "reservation reservation_name",
-		Short: "Delete the specified reservation",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteReservation(args[0]); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
 )
+
+// getGlobalFlag
+func getGlobalFlag(command *CControlCommand, longName, shortName string) (string, bool, int) {
+	value, hasValue := command.GetPrimaryFlag(longName)
+	if !hasValue && shortName != "" {
+		value, hasValue = command.GetPrimaryFlag(shortName)
+	}
+	if hasValue {
+		return value, true, 1
+	}
+
+	value, hasValue = command.GetSecondaryFlag(longName)
+	if !hasValue && shortName != "" {
+		value, hasValue = command.GetSecondaryFlag(shortName)
+	}
+	if hasValue {
+		return value, true, 2
+	}
+
+	return "", false, 0
+}
 
 // ParseCmdArgs
 func ParseCmdArgs() {
 	args := os.Args
 
-	// detect cobra special flags
-	for _, arg := range args {
-		if arg == "--help" || arg == "-h" || strings.Contains(arg, "completion") || arg == "--version" || arg == "-v" {
-			if err := RootCmd.Execute(); err != nil {
-				os.Exit(util.ErrorGeneric)
-			}
-			return
-		}
-	}
-
-	if len(args) < 2 {
-		RootCmd.Help()
-		return
-	}
-
-	result := parseAndExecuteWithCustomParser(args)
-
-	if result == util.ErrorSuccess {
-		return
-	} else {
-		if err := RootCmd.Execute(); err != nil {
-			os.Exit(util.ErrorGeneric)
-		}
-	}
-
-}
-
-// parseAndExecuteWithCustomParser
-func parseAndExecuteWithCustomParser(args []string) int {
 	cmdStr := strings.Join(args[1:], " ")
-
 	command, err := ParseCControlCommand(cmdStr)
-	if err != nil {
-		log.Debugf("error parse command: %v", err)
-		return util.ErrorCmdArg
-	}
 
-	if !command.IsValid() {
-		log.Debug("invalid command format")
-		return util.ErrorCmdArg
+	if err != nil {
+		log.Debugf("error parsing command: %v", err)
+		fmt.Printf("error: command format is incorrect\n\n")
+
+		if len(args) > 1 {
+			switch args[1] {
+			case "show":
+				if len(args) > 2 {
+					showSubCommandHelp("show", args[2])
+				} else {
+					showCommandHelp("show")
+				}
+			case "update":
+				showCommandHelp("update")
+			case "hold":
+				showCommandHelp("hold")
+			case "release":
+				showCommandHelp("release")
+			default:
+				showHelp()
+			}
+		} else {
+			showHelp()
+		}
+		return
 	}
 
 	processGlobalFlags(command)
 
+	_, hasVersion, _ := getGlobalFlag(command, "version", "v")
+	if hasVersion {
+		showVersion()
+		return
+	}
+
+	_, hasHelp, helpPos := getGlobalFlag(command, "help", "h")
+	if hasHelp {
+		if helpPos == 1 {
+			if command.GetAction() != "" && command.GetResource() != "" {
+				showSubCommandHelp(command.GetAction(), command.GetResource())
+			} else if command.GetAction() != "" {
+				showCommandHelp(command.GetAction())
+			} else {
+				showHelp()
+			}
+		} else {
+			if command.GetAction() != "" {
+				showCommandHelp(command.GetAction())
+			} else {
+				showHelp()
+			}
+		}
+		return
+	}
+
+	if command.GetAction() != "" && strings.Contains(command.GetAction(), "completion") {
+		fmt.Println("Command completion feature is not supported")
+		os.Exit(1)
+		return
+	}
+
+	if !command.IsValid() {
+		log.Debug("invalid command format")
+		fmt.Printf("error: command format is incorrect\n\n")
+		showHelp()
+		os.Exit(util.ErrorCmdArg)
+		return
+	}
+
+	result := executeCommand(command)
+	if result != util.ErrorSuccess {
+		switch result {
+		case util.ErrorCmdArg:
+			fmt.Printf("error: command argument error\n\n")
+			if command.GetAction() != "" && command.GetResource() != "" {
+				showSubCommandHelp(command.GetAction(), command.GetResource())
+			} else if command.GetAction() != "" {
+				showCommandHelp(command.GetAction())
+			} else {
+				showHelp()
+			}
+		default:
+			fmt.Printf("error: command execution failed (error code: %d)\n", result)
+		}
+		os.Exit(result)
+	}
+}
+
+// executeCommand
+func executeCommand(command *CControlCommand) int {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	userUid = uint32(os.Getuid())
@@ -358,22 +184,26 @@ func parseAndExecuteWithCustomParser(args []string) int {
 		return executeHoldCommand(command)
 	case "release":
 		return executeReleaseCommand(command)
+	case "create":
+		return executeCreateCommand(command)
+	case "delete":
+		return executeDeleteCommand(command)
 	default:
-		log.Debugf("unknown action type: %s", action)
+		log.Debugf("unknown operation type: %s", action)
 		return util.ErrorCmdArg
 	}
 }
 
 // processGlobalFlags
 func processGlobalFlags(command *CControlCommand) {
-	jsonFlag, hasJson := getFlag(command, "json", "")
-	if hasJson && jsonFlag != "" {
+	_, hasJson, _ := getGlobalFlag(command, "json", "")
+	if hasJson {
 		FlagJson = true
 	}
 
-	configPath, hasConfig := getFlag(command, "config", "C")
-	if hasConfig && configPath != "" {
-		FlagConfigFilePath = configPath
+	configValue, hasConfig, _ := getGlobalFlag(command, "config", "C")
+	if hasConfig && configValue != "" {
+		FlagConfigFilePath = configValue
 	}
 }
 
@@ -501,7 +331,7 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 	if hasNodeName {
 		FlagNodeName = nodeName
 	} else {
-		nameFlag, hasName := getFlag(command, "name", "n")
+		nameFlag, hasName, _ := getGlobalFlag(command, "name", "n")
 		if hasName {
 			FlagNodeName = nameFlag
 		}
@@ -512,8 +342,8 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	stateFlag, hasState := getFlag(command, "state", "t")
-	reasonFlag, hasReason := getFlag(command, "reason", "r")
+	stateFlag, hasState, _ := getGlobalFlag(command, "state", "t")
+	reasonFlag, hasReason, _ := getGlobalFlag(command, "reason", "r")
 
 	if !hasState {
 		log.Debug("no state specified")
@@ -535,7 +365,7 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 // executeUpdateJobCommand
 func executeUpdateJobCommand(command *CControlCommand) int {
 
-	jobFlagLong, hasJobLong := getFlag(command, "job", "J")
+	jobFlagLong, hasJobLong, _ := getGlobalFlag(command, "job", "J")
 	if hasJobLong && jobFlagLong != "" {
 		FlagTaskIds = jobFlagLong
 	}
@@ -545,8 +375,8 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	timeLimitFlag, hasTimeLimit := getFlag(command, "time-limit", "T")
-	priorityFlag, hasPriority := getFlag(command, "priority", "P")
+	timeLimitFlag, hasTimeLimit, _ := getGlobalFlag(command, "time-limit", "T")
+	priorityFlag, hasPriority, _ := getGlobalFlag(command, "priority", "P")
 
 	if !hasTimeLimit && !hasPriority {
 		log.Debug("there is no attribute to be modified")
@@ -584,8 +414,8 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	allowedAccounts, hasAllowedAccounts := getFlag(command, "allowed-accounts", "A")
-	deniedAccounts, hasDeniedAccounts := getFlag(command, "denied-accounts", "D")
+	allowedAccounts, hasAllowedAccounts, _ := getGlobalFlag(command, "allowed-accounts", "A")
+	deniedAccounts, hasDeniedAccounts, _ := getGlobalFlag(command, "denied-accounts", "D")
 
 	if hasAllowedAccounts {
 		FlagAllowedAccounts = allowedAccounts
@@ -606,24 +436,6 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 	return util.ErrorSuccess
 }
 
-// getFlag
-func getFlag(command *CControlCommand, longName, shortName string) (string, bool) {
-	value, hasValue := command.GetFlag(longName)
-	if !hasValue {
-		value, hasValue = command.GetFlag(shortName)
-	}
-	return value, hasValue
-}
-
-// getSecondaryFlag
-func getSecondaryFlag(command *CControlCommand, longName, shortName string) (string, bool) {
-	value, hasValue := command.GetSecondaryFlag(longName)
-	if !hasValue {
-		value, hasValue = command.GetSecondaryFlag(shortName)
-	}
-	return value, hasValue
-}
-
 // executeHoldCommand
 func executeHoldCommand(command *CControlCommand) int {
 
@@ -633,7 +445,7 @@ func executeHoldCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	timeFlag, hasTime := getSecondaryFlag(command, "time-limit", "t")
+	timeFlag, hasTime, _ := getGlobalFlag(command, "time-limit", "t")
 
 	if hasTime && timeFlag != "" {
 		FlagHoldTime = timeFlag
@@ -661,92 +473,90 @@ func executeReleaseCommand(command *CControlCommand) int {
 	return util.ErrorSuccess
 }
 
-func init() {
-	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
-		"Path to configuration file")
-	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+// executeCreateCommand
+func executeCreateCommand(command *CControlCommand) int {
+	resource := command.GetResource()
 
-	RootCmd.AddCommand(showCmd)
-	{
-		showCmd.AddCommand(showNodeCmd)
-		showCmd.AddCommand(showPartitionCmd)
-		showCmd.AddCommand(showJobCmd)
-		showCmd.AddCommand(showConfigCmd)
-		showCmd.AddCommand(showReservationsCmd)
+	switch resource {
+	case "reservation":
+		return executeCreateReservationCommand(command)
+	default:
+		log.Debugf("unknown resource type: %s", resource)
+		return util.ErrorCmdArg
+	}
+}
+
+// executeCreateReservationCommand
+func executeCreateReservationCommand(command *CControlCommand) int {
+	nameValue, hasName, _ := getGlobalFlag(command, "name", "N")
+	if !hasName || nameValue == "" {
+		log.Debug("no reservation name specified")
+		return util.ErrorCmdArg
+	}
+	FlagReservationName = nameValue
+
+	startValue, hasStart, _ := getGlobalFlag(command, "start-time", "S")
+	if !hasStart || startValue == "" {
+		log.Debug("no start time specified")
+		return util.ErrorCmdArg
+	}
+	FlagStartTime = startValue
+
+	durationValue, hasDuration, _ := getGlobalFlag(command, "duration", "D")
+	if !hasDuration || durationValue == "" {
+		log.Debug("no duration specified")
+		return util.ErrorCmdArg
+	}
+	FlagDuration = durationValue
+
+	nodesValue, hasNodes, _ := getGlobalFlag(command, "nodes", "n")
+	if !hasNodes || nodesValue == "" {
+		log.Debug("no nodes specified")
+		return util.ErrorCmdArg
+	}
+	FlagNodes = nodesValue
+
+	accountValue, hasAccount, _ := getGlobalFlag(command, "account", "A")
+	if hasAccount && accountValue != "" {
+		FlagAccount = accountValue
 	}
 
-	RootCmd.AddCommand(updateCmd)
-	{
-		updateCmd.AddCommand(updateNodeCmd)
-		{
-			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify names of the node to be modified (comma seperated list)")
-			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Set the node state")
-			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set the reason of this state change")
-		}
-
-		updateCmd.AddCommand(updateJobCmd)
-		{
-			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job ids of the job to be modified (comma seperated list)")
-			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
-			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
-
-			err := updateJobCmd.MarkFlagRequired("job")
-			if err != nil {
-				return
-			}
-		}
-
-		updateCmd.AddCommand(updatePartitionCmd)
-		{
-			updatePartitionCmd.Flags().StringVarP(&FlagAllowedAccounts, "allowed-accounts", "A", "", "Set the allow account list for the partition")
-			updatePartitionCmd.Flags().StringVarP(&FlagDeniedAccounts, "denied-accounts", "D", "", "Set the denied account list for the partition")
-
-			updatePartitionCmd.MarkFlagsMutuallyExclusive("allowed-accounts", "denied-accounts")
-			updatePartitionCmd.MarkFlagsOneRequired("allowed-accounts", "denied-accounts")
-		}
+	userValue, hasUser, _ := getGlobalFlag(command, "user", "u")
+	if hasUser && userValue != "" {
+		FlagUser = userValue
 	}
 
-	RootCmd.AddCommand(holdCmd)
-	{
-		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
+	if err := CreateReservation(); err != util.ErrorSuccess {
+		os.Exit(err)
 	}
 
-	RootCmd.AddCommand(releaseCmd)
+	return util.ErrorSuccess
+}
 
-	RootCmd.AddCommand(createCmd)
-	{
-		createCmd.AddCommand(createReservationCmd)
-		{
-			createReservationCmd.Flags().StringVarP(&FlagReservationName, "name", "n", "", "Specify the name of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagStartTime, "start-time", "s", "", "Specify the start time of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagDuration, "duration", "d", "", "Specify the duration of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagPartitionName, "partition", "p", "", "Specify the partition of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagNodes, "nodes", "N", "", "Specify the nodes of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagAccount, "account", "a", "", "Specify the account of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagUser, "user", "u", "", "Specify the user of the reservation")
+// executeDeleteCommand
+func executeDeleteCommand(command *CControlCommand) int {
+	resource := command.GetResource()
 
-			err := createReservationCmd.MarkFlagRequired("name")
-			if err != nil {
-				return
-			}
-			err = createReservationCmd.MarkFlagRequired("start-time")
-			if err != nil {
-				return
-			}
-			err = createReservationCmd.MarkFlagRequired("duration")
-			if err != nil {
-				return
-			}
-			err = createReservationCmd.MarkFlagRequired("account")
-			if err != nil {
-				return
-			}
-		}
+	switch resource {
+	case "reservation":
+		return executeDeleteReservationCommand(command)
+	default:
+		log.Debugf("unknown resource type: %s", resource)
+		return util.ErrorCmdArg
+	}
+}
+
+// executeDeleteReservationCommand
+func executeDeleteReservationCommand(command *CControlCommand) int {
+	reservationName, hasReservationName := command.GetFirstArg()
+	if !hasReservationName {
+		log.Debug("no reservation name specified")
+		return util.ErrorCmdArg
 	}
 
-	RootCmd.AddCommand(deleteCmd)
-	{
-		deleteCmd.AddCommand(deleteReservationCmd)
+	if err := DeleteReservation(reservationName); err != util.ErrorSuccess {
+		os.Exit(err)
 	}
+
+	return util.ErrorSuccess
 }
