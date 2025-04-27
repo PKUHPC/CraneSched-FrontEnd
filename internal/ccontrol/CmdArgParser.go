@@ -336,8 +336,8 @@ func parseAndExecuteWithCustomParser(args []string) int {
 		return util.ErrorCmdArg
 	}
 
-	if len(command.Flags) > 0 {
-		for i, flag := range command.Flags {
+	if len(command.PrimaryFlags) > 0 {
+		for i, flag := range command.PrimaryFlags {
 			println(i, ":", flag.Name, "=", flag.Value)
 		}
 	}
@@ -347,11 +347,11 @@ func parseAndExecuteWithCustomParser(args []string) int {
 		return util.ErrorCmdArg
 	}
 
+	processGlobalFlags(command)
+
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	userUid = uint32(os.Getuid())
-
-	processGlobalFlags(command)
 
 	action := command.GetAction()
 
@@ -610,7 +610,11 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 	}
 
 	if hasPriority {
-		priority, _ := strconv.ParseFloat(priorityFlag, 64)
+		priority, err := strconv.ParseFloat(priorityFlag, 64)
+		if err != nil {
+			log.Debugf("invalid priority value: %s", priorityFlag)
+			return util.ErrorCmdArg
+		}
 		FlagPriority = priority
 		if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
 			os.Exit(err)
@@ -668,12 +672,6 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 
 // executeHoldCommand
 func executeHoldCommand(command *CControlCommand) int {
-	if len(command.Flags2) > 0 {
-		println("flags count:", len(command.Flags2))
-		for i, flag := range command.Flags2 {
-			println("flag", i, ":", flag.Name, "=", flag.Value)
-		}
-	}
 
 	jobIds := command.GetHoldOrReleaseID()
 	if jobIds == "" {

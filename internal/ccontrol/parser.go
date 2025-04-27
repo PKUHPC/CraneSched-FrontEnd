@@ -10,11 +10,11 @@ import (
 
 // CControlCommand
 type CControlCommand struct {
-	Action   *ActionType   `parser:"@@"`
-	Resource *ResourceType `parser:"@@?"`
-	Flags    []*Flag       `parser:"@@*"`
-	Args     []*Argument   `parser:"@@*"`
-	Flags2   []*Flag       `parser:"@@*"`
+	Action         *ActionType   `parser:"@@"`
+	Resource       *ResourceType `parser:"@@?"`
+	PrimaryFlags   []*Flag       `parser:"@@*"`
+	Args           []*Argument   `parser:"@@*"`
+	SecondaryFlags []*Flag       `parser:"@@*"`
 }
 
 // ActionType
@@ -36,7 +36,7 @@ type ResourceType struct {
 // Flag
 type Flag struct {
 	Name  string `parser:"'-' '-'? @Ident"`
-	Value string `parser:"( '=' @String | '=' @Ident | '=' @TimeFormat | ' '* @String | ' '* @Ident | ' '* @TimeFormat | ' '* @Number )?"`
+	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
 }
 
 // Argument
@@ -108,9 +108,9 @@ func (c *CControlCommand) GetResource() string {
 	return c.Resource.String()
 }
 
-// GetFlag
-func (c *CControlCommand) GetFlag(name string) (string, bool) {
-	for _, flag := range c.Flags {
+// GetPrimaryFlag
+func (c *CControlCommand) GetPrimaryFlag(name string) (string, bool) {
+	for _, flag := range c.PrimaryFlags {
 		if flag.Name == name {
 			return flag.Value, true
 		}
@@ -118,14 +118,24 @@ func (c *CControlCommand) GetFlag(name string) (string, bool) {
 	return "", false
 }
 
-// GetFlag2
-func (c *CControlCommand) GetFlag2(name string) (string, bool) {
-	for _, flag := range c.Flags2 {
+// GetSecondaryFlag
+func (c *CControlCommand) GetSecondaryFlag(name string) (string, bool) {
+	for _, flag := range c.SecondaryFlags {
 		if flag.Name == name {
 			return flag.Value, true
 		}
 	}
 	return "", false
+}
+
+// GetFlag
+func (c *CControlCommand) GetFlag(name string) (string, bool) {
+	return c.GetPrimaryFlag(name)
+}
+
+// GetFlag2
+func (c *CControlCommand) GetFlag2(name string) (string, bool) {
+	return c.GetSecondaryFlag(name)
 }
 
 // GetArgs
@@ -153,7 +163,7 @@ func (c *CControlCommand) IsHoldOrReleaseOperation() bool {
 	return c.Action.Hold || c.Action.Release
 }
 
-// GetHoldOrReleaseID 获取作业ID（从第一个参数获取）
+// GetHoldOrReleaseID
 func (c *CControlCommand) GetHoldOrReleaseID() string {
 	if len(c.Args) > 0 {
 		return c.Args[0].Value
@@ -185,7 +195,7 @@ func (c *CControlCommand) String() string {
 		parts = append(parts, c.Resource.String())
 	}
 
-	for _, flag := range c.Flags {
+	for _, flag := range c.PrimaryFlags {
 		if flag.Value != "" {
 			parts = append(parts, fmt.Sprintf("--%s=%s", flag.Name, flag.Value))
 		} else {
@@ -195,6 +205,14 @@ func (c *CControlCommand) String() string {
 
 	for _, arg := range c.Args {
 		parts = append(parts, arg.Value)
+	}
+
+	for _, flag2 := range c.SecondaryFlags {
+		if flag2.Value != "" {
+			parts = append(parts, fmt.Sprintf("--%s=%s", flag2.Name, flag2.Value))
+		} else {
+			parts = append(parts, fmt.Sprintf("--%s", flag2.Name))
+		}
 	}
 
 	return strings.Join(parts, " ")
