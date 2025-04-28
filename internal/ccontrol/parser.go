@@ -226,3 +226,37 @@ func (c *CControlCommand) String() string {
 
 	return strings.Join(parts, " ")
 }
+
+// getGlobalFlag
+func getGlobalFlag(command *CControlCommand, longName, shortName string) (string, bool, int) {
+	value, hasValue := command.GetPrimaryFlag(longName)
+	if !hasValue && shortName != "" {
+		value, hasValue = command.GetPrimaryFlag(shortName)
+	}
+	if hasValue {
+		return value, true, 1
+	}
+
+	value, hasValue = command.GetSecondaryFlag(longName)
+	if !hasValue && shortName != "" {
+		value, hasValue = command.GetSecondaryFlag(shortName)
+	}
+	if hasValue {
+		return value, true, 2
+	}
+
+	return "", false, 0
+}
+
+// processGlobalFlags
+func processGlobalFlags(command *CControlCommand) {
+	_, hasJson, _ := getGlobalFlag(command, "json", "")
+	if hasJson {
+		FlagJson = true
+	}
+
+	configValue, hasConfig, _ := getGlobalFlag(command, "config", "C")
+	if hasConfig && configValue != "" {
+		FlagConfigFilePath = configValue
+	}
+}

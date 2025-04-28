@@ -20,8 +20,9 @@ package main
 
 import (
 	"CraneFrontEnd/internal/ccontrol"
+	"os"
 )
 
 func main() {
-	ccontrol.ParseCmdArgs()
+	ccontrol.ParseCmdArgs(os.Args)
 }

@@ -51,87 +51,16 @@ var (
 	FlagUser            string
 )
 
-// getGlobalFlag
-func getGlobalFlag(command *CControlCommand, longName, shortName string) (string, bool, int) {
-	value, hasValue := command.GetPrimaryFlag(longName)
-	if !hasValue && shortName != "" {
-		value, hasValue = command.GetPrimaryFlag(shortName)
-	}
-	if hasValue {
-		return value, true, 1
-	}
-
-	value, hasValue = command.GetSecondaryFlag(longName)
-	if !hasValue && shortName != "" {
-		value, hasValue = command.GetSecondaryFlag(shortName)
-	}
-	if hasValue {
-		return value, true, 2
-	}
-
-	return "", false, 0
-}
-
 // ParseCmdArgs
-func ParseCmdArgs() {
-	args := os.Args
-
+func ParseCmdArgs(args []string) {
 	cmdStr := strings.Join(args[1:], " ")
 	command, err := ParseCControlCommand(cmdStr)
 
-	if err != nil {
-		log.Debugf("error parsing command: %v", err)
-		fmt.Printf("error: command format is incorrect\n\n")
-
-		if len(args) > 1 {
-			switch args[1] {
-			case "show":
-				if len(args) > 2 {
-					showSubCommandHelp("show", args[2])
-				} else {
-					showCommandHelp("show")
-				}
-			case "update":
-				showCommandHelp("update")
-			case "hold":
-				showCommandHelp("hold")
-			case "release":
-				showCommandHelp("release")
-			default:
-				showHelp()
-			}
-		} else {
-			showHelp()
+	_, hasHelp, _ := getGlobalFlag(command, "help", "h")
+	if err != nil || hasHelp {
+		if handleHelp(command, err) {
+			return
 		}
-		return
-	}
-
-	processGlobalFlags(command)
-
-	_, hasVersion, _ := getGlobalFlag(command, "version", "v")
-	if hasVersion {
-		showVersion()
-		return
-	}
-
-	_, hasHelp, helpPos := getGlobalFlag(command, "help", "h")
-	if hasHelp {
-		if helpPos == 1 {
-			if command.GetAction() != "" && command.GetResource() != "" {
-				showSubCommandHelp(command.GetAction(), command.GetResource())
-			} else if command.GetAction() != "" {
-				showCommandHelp(command.GetAction())
-			} else {
-				showHelp()
-			}
-		} else {
-			if command.GetAction() != "" {
-				showCommandHelp(command.GetAction())
-			} else {
-				showHelp()
-			}
-		}
-		return
 	}
 
 	if command.GetAction() != "" && strings.Contains(command.GetAction(), "completion") {
@@ -139,6 +68,8 @@ func ParseCmdArgs() {
 		os.Exit(1)
 		return
 	}
+
+	processGlobalFlags(command)
 
 	if !command.IsValid() {
 		log.Debug("invalid command format")
@@ -194,19 +125,6 @@ func executeCommand(command *CControlCommand) int {
 	}
 }
 
-// processGlobalFlags
-func processGlobalFlags(command *CControlCommand) {
-	_, hasJson, _ := getGlobalFlag(command, "json", "")
-	if hasJson {
-		FlagJson = true
-	}
-
-	configValue, hasConfig, _ := getGlobalFlag(command, "config", "C")
-	if hasConfig && configValue != "" {
-		FlagConfigFilePath = configValue
-	}
-}
-
 // executeShowCommand
 func executeShowCommand(command *CControlCommand) int {
 	resource := command.GetResource()
@@ -240,7 +158,7 @@ func executeShowNodeCommand(command *CControlCommand) int {
 	}
 
 	if err := ShowNodes(FlagNodeName, FlagQueryAll); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
@@ -258,7 +176,7 @@ func executeShowPartitionCommand(command *CControlCommand) int {
 	}
 
 	if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
@@ -274,7 +192,7 @@ func executeShowJobCommand(command *CControlCommand) int {
 	}
 
 	if err := ShowJobs(jobIds, FlagQueryAll); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
@@ -356,7 +274,7 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 	}
 
 	if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
@@ -386,7 +304,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 	if hasTimeLimit {
 		FlagTimeLimit = timeLimitFlag
 		if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
-			os.Exit(err)
+			return util.ErrorCmdArg
 		}
 	}
 
@@ -398,7 +316,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 		}
 		FlagPriority = priority
 		if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
-			os.Exit(err)
+			return util.ErrorCmdArg
 		}
 	}
 
@@ -420,12 +338,12 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 	if hasAllowedAccounts {
 		FlagAllowedAccounts = allowedAccounts
 		if err := ModifyPartitionAcl(partitionName, true, FlagAllowedAccounts); err != util.ErrorSuccess {
-			os.Exit(err)
+			return util.ErrorCmdArg
 		}
 	} else if hasDeniedAccounts {
 		FlagDeniedAccounts = deniedAccounts
 		if err := ModifyPartitionAcl(partitionName, false, FlagDeniedAccounts); err != util.ErrorSuccess {
-			os.Exit(err)
+			return util.ErrorCmdArg
 		}
 		log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
 	} else {
@@ -452,7 +370,7 @@ func executeHoldCommand(command *CControlCommand) int {
 	}
 
 	if err := HoldReleaseJobs(jobIds, true); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
@@ -467,7 +385,7 @@ func executeReleaseCommand(command *CControlCommand) int {
 	}
 
 	if err := HoldReleaseJobs(jobIds, false); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
@@ -527,7 +445,7 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 	}
 
 	if err := CreateReservation(); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
@@ -555,7 +473,7 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 	}
 
 	if err := DeleteReservation(reservationName); err != util.ErrorSuccess {
-		os.Exit(err)
+		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess

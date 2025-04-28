@@ -24,6 +24,43 @@ import (
 	"os"
 )
 
+// handleHelp
+func handleHelp(command *CControlCommand, err error) bool {
+
+	if err != nil {
+		fmt.Printf("error: command format is incorrect\n\n")
+		return true
+	}
+
+	_, hasVersion, _ := getGlobalFlag(command, "version", "v")
+	if hasVersion {
+		showVersion()
+		return true
+	}
+
+	_, hasHelp, helpPos := getGlobalFlag(command, "help", "h")
+	if hasHelp {
+		if helpPos == 1 {
+			if command.GetAction() != "" && command.GetResource() != "" {
+				showSubCommandHelp(command.GetAction(), command.GetResource())
+			} else if command.GetAction() != "" {
+				showCommandHelp(command.GetAction())
+			} else {
+				showHelp()
+			}
+		} else {
+			if command.GetAction() != "" {
+				showCommandHelp(command.GetAction())
+			} else {
+				showHelp()
+			}
+		}
+		return true
+	}
+
+	return false
+}
+
 func showHelp() {
 	fmt.Printf("Usage: ccontrol [OPTIONS] COMMAND\n\n")
 	fmt.Printf("Display and modify the specified entity\n\n")
