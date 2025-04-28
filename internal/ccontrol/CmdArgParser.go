@@ -200,11 +200,8 @@ func executeShowJobCommand(command *CControlCommand) int {
 
 // executeShowConfigCommand
 func executeShowConfigCommand() int {
-	if err := ShowConfig(FlagConfigFilePath); err != util.ErrorSuccess {
-		os.Exit(err)
-	}
 
-	return util.ErrorSuccess
+	return ShowConfig(FlagConfigFilePath)
 }
 
 // executeShowReservationCommand
