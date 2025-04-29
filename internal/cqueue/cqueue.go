@@ -362,6 +362,11 @@ func ProcessCommand(task *protos.TaskInfo) string {
 }
 
 // 'p' group
+func ProcessCommand(task *protos.TaskInfo) string {
+	return task.CmdLine
+}
+
+// 'p' group
 func ProcessPriority(task *protos.TaskInfo) string {
 	return strconv.FormatUint(uint64(task.Priority), 10)
 }
@@ -477,6 +482,7 @@ var fieldMap = map[string]FieldProcessor{
 
 	"o":       {"Command", ProcessCommand},
 	"command": {"Command", ProcessCommand},
+
 	// 'p' group
 	"p":         {"Priority", ProcessPriority},
 	"priority":  {"Priority", ProcessPriority},
