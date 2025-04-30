@@ -356,7 +356,7 @@ func ProcessNodeNum(task *protos.TaskInfo) string {
 	return strconv.FormatUint(uint64(task.NodeNum), 10)
 }
 
-// 'p' group
+// 'o' group
 func ProcessCommand(task *protos.TaskInfo) string {
 	return task.CmdLine
 }
@@ -574,13 +574,13 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		}
 
 		// a-Account, c-CpuPerNode, C-AllocCPUs, e-ElapsedTime, h-Held, j-JobID, k-Comment, l-TimeLimit, L-NodeList,
-		// m-MemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, R-Reason, r-ReqNodes, s-SubmitTime,
+		// m-MemPerNode, n-Name, N-NodeNum, o/Command, p-Priority, P-Partition, q-Qos, R-Reason, r-ReqNodes, s-SubmitTime,
 		// S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes
 		fieldProcessor, found := fieldMap[field]
 		if !found {
 			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n"+
 				"a/Account, c/CpuPerNode, C/AllocCPUs, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, k/Comment, L/NodeList,\n"+
-				"m/MemPerNode, n/Name, N/NodeNum, p/Priority, P/Partition, q/Qos, R/Reason, r/ReqNodes, s/SubmitTime,\n"+
+				"m/MemPerNode, n/Name, N/NodeNum, o/Command, p/Priority, P/Partition, q/Qos, R/Reason, r/ReqNodes, s/SubmitTime,\n"+
 				"S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes.", field)
 			os.Exit(util.ErrorInvalidFormat)
 		}

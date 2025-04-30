@@ -125,6 +125,7 @@ Supported format identifiers or string, string case insensitive:
 	%m/%MemPerNode   - Display the requested mem per node of the job.
 	%N/%NodeNum      - Display the number of nodes requested by the job.
 	%n/%Name         - Display the name of the job.
+	%o/%Command      - Display the cmd of the job.
 	%P/%Partition    - Display the partition the job is running in.
 	%p/%Priority     - Display the priority of the job.
 	%q/%QoS          - Display the Quality of Service level for the job.
