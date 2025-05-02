@@ -308,15 +308,6 @@ func Query() util.CraneCmdError {
 		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
-	if !reply.GetOk() {
-		if reply.GetCurLeaderId() >= 0 {
-			log.Printf("Leader id was changed to %d, caching the value, please try again!\n", reply.GetCurLeaderId())
-			util.UpdateLeaderIdToFile(int(reply.GetCurLeaderId()))
-		} else if reply.GetCurLeaderId() == -1 {
-			log.Errorf("Leader id equals -1")
-		}
-		return util.ErrorBackend
-	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
