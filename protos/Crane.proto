@@ -35,7 +35,6 @@ message TaskStatusChangeRequest {
 
 message TaskStatusChangeReply {
   bool ok = 1;
-  int32 cur_leader_id = 2;
 }
 
 message QueryLeaderIdRequest {}
@@ -483,7 +482,6 @@ message ModifyPartitionAclRequest {
   repeated string accounts = 4;
 }
 
-
 message ModifyPartitionAclReply {
   bool ok = 1;
   ErrCode code = 2;
@@ -528,7 +526,6 @@ message QueryClusterInfoRequest {
 message QueryClusterInfoReply {
   bool ok = 1;
   repeated TrimmedPartitionInfo partitions = 2;
-  int32 cur_leader_id = 3;
 }
 
 message QueryTasksInfoRequest {

@@ -286,9 +286,10 @@ var (
 		},
 	}
 	createCmd = &cobra.Command{
-		Use:   "create",
-		Short: "Create a new entity",
-		Long:  "",
+		Use:     "create",
+		Aliases: []string{"add"},
+		Short:   "Create a new entity",
+		Long:    "",
 	}
 	createReservationCmd = &cobra.Command{
 		Use:   "reservation [flags]",
@@ -297,6 +298,24 @@ var (
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := CreateReservation(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	createFollowerCmd = &cobra.Command{
+		Use:   "follower [flags] server_id/hostname",
+		Short: "Add a follower to raft cluster",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
+			if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
+				err = AddFollower(int32(id))
+			} else {
+				err = AddFollower(args[0])
+			}
+
+			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -328,29 +347,6 @@ var (
 				err = RemoveFollower(int32(id))
 			} else {
 				err = RemoveFollower(args[0])
-			}
-
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	addCmd = &cobra.Command{
-		Use:   "add",
-		Short: "add a new entity",
-		Long:  "",
-	}
-	addFollowerCmd = &cobra.Command{
-		Use:   "follower [flags] server_id/hostname",
-		Short: "Add a follower to raft cluster",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			var err util.CraneCmdError
-			if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
-				err = AddFollower(int32(id))
-			} else {
-				err = AddFollower(args[0])
 			}
 
 			if err != util.ErrorSuccess {
@@ -451,15 +447,12 @@ func init() {
 				return
 			}
 		}
+		createCmd.AddCommand(createFollowerCmd)
 	}
 
 	RootCmd.AddCommand(deleteCmd)
 	{
 		deleteCmd.AddCommand(deleteReservationCmd)
 		deleteCmd.AddCommand(deleteFollowerCmd)
-	}
-	RootCmd.AddCommand(addCmd)
-	{
-		addCmd.AddCommand(addFollowerCmd)
 	}
 }
