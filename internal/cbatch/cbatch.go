@@ -289,7 +289,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	return true, task
 }
 
-func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
+func SendRequest(task *protos.TaskToCtld) error {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
@@ -297,27 +297,29 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the job")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return nil
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
-		return util.ErrorSuccess
+		return nil
 	} else {
-		log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Job allocation failed: %s.", util.ErrMsg(reply.GetCode())),
+		}
 	}
 }
 
-func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdError {
+func SendMultipleRequests(task *protos.TaskToCtld, count uint32) error {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
@@ -325,15 +327,15 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.GetCodeList()) > 0 {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend}
 		} else {
-			return util.ErrorSuccess
+			return nil
 		}
 	}
 
@@ -347,17 +349,19 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 			log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reason))
 		}
 
-		return util.ErrorBackend
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
-	return util.ErrorSuccess
+	return nil
 }
 
 // ParseCbatchScript Split the job script into two parts: the arguments and the shell script.
-func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneCmdError {
+func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		log.Error(err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: err.Error(),
+		}
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -387,15 +391,19 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneC
 		}
 		err := processor.Process(scanner.Text(), sh, args)
 		if err != nil {
-			log.Errorf("Parsing error at line %v: %v\n", num, err.Error())
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Parsing error at line %d: %s", num, err),
+			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Error(err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: err.Error(),
+		}
 	}
 
-	return util.ErrorSuccess
+	return nil
 }

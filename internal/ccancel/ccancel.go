@@ -32,7 +32,7 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func CancelTask(args []string) util.CraneCmdError {
+func CancelTask(args []string) error {
 	req := &protos.CancelTaskRequest{
 		OperatorUid: uint32(os.Getuid()),
 
@@ -44,16 +44,20 @@ func CancelTask(args []string) util.CraneCmdError {
 
 	err := util.CheckJobNameLength(FlagJobName)
 	if err != nil {
-		log.Errorf("Invalid job name: %v.", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid job name: %v.", err),
+		}
 	}
 	req.FilterTaskName = FlagJobName
 
 	if len(args) > 0 {
 		taskIds, err := util.ParseJobIdList(args[0], ",")
 		if err != nil {
-			log.Errorf("Invalid job list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid job list specified: %v.\n", err),
+			}
 		}
 		req.FilterTaskIds = taskIds
 	}
@@ -61,8 +65,10 @@ func CancelTask(args []string) util.CraneCmdError {
 	if FlagState != "" {
 		stateList, err := util.ParseInRamTaskStatusList(FlagState)
 		if err != nil {
-			log.Errorln(err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: err.Error(),
+			}
 		}
 		if len(stateList) == 1 {
 			req.FilterState = stateList[0]
@@ -74,15 +80,15 @@ func CancelTask(args []string) util.CraneCmdError {
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledTasks) > 0 {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend}
 		} else {
-			return util.ErrorSuccess
+			return nil
 		}
 	}
 
@@ -95,7 +101,7 @@ func CancelTask(args []string) util.CraneCmdError {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
 			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		return util.ErrorBackend
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
-	return util.ErrorSuccess
+	return nil
 }
