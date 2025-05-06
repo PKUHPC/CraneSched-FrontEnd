@@ -24,10 +24,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"regexp"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
@@ -35,12 +35,12 @@ import (
 
 // Define the flattened data structure
 type FlattenedData struct {
-	PartitionName       string
-	Avail      string
-	CranedListRegex     string
-	ResourceState       string
-	ControlState        string
-	CranedListCount     uint64
+	PartitionName   string
+	Avail           string
+	CranedListRegex string
+	ResourceState   string
+	ControlState    string
+	CranedListCount uint64
 }
 
 // Flatten the nested structure into a one-dimensional array
@@ -51,7 +51,7 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 			if commonCranedStateList.Count > 0 {
 				flattened = append(flattened, FlattenedData{
 					PartitionName:   partitionCraned.Name,
-					Avail:  strings.ToLower(partitionCraned.State.String()[10:]),
+					Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
 					CranedListRegex: commonCranedStateList.CranedListRegex,
 					ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
 					ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
@@ -64,24 +64,24 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 }
 
 type FieldProcessor struct {
-	header string
+	header  string
 	process func(flattened []FlattenedData, tableOutputCell [][]string)
 }
 
 var fieldMap = map[string]FieldProcessor{
-	"p":             {"Partition", ProcessPartition},
-	"partition":     {"Partition", ProcessPartition},
-	"a":             {"Avail", ProcessAvail},
-	"avail":         {"Avail", ProcessAvail},
-	"n":             {"Nodes", ProcessNodes},
-	"nodes":         {"Nodes", ProcessNodes},
-	"s":             {"State", ProcessState},
-	"state":         {"State", ProcessState},
-	"l":             {"NodeList", ProcessNodeList},
-	"nodelist":      {"NodeList", ProcessNodeList},
+	"p":         {"Partition", ProcessPartition},
+	"partition": {"Partition", ProcessPartition},
+	"a":         {"Avail", ProcessAvail},
+	"avail":     {"Avail", ProcessAvail},
+	"n":         {"Nodes", ProcessNodes},
+	"nodes":     {"Nodes", ProcessNodes},
+	"s":         {"State", ProcessState},
+	"state":     {"State", ProcessState},
+	"l":         {"NodeList", ProcessNodeList},
+	"nodelist":  {"NodeList", ProcessNodeList},
 }
 
-/// Partition
+// / Partition
 func ProcessPartition(flattened []FlattenedData, tableOutputCell [][]string) {
 	for idx, data := range flattened {
 		tableOutputCell[idx] = append(tableOutputCell[idx], data.PartitionName)
@@ -178,9 +178,9 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
 			processor.process(flattened, tableOutputCell)
 		} else {
-			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n" +		
-		 	"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
-			 os.Exit(util.ErrorInvalidFormat)
+			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
+				"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
+			os.Exit(util.ErrorInvalidFormat)
 		}
 	}
 	// Get the suffix of the format string
@@ -195,7 +195,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
 }
 
-func Query() util.CraneCmdError {
+func Query() error {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
@@ -216,8 +216,10 @@ func Query() util.CraneCmdError {
 		case "drain":
 			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_DRAIN)
 		default:
-			log.Errorf("Invalid state given: %s.\n", FlagFilterCranedStates[i])
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid state given: %s.", FlagFilterCranedStates[i]),
+			}
 		}
 	}
 	if len(resourceStateList) == 0 {
@@ -265,14 +267,14 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return nil
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -346,19 +348,21 @@ func Query() util.CraneCmdError {
 				util.HostNameListToStr(redList))
 		}
 	}
-	return util.ErrorSuccess
+	return nil
 }
 
-func loopedQuery(iterate uint64) util.CraneCmdError {
+func loopedQuery(iterate uint64) error {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-		log.Error(err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: err.Error(),
+		}
 	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
 		err := Query()
-		if err != util.ErrorSuccess {
+		if err != nil {
 			return err
 		}
 		time.Sleep(time.Duration(interval.Nanoseconds()))

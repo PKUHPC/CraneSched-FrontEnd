@@ -793,8 +793,14 @@ func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.CraneCmdErro
 
 func squeueQuery() util.CraneCmdError {
 	reply, err := cqueue.QueryTasksInfo()
-	if err != util.ErrorSuccess {
-		return err
+	if err != nil {
+		var craneErr *util.CraneError
+		if errors.As(err, &craneErr) {
+			return craneErr.Code
+		} else {
+			log.Errorf("Unknown error occurred: %s.", err)
+			return util.ErrorGeneric
+		}
 	}
 
 	return squeueQueryTableOutput(reply)
