@@ -20,10 +20,9 @@ package ccancel
 
 import (
 	"CraneFrontEnd/internal/util"
+	"errors"
 	"os"
 	"regexp"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
@@ -56,16 +55,20 @@ var (
 				FlagAccount == "" &&
 				FlagUserName == "" &&
 				FlagNodes == nil {
-				log.Error("at least one condition should be given")
-				os.Exit(util.ErrorCmdArg)
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "at least one condition should be given.",
+				}
 			}
 
 			if len(args) > 0 {
 				matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
 				if !matched {
-					log.Error("job id list must follow the format " +
-						"<job_id> or '<job_id>,<job_id>,<job_id>...'")
-					os.Exit(util.ErrorCmdArg)
+					return &util.CraneError{
+						Code: util.ErrorCmdArg,
+						Message: "job id list must follow the format " +
+							"<job_id> or '<job_id>,<job_id>,<job_id>...'",
+					}
 				}
 			}
 
@@ -76,18 +79,24 @@ var (
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := CancelTask(args); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return CancelTask(args)
 		},
 	}
 )
 
 func ParseCmdArgs() {
+	util.RunEWrapperForLeafCommand(RootCmd)
+
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
+		var craneErr *util.CraneError
+		if errors.As(err, &craneErr) {
+			os.Exit(craneErr.Code)
+		} else {
+			os.Exit(util.ErrorGeneric)
+		}
 	}
+	os.Exit(util.ErrorSuccess)
 }
 
 func init() {

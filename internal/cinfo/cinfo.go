@@ -203,7 +203,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
 }
 
-func Query() util.CraneCmdError {
+func Query() error {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
 
@@ -244,8 +244,10 @@ func Query() util.CraneCmdError {
 		case "offing":
 			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
 		default:
-			log.Errorf("Invalid state given: %s.\n", FlagFilterCranedStates[i])
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid state given: %s.", FlagFilterCranedStates[i]),
+			}
 		}
 	}
 	if len(resourceStateList) == 0 {
@@ -305,14 +307,14 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return nil
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -395,19 +397,21 @@ func Query() util.CraneCmdError {
 				util.HostNameListToStr(redList))
 		}
 	}
-	return util.ErrorSuccess
+	return nil
 }
 
-func loopedQuery(iterate uint64) util.CraneCmdError {
+func loopedQuery(iterate uint64) error {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-		log.Error(err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: err.Error(),
+		}
 	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
 		err := Query()
-		if err != util.ErrorSuccess {
+		if err != nil {
 			return err
 		}
 		time.Sleep(time.Duration(interval.Nanoseconds()))

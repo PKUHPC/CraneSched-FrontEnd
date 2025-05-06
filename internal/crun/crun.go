@@ -164,7 +164,7 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 
 	var err error
-	m.conn, err = grpc.Dial(unixSocketPath, opts...)
+	m.conn, err = grpc.NewClient(unixSocketPath, opts...)
 	if err != nil {
 		log.Errorf("Failed to connect to local unix socket %s: %s",
 			unixSocketPath, err)
@@ -783,20 +783,24 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	}
 }
 
-func MainCrun(args []string) util.CraneCmdError {
+func MainCrun(args []string) error {
 	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	var err error
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		log.Errorf("Failed to get working directory: %s", err.Error())
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to get working directory: %s.", err),
+		}
 	}
 
 	if len(args) == 0 {
-		log.Errorf("Please specify program to run")
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "Please specify program to run",
+		}
 	}
 
 	task := &protos.TaskToCtld{
@@ -836,16 +840,20 @@ func MainCrun(args []string) util.CraneCmdError {
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			log.Errorf("Invalid argument: invalid --time: %v", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: invalid --time: %s.", err),
+			}
 		}
 		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			log.Errorf("Invalid argument: %v", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: %s.", err),
+			}
 		}
 		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -903,8 +911,10 @@ func MainCrun(args []string) util.CraneCmdError {
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
-		log.Errorf("Invalid argument: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid argument: %s.", err),
+		}
 	}
 
 	// Set total limit of cpu cores
@@ -912,8 +922,10 @@ func MainCrun(args []string) util.CraneCmdError {
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {
-		log.Errorf("Invalid argument: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid argument: %s.", err),
+		}
 	}
 
 	util.SetPropagatedEnviron(task)
@@ -924,14 +936,18 @@ func MainCrun(args []string) util.CraneCmdError {
 	if FlagX11 {
 		target, port, err := util.GetX11DisplayEx(!FlagX11Fwd)
 		if err != nil {
-			log.Errorf("Error in reading X11 $DISPLAY: %v", err)
-			return util.ErrorSystem
+			return &util.CraneError{
+				Code:    util.ErrorSystem,
+				Message: fmt.Sprintf("Error in reading X11 $DISPLAY: %s.", err),
+			}
 		}
 
 		if !FlagX11Fwd && (target == "" || target == "localhost") {
 			if target, err = os.Hostname(); err != nil {
-				log.Errorf("failed to get hostname: %v", err)
-				return util.ErrorSystem
+				return &util.CraneError{
+					Code:    util.ErrorSystem,
+					Message: fmt.Sprintf("failed to get hostname: %s.", err),
+				}
 			}
 			log.Debugf("Host in $DISPLAY (%v) is invalid, using hostname: %s",
 				port-util.X11TcpPortOffset, target)
@@ -939,8 +955,10 @@ func MainCrun(args []string) util.CraneCmdError {
 
 		cookie, err := util.GetX11AuthCookie()
 		if err != nil {
-			log.Errorf("Error in reading X11 xauth cookies: %v", err)
-			return util.ErrorSystem
+			return &util.CraneError{
+				Code:    util.ErrorSystem,
+				Message: fmt.Sprintf("Error in reading X11 xauth cookies: %s.", err),
+			}
 		}
 
 		iaMeta.X11 = true
@@ -967,5 +985,5 @@ func MainCrun(args []string) util.CraneCmdError {
 	m.Run()
 	defer m.Close()
 
-	return m.err
+	return &util.CraneError{Code: m.err}
 }

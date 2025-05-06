@@ -25,7 +25,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -80,10 +79,12 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagRepeat == 0 {
-				log.Error("Invalid argument: --repeat must > 0.")
-				os.Exit(util.ErrorCmdArg)
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "Invalid argument: --repeat must > 0.",
+				}
 			}
 
 			cbatchArgs := make([]CbatchArg, 0)
@@ -91,8 +92,8 @@ var (
 
 			if FlagWrappedScript == "" {
 				shLines := make([]string, 0)
-				if err := ParseCbatchScript(args[0], &cbatchArgs, &shLines); err != util.ErrorSuccess {
-					os.Exit(err)
+				if err := ParseCbatchScript(args[0], &cbatchArgs, &shLines); err != nil {
+					return err
 				}
 				shScript = strings.Join(shLines, "\n")
 			} else {
@@ -117,21 +118,27 @@ var (
 				task.Cwd, _ = os.Getwd()
 			}
 
-			var err util.CraneCmdError
 			if FlagRepeat == 1 {
-				err = SendRequest(task)
+				return SendRequest(task)
 			} else {
-				err = SendMultipleRequests(task, FlagRepeat)
+				return SendMultipleRequests(task, FlagRepeat)
 			}
-			os.Exit(err)
 		},
 	}
 )
 
 func ParseCmdArgs() {
+	util.RunEWrapperForLeafCommand(RootCmd)
+
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
+		var craneErr *util.CraneError
+		if errors.As(err, &craneErr) {
+			os.Exit(craneErr.Code)
+		} else {
+			os.Exit(util.ErrorGeneric)
+		}
 	}
+	os.Exit(util.ErrorSuccess)
 }
 
 func init() {
