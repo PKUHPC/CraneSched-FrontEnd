@@ -985,5 +985,8 @@ func MainCrun(args []string) error {
 	m.Run()
 	defer m.Close()
 
+	if m.err == util.ErrorSuccess {
+		return nil
+	}
 	return &util.CraneError{Code: m.err}
 }

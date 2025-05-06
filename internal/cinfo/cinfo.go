@@ -128,12 +128,14 @@ func ProcessNodeList(flattened []FlattenedData, tableOutputCell [][]string) {
 	}
 }
 
-func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string) {
+func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string, err error) {
 	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
-		log.Errorln("Invalid format specifier.")
-		os.Exit(util.ErrorInvalidFormat)
+		return nil, nil, &util.CraneError{
+			Code:    util.ErrorInvalidFormat,
+			Message: "Invalid format specifier.",
+		}
 	}
 
 	tableOutputWidth := make([]int, 0, len(specifiers))
@@ -170,8 +172,10 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			// with width specifier
 			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
 			if err != nil {
-				log.Errorln("Invalid width specifier.")
-				os.Exit(util.ErrorInvalidFormat)
+				return nil, nil, &util.CraneError{
+					Code:    util.ErrorInvalidFormat,
+					Message: "Invalid width specifier.",
+				}
 			}
 			tableOutputWidth = append(tableOutputWidth, int(width))
 		}
@@ -186,9 +190,11 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
 			processor.process(flattened, tableOutputCell)
 		} else {
-			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
-				"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
-			os.Exit(util.ErrorInvalidFormat)
+			return nil, nil, &util.CraneError{
+				Code: util.ErrorInvalidFormat,
+				Message: fmt.Sprintf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
+					"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field),
+			}
 		}
 	}
 	// Get the suffix of the format string
@@ -200,7 +206,9 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputCell[j] = append(tableOutputCell[j], suffix)
 		}
 	}
-	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+
+	formattedHeader, formattedData := util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+	return formattedHeader, formattedData, nil
 }
 
 func Query() error {
@@ -350,7 +358,10 @@ func Query() error {
 	}
 
 	if FlagFormat != "" {
-		header, tableData = FormatData(reply)
+		header, tableData, err = FormatData(reply)
+		if err != nil {
+			return err
+		}
 		table.SetTablePadding("")
 		table.SetAutoFormatHeaders(false)
 	}

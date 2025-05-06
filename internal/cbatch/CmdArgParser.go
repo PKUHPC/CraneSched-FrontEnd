@@ -102,7 +102,7 @@ var (
 
 			ok, task := ProcessCbatchArgs(cmd, cbatchArgs)
 			if !ok {
-				os.Exit(util.ErrorCmdArg)
+				return &util.CraneError{Code: util.ErrorCmdArg}
 			}
 
 			task.GetBatchMeta().ShScript = shScript

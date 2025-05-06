@@ -150,7 +150,7 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 					}
 				}
 				return err
-			} else {
+			} else if cmd.Run != nil {
 				cmd.Run(cmd, args)
 			}
 			return nil
