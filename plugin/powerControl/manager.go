@@ -369,11 +369,18 @@ func (c *PowerManager) makeDecision() ([]string, []string, []string, []string) {
 
 	predictedActiveNodeCount := c.getPredictedActiveNodeCount()
 
+	totalNodes := 0
+	c.nodesInfo.Range(func(key, value interface{}) bool {
+		totalNodes++
+		return true
+	})
+
 	activeNodes := c.GetNodesByState(Active)
 	idleNodes := c.GetNodesByState(Idle)
 	sleepNodes := c.GetNodesByState(Sleep)
 	poweredOffNodes := c.GetNodesByState(PoweredOff)
 
+	log.Debugf("Current total node count: %d", totalNodes)
 	log.Debugf("Predicted active node count: %d", predictedActiveNodeCount)
 	log.Debugf("Current active node count: %d", len(activeNodes))
 	log.Debugf("Current idle node count: %d", len(idleNodes))
@@ -381,6 +388,7 @@ func (c *PowerManager) makeDecision() ([]string, []string, []string, []string) {
 	log.Debugf("Current powered off node count: %d", len(poweredOffNodes))
 
 	if predictedActiveNodeCount == -1 {
+		log.Warnf("Failed to get predicted active node count, skip power control")
 		return nil, nil, nil, nil
 	}
 
@@ -536,6 +544,8 @@ func (c *PowerManager) getNodesForSleepOrPowerOff(
 
 		requiredIdleCount := int(math.Ceil(float64(totalNodes) * c.config.PowerControl.IdleReserveRatio))
 		currentIdleNodeCount := len(idleNodes)
+		log.Debugf("Idle reserve ratio: %f", c.config.PowerControl.IdleReserveRatio)
+		log.Debugf("Total nodes: %d, Current idle node count: %d, required idle count: %d", totalNodes, currentIdleNodeCount, requiredIdleCount)
 
 		nodesCanSleepCount := currentIdleNodeCount - requiredIdleCount
 		if nodesCanSleepCount > 0 {
