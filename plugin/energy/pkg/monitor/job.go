@@ -163,7 +163,7 @@ func (t *Job) monitorResourceUsage() {
 		case <-ticker.C:
 			jobStats, err := t.cgroupReader.GetCgroupStats()
 			if err != nil {
-				log.Infof("Job %d monitor stopping, error: %v", t.jobID, err)
+				log.Errorf("Job %d monitor stopping, error: %v", t.jobID, err)
 				go t.StopMonitor()
 				return
 			}

@@ -153,8 +153,6 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 		log.Errorf("Failed to update power state: %v", err)
 		return
 	}
-
-	log.Infof("Successfully updated power state to %v on node %s", req.State, req.CranedId)
 }
 
 func (p PowerControlPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {

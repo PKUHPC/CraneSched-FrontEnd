@@ -520,7 +520,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
 			nodeListString := util.ConvertSliceToString(reply.ModifiedNodes, ", ")
-			fmt.Printf("Nodes %s modified successfully.\n", nodeListString)
+			fmt.Printf("Nodes %s modified successfully, please wait for a few minutes for the node state to fully update.\n", nodeListString)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {

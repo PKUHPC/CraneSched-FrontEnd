@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -40,57 +39,65 @@ func (c *PowerManager) sleepNodes(nodeIDs []string) error {
 	return nil
 }
 
-func (c *PowerManager) powerOnNodes(nodeIDs []string) error {
-	for _, nodeID := range nodeIDs {
-		err := c.powerOnNode(nodeID)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
+func (c *PowerManager) processBatchNodes(nodes []string, operation string, nodeFunc func(string) error,
+	maxNodesPerBatch int, batchIntervalSeconds int) error {
 
-func (c *PowerManager) powerOffNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
-	if allowedNodes == nil || len(allowedNodes) == 0 {
+	if len(nodes) == 0 {
 		return nil
 	}
 
-	maxNodesPerPowerOff := c.config.IPMI.PowerOffMaxNodesPerBatch
-	powerOffBatchInterval := time.Duration(c.config.IPMI.PowerOffBatchIntervalSeconds) * time.Second
-
-	var wg sync.WaitGroup
-	wg.Add(1)
+	batchInterval := time.Duration(batchIntervalSeconds) * time.Second
 
 	go func() {
-		defer wg.Done()
-
-		for i := 0; i < len(allowedNodes); i += maxNodesPerPowerOff {
-			end := i + maxNodesPerPowerOff
-			if end > len(allowedNodes) {
-				end = len(allowedNodes)
+		for i := 0; i < len(nodes); i += maxNodesPerBatch {
+			end := i + maxNodesPerBatch
+			if end > len(nodes) {
+				end = len(nodes)
 			}
 
-			currentBatch := allowedNodes[i:end]
-			log.Infof("Processing power off batch %d-%d of %d nodes", i, end-1, len(allowedNodes))
+			currentBatch := nodes[i:end]
+			log.Infof("Processing %s batch %d-%d of %d nodes", operation, i, end-1, len(nodes))
 
 			for _, nodeID := range currentBatch {
-				if err := c.powerOffNode(nodeID); err != nil {
-					log.Errorf("Failed to power off node %s: %v", nodeID, err)
+				if err := nodeFunc(nodeID); err != nil {
+					log.Errorf("Failed to %s node %s: %v", operation, nodeID, err)
 				} else {
-					log.Infof("Successfully powered off node %s", nodeID)
+					log.Infof("Successfully %s node %s", operation, nodeID)
 				}
 			}
 
-			if end < len(allowedNodes) {
-				log.Infof("Waiting %d seconds before processing next power off batch...",
-					c.config.IPMI.PowerOffBatchIntervalSeconds)
-				time.Sleep(powerOffBatchInterval)
+			if end < len(nodes) {
+				log.Infof("Waiting %d seconds before processing next %s batch...",
+					batchIntervalSeconds, operation)
+				time.Sleep(batchInterval)
 			}
 		}
 	}()
 
 	return nil
+}
+
+func (c *PowerManager) powerOnNodes(nodeIDs []string) error {
+	allowedNodes := c.filterExcludedNodes(nodeIDs)
+
+	maxNodesPerBatch := c.config.IPMI.MaxNodesPerBatch
+	batchIntervalSeconds := c.config.IPMI.BatchIntervalSeconds
+	if batchIntervalSeconds > 10 {
+		batchIntervalSeconds = 10
+	}
+
+	return c.processBatchNodes(allowedNodes, "power on", c.powerOnNode,
+		maxNodesPerBatch, batchIntervalSeconds)
+}
+
+func (c *PowerManager) powerOffNodes(nodeIDs []string) error {
+	allowedNodes := c.filterExcludedNodes(nodeIDs)
+
+	maxNodesPerBatch := c.config.IPMI.MaxNodesPerBatch
+	batchIntervalSeconds := c.config.IPMI.BatchIntervalSeconds
+
+	return c.processBatchNodes(allowedNodes, "power off", c.powerOffNode,
+		maxNodesPerBatch, batchIntervalSeconds)
 }
 
 func (c *PowerManager) wakeUpNode(nodeID string) error {
@@ -178,6 +185,7 @@ func (c *PowerManager) powerOffNode(nodeID string) error {
 
 	err := c.powerTool.PowerOff(nodeID)
 	if err != nil {
+		log.Errorf("Failed to power off node %s: %v", nodeID, err)
 		c.updateNodeState(nodeID, oldState)
 		return err
 	}

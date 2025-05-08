@@ -40,12 +40,12 @@ type Config struct {
 	} `yaml:"InfluxDB"`
 
 	IPMI struct {
-		User                         string            `yaml:"User"`
-		Password                     string            `yaml:"Password"`
-		PowerOffMaxNodesPerBatch     int               `yaml:"PowerOffMaxNodesPerBatch"`
-		PowerOffBatchIntervalSeconds int               `yaml:"PowerOffBatchIntervalSeconds"`
-		ExcludeNodes                 []string          `yaml:"ExcludeNodes"`
-		NodeBMCMapping               map[string]string `yaml:"NodeBMCMapping"`
+		User                 string            `yaml:"User"`
+		Password             string            `yaml:"Password"`
+		MaxNodesPerBatch     int               `yaml:"MaxNodesPerBatch"`
+		BatchIntervalSeconds int               `yaml:"BatchIntervalSeconds"`
+		ExcludeNodes         []string          `yaml:"ExcludeNodes"`
+		NodeBMCMapping       map[string]string `yaml:"NodeBMCMapping"`
 	} `yaml:"IPMI"`
 
 	SSH struct {
@@ -183,11 +183,11 @@ func validateConfig(config *Config) error {
 	if config.IPMI.Password == "" {
 		return fmt.Errorf("IPMI.Password cannot be empty")
 	}
-	if config.IPMI.PowerOffMaxNodesPerBatch <= 0 {
-		return fmt.Errorf("IPMI.PowerOffMaxNodesPerBatch must be positive")
+	if config.IPMI.MaxNodesPerBatch <= 0 {
+		return fmt.Errorf("IPMI.MaxNodesPerBatch must be positive")
 	}
-	if config.IPMI.PowerOffBatchIntervalSeconds <= 0 {
-		return fmt.Errorf("IPMI.PowerOffBatchIntervalSeconds must be positive")
+	if config.IPMI.BatchIntervalSeconds <= 0 {
+		return fmt.Errorf("IPMI.BatchIntervalSeconds must be positive")
 	}
 	if len(config.IPMI.NodeBMCMapping) == 0 {
 		return fmt.Errorf("IPMI.NodeBMCMapping cannot be empty")

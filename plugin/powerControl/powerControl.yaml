@@ -28,8 +28,8 @@ InfluxDB:
 IPMI:
   User: "YOUR_IPMI_USER"                       
   Password: "YOUR_IPMI_PASSWORD"
-  PowerOffMaxNodesPerBatch: 10       
-  PowerOffBatchIntervalSeconds: 60    
+  MaxNodesPerBatch: 10       
+  BatchIntervalSeconds: 60    
   NodeBMCMapping:                 
     craned1: "10.129.227.172"
     craned2: "10.129.227.189"

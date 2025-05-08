@@ -45,7 +45,7 @@ def load_config():
             
         logging.basicConfig(
             filename=config["Predictor"]["PredictorLogFile"],
-            level=logging.INFO,
+            level=logging.DEBUG,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         
