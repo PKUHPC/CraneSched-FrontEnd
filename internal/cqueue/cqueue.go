@@ -475,8 +475,8 @@ var fieldMap = map[string]FieldProcessor{
 	"N":       {"NodeNum", ProcessNodeNum},
 	"nodenum": {"NodeNum", ProcessNodeNum},
 
-	"o":        {"Command", ProcessCommand},
-	"command":  {"Command", ProcessCommand},
+	"o":       {"Command", ProcessCommand},
+	"command": {"Command", ProcessCommand},
 	// 'p' group
 	"p":         {"Priority", ProcessPriority},
 	"priority":  {"Priority", ProcessPriority},
