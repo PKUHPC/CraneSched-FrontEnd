@@ -303,7 +303,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 
 	SubmitHostname, err := os.Hostname()
 	if err != nil {
-		log.Errorf("SubmitHostname Invalid argument: %v", err)
+		log.Errorf("Invalid argument: %v", err)
 		return false, nil
 	}
 	task.SubmitHostname = SubmitHostname
