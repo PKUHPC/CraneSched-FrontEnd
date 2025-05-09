@@ -937,7 +937,6 @@ func ConvertSliceToString[T any](slice []T, sep string) string {
 	return strings.Join(str, sep)
 }
 
-
 func ExtractExecNameFromArgs(args []string) string {
     for _, arg := range args {
         name := path.Base(arg)

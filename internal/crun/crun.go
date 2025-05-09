@@ -829,7 +829,6 @@ func MainCrun(args []string) util.CraneCmdError {
 	task.NodeNum = FlagNodes
 	task.CpusPerTask = FlagCpuPerTask
 	task.NtasksPerNode = FlagNtasksPerNode
-	task.Name = util.ExtractExecNameFromArgs(args)
 
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
