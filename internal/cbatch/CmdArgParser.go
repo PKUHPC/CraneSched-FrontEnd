@@ -62,6 +62,7 @@ var (
 	FlagJson           bool
 
 	FlagReservation string
+	FlagSignal      string
 
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
@@ -165,4 +166,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "send signal when time limit within time seconds, eg: num[@time]")
 }
