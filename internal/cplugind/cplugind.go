@@ -20,6 +20,8 @@ package cplugind
 
 import (
 	"CraneFrontEnd/internal/util"
+	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,26 +40,32 @@ var RootCmd = &cobra.Command{
 	Short:   "cplugind is a plugin daemon for CraneSched",
 	Args:    cobra.ExactArgs(0),
 	Version: util.Version(),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Check proxy
 		util.DetectNetworkProxy()
 
 		// Parse config
 		config := util.ParseConfig(FlagCraneConfig)
 		if config == nil {
-			log.Errorf("Failed to parse CraneSched config")
-			os.Exit(util.ErrorCmdArg)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Failed to parse CraneSched config",
+			}
 		}
 
 		// Parse plugin part in the config
 		if err := ParsePluginConfig(config.CraneBaseDir, FlagCraneConfig); err != nil {
-			log.Errorf("Failed to parse the plugin part in config: %v", err)
-			os.Exit(util.ErrorCmdArg)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Failed to parse the plugin part in config: %s", err),
+			}
 		}
 
 		if !gPluginConfig.Enabled {
-			log.Errorf("Plugind is disabled in config.")
-			os.Exit(util.ErrorCmdArg)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Plugind is disabled in config.",
+			}
 		}
 
 		// Set log level
@@ -70,16 +78,20 @@ var RootCmd = &cobra.Command{
 		// Load plugins
 		log.Info("Loading plugins...")
 		if err := LoadPluginsByConfig(gPluginConfig.Plugins); err != nil {
-			log.Errorf("Failed to load plugins: %v", err)
-			os.Exit(util.ErrorCmdArg)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Failed to load plugins: %s", err),
+			}
 		}
 
 		// Init plugins
 		log.Info("Initializing plugins...")
 		for _, p := range gPluginMap {
 			if err := (*p).Load(p.Meta); err != nil {
-				log.Errorf("Failed to init plugin: %v", err)
-				os.Exit(util.ErrorGeneric)
+				return &util.CraneError{
+					Code:    util.ErrorGeneric,
+					Message: fmt.Sprintf("Failed to init plugin: %s", err),
+				}
 			}
 		}
 
@@ -89,14 +101,18 @@ var RootCmd = &cobra.Command{
 		// Start server on UNIX socket
 		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath, 0600)
 		if err != nil {
-			log.Errorf("Failed to get UNIX socket: %v", err)
-			os.Exit(util.ErrorGeneric)
+			return &util.CraneError{
+				Code:    util.ErrorGeneric,
+				Message: fmt.Sprintf("Failed to get UNIX socket: %s", err),
+			}
 		}
 
 		log.Infof("gRPC server listening on %s.", gPluginConfig.SockPath)
 		if err := pd.Launch(unixSocket); err != nil {
-			log.Errorf("Failed to launch plugin daemon: %v", err)
-			os.Exit(util.ErrorGeneric)
+			return &util.CraneError{
+				Code:    util.ErrorGeneric,
+				Message: fmt.Sprintf("Failed to launch plugin daemon: %s", err),
+			}
 		}
 
 		// Signal handling
@@ -116,9 +132,12 @@ var RootCmd = &cobra.Command{
 
 		// After stopping gRPC server, unload plugins
 		if err := UnloadPlugins(); err != nil {
-			log.Errorf("Failed to unload plugins: %v", err)
-			os.Exit(util.ErrorGeneric)
+			return &util.CraneError{
+				Code:    util.ErrorGeneric,
+				Message: fmt.Sprintf("Failed to unload plugins: %s", err),
+			}
 		}
+		return nil
 	},
 }
 
@@ -129,7 +148,15 @@ func init() {
 }
 
 func ParseCmdArgs() {
+	util.RunEWrapperForLeafCommand(RootCmd)
+
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
+		var craneErr *util.CraneError
+		if errors.As(err, &craneErr) {
+			os.Exit(craneErr.Code)
+		} else {
+			os.Exit(util.ErrorGeneric)
+		}
 	}
+	os.Exit(util.ErrorSuccess)
 }
