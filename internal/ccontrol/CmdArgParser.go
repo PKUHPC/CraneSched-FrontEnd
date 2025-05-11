@@ -20,7 +20,6 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -282,8 +281,6 @@ func executeHoldCommand(command *CControlCommand) int {
 		log.Debug("no time limit specified")
 		return util.ErrorCmdArg
 	}
-
-	FlagHoldTime = timeLimit
 
 	if jobIds == "" {
 		log.Debug("no job id specified")
