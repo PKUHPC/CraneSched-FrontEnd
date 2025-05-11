@@ -179,9 +179,11 @@ func processGlobalFlags(command *CControlCommand) {
 	}
 
 	configFilePath, hasConfig := command.GetGlobalFlag("config")
-	_, hasC := command.GetGlobalFlag("C")
-	if hasConfig || hasC {
+	configFilePathShort, hasC := command.GetGlobalFlag("C")
+	if hasConfig {
 		FlagConfigFilePath = configFilePath
+	} else if hasC {
+		FlagConfigFilePath = configFilePathShort
 	}
 
 	_, hasHelp := command.GetGlobalFlag("help")
