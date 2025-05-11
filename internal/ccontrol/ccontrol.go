@@ -137,6 +137,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			fmt.Println("No node is available.")
 		} else {
 			fmt.Printf("Node %s not found.\n", nodeName)
+			return util.ErrorBackend
 		}
 	} else {
 		for _, nodeInfo := range reply.CranedInfoList {
@@ -214,20 +215,22 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 		return util.ErrorSuccess
 	}
 
-	if len(reply.PartitionInfo) == 0 {
+	if len(reply.PartitionInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No partition is available.")
 		} else {
 			fmt.Printf("Partition %s not found.\n", partitionName)
+			return util.ErrorBackend
 		}
 	} else {
-		for _, partitionInfo := range reply.PartitionInfo {
+		for _, partitionInfo := range reply.PartitionInfoList {
 			fmt.Printf("PartitionName=%v State=%v\n"+
 				"\tAllowedAccounts=%s DeniedAccounts=%s\n"+
 				"\tTotalNodes=%d AliveNodes=%d\n"+
 				"\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n"+
 				"\tTotalMem=%s AvailMem=%s AllocMem=%s\n"+
 				"\tTotalGres=%s AvailGres=%s AllocGres=%s\n"+
+				"\tDefaultMemPerCPU=%s MaxMemPerCPU=%s\n"+
 				"\tHostList=%v\n\n",
 				partitionInfo.Name, partitionInfo.State.String()[10:],
 				formatAllowedAccounts(partitionInfo.AllowedAccounts),
@@ -242,7 +245,68 @@ func ShowPartitions(partitionName string, queryAll bool) util.CraneCmdError {
 				formatDeviceMap(partitionInfo.ResTotal.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAvail.GetDeviceMap()),
 				formatDeviceMap(partitionInfo.ResAlloc.GetDeviceMap()),
+				formatMemToMB(partitionInfo.DefaultMemPerCpu),
+				formatMemToMB(partitionInfo.MaxMemPerCpu),
 				partitionInfo.Hostlist)
+		}
+	}
+	return util.ErrorSuccess
+}
+
+func ShowReservations(reservationName string, queryAll bool) util.CraneCmdError {
+	req := &protos.QueryReservationInfoRequest{
+		Uid:             uint32(os.Getuid()),
+		ReservationName: reservationName,
+	}
+	reply, err := stub.QueryReservationInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show reservations")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return util.ErrorSuccess
+	}
+
+	if !reply.GetOk() {
+		log.Errorf("Failed to retrive the information of reservation %s: %s", reservationName, reply.GetReason())
+		return util.ErrorBackend
+	}
+
+	if len(reply.ReservationInfoList) == 0 {
+		if queryAll {
+			fmt.Println("No reservation is available.")
+		} else {
+			fmt.Printf("Reservation %s not found.\n", reservationName)
+			return util.ErrorBackend
+		}
+	} else {
+		for _, reservationInfo := range reply.ReservationInfoList {
+			str := fmt.Sprintf("ReservationName=%v StartTime=%v Duration=%v\n", reservationInfo.ReservationName, reservationInfo.StartTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"), reservationInfo.Duration.AsDuration().String())
+			if reservationInfo.Partition != "" && reservationInfo.CranedRegex != "" {
+				str += fmt.Sprintf("Partition=%v CranedRegex=%v\n", reservationInfo.Partition, reservationInfo.CranedRegex)
+			} else if reservationInfo.Partition != "" {
+				str += fmt.Sprintf("Partition=%v\n", reservationInfo.Partition)
+			} else if reservationInfo.CranedRegex != "" {
+				str += fmt.Sprintf("CranedRegex=%v\n", reservationInfo.CranedRegex)
+			}
+			if len(reservationInfo.AllowedAccounts) > 0 {
+				str += fmt.Sprintf("AllowedAccounts=%s\n", strings.Join(reservationInfo.AllowedAccounts, ","))
+			}
+			if len(reservationInfo.DeniedAccounts) > 0 {
+				str += fmt.Sprintf("DeniedAccounts=%s\n", strings.Join(reservationInfo.DeniedAccounts, ","))
+			}
+			if len(reservationInfo.AllowedUsers) > 0 {
+				str += fmt.Sprintf("AllowedUsers=%s\n", strings.Join(reservationInfo.AllowedUsers, ","))
+			}
+			if len(reservationInfo.DeniedUsers) > 0 {
+				str += fmt.Sprintf("DeniedUsers=%s\n", strings.Join(reservationInfo.DeniedUsers, ","))
+			}
+			str += fmt.Sprintf("TotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n", math.Abs(reservationInfo.ResTotal.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAvail.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAlloc.AllocatableRes.CpuCoreLimit))
+			str += fmt.Sprintf("TotalMem=%s AvailMem=%s AllocMem=%s\n", formatMemToMB(reservationInfo.ResTotal.AllocatableRes.MemoryLimitBytes), formatMemToMB(reservationInfo.ResAvail.AllocatableRes.MemoryLimitBytes), formatMemToMB(reservationInfo.ResAlloc.AllocatableRes.MemoryLimitBytes))
+			str += fmt.Sprintf("TotalGres=%s AvailGres=%s AllocGres=%s\n", formatDeviceMap(reservationInfo.ResTotal.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAvail.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAlloc.GetDeviceMap()))
+			fmt.Println(str)
 		}
 	}
 	return util.ErrorSuccess
@@ -694,5 +758,109 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) u
 	}
 
 	fmt.Printf("Modify partition %s succeeded.\n", partition)
+	return util.ErrorSuccess
+}
+
+func CreateReservation() util.CraneCmdError {
+	start_time, err := util.ParseTime(FlagStartTime)
+	if err != nil {
+		log.Errorln(err)
+		return util.ErrorCmdArg
+	}
+	duration, err := util.ParseDurationStrToSeconds(FlagDuration)
+	if err != nil || duration <= 0 {
+		log.Errorln("Invalid duration specified.")
+		return util.ErrorCmdArg
+	}
+
+	req := &protos.CreateReservationRequest{
+		Uid:                  uint32(os.Getuid()),
+		ReservationName:      FlagReservationName,
+		StartTimeUnixSeconds: start_time.Unix(),
+		DurationSeconds:      duration,
+	}
+
+	if FlagNodes != "" {
+		req.CranedRegex = FlagNodes
+	}
+
+	if FlagPartitionName != "" {
+		req.Partition = FlagPartitionName
+	}
+
+	if FlagAccount != "" {
+		req.AllowedAccounts, req.DeniedAccounts, err = util.ParsePosNegList(FlagAccount)
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
+		if len(req.AllowedAccounts) > 0 && len(req.DeniedAccounts) > 0 {
+			log.Errorln("You can only specify either allowed or disallowed accounts.")
+			return util.ErrorCmdArg
+		}
+	}
+
+	if FlagUser != "" {
+		req.AllowedUsers, req.DeniedUsers, err = util.ParsePosNegList(FlagUser)
+		if err != nil {
+			log.Errorln(err)
+			return util.ErrorCmdArg
+		}
+		if len(req.AllowedUsers) > 0 && len(req.DeniedUsers) > 0 {
+			log.Errorln("You can only specify either allowed or disallowed users.")
+			return util.ErrorCmdArg
+		}
+	}
+
+	reply, err := stub.CreateReservation(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to create reservation")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Reservation %s created successfully.\n", FlagReservationName)
+	} else {
+		log.Errorf("Failed to create reservation: %s.\n", reply.GetReason())
+		return util.ErrorBackend
+	}
+	return util.ErrorSuccess
+}
+
+func DeleteReservation(ReservationName string) util.CraneCmdError {
+	req := &protos.DeleteReservationRequest{
+		Uid:             uint32(os.Getuid()),
+		ReservationName: ReservationName,
+	}
+	reply, err := stub.DeleteReservation(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to delete reservation")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
+	} else {
+		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
+		return util.ErrorBackend
+	}
 	return util.ErrorSuccess
 }
