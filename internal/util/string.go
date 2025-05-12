@@ -1011,10 +1011,10 @@ func ParseSignalParamString(input string) (signalNumber int32, secondsBeforeKill
 		} else {
 			sec, errConv := strconv.Atoi(secondsPart)
 			if errConv != nil {
-				return 0, 0, fmt.Errorf("invalid seconds-before-kill '%s' in input '%s'", secondsPart, input)
+				return 0, 0, fmt.Errorf("invalid signal seconds '%s' in input '%s'", secondsPart, input)
 			}
 			if sec < 0 {
-				return 0, 0, fmt.Errorf("seconds-before-kill cannot be negative: '%s' in input '%s'", secondsPart, input)
+				return 0, 0, fmt.Errorf("signal seconds cannot be negative: '%s' in input '%s'", secondsPart, input)
 			}
 			secondsBeforeKill = uint32(sec)
 		}
