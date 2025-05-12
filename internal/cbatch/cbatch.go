@@ -51,7 +51,11 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
-		BatchMeta: &protos.BatchTaskAdditionalMeta{},
+		BatchMeta: &protos.BatchTaskAdditionalMeta{
+			SignalParam: &protos.SignalParam{
+				Valid: false,
+			},
+		},
 	}
 
 	task.CpusPerTask = 1
@@ -155,6 +159,16 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			}
 		case "-r", "--reservation":
 			task.Reservation = arg.val
+		case "-s", "--signal":
+			sig, sec, err := util.ParseSignalParamString(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.val, err)
+				return false, nil
+			}
+			batchMetaPayload := task.Payload.(*protos.TaskToCtld_BatchMeta)
+			batchMetaPayload.BatchMeta.SignalParam.Valid = true
+			batchMetaPayload.BatchMeta.SignalParam.SignalNumber = sig
+			batchMetaPayload.BatchMeta.SignalParam.SecondsBeforeKill = sec
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -257,7 +271,17 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			return false, nil
 		}
 	}
-
+	if FlagSignal != "" {
+		sig, sec, err := util.ParseSignalParamString(FlagSignal)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid signal parameter: %v", err)
+			return false, nil
+		}
+		batchMetaPayload := task.Payload.(*protos.TaskToCtld_BatchMeta)
+		batchMetaPayload.BatchMeta.SignalParam.Valid = true
+		batchMetaPayload.BatchMeta.SignalParam.SignalNumber = sig
+		batchMetaPayload.BatchMeta.SignalParam.SecondsBeforeKill = sec
+	}
 	// Set and check the extra attributes
 	var extraFromCli string
 	if err := structExtraFromCli.Marshal(&extraFromCli); err != nil {
