@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -39,6 +40,22 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
+
+var SignalMap = map[string]int32{
+	"HUP":  int32(syscall.SIGHUP),
+	"INT":  int32(syscall.SIGINT),
+	"QUIT": int32(syscall.SIGQUIT),
+	"ILL":  int32(syscall.SIGILL),
+	"ABRT": int32(syscall.SIGABRT),
+	"FPE":  int32(syscall.SIGFPE),
+	"KILL": int32(syscall.SIGKILL),
+	"SEGV": int32(syscall.SIGSEGV),
+	"PIPE": int32(syscall.SIGPIPE),
+	"ALRM": int32(syscall.SIGALRM),
+	"TERM": int32(syscall.SIGTERM),
+	"USR1": int32(syscall.SIGUSR1),
+	"USR2": int32(syscall.SIGUSR2),
+}
 
 // TODO: Refactor this to return ErrCodes instead of exiting.
 func ParseConfig(configFilePath string) *Config {
@@ -954,4 +971,56 @@ func FormatMemToMB(data uint64) string {
 	} else {
 		return fmt.Sprintf("%vM", data/B2MBRatio)
 	}
+}
+
+func ParseSignalParamString(input string) (signalNumber int32, secondsBeforeKill uint32, err error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return 0, 0, fmt.Errorf("signal cannot be empty")
+	}
+	signalPart, secondsPart, hasAtSign := strings.Cut(input, "@")
+
+	signalPart = strings.TrimSpace(signalPart)
+	if signalPart == "" {
+		return 0, 0, fmt.Errorf("signal name is empty")
+	}
+
+	normalizedSignal := strings.ToUpper(strings.TrimPrefix(signalPart, "SIG"))
+
+	if sig_num, ok := SignalMap[normalizedSignal]; ok {
+		signalNumber = sig_num
+	} else if sig_num, errConv := strconv.Atoi(normalizedSignal); errConv == nil {
+		found := false
+		for _, val := range SignalMap {
+			if val == int32(sig_num) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return 0, 0, fmt.Errorf("invalid signal number: '%d' is not supported", sig_num)
+		}
+		signalNumber = int32(sig_num)
+	} else {
+		return 0, 0, fmt.Errorf("invalid signal: '%s'", signalPart)
+	}
+	if hasAtSign {
+		secondsPart = strings.TrimSpace(secondsPart)
+		if secondsPart == "" {
+			secondsBeforeKill = 60 //default val
+		} else {
+			sec, errConv := strconv.Atoi(secondsPart)
+			if errConv != nil {
+				return 0, 0, fmt.Errorf("invalid seconds-before-kill '%s' in input '%s'", secondsPart, input)
+			}
+			if sec < 0 {
+				return 0, 0, fmt.Errorf("seconds-before-kill cannot be negative: '%s' in input '%s'", secondsPart, input)
+			}
+			secondsBeforeKill = uint32(sec)
+		}
+	} else {
+		secondsBeforeKill = 60 //default val
+	}
+
+	return signalNumber, secondsBeforeKill, nil
 }

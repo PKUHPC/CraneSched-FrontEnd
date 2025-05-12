@@ -27,8 +27,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
-	"syscall"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -38,22 +36,6 @@ import (
 type CbatchArg struct {
 	name string
 	val  string
-}
-
-var SignalMap = map[string]int32{
-	"HUP":  int32(syscall.SIGHUP),
-	"INT":  int32(syscall.SIGINT),
-	"QUIT": int32(syscall.SIGQUIT),
-	"ILL":  int32(syscall.SIGILL),
-	"ABRT": int32(syscall.SIGABRT),
-	"FPE":  int32(syscall.SIGFPE),
-	"KILL": int32(syscall.SIGKILL),
-	"SEGV": int32(syscall.SIGSEGV),
-	"PIPE": int32(syscall.SIGPIPE),
-	"ALRM": int32(syscall.SIGALRM),
-	"TERM": int32(syscall.SIGTERM),
-	"USR1": int32(syscall.SIGUSR1),
-	"USR2": int32(syscall.SIGUSR2),
 }
 
 // ProcessCbatchArgs Merge and validate arguments from the file and the command line,
@@ -185,9 +167,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			}
 			task.Exclusive = val
 		case "-s", "--signal":
-			sig, sec, err := ParseSignalParamString(arg.val)
+			sig, sec, err := util.ParseSignalParamString(arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", FlagSignal, err)
+				log.Errorf("Invalid argument: %v in script: %v", arg.val, err)
 				return false, nil
 			}
 			batchMetaPayload := task.Payload.(*protos.TaskToCtld_BatchMeta)
@@ -304,7 +286,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	if FlagSignal != "" {
-		sig, sec, err := ParseSignalParamString(FlagSignal)
+		sig, sec, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
 			log.Errorf("Invalid argument: invalid signal parameter: %v", err)
 			return false, nil
@@ -454,56 +436,4 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) util.CraneC
 	}
 
 	return util.ErrorSuccess
-}
-
-func ParseSignalParamString(input string) (signalNumber int32, secondsBeforeKill uint32, err error) {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return 0, 0, fmt.Errorf("signal cannot be empty")
-	}
-	signalPart, secondsPart, hasAtSign := strings.Cut(input, "@")
-
-	signalPart = strings.TrimSpace(signalPart)
-	if signalPart == "" {
-		return 0, 0, fmt.Errorf("signal name is empty")
-	}
-
-	normalizedSignal := strings.ToUpper(strings.TrimPrefix(signalPart, "SIG"))
-
-	if sig_num, ok := SignalMap[normalizedSignal]; ok {
-		signalNumber = sig_num
-	} else if sig_num, errConv := strconv.Atoi(normalizedSignal); errConv == nil {
-		found := false
-		for _, val := range SignalMap {
-			if val == int32(sig_num) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return 0, 0, fmt.Errorf("invalid signal number: '%d' is not supported", sig_num)
-		}
-		signalNumber = int32(sig_num)
-	} else {
-		return 0, 0, fmt.Errorf("invalid signal: '%s'", signalPart)
-	}
-	if hasAtSign {
-		secondsPart = strings.TrimSpace(secondsPart)
-		if secondsPart == "" {
-			secondsBeforeKill = 60 //default val
-		} else {
-			sec, errConv := strconv.Atoi(secondsPart)
-			if errConv != nil {
-				return 0, 0, fmt.Errorf("invalid seconds-before-kill '%s' in input '%s'", secondsPart, input)
-			}
-			if sec < 0 {
-				return 0, 0, fmt.Errorf("seconds-before-kill cannot be negative: '%s' in input '%s'", secondsPart, input)
-			}
-			secondsBeforeKill = uint32(sec)
-		}
-	} else {
-		secondsBeforeKill = 60 //default val
-	}
-
-	return signalNumber, secondsBeforeKill, nil
 }
