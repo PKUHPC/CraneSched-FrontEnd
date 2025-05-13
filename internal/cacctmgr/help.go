@@ -1,0 +1,118 @@
+/**
+ * Copyright (c) 2024 Peking University and Peking University
+ * Changsha Institute for Computing and Digital Economy
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+ package cacctmgr
+
+ import (
+	 "CraneFrontEnd/internal/util"
+	 "fmt"
+ )
+ 
+ func showHelp() {
+	 help := `Crane Account Manager (cacctmgr) - version ` + util.Version() + `
+  
+  USAGE: cacctmgr <ACTION> <RESOURCE> [OPTIONS]
+  
+  ACTIONS:
+	add       - Create a new account, user, or QoS
+	delete    - Remove an account, user, or QoS
+	block     - Block an account or user
+	unblock   - Unblock an account or user
+	modify    - Change attributes of an account, user, or QoS
+	show      - Display basic information
+	find      - Search for specific resources
+  
+  RESOURCES:
+	account   - User account in the system
+	user      - Individual user
+	qos       - Quality of Service settings
+  
+  COMMANDS:
+	add account name=<name> [description=<desc>] [parent=<parent>] [default-qos=<qos>] 
+				[partition=<part1,part2,...>] [qos-list=<qos1,qos2,...>]
+	  Create a new account with the specified attributes.
+  
+	delete account name=<name>
+	  Remove an account from the system.
+  
+	block account name=<name> [account=<account>]
+	  Block an account, preventing job submissions.
+  
+	unblock account name=<name> [account=<account>]
+	  Unblock a previously blocked account.
+  
+	modify account name=<name> [default-qos=<qos>] [force=true|false]
+				[add-allowed-qos=<qos1,qos2,...>] [delete-allowed-qos=<qos1,qos2,...>]
+				[set-allowed-qos=<qos1,qos2,...>] [add-allowed-partition=<part1,part2,...>]
+				[delete-allowed-partition=<part1,part2,...>] [set-allowed-partition=<part1,part2,...>]
+	  Modify attributes of an existing account.
+  
+	show account
+	  Display information about all accounts.
+  
+	find account account=<name>
+	  Show detailed information about a specific account.
+  
+	add user name=<name> account=<account> [coordinator=true|false] [level=<level>] 
+			[partition=<part1,part2,...>]
+	  Create a new user associated with an account.
+  
+	delete user name=<name> [account=<account>]
+	  Remove a user from the system or from a specific account.
+  
+	block user name=<name> [account=<account>]
+	  Block a user, preventing job submissions.
+  
+	unblock user name=<name> [account=<account>]
+	  Unblock a previously blocked user.
+  
+	modify user name=<name> [account=<account>] [partition=<partition>]
+				[add-allowed-qos=<qos1,qos2,...>] [delete-allowed-qos=<qos1,qos2,...>]
+				[set-allowed-qos=<qos1,qos2,...>] [add-allowed-partition=<part1,part2,...>]
+				[delete-allowed-partition=<part1,part2,...>] [set-allowed-partition=<part1,part2,...>]
+	  Modify attributes of an existing user.
+  
+	show user [accounts=<account>]
+	  Display information about users, optionally filtered by account.
+  
+	find user user=<name> [account=<account>]
+	  Show detailed information about a specific user.
+  
+	add qos name=<name> [description=<desc>] [priority=<priority>] 
+			[max-jobs-per-user=<num>] [max-cpus-per-user=<num>] [max-time-limit-per-task=<seconds>]
+	  Create a new QoS with the specified attributes.
+  
+	delete qos name=<name>
+	  Remove a QoS from the system.
+  
+	modify qos name=<name> [max-cpu=<num>] [max-job=<num>] [max-time-limit=<seconds>] [priority=<priority>]
+	  Modify attributes of an existing QoS.
+  
+	find qos qos=<name>
+	  Show detailed information about a specific QoS.
+  
+  GLOBAL OPTIONS:
+	--help, -h     Display this help message
+	--config       Specify an alternative configuration file (default: /etc/crane/config.yaml)
+	--json         Format output as JSON
+	
+  NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.
+  `
+	 fmt.Println(help)
+ }
+ 
