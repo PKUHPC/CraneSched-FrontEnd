@@ -81,7 +81,46 @@
 	 FlagPriority            string
  )
  
+ func resetFlags() {
+	 FlagAccount = protos.AccountInfo{}
+	 FlagUser = protos.UserInfo{}
+	 FlagQos = protos.QosInfo{}
+	 FlagPartition = ""
+	 FlagSetPartition = ""
+	 FlagLevel = ""
+	 FlagSetLevel = ""
+	 FlagSetDefaultAccount = ""
+	 FlagUserCoordinator = false
+	 FlagUserDefaultQos = ""
+	 FlagUserPartitions = []string{}
+	 FlagUserQosList = []string{}
+	 FlagForce = false
+	 FlagFull = false
+	 FlagJson = false
+	 FlagConfigFilePath = util.DefaultConfigPath
+	 FlagNoHeader = false
+	 FlagFormat = ""
+	 FlagNodeList = ""
+	 FlagNumLimit = 0
+	 FlagResourceName = ""
+	 FlagResourceAccount = ""
+	 FlagDefaultQos = ""
+	 FlagAllowedQosList = ""
+	 FlagAllowedPartitions = ""
+	 FlagDeleteQosList = ""
+	 FlagDeletePartitionList = ""
+	 FlagSetQosList = ""
+	 FlagSetPartitionList = ""
+	 FlagPartitions = ""
+	 FlagQosList = ""
+	 FlagMaxCpu = ""
+	 FlagMaxJob = ""
+	 FlagMaxTimeLimit = ""
+	 FlagPriority = ""
+ }
+ 
  func ParseCmdArgs(args []string) {
+	 resetFlags()
 	 cmdStr := strings.Join(args[1:], " ")
 	 command, err := ParseCAcctMgrCommand(cmdStr)
 	 if err != nil {
@@ -179,7 +218,7 @@
 	 for key, value := range KVParams {
 		 switch key {
 		 case "account":
-			 FlagUser.Name = value
+			 FlagUser.Account = value
 		 case "coordinator":
 			 FlagUserCoordinator = value == "true"
 		 case "level":
@@ -326,6 +365,9 @@
 			 FlagResourceName = value
 		 case "account":
 			 FlagResourceAccount = value
+		default:
+			log.Debugf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		 }
 	 }
  
@@ -372,6 +414,9 @@
 			 FlagResourceName = value
 		 case "account":
 			 FlagResourceAccount = value
+		 default:
+			log.Debugf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		 }
 	 }
  
@@ -417,6 +462,9 @@
 			 FlagDeletePartitionList = value
 		 case "set-allowed-partition":
 			 FlagSetPartitionList = value
+		 default:
+			log.Debugf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		 }
 	 }
  
@@ -488,6 +536,9 @@
 			 FlagDeletePartitionList = value
 		 case "set-allowed-partition":
 			 FlagSetPartitionList = value
+		 default:
+			log.Debugf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		 }
 	 }
  
@@ -598,8 +649,9 @@
  
  func executeShowUserCommand(command *CAcctMgrCommand) int {
 	 KVParamsValue := command.GetKVParamValue("accounts")
- 
-	 return ShowUser(KVParamsValue, "")
+	 account := command.GetKVParamValue("account")
+
+	 return ShowUser(KVParamsValue, account)
  }
  
  func executeFindCommand(command *CAcctMgrCommand) int {
