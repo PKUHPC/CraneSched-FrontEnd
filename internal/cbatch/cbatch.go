@@ -147,6 +147,12 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			}
 			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		case "--mem-per-cpu":
+			memInBytePerCpu, err := util.ParseMemStringAsByte(arg.val)
+			if err != nil {
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.MemPerCpu = &memInBytePerCpu
 		case "-p", "--partition":
 			task.PartitionName = arg.val
 		case "-J", "--job-name":
@@ -274,7 +280,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 	}
-
+	if FlagMemPerCpu != "" {
+		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: invalid --mem-per-cpu value '%s': %w", FlagMemPerCpu, err)
+		}
+		task.MemPerCpu = &memInBytePerCpu
+	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
 	}
