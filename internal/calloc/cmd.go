@@ -41,6 +41,7 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagExclusive     bool
+	FlagMemPerCpu     string
 
 	FlagExtraAttr string
 	FlagMailType  string
@@ -103,4 +104,6 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
+	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
+	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 }
