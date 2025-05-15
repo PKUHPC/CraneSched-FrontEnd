@@ -16,15 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
- package cacctmgr
+package cacctmgr
 
- import (
-	 "CraneFrontEnd/internal/util"
-	 "fmt"
- )
- 
- func showHelp() {
-	 help := `Crane Account Manager (cacctmgr) - version ` + util.Version() + `
+import (
+	"CraneFrontEnd/internal/util"
+	"fmt"
+)
+
+func showHelp() {
+	help := `Crane Account Manager (cacctmgr) - version ` + util.Version() + `
   
   USAGE: cacctmgr <ACTION> <RESOURCE> [OPTIONS]
   
@@ -56,10 +56,10 @@
 	unblock account name=<name> [account=<account>]
 	  Unblock a previously blocked account.
   
-	modify account name=<name> [default-qos=<qos>] [force=true|false]
-				[add-allowed-qos=<qos1,qos2,...>] [delete-allowed-qos=<qos1,qos2,...>]
-				[set-allowed-qos=<qos1,qos2,...>] [add-allowed-partition=<part1,part2,...>]
-				[delete-allowed-partition=<part1,part2,...>] [set-allowed-partition=<part1,part2,...>]
+	modify account name=<name> [defaultQos=<qos>] [force=true|false]
+				[addAllowedQos=<qos1,qos2,...>] [deleteAllowedQos=<qos1,qos2,...>]
+				[setAllowedQos=<qos1,qos2,...>] [addAllowedPartition=<part1,part2,...>]
+				[deleteAllowedPartition=<part1,part2,...>] [setAllowedPartition=<part1,part2,...>]
 	  Modify attributes of an existing account.
   
 	show account
@@ -82,9 +82,9 @@
 	  Unblock a previously blocked user.
   
 	modify user name=<name> [account=<account>] [partition=<partition>]
-				[add-allowed-qos=<qos1,qos2,...>] [delete-allowed-qos=<qos1,qos2,...>]
-				[set-allowed-qos=<qos1,qos2,...>] [add-allowed-partition=<part1,part2,...>]
-				[delete-allowed-partition=<part1,part2,...>] [set-allowed-partition=<part1,part2,...>]
+				[addAllowedQos=<qos1,qos2,...>] [deleteAllowedQos=<qos1,qos2,...>]
+				[setAllowedQos=<qos1,qos2,...>] [addAllowedPartition=<part1,part2,...>]
+				[deleteAllowedPartition=<part1,part2,...>] [setAllowedPartition=<part1,part2,...>]
 	  Modify attributes of an existing user.
   
 	show user [accounts=<account>]
@@ -94,13 +94,13 @@
 	  Show detailed information about a specific user.
   
 	add qos name=<name> [description=<desc>] [priority=<priority>] 
-			[max-jobs-per-user=<num>] [max-cpus-per-user=<num>] [max-time-limit-per-task=<seconds>]
+			[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
 	  Create a new QoS with the specified attributes.
   
 	delete qos name=<name>
 	  Remove a QoS from the system.
   
-	modify qos name=<name> [max-cpu=<num>] [max-job=<num>] [max-time-limit=<seconds>] [priority=<priority>]
+	modify qos name=<name> [maxCpu=<num>] [maxJob=<num>] [maxTimeLimit=<seconds>] [priority=<priority>]
 	  Modify attributes of an existing QoS.
   
 	find qos qos=<name>
@@ -113,6 +113,5 @@
 	
   NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.
   `
-	 fmt.Println(help)
- }
- 
+	fmt.Println(help)
+}
