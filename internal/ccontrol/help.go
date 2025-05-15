@@ -69,21 +69,21 @@ COMMANDS:
     priority: New priority value
     timelimit: New time limit for the job
 
-  update partition [allowed-accounts=<accounts>] [denied-accounts=<accounts>]
+  update partition [allowedAccounts=<accounts>] [deniedAccounts=<accounts>]
     Update partition attributes.
 
-  hold job name=<jobid> time-limit=<duration>
+  hold job name=<jobid> timelimit=<duration>
     Hold specified job(s).
-    time-limit: Duration to hold the job (e.g., 1:00:00 for 1 hour)
+    timelimit: Duration to hold the job (e.g., 1:00:00 for 1 hour)
 
   release job name=<jobid>
     Release a previously held job.
 
-  create reservation name=<name> [start-time=<time>] [duration=<duration>] 
+  create reservation name=<name> [startTime=<time>] [duration=<duration>] 
                     [nodes=<nodelist>] [account=<account>] [user=<username>]
     Create a new reservation.
     name: Name of the reservation
-    start-time: Time when reservation starts
+    startTime: Time when reservation starts
     duration: Length of reservation
     nodes: List of nodes to reserve
     account: Account to associate with the reservation

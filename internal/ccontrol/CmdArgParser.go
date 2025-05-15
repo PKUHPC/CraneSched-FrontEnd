@@ -80,7 +80,7 @@ func executeCommand(command *CControlCommand) int {
 	userUid = uint32(os.Getuid())
 
 	action := command.GetAction()
-	
+
 	switch action {
 	case "show":
 		return executeShowCommand(command)
@@ -256,9 +256,9 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
-		case "allowed-accounts":
+		case "allowedaccounts":
 			FlagAllowedAccounts = value
-		case "denied-accounts":
+		case "deniedaccounts":
 			FlagDeniedAccounts = value
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
@@ -276,7 +276,7 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 func executeHoldCommand(command *CControlCommand) int {
 	jobIds := command.GetKVParamValue("name")
 
-	timeLimit := command.GetKVParamValue("time-limit")
+	timeLimit := command.GetKVParamValue("timelimit")
 	if len(timeLimit) == 0 {
 		log.Debug("no time limit specified")
 		return util.ErrorCmdArg
@@ -333,7 +333,7 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 		switch strings.ToLower(key) {
 		case "name":
 			FlagReservationName = value
-		case "start-time":
+		case "starttime":
 			FlagStartTime = value
 		case "duration":
 			FlagDuration = value
@@ -356,15 +356,6 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 	return util.ErrorSuccess
 }
 
-func executeCreateJobCommand(command *CControlCommand) int {
-	return util.ErrorSuccess
-}
-
-func executeCreatePartitionCommand(command *CControlCommand) int {
-	return util.ErrorSuccess
-}
-
-// executeDeleteCommand
 func executeDeleteCommand(command *CControlCommand) int {
 	resource := command.GetResource()
 
@@ -389,13 +380,5 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	return util.ErrorSuccess
-}
-
-func executeDeleteJobCommand(command *CControlCommand) int {
-	return util.ErrorSuccess
-}
-
-func executeDeletePartitionCommand(command *CControlCommand) int {
 	return util.ErrorSuccess
 }
