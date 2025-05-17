@@ -43,7 +43,7 @@ type CbatchArg struct {
 func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
 	task := new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
-	task.Resources = &protos.ResourceView{
+	task.ReqResources = &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
 			CpuCoreLimit:       1,
 			MemoryLimitBytes:   0,
@@ -82,7 +82,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.CpusPerTask = num
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
-			task.Resources.DeviceMap = gresMap
+			task.ReqResources.DeviceMap = gresMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -103,8 +103,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
-			task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
-			task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
+			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 		case "-p", "--partition":
 			task.PartitionName = arg.val
 		case "-J", "--job-name":
@@ -155,6 +155,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			}
 		case "-r", "--reservation":
 			task.Reservation = arg.val
+		case "--exclusive":
+			val, err := strconv.ParseBool(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
+			}
+			task.Exclusive = val
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -181,7 +188,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("gres") {
-		task.Resources.DeviceMap = util.ParseGres(FlagGres)
+		task.ReqResources.DeviceMap = util.ParseGres(FlagGres)
 	}
 
 	if FlagTime != "" {
@@ -198,8 +205,8 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorf("Invalid argument: %v", err)
 			return false, nil
 		}
-		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
+		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 	}
 
 	if FlagPartition != "" {
@@ -247,6 +254,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
 	}
+	if FlagExclusive {
+		task.Exclusive = true
+	}
 	if FlagOpenMode != "" {
 		if FlagOpenMode == util.OpenModeAppend {
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
@@ -256,6 +266,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			return false, nil
 		}
+	}
+	if FlagExclusive {
+		task.Exclusive = true
 	}
 
 	// Set and check the extra attributes
@@ -270,7 +283,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 
 	// Set total limit of cpu cores
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
