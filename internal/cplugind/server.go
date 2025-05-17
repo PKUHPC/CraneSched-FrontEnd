@@ -133,3 +133,51 @@ func (pd *PluginDaemon) NodeEventHook(ctx context.Context, req *protos.NodeEvent
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) UpdatePowerStateHook(ctx context.Context, req *protos.UpdatePowerStateHookRequest) (*protos.UpdatePowerStateHookReply, error) {
+	log.Info("Received UpdatePowerStateHook request for node: ", req.CranedId)
+	reply := &protos.UpdatePowerStateHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).UpdatePowerStateHook)
+	}
+
+	c := api.NewContext(ctx, req, api.UpdatePowerStateHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
+
+func (pd *PluginDaemon) GetCranedByPowerStateHookSync(ctx context.Context, req *protos.GetCranedByPowerStateHookSyncRequest) (*protos.GetCranedByPowerStateHookSyncReply, error) {
+	reply := &protos.GetCranedByPowerStateHookSyncReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).GetCranedByPowerStateHookSync)
+	}
+
+	c := api.NewContext(ctx, req, api.GetCranedByPowerStateHookSync, &hs)
+	c.Start()
+
+	if ids, ok := c.Get("craned_ids").([]string); ok {
+		log.Info("GetCranedByPowerStateHookSync returned ", len(ids), " nodes for power state: ", req.State)
+		reply.CranedIds = ids
+	} else {
+		log.Warn("GetCranedByPowerStateHookSync returned no nodes for power state: ", req.State)
+	}
+
+	return reply, nil
+}
+
+func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.RegisterCranedHookRequest) (*protos.RegisterCranedHookReply, error) {
+	log.Info("Received RegisterCranedHook request for node: ", req.CranedId)
+	reply := &protos.RegisterCranedHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).RegisterCranedHook)
+	}
+
+	c := api.NewContext(ctx, req, api.RegisterCranedHook, &hs)
+	c.Start()
+
+	return reply, nil
+}

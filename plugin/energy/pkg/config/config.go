@@ -22,7 +22,7 @@ type MonitorConfig struct {
 }
 
 type Enabled struct {
-	Task   bool `mapstructure:"Task"`
+	Job    bool `mapstructure:"Job"`
 	IPMI   bool `mapstructure:"Ipmi"`
 	GPU    bool `mapstructure:"Gpu"`
 	RAPL   bool `mapstructure:"Rapl"`
@@ -30,10 +30,8 @@ type Enabled struct {
 }
 
 type DBConfig struct {
-	Type      string          `mapstructure:"Type"`
-	BatchSize int             `mapstructure:"BatchSize"`
-	FlushTime string          `mapstructure:"FlushInterval"`
-	InfluxDB  *InfluxDBConfig `mapstructure:"Influxdb"`
+	Type     string          `mapstructure:"Type"`
+	InfluxDB *InfluxDBConfig `mapstructure:"Influxdb"`
 }
 
 type InfluxDBConfig struct {
@@ -41,7 +39,7 @@ type InfluxDBConfig struct {
 	Token      string `mapstructure:"Token"`
 	Org        string `mapstructure:"Org"`
 	NodeBucket string `mapstructure:"NodeBucket"`
-	TaskBucket string `mapstructure:"TaskBucket"`
+	JobBucket  string `mapstructure:"JobBucket"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -65,15 +63,6 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func validateConfig(cfg *Config) error {
-
-	if cfg.DB.BatchSize <= 0 {
-		return fmt.Errorf("batch size must be greater than 0")
-	}
-
-	if cfg.DB.FlushTime == "" {
-		return fmt.Errorf("flush interval must be specified")
-	}
-
 	switch cfg.DB.Type {
 	case "influxdb":
 		if cfg.DB.InfluxDB == nil {
@@ -81,7 +70,7 @@ func validateConfig(cfg *Config) error {
 		}
 		if cfg.DB.InfluxDB.URL == "" || cfg.DB.InfluxDB.Token == "" ||
 			cfg.DB.InfluxDB.Org == "" || cfg.DB.InfluxDB.NodeBucket == "" ||
-			cfg.DB.InfluxDB.TaskBucket == "" {
+			cfg.DB.InfluxDB.JobBucket == "" {
 			return fmt.Errorf("incomplete influxdb configuration")
 		}
 	default:
@@ -102,7 +91,7 @@ func PrintConfig(cfg *Config) {
 
 	// Enabled
 	log.Infof("  Enabled:")
-	log.Infof("    Task: %v", cfg.Monitor.Enabled.Task)
+	log.Infof("    Job: %v", cfg.Monitor.Enabled.Job)
 	log.Infof("    IPMI: %v", cfg.Monitor.Enabled.IPMI)
 	log.Infof("    GPU: %v", cfg.Monitor.Enabled.GPU)
 	log.Infof("    RAPL: %v", cfg.Monitor.Enabled.RAPL)
@@ -111,8 +100,6 @@ func PrintConfig(cfg *Config) {
 	// Database
 	log.Infof("Database Configuration:")
 	log.Infof("  Type: %s", cfg.DB.Type)
-	log.Infof("  Batch Size: %d", cfg.DB.BatchSize)
-	log.Infof("  Flush Time: %s", cfg.DB.FlushTime)
 
 	switch cfg.DB.Type {
 	case "influxdb":
@@ -121,7 +108,7 @@ func PrintConfig(cfg *Config) {
 			log.Infof("    URL: %s", cfg.DB.InfluxDB.URL)
 			log.Infof("    Organization: %s", cfg.DB.InfluxDB.Org)
 			log.Infof("    Node Bucket: %s", cfg.DB.InfluxDB.NodeBucket)
-			log.Infof("    Task Bucket: %s", cfg.DB.InfluxDB.TaskBucket)
+			log.Infof("    Job Bucket: %s", cfg.DB.InfluxDB.JobBucket)
 			if cfg.DB.InfluxDB.Token != "" {
 				tokenPreview := cfg.DB.InfluxDB.Token[:10] + "..."
 				log.Infof("    Token: %s", tokenPreview)
