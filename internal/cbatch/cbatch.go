@@ -111,7 +111,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
-			task.MemPerCpu = memInBytePerCpu
+			*task.MemPerCpu = memInBytePerCpu
 		case "-p", "--partition":
 			task.PartitionName = arg.val
 		case "-J", "--job-name":
@@ -214,7 +214,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorf("Invalid argument: %v", err)
 			return false, nil
 		}
-		task.MemPerCpu = memInBytePerCpu
+		*task.MemPerCpu = memInBytePerCpu
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition

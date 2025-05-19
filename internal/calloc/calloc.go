@@ -424,7 +424,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 			log.Errorf("Invalid argument: %v", err)
 			return util.ErrorCmdArg
 		}
-		task.MemPerCpu = memInBytePerCpu
+		*task.MemPerCpu = memInBytePerCpu
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
