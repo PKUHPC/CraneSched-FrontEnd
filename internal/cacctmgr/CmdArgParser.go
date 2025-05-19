@@ -66,6 +66,7 @@ var (
 
 	FlagResourceName        string
 	FlagResourceAccount     string
+	FlagResourcePartitions  string
 	FlagDefaultQos          string
 	FlagAllowedQosList      string
 	FlagAllowedPartitions   string
@@ -79,6 +80,8 @@ var (
 	FlagMaxJob              string
 	FlagMaxTimeLimit        string
 	FlagPriority            string
+	FlagAdminLevel          string
+	FlagDescription         string
 )
 
 func resetFlags() {
@@ -104,6 +107,7 @@ func resetFlags() {
 	FlagNumLimit = 0
 	FlagResourceName = ""
 	FlagResourceAccount = ""
+	FlagResourcePartitions = ""
 	FlagDefaultQos = ""
 	FlagAllowedQosList = ""
 	FlagAllowedPartitions = ""
@@ -117,6 +121,8 @@ func resetFlags() {
 	FlagMaxJob = ""
 	FlagMaxTimeLimit = ""
 	FlagPriority = ""
+	FlagAdminLevel = ""
+	FlagDescription = ""
 }
 
 func ParseCmdArgs(args []string) {
@@ -237,11 +243,11 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeAddQosCommand(command *CAcctMgrCommand) int {
+	FlagQos.Name = command.GetID()
+
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "name":
-			FlagQos.Name = value
 		case "description":
 			FlagQos.Description = value
 		case "priority":
@@ -297,17 +303,17 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 }
 
 func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
-	FlagResourceName = command.GetKVParamValue("name")
+	FlagResourceName := command.GetID()
 
 	return DeleteAccount(FlagResourceName)
 }
 
 func executeDeleteUserCommand(command *CAcctMgrCommand) int {
+	FlagResourceName := command.GetID()
+
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "name":
-			FlagResourceName = value
 		case "account":
 			FlagResourceAccount = value
 		default:
@@ -320,7 +326,7 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeDeleteQosCommand(command *CAcctMgrCommand) int {
-	FlagResourceName = command.GetKVParamValue("name")
+	FlagResourceName := command.GetID()
 
 	return DeleteQos(FlagResourceName)
 }
@@ -340,12 +346,12 @@ func executeBlockCommand(command *CAcctMgrCommand) int {
 }
 
 func executeBlockAccountCommand(command *CAcctMgrCommand) int {
+	Name := command.GetID()
+
 	KVParams := command.GetKVMaps()
 
 	for key, value := range KVParams {
 		switch key {
-		case "name":
-			FlagResourceName = value
 		case "account":
 			FlagResourceAccount = value
 		default:
@@ -354,15 +360,15 @@ func executeBlockAccountCommand(command *CAcctMgrCommand) int {
 		}
 	}
 
-	return BlockAccountOrUser(FlagResourceName, protos.EntityType_Account, FlagResourceAccount)
+	return BlockAccountOrUser(Name, protos.EntityType_Account, FlagResourceAccount)
 }
 
 func executeBlockUserCommand(command *CAcctMgrCommand) int {
+	FlagResourceName := command.GetID()
+
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "name":
-			FlagResourceName = value
 		case "account":
 			FlagResourceAccount = value
 		default:
@@ -389,12 +395,12 @@ func executeUnblockCommand(command *CAcctMgrCommand) int {
 }
 
 func executeUnblockAccountCommand(command *CAcctMgrCommand) int {
+	FlagResourceName := command.GetID()
+
 	KVParams := command.GetKVMaps()
 
 	for key, value := range KVParams {
 		switch key {
-		case "name":
-			FlagResourceName = value
 		case "account":
 			FlagResourceAccount = value
 		default:
@@ -407,11 +413,11 @@ func executeUnblockAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeUnblockUserCommand(command *CAcctMgrCommand) int {
+	FlagResourceName := command.GetID()
+
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "name":
-			FlagResourceName = value
 		case "account":
 			FlagResourceAccount = value
 		default:
@@ -434,7 +440,6 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeModifyQosCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
 		return util.ErrorCmdArg
 	}
 }
@@ -443,17 +448,92 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	WhereParams := command.GetWhereParams()
 	SetParams := command.GetSetParams()
 
-	for _, param := range WhereParams {
-		switch param.Key {
+	for key, value := range WhereParams {
+		switch key {
 		case "name":
-			FlagResourceName = param.Value
+			FlagResourceName = value
+		default:
+			return util.ErrorCmdArg
 		}
 	}
 
-	for _, param := range SetParams {
-		switch param.Key {
+	for key, value := range SetParams {
+		switch key {
 		case "defaultqos":
-			FlagDefaultQos = param.Value
+			FlagDefaultQos = value
+		case "addallowedpartition":
+			FlagAllowedPartitions = value
+		case "addallowedqos":
+			FlagAllowedQosList = value
+		case "deleteallowedpartition":
+			FlagDeletePartitionList = value
+		case "deleteallowedqos":
+			FlagDeleteQosList = value
+		case "setallowedpartition":
+			FlagSetPartitionList = value
+		case "setallowedqos":
+			FlagSetQosList = value
+		case "setdefaultaccount":
+			FlagSetDefaultAccount = value
+		default:
+			return util.ErrorCmdArg
+		}
+	}
+
+	//set defaultqos
+	if FlagDefaultQos != "" {
+		err := ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagResourceName, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set addallowedpartition
+	if FlagAllowedPartitions != "" {
+		err := ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set addallowedqos
+	if FlagAllowedQosList != "" {
+		err := ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set deleteallowedpartition
+	if FlagDeletePartitionList != "" {
+		err := ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, protos.OperationType_Delete)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set deleteallowedqos
+	if FlagDeleteQosList != "" {
+		err := ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, protos.OperationType_Delete)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set setallowedpartition
+	if FlagSetPartitionList != "" {
+		err := ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set setallowedqos
+	if FlagSetQosList != "" {
+		err := ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagResourceName, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set setdefaultaccount
+	if FlagSetDefaultAccount != "" {
+		err := ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagResourceName, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
 
@@ -461,67 +541,99 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyUserCommand(command *CAcctMgrCommand) int {
-	KVParams := command.GetKVMaps()
+	WhereParams := command.GetWhereParams()
+	SetParams := command.GetSetParams()
 
-	for key, value := range KVParams {
+	for key, value := range WhereParams {
 		switch key {
 		case "name":
 			FlagResourceName = value
 		case "account":
 			FlagResourceAccount = value
 		case "partition":
-			FlagPartitions = value
-		case "addallowedqos":
-			FlagQosList = value
-		case "deleteallowedqos":
-			FlagDeleteQosList = value
-		case "setallowedqos":
-			FlagSetQosList = value
+			FlagResourcePartitions = value
+		default:
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range SetParams {
+		switch key {
 		case "addallowedpartition":
 			FlagAllowedPartitions = value
+		case "addallowedqos":
+			FlagAllowedQosList = value
 		case "deleteallowedpartition":
 			FlagDeletePartitionList = value
+		case "deleteallowedqos":
+			FlagDeleteQosList = value
 		case "setallowedpartition":
 			FlagSetPartitionList = value
+		case "setallowedqos":
+			FlagSetQosList = value
+		case "setdefaultaccount":
+			FlagSetDefaultAccount = value
+		case "adminlevel":
+			FlagAdminLevel = value
 		default:
-			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	if FlagQosList != "" {
-		if err := ModifyUser(protos.ModifyField_Qos, FlagQosList, FlagResourceName, FlagResourceAccount, FlagPartitions, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagDeleteQosList != "" {
-		if err := ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, FlagResourceAccount, FlagPartitions, protos.OperationType_Delete); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagSetQosList != "" {
-		if err := ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagResourceName, FlagResourceAccount, FlagPartitions, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
+	//set addallowedpartition
 	if FlagAllowedPartitions != "" {
-		if err := ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, FlagResourceAccount, FlagPartitions, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+		err := ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
-
+	//set addallowedqos
+	if FlagAllowedQosList != "" {
+		err := ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set deleteallowedpartition
 	if FlagDeletePartitionList != "" {
-		if err := ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, FlagResourceAccount, FlagPartitions, protos.OperationType_Delete); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+		err := ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
-
+	//set deleteallowedqos
+	if FlagDeleteQosList != "" {
+		err := ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set setallowedpartition
 	if FlagSetPartitionList != "" {
-		if err := ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, FlagResourceAccount, FlagPartitions, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+		err := ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set setallowedqos
+	if FlagSetQosList != "" {
+		err := ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set setdefaultaccount
+	if FlagSetDefaultAccount != "" {
+		err := ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set adminlevel
+	if FlagAdminLevel != "" {
+		err := ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
 
@@ -529,47 +641,68 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyQosCommand(command *CAcctMgrCommand) int {
-	KVParams := command.GetKVMaps()
+	WhereParams := command.GetWhereParams()
+	SetParams := command.GetSetParams()
 
-	for key, value := range KVParams {
+	for key, value := range WhereParams {
 		switch key {
 		case "name":
 			FlagResourceName = value
+		default:
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range SetParams {
+		switch key {
 		case "maxcpu":
 			FlagMaxCpu = value
 		case "maxjob":
 			FlagMaxJob = value
-		case "maxtimelimit":
+		case "maxtimelimitpertask":
 			FlagMaxTimeLimit = value
 		case "priority":
 			FlagPriority = value
+		case "description":
+			FlagDescription = value
 		default:
-			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
 
+	//set maxcpu
 	if FlagMaxCpu != "" {
-		if err := ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagResourceName); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+		err := ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagResourceName)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
-
+	//set maxjob
 	if FlagMaxJob != "" {
-		if err := ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagResourceName); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+		err := ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagResourceName)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
-
+	//set maxtimelimitpertask
 	if FlagMaxTimeLimit != "" {
-		if err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagResourceName); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+		err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagResourceName)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
-
+	//set priority
 	if FlagPriority != "" {
-		if err := ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagResourceName); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+		err := ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagResourceName)
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+	//set description
+	if FlagDescription != "" {
+		err := ModifyQos(protos.ModifyField_Description, FlagDescription, FlagResourceName)
+		if err != util.ErrorSuccess {
+			return err
 		}
 	}
 
@@ -595,10 +728,10 @@ func executeShowAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeShowUserCommand(command *CAcctMgrCommand) int {
-	KVParamsValue := command.GetKVParamValue("accounts")
+	FlagResourceName := command.GetID()
 	account := command.GetKVParamValue("account")
 
-	return ShowUser(KVParamsValue, account)
+	return ShowUser(FlagResourceName, account)
 }
 
 func executeFindCommand(command *CAcctMgrCommand) int {
@@ -618,32 +751,32 @@ func executeFindCommand(command *CAcctMgrCommand) int {
 }
 
 func executeFindAccountCommand(command *CAcctMgrCommand) int {
-	KVParamsValue := command.GetKVParamValue("account")
+	FlagResourceName := command.GetID()
 
-	if len(KVParamsValue) == 0 {
+	if FlagResourceName == "" {
 		return util.ErrorCmdArg
 	}
 
-	return FindAccount(KVParamsValue)
+	return FindAccount(FlagResourceName)
 }
 
 func executeFindUserCommand(command *CAcctMgrCommand) int {
-	KVParamsValue := command.GetKVParamValue("user")
+	FlagResourceName := command.GetID()
 
-	if len(KVParamsValue) == 0 {
+	if FlagResourceName == "" {
 		return util.ErrorCmdArg
 	}
 
 	account := command.GetKVParamValue("account")
-	return ShowUser(KVParamsValue, account)
+	return ShowUser(FlagResourceName, account)
 }
 
 func executeFindQosCommand(command *CAcctMgrCommand) int {
-	KVParamsValue := command.GetKVParamValue("qos")
+	FlagResourceName := command.GetID()
 
-	if len(KVParamsValue) == 0 {
+	if FlagResourceName == "" {
 		return util.ErrorCmdArg
 	}
 
-	return ShowQos(KVParamsValue)
+	return ShowQos(FlagResourceName)
 }

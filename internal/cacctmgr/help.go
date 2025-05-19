@@ -122,9 +122,11 @@ func showHelp() {
   
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
-	--config       Specify an alternative configuration file (default: /etc/crane/config.yaml)
-	--json         Format output as JSON
-	
+	--config, -C     Specify an alternative configuration file (default: /etc/crane/config.yaml)
+	--json, -J     Format output as JSON
+	--force, -F    Force the operation to proceed even if it might affect existing resources
+	--version, -v    Display the version of the program
+
   NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.
   `
 	fmt.Println(help)
