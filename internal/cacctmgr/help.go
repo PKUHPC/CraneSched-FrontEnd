@@ -56,12 +56,6 @@ func showHelp() {
 	unblock account <name> [account=<account>]
 	  Unblock a previously blocked account.
   
-	modify account <name> [defaultQos=<qos>] [force=true|false]
-				[addAllowedQos=<qos1,qos2,...>] [deleteAllowedQos=<qos1,qos2,...>]
-				[setAllowedQos=<qos1,qos2,...>] [addAllowedPartition=<part1,part2,...>]
-				[deleteAllowedPartition=<part1,part2,...>] [setAllowedPartition=<part1,part2,...>]
-	  Modify attributes of an existing account.
-  
 	show account
 	  Display information about all accounts.
   
@@ -81,26 +75,6 @@ func showHelp() {
 	unblock user name=<name> [account=<account>]
 	  Unblock a previously blocked user.
   
-	modify user where [OPTIONS] set [OPTIONS]
-	  Modify attributes of an existing user.
-	  OPTIONS:
-        modify account  (set options) addAllowedPartition=, 
-						addAllowedQos=, deleteAllowedPartition=,
-						deleteAllowedQos=, setAllowedPartition=,
-						setAllowedQos=, defaultQos=
-                        (where options) Name=
-
-		modify qos      (set options) Description=,
-                        GrpJobs=, MaxCPUsPerUser=, MaxSubmitJobsPerUser=,
-                        MaxTimeLimitPerTask=, Priority=,
-                        (where options) Priority=, Name=
-
-		modify user     (set options) AdminLevel=, DefaultAccount=,
-                        Comment=, DefaultQOS=, QosLevel=,
-                        RawUsage= (with admin privileges only)
-                        (where options) Accounts=, adminLevel=,
-                        DefaultAccount=, Name=, Partitions=
-  
 	show user [accounts=<account>]
 	  Display information about users, optionally filtered by account.
   
@@ -114,17 +88,33 @@ func showHelp() {
 	delete qos <name>
 	  Remove a QoS from the system.
   
-	modify qos <name> [maxCpu=<num>] [maxJob=<num>] [maxTimeLimit=<seconds>] [priority=<priority>]
-	  Modify attributes of an existing QoS.
-  
 	find qos <name>
 	  Show detailed information about a specific QoS.
-  
+
+  	modify <resource> where [OPTIONS] set [OPTIONS]
+	  Modify attributes of an existing user.
+	  OPTIONS:
+        modify account  (set options) addAllowedPartition=, 
+						addAllowedQos=, deleteAllowedPartition=,
+						deleteAllowedQos=, allowedPartition=,
+						allowedQos=, defaultQos=
+                        (where options) name=
+
+		modify qos      (set options) description=,
+                        maxcpuperuser=, maxsubmitjobsperuser=,
+                        maxtimelimitpertask=, priority=
+                        (where options) name=
+
+		modify user     (set options) adminlevel=, defaultaccount=,
+                        comment=, defaultqos=, allowedpartition=,
+                        allowedQos=, deleteAllowedPartition=,
+                        deleteAllowedQos=, setAllowedPartition=,
+                        setAllowedQos=
+                        (where options) accounts=, name=, partitions=
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
 	--config, -C     Specify an alternative configuration file (default: /etc/crane/config.yaml)
 	--json, -J     Format output as JSON
-	--force, -F    Force the operation to proceed even if it might affect existing resources
 	--version, -v    Display the version of the program
 
   NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.

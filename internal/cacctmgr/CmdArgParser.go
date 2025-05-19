@@ -469,11 +469,11 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 			FlagDeletePartitionList = value
 		case "deleteallowedqos":
 			FlagDeleteQosList = value
-		case "setallowedpartition":
+		case "allowedpartition":
 			FlagSetPartitionList = value
-		case "setallowedqos":
+		case "allowedqos":
 			FlagSetQosList = value
-		case "setdefaultaccount":
+		case "defaultaccount":
 			FlagSetDefaultAccount = value
 		default:
 			return util.ErrorCmdArg
@@ -567,11 +567,11 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 			FlagDeletePartitionList = value
 		case "deleteallowedqos":
 			FlagDeleteQosList = value
-		case "setallowedpartition":
+		case "allowedpartition":
 			FlagSetPartitionList = value
-		case "setallowedqos":
+		case "allowedqos":
 			FlagSetQosList = value
-		case "setdefaultaccount":
+		case "defaultaccount":
 			FlagSetDefaultAccount = value
 		case "adminlevel":
 			FlagAdminLevel = value
@@ -655,9 +655,9 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 
 	for key, value := range SetParams {
 		switch key {
-		case "maxcpu":
+		case "maxcpuperuser":
 			FlagMaxCpu = value
-		case "maxjob":
+		case "maxsubmitjobsperuser":
 			FlagMaxJob = value
 		case "maxtimelimitpertask":
 			FlagMaxTimeLimit = value
