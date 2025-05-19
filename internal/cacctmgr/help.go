@@ -43,20 +43,20 @@ func showHelp() {
 	qos       - Quality of Service settings
   
   COMMANDS:
-	add account name=<name> [description=<desc>] [parent=<parent>] [default-qos=<qos>] 
+	add account <name> [description=<desc>] [parent=<parent>] [default-qos=<qos>] 
 				[partition=<part1,part2,...>] [qos-list=<qos1,qos2,...>]
 	  Create a new account with the specified attributes.
   
-	delete account name=<name>
+	delete account <name>
 	  Remove an account from the system.
   
-	block account name=<name> [account=<account>]
+	block account <name> [account=<account>]
 	  Block an account, preventing job submissions.
   
-	unblock account name=<name> [account=<account>]
+	unblock account <name> [account=<account>]
 	  Unblock a previously blocked account.
   
-	modify account name=<name> [defaultQos=<qos>] [force=true|false]
+	modify account <name> [defaultQos=<qos>] [force=true|false]
 				[addAllowedQos=<qos1,qos2,...>] [deleteAllowedQos=<qos1,qos2,...>]
 				[setAllowedQos=<qos1,qos2,...>] [addAllowedPartition=<part1,part2,...>]
 				[deleteAllowedPartition=<part1,part2,...>] [setAllowedPartition=<part1,part2,...>]
@@ -65,14 +65,14 @@ func showHelp() {
 	show account
 	  Display information about all accounts.
   
-	find account account=<name>
+	find account <name>
 	  Show detailed information about a specific account.
   
-	add user name=<name> account=<account> [coordinator=true|false] [level=<level>] 
+	add user <name> account=<account> [coordinator=true|false] [level=<level>] 
 			[partition=<part1,part2,...>]
 	  Create a new user associated with an account.
   
-	delete user name=<name> [account=<account>]
+	delete user <name> [account=<account>]
 	  Remove a user from the system or from a specific account.
   
 	block user name=<name> [account=<account>]
@@ -81,29 +81,43 @@ func showHelp() {
 	unblock user name=<name> [account=<account>]
 	  Unblock a previously blocked user.
   
-	modify user name=<name> [account=<account>] [partition=<partition>]
-				[addAllowedQos=<qos1,qos2,...>] [deleteAllowedQos=<qos1,qos2,...>]
-				[setAllowedQos=<qos1,qos2,...>] [addAllowedPartition=<part1,part2,...>]
-				[deleteAllowedPartition=<part1,part2,...>] [setAllowedPartition=<part1,part2,...>]
+	modify user where [OPTIONS] set [OPTIONS]
 	  Modify attributes of an existing user.
+	  OPTIONS:
+        modify account  (set options) addAllowedPartition=, 
+						addAllowedQos=, deleteAllowedPartition=,
+						deleteAllowedQos=, setAllowedPartition=,
+						setAllowedQos=, defaultQos=
+                        (where options) Name=
+
+		modify qos      (set options) Description=,
+                        GrpJobs=, MaxCPUsPerUser=, MaxSubmitJobsPerUser=,
+                        MaxTimeLimitPerTask=, Priority=,
+                        (where options) Priority=, Name=
+
+		modify user     (set options) AdminLevel=, DefaultAccount=,
+                        Comment=, DefaultQOS=, QosLevel=,
+                        RawUsage= (with admin privileges only)
+                        (where options) Accounts=, adminLevel=,
+                        DefaultAccount=, Name=, Partitions=
   
 	show user [accounts=<account>]
 	  Display information about users, optionally filtered by account.
   
-	find user user=<name> [account=<account>]
+	find user <name> [account=<account>]
 	  Show detailed information about a specific user.
   
-	add qos name=<name> [description=<desc>] [priority=<priority>] 
+	add qos <name> [description=<desc>] [priority=<priority>] 
 			[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
 	  Create a new QoS with the specified attributes.
   
-	delete qos name=<name>
+	delete qos <name>
 	  Remove a QoS from the system.
   
-	modify qos name=<name> [maxCpu=<num>] [maxJob=<num>] [maxTimeLimit=<seconds>] [priority=<priority>]
+	modify qos <name> [maxCpu=<num>] [maxJob=<num>] [maxTimeLimit=<seconds>] [priority=<priority>]
 	  Modify attributes of an existing QoS.
   
-	find qos qos=<name>
+	find qos <name>
 	  Show detailed information about a specific QoS.
   
   GLOBAL OPTIONS:

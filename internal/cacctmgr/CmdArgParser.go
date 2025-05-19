@@ -440,73 +440,20 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyAccountCommand(command *CAcctMgrCommand) int {
-	KVParams := command.GetKVMaps()
+	WhereParams := command.GetWhereParams()
+	SetParams := command.GetSetParams()
 
-	for key, value := range KVParams {
-		switch key {
+	for _, param := range WhereParams {
+		switch param.Key {
 		case "name":
-			FlagResourceName = value
+			FlagResourceName = param.Value
+		}
+	}
+
+	for _, param := range SetParams {
+		switch param.Key {
 		case "defaultqos":
-			FlagDefaultQos = value
-		case "force":
-			FlagForce = value == "true"
-		case "addallowedqos":
-			FlagAllowedQosList = value
-		case "deleteallowedqos":
-			FlagDeleteQosList = value
-		case "setallowedqos":
-			FlagSetQosList = value
-		case "addallowedpartition":
-			FlagAllowedPartitions = value
-		case "deleteallowedpartition":
-			FlagDeletePartitionList = value
-		case "setallowedpartition":
-			FlagSetPartitionList = value
-		default:
-			log.Debugf("unknown flag: %s", key)
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagAllowedQosList != "" {
-		if err := ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagDeleteQosList != "" {
-		if err := ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, protos.OperationType_Delete); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagSetQosList != "" {
-		if err := ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagResourceName, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagAllowedPartitions != "" {
-		if err := ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagDeletePartitionList != "" {
-		if err := ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, protos.OperationType_Delete); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagSetPartitionList != "" {
-		if err := ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
-		}
-	}
-
-	if FlagDefaultQos != "" {
-		if err := ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagResourceName, protos.OperationType_Overwrite); err != util.ErrorSuccess {
-			return util.ErrorCmdArg
+			FlagDefaultQos = param.Value
 		}
 	}
 

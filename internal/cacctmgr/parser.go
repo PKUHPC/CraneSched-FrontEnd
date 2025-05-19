@@ -29,21 +29,59 @@ import (
 )
 
 type CAcctMgrCommand struct {
-	Action      *ActionType      `parser:"@@"`
+	Command any `parser:"@@"`
+}
+
+type AddCommand struct {
+	Action      string           `parser:"@'add'"`
+	Resource    *ResourceType    `parser:"@@"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	GlobalFlags []*Flag          `parser:"@@*"`
+}
+
+type DeleteCommand struct {
+	Action      string           `parser:"@'delete'"`
+	Resource    *ResourceType    `parser:"@@"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	GlobalFlags []*Flag          `parser:"@@*"`
+}
+
+type BlockCommand struct {
+	Action      string           `parser:"@'block'"`
+	Resource    *ResourceType    `parser:"@@"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	GlobalFlags []*Flag          `parser:"@@*"`
+}
+
+type UnblockCommand struct {
+	Action      string           `parser:"@'unblock'"`
+	Resource    *ResourceType    `parser:"@@"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	GlobalFlags []*Flag          `parser:"@@*"`
+}
+
+type ModifyCommand struct {
+	Action      string           `parser:"@'modify'"`
+	Resource    *ResourceType    `parser:"@@"`
+	Where       *WhereClause     `parser:"@@?"`
+	WhereParams []*KeyValueParam `parser:"@@*"`
+	Set         *SetClause       `parser:"@@?"`
+	SetParams   []*KeyValueParam `parser:"@@*"`
+	GlobalFlags []*Flag          `parser:"@@*"`
+}
+
+type ShowCommand struct {
+	Action      string           `parser:"@'show'"`
 	Resource    *ResourceType    `parser:"@@?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
-type ActionType struct {
-	Add     bool `parser:"@'add'"`
-	Delete  bool `parser:"| @'delete'"`
-	Block   bool `parser:"| @'block'"`
-	Unblock bool `parser:"| @'unblock'"`
-	Modify  bool `parser:"| @'modify'"`
-	Show    bool `parser:"| @'show'"`
-	Find    bool `parser:"| @'find'"`
-	Help    bool `parser:"| @'help'"`
+type FindCommand struct {
+	Action      string           `parser:"@'find'"`
+	Resource    *ResourceType    `parser:"@@"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
 type ResourceType struct {
@@ -62,6 +100,16 @@ type KeyValueParam struct {
 	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
 }
 
+type WhereClause struct {
+	Where       string           `parser:"@'where'"`
+	WhereParams []*KeyValueParam `parser:"@@*"`
+}
+
+type SetClause struct {
+	Set       string           `parser:"@'set'"`
+	SetParams []*KeyValueParam `parser:"@@*"`
+}
+
 var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
 	{Name: "String", Pattern: `"[^"]*"|'[^']*'`},
@@ -74,33 +122,11 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CAcctMgrParser = participle.MustBuild[CAcctMgrCommand](
 	participle.Lexer(CAcctMgrLexer),
 	participle.Elide("whitespace"),
+	participle.Union[any](AddCommand{}, DeleteCommand{}, BlockCommand{}, UnblockCommand{}, ModifyCommand{}, ShowCommand{}, FindCommand{}),
 )
 
 func ParseCAcctMgrCommand(input string) (*CAcctMgrCommand, error) {
 	return CAcctMgrParser.ParseString("", input)
-}
-
-func (a ActionType) String() string {
-	switch {
-	case a.Add:
-		return "add"
-	case a.Delete:
-		return "delete"
-	case a.Block:
-		return "block"
-	case a.Unblock:
-		return "unblock"
-	case a.Modify:
-		return "modify"
-	case a.Show:
-		return "show"
-	case a.Find:
-		return "find"
-	case a.Help:
-		return "help"
-	default:
-		return ""
-	}
 }
 
 func (r ResourceType) String() string {
@@ -117,21 +143,81 @@ func (r ResourceType) String() string {
 }
 
 func (c *CAcctMgrCommand) GetAction() string {
-	if c.Action == nil {
+	switch cmd := c.Command.(type) {
+	case AddCommand:
+		return cmd.Action
+	case DeleteCommand:
+		return cmd.Action
+	case BlockCommand:
+		return cmd.Action
+	case UnblockCommand:
+		return cmd.Action
+	case ModifyCommand:
+		return cmd.Action
+	case ShowCommand:
+		return cmd.Action
+	case FindCommand:
+		return cmd.Action
+	default:
 		return ""
 	}
-	return c.Action.String()
 }
 
 func (c *CAcctMgrCommand) GetResource() string {
-	if c.Resource == nil {
-		return ""
+	switch cmd := c.Command.(type) {
+	case AddCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case DeleteCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case BlockCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case UnblockCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case ModifyCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case ShowCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case FindCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
 	}
-	return c.Resource.String()
+	return ""
 }
 
 func (c *CAcctMgrCommand) GetKVParamValue(key string) string {
-	for _, param := range c.KVParams {
+	var params []*KeyValueParam
+
+	switch cmd := c.Command.(type) {
+	case AddCommand:
+		params = cmd.KVParams
+	case DeleteCommand:
+		params = cmd.KVParams
+	case BlockCommand:
+		params = cmd.KVParams
+	case UnblockCommand:
+		params = cmd.KVParams
+	case ShowCommand:
+		params = cmd.KVParams
+	case FindCommand:
+		params = cmd.KVParams
+	default:
+		return ""
+	}
+
+	for _, param := range params {
 		if strings.EqualFold(param.Key, strings.ToLower(key)) {
 			return param.Value
 		}
@@ -141,14 +227,72 @@ func (c *CAcctMgrCommand) GetKVParamValue(key string) string {
 
 func (c *CAcctMgrCommand) GetKVMaps() map[string]string {
 	kvMap := make(map[string]string)
-	for _, param := range c.KVParams {
+	var params []*KeyValueParam
+
+	switch cmd := c.Command.(type) {
+	case AddCommand:
+		params = cmd.KVParams
+	case DeleteCommand:
+		params = cmd.KVParams
+	case BlockCommand:
+		params = cmd.KVParams
+	case UnblockCommand:
+		params = cmd.KVParams
+	case ShowCommand:
+		params = cmd.KVParams
+	case FindCommand:
+		params = cmd.KVParams
+	default:
+		return kvMap
+	}
+
+	for _, param := range params {
 		kvMap[param.Key] = param.Value
 	}
 	return kvMap
 }
 
+func (c *CAcctMgrCommand) GetWhereParams() []*KeyValueParam {
+	switch cmd := c.Command.(type) {
+	case ModifyCommand:
+		return cmd.WhereParams
+	default:
+		return nil
+	}
+}
+
+func (c *CAcctMgrCommand) GetSetParams() []*KeyValueParam {
+	switch cmd := c.Command.(type) {
+	case ModifyCommand:
+		return cmd.SetParams
+	default:
+		return nil
+	}
+}
+
 func (c *CAcctMgrCommand) GetGlobalFlag(name string) (string, bool) {
-	for _, flag := range c.GlobalFlags {
+	var flags []*Flag
+
+	switch cmd := c.Command.(type) {
+	case AddCommand:
+		flags = cmd.GlobalFlags
+	case DeleteCommand:
+		flags = cmd.GlobalFlags
+	case BlockCommand:
+		flags = cmd.GlobalFlags
+	case UnblockCommand:
+		flags = cmd.GlobalFlags
+	case ModifyCommand:
+		flags = cmd.GlobalFlags
+	case ShowCommand:
+		flags = cmd.GlobalFlags
+	case FindCommand:
+		flags = cmd.GlobalFlags
+	default:
+		return "", false
+	}
+
+	for _, flag := range flags {
 		if strings.EqualFold(flag.Name, name) {
 			return flag.Value, true
 		}
@@ -156,33 +300,6 @@ func (c *CAcctMgrCommand) GetGlobalFlag(name string) (string, bool) {
 	return "", false
 }
 
-func (c *CAcctMgrCommand) String() string {
-	var parts []string
-
-	if c.Action != nil {
-		parts = append(parts, c.Action.String())
-	}
-
-	if c.Resource != nil {
-		parts = append(parts, c.Resource.String())
-	}
-
-	for _, flag := range c.GlobalFlags {
-		if flag.Value != "" {
-			parts = append(parts, fmt.Sprintf("--%s=%s", flag.Name, flag.Value))
-		} else {
-			parts = append(parts, fmt.Sprintf("--%s", flag.Name))
-		}
-	}
-
-	for _, kv := range c.KVParams {
-		parts = append(parts, fmt.Sprintf("%s=%s", kv.Key, kv.Value))
-	}
-
-	return strings.Join(parts, " ")
-}
-
-// processGlobalFlags
 func processGlobalFlags(command *CAcctMgrCommand) {
 	_, hasJson := command.GetGlobalFlag("json")
 	_, hasJ := command.GetGlobalFlag("J")
