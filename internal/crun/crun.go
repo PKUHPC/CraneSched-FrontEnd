@@ -1184,7 +1184,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			log.Errorf("Invalid argument: %v", err)
 			return util.ErrorCmdArg
 		}
-		task.MemPerCpu = memInBytePerCpu
+		*task.MemPerCpu = memInBytePerCpu
 	}
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
