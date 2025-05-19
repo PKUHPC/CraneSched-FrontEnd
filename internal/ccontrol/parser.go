@@ -11,31 +11,59 @@ import (
 	"github.com/alecthomas/participle/v2/lexer"
 )
 
-// CControlCommand
 type CControlCommand struct {
-	Action     *ActionType      `parser:"@@"`
-	Resource   *ResourceType    `parser:"@@?"`
-	KVParams   []*KeyValueParam `parser:"@@*"`
-	GlobeFlags []*Flag          `parser:"@@*"`
+	Command any `parser:"@@"`
 }
 
-// KeyValueParam
+type ShowCommand struct {
+	Action     string        `parser:"@'show'"`
+	Resource   *ResourceType `parser:"@@"`
+	ID         string        `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	GlobeFlags []*Flag       `parser:"@@*"`
+}
+
+type UpdateCommand struct {
+	Action        string           `parser:"@'update'"`
+	Resource      *ResourceType    `parser:"@@"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+	GlobeFlags    []*Flag          `parser:"@@*"`
+}
+
+type HoldCommand struct {
+	Action        string           `parser:"@'hold'"`
+	Resource      *ResourceType    `parser:"@@"`
+	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+	GlobeFlags    []*Flag          `parser:"@@*"`
+}
+
+type ReleaseCommand struct {
+	Action        string           `parser:"@'release'"`
+	Resource      *ResourceType    `parser:"@@"`
+	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+	GlobeFlags    []*Flag          `parser:"@@*"`
+}
+
+type CreateCommand struct {
+	Action        string           `parser:"@'create'"`
+	Resource      *ResourceType    `parser:"@@"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+	GlobeFlags    []*Flag          `parser:"@@*"`
+}
+
+type DeleteCommand struct {
+	Action     string        `parser:"@'delete'"`
+	Resource   *ResourceType `parser:"@@"`
+	ID         string        `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	GlobeFlags []*Flag       `parser:"@@*"`
+}
+
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
 	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
 }
 
-// ActionType
-type ActionType struct {
-	Show    bool `parser:"@'show'"`
-	Update  bool `parser:"| @'update'"`
-	Hold    bool `parser:"| @'hold'"`
-	Release bool `parser:"| @'release'"`
-	Create  bool `parser:"| @'create'"`
-	Delete  bool `parser:"| @'delete'"`
-}
-
-// ResourceType
 type ResourceType struct {
 	Node        bool `parser:"@'node'"`
 	Partition   bool `parser:"| @'partition'"`
@@ -43,7 +71,6 @@ type ResourceType struct {
 	Reservation bool `parser:"| @'reservation'"`
 }
 
-// Flag
 type Flag struct {
 	Name  string `parser:"'-' '-'? @Ident"`
 	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
@@ -61,29 +88,11 @@ var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CControlParser = participle.MustBuild[CControlCommand](
 	participle.Lexer(CControlLexer),
 	participle.Elide("whitespace"),
+	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{}, CreateCommand{}, DeleteCommand{}),
 )
 
 func ParseCControlCommand(input string) (*CControlCommand, error) {
 	return CControlParser.ParseString("", input)
-}
-
-func (a ActionType) String() string {
-	switch {
-	case a.Show:
-		return "show"
-	case a.Update:
-		return "update"
-	case a.Hold:
-		return "hold"
-	case a.Release:
-		return "release"
-	case a.Create:
-		return "create"
-	case a.Delete:
-		return "delete"
-	default:
-		return ""
-	}
 }
 
 func (r ResourceType) String() string {
@@ -101,76 +110,164 @@ func (r ResourceType) String() string {
 	}
 }
 
-// GetAction
 func (c *CControlCommand) GetAction() string {
-	if c.Action == nil {
+	switch cmd := c.Command.(type) {
+	case ShowCommand:
+		return cmd.Action
+	case UpdateCommand:
+		return cmd.Action
+	case HoldCommand:
+		return cmd.Action
+	case ReleaseCommand:
+		return cmd.Action
+	case CreateCommand:
+		return cmd.Action
+	case DeleteCommand:
+		return cmd.Action
+	default:
 		return ""
 	}
-	return c.Action.String()
 }
 
-// GetResource
 func (c *CControlCommand) GetResource() string {
-	if c.Resource == nil {
-		return ""
-	}
-	return c.Resource.String()
-}
-// GetKVParamValue
-func (c *CControlCommand) GetKVParamValue(key string) string {
-	for _, param := range c.KVParams {
-		if strings.EqualFold(param.Key, strings.ToLower(key)) {
-			return param.Value
+	switch cmd := c.Command.(type) {
+	case ShowCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case UpdateCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case HoldCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case ReleaseCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case CreateCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
+		}
+	case DeleteCommand:
+		if cmd.Resource != nil {
+			return cmd.Resource.String()
 		}
 	}
 	return ""
 }
 
-// GetKVMaps
+func (c *CControlCommand) GetID() string {
+	switch cmd := c.Command.(type) {
+	case ShowCommand:
+		return cmd.ID
+	case HoldCommand:
+		return cmd.ID
+	case ReleaseCommand:
+		return cmd.ID
+	case DeleteCommand:
+		return cmd.ID
+	}
+	return ""
+}
+
+func (c *CControlCommand) GetKVParamValue(key string) string {
+	switch cmd := c.Command.(type) {
+	case UpdateCommand:
+		for _, param := range cmd.KeyValueParam {
+			if strings.EqualFold(param.Key, strings.ToLower(key)) {
+				return param.Value
+			}
+		}
+	case HoldCommand:
+		for _, param := range cmd.KeyValueParam {
+			if strings.EqualFold(param.Key, strings.ToLower(key)) {
+				return param.Value
+			}
+		}
+	case ReleaseCommand:
+		for _, param := range cmd.KeyValueParam {
+			if strings.EqualFold(param.Key, strings.ToLower(key)) {
+				return param.Value
+			}
+		}
+	case CreateCommand:
+		for _, param := range cmd.KeyValueParam {
+			if strings.EqualFold(param.Key, strings.ToLower(key)) {
+				return param.Value
+			}
+		}
+	}
+	return ""
+}
+
 func (c *CControlCommand) GetKVMaps() map[string]string {
 	kvMap := make(map[string]string)
-	for _, param := range c.KVParams {
-		kvMap[param.Key] = param.Value
+	switch cmd := c.Command.(type) {
+	case UpdateCommand:
+		for _, param := range cmd.KeyValueParam {
+			kvMap[param.Key] = param.Value
+		}
+	case HoldCommand:
+		for _, param := range cmd.KeyValueParam {
+			kvMap[param.Key] = param.Value
+		}
+	case ReleaseCommand:
+		for _, param := range cmd.KeyValueParam {
+			kvMap[param.Key] = param.Value
+		}
+	case CreateCommand:
+		for _, param := range cmd.KeyValueParam {
+			kvMap[param.Key] = param.Value
+		}
 	}
 	return kvMap
 }
 
 func (c *CControlCommand) GetGlobalFlag(name string) (string, bool) {
-	for _, flag := range c.GlobeFlags {
-		if strings.EqualFold(flag.Name, name) {
-			return flag.Value, true
+	switch cmd := c.Command.(type) {
+	case ShowCommand:
+		for _, flag := range cmd.GlobeFlags {
+			if strings.EqualFold(flag.Name, name) {
+				return flag.Value, true
+			}
+		}
+	case UpdateCommand:
+		for _, flag := range cmd.GlobeFlags {
+			if strings.EqualFold(flag.Name, name) {
+				return flag.Value, true
+			}
+		}
+	case HoldCommand:
+		for _, flag := range cmd.GlobeFlags {
+			if strings.EqualFold(flag.Name, name) {
+				return flag.Value, true
+			}
+		}
+	case ReleaseCommand:
+		for _, flag := range cmd.GlobeFlags {
+			if strings.EqualFold(flag.Name, name) {
+				return flag.Value, true
+			}
+		}
+	case CreateCommand:
+		for _, flag := range cmd.GlobeFlags {
+			if strings.EqualFold(flag.Name, name) {
+				return flag.Value, true
+			}
+		}
+	case DeleteCommand:
+		for _, flag := range cmd.GlobeFlags {
+			if strings.EqualFold(flag.Name, name) {
+				return flag.Value, true
+			}
 		}
 	}
 	return "", false
 }
 
-func (c *CControlCommand) String() string {
-	var parts []string
-
-	if c.Action != nil {
-		parts = append(parts, c.Action.String())
-	}
-
-	if c.Resource != nil {
-		parts = append(parts, c.Resource.String())
-	}
-
-	for _, flag := range c.GlobeFlags {
-		if flag.Value != "" {
-			parts = append(parts, fmt.Sprintf("--%s=%s", flag.Name, flag.Value))
-		} else {
-			parts = append(parts, fmt.Sprintf("--%s", flag.Name))
-		}
-	}
-
-	for _, kv := range c.KVParams {
-		parts = append(parts, fmt.Sprintf("%s=%s", kv.Key, kv.Value))
-	}
-
-	return strings.Join(parts, " ")
-}
-
-// processGlobalFlags
 func processGlobalFlags(command *CControlCommand) {
 	_, hasJson := command.GetGlobalFlag("json")
 	_, hasJ := command.GetGlobalFlag("J")

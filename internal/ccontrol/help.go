@@ -51,7 +51,7 @@ COMMANDS:
     Show information about partitions.
     If no partition name is specified, information for all partitions will be displayed.
 
-  show job [name=<jobid>]
+  show job [jobid]
     Show information about jobs.
     If no job ID is specified, information for all jobs will be displayed.
 
@@ -72,14 +72,14 @@ COMMANDS:
   update partition [allowedAccounts=<accounts>] [deniedAccounts=<accounts>]
     Update partition attributes.
 
-  hold job name=<jobid> timelimit=<duration>
+  hold job <jobid> timelimit=<duration>
     Hold specified job(s).
     timelimit: Duration to hold the job (e.g., 1:00:00 for 1 hour)
 
-  release job name=<jobid>
+  release job <jobid>
     Release a previously held job.
 
-  create reservation name=<name> [startTime=<time>] [duration=<duration>] 
+  create reservation <name> [startTime=<time>] [duration=<duration>] 
                     [nodes=<nodelist>] [account=<account>] [user=<username>]
     Create a new reservation.
     name: Name of the reservation

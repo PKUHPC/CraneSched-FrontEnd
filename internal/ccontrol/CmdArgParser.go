@@ -20,6 +20,7 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -53,10 +54,13 @@ var (
 func ParseCmdArgs(args []string) {
 	cmdStr := strings.Join(args[1:], " ")
 	command, err := ParseCControlCommand(cmdStr)
+	fmt.Println(command.GetAction())
+	fmt.Println(command.GetResource())
+	fmt.Println(command.GetKVParamValue("name"))
+	fmt.Println(command.GetKVMaps())
 	if err != nil {
 		log.Debugf("invalid command format: %s", err)
 		log.Error("error: command format is incorrect")
-		showHelp()
 		os.Exit(util.ErrorCmdArg)
 	}
 
@@ -119,7 +123,7 @@ func executeShowCommand(command *CControlCommand) int {
 }
 
 func executeShowNodeCommand(command *CControlCommand) int {
-	name := command.GetKVParamValue("name")
+	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 	}
@@ -132,7 +136,7 @@ func executeShowNodeCommand(command *CControlCommand) int {
 }
 
 func executeShowPartitionCommand(command *CControlCommand) int {
-	name := command.GetKVParamValue("name")
+	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 	}
@@ -145,7 +149,8 @@ func executeShowPartitionCommand(command *CControlCommand) int {
 }
 
 func executeShowJobCommand(command *CControlCommand) int {
-	name := command.GetKVParamValue("name")
+	name := command.GetID()
+
 	if len(name) == 0 {
 		FlagQueryAll = true
 	}
@@ -158,7 +163,7 @@ func executeShowJobCommand(command *CControlCommand) int {
 }
 
 func executeShowReservationCommand(command *CControlCommand) int {
-	name := command.GetKVParamValue("name")
+	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 	}
@@ -274,7 +279,7 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 }
 
 func executeHoldCommand(command *CControlCommand) int {
-	jobIds := command.GetKVParamValue("name")
+	jobIds := command.GetID()
 
 	timeLimit := command.GetKVParamValue("timelimit")
 	if len(timeLimit) == 0 {
@@ -297,7 +302,7 @@ func executeHoldCommand(command *CControlCommand) int {
 }
 
 func executeReleaseCommand(command *CControlCommand) int {
-	jobIds := command.GetKVParamValue("name")
+	jobIds := command.GetID()
 	if jobIds == "" {
 		log.Debug("no job id specified")
 		return util.ErrorCmdArg
@@ -323,6 +328,12 @@ func executeCreateCommand(command *CControlCommand) int {
 }
 
 func executeCreateReservationCommand(command *CControlCommand) int {
+	FlagReservationName = command.GetID()
+	if len(FlagReservationName) == 0 {
+		log.Debug("no reservation name specified")
+		return util.ErrorCmdArg
+	}
+
 	kvParams := command.GetKVMaps()
 	if len(kvParams) == 0 {
 		log.Debug("no attribute to be modified")
@@ -331,10 +342,10 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
-		case "name":
-			FlagReservationName = value
 		case "starttime":
 			FlagStartTime = value
+		case "partition":
+			FlagPartitionName = value
 		case "duration":
 			FlagDuration = value
 		case "nodes":
@@ -369,14 +380,14 @@ func executeDeleteCommand(command *CControlCommand) int {
 }
 
 func executeDeleteReservationCommand(command *CControlCommand) int {
-	reservationName := command.GetKVParamValue("name")
+	name := command.GetID()
 
-	if len(reservationName) == 0 {
+	if len(name) == 0 {
 		log.Debug("no reservation name specified")
 		return util.ErrorCmdArg
 	}
 
-	if err := DeleteReservation(reservationName); err != util.ErrorSuccess {
+	if err := DeleteReservation(name); err != util.ErrorSuccess {
 		return util.ErrorCmdArg
 	}
 
