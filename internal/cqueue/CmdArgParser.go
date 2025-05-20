@@ -129,7 +129,7 @@ Supported format identifiers or string, string case insensitive:
 	%o/%Command            - Display the command line of the job.
 	%P/%Partition          - Display the partition the job is running in.
 	%p/%Priority           - Display the priority of the job.
-	%Q/%CpuPerNode         - Display the requested cpu per node of the job.
+	%Q/%ReqCpuPerNode      - Display the requested cpu per node of the job.
 	%q/%QoS                - Display the Quality of Service level for the job.
 	%R/%Reason             - Display the reason of pending.
 	%r/%ReqNodes           - Display the reqnodes of the job.
