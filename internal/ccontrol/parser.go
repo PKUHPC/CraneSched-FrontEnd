@@ -24,14 +24,12 @@ type ShowCommand struct {
 
 type UpdateCommand struct {
 	Action        string           `parser:"@'update'"`
-	Resource      *ResourceType    `parser:"@@"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 	GlobeFlags    []*Flag          `parser:"@@*"`
 }
 
 type HoldCommand struct {
 	Action        string           `parser:"@'hold'"`
-	Resource      *ResourceType    `parser:"@@"`
 	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 	GlobeFlags    []*Flag          `parser:"@@*"`
@@ -39,7 +37,6 @@ type HoldCommand struct {
 
 type ReleaseCommand struct {
 	Action        string           `parser:"@'release'"`
-	Resource      *ResourceType    `parser:"@@"`
 	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 	GlobeFlags    []*Flag          `parser:"@@*"`
@@ -132,18 +129,6 @@ func (c *CControlCommand) GetAction() string {
 func (c *CControlCommand) GetResource() string {
 	switch cmd := c.Command.(type) {
 	case ShowCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
-		}
-	case UpdateCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
-		}
-	case HoldCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
-		}
-	case ReleaseCommand:
 		if cmd.Resource != nil {
 			return cmd.Resource.String()
 		}

@@ -43,11 +43,11 @@ RESOURCES:
   reservation - Resource reservations
 
 COMMANDS:
-  show node [name=<nodename>]
+  show node [<nodename>]
     Show information about compute nodes.
     If no node name is specified, information for all nodes will be displayed.
 
-  show partition [name=<partition>]
+  show partition [<partition>]
     Show information about partitions.
     If no partition name is specified, information for all partitions will be displayed.
 
@@ -55,28 +55,30 @@ COMMANDS:
     Show information about jobs.
     If no job ID is specified, information for all jobs will be displayed.
 
-  show reservation [name=<reservation>]
+  show reservation [<reservationName>]
     Show information about reservations.
     If no reservation name is specified, information for all reservations will be displayed.
 
-  update node name=<nodename> state=<state> [reason=<reason>]
+  update nodeName=<nodename> state=<state> [reason=<reason>]
     Update attributes of a node.
     state: Valid states are 'drain' or 'resume'
     reason: Required when setting state to 'drain'
 
-  update job name=<jobid> [priority=<priority>] [timelimit=<timelimit>]
+  update jobid=<jobid> [priority=<priority>] [timelimit=<timelimit>]
     Update attributes of a job.
     priority: New priority value
     timelimit: New time limit for the job
 
-  update partition [allowedAccounts=<accounts>] [deniedAccounts=<accounts>]
+  update partitionName=<partition> [accounts=<accounts>] [deniedaccounts=<accounts>]
     Update partition attributes.
+    accounts: List of accounts allowed to use the partition
+    deniedaccounts: List of accounts denied from using the partition
 
-  hold job <jobid> timelimit=<duration>
+  hold <jobid> [timelimit=<duration>]
     Hold specified job(s).
     timelimit: Duration to hold the job (e.g., 1:00:00 for 1 hour)
 
-  release job <jobid>
+  release <jobid>
     Release a previously held job.
 
   create reservation <name> [startTime=<time>] [duration=<duration>] 
@@ -89,7 +91,7 @@ COMMANDS:
     account: Account to associate with the reservation
     user: User to associate with the reservation
 
-  delete reservation name=<name>
+  delete reservation <name>
     Delete an existing reservation.
 
 GLOBAL OPTIONS:
