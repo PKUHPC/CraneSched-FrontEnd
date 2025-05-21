@@ -35,7 +35,6 @@ func showHelp() {
 	unblock   - Unblock an account or user
 	modify    - Change attributes of an account, user, or QoS
 	show      - Display basic information
-	find      - Search for specific resources
   
   RESOURCES:
 	account   - User account in the system
@@ -52,6 +51,8 @@ func showHelp() {
   
 	show account [names=<name1,name2,...>]
 	  Display information about all accounts.
+	  if no names are specified, all accounts will be displayed.
+	  if the names are specified, only the accounts with the specified names will be displayed.(find specific accounts)
   
 	add user <names> account=<account> [coordinator=true|false] [level=<level>] 
 			[partition=<part1,part2,...>] [names=<name1,name2,...>]
@@ -62,6 +63,9 @@ func showHelp() {
   
 	show user [accounts=<account>] [names=<name1,name2,...>]
 	  Display information about users, optionally filtered by account.
+	  if no account is specified, all users will be displayed.
+	  if the account is specified, only the users associated with the account will be displayed.
+	  if the names are specified, only the users with the specified names will be displayed.(find specific users)
   
 	add qos <names> [description=<desc>] [priority=<priority>] 
 			[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
@@ -72,6 +76,8 @@ func showHelp() {
   
 	show qos <names> [names=<name1,name2,...>]
 	  Show detailed information about a specific QoS.
+	  if no names are specified, all QoSs will be displayed.
+	  if the names are specified, only the QoSs with the specified names will be displayed.(find specific QoSs)
 
   	modify <resource> where [OPTIONS] set [OPTIONS]
 	  Modify attributes of an existing user.
@@ -98,6 +104,7 @@ func showHelp() {
 	--config, -C     Specify an alternative configuration file (default: /etc/crane/config.yaml)
 	--json, -J     Format output as JSON
 	--version, -v    Display the version of the program
+	--force, -f     Force the operation to proceed without confirmation
 
   NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.
   `

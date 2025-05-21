@@ -195,7 +195,7 @@ func executeAddAccountCommand(command *CAcctMgrCommand) int {
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "names":
+		case "name":
 			FlagAccount.Name += value
 		case "description":
 			FlagAccount.Description = value
@@ -229,7 +229,7 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 			FlagLevel = value
 		case "partition":
 			FlagUserPartitions = strings.Split(value, ",")
-		case "names":
+		case "name":
 			FlagUser.Name += value
 		default:
 			log.Debugf("unknown flag: %s", key)
@@ -246,7 +246,7 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "names":
+		case "name":
 			FlagQos.Name += value
 		case "description":
 			FlagQos.Description = value
@@ -277,7 +277,7 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 				log.Debugf("invalid max-time-limit-per-task value: %s", value)
 				return util.ErrorCmdArg
 			}
-			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
+			FlagQos.MaxTimeLimitPerTask = uint64(maxTimeLimit)
 		default:
 			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
@@ -308,7 +308,7 @@ func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "names":
+		case "name":
 			FlagResourceName += value
 		}
 	}
@@ -323,7 +323,7 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) int {
 		switch key {
 		case "account":
 			FlagResourceAccount = value
-		case "names":
+		case "name":
 			FlagResourceName += value
 		default:
 			log.Debugf("unknown flag: %s", key)
@@ -340,7 +340,7 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) int {
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
-		case "names":
+		case "name":
 			FlagResourceName += value
 		}
 	}
@@ -611,7 +611,7 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 
 func executeShowAccountCommand(command *CAcctMgrCommand) int {
 	FlagResourceName := command.GetID()
-	FlagResourceName += command.GetKVParamValue("names")
+	FlagResourceName += command.GetKVParamValue("name")
 
 	if FlagResourceName == "" {
 		return ShowAccounts()
@@ -622,7 +622,7 @@ func executeShowAccountCommand(command *CAcctMgrCommand) int {
 
 func executeShowUserCommand(command *CAcctMgrCommand) int {
 	FlagResourceName := command.GetID()
-	FlagResourceName += command.GetKVParamValue("names")
+	FlagResourceName += command.GetKVParamValue("name")
 	account := command.GetKVParamValue("accounts")
 
 	return ShowUser(FlagResourceName, account)
@@ -630,7 +630,7 @@ func executeShowUserCommand(command *CAcctMgrCommand) int {
 
 func executeShowQosCommand(command *CAcctMgrCommand) int {
 	FlagResourceName := command.GetID()
-	FlagResourceName += command.GetKVParamValue("names")
+	FlagResourceName += command.GetKVParamValue("name")
 
 	return ShowQos(FlagResourceName)
 }

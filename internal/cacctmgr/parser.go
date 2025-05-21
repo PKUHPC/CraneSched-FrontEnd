@@ -249,7 +249,7 @@ func (c *CAcctMgrCommand) GetKVMaps() map[string]string {
 	}
 
 	for _, param := range params {
-		kvMap[param.Key] = param.Value
+		kvMap[strings.ToLower(param.Key)] = param.Value
 	}
 	return kvMap
 }
@@ -260,7 +260,7 @@ func (c *CAcctMgrCommand) GetWhereParams() map[string]string {
 	switch cmd := c.Command.(type) {
 	case ModifyCommand:
 		for _, param := range cmd.WhereParams {
-			whereMap[param.Key] = param.Value
+			whereMap[strings.ToLower(param.Key)] = param.Value
 		}
 	default:
 		return nil
