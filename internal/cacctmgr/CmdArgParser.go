@@ -35,6 +35,10 @@ var (
 	FlagUser    protos.UserInfo
 	FlagQos     protos.QosInfo
 
+	FlagGrpTres           string
+	FlagMaxTresPerUser    string
+	FlagMaxTresPerAccount string
+
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
 	// while the other is the partition to be added or deleted.
@@ -338,6 +342,36 @@ var (
 					os.Exit(err)
 				}
 			}
+			if cmd.Flags().Changed("grp-jobs") {
+				if err := ModifyQos(protos.ModifyField_MaxJobs, fmt.Sprint(FlagQos.MaxJobs), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("grp-submit-jobs") {
+				if err := ModifyQos(protos.ModifyField_MaxSubmitJobs, fmt.Sprint(FlagQos.MaxSubmitJobs), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("max-wall") {
+				if err := ModifyQos(protos.ModifyField_MaxWall, fmt.Sprint(FlagQos.MaxWall), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("grp-tres") {
+				if err := ModifyQos(protos.ModifyField_MaxTres, fmt.Sprint(FlagGrpTres), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("max-tres-per-user") {
+				if err := ModifyQos(protos.ModifyField_MaxTresPerUser, fmt.Sprint(FlagMaxTresPerUser), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+			if cmd.Flags().Changed("max-tres-per-account") {
+				if err := ModifyQos(protos.ModifyField_MaxTresPerAccount, fmt.Sprint(FlagMaxTresPerAccount), FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
 		},
 	}
 
@@ -540,6 +574,12 @@ func init() {
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "S", math.MaxUint32, "Set the maximum number of submit jobs per user")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "s", math.MaxUint32, "Set the maximum number of submit jobs per account")
 			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobs, "grp-jobs", "", math.MaxUint32, "Set the maximum number of jobs")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobs, "grp-submit-jobs", "", math.MaxUint32, "Set the maximum number of submit jobs")
+			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxWall, "max-wall", "", util.MaxJobTimeLimit, "Set the maximum wall")
+			addQosCmd.Flags().StringVarP(&FlagGrpTres, "grp-tres", "", "", "Set the maximum number of tres")
+			addQosCmd.Flags().StringVarP(&FlagMaxTresPerUser, "max-tres-per-user", "", "", "Set the maximum number of tres per user")
+			addQosCmd.Flags().StringVarP(&FlagMaxTresPerAccount, "max-tres-per-account", "", "", "Set the maximum number of tres per account")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -656,7 +696,12 @@ func init() {
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "S", math.MaxUint32, "Set the maximum number of submit jobs per user")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "s", math.MaxUint32, "Set the maximum number of submit jobs per account")
 			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
-
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobs, "grp-jobs", "", math.MaxUint32, "Set the maximum number of jobs")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobs, "grp-submit-jobs", "", math.MaxUint32, "Set the maximum number of submit jobs")
+			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxWall, "max-wall", "", util.MaxJobTimeLimit, "Set the maximum wall")
+			modifyQosCmd.Flags().StringVarP(&FlagGrpTres, "grp-tres", "", "", "Set the maximum number of tres")
+			modifyQosCmd.Flags().StringVarP(&FlagMaxTresPerUser, "max-tres-per-user", "", "", "Set the maximum number of tres per user")
+			modifyQosCmd.Flags().StringVarP(&FlagMaxTresPerAccount, "max-tres-per-account", "", "", "Set the maximum number of tres per account")
 			// Rules
 			if err := modifyQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")

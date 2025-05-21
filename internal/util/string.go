@@ -736,6 +736,59 @@ func ParseGres(gres string) *protos.DeviceMap {
 	return result
 }
 
+func ParseTres(tres string) *protos.ResourceView {
+	result := &protos.ResourceView{
+		AllocatableRes: &protos.AllocatableResource{
+			// TODO: is security?
+			CpuCoreLimit:       math.MaxInt32 / 256,
+			MemoryLimitBytes:   math.MaxUint64,
+			MemorySwLimitBytes: math.MaxUint64,
+		},
+		DeviceMap: &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)},
+	}
+	if tres == "" {
+		return result
+	}
+	var gresStr string
+	items := strings.Split(tres, ",")
+	for _, item := range items {
+		if strings.HasPrefix(item, "gres/") && len(item) > 5 {
+			gresStr += item[5:] + ","
+		} else {
+			kv := strings.SplitN(item, "=", 2)
+			if len(kv) == 2 {
+				key := strings.TrimSpace(kv[0])
+				value := strings.TrimSpace(kv[1])
+				if key == "cpu" {
+					count, err := strconv.ParseFloat(value, 64)
+					if err != nil {
+						log.Errorf("Error parsing cpu: %s\n", item)
+						continue
+					}
+					if count > (math.MaxInt32 / 256) {
+						log.Errorf("CPU setting exceeds the limit: %s\n", item)
+						continue
+					}
+					result.GetAllocatableRes().CpuCoreLimit = count
+				} else if key == "mem" {
+					count, err := strconv.ParseUint(value, 10, 64)
+					if err != nil {
+						log.Errorf("Error parsing mem: %s\n", item)
+						continue
+					}
+					result.GetAllocatableRes().MemoryLimitBytes = count
+				}
+			} else {
+				log.Errorf("Error parsing tres: %s\n", item)
+			}
+		}
+	}
+
+	result.DeviceMap = ParseGres(strings.TrimSuffix(gresStr, ","))
+
+	return result
+}
+
 func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 	state = strings.ToLower(state)
 	switch state {
@@ -954,4 +1007,31 @@ func FormatMemToMB(data uint64) string {
 	} else {
 		return fmt.Sprintf("%vM", data/B2MBRatio)
 	}
+}
+
+func ResourceViewToTres(rv *protos.ResourceView) string {
+	var parts []string
+	if rv.AllocatableRes != nil {
+		if rv.AllocatableRes.CpuCoreLimit != (math.MaxInt32 / 256) {
+			cpu := strconv.FormatFloat(rv.AllocatableRes.CpuCoreLimit, 'f', -1, 64)
+			parts = append(parts, "cpu="+cpu)
+		}
+		if rv.AllocatableRes.MemoryLimitBytes != math.MaxUint64 {
+			mem := strconv.FormatUint(rv.AllocatableRes.MemoryLimitBytes, 10)
+			parts = append(parts, "mem="+mem)
+		}
+	}
+	if rv.DeviceMap != nil && len(rv.DeviceMap.NameTypeMap) > 0 {
+		for name, typeCount := range rv.DeviceMap.NameTypeMap {
+			for typ, count := range typeCount.TypeCountMap {
+				if count > 0 {
+					parts = append(parts, fmt.Sprintf("gres/%s:%s:%d", name, typ, count))
+				}
+			}
+			if typeCount.Total > 0 {
+				parts = append(parts, fmt.Sprintf("gres/%s:%d", name, typeCount.Total))
+			}
+		}
+	}
+	return strings.Join(parts, ",")
 }
