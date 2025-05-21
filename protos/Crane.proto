@@ -435,7 +435,7 @@ message ModifyQosReply {
 message ModifyDefaultWckeyRequest {
   uint32 uid = 1;
   string name = 2;
-  string user_name = 3; 
+  string user_name = 3;
 }
 
 message ModifyDefaultWckeyReply {

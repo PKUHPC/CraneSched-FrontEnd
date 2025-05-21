@@ -288,6 +288,10 @@ func AddQos(qos *protos.QosInfo) util.ExitCode {
 		return util.ErrorCmdArg
 	}
 
+	qos.MaxTres = util.ParseTres(FlagGrpTres)
+	qos.MaxTresPerUser = util.ParseTres(FlagMaxTresPerUser)
+	qos.MaxTresPerAccount = util.ParseTres(FlagMaxTresPerAccount)
+
 	req := new(protos.AddQosRequest)
 	req.Uid = userUid
 	req.Qos = qos
