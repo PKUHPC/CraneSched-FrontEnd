@@ -537,8 +537,8 @@ func init() {
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerAccount, "max-jobs-per-account", "j", math.MaxUint32, "Set the maximum number of jobs per account")
 			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "s", math.MaxUint32, "Set the maximum number of submit jobs per user")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "S", math.MaxUint32, "Set the maximum number of submit jobs per account")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "S", math.MaxUint32, "Set the maximum number of submit jobs per user")
+			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "s", math.MaxUint32, "Set the maximum number of submit jobs per account")
 			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
@@ -653,8 +653,8 @@ func init() {
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerAccount, "max-jobs-per-account", "j", math.MaxUint32, "Set the maximum number of jobs per account")
 			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "s", math.MaxUint32, "Set the maximum number of submit jobs per user")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "S", math.MaxUint32, "Set the maximum number of submit jobs per account")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerUser, "max-submit-jobs-per-user", "S", math.MaxUint32, "Set the maximum number of submit jobs per user")
+			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxSubmitJobsPerAccount, "max-submit-jobs-per-account", "s", math.MaxUint32, "Set the maximum number of submit jobs per account")
 			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
 
 			// Rules
