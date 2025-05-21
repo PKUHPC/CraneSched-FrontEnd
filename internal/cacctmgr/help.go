@@ -43,52 +43,34 @@ func showHelp() {
 	qos       - Quality of Service settings
   
   COMMANDS:
-	add account <name> [description=<desc>] [parent=<parent>] [default-qos=<qos>] 
-				[partition=<part1,part2,...>] [qos-list=<qos1,qos2,...>]
+	add account <names> [description=<desc>] [parent=<parent>] [defaultQos=<qos>] 
+				[partition=<part1,part2,...>] [qosList=<qos1,qos2,...>] [names=<name1,name2,...>]
 	  Create a new account with the specified attributes.
   
-	delete account <name>
+	delete account <names>
 	  Remove an account from the system.
   
-	block account <name> [account=<account>]
-	  Block an account, preventing job submissions.
-  
-	unblock account <name> [account=<account>]
-	  Unblock a previously blocked account.
-  
-	show account
+	show account [names=<name1,name2,...>]
 	  Display information about all accounts.
   
-	find account <name>
-	  Show detailed information about a specific account.
-  
-	add user <name> account=<account> [coordinator=true|false] [level=<level>] 
-			[partition=<part1,part2,...>]
+	add user <names> account=<account> [coordinator=true|false] [level=<level>] 
+			[partition=<part1,part2,...>] [names=<name1,name2,...>]
 	  Create a new user associated with an account.
   
-	delete user <name> [account=<account>]
+	delete user <names> [account=<account>] [names=<name1,name2,...>]
 	  Remove a user from the system or from a specific account.
   
-	block user name=<name> [account=<account>]
-	  Block a user, preventing job submissions.
-  
-	unblock user name=<name> [account=<account>]
-	  Unblock a previously blocked user.
-  
-	show user [accounts=<account>]
+	show user [accounts=<account>] [names=<name1,name2,...>]
 	  Display information about users, optionally filtered by account.
   
-	find user <name> [account=<account>]
-	  Show detailed information about a specific user.
-  
-	add qos <name> [description=<desc>] [priority=<priority>] 
+	add qos <names> [description=<desc>] [priority=<priority>] 
 			[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
 	  Create a new QoS with the specified attributes.
   
-	delete qos <name>
+	delete qos <names> [names=<name1,name2,...>]
 	  Remove a QoS from the system.
   
-	find qos <name>
+	show qos <names> [names=<name1,name2,...>]
 	  Show detailed information about a specific QoS.
 
   	modify <resource> where [OPTIONS] set [OPTIONS]

@@ -81,14 +81,6 @@ type ShowCommand struct {
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
-type FindCommand struct {
-	Action      string           `parser:"@'find'"`
-	Resource    *ResourceType    `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
-	KVParams    []*KeyValueParam `parser:"@@*"`
-	GlobalFlags []*Flag          `parser:"@@*"`
-}
-
 type ResourceType struct {
 	Account bool `parser:"@'account'"`
 	User    bool `parser:"| @'user'"`
@@ -127,7 +119,7 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CAcctMgrParser = participle.MustBuild[CAcctMgrCommand](
 	participle.Lexer(CAcctMgrLexer),
 	participle.Elide("whitespace"),
-	participle.Union[any](AddCommand{}, DeleteCommand{}, BlockCommand{}, UnblockCommand{}, ModifyCommand{}, ShowCommand{}, FindCommand{}),
+	participle.Union[any](AddCommand{}, DeleteCommand{}, BlockCommand{}, UnblockCommand{}, ModifyCommand{}, ShowCommand{}),
 )
 
 func ParseCAcctMgrCommand(input string) (*CAcctMgrCommand, error) {
@@ -161,8 +153,6 @@ func (c *CAcctMgrCommand) GetAction() string {
 		return cmd.Action
 	case ShowCommand:
 		return cmd.Action
-	case FindCommand:
-		return cmd.Action
 	default:
 		return ""
 	}
@@ -194,10 +184,6 @@ func (c *CAcctMgrCommand) GetResource() string {
 		if cmd.Resource != nil {
 			return cmd.Resource.String()
 		}
-	case FindCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
-		}
 	}
 	return ""
 }
@@ -215,8 +201,6 @@ func (c *CAcctMgrCommand) GetKVParamValue(key string) string {
 	case UnblockCommand:
 		params = cmd.KVParams
 	case ShowCommand:
-		params = cmd.KVParams
-	case FindCommand:
 		params = cmd.KVParams
 	default:
 		return ""
@@ -240,8 +224,6 @@ func (c *CAcctMgrCommand) GetID() string {
 		return cmd.ID
 	case UnblockCommand:
 		return cmd.ID
-	case FindCommand:
-		return cmd.ID
 	default:
 		return ""
 	}
@@ -261,8 +243,6 @@ func (c *CAcctMgrCommand) GetKVMaps() map[string]string {
 	case UnblockCommand:
 		params = cmd.KVParams
 	case ShowCommand:
-		params = cmd.KVParams
-	case FindCommand:
 		params = cmd.KVParams
 	default:
 		return kvMap
@@ -317,8 +297,6 @@ func (c *CAcctMgrCommand) GetGlobalFlag(name string) (string, bool) {
 	case ModifyCommand:
 		flags = cmd.GlobalFlags
 	case ShowCommand:
-		flags = cmd.GlobalFlags
-	case FindCommand:
 		flags = cmd.GlobalFlags
 	default:
 		return "", false
