@@ -55,6 +55,7 @@ var (
 	FlagDebugLevel     string
 
 	FlagReservation string
+	FlagSignal      string
 
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
@@ -110,4 +111,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
+	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "send signal when time limit within time seconds, format: signum[@time]")
 }

@@ -51,11 +51,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		},
 	}
 	task.Payload = &protos.TaskToCtld_BatchMeta{
-		BatchMeta: &protos.BatchTaskAdditionalMeta{
-			SignalParam: &protos.SignalParam{
-				Valid: false,
-			},
-		},
+		BatchMeta: &protos.BatchTaskAdditionalMeta{},
 	}
 
 	task.CpusPerTask = 1
@@ -166,7 +162,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			batchMetaPayload := task.Payload.(*protos.TaskToCtld_BatchMeta)
-			batchMetaPayload.BatchMeta.SignalParam.Valid = true
+			batchMetaPayload.BatchMeta.SignalParam = &protos.SignalParam{}
 			batchMetaPayload.BatchMeta.SignalParam.SignalNumber = sig
 			batchMetaPayload.BatchMeta.SignalParam.SecondsBeforeKill = sec
 		default:
@@ -278,7 +274,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			return false, nil
 		}
 		batchMetaPayload := task.Payload.(*protos.TaskToCtld_BatchMeta)
-		batchMetaPayload.BatchMeta.SignalParam.Valid = true
+		batchMetaPayload.BatchMeta.SignalParam = &protos.SignalParam{}
 		batchMetaPayload.BatchMeta.SignalParam.SignalNumber = sig
 		batchMetaPayload.BatchMeta.SignalParam.SecondsBeforeKill = sec
 	}
