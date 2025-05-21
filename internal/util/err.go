@@ -206,7 +206,8 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_DEL_DEFAULT_WCKEY:       "Cannot delete the default wckey. Please set a different default wckey first",
 	protos.ErrCode_ERR_NO_DEFAULT_WCKEY:        "No default wckey is set. Please specify a wckey or set a default wckey",
 	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_ACCOUNT: "The number of tasks for the current account has reached its limit",
-	}
+	protos.ErrCode_ERR_USER_HAS_TASK:             "The user has jobs pending or running, cannot be deleted",
+}
 
 func ErrMsg(err_code protos.ErrCode) string {
 	if msg, exists := errMsgMap[err_code]; exists {
