@@ -120,6 +120,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_NOT_IN_ALLOWED_LIST:       "The account does not have permission to run jobs in this partition. Please contact the administrator to add it to the allowed list",
 	protos.ErrCode_ERR_IN_DENIED_LIST:            "The account has been denied access to this partition. Please contact the security administrator if access is required",
 	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_ACCOUNT: "The number of tasks for the current account has reached its limit",
+	protos.ErrCode_ERR_USER_HAS_TASK:             "The user has jobs pending or running, cannot be deleted",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
