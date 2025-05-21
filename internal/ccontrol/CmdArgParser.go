@@ -236,16 +236,14 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 				return util.ErrorCmdArg
 			}
 			FlagPriority = priority
+			ChangeTaskPriority(FlagTaskIds, FlagPriority)
 		case "timelimit":
 			FlagTimeLimit = value
+			ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
 		}
-	}
-
-	if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
 	}
 
 	return util.ErrorSuccess
