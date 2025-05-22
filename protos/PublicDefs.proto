@@ -173,7 +173,7 @@ message RuntimeAttrOfTask {
 
   bool held = 18;
   ResourceV2 resources = 19;
-  double cached_priority = 20;
+  double allocated_res = 20;
 }
 
 message TaskToD {
