@@ -772,25 +772,11 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
 
-	var req protos.ModifyQosRequest
-	if modifyField == protos.ModifyField_MaxTres ||
-		modifyField == protos.ModifyField_MaxTresPerUser ||
-		modifyField == protos.ModifyField_MaxTresPerAccount {
-
-		req = protos.ModifyQosRequest{
-			Uid:         userUid,
-			ModifyField: modifyField,
-			Name:        name,
-			TresValue:   util.ParseTres(newValue),
-		}
-
-	} else {
-		req = protos.ModifyQosRequest{
-			Uid:         userUid,
-			ModifyField: modifyField,
-			Value:       newValue,
-			Name:        name,
-		}
+	req := protos.ModifyQosRequest{
+		Uid:         userUid,
+		ModifyField: modifyField,
+		Value:       newValue,
+		Name:        name,
 	}
 
 	reply, err := stub.ModifyQos(context.Background(), &req)

@@ -689,7 +689,14 @@ func RemoveBracketsWithoutDashOrComma(input string) string {
 	return output
 }
 
-func ParseGres(gres string) *protos.DeviceMap {
+func ParseGres(gres string, flags ...bool) *protos.DeviceMap {
+	var use_limit bool
+	if len(flags) > 0 {
+		use_limit = flags[0]
+	} else {
+		use_limit = false
+	}
+
 	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
 	if gres == "" {
 		return result
@@ -709,7 +716,11 @@ func ParseGres(gres string) *protos.DeviceMap {
 			if _, exist := result.NameTypeMap[name]; !exist {
 				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: make(map[string]uint64), Total: gresNameCount}
 			} else {
-				result.NameTypeMap[name].Total += gresNameCount
+				if result.NameTypeMap[name].Total > math.MaxUint64-gresNameCount {
+					result.NameTypeMap[name].Total = math.MaxUint64
+				} else {
+					result.NameTypeMap[name].Total += gresNameCount
+				}
 			}
 		} else if len(parts) == 3 {
 			gresType := parts[1]
@@ -724,7 +735,11 @@ func ParseGres(gres string) *protos.DeviceMap {
 			if _, exist := result.NameTypeMap[name]; !exist {
 				typeCountMap := make(map[string]uint64)
 				typeCountMap[gresType] = count
-				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: 0}
+				var total uint64 = 0
+				if use_limit {
+					total = math.MaxUint64
+				}
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: total}
 			} else {
 				result.NameTypeMap[name].TypeCountMap[gresType] = count
 			}
@@ -739,7 +754,6 @@ func ParseGres(gres string) *protos.DeviceMap {
 func ParseTres(tres string) *protos.ResourceView {
 	result := &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
-			// TODO: is security?
 			CpuCoreLimit:       math.MaxInt32 / 256,
 			MemoryLimitBytes:   math.MaxUint64,
 			MemorySwLimitBytes: math.MaxUint64,
@@ -760,6 +774,9 @@ func ParseTres(tres string) *protos.ResourceView {
 				key := strings.TrimSpace(kv[0])
 				value := strings.TrimSpace(kv[1])
 				if key == "cpu" {
+					if value == "-1" {
+						continue
+					}
 					count, err := strconv.ParseFloat(value, 64)
 					if err != nil {
 						log.Errorf("Error parsing cpu: %s\n", item)
@@ -771,12 +788,16 @@ func ParseTres(tres string) *protos.ResourceView {
 					}
 					result.GetAllocatableRes().CpuCoreLimit = count
 				} else if key == "mem" {
+					if value == "-1" {
+						continue
+					}
 					count, err := strconv.ParseUint(value, 10, 64)
 					if err != nil {
 						log.Errorf("Error parsing mem: %s\n", item)
 						continue
 					}
 					result.GetAllocatableRes().MemoryLimitBytes = count
+					result.GetAllocatableRes().MemorySwLimitBytes = count
 				}
 			} else {
 				log.Errorf("Error parsing tres: %s\n", item)
@@ -784,7 +805,7 @@ func ParseTres(tres string) *protos.ResourceView {
 		}
 	}
 
-	result.DeviceMap = ParseGres(strings.TrimSuffix(gresStr, ","))
+	result.DeviceMap = ParseGres(strings.TrimSuffix(gresStr, ","), true)
 
 	return result
 }
