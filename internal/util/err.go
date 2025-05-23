@@ -164,6 +164,11 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CHILD_HAS_DEFAULT_QOS:           "some child accounts or users is using the QoS as the default QoS. By ignoring this constraint with forced deletion, the deleted default QoS is randomly replaced with one of the remaining items in the QoS list",
 	protos.ErrCode_ERR_SET_DEFAULT_QOS:                 "The Qos not allowed or is already the default qos",
 	protos.ErrCode_ERR_DEFAULT_QOS_MODIFICATION_DENIED: "The QoS is the default QoS for the current user/Account and cannot be modified. Ignoring this constraint with forced operation, the default QoS is randomly replaced with one of the items in the new QoS list",
+	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_USER:          "The number of tasks for the current user has reached the limit of this QOS",
+	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_ACCOUNT:       "The number of tasks for the current account has reached the limit of this QOS",
+	protos.ErrCode_ERR_TRES_PER_TASK_BEYOND:            "The tres of tasks user has reached the limit of this QOS",
+	protos.ErrCode_ERR_MAX_TRES_PER_USER_BEYOND:        "The tres of tasks for the current user has reached the limit of this QOS",
+	protos.ErrCode_ERR_MAX_TRES_PER_ACCOUNT_BEYOND:     "The tres of tasks for the current account has reached the limit of this QOS",
 
 	// LicenseResource errors
 	protos.ErrCode_ERR_INVALID_ARGUMENT:       "Invalid argument provided",
