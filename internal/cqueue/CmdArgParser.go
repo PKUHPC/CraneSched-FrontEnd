@@ -113,31 +113,34 @@ func init() {
 	Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field.
 	
 Supported format identifiers or string, string case insensitive:
-	%a/%Account      - Display the account associated with the job.
-	%C/%AllocCpus    - Display the cpus allocated to the job.
-	%c/%CpuPerNode   - Display the requested cpu per node of the job.
-	%e/%ElapsedTime  - Display the elapsed time from the start of the job. 
-	%h/%Held         - Display the hold state of the job.
-	%j/%JobID        - Display the ID of the job.
-	%k/%Comment      - Display the comment of the job.
-	%L/%NodeList     - Display the list of nodes the job is running on.
-	%l/%TimeLimit    - Display the time limit for the job.
-	%m/%MemPerNode   - Display the requested mem per node of the job.
-	%N/%NodeNum      - Display the number of nodes requested by the job.
-	%n/%Name         - Display the name of the job.
-	%o/%Command      - Display the command line of the job.
-	%P/%Partition    - Display the partition the job is running in.
-	%p/%Priority     - Display the priority of the job.
-	%q/%QoS          - Display the Quality of Service level for the job.
-	%R/%Reason       - Display the reason of pending.
-	%r/%ReqNodes     - Display the reqnodes of the job.
-	%S/%StartTime    - Display the start time of the job.
-	%s/%SubmitTime   - Display the submission time of the job.
-	%t/%State        - Display the current state of the job.
-	%T/%JobType      - Display the job type.
-	%U/%Uid          - Display the uid of the job.
-	%u/%User         - Display the user who submitted the job.
-	%x/%ExcludeNodes - Display the exclude nodes of the job.
+	%a/%Account            - Display the account associated with the job.
+	%C/%ReqCpus            - Display the cpus requested to the job.
+	%c/%AllocCpus          - Display the cpus allocated to the job.
+	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
+	%h/%Held               - Display the hold state of the job.
+	%j/%JobID              - Display the ID of the job.
+	%k/%Comment            - Display the comment of the job.
+	%L/%NodeList           - Display the list of nodes the job is running on.
+	%l/%TimeLimit          - Display the time limit for the job.
+	%M/%ReqMemPerNode      - Display the requested mem per node of the job.
+	%m/%AllocMemPerNode    - Display the requested mem per node of the job.
+	%N/%NodeNum            - Display the number of nodes requested by the job.
+	%n/%Name               - Display the name of the job.
+	%o/%Command            - Display the command line of the job.
+	%P/%Partition          - Display the partition the job is running in.
+	%p/%Priority           - Display the priority of the job.
+	%Q/%ReqCpuPerNode      - Display the requested cpu per node of the job.
+	%q/%QoS                - Display the Quality of Service level for the job.
+	%R/%Reason             - Display the reason of pending.
+	%r/%ReqNodes           - Display the reqnodes of the job.
+	%S/%StartTime          - Display the start time of the job.
+	%s/%SubmitTime         - Display the submission time of the job.
+	%t/%State              - Display the current state of the job.
+	%T/%JobType            - Display the job type.
+	%U/%Uid                - Display the uid of the job.
+	%u/%User               - Display the user who submitted the job.
+	%X/%Exclusive          - Display the exclusive status of the job.
+	%x/%ExcludeNodes       - Display the exclude nodes of the job.
 Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
 If the width is specified, the field will be formatted to at least that width. 
 If the format is invalid or unrecognized, the program will terminate with an error message.
