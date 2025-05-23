@@ -842,6 +842,7 @@ enum ModifyField {
   MaxTres = 16;
   MaxTresPerUser = 17;
   MaxTresPerAccount = 18;
+  FLags = 19;
 
   // wckey
   DefaultWckey = 40;
@@ -908,6 +909,7 @@ message QosInfo {
   ResourceView max_tres = 13;
   ResourceView max_tres_per_user = 14;
   ResourceView max_tres_per_account = 15;
+  uint32 flags = 16;
 }
 
 message QueryWckeyInfo {

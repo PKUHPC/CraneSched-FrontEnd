@@ -1713,3 +1713,26 @@ func ResourceViewToTres(rv *protos.ResourceView) string {
 	}
 	return strings.Join(parts, ",")
 }
+
+func ParseFlags(s string) (uint32, error) {
+	var flags uint32 = 0
+	var result bool = false
+
+	if s == "" {
+		return 0, fmt.Errorf("empty flags")
+	}
+
+	items := strings.Split(s, ",")
+	for _, item := range items {
+		if val, ok := QoSFlagNameMap[item]; ok {
+			flags |= val
+			result = true
+		}
+	}
+
+	if !result {
+		return 0, fmt.Errorf("Invalid QoS flags: %s", s)
+	}
+
+	return flags, nil
+}
