@@ -38,6 +38,7 @@ var (
 	FlagGrpTres           string
 	FlagMaxTresPerUser    string
 	FlagMaxTresPerAccount string
+	FlagQosFlags          string
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -372,6 +373,11 @@ var (
 					os.Exit(err)
 				}
 			}
+			if cmd.Flags().Changed("flags") {
+				if err := ModifyQos(protos.ModifyField_FLags, FlagQosFlags, FlagQos.Name); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
 		},
 	}
 
@@ -580,6 +586,7 @@ func init() {
 			addQosCmd.Flags().StringVarP(&FlagGrpTres, "grp-tres", "", "", "Set the maximum number of tres")
 			addQosCmd.Flags().StringVarP(&FlagMaxTresPerUser, "max-tres-per-user", "", "", "Set the maximum number of tres per user")
 			addQosCmd.Flags().StringVarP(&FlagMaxTresPerAccount, "max-tres-per-account", "", "", "Set the maximum number of tres per account")
+			addQosCmd.Flags().StringVarP(&FlagQosFlags, "flags", "", "", "Set job flags")
 			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -702,6 +709,7 @@ func init() {
 			modifyQosCmd.Flags().StringVarP(&FlagGrpTres, "grp-tres", "", "", "Set the maximum number of tres")
 			modifyQosCmd.Flags().StringVarP(&FlagMaxTresPerUser, "max-tres-per-user", "", "", "Set the maximum number of tres per user")
 			modifyQosCmd.Flags().StringVarP(&FlagMaxTresPerAccount, "max-tres-per-account", "", "", "Set the maximum number of tres per account")
+			modifyQosCmd.Flags().StringVarP(&FlagQosFlags, "flags", "", "", "Set job flags")
 			// Rules
 			if err := modifyQosCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
