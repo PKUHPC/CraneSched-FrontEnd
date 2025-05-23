@@ -56,9 +56,6 @@ message CranedRegisterRequest {
 }
 
 message CranedRegisterReply {
-  message TaskList{
-    repeated TaskToD tasks = 1;
-  }
   bool ok = 1;
 }
 
@@ -99,14 +96,6 @@ message ExecuteTasksRequest {
 
 message ExecuteTasksReply {
   repeated uint32 failed_task_id_list = 1;
-}
-
-message ExecuteProcRequest{
-  ProcToD proc = 1;
-}
-
-message ExecuteProcReply{
-  bool ok = 1;
 }
 
 message CreateCgroupForTasksRequest {
@@ -665,14 +654,6 @@ message StreamCtldReply {
   }
 }
 
-message QueryCranedRemoteMetaRequest {}
-
-message QueryCranedRemoteMetaReply {
-  bool ok = 1;
-  CranedRemoteMeta craned_remote_meta = 2;
-  repeated uint32 job_id_list = 3;
-}
-
 message StreamCrunRequest {
   enum CrunRequestType {
     TASK_REQUEST = 0;
@@ -786,14 +767,18 @@ message StreamTaskIORequest {
 
   message SupervisorUnRegisterReq {
     string craned_id = 1;
+    uint32 task_id = 2;
+    uint32 step_id = 3;
   }
 
   message TaskX11OutputReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    uint32 step_id = 2;
+    bytes msg = 3;
   }
 
   SupervisorRequestType type = 1;
+
   oneof payload {
     SupervisorRegisterReq payload_register_req = 2;
     TaskOutputReq payload_task_output_req = 3;
@@ -899,7 +884,6 @@ service Craned {
   /* ----------------------------------- Called from CraneCtld ---------------------------------------------------- */
   rpc Configure(ConfigureCranedRequest) returns (google.protobuf.Empty);
   rpc ExecuteTask(ExecuteTasksRequest) returns (ExecuteTasksReply);
-  rpc ExecuteProc(ExecuteProcRequest) returns(ExecuteProcReply);
 
   rpc CreateCgroupForTasks(CreateCgroupForTasksRequest) returns (CreateCgroupForTasksReply);
   rpc ReleaseCgroupForTasks(ReleaseCgroupForTasksRequest) returns (ReleaseCgroupForTasksReply);
