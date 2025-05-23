@@ -221,8 +221,10 @@ func PrintQosList(qosList []*protos.QosInfo) {
 			maxWallStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))
 		}
 
-		var flagsStr string
-		flagsStr = ""
+		var flaglist []string
+		if (info.Flags & util.QOSFlagDenyOnLimit) != 0 {
+			flaglist = append(flaglist, "DenyOnLimit")
+		}
 
 		tableData = append(tableData, []string{
 			info.Name,
@@ -240,7 +242,7 @@ func PrintQosList(qosList []*protos.QosInfo) {
 			fmt.Sprint(maxTresPerAccountStr),
 			fmt.Sprint(maxWallStr),
 			fmt.Sprint(timeLimitStr),
-			fmt.Sprint(flagsStr),
+			fmt.Sprint(strings.Join(flaglist, ",")),
 		})
 	}
 
@@ -510,6 +512,18 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	qos.MaxTresPerUser = util.ParseTres(FlagMaxTresPerUser)
 	qos.MaxTresPerAccount = util.ParseTres(FlagMaxTresPerAccount)
 
+	flags, err := util.ParseFlags(FlagQosFlags)
+	if err != nil {
+		fmt.Printf("%v.\nValid QOS flags: [", err)
+		var keys []string
+		for k := range util.QoSFlagNameMap {
+			keys = append(keys, k)
+		}
+		fmt.Printf("%s]\n", strings.Join(keys, ","))
+		return util.ErrorCmdArg
+	}
+	qos.Flags = flags
+
 	req := new(protos.AddQosRequest)
 	req.Uid = userUid
 	req.Qos = qos
@@ -771,6 +785,20 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 }
 
 func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
+
+	if modifyField == protos.ModifyField_FLags {
+		flags, err := util.ParseFlags(FlagQosFlags)
+		if err != nil {
+			fmt.Printf("%v.\n", err)
+			var keys []string
+			for k := range util.QoSFlagNameMap {
+				keys = append(keys, k)
+			}
+			fmt.Printf("Valid QOS flags: [%s]\n", strings.Join(keys, ","))
+			return util.ErrorCmdArg
+		}
+		newValue = strconv.FormatUint(uint64(flags), 10)
+	}
 
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
