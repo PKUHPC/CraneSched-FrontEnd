@@ -166,9 +166,13 @@ message TaskToCtld {
 
   string reservation = 36;
   bool exclusive = 37;
+<<<<<<< HEAD
 
   bool hold = 38;
   string submit_hostname = 39;
+=======
+  string submit_host = 38;
+>>>>>>> 0277e4c (fix comemts)
 }
 
 message TaskInEmbeddedDb {

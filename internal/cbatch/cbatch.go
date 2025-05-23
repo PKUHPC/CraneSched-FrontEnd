@@ -306,7 +306,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		log.Errorf("Invalid argument: %v", err)
 		return false, nil
 	}
-	task.SubmitHostname = SubmitHostname
+	task.SubmitHost = SubmitHostname
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
