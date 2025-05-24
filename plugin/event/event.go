@@ -94,6 +94,10 @@ func (p *EventPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
 
 func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
 
+func (p *EventPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
+
+func (p *EventPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
 func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
 	if !ok {
@@ -126,10 +130,18 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 		if reason == "" {
 			reason = " "
 		}
+		var stateValue int32
+		if controlState, ok := event.StateType.(*protos.CranedEventInfo_ControlState); ok {
+			stateValue = int32(controlState.ControlState)
+		} else if powerState, ok := event.StateType.(*protos.CranedEventInfo_PowerState); ok {
+			stateValue = int32(powerState.PowerState)
+		} else {
+			stateValue = -1 // unknown state type
+		}
 		fields := map[string]any{
 			"uid":        event.Uid,
 			"start_time": event.StartTime.AsTime().UnixNano(),
-			"state":      int32(event.State),
+			"state":      stateValue,
 			"reason":     reason,
 		}
 
@@ -141,6 +153,6 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 		}
 
 		log.Tracef("Recorded cluster_name: %v, uid: %v, node_name: %s, state: %d, start_time: %s, Reason: %s",
-			event.ClusterName, event.Uid, event.NodeName, event.State, event.StartTime.AsTime().Format(time.RFC3339), event.Reason)
+			event.ClusterName, event.Uid, event.NodeName, stateValue, event.StartTime.AsTime().Format(time.RFC3339), event.Reason)
 	}
 }

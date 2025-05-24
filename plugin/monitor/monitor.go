@@ -89,8 +89,8 @@ type MonitorPlugin struct {
 }
 
 // Dummy implementations
-func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext) {}
-func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)   {}
+func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext)     {}
+func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)       {}
 func (dp *MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {}
 
 func getProcCount(cgroupPath string) (uint64, error) {
@@ -359,6 +359,10 @@ func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 
 	log.Infof("Monitoring stopped for job #%v", req.TaskId)
 }
+
+func (p *MonitorPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
+
+func (p *MonitorPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +

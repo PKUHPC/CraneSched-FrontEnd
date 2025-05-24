@@ -133,3 +133,31 @@ func (pd *PluginDaemon) NodeEventHook(ctx context.Context, req *protos.NodeEvent
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) UpdatePowerStateHook(ctx context.Context, req *protos.UpdatePowerStateHookRequest) (*protos.UpdatePowerStateHookReply, error) {
+	log.Info("Received UpdatePowerStateHook request for node: ", req.CranedId)
+	reply := &protos.UpdatePowerStateHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).UpdatePowerStateHook)
+	}
+
+	c := api.NewContext(ctx, req, api.UpdatePowerStateHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
+
+func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.RegisterCranedHookRequest) (*protos.RegisterCranedHookReply, error) {
+	log.Info("Received RegisterCranedHook request for node: ", req.CranedId)
+	reply := &protos.RegisterCranedHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).RegisterCranedHook)
+	}
+
+	c := api.NewContext(ctx, req, api.RegisterCranedHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
