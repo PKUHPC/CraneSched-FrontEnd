@@ -116,8 +116,6 @@ func (dp DummyPlugin) NodeEventHook(ctx *api.PluginContext) {
 
 func (dp DummyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
-func (dp DummyPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {}
-
 func (dp DummyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {

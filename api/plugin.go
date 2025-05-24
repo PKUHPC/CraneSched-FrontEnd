@@ -28,7 +28,6 @@ const (
 	NodeEventHook
 
 	UpdatePowerStateHook
-	GetCranedByPowerStateHookSync
 	RegisterCranedHook
 )
 
@@ -68,6 +67,5 @@ type Plugin interface {
 	NodeEventHook(ctx *PluginContext)
 
 	UpdatePowerStateHook(ctx *PluginContext)
-	GetCranedByPowerStateHookSync(ctx *PluginContext)
 	RegisterCranedHook(ctx *PluginContext)
 }

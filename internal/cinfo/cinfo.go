@@ -40,6 +40,7 @@ type FlattenedData struct {
 	CranedListRegex string
 	ResourceState   string
 	ControlState    string
+	PowerState      string
 	CranedListCount uint64
 }
 
@@ -55,6 +56,7 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 					CranedListRegex: commonCranedStateList.CranedListRegex,
 					ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
 					ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
+					PowerState:      strings.ToLower(commonCranedStateList.PowerState.String()[6:]),
 					CranedListCount: uint64(commonCranedStateList.Count),
 				})
 			}
@@ -108,6 +110,12 @@ func ProcessState(flattened []FlattenedData, tableOutputCell [][]string) {
 		stateStr := data.ResourceState
 		if data.ControlState != "none" {
 			stateStr += "(" + data.ControlState + ")"
+		}
+
+		if data.ResourceState == "down" && (data.PowerState == "power_idle" || data.PowerState == "power_active") {
+			stateStr += "[failed]"
+		} else if data.PowerState != "" {
+			stateStr += "[" + data.PowerState + "]"
 		}
 		tableOutputCell[idx] = append(tableOutputCell[idx], stateStr)
 	}
@@ -201,6 +209,8 @@ func Query() util.CraneCmdError {
 
 	var resourceStateList []protos.CranedResourceState
 	var controlStateList []protos.CranedControlState
+	var powerStateList []protos.CranedPowerState
+
 	for i := 0; i < len(FlagFilterCranedStates); i++ {
 		switch strings.ToLower(FlagFilterCranedStates[i]) {
 		case "idle":
@@ -211,14 +221,28 @@ func Query() util.CraneCmdError {
 			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_ALLOC)
 		case "down":
 			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_DOWN)
-		case "sleeping":
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_SLEEPING)
-		case "off":
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_OFF)
 		case "none":
 			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_NONE)
 		case "drain":
 			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_DRAIN)
+		case "active":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_ACTIVE)
+		case "power-idle":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_IDLE)
+		case "sleeping":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_SLEEPING)
+		case "poweredoff":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWEREDOFF)
+		case "off":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWEREDOFF)
+		case "to-sleep":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_TO_SLEEPING)
+		case "waking":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_WAKING_UP)
+		case "oning":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_ON)
+		case "offing":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
 		default:
 			log.Errorf("Invalid state given: %s.\n", FlagFilterCranedStates[i])
 			return util.ErrorCmdArg
@@ -230,11 +254,22 @@ func Query() util.CraneCmdError {
 		} else if FlagFilterDownOnly {
 			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_DOWN)
 		} else {
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE, protos.CranedResourceState_CRANE_MIX, protos.CranedResourceState_CRANE_ALLOC, protos.CranedResourceState_CRANE_DOWN, protos.CranedResourceState_CRANE_SLEEPING, protos.CranedResourceState_CRANE_OFF)
+			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE, protos.CranedResourceState_CRANE_MIX, protos.CranedResourceState_CRANE_ALLOC, protos.CranedResourceState_CRANE_DOWN)
 		}
 	}
 	if len(controlStateList) == 0 {
 		controlStateList = append(controlStateList, protos.CranedControlState_CRANE_NONE, protos.CranedControlState_CRANE_DRAIN)
+	}
+	if len(powerStateList) == 0 {
+		powerStateList = append(powerStateList,
+			protos.CranedPowerState_CRANE_POWER_ACTIVE,
+			protos.CranedPowerState_CRANE_POWER_IDLE,
+			protos.CranedPowerState_CRANE_POWER_SLEEPING,
+			protos.CranedPowerState_CRANE_POWER_POWEREDOFF,
+			protos.CranedPowerState_CRANE_POWER_TO_SLEEPING,
+			protos.CranedPowerState_CRANE_POWER_WAKING_UP,
+			protos.CranedPowerState_CRANE_POWER_POWERING_ON,
+			protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
 	}
 
 	var nodeList []string
@@ -264,6 +299,7 @@ func Query() util.CraneCmdError {
 		FilterNodes:                nodeList,
 		FilterCranedResourceStates: resourceStateList,
 		FilterCranedControlStates:  controlStateList,
+		FilterCranedPowerStates:    powerStateList,
 	}
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
@@ -291,6 +327,15 @@ func Query() util.CraneCmdError {
 				if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
 					stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
 				}
+
+				if commonCranedStateList.ResourceState == protos.CranedResourceState_CRANE_DOWN &&
+					(commonCranedStateList.PowerState == protos.CranedPowerState_CRANE_POWER_IDLE ||
+						commonCranedStateList.PowerState == protos.CranedPowerState_CRANE_POWER_ACTIVE) {
+					stateStr += "[failed]"
+				} else {
+					stateStr += "[" + strings.ToLower(commonCranedStateList.PowerState.String()[6:]) + "]"
+				}
+
 				tableData = append(tableData, []string{
 					partitionCraned.Name,
 					strings.ToLower(partitionCraned.State.String()[10:]),

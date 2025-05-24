@@ -232,8 +232,6 @@ func getBoundGPUs(res *protos.DedicatedResourceInNode, gpuType string) []int {
 
 func (p EnergyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
-func (p EnergyPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {}
-
 func (p EnergyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {

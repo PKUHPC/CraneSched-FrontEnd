@@ -362,8 +362,6 @@ func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 
 func (p *MonitorPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
-func (p *MonitorPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {}
-
 func (p *MonitorPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {

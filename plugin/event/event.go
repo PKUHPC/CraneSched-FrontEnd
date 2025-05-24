@@ -96,8 +96,6 @@ func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
 
 func (p *EventPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
-func (p *EventPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {}
-
 func (p *EventPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
@@ -133,9 +131,9 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 			reason = " "
 		}
 		var stateValue int32
-		if controlState, ok := event.State.StateType.(*protos.CranedState_ControlState); ok {
+		if controlState, ok := event.StateType.(*protos.CranedEventInfo_ControlState); ok {
 			stateValue = int32(controlState.ControlState)
-		} else if powerState, ok := event.State.StateType.(*protos.CranedState_PowerState); ok {
+		} else if powerState, ok := event.StateType.(*protos.CranedEventInfo_PowerState); ok {
 			stateValue = int32(powerState.PowerState)
 		} else {
 			stateValue = -1 // unknown state type
@@ -155,6 +153,6 @@ func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 		}
 
 		log.Tracef("Recorded cluster_name: %v, uid: %v, node_name: %s, state: %d, start_time: %s, Reason: %s",
-			event.ClusterName, event.Uid, event.NodeName, event.State, event.StartTime.AsTime().Format(time.RFC3339), event.Reason)
+			event.ClusterName, event.Uid, event.NodeName, stateValue, event.StartTime.AsTime().Format(time.RFC3339), event.Reason)
 	}
 }

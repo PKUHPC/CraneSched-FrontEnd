@@ -155,43 +155,6 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 	}
 }
 
-func (p PowerControlPlugin) GetCranedByPowerStateHookSync(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.GetCranedByPowerStateHookSyncRequest)
-	if !ok {
-		log.Errorf("invalid request type, expected GetCranedByPowerStateHookSyncRequest")
-		return
-	}
-
-	log.Infof("Getting craned list of state %v", req.State)
-
-	var state NodeState
-	switch req.State {
-	case protos.CranedPowerState_CRANE_POWER_ACTIVE:
-		state = Active
-	case protos.CranedPowerState_CRANE_POWER_IDLE:
-		state = Idle
-	case protos.CranedPowerState_CRANE_POWER_SLEEPING:
-		state = Sleep
-	case protos.CranedPowerState_CRANE_POWER_POWEREDOFF:
-		state = PoweredOff
-	case protos.CranedPowerState_CRANE_POWER_TO_SLEEPING:
-		state = ToSleeping
-	case protos.CranedPowerState_CRANE_POWER_WAKING_UP:
-		state = Wakingup
-	case protos.CranedPowerState_CRANE_POWER_POWERING_ON:
-		state = PoweringOn
-	case protos.CranedPowerState_CRANE_POWER_POWERING_OFF:
-		state = PoweringOff
-	default:
-		log.Errorf("unknown node list state: %v", req.State)
-		return
-	}
-
-	nodes := manager.GetNodesByState(state)
-	log.Infof("Found %d nodes", len(nodes))
-	ctx.Set("craned_ids", nodes)
-}
-
 func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.RegisterCranedHookRequest)
 	if !ok {

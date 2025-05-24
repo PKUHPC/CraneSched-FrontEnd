@@ -83,8 +83,6 @@ enum CranedResourceState {
   CRANE_MIX = 1;
   CRANE_ALLOC = 2;
   CRANE_DOWN = 3;
-  CRANE_OFF = 4;
-  CRANE_SLEEPING = 5;
 }
 
 enum CranedPowerState {
@@ -128,13 +126,6 @@ enum InteractiveTaskType {
   Crun = 1;
 }
 
-enum PowerAction {
-    WAKEUP = 0;
-    POWERON = 1;
-    SLEEP = 2;
-    POWEROFF = 3;
-}
-
 message TaskToCtld {
   /* -------- Fields that are set at the submission time. ------- */
   google.protobuf.Duration time_limit = 1;
@@ -170,6 +161,7 @@ message TaskToCtld {
 
   string excludes = 34;
   string nodelist = 35;
+
   string reservation = 36;
   bool exclusive = 37;
 }
@@ -347,10 +339,11 @@ message CranedInfo {
   string hostname = 1;
   CranedResourceState resource_state = 2;
   CranedControlState control_state = 3;
+  CranedPowerState power_state = 4;
 
-  ResourceInNode res_total = 4;
-  ResourceInNode res_avail = 5;
-  ResourceInNode res_alloc = 6;
+  ResourceInNode res_total = 5;
+  ResourceInNode res_avail = 6;
+  ResourceInNode res_alloc = 7;
 
   repeated string partition_names = 10;
   uint32 running_task_num = 11;
@@ -383,8 +376,9 @@ message TrimmedPartitionInfo {
   message TrimmedCranedInfo {
     CranedResourceState resource_state = 1;
     CranedControlState control_state = 2;
-    uint32 count = 3;
-    string craned_list_regex = 4;
+    CranedPowerState power_state = 3;
+    uint32 count = 4;
+    string craned_list_regex = 5;
   }
 
   string name = 1;

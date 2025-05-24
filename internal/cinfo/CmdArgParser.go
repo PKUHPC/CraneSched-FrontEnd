@@ -80,7 +80,7 @@ func init() {
 		"Display the specified nodes only")
 	RootCmd.Flags().StringSliceVarP(&FlagFilterCranedStates, "states", "t", nil,
 		"Display nodes with the specified states only. \n"+
-			"The state can take IDLE, MIX, ALLOC, DOWN (case-insensitive), SLEEPING and OFF. \n"+
+			"The state can take IDLE, MIX, ALLOC, DOWN (case-insensitive). \n"+
 			"Example: \n"+
 			"\t -t idle,mix \n"+
 			"\t -t=alloc \n")

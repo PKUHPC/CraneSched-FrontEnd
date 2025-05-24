@@ -22,6 +22,11 @@ import (
 	"CraneFrontEnd/internal/util"
 )
 
+const (
+	maxRetries    = 3
+	retryInterval = 5 * time.Second
+)
+
 type PowerManager struct {
 	config          *Config
 	powerTool       PowerTool
@@ -79,6 +84,9 @@ func (c *PowerManager) RegisterNode(nodeID string) {
 		LastStateChangeTime: time.Now(),
 		Jobs:                make(map[string]struct{}),
 	})
+	c.recordStateChange(time.Now(), nodeID, "", Idle)
+	c.notifyCtldPowerStateChange(nodeID, Idle)
+
 	log.Infof("Initialized node %s in idle state", nodeID)
 }
 
@@ -237,6 +245,7 @@ func (c *PowerManager) updateNodeState(nodeID string, newState NodeState) {
 
 	info := value.(*NodeInfo)
 	if info.State != newState {
+		log.Infof("Node %s state changed from %s to %s", nodeID, info.State, newState)
 		oldState := info.State
 		newInfo := &NodeInfo{
 			State:               newState,
@@ -247,6 +256,8 @@ func (c *PowerManager) updateNodeState(nodeID string, newState NodeState) {
 
 		c.recordStateChange(currentTime, nodeID, oldState, newState)
 		c.notifyCtldPowerStateChange(nodeID, newState)
+	} else {
+		log.Warnf("Node %s state is already %s, skip state change", nodeID, newState)
 	}
 }
 
@@ -284,18 +295,35 @@ func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState
 		Reason:   fmt.Sprintf("Node %s power state changed to %s by power manager(plugin/powerControl)", nodeID, state),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			log.Warnf("Retrying PowerStateChange for node %s, attempt %d/%d", nodeID, attempt, maxRetries)
+			time.Sleep(retryInterval)
+			c.initCtldClient()
+		}
 
-	reply, err := c.ctldClient.PowerStateChange(ctx, req)
-	if err != nil {
-		log.Errorf("Failed to call PowerStateChange RPC for node %s: %v", nodeID, err)
-	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+		reply, err := c.ctldClient.PowerStateChange(ctx, req)
+		cancel()
+
+		if err != nil {
+			log.Warnf("Attempt %d/%d: Failed to call PowerStateChange RPC for node %s: %v",
+				attempt, maxRetries, nodeID, err)
+
+			if attempt == maxRetries {
+				log.Errorf("All retry attempts failed for PowerStateChange RPC for node %s", nodeID)
+			}
+			continue
+		}
+
 		if !reply.Ok {
 			log.Errorf("Failed to update node %s power state in CraneCtld", nodeID)
 		} else {
 			log.Infof("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
 		}
+
+		return
 	}
 }
 

@@ -136,6 +136,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
 				stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
 			}
+			stateStr += "[" + strings.ToLower(nodeInfo.PowerState.String()[6:]) + "]"
 
 			CranedVersion := "unknown"
 			if len(nodeInfo.CranedVersion) != 0 {

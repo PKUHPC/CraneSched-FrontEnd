@@ -27,6 +27,11 @@ type JobMonitor struct {
 func (m *JobMonitor) Start(jobID uint32, cgroupName string, resourceRequest ResourceRequest) {
 	log.Infof("Starting job monitor for job: %d, cgroup name: %s", jobID, cgroupName)
 
+	if cgroupName == "" {
+		log.Warnf("Cgroup name is empty, skipping job: %d", jobID)
+		return
+	}
+
 	if !m.config.Enabled.Job {
 		log.Warnf("Job monitor is not enabled, skipping job: %d, %s", jobID, cgroupName)
 		return
@@ -164,7 +169,7 @@ func (t *Job) monitorResourceUsage() {
 			jobStats, err := t.cgroupReader.GetCgroupStats()
 			if err != nil {
 				log.Errorf("Job %d monitor stopping, error: %v", t.jobID, err)
-				go t.StopMonitor()
+				t.StopMonitor()
 				return
 			}
 			metrics := t.gpuReader.GetBoundGpuMetrics(t.resourceRequest.ReqGPUs)
