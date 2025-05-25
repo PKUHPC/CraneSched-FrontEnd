@@ -136,6 +136,7 @@ func ShowNodes(nodeName string, queryAll bool) util.CraneCmdError {
 			if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
 				stateStr += "(" + strings.ToLower(nodeInfo.ControlState.String()[6:]) + ")"
 			}
+			stateStr += "[" + strings.ToLower(nodeInfo.PowerState.String()[6:]) + "]"
 
 			CranedVersion := "unknown"
 			if len(nodeInfo.CranedVersion) != 0 {
@@ -520,7 +521,7 @@ func SummarizeReply(proto interface{}) util.CraneCmdError {
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
 			nodeListString := util.ConvertSliceToString(reply.ModifiedNodes, ", ")
-			fmt.Printf("Nodes %s modified successfully.\n", nodeListString)
+			fmt.Printf("Nodes %s modified successfully, please wait for a few minutes for the node state to fully update.\n", nodeListString)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
@@ -701,8 +702,16 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 		req.Reason = reason
 	case "resume":
 		req.NewState = protos.CranedControlState_CRANE_NONE
+	case "on":
+		req.NewState = protos.CranedControlState_CRANE_POWERON
+	case "off":
+		req.NewState = protos.CranedControlState_CRANE_POWEROFF
+	case "sleep":
+		req.NewState = protos.CranedControlState_CRANE_SLEEP
+	case "wake":
+		req.NewState = protos.CranedControlState_CRANE_WAKE
 	default:
-		log.Errorf("Invalid state given: %s. Valid states are: drain, resume.\n", state)
+		log.Errorf("Invalid state given: %s. Valid states are: drain, resume, on, off, sleep, wake.\n", state)
 		return util.ErrorCmdArg
 	}
 

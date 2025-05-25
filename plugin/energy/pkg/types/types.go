@@ -12,6 +12,7 @@ type NodeData struct {
 	IPMI       IPMIMetrics
 	GPU        GPUMetrics
 	SystemLoad SystemLoadMetrics
+	JobMetrics *JobMetrics
 }
 
 type RAPLMetrics struct {
@@ -25,8 +26,6 @@ type RAPLMetrics struct {
 type IPMIMetrics struct {
 	Power    float64 // unit: W
 	CPUPower float64 // unit: W
-	FanPower float64 // unit: W
-	HDDPower float64 // unit: W
 
 	Energy    float64 // unit: J
 	CPUEnergy float64 // unit: J
@@ -60,9 +59,18 @@ type SystemLoadMetrics struct {
 	NetworkTx float64 // network transmit rate(MB/s)
 }
 
-// Record the total energy consumption and average indicators after the task is completed.
-type TaskData struct {
-	TaskID uint32
+type JobMetrics struct {
+	JobCount             int     // Number of running jobs on this node
+	ReqCPURate           float64 // Rate of CPU cores requested by jobs to total CPU cores
+	ReqMemoryRate        float64 // Rate of memory requested by jobs to total memory
+	AvgReqCPUPerJob      float64 // Average CPU cores requested per job
+	AvgReqMemoryGBPerJob float64 // Average memory requested per job
+	AvgJobRuntime        float64 // Average runtime of running jobs in seconds
+}
+
+// Record the total energy consumption and average indicators after the job is completed.
+type JobData struct {
+	JobID  uint32
 	NodeID string
 
 	StartTime time.Time
