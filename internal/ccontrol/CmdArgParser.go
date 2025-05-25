@@ -31,6 +31,7 @@ var (
 	FlagNodeName        string
 	FlagState           string
 	FlagReason          string
+	FlagPowerEnable     string
 	FlagPartitionName   string
 	FlagAllowedAccounts string
 	FlagDeniedAccounts  string
@@ -183,8 +184,21 @@ var (
 		Short: "Modify node attributes",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
-				os.Exit(err)
+			if !cmd.Flags().Changed("state") && !cmd.Flags().Changed("power-enable") {
+				log.Error("No attribute to modify. Please specify --state or --power-enable")
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			if cmd.Flags().Changed("state") {
+				if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			}
+
+			if cmd.Flags().Changed("power-enable") {
+				if err := EnableAutoPowerControl(FlagNodeName, FlagPowerEnable); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
 			}
 		},
 	}
@@ -322,6 +336,7 @@ func init() {
 			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify names of the node to be modified (comma seperated list)")
 			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Set the node state")
 			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set the reason of this state change")
+			updateNodeCmd.Flags().StringVarP(&FlagPowerEnable, "power-enable", "p", "", "Enable/disable auto power control for node (true/false, yes/no, 1/0, on/off, enable/disable)")
 		}
 
 		updateCmd.AddCommand(updateJobCmd)

@@ -10,7 +10,14 @@ import (
 func (c *PowerManager) filterExcludedNodes(nodeIDs []string) []string {
 	var allowedNodes []string
 	for _, nodeID := range nodeIDs {
-		if _, excluded := c.excludeNodesMap[nodeID]; !excluded {
+		value, exists := c.nodesInfo.Load(nodeID)
+		if !exists {
+			log.Warnf("Node %s not found in nodesInfo, skipping", nodeID)
+			continue
+		}
+
+		info := value.(*NodeInfo)
+		if !info.Exclude {
 			allowedNodes = append(allowedNodes, nodeID)
 		} else {
 			log.Infof("Node %s is excluded from power management", nodeID)
