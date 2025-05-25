@@ -170,7 +170,12 @@ func (keeper *CranedChannelKeeper) forwardRemoteIoToCrun(taskId uint32, ioToCrun
 	keeper.taskIORequestChannelMtx.Lock()
 	channel, exist := keeper.taskIORequestChannelMapByTaskId[taskId]
 	if exist {
-		channel <- ioToCrun
+		select {
+		case channel <- ioToCrun:
+
+		default:
+			log.Warningf("Too many I/O messages to crun task #%d step#%d, channel is full. Message droped", taskId, stepId)
+		}
 	} else {
 		log.Warningf("Trying forward to I/O to an unknown crun of task #%d.", taskId)
 	}
