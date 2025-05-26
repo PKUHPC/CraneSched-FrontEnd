@@ -464,6 +464,16 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	if FlagExclusive {
 		task.Exclusive = true
 	}
+	if FlagSignal != "" {
+		sig, sec, err := util.ParseSignalParamString(FlagSignal)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --signal: %v", err)
+			return util.ErrorCmdArg
+		}
+		task.SignalParam = &protos.SignalParam{}
+		task.SignalParam.SignalNumber = sig
+		task.SignalParam.SecondsBeforeKill = sec
+	}
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {

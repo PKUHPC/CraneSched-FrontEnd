@@ -901,13 +901,12 @@ func MainCrun(args []string) util.CraneCmdError {
 	if FlagSignal != "" {
 		sig, sec, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
-			log.Errorf("Invalid argument: invalid signal parameter: %v", err)
+			log.Errorf("Invalid argument: invalid --signal: %v", err)
 			return util.ErrorCmdArg
 		}
-		crunMetaPayload := task.Payload.(*protos.TaskToCtld_InteractiveMeta)
-		crunMetaPayload.InteractiveMeta.SignalParam = &protos.SignalParam{}
-		crunMetaPayload.InteractiveMeta.SignalParam.SignalNumber = sig
-		crunMetaPayload.InteractiveMeta.SignalParam.SecondsBeforeKill = sec
+		task.SignalParam = &protos.SignalParam{}
+		task.SignalParam.SignalNumber = sig
+		task.SignalParam.SecondsBeforeKill = sec
 	}
 
 	// Marshal extra attributes
