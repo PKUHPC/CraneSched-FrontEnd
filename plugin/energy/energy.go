@@ -132,8 +132,16 @@ func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 
 	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 
-	boundGPUs := getBoundGPUs(req.Resource, globalMonitor.config.Monitor.GPUType)
-	globalMonitor.monitor.TaskMonitor.Start(req.TaskId, req.Cgroup, boundGPUs)
+	requestCpu := req.Resource.AllocatableResInNode.CpuCoreLimit
+	requestMemory := req.Resource.AllocatableResInNode.MemoryLimitBytes
+	boundGPUs := getBoundGPUs(req.Resource.DedicatedResInNode, globalMonitor.config.Monitor.GPUType)
+	resourceRequest := monitor.ResourceRequest{
+		ReqCPU:    requestCpu,
+		ReqMemory: requestMemory,
+		ReqGPUs:   boundGPUs,
+	}
+
+	globalMonitor.monitor.JobMonitor.Start(req.TaskId, req.Cgroup, resourceRequest)
 }
 
 func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
@@ -144,7 +152,7 @@ func (p EnergyPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	}
 
 	log.Infof("DestroyCgroupHook received for cgroup: %s", req.Cgroup)
-	globalMonitor.monitor.TaskMonitor.Stop(req.TaskId)
+	globalMonitor.monitor.JobMonitor.Stop(req.TaskId)
 }
 
 func (p EnergyPlugin) ensureInitialized() error {
@@ -221,6 +229,10 @@ func getBoundGPUs(res *protos.DedicatedResourceInNode, gpuType string) []int {
 
 	return boundGPUs
 }
+
+func (p EnergyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
+
+func (p EnergyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +

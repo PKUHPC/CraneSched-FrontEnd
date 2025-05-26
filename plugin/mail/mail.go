@@ -216,3 +216,7 @@ func (p *MailPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
 func (p *MailPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
 
 func (p *MailPlugin) NodeEventHook(ctx *api.PluginContext) {}
+
+func (p *MailPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
+
+func (p *MailPlugin) RegisterCranedHook(ctx *api.PluginContext) {}

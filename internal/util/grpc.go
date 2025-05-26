@@ -23,10 +23,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/keepalive"
 	"io/fs"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -35,6 +39,31 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	grpcstatus "google.golang.org/grpc/status"
 )
+
+var ServerKeepAliveParams = keepalive.ServerParameters{
+	Time:    10 * time.Minute, // GRPC_ARG_KEEPALIVE_TIME_MS
+	Timeout: 20 * time.Second, // GRPC_ARG_KEEPALIVE_TIMEOUT_MS
+}
+
+var ServerKeepAlivePolicy = keepalive.EnforcementPolicy{
+	MinTime:             10 * time.Second, // GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS
+	PermitWithoutStream: true,             // GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS
+	//No MaxPingStrikes available default is 2
+}
+
+var clientKeepAliveParams = keepalive.ClientParameters{
+	Time:                20 * time.Second, // 20s GRPC_ARG_KEEPALIVE_TIME_MS
+	Timeout:             10 * time.Second, // 10s GRPC_ARG_KEEPALIVE_TIMEOUT_MS
+	PermitWithoutStream: true,             // GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS
+}
+
+var clientConnectParams = grpc.ConnectParams{
+	Backoff: backoff.Config{
+		BaseDelay: 1 * time.Second,  // 1s GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS
+		MaxDelay:  30 * time.Second, // 30s GRPC_ARG_MAX_RECONNECT_BACKOFF_MS
+		//No min delay available GRPC_ARG_MIN_RECONNECT_BACKOFF_MS
+	},
+}
 
 func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 	if config.UseTls {
@@ -156,7 +185,12 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 			NextProtos: []string{"h2"},
 		})
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+		conn, err := grpc.Dial(serverAddr,
+			grpc.WithTransportCredentials(creds),
+			grpc.WithKeepaliveParams(clientKeepAliveParams),
+			grpc.WithConnectParams(clientConnectParams),
+			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)), // GRPC_ARG_CLIENT_IDLE_TIMEOUT_MS
+		)
 		if err != nil {
 			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
 			os.Exit(ErrorBackend)
@@ -166,7 +200,12 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	} else {
 		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.Dial(serverAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithKeepaliveParams(clientKeepAliveParams),
+			grpc.WithConnectParams(clientConnectParams),
+			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)), // GRPC_ARG_CLIENT_IDLE_TIMEOUT_MS
+		)
 		if err != nil {
 			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
 			os.Exit(ErrorBackend)

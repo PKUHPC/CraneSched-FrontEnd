@@ -26,6 +26,9 @@ const (
 	CreateCgroupHook
 	DestroyCgroupHook
 	NodeEventHook
+
+	UpdatePowerStateHook
+	RegisterCranedHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -62,4 +65,7 @@ type Plugin interface {
 	CreateCgroupHook(ctx *PluginContext)
 	DestroyCgroupHook(ctx *PluginContext)
 	NodeEventHook(ctx *PluginContext)
+
+	UpdatePowerStateHook(ctx *PluginContext)
+	RegisterCranedHook(ctx *PluginContext)
 }
