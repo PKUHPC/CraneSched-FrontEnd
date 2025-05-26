@@ -55,7 +55,11 @@ func QueryLeaderFromCtld(config *Config) int {
 
 		reply, err := stub.QueryLeaderId(context.Background(), req)
 		if err == nil {
-			return int(reply.LeaderId)
+			if reply.LeaderId >= 0 {
+				return int(reply.LeaderId)
+			} else {
+				fmt.Printf("server #%d return to an abnormal state, leader ID: %d\n", id, reply.LeaderId)
+			}
 		}
 	}
 	return -2
