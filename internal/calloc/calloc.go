@@ -370,7 +370,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 		Name:          "Interactive",
 		TimeLimit:     util.InvalidDuration(),
 		PartitionName: "",
-		Resources: &protos.ResourceView{
+		ReqResources: &protos.ResourceView{
 			AllocatableRes: &protos.AllocatableResource{
 				CpuCoreLimit:       1,
 				MemoryLimitBytes:   0,
@@ -399,7 +399,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
-		task.Resources.DeviceMap = gresMap
+		task.ReqResources.DeviceMap = gresMap
 	}
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
@@ -415,8 +415,8 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 			log.Errorf("Invalid argument: %v", err)
 			return util.ErrorCmdArg
 		}
-		task.Resources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.Resources.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
+		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 	}
 	if FlagPartition != "" {
 		task.PartitionName = FlagPartition
@@ -461,6 +461,9 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
 	}
+	if FlagExclusive {
+		task.Exclusive = true
+	}
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
@@ -469,7 +472,7 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	}
 
 	// Set total limit of cpu cores
-	task.Resources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {

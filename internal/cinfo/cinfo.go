@@ -24,10 +24,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"regexp"
 
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
@@ -35,12 +35,13 @@ import (
 
 // Define the flattened data structure
 type FlattenedData struct {
-	PartitionName       string
-	Avail      string
-	CranedListRegex     string
-	ResourceState       string
-	ControlState        string
-	CranedListCount     uint64
+	PartitionName   string
+	Avail           string
+	CranedListRegex string
+	ResourceState   string
+	ControlState    string
+	PowerState      string
+	CranedListCount uint64
 }
 
 // Flatten the nested structure into a one-dimensional array
@@ -51,10 +52,11 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 			if commonCranedStateList.Count > 0 {
 				flattened = append(flattened, FlattenedData{
 					PartitionName:   partitionCraned.Name,
-					Avail:  strings.ToLower(partitionCraned.State.String()[10:]),
+					Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
 					CranedListRegex: commonCranedStateList.CranedListRegex,
 					ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
 					ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
+					PowerState:      strings.ToLower(commonCranedStateList.PowerState.String()[6:]),
 					CranedListCount: uint64(commonCranedStateList.Count),
 				})
 			}
@@ -64,24 +66,24 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 }
 
 type FieldProcessor struct {
-	header string
+	header  string
 	process func(flattened []FlattenedData, tableOutputCell [][]string)
 }
 
 var fieldMap = map[string]FieldProcessor{
-	"p":             {"Partition", ProcessPartition},
-	"partition":     {"Partition", ProcessPartition},
-	"a":             {"Avail", ProcessAvail},
-	"avail":         {"Avail", ProcessAvail},
-	"n":             {"Nodes", ProcessNodes},
-	"nodes":         {"Nodes", ProcessNodes},
-	"s":             {"State", ProcessState},
-	"state":         {"State", ProcessState},
-	"l":             {"NodeList", ProcessNodeList},
-	"nodelist":      {"NodeList", ProcessNodeList},
+	"p":         {"Partition", ProcessPartition},
+	"partition": {"Partition", ProcessPartition},
+	"a":         {"Avail", ProcessAvail},
+	"avail":     {"Avail", ProcessAvail},
+	"n":         {"Nodes", ProcessNodes},
+	"nodes":     {"Nodes", ProcessNodes},
+	"s":         {"State", ProcessState},
+	"state":     {"State", ProcessState},
+	"l":         {"NodeList", ProcessNodeList},
+	"nodelist":  {"NodeList", ProcessNodeList},
 }
 
-/// Partition
+// / Partition
 func ProcessPartition(flattened []FlattenedData, tableOutputCell [][]string) {
 	for idx, data := range flattened {
 		tableOutputCell[idx] = append(tableOutputCell[idx], data.PartitionName)
@@ -108,6 +110,12 @@ func ProcessState(flattened []FlattenedData, tableOutputCell [][]string) {
 		stateStr := data.ResourceState
 		if data.ControlState != "none" {
 			stateStr += "(" + data.ControlState + ")"
+		}
+
+		if data.ResourceState == "down" && (data.PowerState == "power_idle" || data.PowerState == "power_active") {
+			stateStr += "[failed]"
+		} else if data.PowerState != "" {
+			stateStr += "[" + data.PowerState + "]"
 		}
 		tableOutputCell[idx] = append(tableOutputCell[idx], stateStr)
 	}
@@ -178,9 +186,9 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
 			processor.process(flattened, tableOutputCell)
 		} else {
-			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n" +		
-		 	"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
-			 os.Exit(util.ErrorInvalidFormat)
+			log.Errorf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
+				"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field)
+			os.Exit(util.ErrorInvalidFormat)
 		}
 	}
 	// Get the suffix of the format string
@@ -201,6 +209,8 @@ func Query() util.CraneCmdError {
 
 	var resourceStateList []protos.CranedResourceState
 	var controlStateList []protos.CranedControlState
+	var powerStateList []protos.CranedPowerState
+
 	for i := 0; i < len(FlagFilterCranedStates); i++ {
 		switch strings.ToLower(FlagFilterCranedStates[i]) {
 		case "idle":
@@ -215,6 +225,24 @@ func Query() util.CraneCmdError {
 			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_NONE)
 		case "drain":
 			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_DRAIN)
+		case "active":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_ACTIVE)
+		case "power-idle":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_IDLE)
+		case "sleeping":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_SLEEPING)
+		case "poweredoff":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWEREDOFF)
+		case "off":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWEREDOFF)
+		case "to-sleep":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_TO_SLEEPING)
+		case "waking":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_WAKING_UP)
+		case "oning":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_ON)
+		case "offing":
+			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
 		default:
 			log.Errorf("Invalid state given: %s.\n", FlagFilterCranedStates[i])
 			return util.ErrorCmdArg
@@ -231,6 +259,17 @@ func Query() util.CraneCmdError {
 	}
 	if len(controlStateList) == 0 {
 		controlStateList = append(controlStateList, protos.CranedControlState_CRANE_NONE, protos.CranedControlState_CRANE_DRAIN)
+	}
+	if len(powerStateList) == 0 {
+		powerStateList = append(powerStateList,
+			protos.CranedPowerState_CRANE_POWER_ACTIVE,
+			protos.CranedPowerState_CRANE_POWER_IDLE,
+			protos.CranedPowerState_CRANE_POWER_SLEEPING,
+			protos.CranedPowerState_CRANE_POWER_POWEREDOFF,
+			protos.CranedPowerState_CRANE_POWER_TO_SLEEPING,
+			protos.CranedPowerState_CRANE_POWER_WAKING_UP,
+			protos.CranedPowerState_CRANE_POWER_POWERING_ON,
+			protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
 	}
 
 	var nodeList []string
@@ -260,6 +299,7 @@ func Query() util.CraneCmdError {
 		FilterNodes:                nodeList,
 		FilterCranedResourceStates: resourceStateList,
 		FilterCranedControlStates:  controlStateList,
+		FilterCranedPowerStates:    powerStateList,
 	}
 
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
@@ -287,6 +327,15 @@ func Query() util.CraneCmdError {
 				if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
 					stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
 				}
+
+				if commonCranedStateList.ResourceState == protos.CranedResourceState_CRANE_DOWN &&
+					(commonCranedStateList.PowerState == protos.CranedPowerState_CRANE_POWER_IDLE ||
+						commonCranedStateList.PowerState == protos.CranedPowerState_CRANE_POWER_ACTIVE) {
+					stateStr += "[failed]"
+				} else {
+					stateStr += "[" + strings.ToLower(commonCranedStateList.PowerState.String()[6:]) + "]"
+				}
+
 				tableData = append(tableData, []string{
 					partitionCraned.Name,
 					strings.ToLower(partitionCraned.State.String()[10:]),
