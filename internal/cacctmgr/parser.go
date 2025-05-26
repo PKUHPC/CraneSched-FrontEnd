@@ -65,13 +65,11 @@ type UnblockCommand struct {
 }
 
 type ModifyCommand struct {
-	Action      string           `parser:"@'modify'"`
-	Resource    *ResourceType    `parser:"@@"`
-	Where       *WhereClause     `parser:"@@?"`
-	WhereParams []*KeyValueParam `parser:"@@*"`
-	Set         *SetClause       `parser:"@@?"`
-	SetParams   []*KeyValueParam `parser:"@@*"`
-	GlobalFlags []*Flag          `parser:"@@*"`
+	Action      string        `parser:"@'modify'"`
+	Resource    *ResourceType `parser:"@@"`
+	Where       *WhereClause  `parser:"@@?"`
+	Set         *SetClause    `parser:"@@?"`
+	GlobalFlags []*Flag       `parser:"@@*"`
 }
 
 type ShowCommand struct {
@@ -102,9 +100,15 @@ type WhereClause struct {
 	WhereParams []*KeyValueParam `parser:"@@*"`
 }
 
+type SetParam struct {
+	Key   string `parser:"@Ident"`
+	Op    string `parser:"@('=' | '+=' | '-=')"`
+	Value string `parser:"@(String | Ident | TimeFormat | Number)"`
+}
+
 type SetClause struct {
-	Set       string           `parser:"@'set'"`
-	SetParams []*KeyValueParam `parser:"@@*"`
+	Set       string      `parser:"@'set'"`
+	SetParams []*SetParam `parser:"@@*"`
 }
 
 var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -259,7 +263,7 @@ func (c *CAcctMgrCommand) GetWhereParams() map[string]string {
 
 	switch cmd := c.Command.(type) {
 	case ModifyCommand:
-		for _, param := range cmd.WhereParams {
+		for _, param := range cmd.Where.WhereParams {
 			whereMap[strings.ToLower(param.Key)] = param.Value
 		}
 	default:
@@ -268,18 +272,26 @@ func (c *CAcctMgrCommand) GetWhereParams() map[string]string {
 	return whereMap
 }
 
-func (c *CAcctMgrCommand) GetSetParams() map[string]string {
+func (c *CAcctMgrCommand) GetSetParams() (map[string]string, map[string]string, map[string]string) {
 	setMap := make(map[string]string)
+	addMap := make(map[string]string)
+	deleteMap := make(map[string]string)
 
 	switch cmd := c.Command.(type) {
 	case ModifyCommand:
-		for _, param := range cmd.SetParams {
-			setMap[param.Key] = param.Value
+		for _, param := range cmd.Set.SetParams {
+			if param.Op == "=" {
+				setMap[param.Key] = param.Value
+			} else if param.Op == "+=" {
+				addMap[param.Key] = param.Value
+			} else if param.Op == "-=" {
+				deleteMap[param.Key] = param.Value
+			}
 		}
 	default:
-		return nil
+		return nil, nil, nil
 	}
-	return setMap
+	return setMap, addMap, deleteMap
 }
 
 func (c *CAcctMgrCommand) GetGlobalFlag(name string) (string, bool) {

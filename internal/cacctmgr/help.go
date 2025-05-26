@@ -43,68 +43,108 @@ func showHelp() {
   
   COMMANDS:
 	add account <names> [description=<desc>] [parent=<parent>] [defaultQos=<qos>] 
-				[partition=<part1,part2,...>] [qosList=<qos1,qos2,...>] [names=<name1,name2,...>]
-	  Create a new account with the specified attributes.
+			[partition=<part1,part2,...>] [qosList=<qos1,qos2,...>] [names=<name1,name2,...>]
+    Create a new account with the specified attributes.
+    Parameter details:
+      description=<desc>         Description of the account
+      parent=<parent>            Name of the parent account
+      defaultQos=<qos>           Default QoS for the account
+      partition=<part1,part2,...>  Allowed partitions (comma-separated)
+      qosList=<qos1,qos2,...>    Allowed QoS list (comma-separated)
+      names=<name1,name2,...>    List of account names for batch creation
   
 	delete account <names>
-	  Remove an account from the system.
+    Remove the specified account(s) from the system.
+    Parameter details:
+      names=<name1,name2,...>    Names of accounts to delete (comma-separated)
   
 	show account [names=<name1,name2,...>]
-	  Display information about all accounts.
-	  if no names are specified, all accounts will be displayed.
-	  if the names are specified, only the accounts with the specified names will be displayed.(find specific accounts)
+    Display information about accounts.
+    Parameter details:
+      names=<name1,name2,...>    Show only these accounts (comma-separated)
+      (If not specified, all accounts will be displayed)
   
 	add user <names> account=<account> [coordinator=true|false] [level=<level>] 
-			[partition=<part1,part2,...>] [names=<name1,name2,...>]
-	  Create a new user associated with an account.
+		[partition=<part1,part2,...>] [names=<name1,name2,...>]
+    Create a new user and associate with an account.
+    Parameter details:
+      account=<account>          Account the user belongs to (required)
+      coordinator=true|false     Whether the user is a coordinator for the account
+      level=<level>              User admin level
+      partition=<part1,part2,...>  Allowed partitions (comma-separated)
+      names=<name1,name2,...>    List of user names for batch creation
   
 	delete user <names> [account=<account>] [names=<name1,name2,...>]
-	  Remove a user from the system or from a specific account.
+    Remove a user from the system or from a specific account.
+    Parameter details:
+      account=<account>          Specify the account (optional)
+      names=<name1,name2,...>    Names of users to delete (comma-separated)
   
 	show user [accounts=<account>] [names=<name1,name2,...>]
-	  Display information about users, optionally filtered by account.
-	  if no account is specified, all users will be displayed.
-	  if the account is specified, only the users associated with the account will be displayed.
-	  if the names are specified, only the users with the specified names will be displayed.(find specific users)
+    Display information about users.
+    Parameter details:
+      accounts=<account>         Show users of this account only
+      names=<name1,name2,...>    Show only these users (comma-separated)
+      (If not specified, all users will be displayed)
   
 	add qos <names> [description=<desc>] [priority=<priority>] 
-			[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
-	  Create a new QoS with the specified attributes.
+		[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
+    Create a new QoS with the specified attributes.
+    Parameter details:
+      description=<desc>         Description of the QoS
+      priority=<priority>        Priority (higher value means higher priority)
+      maxJobsPerUser=<num>       Maximum number of jobs per user
+      maxCpusPerUser=<num>       Maximum number of CPUs per user
+      maxTimeLimitPerTask=<seconds>  Maximum run time per task in seconds
+      names=<name1,name2,...>    List of QoS names for batch creation
   
 	delete qos <names> [names=<name1,name2,...>]
-	  Remove a QoS from the system.
+    Remove the specified QoS from the system.
+    Parameter details:
+      names=<name1,name2,...>    Names of QoS to delete (comma-separated)
   
 	show qos <names> [names=<name1,name2,...>]
-	  Show detailed information about a specific QoS.
-	  if no names are specified, all QoSs will be displayed.
-	  if the names are specified, only the QoSs with the specified names will be displayed.(find specific QoSs)
+    Display information about QoS.
+    Parameter details:
+      names=<name1,name2,...>    Show only these QoS (comma-separated)
+      (If not specified, all QoS will be displayed)
 
-  	modify <resource> where [OPTIONS] set [OPTIONS]
-	  Modify attributes of an existing user.
-	  OPTIONS:
-        modify account  (set options) addAllowedPartition=, 
-						addAllowedQos=, deleteAllowedPartition=,
-						deleteAllowedQos=, allowedPartition=,
-						allowedQos=, defaultQos=
-                        (where options) name=
+  modify <resource> where [OPTIONS] set [OPTIONS]
+    Modify attributes of an existing account, user, or QoS.
+    Account options:
+      where name=<account>         Specify the account to modify
+      set defaultQos=<qos>         Set default QoS
+      set allowedPartition+=<part1,part2,...>   Add allowed partitions
+      set allowedQos+=<qos1,qos2,...>          Add allowed QoS
+      set allowedPartition-=<part1,part2,...> Delete allowed partitions
+      set allowedQos-=<qos1,qos2,...>        Delete allowed QoS
+      set allowedPartition=<part1,part2,...>      Set allowed partitions directly
+      set allowedQos=<qos1,qos2,...>              Set allowed QoS directly
+    User options:
+      where name=<user> [account=<account>] [partition=<part1,part2,...>]
+      set adminlevel=<level>         Set user admin level
+      set defaultaccount=<account>   Set default account
+      set defaultqos=<qos>           Set default QoS
+      set allowedPartition+=...    Add allowed partitions
+      set allowedQos+=...          Add allowed QoS
+      set allowedPartition-=... Delete allowed partitions
+      set allowedQos-=...       Delete allowed QoS
+      set allowedPartition=...       Set allowed partitions directly
+      set allowedQos=...             Set allowed QoS directly
+    QoS options:
+      where name=<qos>
+      set description=<desc>         Set description
+      set maxcpuperuser=<num>        Set max CPUs per user
+      set maxsubmitjobsperuser=<num> Set max jobs per user
+      set maxtimelimitpertask=<sec>  Set max time per task (seconds)
+      set priority=<priority>        Set priority
 
-		modify qos      (set options) description=,
-                        maxcpuperuser=, maxsubmitjobsperuser=,
-                        maxtimelimitpertask=, priority=
-                        (where options) name=
-
-		modify user     (set options) adminlevel=, defaultaccount=,
-                        comment=, defaultqos=, allowedpartition=,
-                        allowedQos=, deleteAllowedPartition=,
-                        deleteAllowedQos=, setAllowedPartition=,
-                        setAllowedQos=
-                        (where options) accounts=, name=, partitions=
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
-	--config, -C     Specify an alternative configuration file (default: /etc/crane/config.yaml)
+	--config, -C   Specify config file path (default: /etc/crane/config.yaml)
 	--json, -J     Format output as JSON
-	--version, -v    Display the version of the program
-	--force, -f     Force the operation to proceed without confirmation
+	--version, -v  Display program version
+	--force, -f    Force operation without confirmation
 
   NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.
   `

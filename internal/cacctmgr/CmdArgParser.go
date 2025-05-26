@@ -462,7 +462,7 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 
 func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	WhereParams := command.GetWhereParams()
-	SetParams := command.GetSetParams()
+	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	for key, value := range WhereParams {
 		switch key {
@@ -478,18 +478,6 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		case "defaultqos":
 			FlagDefaultQos = value
 			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagResourceName, protos.OperationType_Add)
-		case "addallowedpartition":
-			FlagAllowedPartitions = value
-			ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, protos.OperationType_Add)
-		case "addallowedqos":
-			FlagAllowedQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, protos.OperationType_Add)
-		case "deleteallowedpartition":
-			FlagDeletePartitionList = value
-			ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, protos.OperationType_Delete)
-		case "deleteallowedqos":
-			FlagDeleteQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, protos.OperationType_Delete)
 		case "allowedpartition":
 			FlagSetPartitionList = value
 			ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, protos.OperationType_Add)
@@ -503,12 +491,39 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 			return util.ErrorCmdArg
 		}
 	}
+
+	for key, value := range AddParams {
+		switch key {
+		case "allowedpartition":
+			FlagAllowedPartitions = value
+			ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, protos.OperationType_Add)
+		case "allowedqos":
+			FlagAllowedQosList = value
+			ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, protos.OperationType_Add)
+		default:
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range DeleteParams {
+		switch key {
+		case "allowedpartition":
+			FlagDeletePartitionList = value
+			ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, protos.OperationType_Delete)
+		case "allowedqos":
+			FlagDeleteQosList = value
+			ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, protos.OperationType_Delete)
+		default:
+			return util.ErrorCmdArg
+		}
+	}
+
 	return util.ErrorSuccess
 }
 
 func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	WhereParams := command.GetWhereParams()
-	SetParams := command.GetSetParams()
+	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	for key, value := range WhereParams {
 		switch key {
@@ -525,18 +540,6 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 
 	for key, value := range SetParams {
 		switch key {
-		case "addallowedpartition":
-			FlagAllowedPartitions = value
-			ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
-		case "addallowedqos":
-			FlagAllowedQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
-		case "deleteallowedpartition":
-			FlagDeletePartitionList = value
-			ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
-		case "deleteallowedqos":
-			FlagDeleteQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
 		case "allowedpartition":
 			FlagSetPartitionList = value
 			ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
@@ -553,12 +556,39 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 			return util.ErrorCmdArg
 		}
 	}
+
+	for key, value := range AddParams {
+		switch key {
+		case "allowedpartition":
+			FlagAllowedPartitions = value
+			ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		case "allowedqos":
+			FlagAllowedQosList = value
+			ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+		default:
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range DeleteParams {
+		switch key {
+		case "allowedpartition":
+			FlagDeletePartitionList = value
+			ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
+		case "allowedqos":
+			FlagDeleteQosList = value
+			ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
+		default:
+			return util.ErrorCmdArg
+		}
+	}
+
 	return util.ErrorSuccess
 }
 
 func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	WhereParams := command.GetWhereParams()
-	SetParams := command.GetSetParams()
+	SetParams, _, _ := command.GetSetParams()
 
 	for key, value := range WhereParams {
 		switch key {
