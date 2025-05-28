@@ -791,13 +791,13 @@ func ParseTres(tres string) *protos.ResourceView {
 					if value == "-1" {
 						continue
 					}
-					count, err := strconv.ParseUint(value, 10, 64)
+					membytes, err := ParseMemStringAsByte(value)
 					if err != nil {
 						log.Errorf("Error parsing mem: %s\n", item)
 						continue
 					}
-					result.GetAllocatableRes().MemoryLimitBytes = count
-					result.GetAllocatableRes().MemorySwLimitBytes = count
+					result.GetAllocatableRes().MemoryLimitBytes = membytes
+					result.GetAllocatableRes().MemorySwLimitBytes = membytes
 				}
 			} else {
 				log.Errorf("Error parsing tres: %s\n", item)
@@ -1030,6 +1030,18 @@ func FormatMemToMB(data uint64) string {
 	}
 }
 
+func ReadableMemory(memoryBytes uint64) string {
+	if memoryBytes < 1024 {
+		return fmt.Sprintf("%dB", memoryBytes)
+	} else if memoryBytes < 1024*1024 {
+		return fmt.Sprintf("%dK", memoryBytes/1024)
+	} else if memoryBytes < 1024*1024*1024 {
+		return fmt.Sprintf("%dM", memoryBytes/(1024*1024))
+	} else {
+		return fmt.Sprintf("%dG", memoryBytes/(1024*1024*1024))
+	}
+}
+
 func ResourceViewToTres(rv *protos.ResourceView) string {
 	var parts []string
 	if rv.AllocatableRes != nil {
@@ -1038,7 +1050,7 @@ func ResourceViewToTres(rv *protos.ResourceView) string {
 			parts = append(parts, "cpu="+cpu)
 		}
 		if rv.AllocatableRes.MemoryLimitBytes != math.MaxUint64 {
-			mem := strconv.FormatUint(rv.AllocatableRes.MemoryLimitBytes, 10)
+			mem := ReadableMemory(rv.AllocatableRes.MemoryLimitBytes)
 			parts = append(parts, "mem="+mem)
 		}
 	}
