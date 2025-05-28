@@ -51,13 +51,13 @@ var ServerKeepAlivePolicy = keepalive.EnforcementPolicy{
 	//No MaxPingStrikes available default is 2
 }
 
-var clientKeepAliveParams = keepalive.ClientParameters{
+var ClientKeepAliveParams = keepalive.ClientParameters{
 	Time:                20 * time.Second, // 20s GRPC_ARG_KEEPALIVE_TIME_MS
 	Timeout:             10 * time.Second, // 10s GRPC_ARG_KEEPALIVE_TIMEOUT_MS
 	PermitWithoutStream: true,             // GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS
 }
 
-var clientConnectParams = grpc.ConnectParams{
+var ClientConnectParams = grpc.ConnectParams{
 	Backoff: backoff.Config{
 		BaseDelay: 1 * time.Second,  // 1s GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS
 		MaxDelay:  30 * time.Second, // 30s GRPC_ARG_MAX_RECONNECT_BACKOFF_MS
@@ -187,8 +187,8 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		conn, err := grpc.Dial(serverAddr,
 			grpc.WithTransportCredentials(creds),
-			grpc.WithKeepaliveParams(clientKeepAliveParams),
-			grpc.WithConnectParams(clientConnectParams),
+			grpc.WithKeepaliveParams(ClientKeepAliveParams),
+			grpc.WithConnectParams(ClientConnectParams),
 			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)), // GRPC_ARG_CLIENT_IDLE_TIMEOUT_MS
 		)
 		if err != nil {
@@ -202,8 +202,8 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		conn, err := grpc.Dial(serverAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithKeepaliveParams(clientKeepAliveParams),
-			grpc.WithConnectParams(clientConnectParams),
+			grpc.WithKeepaliveParams(ClientKeepAliveParams),
+			grpc.WithConnectParams(ClientConnectParams),
 			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)), // GRPC_ARG_CLIENT_IDLE_TIMEOUT_MS
 		)
 		if err != nil {
