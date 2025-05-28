@@ -158,6 +158,8 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts = append(opts, grpc.WithKeepaliveParams(util.ClientKeepAliveParams))
+	opts = append(opts, grpc.WithConnectParams(util.ClientConnectParams))
 
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 
