@@ -5,6 +5,7 @@ go 1.22
 require (
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/containerd/cgroups v1.1.0
+	github.com/gofrs/flock v0.12.1
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/term v1.1.0
@@ -49,7 +50,6 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
