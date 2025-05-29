@@ -76,7 +76,6 @@ func StartCfored() {
 		print(os.Stderr, "Failed to create log directory: %s\n", err.Error())
 	}
 
-	// 打开日志文件
 	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		print(os.Stderr, "Failed to create logfile: %s\n", err.Error())
