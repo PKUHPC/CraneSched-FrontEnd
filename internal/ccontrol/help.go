@@ -26,7 +26,7 @@ import (
 func showHelp() {
 	help := `CraneSched Control Tool (ccontrol) - version ` + util.Version() + `
 
-USAGE: ccontrol <ACTION> <RESOURCE> [OPTIONS]
+USAGE: ccontrol <ACTION> <ENTITIES> [OPTIONS]
 
 ACTIONS:
   show      - Display information about resources
@@ -36,7 +36,7 @@ ACTIONS:
   create    - Create resources
   delete    - Delete resources
 
-RESOURCES:
+ENTITIES:
   node        - Compute nodes
   partition   - Node partitions
   job         - Jobs/tasks

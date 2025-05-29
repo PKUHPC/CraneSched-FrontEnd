@@ -20,7 +20,6 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -52,14 +51,18 @@ var (
 )
 
 func ParseCmdArgs(args []string) {
-	cmdStr := strings.Join(args[1:], " ")
+	var processedArgs []string
+	for _, arg := range args[1:] {
+		if strings.Contains(arg, " ") {
+			processedArgs = append(processedArgs, strconv.Quote(arg))
+		} else {
+			processedArgs = append(processedArgs, arg)
+		}
+	}
+	cmdStr := strings.Join(processedArgs, " ")
 	command, err := ParseCControlCommand(cmdStr)
-	fmt.Println(command.GetAction())
-	fmt.Println(command.GetResource())
-	fmt.Println(command.GetKVParamValue("name"))
-	fmt.Println(command.GetKVMaps())
+
 	if err != nil {
-		log.Debugf("invalid command format: %s", err)
 		log.Error("error: command format is incorrect")
 		os.Exit(util.ErrorCmdArg)
 	}
@@ -74,6 +77,7 @@ func ParseCmdArgs(args []string) {
 			os.Exit(result)
 		default:
 			log.Errorf("error: command execution failed (error code: %d)", result)
+			os.Exit(result)
 		}
 	}
 }
@@ -105,9 +109,9 @@ func executeCommand(command *CControlCommand) int {
 }
 
 func executeShowCommand(command *CControlCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "node":
 		return executeShowNodeCommand(command)
 	case "partition":
@@ -117,7 +121,7 @@ func executeShowCommand(command *CControlCommand) int {
 	case "reservation":
 		return executeShowReservationCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
@@ -306,13 +310,13 @@ func executeReleaseCommand(command *CControlCommand) int {
 }
 
 func executeCreateCommand(command *CControlCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "reservation":
 		return executeCreateReservationCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
@@ -358,13 +362,13 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 }
 
 func executeDeleteCommand(command *CControlCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "reservation":
 		return executeDeleteReservationCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }

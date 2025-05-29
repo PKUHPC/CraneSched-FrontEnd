@@ -16,44 +16,44 @@ type CControlCommand struct {
 }
 
 type ShowCommand struct {
-	Action     string        `parser:"@'show'"`
-	Resource   *ResourceType `parser:"@@"`
-	ID         string        `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
-	GlobeFlags []*Flag       `parser:"@@*"`
+	Action      string      `parser:"@'show'"`
+	Entity      *EntityType `parser:"@@"`
+	ID          string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	GlobalFlags []*Flag     `parser:"@@*"`
 }
 
 type UpdateCommand struct {
 	Action        string           `parser:"@'update'"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobeFlags    []*Flag          `parser:"@@*"`
+	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type HoldCommand struct {
 	Action        string           `parser:"@'hold'"`
 	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobeFlags    []*Flag          `parser:"@@*"`
+	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type ReleaseCommand struct {
 	Action        string           `parser:"@'release'"`
 	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobeFlags    []*Flag          `parser:"@@*"`
+	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type CreateCommand struct {
 	Action        string           `parser:"@'create'"`
-	Resource      *ResourceType    `parser:"@@"`
+	Entity        *EntityType      `parser:"@@"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobeFlags    []*Flag          `parser:"@@*"`
+	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type DeleteCommand struct {
-	Action     string        `parser:"@'delete'"`
-	Resource   *ResourceType `parser:"@@"`
-	ID         string        `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
-	GlobeFlags []*Flag       `parser:"@@*"`
+	Action      string      `parser:"@'delete'"`
+	Entity      *EntityType `parser:"@@"`
+	ID          string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	GlobalFlags []*Flag     `parser:"@@*"`
 }
 
 type KeyValueParam struct {
@@ -61,7 +61,7 @@ type KeyValueParam struct {
 	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
 }
 
-type ResourceType struct {
+type EntityType struct {
 	Node        bool `parser:"@'node'"`
 	Partition   bool `parser:"| @'partition'"`
 	Job         bool `parser:"| @'job'"`
@@ -92,15 +92,15 @@ func ParseCControlCommand(input string) (*CControlCommand, error) {
 	return CControlParser.ParseString("", input)
 }
 
-func (r ResourceType) String() string {
+func (e EntityType) String() string {
 	switch {
-	case r.Node:
+	case e.Node:
 		return "node"
-	case r.Partition:
+	case e.Partition:
 		return "partition"
-	case r.Job:
+	case e.Job:
 		return "job"
-	case r.Reservation:
+	case e.Reservation:
 		return "reservation"
 	default:
 		return ""
@@ -126,19 +126,19 @@ func (c *CControlCommand) GetAction() string {
 	}
 }
 
-func (c *CControlCommand) GetResource() string {
+func (c *CControlCommand) GetEntity() string {
 	switch cmd := c.Command.(type) {
 	case ShowCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	case CreateCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	case DeleteCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	}
 	return ""
@@ -159,30 +159,21 @@ func (c *CControlCommand) GetID() string {
 }
 
 func (c *CControlCommand) GetKVParamValue(key string) string {
+	var params []*KeyValueParam
 	switch cmd := c.Command.(type) {
 	case UpdateCommand:
-		for _, param := range cmd.KeyValueParam {
-			if strings.EqualFold(param.Key, strings.ToLower(key)) {
-				return param.Value
-			}
-		}
+		params = cmd.KeyValueParam
 	case HoldCommand:
-		for _, param := range cmd.KeyValueParam {
-			if strings.EqualFold(param.Key, strings.ToLower(key)) {
-				return param.Value
-			}
-		}
+		params = cmd.KeyValueParam
 	case ReleaseCommand:
-		for _, param := range cmd.KeyValueParam {
-			if strings.EqualFold(param.Key, strings.ToLower(key)) {
-				return param.Value
-			}
-		}
+		params = cmd.KeyValueParam
 	case CreateCommand:
-		for _, param := range cmd.KeyValueParam {
-			if strings.EqualFold(param.Key, strings.ToLower(key)) {
-				return param.Value
-			}
+		params = cmd.KeyValueParam
+	}
+
+	for _, param := range params {
+		if strings.EqualFold(param.Key, strings.ToLower(key)) {
+			return param.Value
 		}
 	}
 	return ""
@@ -212,42 +203,24 @@ func (c *CControlCommand) GetKVMaps() map[string]string {
 }
 
 func (c *CControlCommand) GetGlobalFlag(name string) (string, bool) {
+	var flags []*Flag
 	switch cmd := c.Command.(type) {
 	case ShowCommand:
-		for _, flag := range cmd.GlobeFlags {
-			if strings.EqualFold(flag.Name, name) {
-				return flag.Value, true
-			}
-		}
+		flags = cmd.GlobalFlags
 	case UpdateCommand:
-		for _, flag := range cmd.GlobeFlags {
-			if strings.EqualFold(flag.Name, name) {
-				return flag.Value, true
-			}
-		}
+		flags = cmd.GlobalFlags
 	case HoldCommand:
-		for _, flag := range cmd.GlobeFlags {
-			if strings.EqualFold(flag.Name, name) {
-				return flag.Value, true
-			}
-		}
+		flags = cmd.GlobalFlags
 	case ReleaseCommand:
-		for _, flag := range cmd.GlobeFlags {
-			if strings.EqualFold(flag.Name, name) {
-				return flag.Value, true
-			}
-		}
+		flags = cmd.GlobalFlags
 	case CreateCommand:
-		for _, flag := range cmd.GlobeFlags {
-			if strings.EqualFold(flag.Name, name) {
-				return flag.Value, true
-			}
-		}
+		flags = cmd.GlobalFlags
 	case DeleteCommand:
-		for _, flag := range cmd.GlobeFlags {
-			if strings.EqualFold(flag.Name, name) {
-				return flag.Value, true
-			}
+		flags = cmd.GlobalFlags
+	}
+	for _, flag := range flags {
+		if strings.EqualFold(flag.Name, name) {
+			return flag.Value, true
 		}
 	}
 	return "", false
