@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"io"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -70,6 +71,17 @@ func StartCfored() {
 	util.InitLogger(FlagDebugLevel)
 
 	config := util.ParseConfig(FlagConfigFilePath)
+	logFile := config.CforedLogDir + "cfored.log"
+	if err := os.MkdirAll(config.CforedLogDir, 0755); err != nil {
+		print(os.Stderr, "Failed to create log directory: %s\n", err.Error())
+	}
+
+	// 打开日志文件
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		print(os.Stderr, "Failed to create logfile: %s\n", err.Error())
+	}
+	log.SetOutput(io.MultiWriter(os.Stdout, file))
 
 	util.DetectNetworkProxy()
 
