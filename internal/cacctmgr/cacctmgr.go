@@ -215,7 +215,7 @@ func PrintQosList(qosList []*protos.QosInfo) {
 		maxTresPerAccountStr := util.ResourceViewToTres(info.MaxTresPerAccount)
 
 		var maxWallStr string
-		if info.MaxTimeLimitPerTask >= util.MaxJobTimeLimit {
+		if info.MaxWall == 0 {
 			maxWallStr = "unlimited"
 		} else {
 			maxWallStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))
