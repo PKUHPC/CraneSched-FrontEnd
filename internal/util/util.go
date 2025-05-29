@@ -39,6 +39,7 @@ type Config struct {
 	DomainSuffix       string `yaml:"DomainSuffix"`
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
+	CforedLogDir         string       `yaml:"CforedLogDir"`
 	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
 	Plugin               PluginConfig `yaml:"Plugin"`
 }
@@ -70,6 +71,7 @@ type ConfigNodesList struct {
 const (
 	DefaultConfigPath   = "/etc/crane/config.yaml"
 	DefaultCraneBaseDir = "/var/crane/"
+	DefaultCforedLogDir = "cfored/"
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
