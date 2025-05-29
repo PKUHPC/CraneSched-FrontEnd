@@ -503,6 +503,7 @@ var fieldMap = map[string]FieldProcessor{
 
 	"o":       {"Command", ProcessCommand},
 	"command": {"Command", ProcessCommand},
+
 	// 'p' group
 	"p":         {"Priority", ProcessPriority},
 	"priority":  {"Priority", ProcessPriority},

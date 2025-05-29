@@ -52,6 +52,7 @@ var (
 	FlagDebugLevel     string
 
 	FlagReservation string
+	FlagSignal      string
 
 	RootCmd = &cobra.Command{
 		Use:     "calloc",
@@ -101,4 +102,6 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "send signal when time limit within time seconds, format: signum[@time]")
+
 }
