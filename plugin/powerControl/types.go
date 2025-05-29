@@ -16,6 +16,7 @@ const (
 )
 
 type NodeInfo struct {
+	Exclude             bool
 	State               NodeState
 	LastStateChangeTime time.Time
 	Jobs                map[string]struct{}
