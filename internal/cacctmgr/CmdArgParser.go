@@ -40,6 +40,13 @@ var (
 	FlagMaxTresPerAccount string
 	FlagQosFlags          string
 
+	FlagMaxTres               string
+	FlagMaxTresPerJob         string
+	FlagMaxWallDuration       uint64
+	FlagMaxWallDurationPerJob uint64
+	FlagMaxJobs               uint32
+	FlagMaxSubmitJobs         uint32
+
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
 	// while the other is the partition to be added or deleted.
@@ -675,6 +682,14 @@ func init() {
 			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
+
+			// User-Partition flags
+			modifyUserCmd.Flags().Uint32VarP(&FlagMaxSubmitJobs, "max-submit-jobs", "", math.MaxUint32, "Maximum number of jobs the user can submit (including pending and running jobs)")
+			modifyUserCmd.Flags().Uint32VarP(&FlagMaxJobs, "max-jobs", "", math.MaxUint32, "Maximum number of jobs the user can run simultaneously")
+			modifyUserCmd.Flags().StringVarP(&FlagMaxTres, "max-tres", "", "", "Maximum total TRES (Trackable Resources, e.g., CPUs, memory, GPUs) the user can use simultaneously")
+			modifyUserCmd.Flags().StringVarP(&FlagMaxTresPerJob, "max-tres-per-job", "", "", "Maximum TRES that a single job can request")
+			modifyUserCmd.Flags().Uint64VarP(&FlagMaxWallDuration, "max-wall", "", 0, "Maximum total wall time (seconds) for all running jobs")
+			modifyUserCmd.Flags().Uint64VarP(&FlagMaxWallDurationPerJob, "max-wall-per-job", "", util.MaxJobTimeLimit, "Maximum wall time (seconds) allowed per job")
 
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")

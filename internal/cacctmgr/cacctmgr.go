@@ -746,6 +746,22 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 		}
 	}
 
+	if modifyField == protos.ModifyField_MaxJobs ||
+		modifyField == protos.ModifyField_MaxSubmitJobs ||
+		modifyField == protos.ModifyField_MaxWall ||
+		modifyField == protos.ModifyField_MaxTres ||
+		modifyField == protos.ModifyField_MaxTresPerJob ||
+		modifyField == protos.ModifyField_MaxWallDurationPerJob {
+		if partition == "" {
+			log.Errorf("please provide a partition")
+			return util.ErrorCmdArg
+		}
+		if len(valueList) != 1 {
+			log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
+			return util.ErrorCmdArg
+		}
+	}
+
 	req := protos.ModifyUserRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
