@@ -34,7 +34,7 @@ type CAcctMgrCommand struct {
 
 type AddCommand struct {
 	Action      string           `parser:"@'add'"`
-	Resource    *ResourceType    `parser:"@@"`
+	Entity      *EntityType      `parser:"@@"`
 	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
@@ -42,7 +42,7 @@ type AddCommand struct {
 
 type DeleteCommand struct {
 	Action      string           `parser:"@'delete'"`
-	Resource    *ResourceType    `parser:"@@"`
+	Entity      *EntityType      `parser:"@@"`
 	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
@@ -50,7 +50,7 @@ type DeleteCommand struct {
 
 type BlockCommand struct {
 	Action      string           `parser:"@'block'"`
-	Resource    *ResourceType    `parser:"@@"`
+	Entity      *EntityType      `parser:"@@"`
 	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
@@ -58,28 +58,28 @@ type BlockCommand struct {
 
 type UnblockCommand struct {
 	Action      string           `parser:"@'unblock'"`
-	Resource    *ResourceType    `parser:"@@"`
+	Entity      *EntityType      `parser:"@@"`
 	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
 type ModifyCommand struct {
-	Action      string        `parser:"@'modify'"`
-	Resource    *ResourceType `parser:"@@"`
-	Where       *WhereClause  `parser:"@@?"`
-	Set         *SetClause    `parser:"@@?"`
-	GlobalFlags []*Flag       `parser:"@@*"`
+	Action      string       `parser:"@'modify'"`
+	Entity      *EntityType  `parser:"@@"`
+	Where       *WhereClause `parser:"@@?"`
+	Set         *SetClause   `parser:"@@?"`
+	GlobalFlags []*Flag      `parser:"@@*"`
 }
 
 type ShowCommand struct {
 	Action      string           `parser:"@'show'"`
-	Resource    *ResourceType    `parser:"@@?"`
+	Entity      *EntityType      `parser:"@@?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
-type ResourceType struct {
+type EntityType struct {
 	Account bool `parser:"@'account'"`
 	User    bool `parser:"| @'user'"`
 	Qos     bool `parser:"| @'qos'"`
@@ -130,7 +130,7 @@ func ParseCAcctMgrCommand(input string) (*CAcctMgrCommand, error) {
 	return CAcctMgrParser.ParseString("", input)
 }
 
-func (r ResourceType) String() string {
+func (r EntityType) String() string {
 	switch {
 	case r.Account:
 		return "account"
@@ -162,31 +162,31 @@ func (c *CAcctMgrCommand) GetAction() string {
 	}
 }
 
-func (c *CAcctMgrCommand) GetResource() string {
+func (c *CAcctMgrCommand) GetEntity() string {
 	switch cmd := c.Command.(type) {
 	case AddCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	case DeleteCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	case BlockCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	case UnblockCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	case ModifyCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	case ShowCommand:
-		if cmd.Resource != nil {
-			return cmd.Resource.String()
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
 		}
 	}
 	return ""
@@ -279,6 +279,9 @@ func (c *CAcctMgrCommand) GetSetParams() (map[string]string, map[string]string, 
 
 	switch cmd := c.Command.(type) {
 	case ModifyCommand:
+		if cmd.Set == nil {
+			return nil, nil, nil
+		}
 		for _, param := range cmd.Set.SetParams {
 			if param.Op == "=" {
 				setMap[param.Key] = param.Value

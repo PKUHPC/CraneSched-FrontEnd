@@ -26,7 +26,7 @@ import (
 func showHelp() {
 	help := `Crane Account Manager (cacctmgr) - version ` + util.Version() + `
   
-  USAGE: cacctmgr <ACTION> <RESOURCE> [OPTIONS]
+  USAGE: cacctmgr <ACTION> <ENTITY> [OPTIONS]
   
   ACTIONS:
 	add       - Create a new account, user, or QoS
@@ -36,14 +36,14 @@ func showHelp() {
 	modify    - Change attributes of an account, user, or QoS
 	show      - Display basic information
   
-  RESOURCES:
+  ENTITIES:
 	account   - User account in the system
 	user      - Individual user
 	qos       - Quality of Service settings
   
   COMMANDS:
-	add account <names> [description=<desc>] [parent=<parent>] [defaultQos=<qos>] 
-			[partition=<part1,part2,...>] [qosList=<qos1,qos2,...>] [names=<name1,name2,...>]
+	add account <name> [description=<desc>] [parent=<parent>] [defaultQos=<qos>] 
+			[partition=<part1,part2,...>] [qosList=<qos1,qos2,...>] [name=<name1,name2,...>]
     Create a new account with the specified attributes.
     Parameter details:
       description=<desc>         Description of the account
@@ -51,43 +51,43 @@ func showHelp() {
       defaultQos=<qos>           Default QoS for the account
       partition=<part1,part2,...>  Allowed partitions (comma-separated)
       qosList=<qos1,qos2,...>    Allowed QoS list (comma-separated)
-      names=<name1,name2,...>    List of account names for batch creation
+      name=<name1,name2,...>    List of account name for batch creation
   
-	delete account <names>
+	delete account <name>
     Remove the specified account(s) from the system.
     Parameter details:
-      names=<name1,name2,...>    Names of accounts to delete (comma-separated)
+      name=<name1,name2,...>    Name of accounts to delete (comma-separated)
   
-	show account [names=<name1,name2,...>]
+	show account [name=<name1,name2,...>]
     Display information about accounts.
     Parameter details:
-      names=<name1,name2,...>    Show only these accounts (comma-separated)
+      name=<name1,name2,...>    Show only these accounts (comma-separated)
       (If not specified, all accounts will be displayed)
   
-	add user <names> account=<account> [coordinator=true|false] [level=<level>] 
-		[partition=<part1,part2,...>] [names=<name1,name2,...>]
+	add user <name> account=<account> [coordinator=true|false] [level=<level>] 
+		[partition=<part1,part2,...>] [name=<name1,name2,...>]
     Create a new user and associate with an account.
     Parameter details:
       account=<account>          Account the user belongs to (required)
       coordinator=true|false     Whether the user is a coordinator for the account
       level=<level>              User admin level
       partition=<part1,part2,...>  Allowed partitions (comma-separated)
-      names=<name1,name2,...>    List of user names for batch creation
+      name=<name1,name2,...>    List of user name for batch creation
   
-	delete user <names> [account=<account>] [names=<name1,name2,...>]
+	delete user <name> [account=<account>] [name=<name1,name2,...>]
     Remove a user from the system or from a specific account.
     Parameter details:
       account=<account>          Specify the account (optional)
-      names=<name1,name2,...>    Names of users to delete (comma-separated)
+      name=<name1,name2,...>    Name of users to delete (comma-separated)
   
-	show user [accounts=<account>] [names=<name1,name2,...>]
+	show user [accounts=<account>] [name=<name1,name2,...>]
     Display information about users.
     Parameter details:
       accounts=<account>         Show users of this account only
-      names=<name1,name2,...>    Show only these users (comma-separated)
+      name=<name1,name2,...>    Show only these users (comma-separated)
       (If not specified, all users will be displayed)
   
-	add qos <names> [description=<desc>] [priority=<priority>] 
+	add qos <name> [description=<desc>] [priority=<priority>] 
 		[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
     Create a new QoS with the specified attributes.
     Parameter details:
@@ -96,20 +96,20 @@ func showHelp() {
       maxJobsPerUser=<num>       Maximum number of jobs per user
       maxCpusPerUser=<num>       Maximum number of CPUs per user
       maxTimeLimitPerTask=<seconds>  Maximum run time per task in seconds
-      names=<name1,name2,...>    List of QoS names for batch creation
+      name=<name1,name2,...>    List of QoS name for batch creation
   
-	delete qos <names> [names=<name1,name2,...>]
+	delete qos <name> [name=<name1,name2,...>]
     Remove the specified QoS from the system.
     Parameter details:
-      names=<name1,name2,...>    Names of QoS to delete (comma-separated)
+      name=<name1,name2,...>    Name of QoS to delete (comma-separated)
   
-	show qos <names> [names=<name1,name2,...>]
+	show qos <name> [name=<name1,name2,...>]
     Display information about QoS.
     Parameter details:
-      names=<name1,name2,...>    Show only these QoS (comma-separated)
+      name=<name1,name2,...>    Show only these QoS (comma-separated)
       (If not specified, all QoS will be displayed)
 
-  modify <resource> where [OPTIONS] set [OPTIONS]
+  modify <entity> where [OPTIONS] set [OPTIONS]
     Modify attributes of an existing account, user, or QoS.
     Account options:
       where name=<account>         Specify the account to modify
@@ -134,7 +134,7 @@ func showHelp() {
     QoS options:
       where name=<qos>
       set description=<desc>         Set description
-      set maxcpuperuser=<num>        Set max CPUs per user
+      set maxcpusperuser=<num>        Set max CPUs per user
       set maxsubmitjobsperuser=<num> Set max jobs per user
       set maxtimelimitpertask=<sec>  Set max time per task (seconds)
       set priority=<priority>        Set priority

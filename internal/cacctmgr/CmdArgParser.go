@@ -64,9 +64,9 @@ var (
 	FlagNodeList string
 	FlagNumLimit uint32
 
-	FlagResourceName        string
-	FlagResourceAccount     string
-	FlagResourcePartitions  string
+	FlagEntityName          string
+	FlagEntityAccount       string
+	FlagEntityPartitions    string
 	FlagDefaultQos          string
 	FlagAllowedQosList      string
 	FlagAllowedPartitions   string
@@ -105,9 +105,9 @@ func resetFlags() {
 	FlagFormat = ""
 	FlagNodeList = ""
 	FlagNumLimit = 0
-	FlagResourceName = ""
-	FlagResourceAccount = ""
-	FlagResourcePartitions = ""
+	FlagEntityName = ""
+	FlagEntityAccount = ""
+	FlagEntityPartitions = ""
 	FlagDefaultQos = ""
 	FlagAllowedQosList = ""
 	FlagAllowedPartitions = ""
@@ -175,9 +175,9 @@ func executeCommand(command *CAcctMgrCommand) int {
 }
 
 func executeAddCommand(command *CAcctMgrCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "account":
 		return executeAddAccountCommand(command)
 	case "user":
@@ -185,7 +185,7 @@ func executeAddCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeAddQosCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
@@ -287,9 +287,9 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 }
 
 func executeDeleteCommand(command *CAcctMgrCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "account":
 		return executeDeleteAccountCommand(command)
 	case "user":
@@ -297,66 +297,66 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeDeleteQosCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
-	FlagResourceName = command.GetID()
+	FlagEntityName = command.GetID()
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
 		case "name":
-			FlagResourceName = value
+			FlagEntityName = value
 		}
 	}
-	return DeleteAccount(FlagResourceName)
+	return DeleteAccount(FlagEntityName)
 }
 
 func executeDeleteUserCommand(command *CAcctMgrCommand) int {
-	FlagResourceName = command.GetID()
+	FlagEntityName = command.GetID()
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
 		case "account":
-			FlagResourceAccount = value
+			FlagEntityAccount = value
 		case "name":
-			FlagResourceName = value
+			FlagEntityName = value
 		default:
 			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return DeleteUser(FlagResourceName, FlagResourceAccount)
+	return DeleteUser(FlagEntityName, FlagEntityAccount)
 }
 
 func executeDeleteQosCommand(command *CAcctMgrCommand) int {
-	FlagResourceName = command.GetID()
+	FlagEntityName = command.GetID()
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
 		case "name":
-			FlagResourceName = value
+			FlagEntityName = value
 		}
 	}
-	return DeleteQos(FlagResourceName)
+	return DeleteQos(FlagEntityName)
 }
 
 func executeBlockCommand(command *CAcctMgrCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "account":
 		return executeBlockAccountCommand(command)
 	case "user":
 		return executeBlockUserCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
@@ -369,86 +369,86 @@ func executeBlockAccountCommand(command *CAcctMgrCommand) int {
 	for key, value := range KVParams {
 		switch key {
 		case "account":
-			FlagResourceAccount = value
+			FlagEntityAccount = value
 		default:
 			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return BlockAccountOrUser(Name, protos.EntityType_Account, FlagResourceAccount)
+	return BlockAccountOrUser(Name, protos.EntityType_Account, FlagEntityAccount)
 }
 
 func executeBlockUserCommand(command *CAcctMgrCommand) int {
-	FlagResourceName := command.GetID()
+	FlagEntityName := command.GetID()
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
 		case "account":
-			FlagResourceAccount = value
+			FlagEntityAccount = value
 		default:
 			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return BlockAccountOrUser(FlagResourceName, protos.EntityType_User, FlagResourceAccount)
+	return BlockAccountOrUser(FlagEntityName, protos.EntityType_User, FlagEntityAccount)
 }
 
 func executeUnblockCommand(command *CAcctMgrCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "account":
 		return executeUnblockAccountCommand(command)
 	case "user":
 		return executeUnblockUserCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeUnblockAccountCommand(command *CAcctMgrCommand) int {
-	FlagResourceName := command.GetID()
+	FlagEntityName := command.GetID()
 
 	KVParams := command.GetKVMaps()
 
 	for key, value := range KVParams {
 		switch key {
 		case "account":
-			FlagResourceAccount = value
+			FlagEntityAccount = value
 		default:
 			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return UnblockAccountOrUser(FlagResourceName, protos.EntityType_Account, FlagResourceAccount)
+	return UnblockAccountOrUser(FlagEntityName, protos.EntityType_Account, FlagEntityAccount)
 }
 
 func executeUnblockUserCommand(command *CAcctMgrCommand) int {
-	FlagResourceName := command.GetID()
+	FlagEntityName := command.GetID()
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch key {
 		case "account":
-			FlagResourceAccount = value
+			FlagEntityAccount = value
 		default:
 			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return UnblockAccountOrUser(FlagResourceName, protos.EntityType_User, FlagResourceAccount)
+	return UnblockAccountOrUser(FlagEntityName, protos.EntityType_User, FlagEntityAccount)
 }
 
 func executeModifyCommand(command *CAcctMgrCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "account":
 		return executeModifyAccountCommand(command)
 	case "user":
@@ -456,6 +456,7 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeModifyQosCommand(command)
 	default:
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
@@ -467,7 +468,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	for key, value := range WhereParams {
 		switch key {
 		case "name":
-			FlagResourceName = value
+			FlagEntityName = value
 		default:
 			return util.ErrorCmdArg
 		}
@@ -477,16 +478,16 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		switch key {
 		case "defaultqos":
 			FlagDefaultQos = value
-			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagResourceName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Add)
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, protos.OperationType_Add)
 		case "allowedqos":
 			FlagSetQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagResourceName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, protos.OperationType_Add)
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagResourceName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Add)
 		default:
 			return util.ErrorCmdArg
 		}
@@ -496,10 +497,10 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		switch key {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
-			ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, protos.OperationType_Add)
 		case "allowedqos":
 			FlagAllowedQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, protos.OperationType_Add)
 		default:
 			return util.ErrorCmdArg
 		}
@@ -509,10 +510,10 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		switch key {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
-			ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, protos.OperationType_Delete)
+			ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, protos.OperationType_Delete)
 		case "allowedqos":
 			FlagDeleteQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, protos.OperationType_Delete)
+			ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, protos.OperationType_Delete)
 		default:
 			return util.ErrorCmdArg
 		}
@@ -528,11 +529,11 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	for key, value := range WhereParams {
 		switch key {
 		case "name":
-			FlagResourceName = value
+			FlagEntityName = value
 		case "account":
-			FlagResourceAccount = value
+			FlagEntityAccount = value
 		case "partition":
-			FlagResourcePartitions = value
+			FlagEntityPartitions = value
 		default:
 			return util.ErrorCmdArg
 		}
@@ -542,16 +543,16 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		switch key {
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		case "allowedqos":
 			FlagSetQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		case "adminlevel":
 			FlagAdminLevel = value
-			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		default:
 			return util.ErrorCmdArg
 		}
@@ -561,10 +562,10 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		switch key {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
-			ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		case "allowedqos":
 			FlagAllowedQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		default:
 			return util.ErrorCmdArg
 		}
@@ -574,10 +575,10 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		switch key {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
-			ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
+			ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
 		case "allowedqos":
 			FlagDeleteQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagResourceName, FlagResourceAccount, FlagResourcePartitions, protos.OperationType_Delete)
+			ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
 		default:
 			return util.ErrorCmdArg
 		}
@@ -593,7 +594,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	for key, value := range WhereParams {
 		switch key {
 		case "name":
-			FlagResourceName = value
+			FlagEntityName = value
 		default:
 			return util.ErrorCmdArg
 		}
@@ -601,21 +602,21 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 
 	for key, value := range SetParams {
 		switch key {
-		case "maxcpuperuser":
+		case "maxcpusperuser":
 			FlagMaxCpu = value
-			ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagResourceName)
+			ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName)
 		case "maxsubmitjobsperuser":
 			FlagMaxJob = value
-			ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagResourceName)
+			ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagEntityName)
 		case "maxtimelimitpertask":
 			FlagMaxTimeLimit = value
-			ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagResourceName)
+			ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagEntityName)
 		case "priority":
 			FlagPriority = value
-			ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagResourceName)
+			ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName)
 		case "description":
 			FlagDescription = value
-			ModifyQos(protos.ModifyField_Description, FlagDescription, FlagResourceName)
+			ModifyQos(protos.ModifyField_Description, FlagDescription, FlagEntityName)
 		default:
 			return util.ErrorCmdArg
 		}
@@ -624,9 +625,9 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 }
 
 func executeShowCommand(command *CAcctMgrCommand) int {
-	resource := command.GetResource()
+	entity := command.GetEntity()
 
-	switch resource {
+	switch entity {
 	case "account":
 		return executeShowAccountCommand(command)
 	case "user":
@@ -634,33 +635,40 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeShowQosCommand(command)
 	default:
-		log.Debugf("unknown resource type: %s", resource)
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeShowAccountCommand(command *CAcctMgrCommand) int {
-	FlagResourceName := command.GetID()
-	FlagResourceName = command.GetKVParamValue("name")
+	name := command.GetID()
+	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+		name = nameParam
+	}
 
-	if FlagResourceName == "" {
+	if name == "" {
 		return ShowAccounts()
 	}
 
-	return FindAccount(FlagResourceName)
+	return FindAccount(name)
 }
 
 func executeShowUserCommand(command *CAcctMgrCommand) int {
-	FlagResourceName := command.GetID()
-	FlagResourceName = command.GetKVParamValue("name")
+	name := command.GetID()
+	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+		name = nameParam
+	}
+
 	account := command.GetKVParamValue("accounts")
 
-	return ShowUser(FlagResourceName, account)
+	return ShowUser(name, account)
 }
 
 func executeShowQosCommand(command *CAcctMgrCommand) int {
-	FlagResourceName := command.GetID()
-	FlagResourceName = command.GetKVParamValue("name")
+	name := command.GetID()
+	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+		name = nameParam
+	}
 
-	return ShowQos(FlagResourceName)
+	return ShowQos(name)
 }
