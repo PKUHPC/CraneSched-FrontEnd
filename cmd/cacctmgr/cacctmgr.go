@@ -16,14 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
- package main
+package main
 
- import (
-	 "os"
- 
-	 cacctmgr "CraneFrontEnd/internal/cacctmgr"
- )
- 
- func main() {
-	 cacctmgr.ParseCmdArgs(os.Args)
- }
+import (
+	"os"
+
+	cacctmgr "CraneFrontEnd/internal/cacctmgr"
+)
+
+func main() {
+	cacctmgr.ParseCmdArgs(os.Args)
+}
