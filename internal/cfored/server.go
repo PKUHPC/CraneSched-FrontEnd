@@ -174,7 +174,7 @@ func (keeper *CranedChannelKeeper) forwardRemoteIoToCrun(taskId uint32, ioToCrun
 		case channel <- ioToCrun:
 
 		default:
-			log.Warningf("Too many I/O messages to crun task #%d step#%d, channel is full. Message droped", taskId, stepId)
+			log.Warningf("Too many I/O messages to crun task #%d channel is full. Message droped", taskId)
 		}
 	} else {
 		log.Warningf("Trying forward to I/O to an unknown crun of task #%d.", taskId)
