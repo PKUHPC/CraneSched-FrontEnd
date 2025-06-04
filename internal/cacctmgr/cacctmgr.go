@@ -660,7 +660,7 @@ func DeleteQos(value string) util.CraneCmdError {
 	}
 }
 
-func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.CraneCmdError {
+func ModifyAccount(modifyField protos.ModifyField, partition string, newValue string, name string, requestType protos.OperationType) util.CraneCmdError {
 	var valueList []string
 	var err error
 
@@ -679,6 +679,22 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 	if modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_Description {
 		if len(valueList) != 1 {
 			log.Errorf("Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
+			return util.ErrorCmdArg
+		}
+	}
+
+	if modifyField == protos.ModifyField_MaxJobs ||
+		modifyField == protos.ModifyField_MaxSubmitJobs ||
+		modifyField == protos.ModifyField_MaxWall ||
+		modifyField == protos.ModifyField_MaxTres ||
+		modifyField == protos.ModifyField_MaxTresPerJob ||
+		modifyField == protos.ModifyField_MaxWallDurationPerJob {
+		if partition == "" {
+			log.Errorf("please provide a partition")
+			return util.ErrorCmdArg
+		}
+		if len(valueList) != 1 {
+			log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
 			return util.ErrorCmdArg
 		}
 	}

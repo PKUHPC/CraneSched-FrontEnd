@@ -42,10 +42,10 @@ var (
 
 	FlagMaxTres               string
 	FlagMaxTresPerJob         string
-	FlagMaxWallDuration       uint64
-	FlagMaxWallDurationPerJob uint64
-	FlagMaxJobs               uint32
-	FlagMaxSubmitJobs         uint32
+	FlagMaxWallDuration       string
+	FlagMaxWallDurationPerJob string
+	FlagMaxJobs               string
+	FlagMaxSubmitJobs         string
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -200,7 +200,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			err := util.ErrorSuccess
 			if cmd.Flags().Changed("description") { //See if a flag was set by the user
-				err = ModifyAccount(protos.ModifyField_Description, FlagAccount.Description, FlagAccount.Name, protos.OperationType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Description, FlagPartition, FlagAccount.Description, FlagAccount.Name, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -209,27 +209,63 @@ var (
 			//	ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
 			//}
 			if cmd.Flags().Changed("set-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.OperationType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Partition, FlagPartition, strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.OperationType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Add)
+				err = ModifyAccount(protos.ModifyField_Partition, FlagPartition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Delete)
+				err = ModifyAccount(protos.ModifyField_Partition, FlagPartition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("set-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.OperationType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_Qos, FlagPartition, strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.OperationType_Overwrite)
 			} else if cmd.Flags().Changed("add-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperationType_Add)
+				err = ModifyAccount(protos.ModifyField_Qos, FlagPartition, FlagQos.Name, FlagAccount.Name, protos.OperationType_Add)
 			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperationType_Delete)
+				err = ModifyAccount(protos.ModifyField_Qos, FlagPartition, FlagQos.Name, FlagAccount.Name, protos.OperationType_Delete)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 			if cmd.Flags().Changed("default-qos") {
-				err = ModifyAccount(protos.ModifyField_DefaultQos, FlagAccount.DefaultQos, FlagAccount.Name, protos.OperationType_Overwrite)
+				err = ModifyAccount(protos.ModifyField_DefaultQos, FlagPartition, FlagAccount.DefaultQos, FlagAccount.Name, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-submit-jobs") {
+				err = ModifyAccount(protos.ModifyField_MaxSubmitJobs, FlagPartition, FlagMaxSubmitJobs, FlagAccount.Name, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-jobs") {
+				err = ModifyAccount(protos.ModifyField_MaxJobs, FlagPartition, FlagMaxJobs, FlagAccount.Name, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-tres") {
+				err = ModifyAccount(protos.ModifyField_MaxTres, FlagPartition, FlagMaxTres, FlagAccount.Name, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-tres-per-job") {
+				err = ModifyAccount(protos.ModifyField_MaxTresPerJob, FlagPartition, FlagMaxTresPerJob, FlagAccount.Name, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-wall") {
+				err = ModifyAccount(protos.ModifyField_MaxWall, FlagPartition, FlagMaxWallDuration, FlagAccount.Name, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-wall-per-job") {
+				err = ModifyAccount(protos.ModifyField_MaxWallDurationPerJob, FlagPartition, FlagMaxWallDurationPerJob, FlagAccount.Name, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -289,6 +325,43 @@ var (
 			}
 			if cmd.Flags().Changed("default-qos") {
 				err = ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+
+			if cmd.Flags().Changed("max-submit-jobs") {
+				err = ModifyUser(protos.ModifyField_MaxSubmitJobs, FlagMaxSubmitJobs, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-jobs") {
+				err = ModifyUser(protos.ModifyField_MaxJobs, FlagMaxJobs, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-tres") {
+				err = ModifyUser(protos.ModifyField_MaxTres, FlagMaxTres, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-tres-per-job") {
+				err = ModifyUser(protos.ModifyField_MaxTresPerJob, FlagMaxTresPerJob, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-wall") {
+				err = ModifyUser(protos.ModifyField_MaxWall, FlagMaxWallDuration, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
+			}
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+			if cmd.Flags().Changed("max-wall-per-job") {
+				err = ModifyUser(protos.ModifyField_MaxWallDurationPerJob, FlagMaxWallDurationPerJob, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
 			}
 			if err != util.ErrorSuccess {
 				os.Exit(err)
@@ -650,6 +723,15 @@ func init() {
 			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
 			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
 
+			// Account-Partition flags
+			modifyAccountCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Specify the partition used")
+			modifyAccountCmd.Flags().StringVarP(&FlagMaxSubmitJobs, "max-submit-jobs", "", "", "Maximum number of jobs the account can submit (including pending and running jobs)")
+			modifyAccountCmd.Flags().StringVarP(&FlagMaxJobs, "max-jobs", "", "", "Maximum number of jobs the account can run simultaneously")
+			modifyAccountCmd.Flags().StringVarP(&FlagMaxTres, "max-tres", "", "", "Maximum total TRES (Trackable Resources, e.g., CPUs, memory, GPUs) the account can use simultaneously")
+			modifyAccountCmd.Flags().StringVarP(&FlagMaxTresPerJob, "max-tres-per-job", "", "", "Maximum TRES that a single job can request")
+			modifyAccountCmd.Flags().StringVarP(&FlagMaxWallDuration, "max-wall", "", "", "Maximum total wall time (seconds) for all running jobs")
+			modifyAccountCmd.Flags().StringVarP(&FlagMaxWallDurationPerJob, "max-wall-per-job", "", "", "Maximum wall time (seconds) allowed per job")
+
 			// Other flags
 			modifyAccountCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced to operate")
 
@@ -657,7 +739,8 @@ func init() {
 			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
 			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			modifyAccountCmd.MarkFlagsOneRequired("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition",
-				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "description", "default-qos")
+				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "description", "default-qos",
+				"max-submit-jobs", "max-jobs", "max-tres", "max-tres-per-job", "max-wall", "max-wall-per-job")
 			if err := modifyAccountCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
@@ -684,12 +767,12 @@ func init() {
 			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
 
 			// User-Partition flags
-			modifyUserCmd.Flags().Uint32VarP(&FlagMaxSubmitJobs, "max-submit-jobs", "", math.MaxUint32, "Maximum number of jobs the user can submit (including pending and running jobs)")
-			modifyUserCmd.Flags().Uint32VarP(&FlagMaxJobs, "max-jobs", "", math.MaxUint32, "Maximum number of jobs the user can run simultaneously")
+			modifyUserCmd.Flags().StringVarP(&FlagMaxSubmitJobs, "max-submit-jobs", "", "", "Maximum number of jobs the user can submit (including pending and running jobs)")
+			modifyUserCmd.Flags().StringVarP(&FlagMaxJobs, "max-jobs", "", "", "Maximum number of jobs the user can run simultaneously")
 			modifyUserCmd.Flags().StringVarP(&FlagMaxTres, "max-tres", "", "", "Maximum total TRES (Trackable Resources, e.g., CPUs, memory, GPUs) the user can use simultaneously")
 			modifyUserCmd.Flags().StringVarP(&FlagMaxTresPerJob, "max-tres-per-job", "", "", "Maximum TRES that a single job can request")
-			modifyUserCmd.Flags().Uint64VarP(&FlagMaxWallDuration, "max-wall", "", 0, "Maximum total wall time (seconds) for all running jobs")
-			modifyUserCmd.Flags().Uint64VarP(&FlagMaxWallDurationPerJob, "max-wall-per-job", "", util.MaxJobTimeLimit, "Maximum wall time (seconds) allowed per job")
+			modifyUserCmd.Flags().StringVarP(&FlagMaxWallDuration, "max-wall", "", "", "Maximum total wall time (seconds) for all running jobs")
+			modifyUserCmd.Flags().StringVarP(&FlagMaxWallDurationPerJob, "max-wall-per-job", "", "", "Maximum wall time (seconds) allowed per job")
 
 			// Other flags
 			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
@@ -698,7 +781,8 @@ func init() {
 			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
 			modifyUserCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
 			modifyUserCmd.MarkFlagsOneRequired("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition",
-				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account")
+				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account",
+				"max-submit-jobs", "max-jobs", "max-tres", "max-tres-per-job", "max-wall", "max-wall-per-job")
 			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
