@@ -184,13 +184,19 @@ func executeUpdateCommand(command *CControlCommand) int {
 		switch strings.ToLower(key) {
 		case "node", "nodename":
 			FlagNodeName = value
-			return executeUpdateNodeCommand(command)
+			if err := executeUpdateNodeCommand(command); err != util.ErrorSuccess {
+				return util.ErrorCmdArg
+			}
 		case "job", "jobid":
 			FlagTaskIds = value
-			return executeUpdateJobCommand(command)
+			if err := executeUpdateJobCommand(command); err != util.ErrorSuccess {
+				return util.ErrorCmdArg
+			}
 		case "partition", "partitionname":
 			FlagPartitionName = value
-			return executeUpdatePartitionCommand(command)
+			if err := executeUpdatePartitionCommand(command); err != util.ErrorSuccess {
+				return util.ErrorCmdArg
+			}
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
@@ -258,10 +264,14 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
 			FlagAllowedAccounts = value
-			return ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
+			if err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts); err != util.ErrorSuccess {
+				return util.ErrorCmdArg
+			}
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
-			return ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts)
+			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != util.ErrorSuccess {
+				return util.ErrorCmdArg
+			}
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
