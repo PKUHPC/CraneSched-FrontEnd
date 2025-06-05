@@ -172,7 +172,7 @@ func (c *CControlCommand) GetKVParamValue(key string) string {
 	}
 
 	for _, param := range params {
-		if strings.EqualFold(param.Key, strings.ToLower(key)) {
+		if strings.EqualFold(param.Key, key) {
 			return param.Value
 		}
 	}

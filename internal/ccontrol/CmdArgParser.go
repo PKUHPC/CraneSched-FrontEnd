@@ -71,14 +71,8 @@ func ParseCmdArgs(args []string) {
 
 	result := executeCommand(command)
 	if result != util.ErrorSuccess {
-		switch result {
-		case util.ErrorCmdArg:
-			log.Error("error: command execution failed")
-			os.Exit(result)
-		default:
-			log.Errorf("error: command execution failed (error code: %d)", result)
-			os.Exit(result)
-		}
+		log.Error("error: command execution failed")
+		os.Exit(result)
 	}
 }
 
@@ -240,10 +234,14 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 				return util.ErrorCmdArg
 			}
 			FlagPriority = priority
-			ChangeTaskPriority(FlagTaskIds, FlagPriority)
+			if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
+				return util.ErrorCmdArg
+			}
 		case "timelimit":
 			FlagTimeLimit = value
-			ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
+			if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
+				return util.ErrorCmdArg
+			}
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
