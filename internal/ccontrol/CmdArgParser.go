@@ -180,30 +180,31 @@ func executeUpdateCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
+	var lastErr int = util.ErrorSuccess
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "node", "nodename":
 			FlagNodeName = value
 			if err := executeUpdateNodeCommand(command); err != util.ErrorSuccess {
-				return util.ErrorCmdArg
+				lastErr = err
 			}
 		case "job", "jobid":
 			FlagTaskIds = value
 			if err := executeUpdateJobCommand(command); err != util.ErrorSuccess {
-				return util.ErrorCmdArg
+				lastErr = err
 			}
 		case "partition", "partitionname":
 			FlagPartitionName = value
 			if err := executeUpdatePartitionCommand(command); err != util.ErrorSuccess {
-				return util.ErrorCmdArg
+				lastErr = err
 			}
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
-			return util.ErrorCmdArg
+			lastErr = util.ErrorCmdArg
 		}
 	}
 
-	return util.ErrorSuccess
+	return lastErr
 }
 
 func executeUpdateNodeCommand(command *CControlCommand) int {
@@ -231,53 +232,55 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 func executeUpdateJobCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
+	var lastErr int = util.ErrorSuccess
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "priority":
 			priority, err := strconv.ParseFloat(value, 64)
 			if err != nil {
 				log.Debugf("invalid priority value: %s", value)
-				return util.ErrorCmdArg
+				lastErr = util.ErrorCmdArg
 			}
 			FlagPriority = priority
 			if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
-				return util.ErrorCmdArg
+				lastErr = err
 			}
 		case "timelimit":
 			FlagTimeLimit = value
 			if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
-				return util.ErrorCmdArg
+				lastErr = err
 			}
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
-			return util.ErrorCmdArg
+			lastErr = util.ErrorCmdArg
 		}
 	}
 
-	return util.ErrorSuccess
+	return lastErr
 }
 
 func executeUpdatePartitionCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
+	var lastErr int = util.ErrorSuccess
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
 			FlagAllowedAccounts = value
 			if err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts); err != util.ErrorSuccess {
-				return util.ErrorCmdArg
+				lastErr = err
 			}
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
 			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != util.ErrorSuccess {
-				return util.ErrorCmdArg
+				lastErr = err
 			}
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
-			return util.ErrorCmdArg
+			lastErr = util.ErrorCmdArg
 		}
 	}
-	return util.ErrorSuccess
+	return lastErr
 }
 
 func executeHoldCommand(command *CControlCommand) int {
