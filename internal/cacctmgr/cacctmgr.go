@@ -706,6 +706,7 @@ func ModifyAccount(modifyField protos.ModifyField, partition string, newValue st
 		Name:        name,
 		Type:        requestType,
 		Force:       FlagForce,
+		Partition:   partition,
 	}
 
 	reply, err := stub.ModifyAccount(context.Background(), &req)
