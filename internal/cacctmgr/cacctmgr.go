@@ -47,11 +47,6 @@ var (
 	dbConfigInitOnce sync.Once
 )
 
-type ServerAddr struct {
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
-}
-
 type ResourceUsageRecord struct {
 	ClusterName string
 	NodeName    string

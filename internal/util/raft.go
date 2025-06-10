@@ -5,12 +5,18 @@ import (
 	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"sync"
 )
 
-var ps *PersistentStorage
+var (
+	ps     *PersistentStorage
+	psOnce sync.Once
+)
 
 func GetLeaderIdFromFile() int {
-	ps = NewPersistentStorage(DefaultTempBaseDir + DefaultPersistentDataPath)
+	psOnce.Do(func() {
+		ps = NewPersistentStorage(DefaultTempBaseDir + DefaultPersistentDataPath)
+	})
 	if ps == nil {
 		return -2
 	}
@@ -21,21 +27,29 @@ func GetLeaderIdFromFile() int {
 	return ps.data.LeaderId
 }
 
-func UpdateLeaderIdToFile(leaderId int) {
+func UpdateLeaderIdToFile(leaderId int) error {
+	if ps == nil {
+		return fmt.Errorf("persistent storage not initialized")
+	}
 	ps.data.LeaderId = leaderId
 	err := ps.SaveData()
 	if err != nil {
-		return
+		log.Errorf("Failed to save leader ID to file: %v", err)
+		return err
 	}
+	return nil
 }
 
 func CurrentLeaderId() int {
+	if ps == nil {
+		return -2
+	}
 	return ps.data.LeaderId
 }
 
 func HostName2ServerId(config *Config, hostname string) int {
-	for i := 0; i < len(config.ControlMachine); i++ {
-		if config.ControlMachine[i].Hostname == hostname {
+	for i := 0; i < len(config.CraneCtldConfig.ControlMachines); i++ {
+		if config.CraneCtldConfig.ControlMachines[i].Hostname == hostname {
 			return i
 		}
 	}
@@ -45,8 +59,13 @@ func HostName2ServerId(config *Config, hostname string) int {
 
 func QueryLeaderFromCtld(config *Config) int {
 	fmt.Println("Attempting to query current leader ID")
+	if ps == nil {
+		log.Error("Persistent storage not initialized")
+		return -2
+	}
 	var stub protos.CraneCtldClient
-	l := len(config.ControlMachine)
+	l := len(config.CraneCtldConfig.ControlMachines)
+	// Skip the first control machine (index 0) to avoid querying self
 	for i := 1; i < l; i++ {
 		id := (ps.data.LeaderId + i) % l
 		stub = GetStubToCtldByConfigAndLeaderId(config, id)

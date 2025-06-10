@@ -2,7 +2,6 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gofrs/flock"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -31,15 +30,16 @@ func NewPersistentStorage(file string) *PersistentStorage {
 
 		err = os.Chmod(dir, 0777)
 		if err != nil {
-			fmt.Println("Error changing directories permissions:", err)
+			log.Errorf("Error changing directories permissions: %v", err)
 			return nil
 		}
 
 	} else if err != nil {
-		fmt.Println("Error checking directory:", err)
+		log.Errorf("Error checking directory: %v", err)
+		return nil
 	}
 
-	lock := flock.New(file + ".lock") // 创建文件锁
+	lock := flock.New(file + ".lock") // file lock
 	return &PersistentStorage{
 		flock: lock,
 		file:  file,
@@ -65,13 +65,13 @@ func (ps *PersistentStorage) LoadData() error {
 			}
 			err = os.Chmod(ps.file, 0777)
 			if err != nil {
-				fmt.Println("Error changing file permissions:", err)
-				return nil
+				log.Errorf("Error changing file permissions: %v", err)
+				return err
 			}
 			err = os.Chmod(ps.file+".lock", 0777)
 			if err != nil {
-				fmt.Println("Error changing file permissions:", err)
-				return nil
+				log.Errorf("Error changing file permissions: %v", err)
+				return err
 			}
 
 			defer file.Close()

@@ -430,18 +430,18 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 
 		if taskInfo.Status == protos.TaskStatus_Running {
 			fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
-			taskInfo.NodeNum,
-			taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
-			util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-			formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
+				taskInfo.NodeNum,
+				taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
+				util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
+				formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
 			)
 		}
 
 		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
-		"\tExclusive=%v Comment=%v\n",
-		formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
-		formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-		strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
+			"\tExclusive=%v Comment=%v\n",
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
 	}
 
 	// If any job is requested but not returned, remind the user
@@ -513,8 +513,8 @@ func showLeader() util.CraneCmdError {
 		return util.ErrorNetwork
 	}
 
-	if len(reply.ServerList) < 0 {
-		util.GrpcErrorPrintf(err, "Empty raft server list")
+	if len(reply.ServerList) == 0 {
+		log.Errorln("Empty raft server list")
 		return util.ErrorBackend
 	}
 
@@ -769,14 +769,23 @@ func YieldLeadership(key interface{}) util.CraneCmdError {
 		} else {
 			req := &protos.QueryLeaderIdRequest{}
 
+			timeout := time.After(30 * time.Second)
+			ticker := time.NewTicker(400 * time.Millisecond)
+			defer ticker.Stop()
+
 			for {
-				time.Sleep(400 * time.Millisecond)
-				log.Println("Attempting to query current leader ID...")
-				reply, err := stub.QueryLeaderId(context.Background(), req)
-				if err == nil && reply.LeaderId > 0 {
-					log.Printf("Leader id was changed to %d, caching the value.\n", reply.GetLeaderId())
-					util.UpdateLeaderIdToFile(int(reply.GetLeaderId()))
-					break
+				select {
+				case <-timeout:
+					log.Errorln("Timeout waiting for leader change")
+					return util.ErrorBackend
+				case <-ticker.C:
+					log.Println("Attempting to query current leader ID...")
+					reply, err := stub.QueryLeaderId(context.Background(), req)
+					if err == nil && reply.LeaderId > 0 {
+						log.Printf("Leader id was changed to %d, caching the value.\n", reply.GetLeaderId())
+						util.UpdateLeaderIdToFile(int(reply.GetLeaderId()))
+						break
+					}
 				}
 			}
 		}

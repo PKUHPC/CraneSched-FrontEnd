@@ -139,12 +139,15 @@ func GetUnixSocket(path string, mode fs.FileMode) (net.Listener, error) {
 
 // TODO: Refactor this to return ErrCodes instead of exiting.
 func GetStubToCtldByConfigAndLeaderId(config *Config, id int) protos.CraneCtldClient {
+	if id < 0 || id >= len(config.CraneCtldConfig.ControlMachines) {
+		log.Errorf("Invalid leader ID %d: must be between 0 and %d", id, len(config.CraneCtldConfig.ControlMachines)-1)
+		os.Exit(ErrorGeneric)
+	}
 	var serverAddr string
 	var stub protos.CraneCtldClient
 
 	if config.UseTls {
-		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine[id].Hostname, config.DomainSuffix, config.ControlMachine[id].ListenPort)
+		serverAddr = fmt.Sprintf("%s.%s:%s", config.CraneCtldConfig.ControlMachines[id].Hostname, config.DomainSuffix, config.CraneCtldConfig.ControlMachines[id].ListenPort)
 
 		ServerCertContent, err := os.ReadFile(config.ServerCertFilePath)
 		if err != nil {
@@ -198,7 +201,7 @@ func GetStubToCtldByConfigAndLeaderId(config *Config, id int) protos.CraneCtldCl
 
 		stub = protos.NewCraneCtldClient(conn)
 	} else {
-		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine[id].Hostname, config.ControlMachine[id].ListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.CraneCtldConfig.ControlMachines[id].Hostname, config.CraneCtldConfig.ControlMachines[id].ListenPort)
 
 		conn, err := grpc.NewClient(serverAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
