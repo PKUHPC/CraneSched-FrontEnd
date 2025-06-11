@@ -320,6 +320,7 @@ func Query() util.CraneCmdError {
 	util.SetBorderlessTable(table)
 	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var tableData [][]string
+	var partitionNotMatch [][]string
 	var partitionFilterValid bool
 	for _, partitionCraned := range reply.Partitions {
 		partitionFilterValid = false
@@ -349,7 +350,7 @@ func Query() util.CraneCmdError {
 			}
 		}
 		if !partitionFilterValid {
-			tableData = append(tableData, []string{
+			partitionNotMatch = append(partitionNotMatch, []string{
 				partitionCraned.Name,
 				strings.ToLower(partitionCraned.State.String()[10:]),
 				"0",
@@ -358,6 +359,8 @@ func Query() util.CraneCmdError {
 			})
 		}
 	}
+
+	tableData = append(tableData, partitionNotMatch...)
 
 	if FlagFormat != "" {
 		header, tableData = FormatData(reply)
