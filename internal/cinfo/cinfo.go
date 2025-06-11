@@ -320,9 +320,12 @@ func Query() util.CraneCmdError {
 	util.SetBorderlessTable(table)
 	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var tableData [][]string
+	var partitionFilterValid bool
 	for _, partitionCraned := range reply.Partitions {
+		partitionFilterValid = false
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {
+				partitionFilterValid = true
 				stateStr := strings.ToLower(commonCranedStateList.ResourceState.String()[6:])
 				if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
 					stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
@@ -344,6 +347,15 @@ func Query() util.CraneCmdError {
 					commonCranedStateList.CranedListRegex,
 				})
 			}
+		}
+		if !partitionFilterValid {
+			tableData = append(tableData, []string{
+				partitionCraned.Name,
+				strings.ToLower(partitionCraned.State.String()[10:]),
+				"0",
+				"n/a",
+				"",
+			})
 		}
 	}
 
