@@ -310,6 +310,7 @@ func SendRequest(task *protos.TaskToCtld) util.CraneCmdError {
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the job")
+		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
 
@@ -338,6 +339,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) util.CraneCmdEr
 	reply, err := stub.SubmitBatchTasks(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit tasks")
+		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
 
