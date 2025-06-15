@@ -185,7 +185,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 			NextProtos: []string{"h2"},
 		})
 
-		conn, err := grpc.Dial(serverAddr,
+		conn, err := grpc.NewClient(serverAddr,
 			grpc.WithTransportCredentials(creds),
 			grpc.WithKeepaliveParams(ClientKeepAliveParams),
 			grpc.WithConnectParams(ClientConnectParams),
@@ -200,7 +200,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	} else {
 		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
-		conn, err := grpc.Dial(serverAddr,
+		conn, err := grpc.NewClient(serverAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithKeepaliveParams(ClientKeepAliveParams),
 			grpc.WithConnectParams(ClientConnectParams),

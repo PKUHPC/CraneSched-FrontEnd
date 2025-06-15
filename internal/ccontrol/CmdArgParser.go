@@ -20,11 +20,11 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-	"regexp"
-
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"os"
+	"regexp"
 )
 
 var (
@@ -71,7 +71,7 @@ var (
 		Short: "Display details of the nodes, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				FlagNodeName = ""
 				FlagQueryAll = true
@@ -79,9 +79,7 @@ var (
 				FlagNodeName = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowNodes(FlagNodeName, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return ShowNodes(FlagNodeName, FlagQueryAll)
 		},
 	}
 	showPartitionCmd = &cobra.Command{
@@ -89,7 +87,7 @@ var (
 		Short: "Display details of the partitions, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				FlagPartitionName = ""
 				FlagQueryAll = true
@@ -97,9 +95,7 @@ var (
 				FlagPartitionName = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowPartitions(FlagPartitionName, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return ShowPartitions(FlagPartitionName, FlagQueryAll)
 		},
 	}
 	showReservationsCmd = &cobra.Command{
@@ -107,7 +103,7 @@ var (
 		Short: "Display details of the reservations, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				FlagReservationName = ""
 				FlagQueryAll = true
@@ -115,9 +111,7 @@ var (
 				FlagReservationName = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowReservations(FlagReservationName, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return ShowReservations(FlagReservationName, FlagQueryAll)
 		},
 	}
 	showJobCmd = &cobra.Command{
@@ -125,7 +119,7 @@ var (
 		Short: "Display details of the jobs, default is all",
 		Long:  "",
 		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			jobIds := ""
 			if len(args) == 0 {
 				FlagQueryAll = true
@@ -134,9 +128,7 @@ var (
 				FlagQueryAll = false
 				jobIds = args[0]
 			}
-			if err := ShowJobs(jobIds, FlagQueryAll); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return ShowJobs(jobIds, FlagQueryAll)
 		},
 	}
 	showConfigCmd = &cobra.Command{
@@ -144,10 +136,8 @@ var (
 		Short: "Display the configuration file in key-value format",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ShowConfig(FlagConfigFilePath); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return ShowConfig(FlagConfigFilePath)
 		},
 	}
 	updateCmd = &cobra.Command{
@@ -160,32 +150,29 @@ var (
 		Use:   "job [flags]",
 		Short: "Modify job attributes",
 		Long:  "",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") {
-				log.Error("No attribute to modify")
-				os.Exit(util.ErrorCmdArg)
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "No attribute to modify",
+				}
 			}
 
 			if len(FlagTimeLimit) != 0 {
-				if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
+				return ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
 			}
 			if cmd.Flags().Changed("priority") {
-				if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
+				return ChangeTaskPriority(FlagTaskIds, FlagPriority)
 			}
+			return nil
 		},
 	}
 	updateNodeCmd = &cobra.Command{
 		Use:   "node [flags]",
 		Short: "Modify node attributes",
 		Long:  "",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return ChangeNodeState(FlagNodeName, FlagState, FlagReason)
 		},
 	}
 	updatePartitionCmd = &cobra.Command{
@@ -200,17 +187,16 @@ var (
 
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("allowed-accounts") {
-				if err := ModifyPartitionAcl(args[0], true, FlagAllowedAccounts); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
+				return ModifyPartitionAcl(args[0], true, FlagAllowedAccounts)
 			} else if cmd.Flags().Changed("denied-accounts") {
-				if err := ModifyPartitionAcl(args[0], false, FlagDeniedAccounts); err != util.ErrorSuccess {
-					os.Exit(err)
+				if err := ModifyPartitionAcl(args[0], false, FlagDeniedAccounts); err != nil {
+					return err
 				}
 				log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
 			}
+			return nil
 		},
 	}
 	holdCmd = &cobra.Command{
@@ -230,10 +216,8 @@ var (
 			}
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := HoldReleaseJobs(args[0], true); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return HoldReleaseJobs(args[0], true)
 		},
 	}
 	releaseCmd = &cobra.Command{
@@ -253,10 +237,8 @@ var (
 			}
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := HoldReleaseJobs(args[0], false); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return HoldReleaseJobs(args[0], false)
 		},
 	}
 	createCmd = &cobra.Command{
@@ -269,10 +251,8 @@ var (
 		Short: "Create a new reservation",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := CreateReservation(); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return CreateReservation()
 		},
 	}
 	deleteCmd = &cobra.Command{
@@ -285,19 +265,25 @@ var (
 		Short: "Delete the specified reservation",
 		Long:  "",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteReservation(args[0]); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return DeleteReservation(args[0])
 		},
 	}
 )
 
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
+	util.RunEWrapperForLeafCommand(RootCmd)
+
 	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
+		var craneErr *util.CraneError
+		if errors.As(err, &craneErr) {
+			os.Exit(craneErr.Code)
+		} else {
+			os.Exit(util.ErrorGeneric)
+		}
 	}
+	os.Exit(util.ErrorSuccess)
 }
 
 func init() {
