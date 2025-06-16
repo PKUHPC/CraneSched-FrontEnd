@@ -20,9 +20,6 @@ package calloc
 
 import (
 	"CraneFrontEnd/internal/util"
-	"errors"
-	"os"
-
 	"github.com/spf13/cobra"
 )
 
@@ -70,16 +67,7 @@ var (
 
 func ParseCmdArgs() {
 	util.RunEWrapperForLeafCommand(RootCmd)
-
-	if err := RootCmd.Execute(); err != nil {
-		var craneErr *util.CraneError
-		if errors.As(err, &craneErr) {
-			os.Exit(craneErr.Code)
-		} else {
-			os.Exit(util.ErrorGeneric)
-		}
-	}
-	os.Exit(util.ErrorSuccess)
+	util.RunAndHandleExit(RootCmd)
 }
 
 func init() {

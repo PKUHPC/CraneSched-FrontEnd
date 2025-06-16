@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 type CraneCmdError = int
@@ -156,4 +157,16 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 			return nil
 		}
 	}
+}
+
+func RunAndHandleExit(cmd *cobra.Command) {
+	if err := cmd.Execute(); err != nil {
+		var craneErr *CraneError
+		if errors.As(err, &craneErr) {
+			os.Exit(craneErr.Code)
+		} else {
+			os.Exit(ErrorGeneric)
+		}
+	}
+	os.Exit(ErrorSuccess)
 }

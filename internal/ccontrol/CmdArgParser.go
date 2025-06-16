@@ -20,7 +20,6 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"os"
@@ -274,16 +273,7 @@ var (
 // ParseCmdArgs executes the root command.
 func ParseCmdArgs() {
 	util.RunEWrapperForLeafCommand(RootCmd)
-
-	if err := RootCmd.Execute(); err != nil {
-		var craneErr *util.CraneError
-		if errors.As(err, &craneErr) {
-			os.Exit(craneErr.Code)
-		} else {
-			os.Exit(util.ErrorGeneric)
-		}
-	}
-	os.Exit(util.ErrorSuccess)
+	util.RunAndHandleExit(RootCmd)
 }
 
 func init() {
