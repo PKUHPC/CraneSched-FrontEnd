@@ -49,6 +49,7 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 	var flattened []FlattenedData
 	var partitionInValid []FlattenedData
 	var partitionFilterValid bool
+
 	for _, partitionCraned := range reply.Partitions {
 		partitionFilterValid = false
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
@@ -65,20 +66,21 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 				})
 			}
 		}
+
 		if !partitionFilterValid {
 			partitionInValid = append(partitionInValid, FlattenedData{
-			PartitionName:   partitionCraned.Name,
-			Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
-			CranedListRegex: "",
-			ResourceState:   "n/a",
-			ControlState:    "",
-			PowerState:      "",
-			CranedListCount: 0,
+				PartitionName:   partitionCraned.Name,
+				Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
+				CranedListRegex: "",
+				ResourceState:   "n/a",
+				ControlState:    "",
+				PowerState:      "",
+				CranedListCount: 0,
 			})
 		}
 	}
-	flattened = append(flattened, partitionInValid...)
 
+	flattened = append(flattened, partitionInValid...)
 	return flattened
 }
 
