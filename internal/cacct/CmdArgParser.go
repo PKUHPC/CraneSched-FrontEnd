@@ -20,9 +20,6 @@ package cacct
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -55,25 +52,24 @@ var (
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					log.Error("Output line number limit must be greater than 0.")
-					os.Exit(util.ErrorCmdArg)
+					return &util.CraneError{
+						Code:    util.ErrorCmdArg,
+						Message: "Output line number limit must be greater than 0.",
+					}
 				}
 			}
 
-			if err := QueryJob(); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return QueryJob()
 		},
 	}
 )
 
 func ParseCmdArgs() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
-	}
+	util.RunEWrapperForLeafCommand(RootCmd)
+	util.RunAndHandleExit(RootCmd)
 }
 
 func init() {

@@ -20,8 +20,6 @@ package calloc
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-
 	"github.com/spf13/cobra"
 )
 
@@ -61,18 +59,15 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := MainCalloc(cmd, args); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return MainCalloc(cmd, args)
 		},
 	}
 )
 
 func ParseCmdArgs() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
-	}
+	util.RunEWrapperForLeafCommand(RootCmd)
+	util.RunAndHandleExit(RootCmd)
 }
 
 func init() {
