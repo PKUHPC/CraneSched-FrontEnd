@@ -47,9 +47,14 @@ type FlattenedData struct {
 // Flatten the nested structure into a one-dimensional array
 func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 	var flattened []FlattenedData
+	var partitionInValid []FlattenedData
+	var partitionFilterValid bool
+
 	for _, partitionCraned := range reply.Partitions {
+		partitionFilterValid = false
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {
+				partitionFilterValid = true
 				flattened = append(flattened, FlattenedData{
 					PartitionName:   partitionCraned.Name,
 					Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
@@ -61,7 +66,21 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 				})
 			}
 		}
+
+		if !partitionFilterValid {
+			partitionInValid = append(partitionInValid, FlattenedData{
+				PartitionName:   partitionCraned.Name,
+				Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
+				CranedListRegex: "",
+				ResourceState:   "n/a",
+				ControlState:    "",
+				PowerState:      "",
+				CranedListCount: 0,
+			})
+		}
 	}
+
+	flattened = append(flattened, partitionInValid...)
 	return flattened
 }
 
@@ -320,9 +339,13 @@ func Query() util.CraneCmdError {
 	util.SetBorderlessTable(table)
 	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var tableData [][]string
+	var partitionInValid [][]string
+	var partitionFilterValid bool
 	for _, partitionCraned := range reply.Partitions {
+		partitionFilterValid = false
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {
+				partitionFilterValid = true
 				stateStr := strings.ToLower(commonCranedStateList.ResourceState.String()[6:])
 				if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
 					stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
@@ -345,7 +368,18 @@ func Query() util.CraneCmdError {
 				})
 			}
 		}
+		if !partitionFilterValid {
+			partitionInValid = append(partitionInValid, []string{
+				partitionCraned.Name,
+				strings.ToLower(partitionCraned.State.String()[10:]),
+				"0",
+				"n/a",
+				"",
+			})
+		}
 	}
+
+	tableData = append(tableData, partitionInValid...)
 
 	if FlagFormat != "" {
 		header, tableData = FormatData(reply)
