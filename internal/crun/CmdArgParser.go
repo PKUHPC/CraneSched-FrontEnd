@@ -43,6 +43,7 @@ var (
 	FlagGres          string
 	FlagPty           bool
 	FlagExclusive     bool
+	FlagMemPerCpu     string
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -112,4 +113,6 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
+	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 }
