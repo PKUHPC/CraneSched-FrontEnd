@@ -28,9 +28,8 @@ const (
 )
 
 type PowerManager struct {
-	config          *Config
-	powerTool       PowerTool
-	excludeNodesMap map[string]struct{}
+	config    *Config
+	powerTool PowerTool
 
 	nodesInfo      sync.Map
 	nodesInfoMutex sync.Mutex
@@ -59,16 +58,10 @@ func NewPowerManager(config *Config) *PowerManager {
 		}
 	}
 
-	excludeNodesMap := make(map[string]struct{})
-	for _, node := range config.IPMI.ExcludeNodes {
-		excludeNodesMap[node] = struct{}{}
-	}
-
 	manager := &PowerManager{
-		config:          config,
-		powerTool:       NewIPMITool(config),
-		stopChan:        make(chan struct{}),
-		excludeNodesMap: excludeNodesMap,
+		config:    config,
+		powerTool: NewIPMITool(config),
+		stopChan:  make(chan struct{}),
 	}
 
 	manager.initCtldClient()
@@ -79,7 +72,21 @@ func NewPowerManager(config *Config) *PowerManager {
 }
 
 func (c *PowerManager) RegisterNode(nodeID string) {
+	if _, exists := c.nodesInfo.Load(nodeID); exists {
+		log.Warnf("Node %s already registered, skip registration", nodeID)
+		return
+	}
+
+	isExcluded := false
+	for _, excludeNode := range c.config.IPMI.ExcludeNodes {
+		if excludeNode == nodeID {
+			isExcluded = true
+			break
+		}
+	}
+
 	c.nodesInfo.Store(nodeID, &NodeInfo{
+		Exclude:             isExcluded,
 		State:               Idle,
 		LastStateChangeTime: time.Now(),
 		Jobs:                make(map[string]struct{}),
@@ -87,7 +94,30 @@ func (c *PowerManager) RegisterNode(nodeID string) {
 	c.recordStateChange(time.Now(), nodeID, "", Idle)
 	c.notifyCtldPowerStateChange(nodeID, Idle)
 
-	log.Infof("Initialized node %s in idle state", nodeID)
+	if isExcluded {
+		log.Infof("Initialized node %s in idle state (excluded from power management)", nodeID)
+	} else {
+		log.Infof("Initialized node %s in idle state", nodeID)
+	}
+}
+
+func (c *PowerManager) SetNodeExclude(nodeID string, exclude bool) error {
+	value, exists := c.nodesInfo.Load(nodeID)
+	if !exists {
+		return fmt.Errorf("node %s not found", nodeID)
+	}
+
+	info := value.(*NodeInfo)
+	info.Exclude = exclude
+	c.nodesInfo.Store(nodeID, info)
+
+	if exclude {
+		log.Infof("Node %s is now excluded from power management", nodeID)
+	} else {
+		log.Infof("Node %s is now included in power management", nodeID)
+	}
+
+	return nil
 }
 
 func (c *PowerManager) StartAutoPowerManager() {

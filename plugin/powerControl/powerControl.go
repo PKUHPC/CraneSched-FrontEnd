@@ -134,24 +134,46 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 	}
 
 	var err error
-	log.Infof("Updating power state to %v on node %s", req.State, req.CranedId)
+	log.Infof("Updating power state to %v on node %s, enable_auto_power_control=%v", req.State, req.CranedId, req.EnableAutoPowerControl)
 
+	// Handle auto power control setting if this is a CRANE_NONE state with enable_auto_power_control parameter
+	if req.State == protos.CranedControlState_CRANE_NONE {
+		// This is a request to set the auto power control status
+		// Note: enable_auto_power_control=true means enable auto power control (exclude=false)
+		// enable_auto_power_control=false means disable auto power control (exclude=true)
+		exclude := !req.EnableAutoPowerControl
+		err = manager.SetNodeExclude(req.CranedId, exclude)
+		if err != nil {
+			log.Errorf("Failed to set node auto power control status: %v", err)
+			return
+		}
+		if req.EnableAutoPowerControl {
+			log.Infof("Successfully enabled auto power control for node %s", req.CranedId)
+		} else {
+			log.Infof("Successfully disabled auto power control for node %s", req.CranedId)
+		}
+		return
+	}
+
+	// Handle normal power state changes
 	switch req.State {
-	case protos.CranedControlState_CRANE_WAKE:
-		err = manager.wakeUpNode(req.CranedId)
 	case protos.CranedControlState_CRANE_POWERON:
 		err = manager.powerOnNode(req.CranedId)
-	case protos.CranedControlState_CRANE_SLEEP:
-		err = manager.sleepNode(req.CranedId)
 	case protos.CranedControlState_CRANE_POWEROFF:
 		err = manager.powerOffNode(req.CranedId)
+	case protos.CranedControlState_CRANE_SLEEP:
+		err = manager.sleepNode(req.CranedId)
+	case protos.CranedControlState_CRANE_WAKE:
+		err = manager.wakeUpNode(req.CranedId)
 	default:
-		err = fmt.Errorf("unknown power state: %v", req.State)
+		log.Errorf("Unsupported power state: %v", req.State)
+		return
 	}
 
 	if err != nil {
-		log.Errorf("Failed to update power state: %v", err)
-		return
+		log.Errorf("Failed to change power state: %v", err)
+	} else {
+		log.Infof("Successfully changed power state to %v on node %s", req.State, req.CranedId)
 	}
 }
 

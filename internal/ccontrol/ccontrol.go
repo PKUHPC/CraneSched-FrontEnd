@@ -430,18 +430,18 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 
 		if taskInfo.Status == protos.TaskStatus_Running {
 			fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
-			taskInfo.NodeNum,
-			taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
-			util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-			formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
+				taskInfo.NodeNum,
+				taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
+				util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
+				formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
 			)
 		}
 
 		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
-		"\tExclusive=%v Comment=%v\n",
-		formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
-		formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-		strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
+			"\tExclusive=%v Comment=%v\n",
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
 	}
 
 	// If any job is requested but not returned, remind the user
@@ -711,7 +711,8 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneCm
 	case "wake":
 		req.NewState = protos.CranedControlState_CRANE_WAKE
 	default:
-		log.Errorf("Invalid state given: %s. Valid states are: drain, resume, on, off, sleep, wake.\n", state)
+		p := []string{"drain", "resume", "on", "off", "sleep", "wake"}
+		log.Errorf("Invalid state given: %s. Valid states are: %s.\n", state, strings.Join(p, ", "))
 		return util.ErrorCmdArg
 	}
 
@@ -870,5 +871,70 @@ func DeleteReservation(ReservationName string) util.CraneCmdError {
 		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
 		return util.ErrorBackend
 	}
+	return util.ErrorSuccess
+}
+
+func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneCmdError {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok {
+		log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
+		return util.ErrorCmdArg
+	}
+
+	if len(nodeNames) == 0 {
+		log.Errorln("No node provided.")
+		return util.ErrorCmdArg
+	}
+
+	var enable bool
+	enableStr = strings.ToLower(enableStr)
+	switch enableStr {
+	case "true", "yes", "1", "on", "enable":
+		enable = true
+	case "false", "no", "0", "off", "disable":
+		enable = false
+	default:
+		log.Errorf("Invalid power-control value: %s. Valid values are: true/false, yes/no, 1/0, on/off, enable/disable.\n", enableStr)
+		return util.ErrorCmdArg
+	}
+
+	req := &protos.EnableAutoPowerControlRequest{
+		Uid:       uint32(os.Getuid()),
+		CranedIds: nodeNames,
+		Enable:    enable,
+	}
+
+	reply, err := stub.EnableAutoPowerControl(context.Background(), req)
+	if err != nil {
+		log.Errorf("Failed to modify node power control setting: %v.\n", err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.NotModifiedNodes) == 0 {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if len(reply.ModifiedNodes) > 0 {
+		action := "enabled for"
+		if !enable {
+			action = "disabled for"
+		}
+		modifiedNodesString := strings.Join(reply.ModifiedNodes, ", ")
+		fmt.Printf("Auto power control %s nodes %s successfully.\n", action, modifiedNodesString)
+	}
+
+	if len(reply.NotModifiedNodes) > 0 {
+		for i := 0; i < len(reply.NotModifiedNodes); i++ {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+		}
+		return util.ErrorBackend
+	}
+
 	return util.ErrorSuccess
 }
