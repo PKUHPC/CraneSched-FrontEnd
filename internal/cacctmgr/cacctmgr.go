@@ -143,6 +143,75 @@ func PrintUserList(userList []*protos.UserInfo) {
 	table.Render()
 }
 
+func PrintUserPartitionLimit(userList []*protos.UserInfo) {
+	if len(userList) == 0 {
+		return
+	}
+
+	sort.Slice(userList, func(i, j int) bool {
+		return userList[i].Uid < userList[j].Uid
+	})
+
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	table.SetHeader([]string{"Account", "UserName", "Uid", "Partition", "MaxTres", "MaxTresPerJob", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxWallPerJob"})
+	var tableData [][]string
+	for _, userInfo := range userList {
+		if userInfo.AccountToPartitionLimit != nil {
+			for account, partitionToLimitMap := range userInfo.AccountToPartitionLimit {
+				if partitionToLimitMap != nil {
+					for partition, partitionResourceLimit := range partitionToLimitMap.PartitionResourceLimit {
+						var maxJobsStr string
+						if partitionResourceLimit.MaxJobs == math.MaxUint32 {
+							maxJobsStr = "unlimited"
+						} else {
+							maxJobsStr = strconv.FormatUint(uint64(partitionResourceLimit.MaxJobs), 10)
+						}
+						var maxSubmitJobsStr string
+						if partitionResourceLimit.MaxSubmitJobs == math.MaxUint32 {
+							maxSubmitJobsStr = "unlimited"
+						} else {
+							maxSubmitJobsStr = strconv.FormatUint(uint64(partitionResourceLimit.MaxSubmitJobs), 10)
+						}
+						var maxWallStr string
+						if partitionResourceLimit.MaxWall == 0 {
+							maxWallStr = "unlimited"
+						} else {
+							maxWallStr = util.SecondTimeFormat(int64(partitionResourceLimit.MaxWall))
+						}
+						var maxWallPerJobStr string
+						if partitionResourceLimit.MaxWallDurationPerJob >= util.MaxJobTimeLimit {
+							maxWallPerJobStr = "unlimited"
+						} else {
+							maxWallPerJobStr = util.SecondTimeFormat(int64(partitionResourceLimit.MaxWallDurationPerJob))
+						}
+
+						tableData = append(tableData, []string{
+							account,
+							userInfo.Name,
+							strconv.FormatUint(uint64(userInfo.Uid), 10),
+							partition,
+							util.ResourceViewToTres(partitionResourceLimit.MaxTres),
+							util.ResourceViewToTres(partitionResourceLimit.MaxTresPerJob),
+							maxJobsStr,
+							maxSubmitJobsStr,
+							maxWallStr,
+							maxWallPerJobStr,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
+}
+
 func PrintQosList(qosList []*protos.QosInfo) {
 	if len(qosList) == 0 {
 		return
@@ -286,8 +355,65 @@ func PrintAccountList(accountList []*protos.AccountInfo) {
 	}
 	fmt.Println(tree.String())
 
+	if FlagShowPartitionLimit {
+		PrintAccountPartitionTable(accountList)
+	}
 	// Print account table
 	PrintAccountTable(accountList)
+}
+
+func PrintAccountPartitionTable(accountList []*protos.AccountInfo) {
+	table := tablewriter.NewWriter(os.Stdout) //table format control
+	util.SetBorderTable(table)
+	table.SetHeader([]string{"Name", "Partition", "MaxTres", "MaxTresPerJob", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxWallPerJob"})
+	var tableData [][]string
+	for _, accountInfo := range accountList {
+		if accountInfo.PartitionResourceLimit != nil {
+			for partition, partitionResourceLimit := range accountInfo.PartitionResourceLimit {
+				var maxJobsStr string
+				if partitionResourceLimit.MaxJobs == math.MaxUint32 {
+					maxJobsStr = "unlimited"
+				} else {
+					maxJobsStr = strconv.FormatUint(uint64(partitionResourceLimit.MaxJobs), 10)
+				}
+				var maxSubmitJobsStr string
+				if partitionResourceLimit.MaxSubmitJobs == math.MaxUint32 {
+					maxSubmitJobsStr = "unlimited"
+				} else {
+					maxSubmitJobsStr = strconv.FormatUint(uint64(partitionResourceLimit.MaxSubmitJobs), 10)
+				}
+				var maxWallStr string
+				if partitionResourceLimit.MaxWall == 0 {
+					maxWallStr = "unlimited"
+				} else {
+					maxWallStr = util.SecondTimeFormat(int64(partitionResourceLimit.MaxWall))
+				}
+				var maxWallPerJobStr string
+				if partitionResourceLimit.MaxWallDurationPerJob >= util.MaxJobTimeLimit {
+					maxWallPerJobStr = "unlimited"
+				} else {
+					maxWallPerJobStr = util.SecondTimeFormat(int64(partitionResourceLimit.MaxWallDurationPerJob))
+				}
+
+				tableData = append(tableData, []string{
+					accountInfo.Name,
+					partition,
+					util.ResourceViewToTres(partitionResourceLimit.MaxTres),
+					util.ResourceViewToTres(partitionResourceLimit.MaxTresPerJob),
+					maxJobsStr,
+					maxSubmitJobsStr,
+					maxWallStr,
+					maxWallPerJobStr,
+				})
+			}
+		}
+	}
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
 }
 
 func PrintAccountTable(accountList []*protos.AccountInfo) {
@@ -934,6 +1060,10 @@ func ShowUser(value string, account string) util.CraneCmdError {
 			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
+	}
+
+	if FlagShowPartitionLimit {
+		PrintUserPartitionLimit(reply.UserList)
 	}
 
 	PrintUserList(reply.UserList)

@@ -78,6 +78,8 @@ var (
 	FlagNodeList string
 	FlagNumLimit uint32
 
+	FlagShowPartitionLimit bool
+
 	RootCmd = &cobra.Command{
 		Use:     "cacctmgr",
 		Short:   "Manage account, user and QoS tables",
@@ -820,10 +822,14 @@ func init() {
 	RootCmd.AddCommand(showCmd)
 	{
 		showCmd.AddCommand(showAccountCmd)
+		{
+			showAccountCmd.Flags().BoolVarP(&FlagShowPartitionLimit, "partition-limit", "P", false, "show account-partition resource limit")
+		}
 		showCmd.AddCommand(showQosCmd)
 		showCmd.AddCommand(showUserCmd)
 		{
 			showUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Display the user under the specified account")
+			showUserCmd.Flags().BoolVarP(&FlagShowPartitionLimit, "partition-limit", "P", false, "show user-partition resource limit")
 		}
 		showCmd.AddCommand(showEventCmd)
 		{
