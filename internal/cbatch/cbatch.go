@@ -162,6 +162,15 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.Exclusive = val
+		case "-s", "--signal":
+			sig, sec, err := util.ParseSignalParamString(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.val, err)
+				return false, nil
+			}
+			task.SignalParam = &protos.SignalParam{}
+			task.SignalParam.SignalNumber = sig
+			task.SignalParam.SecondsBeforeKill = sec
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -271,6 +280,16 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.Exclusive = true
 	}
 
+	if FlagSignal != "" {
+		sig, sec, err := util.ParseSignalParamString(FlagSignal)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --signal: %v", err)
+			return false, nil
+		}
+		task.SignalParam = &protos.SignalParam{}
+		task.SignalParam.SignalNumber = sig
+		task.SignalParam.SecondsBeforeKill = sec
+	}
 	// Set and check the extra attributes
 	var extraFromCli string
 	if err := structExtraFromCli.Marshal(&extraFromCli); err != nil {
