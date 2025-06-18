@@ -901,6 +901,7 @@ service Craned {
 
   rpc CreateCgroupForTasks(CreateCgroupForTasksRequest) returns (CreateCgroupForTasksReply);
   rpc ReleaseCgroupForTasks(ReleaseCgroupForTasksRequest) returns (ReleaseCgroupForTasksReply);
+  rpc GetConfigHash(google.protobuf.Empty) returns (ConfigHashReply);
 
   /*
   If the task is an interactive task, the resource uuid is also revoked.
