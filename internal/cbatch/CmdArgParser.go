@@ -50,6 +50,7 @@ var (
 	FlagStderrPath    string
 	FlagOpenMode      string
 	FlagExclusive     bool
+	FlagCpuFreq       string
 
 	FlagWrappedScript string
 
@@ -165,4 +166,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().StringVarP(&FlagCpuFreq, "cpu-freq", "", "", "CPU frequency for the job (<p1>[-p2][:p3])")
 }
