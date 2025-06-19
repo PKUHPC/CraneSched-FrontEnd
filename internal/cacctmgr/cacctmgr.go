@@ -103,8 +103,7 @@ func PrintUserList(userList []*protos.UserInfo) {
 	util.SetBorderTable(table)
 	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "Coordinated", "AdminLevel", "Blocked"})
 	tableData := make([][]string, len(userMap))
-	for key, value := range userMap {
-		tableData = append(tableData, []string{key})
+	for _, value := range userMap {
 		for _, userInfo := range value {
 			if len(userInfo.AllowedPartitionQosList) == 0 {
 				tableData = append(tableData, []string{
