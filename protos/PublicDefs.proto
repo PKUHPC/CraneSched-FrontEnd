@@ -126,6 +126,22 @@ enum InteractiveTaskType {
   Crun = 1;
 }
 
+message CpuFreq {
+
+  enum CpuGovernorType{
+    Performance = 0;
+    PowerSave = 1;
+    Conservative = 2;
+    OnDemand = 4;
+    SchedUtil = 5;
+    UserSpace = 6;
+  }
+
+  string low = 1; // "low", "medium", "high", "highm1" or number
+  string high = 2;
+  string governor = 3;
+}
+
 message TaskToCtld {
   /* -------- Fields that are set at the submission time. ------- */
   google.protobuf.Duration time_limit = 1;
@@ -164,6 +180,7 @@ message TaskToCtld {
 
   string reservation = 36;
   bool exclusive = 37;
+  CpuFreq cpu_freq = 38;
 }
 
 message TaskInEmbeddedDb {

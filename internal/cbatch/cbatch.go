@@ -162,6 +162,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.Exclusive = val
+		case "--cpu-freq":
+			val, err := util.ParseCpuFreqStr(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
+			}
+			task.CpuFreq = val
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -269,6 +276,15 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 	if FlagExclusive {
 		task.Exclusive = true
+	}
+
+	if FlagCpuFreq != "" {
+		cpuFreq, err := util.ParseCpuFreqStr(FlagCpuFreq)
+		if err != nil {
+			log.Errorf("Invalid argument: %v", err)
+			return false, nil
+		}
+		task.CpuFreq = cpuFreq
 	}
 
 	// Set and check the extra attributes

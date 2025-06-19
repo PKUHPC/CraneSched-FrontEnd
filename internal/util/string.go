@@ -828,6 +828,70 @@ func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 	return jobIdList, nil
 }
 
+func ParseCpuFreqStr(cpuFreqStr string) (*protos.CpuFreq, error) {
+	governorSet := map[string]bool{
+		"performance":  true,
+		"powersave":    true,
+		"ondemand":     true,
+		"userspace":    true,
+		"conservative": true,
+		"schedutil":    true,
+	}
+
+	freqOrder := map[string]int{
+		"low":    1,
+		"medium": 2,
+		"highm1": 3,
+		"high":   4,
+	}
+
+	specialSet := map[string]bool{
+		"low":    true,
+		"medium": true,
+		"high":   true,
+		"highm1": true,
+	}
+	cpuFreqStrLower := strings.ToLower(cpuFreqStr)
+	re := regexp.MustCompile(`^([a-z0-9]+)-([a-z0-9]+)(:([a-z]+))?$`)
+	if m := re.FindStringSubmatch(cpuFreqStrLower); m != nil {
+		low := m[1]
+		high := m[2]
+		gov := m[4]
+
+		lowNum, errlow := strconv.Atoi(low)
+		highNum, errhigh := strconv.Atoi(high)
+
+		if errlow != nil && !specialSet[low] {
+			return nil, fmt.Errorf("invalid low value: %s", low)
+		}
+		if errhigh != nil && !specialSet[high] {
+			return nil, fmt.Errorf("invalid high value: %s", high)
+		}
+
+		if highNum <= lowNum && freqOrder[high] <= freqOrder[low] {
+			return nil, fmt.Errorf("high value must be greater than low value")
+		}
+		// When specify a frequency range, the governor cannot be UserSpace.
+		if gov != "" && !governorSet[gov] && gov != "userspace" {
+			return nil, fmt.Errorf("invalid governor: %s", gov)
+		}
+		return &protos.CpuFreq{Low: low, High: high, Governor: gov}, nil
+	}
+
+	// governor value only
+	if governorSet[cpuFreqStrLower] {
+		return &protos.CpuFreq{Governor: cpuFreqStrLower}, nil
+	}
+
+	// single special value or single numeric value
+	_, err := strconv.Atoi(cpuFreqStrLower)
+	if specialSet[cpuFreqStrLower] || err == nil {
+		return &protos.CpuFreq{Low: cpuFreqStrLower, Governor: "userspace"}, nil
+	}
+
+	return nil, fmt.Errorf("invalid --cpu-freq argument: %s", cpuFreqStr)
+}
+
 // StateToString converts a state value to a readable string
 func StateToString(state int64) string {
 	stateMap := map[int64]string{
