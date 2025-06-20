@@ -20,11 +20,11 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-	"regexp"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"os"
+	"regexp"
+	"strconv"
 )
 
 var (
@@ -150,6 +150,17 @@ var (
 			}
 		},
 	}
+	showLeaderCmd = &cobra.Command{
+		Use:   "leader",
+		Short: "Display the information about the leader controller and raft cluster",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := showLeader(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 	updateCmd = &cobra.Command{
 		Use:     "update",
 		Aliases: []string{"modify"},
@@ -192,14 +203,7 @@ var (
 		Use:   "partition [flags] partition_name",
 		Short: "Modify partition partition attributes",
 		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		},
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("allowed-accounts") {
 				if err := ModifyPartitionAcl(args[0], true, FlagAllowedAccounts); err != util.ErrorSuccess {
@@ -210,6 +214,28 @@ var (
 					os.Exit(err)
 				}
 				log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
+			}
+		},
+	}
+	updateLeaderCmd = &cobra.Command{
+		Use:   "leader [flags] server_id/hostname",
+		Short: "Yield leadership to other server node, empty parameter 'id' represents priority determination",
+		Long:  "",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
+			if len(args) == 0 {
+				err = YieldLeadership(-1)
+			} else {
+				if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
+					err = YieldLeadership(int32(id))
+				} else {
+					err = YieldLeadership(args[0])
+				}
+			}
+
+			if err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}
@@ -260,9 +286,10 @@ var (
 		},
 	}
 	createCmd = &cobra.Command{
-		Use:   "create",
-		Short: "Create a new entity",
-		Long:  "",
+		Use:     "create",
+		Aliases: []string{"add"},
+		Short:   "Create a new entity",
+		Long:    "",
 	}
 	createReservationCmd = &cobra.Command{
 		Use:   "reservation [flags]",
@@ -271,6 +298,24 @@ var (
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := CreateReservation(); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	createFollowerCmd = &cobra.Command{
+		Use:   "follower [flags] server_id/hostname",
+		Short: "Add a follower to raft cluster",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
+			if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
+				err = AddFollower(int32(id))
+			} else {
+				err = AddFollower(args[0])
+			}
+
+			if err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -291,6 +336,24 @@ var (
 			}
 		},
 	}
+	deleteFollowerCmd = &cobra.Command{
+		Use:   "follower [flags] server_id/hostname",
+		Short: "delete a follower from raft cluster",
+		Long:  "",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var err util.CraneCmdError
+			if id, e := strconv.ParseInt(args[0], 10, 32); e == nil {
+				err = RemoveFollower(int32(id))
+			} else {
+				err = RemoveFollower(args[0])
+			}
+
+			if err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
 )
 
 // ParseCmdArgs executes the root command.
@@ -302,8 +365,7 @@ func ParseCmdArgs() {
 
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
-		"Path to configuration file")
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 
 	RootCmd.AddCommand(showCmd)
@@ -313,6 +375,7 @@ func init() {
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
 		showCmd.AddCommand(showReservationsCmd)
+		showCmd.AddCommand(showLeaderCmd)
 	}
 
 	RootCmd.AddCommand(updateCmd)
@@ -344,6 +407,8 @@ func init() {
 			updatePartitionCmd.MarkFlagsMutuallyExclusive("allowed-accounts", "denied-accounts")
 			updatePartitionCmd.MarkFlagsOneRequired("allowed-accounts", "denied-accounts")
 		}
+
+		updateCmd.AddCommand(updateLeaderCmd)
 	}
 
 	RootCmd.AddCommand(holdCmd)
@@ -382,10 +447,12 @@ func init() {
 				return
 			}
 		}
+		createCmd.AddCommand(createFollowerCmd)
 	}
 
 	RootCmd.AddCommand(deleteCmd)
 	{
 		deleteCmd.AddCommand(deleteReservationCmd)
+		deleteCmd.AddCommand(deleteFollowerCmd)
 	}
 }

@@ -430,18 +430,18 @@ func ShowJobs(jobIds string, queryAll bool) util.CraneCmdError {
 
 		if taskInfo.Status == protos.TaskStatus_Running {
 			fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
-			taskInfo.NodeNum,
-			taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
-			util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-			formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
+				taskInfo.NodeNum,
+				taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
+				util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
+				formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
 			)
 		}
 
 		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
-		"\tExclusive=%v Comment=%v\n",
-		formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
-		formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-		strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
+			"\tExclusive=%v Comment=%v\n",
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
+			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
 	}
 
 	// If any job is requested but not returned, remind the user
@@ -499,6 +499,44 @@ func ShowConfig(path string) util.CraneCmdError {
 	} else {
 		PrintFlattenYAML("", config)
 	}
+
+	return util.ErrorSuccess
+}
+
+func showLeader() util.CraneCmdError {
+	req := &protos.QueryLeaderInfoRequest{}
+	reply, err := stub.QueryLeaderInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query leader info")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
+		return util.ErrorNetwork
+	}
+
+	if len(reply.ServerList) == 0 {
+		log.Errorln("Empty raft server list")
+		return util.ErrorBackend
+	}
+
+	fmt.Println("Raft server list:")
+	for _, server := range reply.ServerList {
+		fmt.Printf("-- Id: %d: %s", server.Id, server.EndPoint)
+		if server.Role == protos.QueryLeaderInfoReply_Leader {
+			fmt.Printf(" (Leader)")
+		} else if server.Role == protos.QueryLeaderInfoReply_Offline {
+			fmt.Printf(" (offline)")
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("Reply server id: %d\nLeader id: %d\nRaft log range: ", reply.ServerId, reply.LeaderId)
+	if reply.StartIndex >= reply.NextSlot {
+		// Start index can be the same as next slot when the log store is empty.
+		fmt.Println("(empty)")
+	} else {
+		fmt.Printf("%d - %d\n", reply.StartIndex, reply.NextSlot)
+	}
+	fmt.Printf("Last committed index: %d\nCurrent term: %d\nLast snapshot log index: %d\nLast snapshot log term: %d\n", reply.CommittedLogIdx, reply.CurTerm, reply.LastSnapshotLogIdx, reply.LastSnapshotLogTerm)
 
 	return util.ErrorSuccess
 }
@@ -626,6 +664,134 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneCmdError {
 	}
 
 	return SummarizeReply(reply)
+}
+
+func AddFollower(key interface{}) util.CraneCmdError {
+	req := &protos.AddFollowerRequest{}
+
+	switch k := key.(type) {
+	case int32:
+		req.Key = &protos.AddFollowerRequest_ServerId{ServerId: k}
+	case string:
+		req.Key = &protos.AddFollowerRequest_HostName{HostName: k}
+	default:
+		fmt.Println("Wrong key type")
+		return util.ErrorCmdArg
+	}
+
+	reply, err := stub.AddFollower(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to add server node")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
+		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		fmt.Printf("Failed to add server node: %s\n", reply.GetReason())
+		return util.ErrorBackend
+	} else {
+		fmt.Println("Added server node successfully!")
+	}
+
+	return util.ErrorSuccess
+}
+
+func RemoveFollower(key interface{}) util.CraneCmdError {
+	req := &protos.RemoveFollowerRequest{}
+
+	switch k := key.(type) {
+	case int32:
+		req.Key = &protos.RemoveFollowerRequest_ServerId{ServerId: k}
+	case string:
+		req.Key = &protos.RemoveFollowerRequest_HostName{HostName: k}
+	default:
+		fmt.Println("Wrong key type")
+		return util.ErrorCmdArg
+	}
+
+	reply, err := stub.RemoveFollower(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to remove server node")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
+		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		fmt.Printf("Failed to remove server node: %s\n", reply.GetReason())
+		return util.ErrorBackend
+	} else {
+		fmt.Println("Remove server node successfully")
+	}
+
+	return util.ErrorSuccess
+}
+
+func YieldLeadership(key interface{}) util.CraneCmdError {
+	var id int
+
+	switch k := key.(type) {
+	case int32:
+		id = int(k)
+	case string:
+		config := util.ParseConfig(FlagConfigFilePath)
+		id = util.HostName2ServerId(config, k)
+	default:
+		fmt.Println("Wrong key type")
+		return util.ErrorCmdArg
+	}
+
+	if id == util.CurrentLeaderId() {
+		fmt.Println("This node is already the current leader, will do nothing")
+		return util.ErrorGeneric
+	}
+
+	req := &protos.YieldLeadershipRequest{
+		NextServerId: int32(id),
+	}
+
+	reply, err := stub.YieldLeadership(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to yield leadership")
+		config := util.ParseConfig(FlagConfigFilePath)
+		util.QueryAndUpdateLeaderId(config)
+		return util.ErrorNetwork
+	}
+
+	if !reply.GetOk() {
+		fmt.Println("Failed to yield leadership")
+		return util.ErrorBackend
+	} else {
+		fmt.Println("Yield request submitted successfully")
+		if id != -1 {
+			util.UpdateLeaderIdToFile(id)
+		} else {
+			req := &protos.QueryLeaderIdRequest{}
+
+			timeout := time.After(30 * time.Second)
+			ticker := time.NewTicker(400 * time.Millisecond)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-timeout:
+					log.Errorln("Timeout waiting for leader change")
+					return util.ErrorBackend
+				case <-ticker.C:
+					log.Println("Attempting to query current leader ID...")
+					reply, err := stub.QueryLeaderId(context.Background(), req)
+					if err == nil && reply.LeaderId > 0 {
+						log.Printf("Leader id was changed to %d, caching the value.\n", reply.GetLeaderId())
+						util.UpdateLeaderIdToFile(int(reply.GetLeaderId()))
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return util.ErrorSuccess
 }
 
 func ChangeTaskPriority(taskStr string, priority float64) util.CraneCmdError {

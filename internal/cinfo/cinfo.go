@@ -324,8 +324,10 @@ func Query() util.CraneCmdError {
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
+		util.QueryAndUpdateLeaderId(config)
 		return util.ErrorNetwork
 	}
+
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
