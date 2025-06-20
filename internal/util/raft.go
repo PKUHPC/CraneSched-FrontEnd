@@ -68,7 +68,7 @@ func QueryLeaderFromCtld(config *Config) int {
 	// Skip the first control machine (index 0) to avoid querying self
 	for i := 1; i < l; i++ {
 		id := (ps.data.LeaderId + i) % l
-		stub = GetStubToCtldByConfigAndLeaderId(config, id)
+		stub, _ = GetStubToCtldByConfigAndLeaderId(config, id)
 
 		req := &protos.QueryLeaderIdRequest{}
 

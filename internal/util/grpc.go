@@ -138,10 +138,10 @@ func GetUnixSocket(path string, mode fs.FileMode) (net.Listener, error) {
 }
 
 // TODO: Refactor this to return ErrCodes instead of exiting.
-func GetStubToCtldByConfigAndLeaderId(config *Config, id int) protos.CraneCtldClient {
+func GetStubToCtldByConfigAndLeaderId(config *Config, id int) (protos.CraneCtldClient, CraneCmdError) {
 	if id < 0 || id >= len(config.CraneCtldConfig.ControlMachines) {
 		log.Errorf("Invalid leader ID %d: must be between 0 and %d", id, len(config.CraneCtldConfig.ControlMachines)-1)
-		os.Exit(ErrorGeneric)
+		return nil, ErrorCmdArg
 	}
 	var serverAddr string
 	var stub protos.CraneCtldClient
@@ -217,12 +217,18 @@ func GetStubToCtldByConfigAndLeaderId(config *Config, id int) protos.CraneCtldCl
 		stub = protos.NewCraneCtldClient(conn)
 	}
 
-	return stub
+	return stub, ErrorSuccess
 }
 
 func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	id := GetLeaderIdFromFile()
-	return GetStubToCtldByConfigAndLeaderId(config, id)
+	client, err := GetStubToCtldByConfigAndLeaderId(config, id)
+	if err == ErrorCmdArg {
+		QueryAndUpdateLeaderId(config)
+		os.Exit(ErrorCmdArg)
+		return nil
+	}
+	return client
 }
 
 func GrpcErrorPrintf(err error, format string, a ...any) {
