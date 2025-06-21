@@ -51,8 +51,15 @@ var (
 )
 
 func ParseCmdArgs(args []string) {
+	commandArgs := preParseGlobalFlags(args[1:])
+
+	if len(commandArgs) == 0 {
+		showHelp()
+		os.Exit(0)
+	}
+
 	var processedArgs []string
-	for _, arg := range args[1:] {
+	for _, arg := range commandArgs {
 		if strings.Contains(arg, " ") {
 			processedArgs = append(processedArgs, strconv.Quote(arg))
 		} else {
@@ -67,13 +74,8 @@ func ParseCmdArgs(args []string) {
 		os.Exit(util.ErrorCmdArg)
 	}
 
-	processGlobalFlags(command)
-
 	result := executeCommand(command)
-	if result != util.ErrorSuccess {
-		log.Error("error: command execution failed")
-		os.Exit(result)
-	}
+	os.Exit(result)
 }
 
 func executeCommand(command *CControlCommand) int {
@@ -121,29 +123,25 @@ func executeShowCommand(command *CControlCommand) int {
 }
 
 func executeShowNodeCommand(command *CControlCommand) int {
-	name := command.GetID()
-	if len(name) == 0 {
+	FlagNodeName = command.GetID()
+	if len(FlagNodeName) == 0 {
 		FlagQueryAll = true
+		FlagNodeName = " "
+	} else {
+		FlagQueryAll = false
 	}
 
-	if err := ShowNodes(name, FlagQueryAll); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return ShowNodes(FlagNodeName, FlagQueryAll)
 }
 
 func executeShowPartitionCommand(command *CControlCommand) int {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
+
 	}
 
-	if err := ShowPartitions(name, FlagQueryAll); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return ShowPartitions(name, FlagQueryAll)
 }
 
 func executeShowJobCommand(command *CControlCommand) int {
@@ -153,24 +151,17 @@ func executeShowJobCommand(command *CControlCommand) int {
 		FlagQueryAll = true
 	}
 
-	if err := ShowJobs(name, FlagQueryAll); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return ShowJobs(name, FlagQueryAll)
 }
 
 func executeShowReservationCommand(command *CControlCommand) int {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
+		name = " "
 	}
 
-	if err := ShowReservations(name, FlagQueryAll); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return ShowReservations(name, FlagQueryAll)
 }
 
 func executeUpdateCommand(command *CControlCommand) int {
@@ -222,11 +213,7 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 		}
 	}
 
-	if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return ChangeNodeState(FlagNodeName, FlagState, FlagReason)
 }
 
 func executeUpdateJobCommand(command *CControlCommand) int {
@@ -242,14 +229,10 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 				lastErr = util.ErrorCmdArg
 			}
 			FlagPriority = priority
-			if err := ChangeTaskPriority(FlagTaskIds, FlagPriority); err != util.ErrorSuccess {
-				lastErr = err
-			}
+			lastErr = ChangeTaskPriority(FlagTaskIds, FlagPriority)
 		case "timelimit":
 			FlagTimeLimit = value
-			if err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit); err != util.ErrorSuccess {
-				lastErr = err
-			}
+			lastErr = ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			lastErr = util.ErrorCmdArg
@@ -267,14 +250,10 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
 			FlagAllowedAccounts = value
-			if err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts); err != util.ErrorSuccess {
-				lastErr = err
-			}
+			lastErr = ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
-			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != util.ErrorSuccess {
-				lastErr = err
-			}
+			lastErr = ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts)
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			lastErr = util.ErrorCmdArg
@@ -299,11 +278,7 @@ func executeHoldCommand(command *CControlCommand) int {
 
 	FlagHoldTime = timeLimit
 
-	if err := HoldReleaseJobs(jobIds, true); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return HoldReleaseJobs(jobIds, true)
 }
 
 func executeReleaseCommand(command *CControlCommand) int {
@@ -313,11 +288,7 @@ func executeReleaseCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	if err := HoldReleaseJobs(jobIds, false); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return HoldReleaseJobs(jobIds, false)
 }
 
 func executeCreateCommand(command *CControlCommand) int {
@@ -365,11 +336,7 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 		}
 	}
 
-	if err := CreateReservation(); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return CreateReservation()
 }
 
 func executeDeleteCommand(command *CControlCommand) int {
@@ -392,9 +359,5 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	if err := DeleteReservation(name); err != util.ErrorSuccess {
-		return util.ErrorCmdArg
-	}
-
-	return util.ErrorSuccess
+	return DeleteReservation(name)
 }

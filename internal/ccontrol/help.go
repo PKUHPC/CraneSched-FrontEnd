@@ -29,18 +29,18 @@ func showHelp() {
 USAGE: ccontrol <ACTION> <ENTITIES> [OPTIONS]
 
 ACTIONS:
-  show      - Display information about resources
-  update    - Modify attributes of resources
-  hold      - Hold jobs
-  release   - Release previously held jobs
-  create    - Create resources
-  delete    - Delete resources
+  show      - Display information about entities
+  update    - Modify attributes of entities
+  hold      - Hold entities
+  release   - Release previously held entities
+  create    - Create entities
+  delete    - Delete entities
 
 ENTITIES:
   node        - Compute nodes
   partition   - Node partitions
   job         - Jobs/tasks
-  reservation - Resource reservations
+  reservation - Reservations
 
 COMMANDS:
   show node [<nodename>]

@@ -16,44 +16,38 @@ type CControlCommand struct {
 }
 
 type ShowCommand struct {
-	Action      string      `parser:"@'show'"`
-	Entity      *EntityType `parser:"@@"`
-	ID          string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
-	GlobalFlags []*Flag     `parser:"@@*"`
+	Action string      `parser:"@'show'"`
+	Entity *EntityType `parser:"@@"`
+	ID     string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 }
 
 type UpdateCommand struct {
 	Action        string           `parser:"@'update'"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type HoldCommand struct {
 	Action        string           `parser:"@'hold'"`
 	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type ReleaseCommand struct {
 	Action        string           `parser:"@'release'"`
 	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type CreateCommand struct {
 	Action        string           `parser:"@'create'"`
 	Entity        *EntityType      `parser:"@@"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
-	GlobalFlags   []*Flag          `parser:"@@*"`
 }
 
 type DeleteCommand struct {
-	Action      string      `parser:"@'delete'"`
-	Entity      *EntityType `parser:"@@"`
-	ID          string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
-	GlobalFlags []*Flag     `parser:"@@*"`
+	Action string      `parser:"@'delete'"`
+	Entity *EntityType `parser:"@@"`
+	ID     string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 }
 
 type KeyValueParam struct {
@@ -66,11 +60,6 @@ type EntityType struct {
 	Partition   bool `parser:"| @'partition'"`
 	Job         bool `parser:"| @'job'"`
 	Reservation bool `parser:"| @'reservation'"`
-}
-
-type Flag struct {
-	Name  string `parser:"'-' '-'? @Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -202,56 +191,46 @@ func (c *CControlCommand) GetKVMaps() map[string]string {
 	return kvMap
 }
 
-func (c *CControlCommand) GetGlobalFlag(name string) (string, bool) {
-	var flags []*Flag
-	switch cmd := c.Command.(type) {
-	case ShowCommand:
-		flags = cmd.GlobalFlags
-	case UpdateCommand:
-		flags = cmd.GlobalFlags
-	case HoldCommand:
-		flags = cmd.GlobalFlags
-	case ReleaseCommand:
-		flags = cmd.GlobalFlags
-	case CreateCommand:
-		flags = cmd.GlobalFlags
-	case DeleteCommand:
-		flags = cmd.GlobalFlags
-	}
-	for _, flag := range flags {
-		if strings.EqualFold(flag.Name, name) {
-			return flag.Value, true
+func preParseGlobalFlags(args []string) []string {
+	remainingArgs := []string{}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		var flagName, flagValue string
+		var hasValueInSameArg bool
+
+		if strings.HasPrefix(arg, "-") {
+			if strings.Contains(arg, "=") {
+				parts := strings.SplitN(arg, "=", 2)
+				flagName = parts[0]
+				flagValue = parts[1]
+				hasValueInSameArg = true
+			} else {
+				flagName = arg
+			}
+		} else {
+			remainingArgs = append(remainingArgs, arg)
+			continue
+		}
+
+		switch flagName {
+		case "-h", "--help":
+			showHelp()
+			os.Exit(0)
+		case "-v", "--version":
+			fmt.Println(util.Version())
+			os.Exit(0)
+		case "-J", "--json":
+			FlagJson = true
+		case "-C", "--config":
+			if hasValueInSameArg {
+				FlagConfigFilePath = flagValue
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				FlagConfigFilePath = args[i+1]
+				i++
+			}
+		default:
+			remainingArgs = append(remainingArgs, arg)
 		}
 	}
-	return "", false
-}
-
-func processGlobalFlags(command *CControlCommand) {
-	_, hasJson := command.GetGlobalFlag("json")
-	_, hasJ := command.GetGlobalFlag("J")
-	if hasJson || hasJ {
-		FlagJson = true
-	}
-
-	configFilePath, hasConfig := command.GetGlobalFlag("config")
-	configFilePathShort, hasC := command.GetGlobalFlag("C")
-	if hasConfig {
-		FlagConfigFilePath = configFilePath
-	} else if hasC {
-		FlagConfigFilePath = configFilePathShort
-	}
-
-	_, hasHelp := command.GetGlobalFlag("help")
-	_, hasH := command.GetGlobalFlag("h")
-	if hasHelp || hasH {
-		showHelp()
-		os.Exit(0)
-	}
-
-	_, hasVersion := command.GetGlobalFlag("version")
-	_, hasV := command.GetGlobalFlag("v")
-	if hasVersion || hasV {
-		fmt.Println(util.Version())
-		os.Exit(0)
-	}
+	return remainingArgs
 }
