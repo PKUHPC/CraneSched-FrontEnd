@@ -20,7 +20,10 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"errors"
 	"fmt"
+	"github.com/spf13/cobra"
+	"os"
 )
 
 type CraneCmdError = int
@@ -37,6 +40,15 @@ const (
 	ErrorInvalidFormat CraneCmdError = 5
 	ErrorSystem        CraneCmdError = 6
 )
+
+type CraneError struct {
+	Code    CraneCmdError
+	Message string
+}
+
+func (e *CraneError) Error() string {
+	return e.Message
+}
 
 var errMsgMap = map[protos.ErrCode]string{
 
@@ -114,4 +126,47 @@ func ErrMsg(err_code protos.ErrCode) string {
 		return msg
 	}
 	return fmt.Sprintf("Unknown Error Occurred: %s", err_code)
+}
+
+// Silence usage info output when RunE() returns a non-nil error
+func RunEWrapperForLeafCommand(cmd *cobra.Command) {
+	for _, c := range cmd.Commands() {
+		RunEWrapperForLeafCommand(c) // bfs
+	}
+
+	if len(cmd.Commands()) == 0 {
+		originalRunE := cmd.RunE
+		cmd.RunE = func(cmd *cobra.Command, args []string) error {
+			if originalRunE != nil {
+				err := originalRunE(cmd, args)
+				var craneErr *CraneError
+				if errors.As(err, &craneErr) {
+					if craneErr != nil {
+						if craneErr.Error() == "" {
+							cmd.SilenceErrors = true
+						}
+						if craneErr.Code != ErrorCmdArg {
+							cmd.SilenceUsage = true // Silence usage info output
+						}
+					}
+				}
+				return err
+			} else if cmd.Run != nil {
+				cmd.Run(cmd, args)
+			}
+			return nil
+		}
+	}
+}
+
+func RunAndHandleExit(cmd *cobra.Command) {
+	if err := cmd.Execute(); err != nil {
+		var craneErr *CraneError
+		if errors.As(err, &craneErr) {
+			os.Exit(craneErr.Code)
+		} else {
+			os.Exit(ErrorGeneric)
+		}
+	}
+	os.Exit(ErrorSuccess)
 }

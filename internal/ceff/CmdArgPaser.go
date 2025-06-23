@@ -20,8 +20,6 @@ package ceff
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-
 	"github.com/spf13/cobra"
 )
 
@@ -35,35 +33,29 @@ var (
 		Long:    "",
 		Version: util.Version(),
 		Args:    cobra.MaximumNArgs(1),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			var err util.CraneCmdError
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			var err error
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
 			dbConfig, err = GetInfluxDbConfig(config)
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return err
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			var err util.CraneCmdError
+		RunE: func(cmd *cobra.Command, args []string) error {
 			jobIds := ""
 			if len(args) == 0 {
 				jobIds = ""
 			} else {
 				jobIds = args[0]
 			}
-			if err = QueryTasksInfoByIds(jobIds); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return QueryTasksInfoByIds(jobIds)
 		},
 	}
 )
 
 func ParseCmdArgs() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
-	}
+	util.RunEWrapperForLeafCommand(RootCmd)
+	util.RunAndHandleExit(RootCmd)
 }
 
 func init() {
