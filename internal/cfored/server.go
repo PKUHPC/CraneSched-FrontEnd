@@ -350,7 +350,7 @@ CforedCranedStateMachineLoop:
 						payload := crunReq.GetPayloadTaskIoForwardReq()
 						taskId := payload.GetTaskId()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Craned] forwarding task %d input %s to craned %s", taskId, msg, cranedId)
+						log.Debugf("[Cfored->Craned] forwarding task %d input [%d] to craned %s", taskId, len(msg), cranedId)
 						reply = &protos.StreamTaskIOReply{
 							Type: protos.StreamTaskIOReply_CRANED_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
