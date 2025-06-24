@@ -73,10 +73,12 @@ type CeffTaskInfo struct {
 var isFirstCall = true //Used for multi-job print
 
 // Extracts the InfluxDB configuration from the specified YAML configuration files
-func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmdError) {
+func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, error) {
 	if !config.Plugin.Enabled {
-		log.Errorf("Plugin is not enabled")
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "Plugin is not enabled",
+		}
 	}
 
 	var monitorConfigPath string
@@ -88,29 +90,37 @@ func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmd
 	}
 
 	if monitorConfigPath == "" {
-		log.Errorf("Monitor plugin not found")
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "Monitor plugin not found",
+		}
 	}
 
 	confFile, err := os.ReadFile(monitorConfigPath)
 	if err != nil {
-		log.Errorf("Failed to read config file %s: %v.", monitorConfigPath, err)
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to read config file %s: %s.", monitorConfigPath, err),
+		}
 	}
 
 	dbConf := &struct {
 		Database *util.InfluxDbConfig `yaml:"Database"`
 	}{}
 	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
-		log.Errorf("Failed to parse YAML config file: %v", err)
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to parse YAML config file: %s", err),
+		}
 	}
 	if dbConf.Database == nil {
-		log.Errorf("Database section not found in YAML")
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "Database section not found in YAML",
+		}
 	}
 
-	return dbConf.Database, util.ErrorSuccess
+	return dbConf.Database, nil
 }
 
 func QueryInfluxDbDataByTags(moniterConfig *util.InfluxDbConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
@@ -455,11 +465,13 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 	return taskJsonInfo, nil
 }
 
-func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
+func QueryTasksInfoByIds(jobIds string) error {
 	jobIdList, err := util.ParseJobIdList(jobIds, ",")
 	if err != nil {
-		log.Errorf("Invalid job list specified: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid job list specified: %s", err),
+		}
 	}
 
 	req := &protos.QueryTasksInfoRequest{
@@ -470,20 +482,24 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job info")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	nodeNames, err := ExtractNodeNames(reply.TaskInfoList)
 	if err != nil {
-		log.Errorf("Failed to extract node names: %v", err)
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to extract node names: %s", err),
+		}
 	}
 
 	// Query Resource Usage Records in InfluxDB
 	result, err := QueryInfluxDbDataByTags(dbConfig, jobIdList, nodeNames)
 	if err != nil {
-		log.Errorf("Failed to query job info from InfluxDB: %v", err)
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to query job info from InfluxDB: %s", err),
+		}
 	}
 
 	printed := map[uint32]bool{}
@@ -500,8 +516,10 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 
 		jsonData, err := json.MarshalIndent(taskInfoList, "", "  ")
 		if err != nil {
-			log.Errorf("Error marshalling to JSON: %v", err)
-			return util.ErrorBackend
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: fmt.Sprintf("Error marshalling to JSON: %s", err),
+			}
 		}
 
 		fmt.Println(string(jsonData))
@@ -510,7 +528,7 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 			fmt.Printf("Job %v does not exist.\n", notFoundJobs)
 		}
 
-		return util.ErrorSuccess
+		return nil
 	}
 
 	for _, taskInfo := range reply.TaskInfoList {
@@ -526,5 +544,5 @@ func QueryTasksInfoByIds(jobIds string) util.CraneCmdError {
 		fmt.Printf("Job %v does not exist.\n", notFoundJobs)
 	}
 
-	return util.ErrorSuccess
+	return nil
 }

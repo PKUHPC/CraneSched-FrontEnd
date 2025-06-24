@@ -84,23 +84,27 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CallocStreamClient,
 	}
 }
 
-func StartCallocStream(task *protos.TaskToCtld) util.CraneCmdError {
+func StartCallocStream(task *protos.TaskToCtld) error {
 	config := util.ParseConfig(FlagConfigFilePath)
 
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	opts = append(opts, grpc.WithKeepaliveParams(util.ClientKeepAliveParams))
+	opts = append(opts, grpc.WithConnectParams(util.ClientConnectParams))
 
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
-	conn, err := grpc.Dial(unixSocketPath, opts...)
+	conn, err := grpc.NewClient(unixSocketPath, opts...)
 	if err != nil {
-		log.Errorf("Failed to connect to local unix socket %s: %s",
-			unixSocketPath, err)
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code: util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to connect to local unix socket %s: %s.",
+				unixSocketPath, err),
+		}
 	}
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
 		if err != nil {
-			log.Errorf("Failed to close grpc conn: %s", err)
+			log.Errorf("Failed to close grpc conn: %s.", err)
 			os.Exit(util.ErrorNetwork)
 		}
 	}(conn)
@@ -167,8 +171,10 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCallocReply_TASK_ID_REPLY {
-				log.Errorln("Expect type TASK_ID_REPLY")
-				return util.ErrorBackend
+				return &util.CraneError{
+					Code:    util.ErrorBackend,
+					Message: "Expect type TASK_ID_REPLY.",
+				}
 			}
 			payload := cforedReply.GetPayloadTaskIdReply()
 
@@ -313,15 +319,19 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
-				log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
-				return util.ErrorBackend
+				return &util.CraneError{
+					Code:    util.ErrorBackend,
+					Message: fmt.Sprintf("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String()),
+				}
 			}
 
 			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
 				println("Task completed.")
 			} else {
-				log.Errorln("Failed to notify server of task completion")
-				return util.ErrorBackend
+				return &util.CraneError{
+					Code:    util.ErrorBackend,
+					Message: "Failed to notify server of task completion",
+				}
 			}
 
 			break CallocStateMachineLoop
@@ -329,26 +339,30 @@ CallocStateMachineLoop:
 	}
 	// Check if connection finished normally
 	if state != WaitAck || gVars.connectionBroken {
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	} else {
-		return util.ErrorSuccess
+		return nil
 	}
 }
 
-func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
+func MainCalloc(cmd *cobra.Command, args []string) error {
 	util.InitLogger(FlagDebugLevel)
 
 	var err error
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		log.Errorf("Failed to get working directory: %s", err.Error())
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to get working directory: %s", err),
+		}
 	}
 
 	if gVars.user, err = user.Current(); err != nil {
-		log.Errorf("Failed to get current user: %s", err.Error())
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to get current user: %s", err),
+		}
 	}
 
 	// Get egid using os.Getgid() instead of using user.Current()
@@ -356,14 +370,18 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 
 	uid, err := strconv.Atoi(gVars.user.Uid)
 	if err != nil {
-		log.Errorf("Failed to convert uid to int: %s", err.Error())
-		return util.ErrorInvalidFormat
+		return &util.CraneError{
+			Code:    util.ErrorInvalidFormat,
+			Message: fmt.Sprintf("Failed to convert uid to int: %s", err),
+		}
 	}
 
 	if gVars.shellPath, err = util.NixShell(gVars.user.Uid); err != nil {
-		log.Errorf("Failed to get default shell of user %s: %s",
-			gVars.user.Name, err.Error())
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code: util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to get default shell of user %s: %s",
+				gVars.user.Name, err),
+		}
 	}
 
 	task := &protos.TaskToCtld{
@@ -404,16 +422,20 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			log.Errorf("Invalid argument: invalid --time: %v", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: invalid --time: %s", err),
+			}
 		}
 		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			log.Errorf("Invalid argument: %v", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: %s", err),
+			}
 		}
 		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -467,8 +489,10 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
-		log.Errorf("Invalid argument: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid argument: %s", err),
+		}
 	}
 
 	// Set total limit of cpu cores
@@ -476,8 +500,10 @@ func MainCalloc(cmd *cobra.Command, args []string) util.CraneCmdError {
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {
-		log.Errorf("Invalid argument: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid argument: %s", err),
+		}
 	}
 	util.SetPropagatedEnviron(task)
 
