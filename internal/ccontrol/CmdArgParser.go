@@ -20,10 +20,12 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
+
 	"os"
 	"regexp"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -154,13 +156,14 @@ var (
 			}
 			_, ok := util.ParseHostList(args[0])
 			if !ok {
-				log.Error("invalid node name list format. Examples: " +
-					"'node1', 'node1,node2', 'node[1-5]', 'node[1,3,5]'")
-				os.Exit(util.ErrorCmdArg)
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "invalid node name list format. Examples: 'node1', 'node1,node2', 'node[1-5]', 'node[1,3,5]'",
+				}
 			}
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				FlagNodeName = ""
 				FlagQueryAll = true
@@ -168,9 +171,7 @@ var (
 				FlagNodeName = args[0]
 				FlagQueryAll = false
 			}
-			if err := ShowEnergy(FlagNodeName, FlagQueryAll, FlagHistoryDays); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
+			return ShowEnergy(FlagNodeName, FlagQueryAll, FlagHistoryDays)
 		},
 	}
 	updateCmd = &cobra.Command{

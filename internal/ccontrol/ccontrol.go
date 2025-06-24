@@ -555,14 +555,36 @@ func ShowNodes(nodeName string, queryAll bool) error {
 	return nil
 }
 
-func ShowEnergy(nodeName string, queryAll bool, historyDays int) util.CraneCmdError {
+func ShowEnergy(nodeName string, queryAll bool, historyDays int) error {
+	if historyDays < 0 {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "History days must be non-negative",
+		}
+	}
+
+	if stub == nil {
+		return &util.CraneError{
+			Code:    util.ErrorGeneric,
+			Message: "gRPC client not initialized",
+		}
+	}
+
 	var nodeNameList []string
 	if !queryAll && nodeName != "" {
 		var ok bool
 		nodeNameList, ok = util.ParseHostList(nodeName)
 		if !ok {
-			log.Errorf("Failed to parse node name list: %s", nodeName)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Failed to parse node name list: %s", nodeName),
+			}
+		}
+		if len(nodeNameList) == 0 {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Parsed node name list is empty",
+			}
 		}
 	}
 
@@ -573,47 +595,89 @@ func ShowEnergy(nodeName string, queryAll bool, historyDays int) util.CraneCmdEr
 		reply, err := stub.QueryCranedInfo(context.Background(), req)
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to show nodes energy information")
-			return util.ErrorNetwork
+			return &util.CraneError{Code: util.ErrorNetwork}
+		}
+		if reply == nil {
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: "Received empty response from server",
+			}
 		}
 		allNodeInfos = reply.CranedInfoList
 	} else {
+		if len(nodeNameList) == 0 {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "No valid node names provided",
+			}
+		}
+
 		for _, singleNodeName := range nodeNameList {
+			if strings.TrimSpace(singleNodeName) == "" {
+				log.Warnf("Skipping empty node name")
+				continue
+			}
+
 			req := &protos.QueryCranedInfoRequest{CranedName: singleNodeName}
 			reply, err := stub.QueryCranedInfo(context.Background(), req)
 			if err != nil {
 				util.GrpcErrorPrintf(err, "Failed to show energy information for node %s", singleNodeName)
 				continue
 			}
-			allNodeInfos = append(allNodeInfos, reply.CranedInfoList...)
+			if reply != nil && reply.CranedInfoList != nil {
+				allNodeInfos = append(allNodeInfos, reply.CranedInfoList...)
+			}
 		}
 	}
-
 	if FlagJson {
 		jsonResponse := map[string]interface{}{
 			"nodes": allNodeInfos,
 		}
-		jsonData, _ := json.Marshal(jsonResponse)
+		jsonData, err := json.Marshal(jsonResponse)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorGeneric,
+				Message: fmt.Sprintf("Failed to marshal JSON response: %v", err),
+			}
+		}
 		fmt.Println(string(jsonData))
-		return util.ErrorSuccess
+		return nil
 	}
 
 	if len(allNodeInfos) == 0 {
 		if queryAll {
 			fmt.Println("No node is available.")
 		} else {
-			fmt.Printf("Node(s) %s not found.\n", nodeName)
-			return util.ErrorBackend
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: fmt.Sprintf("Node(s) %s not found.", nodeName),
+			}
 		}
-	} else {
-		var nodeNames []string
-		for _, nodeInfo := range allNodeInfos {
-			nodeNames = append(nodeNames, nodeInfo.Hostname)
-		}
+		return nil
+	}
 
-		var nodeStats map[string]*NodePowerStats
-		eventConfig, err := getEventPluginConfig()
-		if err != nil {
-			log.Warnf("Unable to get event plugin configuration, will skip historical power state display: %v", err)
+	var nodeNames []string
+	for _, nodeInfo := range allNodeInfos {
+		if nodeInfo != nil && strings.TrimSpace(nodeInfo.Hostname) != "" {
+			nodeNames = append(nodeNames, nodeInfo.Hostname)
+		} else {
+			log.Warnf("Found node info with empty hostname, skipping")
+		}
+	}
+
+	if len(nodeNames) == 0 {
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: "No valid node hostnames found",
+		}
+	}
+	var nodeStats map[string]*NodePowerStats
+	eventConfig, err := getEventPluginConfig()
+	if err != nil {
+		log.Warnf("Unable to get event plugin configuration, will skip historical power state display: %v", err)
+	} else {
+		if eventConfig == nil {
+			log.Warnf("Event plugin configuration is nil, skipping historical data query")
 		} else {
 			nodeStats, err = queryNodePowerHistory(eventConfig, nodeNames, historyDays)
 			if err != nil {
@@ -625,13 +689,24 @@ func ShowEnergy(nodeName string, queryAll bool, historyDays int) util.CraneCmdEr
 				}
 			}
 		}
-
-		displayEnergyTable(allNodeInfos, nodeStats, historyDays)
 	}
-	return util.ErrorSuccess
+
+	displayEnergyTable(allNodeInfos, nodeStats, historyDays)
+
+	return nil
 }
 
 func displayEnergyTable(nodeInfoList []*protos.CranedInfo, nodeStats map[string]*NodePowerStats, historyDays int) {
+	if len(nodeInfoList) == 0 {
+		log.Warnf("Node info list is empty, nothing to display")
+		return
+	}
+
+	if historyDays < 0 {
+		log.Warnf("Invalid history days: %d, using default display", historyDays)
+		historyDays = 0
+	}
+
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 
@@ -652,10 +727,21 @@ func displayEnergyTable(nodeInfoList []*protos.CranedInfo, nodeStats map[string]
 
 	var tableData [][]string
 	for _, nodeInfo := range nodeInfoList {
+		if nodeInfo == nil {
+			log.Warnf("Encountered nil node info, skipping")
+			continue
+		}
+
+		hostname := strings.TrimSpace(nodeInfo.Hostname)
+		if hostname == "" {
+			log.Warnf("Encountered node info with empty hostname, skipping")
+			continue
+		}
+
 		var sleepTimeStr, powerOffTimeStr, energySavedStr, idlePowerStr, sleepPowerStr, powerOffPowerStr string
 
 		if nodeStats != nil {
-			if stats, exists := nodeStats[nodeInfo.Hostname]; exists {
+			if stats, exists := nodeStats[hostname]; exists && stats != nil {
 				sleepTimeStr = formatDuration(stats.TotalSleepTime)
 				powerOffTimeStr = formatDuration(stats.TotalPowerOffTime)
 				energySavedStr = fmt.Sprintf("%.3fkWh", stats.EnergySaved)
@@ -688,7 +774,7 @@ func displayEnergyTable(nodeInfoList []*protos.CranedInfo, nodeStats map[string]
 		}
 
 		row := []string{
-			nodeInfo.Hostname,
+			hostname,
 			sleepTimeStr,
 			powerOffTimeStr,
 			idlePowerStr,
@@ -699,8 +785,20 @@ func displayEnergyTable(nodeInfoList []*protos.CranedInfo, nodeStats map[string]
 		tableData = append(tableData, row)
 	}
 
+	if len(tableData) == 0 {
+		log.Warnf("No valid table data to display")
+		fmt.Printf("Energy Consumption Report (Past %d days)\n", historyDays)
+		fmt.Println(strings.Repeat("=", 80))
+		fmt.Println("No valid node data available for display.")
+		return
+	}
+
 	for _, row := range tableData {
-		table.Append(row)
+		if len(row) == len(headers) {
+			table.Append(row)
+		} else {
+			log.Warnf("Skipping row with incorrect column count: expected %d, got %d", len(headers), len(row))
+		}
 	}
 
 	fmt.Printf("Energy Consumption Report (Past %d days)\n", historyDays)
@@ -710,7 +808,6 @@ func displayEnergyTable(nodeInfoList []*protos.CranedInfo, nodeStats map[string]
 	if summary.ValidPowerNodes > 0 {
 		summary.AvgIdlePower = summary.AvgIdlePower / float64(summary.ValidPowerNodes)
 	}
-
 	fmt.Println()
 	fmt.Println("Summary:")
 	fmt.Println(strings.Repeat("-", 40))
