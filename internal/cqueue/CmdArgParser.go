@@ -20,9 +20,6 @@ package cqueue
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -53,29 +50,28 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					log.Error("Output line number limit must be greater than 0.")
-					os.Exit(util.ErrorCmdArg)
+					return &util.CraneError{
+						Code:    util.ErrorCmdArg,
+						Message: "Output line number limit must be greater than 0.",
+					}
 				}
 			}
 
-			err := util.ErrorSuccess
 			if FlagIterate != 0 {
-				err = loopedQuery(FlagIterate)
+				return loopedQuery(FlagIterate)
 			} else {
-				err = Query()
+				return Query()
 			}
-			os.Exit(err)
 		},
 	}
 )
 
 func ParseCmdArgs() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
-	}
+	util.RunEWrapperForLeafCommand(RootCmd)
+	util.RunAndHandleExit(RootCmd)
 }
 
 func init() {

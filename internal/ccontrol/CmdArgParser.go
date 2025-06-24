@@ -119,6 +119,7 @@ func executeShowCommand(command *CControlCommand) int {
 	default:
 		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
+
 	}
 }
 
@@ -149,6 +150,7 @@ func executeShowJobCommand(command *CControlCommand) int {
 
 	if len(name) == 0 {
 		FlagQueryAll = true
+
 	}
 
 	return ShowJobs(name, FlagQueryAll)
@@ -169,6 +171,7 @@ func executeUpdateCommand(command *CControlCommand) int {
 	if len(kvParams) == 0 {
 		log.Debug("no attribute to be modified")
 		return util.ErrorCmdArg
+
 	}
 
 	var lastErr int = util.ErrorSuccess
@@ -212,7 +215,6 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 			return util.ErrorCmdArg
 		}
 	}
-
 	return ChangeNodeState(FlagNodeName, FlagState, FlagReason)
 }
 
@@ -259,6 +261,7 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 			lastErr = util.ErrorCmdArg
 		}
 	}
+
 	return lastErr
 }
 

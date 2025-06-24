@@ -20,8 +20,6 @@ package cinfo
 
 import (
 	"CraneFrontEnd/internal/util"
-	"os"
-
 	"github.com/spf13/cobra"
 )
 
@@ -48,24 +46,19 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			var err util.CraneCmdError
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagIterate != 0 {
-				err = loopedQuery(FlagIterate)
+				return loopedQuery(FlagIterate)
 			} else {
-				err = Query()
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
+				return Query()
 			}
 		},
 	}
 )
 
 func ParseCmdArgs() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
-	}
+	util.RunEWrapperForLeafCommand(RootCmd)
+	util.RunAndHandleExit(RootCmd)
 }
 
 func init() {
