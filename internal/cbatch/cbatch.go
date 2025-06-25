@@ -84,6 +84,14 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
 			task.ReqResources.DeviceMap = gresMap
+		case "--gpus-per-node":
+			gpuDeviceMap, err := util.ParseGpusPerNodeStr(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
+			}
+			fmt.Printf("  Result: %+v\n", gpuDeviceMap)
+			task.ReqResources.DeviceMap = gpuDeviceMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -195,6 +203,15 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 	if cmd.Flags().Changed("gres") {
 		task.ReqResources.DeviceMap = util.ParseGres(FlagGres)
+	}
+	if cmd.Flags().Changed("gpus-per-node") {
+		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
+		if err != nil {
+			log.Errorf("Invalid argument: %v", err)
+			return false, nil
+		}
+		fmt.Printf("  Result: %+v\n", gpuDeviceMap)
+		task.ReqResources.DeviceMap = gpuDeviceMap
 	}
 
 	if FlagTime != "" {
