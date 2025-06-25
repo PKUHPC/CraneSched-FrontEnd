@@ -164,5 +164,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
-	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "gpus-per-node required per task, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
+	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus-per-node required per task, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
 }
