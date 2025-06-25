@@ -264,7 +264,7 @@ func GetStubToCtldForInternalByConfig(config *Config) protos.CraneCtldForInterna
 			NextProtos: []string{"h2"},
 		})
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds), grpc.WithKeepaliveParams(ClientKeepAliveParams))
 		if err != nil {
 			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
 			os.Exit(ErrorBackend)
@@ -274,7 +274,7 @@ func GetStubToCtldForInternalByConfig(config *Config) protos.CraneCtldForInterna
 	} else {
 		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForInternalListenPort)
 
-		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(ClientKeepAliveParams))
 		if err != nil {
 			log.Errorf("Cannot connect to CraneCtld %s: %s", serverAddr, err.Error())
 			os.Exit(ErrorBackend)
