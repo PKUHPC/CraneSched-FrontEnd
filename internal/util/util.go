@@ -89,6 +89,7 @@ const (
 	DefaultCforedServerListenPort    = "10012"
 
 	DefaultWrappedJobName          = "Wrap"
+	GresGpuName                    = "gpu"
 	MaxRepliedJobs                 = 1000 // See kDefaultQueryTaskNumLimit for details
 	MaxJobNameLength               = 60
 	MaxJobFileNameLength           = 127
