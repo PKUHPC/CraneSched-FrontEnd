@@ -206,23 +206,27 @@ var (
 		Use:   "node [flags]",
 		Short: "Modify node attributes",
 		Long:  "",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("state") && !cmd.Flags().Changed("power-enable") {
-				log.Error("No attribute to modify. Please specify --state or --power-enable")
-				os.Exit(util.ErrorCmdArg)
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "No attribute to modify. Please specify --state or --power-enable",
+				}
 			}
 
 			if cmd.Flags().Changed("state") {
-				if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != util.ErrorSuccess {
-					os.Exit(err)
+				if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != nil {
+					return err
 				}
 			}
 
 			if cmd.Flags().Changed("power-enable") {
-				if err := EnableAutoPowerControl(FlagNodeName, FlagPowerEnable); err != util.ErrorSuccess {
-					os.Exit(err)
+				if err := EnableAutoPowerControl(FlagNodeName, FlagPowerEnable); err != nil {
+					return err
 				}
 			}
+
+			return nil
 		},
 	}
 	updatePartitionCmd = &cobra.Command{

@@ -1554,21 +1554,25 @@ func DeleteReservation(ReservationName string) error {
 		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
 	} else {
 		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
-		return util.ErrorBackend
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
-	return util.ErrorSuccess
+	return nil
 }
 
-func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneCmdError {
+func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	nodeNames, ok := util.ParseHostList(nodeRegex)
 	if !ok {
-		log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid node pattern: %s", nodeRegex),
+		}
 	}
 
 	if len(nodeNames) == 0 {
-		log.Errorln("No node provided.")
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "No node provided",
+		}
 	}
 
 	var enable bool
@@ -1579,8 +1583,10 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneCmdErr
 	case "false", "no", "0", "off", "disable":
 		enable = false
 	default:
-		log.Errorf("Invalid power-control value: %s. Valid values are: true/false, yes/no, 1/0, on/off, enable/disable.\n", enableStr)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid power-control value: %s. Valid values are: true/false, yes/no, 1/0, on/off, enable/disable", enableStr),
+		}
 	}
 
 	req := &protos.EnableAutoPowerControlRequest{
@@ -1591,17 +1597,16 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneCmdErr
 
 	reply, err := stub.EnableAutoPowerControl(context.Background(), req)
 	if err != nil {
-		log.Errorf("Failed to modify node power control setting: %v.\n", err)
-		return util.ErrorNetwork
+		util.GrpcErrorPrintf(err, "Failed to modify node power control setting")
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.NotModifiedNodes) == 0 {
-			return util.ErrorSuccess
-		} else {
-			return util.ErrorBackend
+		if len(reply.NotModifiedNodes) > 0 {
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
+		return nil
 	}
 
 	if len(reply.ModifiedNodes) > 0 {
@@ -1618,8 +1623,8 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneCmdErr
 			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
 				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 		}
-		return util.ErrorBackend
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
 
-	return util.ErrorSuccess
+	return nil
 }
