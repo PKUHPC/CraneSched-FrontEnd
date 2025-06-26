@@ -463,6 +463,17 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagHold {
 		task.Hold = true
 	}
+	if FlagGpusPerNode != "" {
+		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: invalid --gpus-per-node: %s", err),
+			}
+
+		}
+		task.ReqResources.DeviceMap = gpuDeviceMap
+	}
 
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)

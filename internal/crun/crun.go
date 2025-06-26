@@ -1309,6 +1309,17 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.LicensesCount = licCount
 		job.IsLicensesOr = isLicenseOr
 	}
+	if FlagGpusPerNode != "" {
+		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: invalid --gpus-per-node: %s", err),
+			}
+
+		}
+		task.ReqResources.DeviceMap = gpuDeviceMap
+	}
 
 	// Marshal extra attributes
 	if jobMode {

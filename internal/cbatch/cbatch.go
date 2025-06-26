@@ -308,9 +308,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
 	}
-	if FlagExclusive {
-		task.Exclusive = true
-	}
 	if FlagOpenMode != "" {
 		switch FlagOpenMode {
 		case util.OpenModeAppend:
