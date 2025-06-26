@@ -41,6 +41,7 @@ type ReleaseCommand struct {
 type CreateCommand struct {
 	Action        string           `parser:"@'create'"`
 	Entity        *EntityType      `parser:"@@"`
+	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
@@ -65,7 +66,7 @@ type EntityType struct {
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
 	{Name: "String", Pattern: `"[^"]*"|'[^']*'`},
-	{Name: "TimeFormat", Pattern: `\d+:\d+:\d+|\d+-\d+:\d+:\d+`},
+	{Name: "TimeFormat", Pattern: `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}|\d+-\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}:\d{2}`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
 	{Name: "Ident", Pattern: `[a-zA-Z][a-zA-Z0-9_\-\.,]*`},
 	{Name: "Punct", Pattern: `[-=,:]`},
@@ -142,6 +143,8 @@ func (c *CControlCommand) GetID() string {
 	case ReleaseCommand:
 		return cmd.ID
 	case DeleteCommand:
+		return cmd.ID
+	case CreateCommand:
 		return cmd.ID
 	}
 	return ""

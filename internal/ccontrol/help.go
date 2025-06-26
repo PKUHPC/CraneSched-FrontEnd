@@ -81,7 +81,7 @@ COMMANDS:
   release <jobid>
     Release a previously held job.
 
-  create reservation <name> [startTime=<time>] [duration=<duration>] 
+  create reservation <name> [startTime=<time>] [duration=<duration>] [partition=<partition>]
                     [nodes=<nodelist>] [account=<account>] [user=<username>]
     Create a new reservation.
     name: Name of the reservation

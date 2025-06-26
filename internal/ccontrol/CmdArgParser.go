@@ -124,15 +124,18 @@ func executeShowCommand(command *CControlCommand) int {
 }
 
 func executeShowNodeCommand(command *CControlCommand) int {
-	FlagNodeName = command.GetID()
-	if len(FlagNodeName) == 0 {
+	name := command.GetID()
+	if len(name) == 0 {
 		FlagQueryAll = true
-		FlagNodeName = " "
-	} else {
-		FlagQueryAll = false
+		name = ""
 	}
 
-	return ShowNodes(FlagNodeName, FlagQueryAll)
+	err := ShowNodes(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show nodes failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeShowPartitionCommand(command *CControlCommand) int {
@@ -142,7 +145,12 @@ func executeShowPartitionCommand(command *CControlCommand) int {
 
 	}
 
-	return ShowPartitions(name, FlagQueryAll)
+	err := ShowPartitions(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show partitions failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeShowJobCommand(command *CControlCommand) int {
@@ -153,7 +161,12 @@ func executeShowJobCommand(command *CControlCommand) int {
 
 	}
 
-	return ShowJobs(name, FlagQueryAll)
+	err := ShowJobs(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeShowReservationCommand(command *CControlCommand) int {
@@ -163,7 +176,12 @@ func executeShowReservationCommand(command *CControlCommand) int {
 		name = " "
 	}
 
-	return ShowReservations(name, FlagQueryAll)
+	err := ShowReservations(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show reservations failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeUpdateCommand(command *CControlCommand) int {
@@ -174,31 +192,27 @@ func executeUpdateCommand(command *CControlCommand) int {
 
 	}
 
-	var lastErr int = util.ErrorSuccess
-	for key, value := range kvParams {
-		switch strings.ToLower(key) {
-		case "node", "nodename":
-			FlagNodeName = value
-			if err := executeUpdateNodeCommand(command); err != util.ErrorSuccess {
-				lastErr = err
-			}
-		case "job", "jobid":
-			FlagTaskIds = value
-			if err := executeUpdateJobCommand(command); err != util.ErrorSuccess {
-				lastErr = err
-			}
-		case "partition", "partitionname":
-			FlagPartitionName = value
-			if err := executeUpdatePartitionCommand(command); err != util.ErrorSuccess {
-				lastErr = err
-			}
-		default:
-			log.Errorf("unknown attribute to modify: %s", key)
-			lastErr = util.ErrorCmdArg
-		}
+	if _, ok := kvParams["node"]; ok {
+		return executeUpdateNodeCommand(command)
+	}
+	if _, ok := kvParams["nodename"]; ok {
+		return executeUpdateNodeCommand(command)
+	}
+	if _, ok := kvParams["job"]; ok {
+		return executeUpdateJobCommand(command)
+	}
+	if _, ok := kvParams["jobid"]; ok {
+		return executeUpdateJobCommand(command)
+	}
+	if _, ok := kvParams["partition"]; ok {
+		return executeUpdatePartitionCommand(command)
+	}
+	if _, ok := kvParams["partitionname"]; ok {
+		return executeUpdatePartitionCommand(command)
 	}
 
-	return lastErr
+	log.Debugf("unknown attribute to modify")
+	return util.ErrorCmdArg
 }
 
 func executeUpdateNodeCommand(command *CControlCommand) int {
@@ -210,12 +224,19 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 			FlagState = value
 		case "reason":
 			FlagReason = value
+		case "nodename", "node":
+			FlagNodeName = value
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
-	return ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+	err := ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+	if err != nil {
+		log.Errorf("change node state failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeUpdateJobCommand(command *CControlCommand) int {
@@ -227,14 +248,23 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 		case "priority":
 			priority, err := strconv.ParseFloat(value, 64)
 			if err != nil {
-				log.Debugf("invalid priority value: %s", value)
 				lastErr = util.ErrorCmdArg
 			}
 			FlagPriority = priority
-			lastErr = ChangeTaskPriority(FlagTaskIds, FlagPriority)
+			err = ChangeTaskPriority(FlagTaskIds, FlagPriority)
+			if err != nil {
+				log.Errorf("change task priority failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
 		case "timelimit":
 			FlagTimeLimit = value
-			lastErr = ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
+			err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
+			if err != nil {
+				log.Errorf("change task time limit failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
+		case "jobid", "job":
+			FlagTaskIds = value
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			lastErr = util.ErrorCmdArg
@@ -252,10 +282,20 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
 			FlagAllowedAccounts = value
-			lastErr = ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
+			err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
+			if err != nil {
+				log.Errorf("modify partition acl failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
-			lastErr = ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts)
+			err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts)
+			if err != nil {
+				log.Errorf("modify partition acl failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
+		case "partitionname", "partition":
+			FlagPartitionName = value
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			lastErr = util.ErrorCmdArg
@@ -271,7 +311,6 @@ func executeHoldCommand(command *CControlCommand) int {
 	timeLimit := command.GetKVParamValue("timelimit")
 	if len(timeLimit) == 0 {
 		log.Debug("no time limit specified")
-		return util.ErrorCmdArg
 	}
 
 	if jobIds == "" {
@@ -281,7 +320,12 @@ func executeHoldCommand(command *CControlCommand) int {
 
 	FlagHoldTime = timeLimit
 
-	return HoldReleaseJobs(jobIds, true)
+	err := HoldReleaseJobs(jobIds, true)
+	if err != nil {
+		log.Errorf("hold jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeReleaseCommand(command *CControlCommand) int {
@@ -291,7 +335,12 @@ func executeReleaseCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	return HoldReleaseJobs(jobIds, false)
+	err := HoldReleaseJobs(jobIds, false)
+	if err != nil {
+		log.Errorf("release jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeCreateCommand(command *CControlCommand) int {
@@ -314,10 +363,6 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 	}
 
 	kvParams := command.GetKVMaps()
-	if len(kvParams) == 0 {
-		log.Debug("no attribute to be modified")
-		return util.ErrorCmdArg
-	}
 
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
@@ -339,7 +384,12 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 		}
 	}
 
-	return CreateReservation()
+	err := CreateReservation()
+	if err != nil {
+		log.Errorf("create reservation failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }
 
 func executeDeleteCommand(command *CControlCommand) int {
@@ -362,5 +412,10 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	return DeleteReservation(name)
+	err := DeleteReservation(name)
+	if err != nil {
+		log.Errorf("delete reservation failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
 }

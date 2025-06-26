@@ -735,7 +735,7 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 		if reason == "" {
 			return &util.CraneError{
 				Code:    util.ErrorCmdArg,
-				Message: "You must specify a reason by '-r' or '--reason' when draining a node.",
+				Message: "You must specify a reason when draining a node.",
 			}
 		}
 		req.NewState = protos.CranedControlState_CRANE_DRAIN
