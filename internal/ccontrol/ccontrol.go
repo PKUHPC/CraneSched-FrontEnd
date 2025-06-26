@@ -31,8 +31,10 @@ import (
 	"strings"
 	"time"
 
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"gopkg.in/yaml.v3"
 
+	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 )
@@ -41,6 +43,362 @@ var (
 	userUid uint32
 	stub    protos.CraneCtldClient
 )
+
+const (
+	DefaultIdlePowerWatts  = 300.0
+	DefaultSleepPowerWatts = 10.0
+	DefaultPowerOffWatts   = 0.0
+	WattsToKilowatts       = 1000.0
+	SecondsToHours         = 3600.0
+)
+
+const (
+	SecondsPerDay    = 86400
+	SecondsPerHour   = 3600
+	SecondsPerMinute = 60
+)
+
+const (
+	UnknownValue        = "unknown"
+	NotAvailableValue   = "N/A"
+	ZeroDurationDisplay = "0s (0d0h0m0s)"
+	ZeroEnergyDisplay   = "0.000kWh"
+)
+
+type NodeStateRecord struct {
+	NodeName  string
+	State     string
+	StartTime time.Time
+	EndTime   time.Time
+	Duration  time.Duration
+}
+
+type NodePowerStats struct {
+	TotalSleepTime    time.Duration
+	TotalPowerOffTime time.Duration
+	IdlePowerWatts    float64
+	SleepPowerWatts   float64
+	PowerOffWatts     float64
+	EnergySaved       float64
+}
+
+type EnergyTableSummary struct {
+	TotalNodes        int
+	TotalSleepTime    time.Duration
+	TotalPowerOffTime time.Duration
+	TotalEnergySaved  float64
+	AvgIdlePower      float64
+	ValidPowerNodes   int
+}
+
+func getEventPluginConfig() (*util.InfluxDbConfig, error) {
+	configPath := util.DefaultConfigPath
+	config := util.ParseConfig(configPath)
+
+	if !config.Plugin.Enabled {
+		return nil, fmt.Errorf("plugin is not enabled")
+	}
+
+	var eventConfigPath string
+	for _, plugin := range config.Plugin.Plugins {
+		if plugin.Name == "event" {
+			eventConfigPath = plugin.Config
+			break
+		}
+	}
+
+	if eventConfigPath == "" {
+		return nil, fmt.Errorf("event plugin configuration not found")
+	}
+
+	confFile, err := os.ReadFile(eventConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read configuration file: %v", err)
+	}
+
+	dbConf := &struct {
+		Database *util.InfluxDbConfig `yaml:"Database"`
+	}{}
+	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML configuration file: %v", err)
+	}
+	if dbConf.Database == nil {
+		return nil, fmt.Errorf("database configuration not found in configuration file")
+	}
+
+	return dbConf.Database, nil
+}
+
+func queryNodePowerHistory(eventConfig *util.InfluxDbConfig, nodeNames []string, historyDays int) (map[string]*NodePowerStats, error) {
+	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
+	defer client.Close()
+
+	ctx := context.Background()
+	if pong, err := client.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to connect to InfluxDB: %v", err)
+	} else if !pong {
+		return nil, fmt.Errorf("InfluxDB ping failed")
+	}
+
+	nodeNameFilters := make([]string, len(nodeNames))
+	for i, nodeName := range nodeNames {
+		nodeNameFilters[i] = fmt.Sprintf(`r["node_name"] == "%s"`, nodeName)
+	}
+	nodeNameCondition := strings.Join(nodeNameFilters, " or ")
+
+	fluxQuery := fmt.Sprintf(`
+		from(bucket: "%s")
+		|> range(start: -%dd)
+		|> filter(fn: (r) => 
+			r["_measurement"] == "%s" and 
+			r["_field"] == "state" and
+			(%s))
+		|> sort(columns: ["_time"])`,
+		eventConfig.Bucket, historyDays, eventConfig.Measurement, nodeNameCondition)
+
+	queryAPI := client.QueryAPI(eventConfig.Org)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := queryAPI.Query(ctx, fluxQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	// Parse query results and calculate cumulative time
+	nodeRecords := make(map[string][]*NodeStateRecord)
+	for result.Next() {
+		record := result.Record()
+		nodeName := fmt.Sprintf("%v", record.ValueByKey("node_name"))
+		timestamp := record.Time()
+
+		if stateValue, ok := record.Value().(int64); ok {
+			var state string
+			switch stateValue {
+			case int64(protos.CranedPowerState_CRANE_POWER_SLEEPING):
+				state = "sleep"
+			case int64(protos.CranedPowerState_CRANE_POWER_POWEREDOFF):
+				state = "poweroff"
+			case int64(protos.CranedPowerState_CRANE_POWER_IDLE):
+				state = "idle"
+			case int64(protos.CranedPowerState_CRANE_POWER_ACTIVE):
+				state = "active"
+			default:
+				continue
+			}
+
+			stateRecord := &NodeStateRecord{
+				NodeName:  nodeName,
+				State:     state,
+				StartTime: timestamp,
+			}
+			nodeRecords[nodeName] = append(nodeRecords[nodeName], stateRecord)
+		}
+	}
+
+	if result.Err() != nil {
+		return nil, fmt.Errorf("query parsing error: %w", result.Err())
+	}
+
+	// Calculate cumulative sleep and power-off time for each node
+	nodeStats := make(map[string]*NodePowerStats)
+	currentTime := time.Now()
+
+	for nodeName, records := range nodeRecords {
+		stats := &NodePowerStats{}
+
+		for i, record := range records {
+			var endTime time.Time
+			if i+1 < len(records) {
+				endTime = records[i+1].StartTime
+			} else {
+				endTime = currentTime // Use current time as end time for the last state
+			}
+
+			duration := endTime.Sub(record.StartTime)
+			if duration < 0 {
+				continue
+			}
+
+			switch record.State {
+			case "sleep":
+				stats.TotalSleepTime += duration
+			case "poweroff":
+				stats.TotalPowerOffTime += duration
+			}
+		}
+
+		nodeStats[nodeName] = stats
+	}
+
+	return nodeStats, nil
+}
+
+func queryNodeIdlePower(eventConfig *util.InfluxDbConfig, nodeNames []string, historyDays int) (map[string]float64, error) {
+	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
+	defer client.Close()
+
+	ctx := context.Background()
+	if pong, err := client.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to connect to InfluxDB: %v", err)
+	} else if !pong {
+		return nil, fmt.Errorf("InfluxDB ping failed")
+	}
+
+	bucketsAPI := client.BucketsAPI()
+	bucket, err := bucketsAPI.FindBucketByName(ctx, "energy_node")
+	if err != nil || bucket == nil {
+		log.Warnf("energy_node bucket not found, trying alternative methods")
+
+		// Try to query all available buckets to see what's available
+		buckets, err := bucketsAPI.GetBuckets(ctx)
+		if err == nil && buckets != nil {
+			log.Warnf("Available buckets:")
+			for _, b := range *buckets {
+				log.Warnf("  - %s", b.Name)
+			}
+		}
+		return nil, fmt.Errorf("energy_node bucket not found")
+	}
+
+	log.Debugf("Found energy_node bucket, querying power data for nodes: %v", nodeNames)
+
+	nodeNameFilters := make([]string, 0, len(nodeNames)*2)
+	for _, nodeName := range nodeNames {
+		nodeNameFilters = append(nodeNameFilters, fmt.Sprintf(`r["node_id"] == "%s"`, nodeName))
+		nodeNameFilters = append(nodeNameFilters, fmt.Sprintf(`r["hostname"] == "%s"`, nodeName))
+	}
+	nodeNameCondition := strings.Join(nodeNameFilters, " or ")
+
+	// Query average idle power when no tasks are running (job_count = 0)
+	fluxQuery := fmt.Sprintf(`
+		from(bucket: "energy_node")
+		|> range(start: -%dd)
+		|> filter(fn: (r) => 
+			r["_field"] == "ipmi_power_w" or r["_field"] == "job_count")
+		|> filter(fn: (r) => (%s))
+		|> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+		|> filter(fn: (r) => 
+			exists r.job_count and 
+			exists r.ipmi_power_w and
+			r.job_count == 0)
+		|> group(columns: ["node_id"])
+		|> mean(column: "ipmi_power_w")`,
+		historyDays, nodeNameCondition)
+
+	log.Debugf("Executing power query for nodes: %v", nodeNames)
+
+	queryAPI := client.QueryAPI(eventConfig.Org)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := queryAPI.Query(ctx, fluxQuery)
+	if err != nil {
+		log.Warnf("Power query failed: %v", err)
+		return make(map[string]float64), nil
+	}
+
+	nodePowerMap := make(map[string]float64)
+	for result.Next() {
+		record := result.Record()
+		nodeId := fmt.Sprintf("%v", record.ValueByKey("node_id"))
+		if nodeId == "<nil>" || nodeId == "" {
+			nodeId = fmt.Sprintf("%v", record.ValueByKey("hostname"))
+		}
+
+		var power float64
+		var found bool
+
+		if val := record.ValueByKey("_value"); val != nil {
+			if p, ok := val.(float64); ok {
+				power = p
+				found = true
+			}
+		}
+
+		if !found {
+			if val := record.ValueByKey("ipmi_power_w"); val != nil {
+				if p, ok := val.(float64); ok {
+					power = p
+					found = true
+				}
+			}
+		}
+
+		if !found {
+			if p, ok := record.Value().(float64); ok {
+				power = p
+				found = true
+			}
+		}
+
+		if found && nodeId != "<nil>" && nodeId != "" {
+			nodePowerMap[nodeId] = power
+			log.Debugf("Found power data for node %s: %.2fW", nodeId, power)
+		}
+	}
+
+	if result.Err() != nil {
+		log.Warnf("Power query parsing error: %v", result.Err())
+		return make(map[string]float64), nil
+	}
+
+	if len(nodePowerMap) == 0 {
+		log.Debugf("No power data found for any nodes")
+	} else {
+		log.Debugf("Successfully found power data for %d nodes", len(nodePowerMap))
+	}
+
+	return nodePowerMap, nil
+}
+
+func calculateEnergySavings(nodeStats map[string]*NodePowerStats, nodeNames []string, eventConfig *util.InfluxDbConfig, historyDays int) error {
+	nodePowerFromDB, err := queryNodeIdlePower(eventConfig, nodeNames, historyDays)
+	if err != nil {
+		log.Warnf("Failed to query idle power from database: %v", err)
+	}
+
+	for nodeName, stats := range nodeStats {
+		var idlePower float64
+
+		if power, exists := nodePowerFromDB[nodeName]; exists && power > 0 {
+			idlePower = power
+		} else {
+			idlePower = DefaultIdlePowerWatts
+		}
+
+		stats.IdlePowerWatts = idlePower
+		stats.SleepPowerWatts = DefaultSleepPowerWatts
+		stats.PowerOffWatts = DefaultPowerOffWatts
+
+		// Calculate energy saved in kWh
+		// For sleep: energy saved = sleep_time * (idle_power - sleep_power)
+		// For poweroff: energy saved = poweroff_time * (idle_power - poweroff_power)
+		sleepEnergySaved := stats.TotalSleepTime.Seconds() * (idlePower - stats.SleepPowerWatts) / WattsToKilowatts / SecondsToHours
+		powerOffEnergySaved := stats.TotalPowerOffTime.Seconds() * (idlePower - stats.PowerOffWatts) / WattsToKilowatts / SecondsToHours
+
+		stats.EnergySaved = sleepEnergySaved + powerOffEnergySaved
+	}
+
+	return nil
+}
+
+func formatDuration(d time.Duration) string {
+	totalSeconds := int64(d.Seconds())
+
+	if totalSeconds == 0 {
+		return ZeroDurationDisplay
+	}
+
+	days := totalSeconds / SecondsPerDay
+	hours := (totalSeconds % SecondsPerDay) / SecondsPerHour
+	minutes := (totalSeconds % SecondsPerHour) / SecondsPerMinute
+	seconds := totalSeconds % SecondsPerMinute
+
+	detailFormat := fmt.Sprintf("%dd%dh%dm%ds", days, hours, minutes, seconds)
+
+	return fmt.Sprintf("%.1fs (%s)", d.Seconds(), detailFormat)
+}
 
 func formatDeviceMap(data *protos.DeviceMap) string {
 	if data == nil {
@@ -133,6 +491,7 @@ func ShowNodes(nodeName string, queryAll bool) error {
 			}
 		}
 	} else {
+
 		for _, nodeInfo := range reply.CranedInfoList {
 			stateStr := strings.ToLower(nodeInfo.ResourceState.String()[6:])
 			if nodeInfo.ControlState != protos.CranedControlState_CRANE_NONE {
@@ -140,18 +499,18 @@ func ShowNodes(nodeName string, queryAll bool) error {
 			}
 			stateStr += "[" + strings.ToLower(nodeInfo.PowerState.String()[6:]) + "]"
 
-			CranedVersion := "unknown"
+			CranedVersion := UnknownValue
 			if len(nodeInfo.CranedVersion) != 0 {
 				CranedVersion = nodeInfo.CranedVersion
 			}
-			CranedOs := "unknown"
+			CranedOs := UnknownValue
 			//format "{os.name} {os.release} {os.version}"
 			if len(nodeInfo.SystemDesc) > 2 {
 				CranedOs = nodeInfo.SystemDesc
 			}
-			SystemBootTimeStr := "unknown"
-			CranedStartTimeStr := "unknown"
-			LastBusyTimeStr := "unknown"
+			SystemBootTimeStr := UnknownValue
+			CranedStartTimeStr := UnknownValue
+			LastBusyTimeStr := UnknownValue
 
 			SystemBootTime := nodeInfo.SystemBootTime.AsTime()
 			if !SystemBootTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
@@ -194,6 +553,274 @@ func ShowNodes(nodeName string, queryAll bool) error {
 		}
 	}
 	return nil
+}
+
+func ShowEnergy(nodeName string, queryAll bool, historyDays int) error {
+	if historyDays < 0 {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "History days must be non-negative",
+		}
+	}
+
+	if stub == nil {
+		return &util.CraneError{
+			Code:    util.ErrorGeneric,
+			Message: "gRPC client not initialized",
+		}
+	}
+
+	var nodeNameList []string
+	if !queryAll && nodeName != "" {
+		var ok bool
+		nodeNameList, ok = util.ParseHostList(nodeName)
+		if !ok {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Failed to parse node name list: %s", nodeName),
+			}
+		}
+		if len(nodeNameList) == 0 {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Parsed node name list is empty",
+			}
+		}
+	}
+
+	var allNodeInfos []*protos.CranedInfo
+
+	if queryAll {
+		req := &protos.QueryCranedInfoRequest{CranedName: ""}
+		reply, err := stub.QueryCranedInfo(context.Background(), req)
+		if err != nil {
+			util.GrpcErrorPrintf(err, "Failed to show nodes energy information")
+			return &util.CraneError{Code: util.ErrorNetwork}
+		}
+		if reply == nil {
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: "Received empty response from server",
+			}
+		}
+		allNodeInfos = reply.CranedInfoList
+	} else {
+		if len(nodeNameList) == 0 {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "No valid node names provided",
+			}
+		}
+
+		for _, singleNodeName := range nodeNameList {
+			if strings.TrimSpace(singleNodeName) == "" {
+				log.Warnf("Skipping empty node name")
+				continue
+			}
+
+			req := &protos.QueryCranedInfoRequest{CranedName: singleNodeName}
+			reply, err := stub.QueryCranedInfo(context.Background(), req)
+			if err != nil {
+				util.GrpcErrorPrintf(err, "Failed to show energy information for node %s", singleNodeName)
+				continue
+			}
+			if reply != nil && reply.CranedInfoList != nil {
+				allNodeInfos = append(allNodeInfos, reply.CranedInfoList...)
+			}
+		}
+	}
+	if FlagJson {
+		jsonResponse := map[string]interface{}{
+			"nodes": allNodeInfos,
+		}
+		jsonData, err := json.Marshal(jsonResponse)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorGeneric,
+				Message: fmt.Sprintf("Failed to marshal JSON response: %v", err),
+			}
+		}
+		fmt.Println(string(jsonData))
+		return nil
+	}
+
+	if len(allNodeInfos) == 0 {
+		if queryAll {
+			fmt.Println("No node is available.")
+		} else {
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: fmt.Sprintf("Node(s) %s not found.", nodeName),
+			}
+		}
+		return nil
+	}
+
+	var nodeNames []string
+	for _, nodeInfo := range allNodeInfos {
+		if nodeInfo != nil && strings.TrimSpace(nodeInfo.Hostname) != "" {
+			nodeNames = append(nodeNames, nodeInfo.Hostname)
+		} else {
+			log.Warnf("Found node info with empty hostname, skipping")
+		}
+	}
+
+	if len(nodeNames) == 0 {
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: "No valid node hostnames found",
+		}
+	}
+	var nodeStats map[string]*NodePowerStats
+	eventConfig, err := getEventPluginConfig()
+	if err != nil {
+		log.Warnf("Unable to get event plugin configuration, will skip historical power state display: %v", err)
+	} else {
+		if eventConfig == nil {
+			log.Warnf("Event plugin configuration is nil, skipping historical data query")
+		} else {
+			nodeStats, err = queryNodePowerHistory(eventConfig, nodeNames, historyDays)
+			if err != nil {
+				log.Warnf("Failed to query node power state history data: %v", err)
+			} else {
+				err = calculateEnergySavings(nodeStats, nodeNames, eventConfig, historyDays)
+				if err != nil {
+					log.Warnf("Failed to calculate energy savings: %v", err)
+				}
+			}
+		}
+	}
+
+	displayEnergyTable(allNodeInfos, nodeStats, historyDays)
+
+	return nil
+}
+
+func displayEnergyTable(nodeInfoList []*protos.CranedInfo, nodeStats map[string]*NodePowerStats, historyDays int) {
+	if len(nodeInfoList) == 0 {
+		log.Warnf("Node info list is empty, nothing to display")
+		return
+	}
+
+	if historyDays < 0 {
+		log.Warnf("Invalid history days: %d, using default display", historyDays)
+		historyDays = 0
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+
+	headers := []string{
+		"NodeName",
+		"SleepTime",
+		"PowerOffTime",
+		"IdlePower",
+		"SleepPower",
+		"PowerOffPower",
+		"EnergySaved",
+	}
+	table.SetHeader(headers)
+
+	summary := &EnergyTableSummary{
+		TotalNodes: len(nodeInfoList),
+	}
+
+	var tableData [][]string
+	for _, nodeInfo := range nodeInfoList {
+		if nodeInfo == nil {
+			log.Warnf("Encountered nil node info, skipping")
+			continue
+		}
+
+		hostname := strings.TrimSpace(nodeInfo.Hostname)
+		if hostname == "" {
+			log.Warnf("Encountered node info with empty hostname, skipping")
+			continue
+		}
+
+		var sleepTimeStr, powerOffTimeStr, energySavedStr, idlePowerStr, sleepPowerStr, powerOffPowerStr string
+
+		if nodeStats != nil {
+			if stats, exists := nodeStats[hostname]; exists && stats != nil {
+				sleepTimeStr = formatDuration(stats.TotalSleepTime)
+				powerOffTimeStr = formatDuration(stats.TotalPowerOffTime)
+				energySavedStr = fmt.Sprintf("%.3fkWh", stats.EnergySaved)
+				idlePowerStr = fmt.Sprintf("%.1fW", stats.IdlePowerWatts)
+				sleepPowerStr = fmt.Sprintf("%.1fW", stats.SleepPowerWatts)
+				powerOffPowerStr = fmt.Sprintf("%.1fW", stats.PowerOffWatts)
+
+				summary.TotalSleepTime += stats.TotalSleepTime
+				summary.TotalPowerOffTime += stats.TotalPowerOffTime
+				summary.TotalEnergySaved += stats.EnergySaved
+				if stats.IdlePowerWatts > 0 {
+					summary.AvgIdlePower += stats.IdlePowerWatts
+					summary.ValidPowerNodes++
+				}
+			} else {
+				sleepTimeStr = ZeroDurationDisplay
+				powerOffTimeStr = ZeroDurationDisplay
+				energySavedStr = ZeroEnergyDisplay
+				idlePowerStr = NotAvailableValue
+				sleepPowerStr = NotAvailableValue
+				powerOffPowerStr = NotAvailableValue
+			}
+		} else {
+			sleepTimeStr = NotAvailableValue
+			powerOffTimeStr = NotAvailableValue
+			energySavedStr = NotAvailableValue
+			idlePowerStr = NotAvailableValue
+			sleepPowerStr = NotAvailableValue
+			powerOffPowerStr = NotAvailableValue
+		}
+
+		row := []string{
+			hostname,
+			sleepTimeStr,
+			powerOffTimeStr,
+			idlePowerStr,
+			sleepPowerStr,
+			powerOffPowerStr,
+			energySavedStr,
+		}
+		tableData = append(tableData, row)
+	}
+
+	if len(tableData) == 0 {
+		log.Warnf("No valid table data to display")
+		fmt.Printf("Energy Consumption Report (Past %d days)\n", historyDays)
+		fmt.Println(strings.Repeat("=", 80))
+		fmt.Println("No valid node data available for display.")
+		return
+	}
+
+	for _, row := range tableData {
+		if len(row) == len(headers) {
+			table.Append(row)
+		} else {
+			log.Warnf("Skipping row with incorrect column count: expected %d, got %d", len(headers), len(row))
+		}
+	}
+
+	fmt.Printf("Energy Consumption Report (Past %d days)\n", historyDays)
+	fmt.Println(strings.Repeat("=", 80))
+	table.Render()
+
+	if summary.ValidPowerNodes > 0 {
+		summary.AvgIdlePower = summary.AvgIdlePower / float64(summary.ValidPowerNodes)
+	}
+	fmt.Println()
+	fmt.Println("Summary:")
+	fmt.Println(strings.Repeat("-", 40))
+	fmt.Printf("Total Nodes: %d\n", summary.TotalNodes)
+	fmt.Printf("Nodes with Power Data: %d\n", summary.ValidPowerNodes)
+	fmt.Printf("Total Sleep Time: %s\n", formatDuration(summary.TotalSleepTime))
+	fmt.Printf("Total PowerOff Time: %s\n", formatDuration(summary.TotalPowerOffTime))
+	if summary.ValidPowerNodes > 0 {
+		fmt.Printf("Average Idle Power: %.1fW\n", summary.AvgIdlePower)
+	} else {
+		fmt.Printf("Average Idle Power: %s\n", NotAvailableValue)
+	}
+	fmt.Printf("Total Energy Saved: %.3fkWh\n", summary.TotalEnergySaved)
 }
 
 func ShowPartitions(partitionName string, queryAll bool) error {
@@ -375,10 +1002,10 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	printed := map[uint32]bool{}
 
 	for _, taskInfo := range reply.TaskInfoList {
-		timeSubmitStr := "unknown"
-		timeStartStr := "unknown"
-		timeEndStr := "unknown"
-		runTimeStr := "unknown"
+		timeSubmitStr := UnknownValue
+		timeStartStr := UnknownValue
+		timeEndStr := UnknownValue
+		runTimeStr := UnknownValue
 
 		var timeLimitStr string
 
