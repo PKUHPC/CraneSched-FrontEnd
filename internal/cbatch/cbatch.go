@@ -89,7 +89,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return false, nil
 			}
-			fmt.Printf("  Result: %+v\n", gpuDeviceMap)
 			task.ReqResources.DeviceMap = gpuDeviceMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
@@ -204,7 +203,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorf("Invalid argument: %v", err)
 			return false, nil
 		}
-		fmt.Printf("  Result: %+v\n", gpuDeviceMap)
 		task.ReqResources.DeviceMap = gpuDeviceMap
 	}
 
