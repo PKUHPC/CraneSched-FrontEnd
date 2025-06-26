@@ -41,7 +41,7 @@ var (
 	FlagGres          string
 	FlagPty           bool
 	FlagExclusive     bool
-	FlagGpusPerNode string
+	FlagGpusPerNode   string
 
 	FlagX11    bool
 	FlagX11Fwd bool
