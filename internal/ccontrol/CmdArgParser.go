@@ -20,10 +20,12 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
+
 	"os"
 	"regexp"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -47,6 +49,7 @@ var (
 	FlagNodes           string
 	FlagAccount         string
 	FlagUser            string
+	FlagHistoryDays     int
 
 	RootCmd = &cobra.Command{
 		Use:     "ccontrol",
@@ -137,6 +140,38 @@ var (
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return ShowConfig(FlagConfigFilePath)
+		},
+	}
+	showEnergyCmd = &cobra.Command{
+		Use:   "energy [flags] [node_name[,node_name...]]",
+		Short: "Display energy consumption and power management details of nodes",
+		Long:  "Display energy consumption and power management details of nodes. Supports querying multiple nodes by separating node names with commas.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return nil
+			}
+			err := cobra.MaximumNArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+			_, ok := util.ParseHostList(args[0])
+			if !ok {
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "invalid node name list format. Examples: 'node1', 'node1,node2', 'node[1-5]', 'node[1,3,5]'",
+				}
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				FlagNodeName = ""
+				FlagQueryAll = true
+			} else {
+				FlagNodeName = args[0]
+				FlagQueryAll = false
+			}
+			return ShowEnergy(FlagNodeName, FlagQueryAll, FlagHistoryDays)
 		},
 	}
 	updateCmd = &cobra.Command{
@@ -289,6 +324,10 @@ func init() {
 		showCmd.AddCommand(showJobCmd)
 		showCmd.AddCommand(showConfigCmd)
 		showCmd.AddCommand(showReservationsCmd)
+		showCmd.AddCommand(showEnergyCmd)
+		{
+			showEnergyCmd.Flags().IntVarP(&FlagHistoryDays, "history-days", "d", 30, "Specify the number of days to query node power state history data (default 30 days)")
+		}
 	}
 
 	RootCmd.AddCommand(updateCmd)
