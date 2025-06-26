@@ -415,9 +415,13 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	task.CpusPerTask = FlagCpuPerTask
 	task.NtasksPerNode = FlagNtasksPerNode
 
+	setGresGpusFlag := false
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		task.ReqResources.DeviceMap = gresMap
+		if _, exist := task.ReqResources.DeviceMap.NameTypeMap["gpu"]; exist {
+			setGresGpusFlag = true
+		}
 	}
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
@@ -487,6 +491,12 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		task.Exclusive = true
 	}
 	if FlagGpusPerNode != "" {
+		if setGresGpusFlag {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Cannot specify both --gres gpus and --gpus-per-node flags simultaneously",
+			}
+		}
 		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
 		if err != nil {
 			return &util.CraneError{
