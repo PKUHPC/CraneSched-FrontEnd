@@ -768,8 +768,8 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 	mode := "" // "digit" or "type"
 	typeCountMap := &protos.TypeCountMap{TypeCountMap: make(map[string]uint64)}
 
-	for index, gpusPerNodeStr := range gpusPerNodeStrList {
-		parts := strings.Split(gpusPerNodeStr, ":")
+	for index, gpuPerNodePart  := range gpusPerNodeStrList {
+		parts := strings.Split(gpuPerNodePart , ":")
 		if len(parts) == 1 {
 			if parts[0] == "" {
 				return nil, fmt.Errorf("invalid input parameter")
@@ -801,7 +801,7 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 			}
 			typeCountMap.TypeCountMap[gpuType] = val
 		} else {
-			return nil, fmt.Errorf("invalid input gpus-per-node part: %s", gpusPerNodeStr)
+			return nil, fmt.Errorf("invalid input gpus-per-node part: %s", gpuPerNodePart )
 		}
 	}
 
