@@ -50,7 +50,7 @@ var (
 	FlagStderrPath    string
 	FlagOpenMode      string
 	FlagExclusive     bool
-	FlagGpusPerNode    string
+	FlagGpusPerNode   string
 
 	FlagInterpreter   string
 	FlagWrappedScript string

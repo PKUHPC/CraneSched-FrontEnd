@@ -41,7 +41,7 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagExclusive     bool
-	FlagGpusPerNode string
+	FlagGpusPerNode   string
 
 	FlagExtraAttr string
 	FlagMailType  string
