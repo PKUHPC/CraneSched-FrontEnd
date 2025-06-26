@@ -1178,10 +1178,13 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+	setGresGpusFlag := false
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		if jobMode {
 			job.ReqResources.DeviceMap = gresMap
+			if _, exist := task.ReqResources.DeviceMap.NameTypeMap["gpu"]; exist {
+			setGresGpusFlag = true
 		} else {
 			if len(gresMap.NameTypeMap) != 0 {
 				if step.ReqResourcesPerTask == nil {
@@ -1310,6 +1313,12 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.IsLicensesOr = isLicenseOr
 	}
 	if FlagGpusPerNode != "" {
+		if setGresGpusFlag {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Cannot specify both --gres gpus and --gpus-per-node flags simultaneously",
+			}
+		}
 		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
 		if err != nil {
 			return &util.CraneError{
