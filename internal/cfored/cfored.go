@@ -22,12 +22,14 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
+	log "github.com/sirupsen/logrus"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
 	"sync"
 	"sync/atomic"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type GlobalVariables struct {
@@ -68,19 +70,29 @@ type GlobalVariables struct {
 var gVars GlobalVariables
 
 func StartCfored() {
-	util.InitLogger(FlagDebugLevel)
-
 	config := util.ParseConfig(FlagConfigFilePath)
-	logFile := config.CforedLogDir + "cfored.log"
-	if err := os.MkdirAll(config.CforedLogDir, 0755); err != nil {
-		print(os.Stderr, "Failed to create log directory: %s\n", err.Error())
+	debugLevel := ""
+	if config.CforedDebugLevel != nil {
+		debugLevel = *config.CforedDebugLevel
+	}
+	if FlagDebugLevel != "" {
+		debugLevel = FlagDebugLevel
 	}
 
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		print(os.Stderr, "Failed to create logfile: %s\n", err.Error())
+	util.InitLogger(debugLevel)
+
+	if err := os.MkdirAll(config.CforedLogDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create log directory: %s\n", err.Error())
+		os.Exit(1)
 	}
-	log.SetOutput(io.MultiWriter(os.Stdout, file))
+
+	logFile := lumberjack.Logger{
+		Filename:   config.CforedLogDir + "/cfored.log",
+		MaxSize:    500, // megabytes
+		MaxBackups: 3,
+	}
+
+	log.SetOutput(io.MultiWriter(os.Stderr, &logFile))
 
 	util.DetectNetworkProxy()
 

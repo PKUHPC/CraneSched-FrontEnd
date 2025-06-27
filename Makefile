@@ -65,7 +65,8 @@ plugin: protos
 protos: 
 	@echo "- Generating Protobuf files..."
 	@mkdir -p ./generated/protos
-	@protoc --go_out=generated --go-grpc_out=generated --proto_path=protos protos/*.proto
+	@protoc --go_out=paths=source_relative:generated/protos --go-grpc_out=paths=source_relative:generated/protos --proto_path=protos protos/*.proto
+	@mkdir -p ./generated/protos/CraneSubprocess && mv generated/protos/CraneSubprocess*.go ./generated/protos/CraneSubprocess
 	@echo "  - Summary:"
 	@echo "    - Protobuf files generated in ./generated/protos/"
 

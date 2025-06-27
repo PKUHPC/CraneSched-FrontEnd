@@ -39,6 +39,7 @@ type Config struct {
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
 	CforedLogDir         string       `yaml:"CforedLogDir"`
+	CforedDebugLevel     *string      `yaml:"CforedDebugLevel"`
 	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
 	Plugin               PluginConfig `yaml:"Plugin"`
 }

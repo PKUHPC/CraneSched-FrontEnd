@@ -44,7 +44,7 @@ func ParseCmdArgs() {
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
-		"info", "Available debug level: trace,debug,info")
+		"", "Available debug level: trace,debug,info")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorGeneric)
