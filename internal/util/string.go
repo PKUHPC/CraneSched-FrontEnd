@@ -736,6 +736,57 @@ func ParseGres(gres string) *protos.DeviceMap {
 	return result
 }
 
+func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
+	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+	if gpuPerNodeStr == "" {
+		return result, nil
+	}
+	gpusPerNodeStrList := strings.Split(gpuPerNodeStr, ",")
+
+	mode := "" // "digit" or "type"
+	typeCountMap := &protos.TypeCountMap{TypeCountMap: make(map[string]uint64)}
+
+	for index, gpuPerNodePart := range gpusPerNodeStrList {
+		parts := strings.Split(gpuPerNodePart, ":")
+		if len(parts) == 1 {
+			if parts[0] == "" {
+				return nil, fmt.Errorf("invalid input parameter")
+			}
+			if mode == "" {
+				mode = "digit"
+			} else if mode != "digit" {
+				return nil, fmt.Errorf("mixed type: number and number format is not allowed")
+			}
+			if index != 0 {
+				return nil, fmt.Errorf("multiple number parts are not allowed")
+			}
+			val, err := strconv.ParseUint(parts[0], 10, 64)
+			if err != nil || val == 0 {
+				return nil, fmt.Errorf("invalid number: %s", parts[0])
+			}
+			typeCountMap.Total = val
+		} else if len(parts) == 2 {
+			if mode == "" {
+				mode = "type"
+			} else if mode != "type" {
+				return nil, fmt.Errorf("mixed type: number and number format is not allowed")
+			}
+			gpuType := parts[0]
+			numStr := parts[1]
+			val, err := strconv.ParseUint(numStr, 10, 64)
+			if err != nil || val == 0 {
+				return nil, fmt.Errorf("invalid number for type %s: %s", gpuType, numStr)
+			}
+			typeCountMap.TypeCountMap[gpuType] = val
+		} else {
+			return nil, fmt.Errorf("invalid input gpus-per-node part: %s", gpuPerNodePart)
+		}
+	}
+
+	result.NameTypeMap["gpu"] = typeCountMap
+	return result, nil
+}
+
 func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 	state = strings.ToLower(state)
 	switch state {
