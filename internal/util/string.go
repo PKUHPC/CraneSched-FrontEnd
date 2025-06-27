@@ -872,7 +872,7 @@ func ParseCpuFreqStr(cpuFreqStr string) (*protos.CpuFreq, error) {
 			return nil, fmt.Errorf("high value must be greater than low value")
 		}
 		// When specify a frequency range, the governor cannot be UserSpace.
-		if gov != "" && !governorSet[gov] && gov != "userspace" {
+		if gov != "" && (!governorSet[gov] || gov == "userspace") {
 			return nil, fmt.Errorf("invalid governor: %s", gov)
 		}
 		return &protos.CpuFreq{Low: low, High: high, Governor: gov}, nil
