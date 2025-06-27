@@ -26,9 +26,9 @@ import (
 )
 
 type Config struct {
-	ClusterName         string `yaml:"ClusterName"`
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+	ClusterName         string            `yaml:"ClusterName"`
+	ControlMachine      string            `yaml:"ControlMachine"`
+	CraneCtldListenPort string            `yaml:"CraneCtldListenPort"`
 	CranedNodeList      []ConfigNodesList `yaml:"Nodes"`
 
 	UseTls             bool   `yaml:"UseTls"`
@@ -38,6 +38,8 @@ type Config struct {
 	DomainSuffix       string `yaml:"DomainSuffix"`
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
+	CforedLogDir         string       `yaml:"CforedLogDir"`
+	CforedDebugLevel     *string      `yaml:"CforedDebugLevel"`
 	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
 	Plugin               PluginConfig `yaml:"Plugin"`
 }
@@ -60,15 +62,16 @@ type InfluxDbConfig struct {
 }
 
 type ConfigNodesList struct {
-    Name   string `yaml:"name"`
-    CPU    int    `yaml:"cpu"`
-    Memory string `yaml:"memory"`
+	Name   string `yaml:"name"`
+	CPU    int    `yaml:"cpu"`
+	Memory string `yaml:"memory"`
 }
 
 // Path = BaseDir + Dir + Name
 const (
 	DefaultConfigPath   = "/etc/crane/config.yaml"
 	DefaultCraneBaseDir = "/var/crane/"
+	DefaultCforedLogDir = "cfored/"
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
