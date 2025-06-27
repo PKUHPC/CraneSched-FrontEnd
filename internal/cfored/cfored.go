@@ -71,7 +71,7 @@ var gVars GlobalVariables
 
 func StartCfored() {
 	config := util.ParseConfig(FlagConfigFilePath)
-	debugLevel := ""
+	debugLevel := "info"
 	if config.CforedDebugLevel != nil {
 		debugLevel = *config.CforedDebugLevel
 	}
