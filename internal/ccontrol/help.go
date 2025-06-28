@@ -87,6 +87,7 @@ COMMANDS:
     name: Name of the reservation
     startTime: Time when reservation starts
     duration: Length of reservation
+    partition: Partition to reserve
     nodes: List of nodes to reserve
     account: Account to associate with the reservation
     user: User to associate with the reservation

@@ -75,6 +75,9 @@ func ParseCmdArgs(args []string) {
 	}
 
 	result := executeCommand(command)
+	if result != util.ErrorSuccess {
+		log.Errorf("command execution failed")
+	}
 	os.Exit(result)
 }
 
@@ -192,23 +195,28 @@ func executeUpdateCommand(command *CControlCommand) int {
 
 	}
 
-	if _, ok := kvParams["node"]; ok {
-		return executeUpdateNodeCommand(command)
+	for key := range kvParams {
+		lowerKey := strings.ToLower(key)
+		if lowerKey == "node" || lowerKey == "nodename" {
+			FlagNodeName = kvParams[key]
+			return executeUpdateNodeCommand(command)
+		}
 	}
-	if _, ok := kvParams["nodename"]; ok {
-		return executeUpdateNodeCommand(command)
+
+	for key := range kvParams {
+		lowerKey := strings.ToLower(key)
+		if lowerKey == "job" || lowerKey == "jobid" {
+			FlagTaskIds = kvParams[key]
+			return executeUpdateJobCommand(command)
+		}
 	}
-	if _, ok := kvParams["job"]; ok {
-		return executeUpdateJobCommand(command)
-	}
-	if _, ok := kvParams["jobid"]; ok {
-		return executeUpdateJobCommand(command)
-	}
-	if _, ok := kvParams["partition"]; ok {
-		return executeUpdatePartitionCommand(command)
-	}
-	if _, ok := kvParams["partitionname"]; ok {
-		return executeUpdatePartitionCommand(command)
+
+	for key := range kvParams {
+		lowerKey := strings.ToLower(key)
+		if lowerKey == "partition" || lowerKey == "partitionname" {
+			FlagPartitionName = kvParams[key]
+			return executeUpdatePartitionCommand(command)
+		}
 	}
 
 	log.Debugf("unknown attribute to modify")
@@ -225,7 +233,7 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 		case "reason":
 			FlagReason = value
 		case "nodename", "node":
-			FlagNodeName = value
+			continue
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
@@ -242,7 +250,7 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 func executeUpdateJobCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
-	var lastErr int = util.ErrorSuccess
+	var lastErr int = util.ErrorCmdArg
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "priority":
@@ -264,7 +272,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 				lastErr = util.ErrorGeneric
 			}
 		case "jobid", "job":
-			FlagTaskIds = value
+			continue
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			lastErr = util.ErrorCmdArg
@@ -277,7 +285,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 func executeUpdatePartitionCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
-	var lastErr int = util.ErrorSuccess
+	var lastErr int = util.ErrorCmdArg
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
@@ -295,7 +303,7 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 				lastErr = util.ErrorGeneric
 			}
 		case "partitionname", "partition":
-			FlagPartitionName = value
+			continue
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			lastErr = util.ErrorCmdArg
