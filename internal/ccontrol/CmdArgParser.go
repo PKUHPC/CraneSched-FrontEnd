@@ -31,6 +31,7 @@ var (
 	FlagNodeName        string
 	FlagState           string
 	FlagReason          string
+	FlagPowerEnable     string
 	FlagPartitionName   string
 	FlagAllowedAccounts string
 	FlagDeniedAccounts  string

@@ -248,6 +248,18 @@ message ModifyCranedStateReply {
   repeated string not_modified_reasons = 4;
 }
 
+message EnableAutoPowerControlRequest {
+  uint32 uid = 1;
+  repeated string craned_ids = 2;
+  bool enable = 3;
+}
+
+message EnableAutoPowerControlReply {
+  repeated string modified_nodes = 1;
+  repeated string not_modified_nodes = 2;
+  repeated string not_modified_reasons = 3;
+}
+
 message AddAccountRequest {
   uint32 uid = 1;
   AccountInfo account = 2;
@@ -861,6 +873,7 @@ service CraneCtld {
   rpc QueryReservationInfo(QueryReservationInfoRequest) returns (QueryReservationInfoReply);
   rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
+  rpc EnableAutoPowerControl(EnableAutoPowerControlRequest) returns (EnableAutoPowerControlReply);
   rpc ModifyPartitionAcl(ModifyPartitionAclRequest) returns (ModifyPartitionAclReply);
 
   /* RPCs called from cacctmgr */
