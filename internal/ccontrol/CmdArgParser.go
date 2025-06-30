@@ -325,11 +325,11 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 			}
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
-			err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts)
-			if err != nil {
+			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != nil {
 				log.Errorf("modify partition acl failed: %s", err)
 				return util.ErrorGeneric
 			}
+			log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
 		case "partitionname", "partition":
 			continue
 		default:
@@ -400,7 +400,7 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 
 	kvParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(kvParams, []string{"starttime", "partition", "duration", "nodes", "account", "user"})
+	err := checkEmptyKVParams(kvParams, []string{"starttime", "partition", "duration", "nodes", "account"})
 	if err != util.ErrorSuccess {
 		return err
 	}
