@@ -61,7 +61,20 @@ func ParseCmdArgs(args []string) {
 
 	var processedArgs []string
 	for _, arg := range commandArgs {
-		if strings.Contains(arg, " ") {
+		if strings.Contains(arg, "=") {
+			parts := strings.SplitN(arg, "=", 2)
+			key := parts[0]
+			value := parts[1]
+
+			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
+				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
+				processedArgs = append(processedArgs, arg)
+			} else if strings.Contains(value, " ") {
+				processedArgs = append(processedArgs, key+"="+strconv.Quote(value))
+			} else {
+				processedArgs = append(processedArgs, arg)
+			}
+		} else if strings.Contains(arg, " ") && !strings.HasPrefix(arg, "'") && !strings.HasPrefix(arg, "\"") {
 			processedArgs = append(processedArgs, strconv.Quote(arg))
 		} else {
 			processedArgs = append(processedArgs, arg)
@@ -177,7 +190,7 @@ func executeShowReservationCommand(command *CControlCommand) int {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
-		name = " "
+		name = ""
 	}
 
 	err := ShowReservations(name, FlagQueryAll)
@@ -190,11 +203,6 @@ func executeShowReservationCommand(command *CControlCommand) int {
 
 func executeUpdateCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
-	if len(kvParams) == 0 {
-		log.Debug("no attribute to be modified")
-		return util.ErrorCmdArg
-
-	}
 
 	for key := range kvParams {
 		lowerKey := strings.ToLower(key)
@@ -227,6 +235,16 @@ func executeUpdateCommand(command *CControlCommand) int {
 func executeUpdateNodeCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
+	err := checkEmptyKVParams(kvParams, []string{"state", "reason"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	if FlagNodeName == "" {
+		log.Debug("node name not specified")
+		return util.ErrorCmdArg
+	}
+
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "state":
@@ -240,9 +258,9 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 			return util.ErrorCmdArg
 		}
 	}
-	err := ChangeNodeState(FlagNodeName, FlagState, FlagReason)
-	if err != nil {
-		log.Errorf("change node state failed: %s", err)
+	error := ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+	if error != nil {
+		log.Errorf("change node state failed: %s", error)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess
@@ -286,7 +304,16 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 func executeUpdatePartitionCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
-	var lastErr int = util.ErrorCmdArg
+	err := checkEmptyKVParams(kvParams, nil)
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	if FlagPartitionName == "" {
+		log.Debug("partition name not specified")
+		return util.ErrorCmdArg
+	}
+
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
@@ -294,24 +321,24 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 			err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
 			if err != nil {
 				log.Errorf("modify partition acl failed: %s", err)
-				lastErr = util.ErrorGeneric
+				return util.ErrorGeneric
 			}
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
 			err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts)
 			if err != nil {
 				log.Errorf("modify partition acl failed: %s", err)
-				lastErr = util.ErrorGeneric
+				return util.ErrorGeneric
 			}
 		case "partitionname", "partition":
 			continue
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
-			lastErr = util.ErrorCmdArg
+			return util.ErrorCmdArg
 		}
 	}
 
-	return lastErr
+	return util.ErrorSuccess
 }
 
 func executeHoldCommand(command *CControlCommand) int {
@@ -373,6 +400,11 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 
 	kvParams := command.GetKVMaps()
 
+	err := checkEmptyKVParams(kvParams, []string{"starttime", "partition", "duration", "nodes", "account", "user"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "starttime":
@@ -393,9 +425,9 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 		}
 	}
 
-	err := CreateReservation()
-	if err != nil {
-		log.Errorf("create reservation failed: %s", err)
+	error := CreateReservation()
+	if error != nil {
+		log.Errorf("create reservation failed: %s", error)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess
@@ -426,5 +458,42 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 		log.Errorf("delete reservation failed: %s", err)
 		return util.ErrorGeneric
 	}
+	return util.ErrorSuccess
+}
+
+func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
+	if len(kvParams) == 0 {
+		log.Debug("no attributes to modify")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range kvParams {
+		if value == "" {
+			log.Errorf("no value provided for parameter '%s', use format: %s=value", key, key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(requiredFields) > 0 {
+		missingFields := []string{}
+		for _, field := range requiredFields {
+			found := false
+			for key := range kvParams {
+				if strings.ToLower(key) == field {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missingFields = append(missingFields, field)
+			}
+		}
+
+		if len(missingFields) > 0 {
+			log.Errorf("missing required fields: %s", strings.Join(missingFields, ", "))
+			return util.ErrorCmdArg
+		}
+	}
+
 	return util.ErrorSuccess
 }
