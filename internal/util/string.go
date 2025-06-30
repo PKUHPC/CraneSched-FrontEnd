@@ -868,7 +868,7 @@ func ParseCpuFreqStr(cpuFreqStr string) (*protos.CpuFreq, error) {
 			return nil, fmt.Errorf("invalid high value: %s", high)
 		}
 
-		if highNum <= lowNum && freqOrder[high] <= freqOrder[low] {
+		if highNum <= lowNum || freqOrder[high] <= freqOrder[low] {
 			return nil, fmt.Errorf("high value must be greater than low value")
 		}
 		// When specify a frequency range, the governor cannot be UserSpace.
