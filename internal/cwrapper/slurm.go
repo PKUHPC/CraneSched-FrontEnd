@@ -352,36 +352,8 @@ func sacctmgr() *cobra.Command {
 				os.Exit(util.ErrorCmdArg)
 			}
 
-			// Add other flags
-			convertedArgs = append(convertedArgs, flags...)
-
-			// Find the matching subcommand
-			subcmd, convertedArgs, err := cacctmgr.RootCmd.Traverse(convertedArgs)
-			if err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			// Parse the flags
-			cacctmgr.RootCmd.PersistentPreRun(cmd, convertedArgs)
-			subcmd.InitDefaultHelpFlag()
-			if err = subcmd.ParseFlags(convertedArgs); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-			convertedArgs = subcmd.Flags().Args()
-
-			// Validate the arguments and flags
-			if err := Validate(subcmd, convertedArgs); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			if subcmd.Runnable() {
-				subcmd.Run(subcmd, convertedArgs)
-			} else {
-				subcmd.Help()
-			}
+			allArgs := append([]string{"cacctmgr"}, append(flags, convertedArgs...)...)
+			cacctmgr.ParseCmdArgs(allArgs)
 		},
 	}
 

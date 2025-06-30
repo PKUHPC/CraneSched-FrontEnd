@@ -19,9 +19,11 @@
 package main
 
 import (
+	"os"
+
 	cacctmgr "CraneFrontEnd/internal/cacctmgr"
 )
 
 func main() {
-	cacctmgr.ParseCmdArgs()
+	cacctmgr.ParseCmdArgs(os.Args)
 }
