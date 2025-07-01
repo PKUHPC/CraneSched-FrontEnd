@@ -62,7 +62,7 @@ all: build plugin
 build: protos
 plugin: protos
 
-protos: 
+protos:
 	@echo "- Generating Protobuf files..."
 	@mkdir -p ./generated/protos
 	@protoc --go_out=generated --go-grpc_out=generated --proto_path=protos protos/*.proto
@@ -74,7 +74,7 @@ build:
 	@mkdir -p $(BIN_DIR)
 	@for dir in cmd/*/ ; do \
 		echo "  - Building $$dir"; \
-		(cd $$dir && $(COMMON_ENV) $(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
+		(cd $$dir && $(COMMON_ENV) $(GO) build $(BUILD_FLAGS) $(LDFLAGS) $(if $(RACE),-race) \
 			-o ../../$(BIN_DIR)/$$(basename $$dir)) || exit 1; \
 	done
 	@echo "  - Summary:"
