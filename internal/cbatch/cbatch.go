@@ -104,15 +104,15 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			}
 			task.CpusPerTask = num
 		case "--gres":
-			if setGpusPerNodeFlag {
-				log.Errorf("Cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
-				return false, nil
-			}
 			gresMap := util.ParseGres(arg.val)
-			task.ReqResources.DeviceMap = gresMap
-			if _, exist := task.ReqResources.DeviceMap.NameTypeMap["gpu"]; exist {
+			if _, exist := gresMap.NameTypeMap["gpu"]; exist {
+				if setGpusPerNodeFlag {
+					log.Errorf("Cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
+					return false, nil
+				}
 				setGresGpusFlag = true
 			}
+			task.ReqResources.DeviceMap = gresMap
 		case "--gpus-per-node":
 			if setGresGpusFlag {
 				log.Errorf("Cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
@@ -238,14 +238,15 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("gres") {
-		if setGpusPerNodeFlag {
-			log.Errorf("Cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
-			return false, nil
-		}
-		task.ReqResources.DeviceMap = util.ParseGres(FlagGres)
-		if _, exist := task.ReqResources.DeviceMap.NameTypeMap["gpu"]; exist {
+		gresMap := util.ParseGres(FlagGres)
+		if _, exist := gresMap.NameTypeMap["gpu"]; exist {
+			if setGpusPerNodeFlag {
+				log.Errorf("Cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
+				return false, nil
+			}
 			setGresGpusFlag = true
 		}
+		task.ReqResources.DeviceMap = gresMap
 	}
 	if cmd.Flags().Changed("gpus-per-node") {
 		if setGresGpusFlag {
