@@ -865,8 +865,10 @@ func MainCrun(args []string) error {
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
-			log.Errorf("Invalid argument: %v", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: %v.", err),
+			}
 		}
 		task.MemPerCpu = &memInBytePerCpu
 	}
