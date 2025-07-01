@@ -171,6 +171,7 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, step
 	keeper.taskIORequestChannelMtx.Lock()
 	channel, exist := keeper.taskIORequestChannelMap[StepIdentifier{taskId: taskId, StepId: stepId}]
 	if exist {
+		// maybe too much msg, cfored will hang.
 		channel <- ioToCrun
 	} else {
 		log.Warningf("Trying forward to I/O to an unknown crun of task #%d step#%d.", taskId, stepId)

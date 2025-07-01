@@ -42,7 +42,6 @@ message InitSupervisorRequest {
 
   message ContainerConfig {
     string temp_dir = 1;
-
     string runtime_bin = 2;
     string state_cmd = 3;
     string run_cmd = 4;
@@ -58,15 +57,15 @@ message InitSupervisorRequest {
 
   TaskToD step_spec = 9;
   map<string, string> env = 10;
+
+  string log_dir = 11;
 }
 
 message SupervisorReady {
   bool ok = 1;
 }
 
-message TaskExecutionRequest {
-  TaskToD task = 1;
-}
+message TaskExecutionRequest {}
 
 message TaskExecutionReply {
   bool ok = 1;
@@ -80,11 +79,11 @@ message QueryStepEnvReply {
   map<string, string> env = 2;
 }
 
-message CheckTaskStatusRequest {}
+message CheckStatusRequest {}
 
-message CheckTaskStatusReply {
+message CheckStatusReply {
   int32 job_id = 1;
-  int32 pid = 2;
+  int32 supervisor_pid = 2;
   bool ok = 3;
 }
 
@@ -109,7 +108,7 @@ message TerminateTaskReply {
 service Supervisor {
   rpc ExecuteTask(TaskExecutionRequest) returns (TaskExecutionReply);
   rpc QueryEnvMap(QueryStepEnvRequest) returns (QueryStepEnvReply);
-  rpc CheckTaskStatus(CheckTaskStatusRequest) returns (CheckTaskStatusReply);
+  rpc CheckStatus(CheckStatusRequest) returns (CheckStatusReply);
   rpc ChangeTaskTimeLimit(ChangeTaskTimeLimitRequest) returns (ChangeTaskTimeLimitReply);
   rpc TerminateTask(TerminateTaskRequest) returns (TerminateTaskReply);
 }
