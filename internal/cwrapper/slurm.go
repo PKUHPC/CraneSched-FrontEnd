@@ -107,7 +107,7 @@ func sacct() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			cacct.RootCmd.Run(cmd, args)
+			cacct.RootCmd.RunE(cmd, args)
 		},
 	}
 
@@ -378,7 +378,7 @@ func sacctmgr() *cobra.Command {
 			}
 
 			if subcmd.Runnable() {
-				subcmd.Run(subcmd, convertedArgs)
+				subcmd.RunE(subcmd, convertedArgs)
 			} else {
 				subcmd.Help()
 			}
@@ -416,7 +416,7 @@ func salloc() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			calloc.RootCmd.Run(calloc.RootCmd, args)
+			calloc.RootCmd.RunE(calloc.RootCmd, args)
 		},
 	}
 
@@ -441,7 +441,7 @@ func scancel() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			ccancel.RootCmd.Run(cmd, args)
+			ccancel.RootCmd.RunE(cmd, args)
 		},
 	}
 
@@ -488,7 +488,7 @@ func sbatch() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			cbatch.RootCmd.Run(cbatch.RootCmd, args)
+			cbatch.RootCmd.RunE(cbatch.RootCmd, args)
 		},
 	}
 
@@ -631,7 +631,7 @@ func scontrol() *cobra.Command {
 			}
 
 			if subcmd.Runnable() {
-				subcmd.Run(subcmd, convertedArgs)
+				subcmd.RunE(subcmd, convertedArgs)
 			} else {
 				subcmd.Help()
 			}
@@ -649,7 +649,7 @@ func sinfo() *cobra.Command {
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
 			cinfo.RootCmd.PersistentPreRun(cmd, args)
-			cinfo.RootCmd.Run(cmd, args)
+			cinfo.RootCmd.RunE(cmd, args)
 		},
 	}
 
@@ -848,7 +848,7 @@ func srun() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			crun.RootCmd.Run(crun.RootCmd, args)
+			crun.RootCmd.RunE(crun.RootCmd, args)
 		},
 	}
 
