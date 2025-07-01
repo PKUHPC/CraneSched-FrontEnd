@@ -345,7 +345,7 @@ CforedSupervisorStateMachineLoop:
 					case protos.StreamCrunRequest_TASK_IO_FORWARD:
 						payload := crunReq.GetPayloadTaskIoForwardReq()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Supervisor] forwarding task %d step%d input [%d] to craned %s", taskId,stepId, len(msg), cranedId)
+						log.Debugf("[Cfored->Supervisor] forwarding task %d step%d input [%d] to craned %s", taskId, stepId, len(msg), cranedId)
 						reply = &protos.StreamTaskIOReply{
 							Type: protos.StreamTaskIOReply_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
@@ -399,15 +399,15 @@ CforedSupervisorStateMachineLoop:
 	return nil
 }
 
-func (cforedServer *GrpcCforedServer) QueryTaskIdFromPort(ctx context.Context,
-	request *protos.QueryTaskIdFromPortRequest) (*protos.QueryTaskIdFromPortReply, error) {
+func (cforedServer *GrpcCforedServer) QueryStepFromPort(ctx context.Context,
+	request *protos.QueryStepFromPortRequest) (*protos.QueryStepFromPortReply, error) {
 
 	var taskId uint32
 	var ok bool
 
 	pid, err := util.GetPidFromPort(uint16(request.Port))
 	if err != nil {
-		return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
+		return &protos.QueryStepFromPortReply{Ok: false}, nil
 	}
 
 	for {
@@ -416,7 +416,7 @@ func (cforedServer *GrpcCforedServer) QueryTaskIdFromPort(ctx context.Context,
 		gVars.pidTaskIdMapMtx.RUnlock()
 
 		if ok {
-			return &protos.QueryTaskIdFromPortReply{
+			return &protos.QueryStepFromPortReply{
 				Ok:     true,
 				TaskId: taskId,
 			}, nil
@@ -424,7 +424,7 @@ func (cforedServer *GrpcCforedServer) QueryTaskIdFromPort(ctx context.Context,
 
 		pid, err = util.GetParentProcessID(pid)
 		if err != nil || pid == 1 {
-			return &protos.QueryTaskIdFromPortReply{Ok: false}, nil
+			return &protos.QueryStepFromPortReply{Ok: false}, nil
 		}
 	}
 }
