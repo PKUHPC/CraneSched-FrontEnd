@@ -103,7 +103,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_TRES_PER_TASK_BEYOND:            "The tres of tasks has reached the limit of this QOS",
 	protos.ErrCode_ERR_MAX_TRES_PER_USER_BEYOND:        "The tres of tasks for the current user has reached the limit of this QOS",
 	protos.ErrCode_ERR_MAX_TRES_PER_ACCOUNT_BEYOND:     "The tres of tasks for the current account has reached the limit of this QOS",
-
+	protos.ErrCode_ERR_CPUS_PER_TASK_BEYOND:            "cpus-per-task reached the user's limit",
 	// System-related errors
 	protos.ErrCode_ERR_UPDATE_DATABASE:      "Fail to update data in database",
 	protos.ErrCode_ERR_NO_RESOURCE:          "Resource not enough for task",
