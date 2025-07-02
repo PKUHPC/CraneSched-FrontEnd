@@ -356,6 +356,7 @@ message ModifyQosRequest {
   ModifyField modify_field = 2;  // modify item field
   string value = 3;              // new value
   string name = 4;
+  optional ResourceView tres_value = 5;
 }
 
 message ModifyQosReply {

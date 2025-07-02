@@ -689,7 +689,14 @@ func RemoveBracketsWithoutDashOrComma(input string) string {
 	return output
 }
 
-func ParseGres(gres string) *protos.DeviceMap {
+func ParseGres(gres string, flags ...bool) *protos.DeviceMap {
+	var use_limit bool
+	if len(flags) > 0 {
+		use_limit = flags[0]
+	} else {
+		use_limit = false
+	}
+
 	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
 	if gres == "" {
 		return result
@@ -709,7 +716,11 @@ func ParseGres(gres string) *protos.DeviceMap {
 			if _, exist := result.NameTypeMap[name]; !exist {
 				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: make(map[string]uint64), Total: gresNameCount}
 			} else {
-				result.NameTypeMap[name].Total += gresNameCount
+				if result.NameTypeMap[name].Total > math.MaxUint64-gresNameCount {
+					result.NameTypeMap[name].Total = math.MaxUint64
+				} else {
+					result.NameTypeMap[name].Total += gresNameCount
+				}
 			}
 		} else if len(parts) == 3 {
 			gresType := parts[1]
@@ -724,7 +735,11 @@ func ParseGres(gres string) *protos.DeviceMap {
 			if _, exist := result.NameTypeMap[name]; !exist {
 				typeCountMap := make(map[string]uint64)
 				typeCountMap[gresType] = count
-				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: 0}
+				var total uint64 = 0
+				if use_limit {
+					total = math.MaxUint64
+				}
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: total}
 			} else {
 				result.NameTypeMap[name].TypeCountMap[gresType] = count
 			}
@@ -732,6 +747,65 @@ func ParseGres(gres string) *protos.DeviceMap {
 			log.Errorf("Error parsing gres: %s\n", g)
 		}
 	}
+
+	return result
+}
+
+func ParseTres(tres string) *protos.ResourceView {
+	result := &protos.ResourceView{
+		AllocatableRes: &protos.AllocatableResource{
+			CpuCoreLimit:       math.MaxInt32 / 256,
+			MemoryLimitBytes:   math.MaxUint64,
+			MemorySwLimitBytes: math.MaxUint64,
+		},
+		DeviceMap: &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)},
+	}
+	if tres == "" {
+		return result
+	}
+	var gresStr string
+	items := strings.Split(tres, ",")
+	for _, item := range items {
+		if strings.HasPrefix(item, "gres/") && len(item) > 5 {
+			gresStr += item[5:] + ","
+		} else {
+			kv := strings.SplitN(item, "=", 2)
+			if len(kv) == 2 {
+				key := strings.TrimSpace(kv[0])
+				value := strings.TrimSpace(kv[1])
+				if key == "cpu" {
+					if value == "-1" {
+						continue
+					}
+					count, err := strconv.ParseFloat(value, 64)
+					if err != nil {
+						log.Errorf("Error parsing cpu: %s\n", item)
+						continue
+					}
+					if count > (math.MaxInt32 / 256) {
+						log.Errorf("CPU setting exceeds the limit: %s\n", item)
+						continue
+					}
+					result.GetAllocatableRes().CpuCoreLimit = count
+				} else if key == "mem" {
+					if value == "-1" {
+						continue
+					}
+					membytes, err := ParseMemStringAsByte(value)
+					if err != nil {
+						log.Errorf("Error parsing mem: %s\n", item)
+						continue
+					}
+					result.GetAllocatableRes().MemoryLimitBytes = membytes
+					result.GetAllocatableRes().MemorySwLimitBytes = membytes
+				}
+			} else {
+				log.Errorf("Error parsing tres: %s\n", item)
+			}
+		}
+	}
+
+	result.DeviceMap = ParseGres(strings.TrimSuffix(gresStr, ","), true)
 
 	return result
 }
@@ -954,4 +1028,66 @@ func FormatMemToMB(data uint64) string {
 	} else {
 		return fmt.Sprintf("%vM", data/B2MBRatio)
 	}
+}
+
+func ReadableMemory(memoryBytes uint64) string {
+	if memoryBytes < 1024 {
+		return fmt.Sprintf("%dB", memoryBytes)
+	} else if memoryBytes < 1024*1024 {
+		return fmt.Sprintf("%dK", memoryBytes/1024)
+	} else if memoryBytes < 1024*1024*1024 {
+		return fmt.Sprintf("%dM", memoryBytes/(1024*1024))
+	} else {
+		return fmt.Sprintf("%dG", memoryBytes/(1024*1024*1024))
+	}
+}
+
+func ResourceViewToTres(rv *protos.ResourceView) string {
+	var parts []string
+	if rv.AllocatableRes != nil {
+		if rv.AllocatableRes.CpuCoreLimit != (math.MaxInt32 / 256) {
+			cpu := strconv.FormatFloat(rv.AllocatableRes.CpuCoreLimit, 'f', -1, 64)
+			parts = append(parts, "cpu="+cpu)
+		}
+		if rv.AllocatableRes.MemoryLimitBytes != math.MaxUint64 {
+			mem := ReadableMemory(rv.AllocatableRes.MemoryLimitBytes)
+			parts = append(parts, "mem="+mem)
+		}
+	}
+	if rv.DeviceMap != nil && len(rv.DeviceMap.NameTypeMap) > 0 {
+		for name, typeCount := range rv.DeviceMap.NameTypeMap {
+			for typ, count := range typeCount.TypeCountMap {
+				if count > 0 {
+					parts = append(parts, fmt.Sprintf("gres/%s:%s:%d", name, typ, count))
+				}
+			}
+			if typeCount.Total > 0 {
+				parts = append(parts, fmt.Sprintf("gres/%s:%d", name, typeCount.Total))
+			}
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+func ParseFlags(s string) (uint32, error) {
+	var flags uint32 = 0
+	var result bool = false
+
+	if s == "" {
+		return 0, fmt.Errorf("empty flags")
+	}
+
+	items := strings.Split(s, ",")
+	for _, item := range items {
+		if val, ok := QoSFlagNameMap[item]; ok {
+			flags |= val
+			result = true
+		}
+	}
+
+	if !result {
+		return 0, fmt.Errorf("Invalid QoS flags: %s", s)
+	}
+
+	return flags, nil
 }
