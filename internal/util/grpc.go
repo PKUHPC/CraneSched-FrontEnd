@@ -217,8 +217,9 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	return stub
 }
 
-func GetStubToCtldForInternalByConfig(config *Config) protos.CraneCtldForInternalClient {
+func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.CraneCtldForInternalClient) {
 	var serverAddr string
+	var conn *grpc.ClientConn
 	var stub protos.CraneCtldForInternalClient
 
 	if config.UseTls {
@@ -291,7 +292,7 @@ func GetStubToCtldForInternalByConfig(config *Config) protos.CraneCtldForInterna
 		stub = protos.NewCraneCtldForInternalClient(conn)
 	}
 
-	return stub
+	return conn, stub
 }
 
 func GrpcErrorPrintf(err error, format string, a ...any) {
