@@ -145,11 +145,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--comment":
 			structExtraFromScript.Comment = arg.val
 		case "--open-mode":
-			if arg.val == util.OpenModeAppend {
+			switch arg.val {
+			case util.OpenModeAppend:
 				task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
-			} else if arg.val == util.OpenModeTruncate {
+			case util.OpenModeTruncate:
 				task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
-			} else {
+			default:
 				log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 				return false, nil
 			}

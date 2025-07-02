@@ -88,6 +88,12 @@ const (
 	MaxEntityNameLength = 30
 )
 
+// Param Options
+const (
+	OpenModeAppend   = "append"
+	OpenModeTruncate = "truncate"
+)
+
 func SplitEnvironEntry(env *string) (string, string, bool) {
 	eq := strings.IndexByte(*env, '=')
 	if eq == -1 {

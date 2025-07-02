@@ -40,7 +40,12 @@ func (c *cLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	if len(split) == 3 {
 		*args = append(*args, CbatchArg{name: split[1], val: split[2]})
 	} else if len(split) == 2 {
-		*args = append(*args, CbatchArg{name: split[1]})
+		parts := strings.SplitN(split[1], "=", 2)
+		if len(parts) > 1 {
+			*args = append(*args, CbatchArg{name: parts[0], val: parts[1]})
+		} else {
+			*args = append(*args, CbatchArg{name: parts[0]})
+		}
 	} else {
 		return errors.New("fields out of bound")
 	}
@@ -58,6 +63,8 @@ func (s *sLineProcessor) init() {
 		"--nodes": true, "-A": true, "--account": true, "-e": true, "--exclude": true, "--chdir": true,
 		"--export": true, "--mem": true, "-p": true, "--partition": true, "-o": true, "--output": true,
 		"--nodelist": true, "-w": true, "--get-user-env": true, "--time": true, "-t": true, "--ntasks-per-node": true,
+		"--mail-type": true, "--mail-user": true, "--comment": true, "--open-mode": true, "--reservation": true,
+		"-r": true, "--wrap": true, "--gres": true, "--exclusive": true,
 	}
 }
 
@@ -74,7 +81,7 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 			log.Warnf("Slurm option %v is not supported", split[1])
 		}
 	} else if len(split) == 2 {
-		parts := strings.Split(split[1], "=")
+		parts := strings.SplitN(split[1], "=", 2)
 		ok := s.supported[parts[0]]
 		if ok {
 			if len(parts) > 1 {
