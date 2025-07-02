@@ -59,7 +59,5 @@ func ParseCmdArgs() {
 		}
 	}
 
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
-	}
+	util.RunAndHandleExit(rootCmd)
 }
