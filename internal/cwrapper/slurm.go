@@ -606,6 +606,7 @@ func scontrol() *cobra.Command {
 			// use ccontrol to parse the arguments
 			allArgs := append([]string{"ccontrol"}, append(leadingFlags, convertedArgs...)...)
 			ccontrol.ParseCmdArgs(allArgs)
+			return cmd.Help()
 		},
 	}
 

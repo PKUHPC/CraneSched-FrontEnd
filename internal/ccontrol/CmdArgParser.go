@@ -71,7 +71,6 @@ func ParseCmdArgs(args []string) {
 			key := parts[0]
 			value := parts[1]
 
-			// If value is empty (e.g., key=) we do NOT convert it; leave as-is so parser will flag error.
 			if value == "" {
 				processedArgs = append(processedArgs, key+"=\"\"")
 				continue
@@ -331,13 +330,13 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 			FlagAllowedAccounts = value
 			err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
 			if err != nil {
-				log.Errorf("modify partition acl failed: %s", err)
+				log.Errorf("%s", err)
 				return util.ErrorGeneric
 			}
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
 			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != nil {
-				log.Errorf("modify partition acl failed: %s", err)
+				log.Errorf("%s", err)
 				return util.ErrorGeneric
 			}
 			log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
