@@ -53,7 +53,7 @@ type DeleteCommand struct {
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
+	Value string `parser:"( '=' ( @String | @Ident | @TimeFormat | @Number ) | ( @String | @Ident | @TimeFormat | @Number ) )"`
 }
 
 type EntityType struct {
@@ -176,19 +176,19 @@ func (c *CControlCommand) GetKVMaps() map[string]string {
 	switch cmd := c.Command.(type) {
 	case UpdateCommand:
 		for _, param := range cmd.KeyValueParam {
-			kvMap[param.Key] = param.Value
+			kvMap[param.Key] = unquoteIfQuoted(param.Value)
 		}
 	case HoldCommand:
 		for _, param := range cmd.KeyValueParam {
-			kvMap[param.Key] = param.Value
+			kvMap[param.Key] = unquoteIfQuoted(param.Value)
 		}
 	case ReleaseCommand:
 		for _, param := range cmd.KeyValueParam {
-			kvMap[param.Key] = param.Value
+			kvMap[param.Key] = unquoteIfQuoted(param.Value)
 		}
 	case CreateCommand:
 		for _, param := range cmd.KeyValueParam {
-			kvMap[param.Key] = param.Value
+			kvMap[param.Key] = unquoteIfQuoted(param.Value)
 		}
 	}
 	return kvMap
@@ -236,4 +236,13 @@ func preParseGlobalFlags(args []string) []string {
 		}
 	}
 	return remainingArgs
+}
+
+func unquoteIfQuoted(s string) string {
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
 }

@@ -61,10 +61,21 @@ func ParseCmdArgs(args []string) {
 
 	var processedArgs []string
 	for _, arg := range commandArgs {
+		if arg == "" {
+			processedArgs = append(processedArgs, "\"\"")
+			continue
+		}
+
 		if strings.Contains(arg, "=") {
 			parts := strings.SplitN(arg, "=", 2)
 			key := parts[0]
 			value := parts[1]
+
+			// If value is empty (e.g., key=) we do NOT convert it; leave as-is so parser will flag error.
+			if value == "" {
+				processedArgs = append(processedArgs, key+"=\"\"")
+				continue
+			}
 
 			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
 				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
@@ -465,13 +476,6 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int
 	if len(kvParams) == 0 {
 		log.Debug("no attributes to modify")
 		return util.ErrorCmdArg
-	}
-
-	for key, value := range kvParams {
-		if value == "" {
-			log.Errorf("no value provided for parameter '%s', use format: %s=value", key, key)
-			return util.ErrorCmdArg
-		}
 	}
 
 	if len(requiredFields) > 0 {
