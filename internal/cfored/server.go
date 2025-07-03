@@ -170,12 +170,7 @@ func (keeper *CranedChannelKeeper) forwardRemoteIoToCrun(taskId uint32, ioToCrun
 	keeper.taskIORequestChannelMtx.Lock()
 	channel, exist := keeper.taskIORequestChannelMapByTaskId[taskId]
 	if exist {
-		select {
-		case channel <- ioToCrun:
-
-		default:
-			log.Warningf("Too many I/O messages to crun task #%d channel is full. Message dropped", taskId)
-		}
+		channel <- ioToCrun
 	} else {
 		log.Warningf("Trying forward to I/O to an unknown crun of task #%d.", taskId)
 	}
@@ -350,7 +345,7 @@ CforedCranedStateMachineLoop:
 						payload := crunReq.GetPayloadTaskIoForwardReq()
 						taskId := payload.GetTaskId()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Craned] forwarding task %d input [%d] to craned %s", taskId, len(msg), cranedId)
+						log.Debugf("[Cfored->Craned] forwarding task %d input %s to craned %s", taskId, msg, cranedId)
 						reply = &protos.StreamTaskIOReply{
 							Type: protos.StreamTaskIOReply_CRANED_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
