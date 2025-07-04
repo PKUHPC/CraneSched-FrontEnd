@@ -66,10 +66,10 @@ const (
 	ZeroEnergyDisplay   = "0.000kWh"
 )
 
-type ExtraAttrsEnum int
+type ExtraAttrsType int
 
 const (
-	Comment ExtraAttrsEnum = iota
+	CommentType ExtraAttrsType = iota
 )
 
 type NodeStateRecord struct {
@@ -1343,7 +1343,7 @@ func ChangeTaskPriority(taskStr string, priority float64) error {
 	return SummarizeReply(reply)
 }
 
-func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsEnum, val string) error {
+func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val string) error {
 	jobIdList, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
 		return &util.CraneError{
@@ -1390,7 +1390,7 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsEnum, val str
 	pdOrRJobMap := make(map[uint32]string)
 	validJobList := map[uint32]bool{}
 	for _, taskInfo := range reply.TaskInfoList {
-		if extraAttrsType == Comment {
+		if extraAttrsType == CommentType {
 			newJsonStr, err := updateJobComment(taskInfo.ExtraAttr, val)
 			if err != nil {
 				return &util.CraneError{
@@ -1416,7 +1416,7 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsEnum, val str
 	}
 	if len(notGetInfoJobs) > 0 {
 		notGetInfoJobsString := util.ConvertSliceToString(notGetInfoJobs, ", ")
-		fmt.Printf("Job %s is not exist or completed.\n", notGetInfoJobsString)
+		log.Warnf("Job %s is not exist or completed.\n", notGetInfoJobsString)
 	}
 
 	request := &protos.ModifyTasksExtraAttrsRequest{

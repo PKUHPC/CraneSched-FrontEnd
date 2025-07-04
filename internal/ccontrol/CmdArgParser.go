@@ -202,7 +202,7 @@ var (
 				return ChangeTaskPriority(FlagTaskIds, FlagPriority)
 			}
 			if cmd.Flags().Changed("comment") {
-				return ChangeTaskExtraAttrs(FlagTaskIds, Comment, FlagComment)
+				return ChangeTaskExtraAttrs(FlagTaskIds, CommentType, FlagComment)
 			}
 			return nil
 		},
