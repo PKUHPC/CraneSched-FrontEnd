@@ -40,6 +40,7 @@ var (
 	FlagQueryAll        bool
 	FlagTimeLimit       string
 	FlagPriority        float64
+	FlagComment         string
 	FlagHoldTime        string
 	FlagConfigFilePath  string = util.DefaultConfigPath
 	FlagJson            bool

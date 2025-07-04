@@ -35,6 +35,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 var (
@@ -707,6 +708,105 @@ func ChangeTaskPriority(taskStr string, priority float64) error {
 	}
 
 	return SummarizeReply(reply)
+}
+
+func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsEnum, val string) error {
+	jobIdList, err := util.ParseJobIdList(taskStr, ",")
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: err.Error(),
+		}
+	}
+
+	req := &protos.QueryTasksInfoRequest{
+		FilterTaskIds:               jobIdList,
+		OptionIncludeCompletedTasks: false,
+	}
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to modify the job: %w", err),
+		}
+	}
+
+	if !reply.GetOk() {
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("failed to retrive the information of job %s", taskStr),
+		}
+	}
+
+	if len(reply.TaskInfoList) == 0 {
+		jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("job %s is completed or not exist", jobIdListString),
+		}
+	}
+
+	updateJobComment := func(origin string, comment string) (string, error) {
+		newJsonStr, err := sjson.Set(origin, "comment", comment)
+		if err != nil {
+			return "", fmt.Errorf("set comment failed: %w", err)
+		}
+		return newJsonStr, nil
+	}
+
+	pdOrRJobMap := make(map[uint32]string)
+	validJobList := map[uint32]bool{}
+	for _, taskInfo := range reply.TaskInfoList {
+		if extraAttrsType == Comment {
+			newJsonStr, err := updateJobComment(taskInfo.ExtraAttr, val)
+			if err != nil {
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: fmt.Sprintf("transform extraAttrs json failed: %w", err),
+				}
+			}
+			pdOrRJobMap[taskInfo.TaskId] = newJsonStr
+			validJobList[taskInfo.TaskId] = true
+		} else {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("unkown extra Attrbute: %v", extraAttrsType),
+			}
+		}
+	}
+
+	notGetInfoJobs := []uint32{}
+	for _, jobId := range jobIdList {
+		if !validJobList[jobId] {
+			notGetInfoJobs = append(notGetInfoJobs, jobId)
+		}
+	}
+	if len(notGetInfoJobs) > 0 {
+		notGetInfoJobsString := util.ConvertSliceToString(notGetInfoJobs, ", ")
+		fmt.Printf("Job %s is not exist or completed.\n", notGetInfoJobsString)
+	}
+
+	request := &protos.ModifyTasksExtraAttrsRequest{
+		Uid:            uint32(os.Getuid()),
+		ExtraAttrsList: pdOrRJobMap,
+	}
+
+	rep, err := stub.ModifyTasksExtraAttrs(context.Background(), request)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to change tasks comment")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(rep))
+		if len(rep.NotModifiedTasks) == 0 {
+			return nil
+		} else {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+	}
+
+	return SummarizeReply(rep)
 }
 
 func ChangeNodeState(nodeRegex string, state string, reason string) error {
