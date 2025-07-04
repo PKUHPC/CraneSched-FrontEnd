@@ -41,6 +41,7 @@ var (
 	FlagQueryAll        bool
 	FlagTimeLimit       string
 	FlagPriority        float64
+	FlagComment         string
 	FlagHoldTime        string
 	FlagConfigFilePath  string
 	FlagJson            bool
@@ -186,7 +187,8 @@ var (
 		Short: "Modify job attributes",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") {
+			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") &&
+				!cmd.Flags().Changed("comment") {
 				return &util.CraneError{
 					Code:    util.ErrorCmdArg,
 					Message: "No attribute to modify",
@@ -198,6 +200,9 @@ var (
 			}
 			if cmd.Flags().Changed("priority") {
 				return ChangeTaskPriority(FlagTaskIds, FlagPriority)
+			}
+			if cmd.Flags().Changed("comment") {
+				return ChangeTaskExtraAttrs(FlagTaskIds, Comment, FlagComment)
 			}
 			return nil
 		},
@@ -365,6 +370,7 @@ func init() {
 			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job ids of the job to be modified (comma seperated list)")
 			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
 			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
+			updateJobCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 
 			err := updateJobCmd.MarkFlagRequired("job")
 			if err != nil {
