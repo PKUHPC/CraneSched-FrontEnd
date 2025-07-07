@@ -68,7 +68,7 @@ var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "String", Pattern: `[-+]?("[^"]*"|'[^']*'|""|'')`},
 	{Name: "TimeFormat", Pattern: `now[\+\-]\d{2}:\d{2}:\d{2}|now|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}|\d+-\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}:\d{2}`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
-	{Name: "Ident", Pattern: `[-+]?[a-zA-Z][a-zA-Z0-9_\-\.,\[\]]*`},
+	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z][a-zA-Z0-9_\+\-\.,\[\]]*`},
 	{Name: "Punct", Pattern: `[-=,:]`},
 })
 
