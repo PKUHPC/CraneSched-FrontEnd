@@ -18,7 +18,7 @@ type CControlCommand struct {
 type ShowCommand struct {
 	Action string      `parser:"@'show'"`
 	Entity *EntityType `parser:"@@"`
-	ID     string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID     string      `parser:"( @String | @Ident | @Number )?"`
 }
 
 type UpdateCommand struct {
@@ -28,32 +28,32 @@ type UpdateCommand struct {
 
 type HoldCommand struct {
 	Action        string           `parser:"@'hold'"`
-	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
 type ReleaseCommand struct {
 	Action        string           `parser:"@'release'"`
-	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
 type CreateCommand struct {
 	Action        string           `parser:"@'create'"`
 	Entity        *EntityType      `parser:"@@"`
-	ID            string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
 type DeleteCommand struct {
 	Action string      `parser:"@'delete'"`
 	Entity *EntityType `parser:"@@"`
-	ID     string      `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID     string      `parser:"( @String | @Ident | @Number )?"`
 }
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' ( @String | @Ident | @TimeFormat | @Number ) | ( @String | @Ident | @TimeFormat | @Number ) )"`
+	Value string `parser:"( '=' ( @String | @Ident | @Number ) | ( @String | @Ident | @Number ) )"`
 }
 
 type EntityType struct {
@@ -66,9 +66,8 @@ type EntityType struct {
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
 	{Name: "String", Pattern: `[-+]?("[^"]*"|'[^']*'|""|'')`},
-	{Name: "TimeFormat", Pattern: `now[\+\-]\d{2}:\d{2}:\d{2}|now|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}|\d+-\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}:\d{2}`},
+	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\-\.,:\[\]T]*`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
-	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z][a-zA-Z0-9_\+\-\.,\[\]]*`},
 	{Name: "Punct", Pattern: `[-=,:]`},
 })
 
