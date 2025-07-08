@@ -694,7 +694,7 @@ message StreamCrunRequest {
 
   message TaskIOForwardReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    string msg = 2;
   }
 
   message TaskX11ForwardReq {
@@ -747,7 +747,7 @@ message StreamCrunReply {
   }
 
   message TaskIOForwardReply {
-    bytes msg = 1;
+    string msg = 1;
   }
 
   message TaskX11ForwardReply {
@@ -781,7 +781,7 @@ message StreamTaskIORequest {
 
   message CranedTaskOutputReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    string msg = 2;
   }
 
   message CranedUnRegisterReq {
@@ -816,7 +816,7 @@ message StreamTaskIOReply {
 
   message CranedTaskInputReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    string msg = 2;
   }
 
   message CranedUnregisterReply {
