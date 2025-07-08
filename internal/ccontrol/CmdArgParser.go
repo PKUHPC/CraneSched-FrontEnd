@@ -437,7 +437,7 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 
 	error := CreateReservation()
 	if error != nil {
-		log.Errorf("create reservation failed: %s", error)
+		log.Errorf("%s", error)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess
@@ -465,7 +465,7 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 
 	err := DeleteReservation(name)
 	if err != nil {
-		log.Errorf("delete reservation failed: %s", err)
+		log.Errorf("%s", err)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess
