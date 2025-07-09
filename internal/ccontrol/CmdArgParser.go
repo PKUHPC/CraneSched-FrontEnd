@@ -301,6 +301,13 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 				log.Errorf("change task time limit failed: %s", err)
 				lastErr = util.ErrorGeneric
 			}
+		case "comment":
+			FlagComment = value
+			err := ChangeTaskExtraAttrs(FlagTaskIds, CommentType, FlagComment)
+			if err != nil {
+				log.Errorf("change task comment failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
 		case "jobid", "job":
 			continue
 		default:

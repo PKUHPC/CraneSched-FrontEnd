@@ -43,6 +43,12 @@ var (
 	stub    protos.CraneCtldClient
 )
 
+type ExtraAttrsType int
+
+const (
+    CommentType = iota
+)
+
 func formatDeviceMap(data *protos.DeviceMap) string {
 	if data == nil {
 		return "None"
@@ -550,6 +556,18 @@ func SummarizeReply(proto interface{}) error {
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
 		return nil
+	case *protos.ModifyTasksExtraAttrsReply:
+		if len(reply.ModifiedTasks) > 0 {
+			modifiedTasksString := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
+			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
+		}
+		if len(reply.NotModifiedTasks) > 0 {
+			for i := 0; i < len(reply.NotModifiedTasks); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+			}
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+		return nil
 	default:
 		return &util.CraneError{Code: util.ErrorGeneric}
 	}
@@ -793,7 +811,7 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val str
 
 	rep, err := stub.ModifyTasksExtraAttrs(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change tasks comment")
+		util.GrpcErrorPrintf(err, "Failed to change tasks extra attrs")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
