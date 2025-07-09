@@ -168,6 +168,7 @@ message TaskToCtld {
   bool exclusive = 37;
 
   bool hold = 38;
+  uint32 cores_per_socket = 39;
 }
 
 message TaskInEmbeddedDb {
@@ -589,6 +590,12 @@ message NetworkInterface {
   repeated string ipv6_addresses = 4;
 }
 
+message TopologyInfo {
+  uint32 socket_count = 1;
+  uint32 core_count = 2;
+  uint32 pu_count = 3;
+}
+
 message CranedRemoteMeta {
   DedicatedResourceInNode dres_in_node = 1;
   SystemRelInfo sys_rel_info = 2;
@@ -598,4 +605,5 @@ message CranedRemoteMeta {
   repeated uint32 lost_tasks = 6;
   repeated uint32 lost_jobs = 7;
   repeated NetworkInterface network_interfaces = 8;
+  TopologyInfo topology_info = 9;
 }
