@@ -811,7 +811,7 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val str
 
 	rep, err := stub.ModifyTasksExtraAttrs(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change tasks extra attrs")
+		util.GrpcErrorPrintf(err, "Failed to change task extra attrs")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
