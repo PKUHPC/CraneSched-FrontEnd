@@ -66,7 +66,7 @@ type EntityType struct {
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
 	{Name: "String", Pattern: `[-+]?("[^"]*"|'[^']*'|""|'')`},
-	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\-\.,:\[\]T]*`},
+	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\-\.,@:\[\]T]*`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
 	{Name: "Punct", Pattern: `[-=,:]`},
 })
