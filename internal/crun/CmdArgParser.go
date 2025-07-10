@@ -24,23 +24,24 @@ import (
 )
 
 var (
-	FlagNodes         uint32
-	FlagCpuPerTask    float64
-	FlagNtasksPerNode uint32
-	FlagTime          string
-	FlagMem           string
-	FlagPartition     string
-	FlagJob           string
-	FlagAccount       string
-	FlagQos           string
-	FlagCwd           string
-	FlagNodelist      string
-	FlagExcludes      string
-	FlagGetUserEnv    bool
-	FlagExport        string
-	FlagGres          string
-	FlagPty           bool
-	FlagExclusive     bool
+	FlagNodes          uint32
+	FlagCpuPerTask     float64
+	FlagNtasksPerNode  uint32
+	FlagTime           string
+	FlagMem            string
+	FlagPartition      string
+	FlagJob            string
+	FlagAccount        string
+	FlagQos            string
+	FlagCwd            string
+	FlagNodelist       string
+	FlagExcludes       string
+	FlagGetUserEnv     bool
+	FlagExport         string
+	FlagGres           string
+	FlagPty            bool
+	FlagExclusive      bool
+	FlagCoresPerSocket uint32
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -107,4 +108,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().Uint32VarP(&FlagCoresPerSocket, "cores-per-socket", "", 0, "Number of cores per socket")
 }
