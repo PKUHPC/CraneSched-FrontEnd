@@ -41,6 +41,7 @@ var (
 	FlagGres          string
 	FlagPty           bool
 	FlagExclusive     bool
+	FlagCoresPerSocket uint32
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -82,6 +83,7 @@ func init() {
 		"info", "Available debug level: trace, debug, info")
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
+	RootCmd.Flags().Uint32VarP(&FlagCoresPerSocket, "cores-per-socket", "", 0, "Number of cores per socket")
 	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
