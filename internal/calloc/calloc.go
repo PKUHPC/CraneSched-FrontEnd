@@ -414,6 +414,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	task.NodeNum = FlagNodes
 	task.CpusPerTask = FlagCpuPerTask
 	task.NtasksPerNode = FlagNtasksPerNode
+	task.CoresPerSocket = FlagCoresPerSocket
 
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)

@@ -29,26 +29,27 @@ import (
 )
 
 var (
-	FlagNodes         uint32
-	FlagCpuPerTask    float64
-	FlagNtasksPerNode uint32
-	FlagTime          string
-	FlagMem           string
-	FlagPartition     string
-	FlagJob           string
-	FlagAccount       string
-	FlagQos           string
-	FlagCwd           string
-	FlagRepeat        uint32
-	FlagNodelist      string
-	FlagExcludes      string
-	FlagGres          string
-	FlagGetUserEnv    bool
-	FlagExport        string
-	FlagStdoutPath    string
-	FlagStderrPath    string
-	FlagOpenMode      string
-	FlagExclusive     bool
+	FlagNodes          uint32
+	FlagCpuPerTask     float64
+	FlagNtasksPerNode  uint32
+	FlagTime           string
+	FlagMem            string
+	FlagPartition      string
+	FlagJob            string
+	FlagAccount        string
+	FlagQos            string
+	FlagCwd            string
+	FlagRepeat         uint32
+	FlagNodelist       string
+	FlagExcludes       string
+	FlagGres           string
+	FlagGetUserEnv     bool
+	FlagExport         string
+	FlagStdoutPath     string
+	FlagStderrPath     string
+	FlagOpenMode       string
+	FlagExclusive      bool
+	FlagCoresPerSocket uint32
 
 	FlagWrappedScript string
 
@@ -163,4 +164,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().Uint32VarP(&FlagCoresPerSocket, "cores-per-socket", "", 0, "Number of cores per socket")
 }
