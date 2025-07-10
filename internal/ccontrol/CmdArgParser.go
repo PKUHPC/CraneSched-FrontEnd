@@ -279,7 +279,7 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 func executeUpdateJobCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
-	var lastErr int = util.ErrorCmdArg
+	var lastErr int = util.ErrorSuccess
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "priority":
