@@ -50,6 +50,7 @@ var (
 	FlagOpenMode       string
 	FlagExclusive      bool
 	FlagCoresPerSocket uint32
+	FlagThreadsPerCore uint32
 
 	FlagWrappedScript string
 
@@ -165,4 +166,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().Uint32VarP(&FlagCoresPerSocket, "cores-per-socket", "", 0, "Number of cores per socket")
+	RootCmd.Flags().Uint32VarP(&FlagThreadsPerCore, "threads-per-core", "", 0, "Number of threads per core")
 }

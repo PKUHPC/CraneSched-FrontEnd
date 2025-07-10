@@ -170,6 +170,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.CoresPerSocket = uint32(val)
+		case "--threads-per-core":
+			val, err := strconv.ParseUint(arg.val, 10, 32)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
+			}
+			task.ThreadsPerCore = uint32(val)
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -200,6 +207,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 	if cmd.Flags().Changed("cores-per-socket") {
 		task.CoresPerSocket = FlagCoresPerSocket
+	}
+	if cmd.Flags().Changed("threads-per-core") {
+		task.ThreadsPerCore = FlagThreadsPerCore
 	}
 
 	if FlagTime != "" {
