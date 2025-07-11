@@ -64,12 +64,14 @@ COMMANDS:
     state: Valid states are 'drain' or 'resume'
     reason: Required when setting state to 'drain'
 
-  update jobid=<jobid> [priority=<priority>] [timelimit=<timelimit>] [comment=<comment>]
+  update jobid=<jobid> [priority=<priority>] [timelimit=<timelimit>] [comment=<comment>][mailuser=<mailuser>][mailtype=<mailtype>]
     Update attributes of a job.
     job/jobid: ID of the job to update
     priority: New priority value
     timelimit: New time limit for the job
     comment: New comment for the job
+    mailuser: New mailuser for the job
+    mailtype: New mailtype for the job
 
   update partitionName=<partition> [accounts=<accounts>] [deniedaccounts=<accounts>]
     Update partition attributes.

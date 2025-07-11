@@ -94,13 +94,13 @@ func ParseCmdArgs(args []string) {
 	command, err := ParseCControlCommand(cmdStr)
 
 	if err != nil {
-		log.Errorf("error: command format is incorrect %v", err)
+		log.Errorf("Error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
 	result := executeCommand(command)
 	if result != util.ErrorSuccess {
-		log.Errorf("command execution failed")
+		log.Errorf("Command execution failed")
 	}
 	os.Exit(result)
 }
@@ -297,6 +297,10 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 			jobParamFlags |= MailUserTypeFlag
 			jobParamValuesMap[MailUserTypeFlag] = value
 		case "mailtype":
+			if !util.CheckMailType(value) {
+				log.Errorf("Invalid mailtype value to modify: %s", value)
+				return util.ErrorCmdArg
+			}
 			jobParamFlags |= MailTypeTypeFlag
 			jobParamValuesMap[MailTypeTypeFlag] = value
 		case "jobid", "job":
