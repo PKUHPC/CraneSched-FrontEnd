@@ -43,10 +43,14 @@ var (
 	stub    protos.CraneCtldClient
 )
 
-type ExtraAttrsType int
+type UpdateJobParamFlags int
 
 const (
-    CommentType = iota
+	CommentTypeFlag UpdateJobParamFlags = 1 << iota
+	MailUserTypeFlag
+	MailTypeTypeFlag
+	PriorityTypeFlag
+	TimelimitTypeFlag
 )
 
 func formatDeviceMap(data *protos.DeviceMap) string {
@@ -371,9 +375,9 @@ func ShowJobs(jobIds string, queryAll bool) error {
 		}
 	}
 
-	formatJobComment := func(s string) string {
+	formatJobExTraAttrsField := func(s, key string) string {
 		if gjson.Valid(s) {
-			return gjson.Get(s, "comment").String()
+			return gjson.Get(s, key).String()
 		}
 		return ""
 	}
@@ -464,7 +468,13 @@ func ShowJobs(jobIds string, queryAll bool) error {
 			"\tExclusive=%v Comment=%v\n",
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
+			strconv.FormatBool(taskInfo.Exclusive), formatJobExTraAttrsField(taskInfo.ExtraAttr, "comment"))
+
+		mailUserStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.user")
+		mailTypeStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.type")
+		if mailUserStr != "" || mailTypeStr != "" {
+			fmt.Printf("\tMailUser=%v MailType=%v\n", mailUserStr, mailTypeStr)
+		}
 	}
 
 	// If any job is requested but not returned, remind the user
@@ -728,7 +738,7 @@ func ChangeTaskPriority(taskStr string, priority float64) error {
 	return SummarizeReply(reply)
 }
 
-func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val string) error {
+func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]string) error {
 	jobIdList, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
 		return &util.CraneError{
@@ -745,14 +755,14 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val str
 	if err != nil {
 		return &util.CraneError{
 			Code:    util.ErrorNetwork,
-			Message: fmt.Sprintf("Failed to modify the job: %w", err),
+			Message: fmt.Sprintf("Failed to modify the job: %s", err),
 		}
 	}
 
 	if !reply.GetOk() {
 		return &util.CraneError{
 			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("failed to retrive the information of job %s", taskStr),
+			Message: fmt.Sprintf("Failed to retrive the information of job %s", taskStr),
 		}
 	}
 
@@ -760,14 +770,25 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val str
 		jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
 		return &util.CraneError{
 			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("job %s is completed or not exist", jobIdListString),
+			Message: fmt.Sprintf("Job %s is completed or does not exist", jobIdListString),
 		}
 	}
 
-	updateJobComment := func(origin string, comment string) (string, error) {
-		newJsonStr, err := sjson.Set(origin, "comment", comment)
-		if err != nil {
-			return "", fmt.Errorf("set comment failed: %w", err)
+	updateJobExtraAttr := func(origin string, JobParamvalMap map[UpdateJobParamFlags]string) (string, error) {
+		var extraAttrsKeyMap = map[UpdateJobParamFlags]string{
+			CommentTypeFlag:  "comment",
+			MailUserTypeFlag: "mail.user",
+			MailTypeTypeFlag: "mail.type",
+		}
+		var err error
+		newJsonStr := origin
+		for flag, key := range extraAttrsKeyMap {
+			if newValue, exist := JobParamvalMap[flag]; exist {
+				newJsonStr, err = sjson.Set(newJsonStr, key, newValue)
+				if err != nil {
+					return "", fmt.Errorf("set %s failed: %w", key, err)
+				}
+			}
 		}
 		return newJsonStr, nil
 	}
@@ -775,22 +796,15 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val str
 	pdOrRJobMap := make(map[uint32]string)
 	validJobList := map[uint32]bool{}
 	for _, taskInfo := range reply.TaskInfoList {
-		if extraAttrsType == CommentType {
-			newJsonStr, err := updateJobComment(taskInfo.ExtraAttr, val)
-			if err != nil {
-				return &util.CraneError{
-					Code:    util.ErrorCmdArg,
-					Message: fmt.Sprintf("transform extraAttrs json failed: %w", err),
-				}
-			}
-			pdOrRJobMap[taskInfo.TaskId] = newJsonStr
-			validJobList[taskInfo.TaskId] = true
-		} else {
+		newJsonStr, err := updateJobExtraAttr(taskInfo.ExtraAttr, valueMap)
+		if err != nil {
 			return &util.CraneError{
 				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("unkown extra Attrbute: %v", extraAttrsType),
+				Message: fmt.Sprintf("Failed to set extra attributes JSON: %s", err),
 			}
 		}
+		pdOrRJobMap[taskInfo.TaskId] = newJsonStr
+		validJobList[taskInfo.TaskId] = true
 	}
 
 	notGetInfoJobs := []uint32{}
@@ -801,7 +815,7 @@ func ChangeTaskExtraAttrs(taskStr string, extraAttrsType ExtraAttrsType, val str
 	}
 	if len(notGetInfoJobs) > 0 {
 		notGetInfoJobsString := util.ConvertSliceToString(notGetInfoJobs, ", ")
-		log.Warnf("Job %s is not exist or completed.\n", notGetInfoJobsString)
+		log.Warnf("Job %s is completed or does not exist.\n", notGetInfoJobsString)
 	}
 
 	request := &protos.ModifyTasksExtraAttrsRequest{
