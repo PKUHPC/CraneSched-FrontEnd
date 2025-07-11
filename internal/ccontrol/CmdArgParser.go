@@ -40,7 +40,6 @@ var (
 	FlagQueryAll        bool
 	FlagTimeLimit       string
 	FlagPriority        float64
-	FlagComment         string
 	FlagHoldTime        string
 	FlagConfigFilePath  string = util.DefaultConfigPath
 	FlagJson            bool
@@ -95,7 +94,7 @@ func ParseCmdArgs(args []string) {
 	command, err := ParseCControlCommand(cmdStr)
 
 	if err != nil {
-		log.Error("error: command format is incorrect %v", err)
+		log.Errorf("error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
