@@ -278,33 +278,46 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 
 func executeUpdateJobCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
-
 	var lastErr int = util.ErrorSuccess
+
+	var hasPriority bool
+	var hasTimeLimit bool
+
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "priority":
 			priority, err := strconv.ParseFloat(value, 64)
 			if err != nil {
 				lastErr = util.ErrorCmdArg
+				continue
 			}
 			FlagPriority = priority
-			err = ChangeTaskPriority(FlagTaskIds, FlagPriority)
-			if err != nil {
-				log.Errorf("change task priority failed: %s", err)
-				lastErr = util.ErrorGeneric
-			}
+			hasPriority = true
 		case "timelimit":
 			FlagTimeLimit = value
-			err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
-			if err != nil {
-				log.Errorf("change task time limit failed: %s", err)
-				lastErr = util.ErrorGeneric
-			}
+			hasTimeLimit = true
 		case "jobid", "job":
 			continue
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			lastErr = util.ErrorCmdArg
+		}
+	}
+
+	if lastErr == util.ErrorSuccess {
+		if hasPriority {
+			err := ChangeTaskPriority(FlagTaskIds, FlagPriority)
+			if err != nil {
+				log.Errorf("change task priority failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
+		}
+		if hasTimeLimit {
+			err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
+			if err != nil {
+				log.Errorf("change task time limit failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
 		}
 	}
 
@@ -324,27 +337,39 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		return util.ErrorCmdArg
 	}
 
+	var hasAllowedAccounts bool
+	var hasDeniedAccounts bool
+
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
 			FlagAllowedAccounts = value
-			err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
-			if err != nil {
-				log.Errorf("%s", err)
-				return util.ErrorGeneric
-			}
+			hasAllowedAccounts = true
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
-			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != nil {
-				log.Errorf("%s", err)
-				return util.ErrorGeneric
-			}
-			log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
+			hasDeniedAccounts = true
 		case "partitionname", "partition":
 			continue
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
+		}
+	}
+
+	if hasAllowedAccounts {
+		err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
+		if err != nil {
+			log.Errorf("%s", err)
+			return util.ErrorGeneric
+		}
+	}
+	if hasDeniedAccounts {
+		if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != nil {
+			log.Errorf("%s", err)
+			return util.ErrorGeneric
+		}
+		if hasAllowedAccounts {
+			log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
 		}
 	}
 
