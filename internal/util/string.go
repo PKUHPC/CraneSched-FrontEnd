@@ -234,19 +234,20 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
+var allowedMailTypes = map[string]struct{}{
+	"NONE":      {},
+	"BEGIN":     {},
+	"END":       {},
+	"FAIL":      {},
+	"TIMELIMIT": {},
+	"ALL":       {},
+}
+
 func CheckMailType(mailtype string) bool {
-	allowed := map[string]struct{}{
-		"NONE":      {},
-		"BEGIN":     {},
-		"END":       {},
-		"FAIL":      {},
-		"TIMELIMIT": {},
-		"ALL":       {},
-	}
 	parts := strings.Split(mailtype, ",")
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if _, ok := allowed[part]; !ok {
+		if _, ok := allowedMailTypes[part]; !ok {
 			return false
 		}
 	}
