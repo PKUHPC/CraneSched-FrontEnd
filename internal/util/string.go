@@ -234,13 +234,24 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
+var allowedMailTypes = map[string]struct{}{
+	"NONE":      {},
+	"BEGIN":     {},
+	"END":       {},
+	"FAIL":      {},
+	"TIMELIMIT": {},
+	"ALL":       {},
+}
+
 func CheckMailType(mailtype string) bool {
-	return mailtype == "NONE" ||
-		mailtype == "BEGIN" ||
-		mailtype == "END" ||
-		mailtype == "FAIL" ||
-		mailtype == "TIMELIMIT" ||
-		mailtype == "ALL"
+	parts := strings.Split(mailtype, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if _, ok := allowedMailTypes[part]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // CheckNodeList check if the node list is comma separated node names.
