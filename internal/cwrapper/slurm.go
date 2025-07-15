@@ -101,13 +101,13 @@ func sacct() *cobra.Command {
 		Short:   "Wrapper of cacct command",
 		Long:    "",
 		GroupID: "slurm",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			cacct.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(cacct.RootCmd, args); err != nil {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			cacct.RootCmd.Run(cmd, args)
+			return cacct.RootCmd.RunE(cmd, args)
 		},
 	}
 
@@ -132,12 +132,7 @@ func sacct() *cobra.Command {
 func sacctmgr() *cobra.Command {
 	entity := func(name string) bool {
 		supported := []string{"account", "user", "qos"}
-		for _, s := range supported {
-			if name == s {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(supported, name)
 	}
 
 	option := func(arg string) (string, error) {
@@ -172,7 +167,7 @@ func sacctmgr() *cobra.Command {
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			// As sacctmgr only has flags on RootCmd,
 			// we collect all flags first
 			flags := make([]string, 0)
@@ -180,7 +175,7 @@ func sacctmgr() *cobra.Command {
 			for _, arg := range args {
 				if arg == "--help" || arg == "-h" {
 					fmt.Println("Please refer to the user manual of Slurm.")
-					return
+					return nil
 				} else if strings.HasPrefix(arg, "-") {
 					flags = append(flags, arg)
 				} else {
@@ -354,6 +349,7 @@ func sacctmgr() *cobra.Command {
 
 			allArgs := append([]string{"cacctmgr"}, append(flags, convertedArgs...)...)
 			cacctmgr.ParseCmdArgs(allArgs)
+			return subcmd.Help()
 		},
 	}
 
@@ -367,7 +363,7 @@ func salloc() *cobra.Command {
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			// Add --help from calloc
 			calloc.RootCmd.InitDefaultHelpFlag()
 
@@ -378,8 +374,7 @@ func salloc() *cobra.Command {
 			}
 			args = calloc.RootCmd.Flags().Args()
 			if help, err := calloc.RootCmd.Flags().GetBool("help"); err != nil || help {
-				calloc.RootCmd.Help()
-				return
+				return calloc.RootCmd.Help()
 			}
 
 			calloc.RootCmd.PersistentPreRun(cmd, args)
@@ -388,7 +383,7 @@ func salloc() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			calloc.RootCmd.Run(calloc.RootCmd, args)
+			return calloc.RootCmd.RunE(calloc.RootCmd, args)
 		},
 	}
 
@@ -401,7 +396,7 @@ func scancel() *cobra.Command {
 		Short:   "Wrapper of ccancel command",
 		Long:    "",
 		GroupID: "slurm",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			// scancel uses spaced arguments,
 			// we need to convert it into a comma-separated list.
 			if len(args) > 0 {
@@ -413,7 +408,7 @@ func scancel() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			ccancel.RootCmd.Run(cmd, args)
+			return ccancel.RootCmd.RunE(cmd, args)
 		},
 	}
 
@@ -442,7 +437,7 @@ func sbatch() *cobra.Command {
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			cbatch.RootCmd.InitDefaultHelpFlag()
 
 			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
@@ -451,8 +446,7 @@ func sbatch() *cobra.Command {
 			}
 			args = cbatch.RootCmd.Flags().Args()
 			if help, err := cbatch.RootCmd.Flags().GetBool("help"); err != nil || help {
-				cbatch.RootCmd.Help()
-				return
+				return cbatch.RootCmd.Help()
 			}
 
 			cbatch.RootCmd.PersistentPreRun(cmd, args)
@@ -460,7 +454,7 @@ func sbatch() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			cbatch.RootCmd.Run(cbatch.RootCmd, args)
+			return cbatch.RootCmd.RunE(cbatch.RootCmd, args)
 		},
 	}
 
@@ -474,9 +468,10 @@ func scontrol() *cobra.Command {
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			// Find the sub command
 			firstSubCmd := ""
+			leadingFlags := make([]string, 0)
 			for idx, arg := range args {
 				if !strings.HasPrefix(arg, "-") {
 					// Omit flags before the first subcommand
@@ -484,6 +479,7 @@ func scontrol() *cobra.Command {
 					args = args[idx+1:]
 					break
 				}
+				leadingFlags = append(leadingFlags, arg)
 			}
 
 			// Convert XXX=YYY into xxx YYY
@@ -580,33 +576,10 @@ func scontrol() *cobra.Command {
 				log.Debug("Unknown subcommand: ", firstSubCmd)
 			}
 
-			// Find the matching subcommand
-			subcmd, convertedArgs, err := ccontrol.RootCmd.Traverse(convertedArgs)
-			if err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			// Parse the flags
-			ccontrol.RootCmd.PersistentPreRun(cmd, convertedArgs)
-			subcmd.InitDefaultHelpFlag()
-			if err = subcmd.ParseFlags(convertedArgs); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-			convertedArgs = subcmd.Flags().Args()
-
-			// Validate the arguments and flags
-			if err := Validate(subcmd, convertedArgs); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			if subcmd.Runnable() {
-				subcmd.Run(subcmd, convertedArgs)
-			} else {
-				subcmd.Help()
-			}
+			// use ccontrol to parse the arguments
+			allArgs := append([]string{"ccontrol"}, append(leadingFlags, convertedArgs...)...)
+			ccontrol.ParseCmdArgs(allArgs)
+			return cmd.Help()
 		},
 	}
 
@@ -619,9 +592,9 @@ func sinfo() *cobra.Command {
 		Short:   "Wrapper of cinfo command",
 		Long:    "",
 		GroupID: "slurm",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			cinfo.RootCmd.PersistentPreRun(cmd, args)
-			cinfo.RootCmd.Run(cmd, args)
+			return cinfo.RootCmd.RunE(cmd, args)
 		},
 	}
 
@@ -802,7 +775,7 @@ func srun() *cobra.Command {
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			crun.RootCmd.InitDefaultHelpFlag()
 
 			if err := crun.RootCmd.ParseFlags(args); err != nil {
@@ -811,8 +784,7 @@ func srun() *cobra.Command {
 			}
 			args = crun.RootCmd.Flags().Args()
 			if help, err := crun.RootCmd.Flags().GetBool("help"); err != nil || help {
-				crun.RootCmd.Help()
-				return
+				return crun.RootCmd.Help()
 			}
 
 			crun.RootCmd.PersistentPreRun(cmd, args)
@@ -820,7 +792,8 @@ func srun() *cobra.Command {
 				log.Error(err)
 				os.Exit(util.ErrorCmdArg)
 			}
-			crun.RootCmd.Run(crun.RootCmd, args)
+
+			return crun.RootCmd.RunE(crun.RootCmd, args)
 		},
 	}
 

@@ -190,10 +190,6 @@ func (i *IPMITool) Sleep(nodeID string) error {
 		return fmt.Errorf("no configuration found for node %s", nodeID)
 	}
 
-	if len(info.Interfaces) == 0 {
-		return fmt.Errorf("no interfaces found for node %s, cannot execute sleep command", nodeID)
-	}
-
 	sshCmd := exec.Command("sshpass", "-p", i.sshPass,
 		"ssh",
 		"-o", "StrictHostKeyChecking=no",
@@ -241,11 +237,6 @@ func (i *IPMITool) CheckNodeAlive(nodeID string) bool {
 	i.mu.RUnlock()
 
 	if !ok {
-		return false
-	}
-
-	if len(info.Interfaces) == 0 {
-		log.Warnf("No interfaces found for node %s, cannot ping", nodeID)
 		return false
 	}
 

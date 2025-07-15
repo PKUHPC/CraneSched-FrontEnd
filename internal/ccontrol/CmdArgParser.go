@@ -20,12 +20,11 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
-
 	"os"
-	"regexp"
+	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -42,7 +41,7 @@ var (
 	FlagTimeLimit       string
 	FlagPriority        float64
 	FlagHoldTime        string
-	FlagConfigFilePath  string
+	FlagConfigFilePath  string = util.DefaultConfigPath
 	FlagJson            bool
 	FlagReservationName string
 	FlagStartTime       string
@@ -50,378 +49,454 @@ var (
 	FlagNodes           string
 	FlagAccount         string
 	FlagUser            string
-	FlagHistoryDays     int
-
-	RootCmd = &cobra.Command{
-		Use:     "ccontrol",
-		Short:   "Display and modify the specified entity",
-		Long:    "",
-		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.DetectNetworkProxy()
-			config := util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldByConfig(config)
-			userUid = uint32(os.Getuid())
-		},
-	}
-	showCmd = &cobra.Command{
-		Use:   "show",
-		Short: "Display details of the specified entity",
-		Long:  "",
-	}
-	showNodeCmd = &cobra.Command{
-		Use:   "node [flags] [node_name]",
-		Short: "Display details of the nodes, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				FlagNodeName = ""
-				FlagQueryAll = true
-			} else {
-				FlagNodeName = args[0]
-				FlagQueryAll = false
-			}
-			return ShowNodes(FlagNodeName, FlagQueryAll)
-		},
-	}
-	showPartitionCmd = &cobra.Command{
-		Use:   "partition [flags] [partition_name]",
-		Short: "Display details of the partitions, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				FlagPartitionName = ""
-				FlagQueryAll = true
-			} else {
-				FlagPartitionName = args[0]
-				FlagQueryAll = false
-			}
-			return ShowPartitions(FlagPartitionName, FlagQueryAll)
-		},
-	}
-	showReservationsCmd = &cobra.Command{
-		Use:   "reservation [flags] [reservation_name]",
-		Short: "Display details of the reservations, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				FlagReservationName = ""
-				FlagQueryAll = true
-			} else {
-				FlagReservationName = args[0]
-				FlagQueryAll = false
-			}
-			return ShowReservations(FlagReservationName, FlagQueryAll)
-		},
-	}
-	showJobCmd = &cobra.Command{
-		Use:   "job [flags] [job_id,...]",
-		Short: "Display details of the jobs, default is all",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			jobIds := ""
-			if len(args) == 0 {
-				FlagQueryAll = true
-				jobIds = ""
-			} else {
-				FlagQueryAll = false
-				jobIds = args[0]
-			}
-			return ShowJobs(jobIds, FlagQueryAll)
-		},
-	}
-	showConfigCmd = &cobra.Command{
-		Use:   "config",
-		Short: "Display the configuration file in key-value format",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return ShowConfig(FlagConfigFilePath)
-		},
-	}
-	showEnergyCmd = &cobra.Command{
-		Use:   "energy [flags] [node_name[,node_name...]]",
-		Short: "Display energy consumption and power management details of nodes",
-		Long:  "Display energy consumption and power management details of nodes. Supports querying multiple nodes by separating node names with commas.",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return nil
-			}
-			err := cobra.MaximumNArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-			_, ok := util.ParseHostList(args[0])
-			if !ok {
-				return &util.CraneError{
-					Code:    util.ErrorCmdArg,
-					Message: "invalid node name list format. Examples: 'node1', 'node1,node2', 'node[1-5]', 'node[1,3,5]'",
-				}
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				FlagNodeName = ""
-				FlagQueryAll = true
-			} else {
-				FlagNodeName = args[0]
-				FlagQueryAll = false
-			}
-			return ShowEnergy(FlagNodeName, FlagQueryAll, FlagHistoryDays)
-		},
-	}
-	updateCmd = &cobra.Command{
-		Use:     "update",
-		Aliases: []string{"modify"},
-		Short:   "Modify attributes of the specified entity",
-		Long:    "",
-	}
-	updateJobCmd = &cobra.Command{
-		Use:   "job [flags]",
-		Short: "Modify job attributes",
-		Long:  "",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cmd.Flags().Changed("time-limit") && !cmd.Flags().Changed("priority") {
-				return &util.CraneError{
-					Code:    util.ErrorCmdArg,
-					Message: "No attribute to modify",
-				}
-			}
-
-			if len(FlagTimeLimit) != 0 {
-				return ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
-			}
-			if cmd.Flags().Changed("priority") {
-				return ChangeTaskPriority(FlagTaskIds, FlagPriority)
-			}
-			return nil
-		},
-	}
-	updateNodeCmd = &cobra.Command{
-		Use:   "node [flags]",
-		Short: "Modify node attributes",
-		Long:  "",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cmd.Flags().Changed("state") && !cmd.Flags().Changed("power-enable") {
-				return &util.CraneError{
-					Code:    util.ErrorCmdArg,
-					Message: "No attribute to modify. Please specify --state or --power-enable",
-				}
-			}
-
-			if cmd.Flags().Changed("state") {
-				if err := ChangeNodeState(FlagNodeName, FlagState, FlagReason); err != nil {
-					return err
-				}
-			}
-
-			if cmd.Flags().Changed("power-enable") {
-				if err := EnableAutoPowerControl(FlagNodeName, FlagPowerEnable); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		},
-	}
-	updatePartitionCmd = &cobra.Command{
-		Use:   "partition [flags] partition_name",
-		Short: "Modify partition partition attributes",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("allowed-accounts") {
-				return ModifyPartitionAcl(args[0], true, FlagAllowedAccounts)
-			} else if cmd.Flags().Changed("denied-accounts") {
-				if err := ModifyPartitionAcl(args[0], false, FlagDeniedAccounts); err != nil {
-					return err
-				}
-				log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
-			}
-			return nil
-		},
-	}
-	holdCmd = &cobra.Command{
-		Use:   "hold [flags] job_id[,job_id...]",
-		Short: "prevent specified job from starting. ",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-			matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
-			if !matched {
-				log.Error("job id list must follow the format " +
-					"<job_id> or '<job_id>,<job_id>,<job_id>...'")
-				os.Exit(util.ErrorCmdArg)
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return HoldReleaseJobs(args[0], true)
-		},
-	}
-	releaseCmd = &cobra.Command{
-		Use:   "release [flags] job_id[,job_id...]",
-		Short: "permit specified job to start. ",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				return err
-			}
-			matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
-			if !matched {
-				log.Error("job id list must follow the format " +
-					"<job_id> or '<job_id>,<job_id>,<job_id>...'")
-				os.Exit(util.ErrorCmdArg)
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return HoldReleaseJobs(args[0], false)
-		},
-	}
-	createCmd = &cobra.Command{
-		Use:   "create",
-		Short: "Create a new entity",
-		Long:  "",
-	}
-	createReservationCmd = &cobra.Command{
-		Use:   "reservation [flags]",
-		Short: "Create a new reservation",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return CreateReservation()
-		},
-	}
-	deleteCmd = &cobra.Command{
-		Use:   "delete",
-		Short: "Delete the specified entity",
-		Long:  "",
-	}
-	deleteReservationCmd = &cobra.Command{
-		Use:   "reservation reservation_name",
-		Short: "Delete the specified reservation",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return DeleteReservation(args[0])
-		},
-	}
 )
 
-// ParseCmdArgs executes the root command.
-func ParseCmdArgs() {
-	util.RunEWrapperForLeafCommand(RootCmd)
-	util.RunAndHandleExit(RootCmd)
+func ParseCmdArgs(args []string) {
+	commandArgs := preParseGlobalFlags(args[1:])
+
+	if len(commandArgs) == 0 {
+		showHelp()
+		os.Exit(0)
+	}
+
+	var processedArgs []string
+	for _, arg := range commandArgs {
+		if arg == "" {
+			processedArgs = append(processedArgs, "\"\"")
+			continue
+		}
+
+		if strings.Contains(arg, "=") {
+			parts := strings.SplitN(arg, "=", 2)
+			key := parts[0]
+			value := parts[1]
+
+			if value == "" {
+				processedArgs = append(processedArgs, key+"=\"\"")
+				continue
+			}
+
+			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
+				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
+				processedArgs = append(processedArgs, arg)
+			} else if strings.Contains(value, " ") {
+				processedArgs = append(processedArgs, key+"="+strconv.Quote(value))
+			} else {
+				processedArgs = append(processedArgs, arg)
+			}
+		} else if strings.Contains(arg, " ") && !strings.HasPrefix(arg, "'") && !strings.HasPrefix(arg, "\"") {
+			processedArgs = append(processedArgs, strconv.Quote(arg))
+		} else {
+			processedArgs = append(processedArgs, arg)
+		}
+	}
+	cmdStr := strings.Join(processedArgs, " ")
+	command, err := ParseCControlCommand(cmdStr)
+
+	if err != nil {
+		log.Error("error: command format is incorrect")
+		os.Exit(util.ErrorCmdArg)
+	}
+
+	result := executeCommand(command)
+	if result != util.ErrorSuccess {
+		log.Errorf("command execution failed")
+	}
+	os.Exit(result)
 }
 
-func init() {
-	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
-		"Path to configuration file")
-	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+func executeCommand(command *CControlCommand) int {
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub = util.GetStubToCtldByConfig(config)
+	userUid = uint32(os.Getuid())
 
-	RootCmd.AddCommand(showCmd)
-	{
-		showCmd.AddCommand(showNodeCmd)
-		showCmd.AddCommand(showPartitionCmd)
-		showCmd.AddCommand(showJobCmd)
-		showCmd.AddCommand(showConfigCmd)
-		showCmd.AddCommand(showReservationsCmd)
-		showCmd.AddCommand(showEnergyCmd)
-		{
-			showEnergyCmd.Flags().IntVarP(&FlagHistoryDays, "history-days", "d", 30, "Specify the number of days to query node power state history data (default 30 days)")
+	action := command.GetAction()
+
+	switch action {
+	case "show":
+		return executeShowCommand(command)
+	case "update":
+		return executeUpdateCommand(command)
+	case "hold":
+		return executeHoldCommand(command)
+	case "release":
+		return executeReleaseCommand(command)
+	case "create":
+		return executeCreateCommand(command)
+	case "delete":
+		return executeDeleteCommand(command)
+	default:
+		log.Debugf("unknown operation type: %s", action)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeShowCommand(command *CControlCommand) int {
+	entity := command.GetEntity()
+
+	switch entity {
+	case "node":
+		return executeShowNodeCommand(command)
+	case "partition":
+		return executeShowPartitionCommand(command)
+	case "job":
+		return executeShowJobCommand(command)
+	case "reservation":
+		return executeShowReservationCommand(command)
+	default:
+		log.Debugf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+
+	}
+}
+
+func executeShowNodeCommand(command *CControlCommand) int {
+	name := command.GetID()
+	if len(name) == 0 {
+		FlagQueryAll = true
+		name = ""
+	}
+
+	err := ShowNodes(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show nodes failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeShowPartitionCommand(command *CControlCommand) int {
+	name := command.GetID()
+	if len(name) == 0 {
+		FlagQueryAll = true
+
+	}
+
+	err := ShowPartitions(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show partitions failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeShowJobCommand(command *CControlCommand) int {
+	name := command.GetID()
+
+	if len(name) == 0 {
+		FlagQueryAll = true
+
+	}
+
+	err := ShowJobs(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeShowReservationCommand(command *CControlCommand) int {
+	name := command.GetID()
+	if len(name) == 0 {
+		FlagQueryAll = true
+		name = ""
+	}
+
+	err := ShowReservations(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show reservations failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeUpdateCommand(command *CControlCommand) int {
+	kvParams := command.GetKVMaps()
+
+	for key := range kvParams {
+		lowerKey := strings.ToLower(key)
+		if lowerKey == "node" || lowerKey == "nodename" {
+			FlagNodeName = kvParams[key]
+			return executeUpdateNodeCommand(command)
 		}
 	}
 
-	RootCmd.AddCommand(updateCmd)
-	{
-		updateCmd.AddCommand(updateNodeCmd)
-		{
-			updateNodeCmd.Flags().StringVarP(&FlagNodeName, "name", "n", "", "Specify names of the node to be modified (comma seperated list)")
-			updateNodeCmd.Flags().StringVarP(&FlagState, "state", "t", "", "Set the node state")
-			updateNodeCmd.Flags().StringVarP(&FlagReason, "reason", "r", "", "Set the reason of this state change")
-			updateNodeCmd.Flags().StringVarP(&FlagPowerEnable, "power-enable", "p", "", "Enable/disable auto power control for node (true/false, yes/no, 1/0, on/off, enable/disable)")
-		}
-
-		updateCmd.AddCommand(updateJobCmd)
-		{
-			updateJobCmd.Flags().StringVarP(&FlagTaskIds, "job", "J", "", "Specify job ids of the job to be modified (comma seperated list)")
-			updateJobCmd.Flags().StringVarP(&FlagTimeLimit, "time-limit", "T", "", "Set time limit of the job")
-			updateJobCmd.Flags().Float64VarP(&FlagPriority, "priority", "P", 0, "Set the priority of the job")
-
-			err := updateJobCmd.MarkFlagRequired("job")
-			if err != nil {
-				return
-			}
-		}
-
-		updateCmd.AddCommand(updatePartitionCmd)
-		{
-			updatePartitionCmd.Flags().StringVarP(&FlagAllowedAccounts, "allowed-accounts", "A", "", "Set the allow account list for the partition")
-			updatePartitionCmd.Flags().StringVarP(&FlagDeniedAccounts, "denied-accounts", "D", "", "Set the denied account list for the partition")
-
-			updatePartitionCmd.MarkFlagsMutuallyExclusive("allowed-accounts", "denied-accounts")
-			updatePartitionCmd.MarkFlagsOneRequired("allowed-accounts", "denied-accounts")
+	for key := range kvParams {
+		lowerKey := strings.ToLower(key)
+		if lowerKey == "job" || lowerKey == "jobid" {
+			FlagTaskIds = kvParams[key]
+			return executeUpdateJobCommand(command)
 		}
 	}
 
-	RootCmd.AddCommand(holdCmd)
-	{
-		holdCmd.Flags().StringVarP(&FlagHoldTime, "time", "t", "", "Specify the duration the job will be prevented from starting")
-	}
-
-	RootCmd.AddCommand(releaseCmd)
-
-	RootCmd.AddCommand(createCmd)
-	{
-		createCmd.AddCommand(createReservationCmd)
-		{
-			createReservationCmd.Flags().StringVarP(&FlagReservationName, "name", "n", "", "Specify the name of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagStartTime, "start-time", "s", "", "Specify the start time of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagDuration, "duration", "d", "", "Specify the duration of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagPartitionName, "partition", "p", "", "Specify the partition of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagNodes, "nodes", "N", "", "Specify the nodes of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagAccount, "account", "a", "", "Specify the account of the reservation")
-			createReservationCmd.Flags().StringVarP(&FlagUser, "user", "u", "", "Specify the user of the reservation")
-
-			err := createReservationCmd.MarkFlagRequired("name")
-			if err != nil {
-				return
-			}
-			err = createReservationCmd.MarkFlagRequired("start-time")
-			if err != nil {
-				return
-			}
-			err = createReservationCmd.MarkFlagRequired("duration")
-			if err != nil {
-				return
-			}
-			err = createReservationCmd.MarkFlagRequired("account")
-			if err != nil {
-				return
-			}
+	for key := range kvParams {
+		lowerKey := strings.ToLower(key)
+		if lowerKey == "partition" || lowerKey == "partitionname" {
+			FlagPartitionName = kvParams[key]
+			return executeUpdatePartitionCommand(command)
 		}
 	}
 
-	RootCmd.AddCommand(deleteCmd)
-	{
-		deleteCmd.AddCommand(deleteReservationCmd)
+	log.Debugf("unknown attribute to modify")
+	return util.ErrorCmdArg
+}
+
+func executeUpdateNodeCommand(command *CControlCommand) int {
+	kvParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(kvParams, []string{"state", "reason"})
+	if err != util.ErrorSuccess {
+		return err
 	}
+
+	if FlagNodeName == "" {
+		log.Debug("node name not specified")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range kvParams {
+		switch strings.ToLower(key) {
+		case "state":
+			FlagState = value
+		case "reason":
+			FlagReason = value
+		case "nodename", "node":
+			continue
+		default:
+			log.Errorf("unknown attribute to modify: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+	error := ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+	if error != nil {
+		log.Errorf("change node state failed: %s", error)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeUpdateJobCommand(command *CControlCommand) int {
+	kvParams := command.GetKVMaps()
+
+	var lastErr int = util.ErrorSuccess
+	for key, value := range kvParams {
+		switch strings.ToLower(key) {
+		case "priority":
+			priority, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				lastErr = util.ErrorCmdArg
+			}
+			FlagPriority = priority
+			err = ChangeTaskPriority(FlagTaskIds, FlagPriority)
+			if err != nil {
+				log.Errorf("change task priority failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
+		case "timelimit":
+			FlagTimeLimit = value
+			err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
+			if err != nil {
+				log.Errorf("change task time limit failed: %s", err)
+				lastErr = util.ErrorGeneric
+			}
+		case "jobid", "job":
+			continue
+		default:
+			log.Errorf("unknown attribute to modify: %s", key)
+			lastErr = util.ErrorCmdArg
+		}
+	}
+
+	return lastErr
+}
+
+func executeUpdatePartitionCommand(command *CControlCommand) int {
+	kvParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(kvParams, nil)
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	if FlagPartitionName == "" {
+		log.Debug("partition name not specified")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range kvParams {
+		switch strings.ToLower(key) {
+		case "accounts", "allowedaccounts":
+			FlagAllowedAccounts = value
+			err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
+			if err != nil {
+				log.Errorf("%s", err)
+				return util.ErrorGeneric
+			}
+		case "deniedaccounts":
+			FlagDeniedAccounts = value
+			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != nil {
+				log.Errorf("%s", err)
+				return util.ErrorGeneric
+			}
+			log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
+		case "partitionname", "partition":
+			continue
+		default:
+			log.Errorf("unknown attribute to modify: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return util.ErrorSuccess
+}
+
+func executeHoldCommand(command *CControlCommand) int {
+	jobIds := command.GetID()
+
+	timeLimit := command.GetKVParamValue("timelimit")
+	if len(timeLimit) == 0 {
+		log.Debug("no time limit specified")
+	}
+
+	if jobIds == "" {
+		log.Debug("no job id specified")
+		return util.ErrorCmdArg
+	}
+
+	FlagHoldTime = timeLimit
+
+	err := HoldReleaseJobs(jobIds, true)
+	if err != nil {
+		log.Errorf("hold jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeReleaseCommand(command *CControlCommand) int {
+	jobIds := command.GetID()
+	if jobIds == "" {
+		log.Debug("no job id specified")
+		return util.ErrorCmdArg
+	}
+
+	err := HoldReleaseJobs(jobIds, false)
+	if err != nil {
+		log.Errorf("release jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeCreateCommand(command *CControlCommand) int {
+	entity := command.GetEntity()
+
+	switch entity {
+	case "reservation":
+		return executeCreateReservationCommand(command)
+	default:
+		log.Debugf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeCreateReservationCommand(command *CControlCommand) int {
+	FlagReservationName = command.GetID()
+	if len(FlagReservationName) == 0 {
+		log.Debug("no reservation name specified")
+		return util.ErrorCmdArg
+	}
+
+	kvParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(kvParams, []string{"starttime", "duration", "account"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range kvParams {
+		switch strings.ToLower(key) {
+		case "starttime":
+			FlagStartTime = value
+		case "partition":
+			FlagPartitionName = value
+		case "duration":
+			FlagDuration = value
+		case "nodes":
+			FlagNodes = value
+		case "account":
+			FlagAccount = value
+		case "user":
+			FlagUser = value
+		default:
+			log.Errorf("unknown attribute to modify: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	error := CreateReservation()
+	if error != nil {
+		log.Errorf("%s", error)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeDeleteCommand(command *CControlCommand) int {
+	entity := command.GetEntity()
+
+	switch entity {
+	case "reservation":
+		return executeDeleteReservationCommand(command)
+	default:
+		log.Debugf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeDeleteReservationCommand(command *CControlCommand) int {
+	name := command.GetID()
+
+	if len(name) == 0 {
+		log.Debug("no reservation name specified")
+		return util.ErrorCmdArg
+	}
+
+	err := DeleteReservation(name)
+	if err != nil {
+		log.Errorf("%s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
+	if len(kvParams) == 0 {
+		log.Debug("no attributes to modify")
+		return util.ErrorCmdArg
+	}
+
+	if len(requiredFields) > 0 {
+		missingFields := []string{}
+		for _, field := range requiredFields {
+			found := false
+			for key := range kvParams {
+				if strings.ToLower(key) == field {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missingFields = append(missingFields, field)
+			}
+		}
+
+		if len(missingFields) > 0 {
+			log.Errorf("missing required fields: %s", strings.Join(missingFields, ", "))
+			return util.ErrorCmdArg
+		}
+	}
+
+	return util.ErrorSuccess
 }

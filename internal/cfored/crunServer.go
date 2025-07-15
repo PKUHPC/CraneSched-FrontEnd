@@ -406,8 +406,7 @@ CforedCrunStateMachineLoop:
 								},
 							},
 						}
-						log.Tracef("[Cfored<->Crun] forwarding msg [%d] to crun for taskid %d",
-							len(taskMsg.GetPayloadTaskOutputReq().GetMsg()), taskId)
+						log.Tracef("[Cfored<->Crun] fowarding msg %s to crun for taskid %d", taskMsg.GetPayloadTaskOutputReq().GetMsg(), taskId)
 						if err := toCrunStream.Send(reply); err != nil {
 							log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
 								"The connection to crun was broken.", err.Error())

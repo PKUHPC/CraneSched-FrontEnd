@@ -26,10 +26,11 @@ import (
 )
 
 type Config struct {
-	ClusterName         string `yaml:"ClusterName"`
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
-	CranedNodeList      []ConfigNodesList `yaml:"Nodes"`
+	ClusterName                    string            `yaml:"ClusterName"`
+	ControlMachine                 string            `yaml:"ControlMachine"`
+	CraneCtldListenPort            string            `yaml:"CraneCtldListenPort"`
+	CraneCtldForInternalListenPort string            `yaml:"CraneCtldForInternalListenPort"`
+	CranedNodeList                 []ConfigNodesList `yaml:"Nodes"`
 
 	UseTls             bool   `yaml:"UseTls"`
 	ServerCertFilePath string `yaml:"ServerCertFilePath"`
@@ -60,9 +61,9 @@ type InfluxDbConfig struct {
 }
 
 type ConfigNodesList struct {
-    Name   string `yaml:"name"`
-    CPU    int    `yaml:"cpu"`
-    Memory string `yaml:"memory"`
+	Name   string `yaml:"name"`
+	CPU    int    `yaml:"cpu"`
+	Memory string `yaml:"memory"`
 }
 
 // Path = BaseDir + Dir + Name
@@ -85,6 +86,12 @@ const (
 	MaxJobTimeStamp = 253402300799 // 9999-12-31 23:59:59
 
 	MaxEntityNameLength = 30
+)
+
+// Param Options
+const (
+	OpenModeAppend   = "append"
+	OpenModeTruncate = "truncate"
 )
 
 func SplitEnvironEntry(env *string) (string, string, bool) {
