@@ -76,6 +76,8 @@ type StateMachineOfCrun struct {
 	task   *protos.TaskToCtld
 	taskId uint32 // This field will be set after ReqTaskId state
 
+	inputFlag string // Crun --input flag, used to determine how to read input from stdin
+
 	state StateOfCrun
 	err   util.CraneCmdError // Hold the final error of the state machine if any
 
@@ -136,7 +138,7 @@ func (m *StateMachineOfCrun) Init(task *protos.TaskToCtld) {
 	m.err = util.ErrorSuccess
 
 	m.sigs = make(chan os.Signal, 1)
-	signal.Notify(m.sigs, syscall.SIGINT)
+	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
 }
 
 func (m *StateMachineOfCrun) Close() {
@@ -591,7 +593,7 @@ CrunStateMachineLoop:
 
 func (m *StateMachineOfCrun) forwardingSigintHandlerRoutine() {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTTOU)
 
 	lastSigint := time.Now().Add(-2 * time.Second)
 loop:
@@ -623,6 +625,8 @@ loop:
 
 func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	file := os.NewFile(os.Stdout.Fd(), "stdout")
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTTOU, syscall.SIGCONT)
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
@@ -631,10 +635,45 @@ func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	}(file)
 
 	writer := bufio.NewWriter(file)
-
+	waitSITCONT := false
 writing:
 	for {
+		if waitSITCONT {
+			select {
+			case sig := <-sigChan:
+				log.Tracef("Received signal %s.", sig.String())
+				if sig == syscall.SIGCONT {
+					log.Tracef("Start writing Stdout.")
+				}
+			case <-m.chanOutputFromRemote:
+				//do nothing
+				//_, err := writer.WriteString(msg)
+				//
+				//if err != nil {
+				//	fmt.Printf("Failed to write to fd: %v\n", err)
+				//	break writing
+				//}
+				//err = writer.Flush()
+				//if err != nil {
+				//	fmt.Printf("Failed to flush to fd: %v\n", err)
+				//	break writing
+				//}
+
+			case <-m.taskFinishCtx.Done():
+				break writing
+
+			}
+		}
+
 		select {
+		case sig := <-sigChan:
+			log.Tracef("Received signal %s.", sig.String())
+			if sig == syscall.SIGTTOU {
+				log.Tracef("Stop writing Stdout.")
+				waitSITCONT = true
+			} else {
+				log.Tracef("Unhandled signal %s", sig.String())
+			}
 		case msg := <-m.chanOutputFromRemote:
 			_, err := writer.Write(msg)
 
@@ -654,6 +693,7 @@ writing:
 	}
 }
 
+// StdinReaderRoutine reads from stdin and sends input to the channel, exits on SIGTTIN.
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	file := os.NewFile(os.Stdin.Fd(), "stdin")
 	defer func(file *os.File) {
@@ -664,10 +704,34 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	}(file)
 
 	reader := bufio.NewReader(file)
-
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTTIN, syscall.SIGCONT)
+	waitSIGCONT := false
 reading:
 	for {
+		if waitSIGCONT {
+			select {
+			case sig := <-sigChan:
+				{
+					log.Tracef("Received signal %s.", sig.String())
+					if sig == syscall.SIGCONT {
+						waitSIGCONT = false
+						log.Tracef("Continue reading Stdin.")
+					}
+				}
+			case <-m.taskFinishCtx.Done():
+				break reading
+			}
+
+		}
 		select {
+		case sig := <-sigChan:
+			log.Tracef("Received signal %s.", sig.String())
+			if sig == syscall.SIGTTIN {
+				log.Tracef("Stop reading Stdin.")
+				waitSIGCONT = true
+			}
+			break reading // Exit on SIGTTIN
 		case <-m.taskFinishCtx.Done():
 			break reading
 
@@ -694,6 +758,102 @@ reading:
 				m.chanInputFromTerm <- data
 			}
 
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (*os.File, error) {
+	if pattern == "" {
+		return pattern
+	}
+
+	var result strings.Builder
+	result.Grow(len(pattern) * 2) // 预分配空间
+
+	i := 0
+	for i < len(pattern) {
+		if pattern[i] == '\\' && i+1 < len(pattern) {
+			// 处理 \\ - 不处理任何替换符号
+			result.WriteByte(pattern[i+1])
+			i += 2
+		} else if pattern[i] == '%' && i+1 < len(pattern) {
+			// 处理 % 开头的格式说明符
+			switch pattern[i+1] {
+			case '%':
+				// %% - 字符 "%"
+				result.WriteByte('%')
+			case 'A':
+				// %A - Job array's master job allocation number
+				result.WriteString(JobArrayMasterID)
+			case 'a':
+				// %a - Job array ID (index) number
+				result.WriteString(JobArrayIndex)
+			case 'J':
+				// %J - jobid.stepid of the running job
+				result.WriteString(JobID + "." + StepID)
+			case 'j':
+				// %j - jobid of the running job
+				result.WriteString(JobID)
+			case 's':
+				// %s - stepid of the running job
+				result.WriteString(StepID)
+			case 'N':
+				// %N - short hostname
+				result.WriteString(ShortHostname)
+			case 'n':
+				// %n - Node identifier relative to current job
+				result.WriteString(NodeID)
+			case 't':
+				// %t - task identifier (rank) relative to current job
+				result.WriteString(TaskID)
+			case 'u':
+				// %u - User name
+				result.WriteString(Username)
+			case 'x':
+				// %x - Job name
+				result.WriteString(JobName)
+			default:
+				// 未知的格式说明符，保持原样
+				result.WriteByte('%')
+				result.WriteByte(pattern[i+1])
+			}
+			i += 2
+		} else {
+			// 普通字符
+			result.WriteByte(pattern[i])
+			i++
+		}
+	}
+
+	return result.String()
+
+}
+func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
+	strings.ReplaceAll()
+	reader := bufio.NewReader(file)
+
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("Failed to close stdin file: %s.", err)
+		}
+	}(file)
+reading:
+	for {
+		select {
+		case <-m.taskFinishCtx.Done():
+			break reading
+
+		default:
+			data, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break reading
+				}
+				log.Errorf("Failed to read from fd: %v", err)
+				break reading
+			}
+			m.chanInputFromTerm <- data
 		}
 	}
 }
@@ -775,6 +935,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 
 	go m.forwardingSigintHandlerRoutine()
 	go m.StdinReaderRoutine()
+	go m.FileReaderRoutine(os.NewFile(os.Stdin.Fd(), "stdin"))
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()
@@ -983,6 +1144,7 @@ func MainCrun(args []string) error {
 	iaMeta.InteractiveType = protos.InteractiveTaskType_Crun
 
 	m := new(StateMachineOfCrun)
+	m.inputFlag = FlagInput
 
 	m.Init(task)
 	m.Run()
