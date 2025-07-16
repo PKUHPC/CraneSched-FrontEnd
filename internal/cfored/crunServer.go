@@ -324,7 +324,7 @@ CforedCrunStateMachineLoop:
 				forwardEstablished.Store(true)
 
 				if err := toCrunStream.Send(reply); err != nil {
-					log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
+					log.Debugf("[Cfored<->Crun] Failed to send TASK_IO_FORWARD_READY to crun: %s. "+
 						"The connection to crun was broken.", err.Error())
 					state = CancelTaskOfDeadCrun
 				} else {
@@ -408,7 +408,7 @@ CforedCrunStateMachineLoop:
 						}
 						log.Tracef("[Cfored<->Crun] fowarding msg %s to crun for taskid %d", taskMsg.GetPayloadTaskOutputReq().GetMsg(), taskId)
 						if err := toCrunStream.Send(reply); err != nil {
-							log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
+							log.Debugf("[Cfored<->Crun] Failed to send TASK_IO_FORWARD to crun: %s. "+
 								"The connection to crun was broken.", err.Error())
 							state = CancelTaskOfDeadCrun
 							break forwarding
@@ -424,7 +424,7 @@ CforedCrunStateMachineLoop:
 						}
 						log.Tracef("[Cfored<->Crun] forwarding x11 to crun for taskid %d", taskId)
 						if err := toCrunStream.Send(reply); err != nil {
-							log.Debugf("[Cfored<->Crun] Failed to send CancelRequest to crun: %s. "+
+							log.Debugf("[Cfored<->Crun] Failed to send TASK_X11_FORWARD to crun: %s. "+
 								"The connection to crun was broken.", err.Error())
 							state = CancelTaskOfDeadCrun
 							break forwarding
