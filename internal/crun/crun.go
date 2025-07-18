@@ -654,6 +654,85 @@ writing:
 	}
 }
 
+func (m *StateMachineOfCrun) FileReaderRoutine(file *os.File) {
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Errorf("Failed to close stdin file: %s.", err)
+		}
+	}()
+
+	fd := int(file.Fd())
+	epfd, err := unix.EpollCreate1(0)
+	if err != nil {
+		log.Errorf("Failed to create epoll: %v", err)
+		return
+	}
+	defer func(fd int) {
+		closeErr := unix.Close(fd)
+		if closeErr != nil {
+			log.Errorf("Failed to close epfd: %v", closeErr)
+		}
+	}(epfd)
+
+	event := &unix.EpollEvent{
+		Events: unix.EPOLLIN,
+		Fd:     int32(fd),
+	}
+	if err := unix.EpollCtl(epfd, unix.EPOLL_CTL_ADD, fd, event); err != nil {
+		log.Errorf("Failed to add fd to epoll: %v", err)
+		return
+	}
+
+	reader := bufio.NewReader(file)
+	events := make([]unix.EpollEvent, 1)
+
+reading:
+	for {
+		select {
+		case <-m.taskFinishCtx.Done():
+			break reading
+		default:
+		}
+
+		n, err := unix.EpollWait(epfd, events, 500) // 500 ms timeout
+		if err != nil {
+			if err == unix.EINTR {
+				continue
+			}
+			log.Errorf("EpollWait error: %v", err)
+			break reading
+		}
+		if n == 0 {
+			// timeout, no events
+			continue
+		}
+
+		if events[0].Events&unix.EPOLLIN != 0 {
+			if FlagPty {
+				b, err := reader.ReadByte()
+				if err != nil {
+					if err == io.EOF {
+						break reading
+					}
+					log.Errorf("Failed to read byte from stdin: %v", err)
+					break reading
+				}
+				m.chanInputFromTerm <- string(b)
+			} else {
+				line, err := reader.ReadString('\n')
+				if err != nil {
+					if err == io.EOF {
+						break reading
+					}
+					log.Errorf("Failed to read line from stdin: %v", err)
+					break reading
+				}
+				m.chanInputFromTerm <- line
+			}
+		}
+	}
+}
+
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	file := os.NewFile(os.Stdin.Fd(), "stdin")
 	defer func(file *os.File) {
@@ -774,7 +853,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigintHandlerRoutine()
-	go m.StdinReaderRoutine()
+	go m.FileReaderRoutine(os.NewFile(os.Stdin.Fd(), "stdin"))
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()

@@ -22,11 +22,14 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"fmt"
+	log "github.com/sirupsen/logrus"
+
+	"gopkg.in/natefinch/lumberjack.v2"
+	"io"
 	"os"
 	"sync"
 	"sync/atomic"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type GlobalVariables struct {
@@ -67,9 +70,29 @@ type GlobalVariables struct {
 var gVars GlobalVariables
 
 func StartCfored() {
-	util.InitLogger(FlagDebugLevel)
-
 	config := util.ParseConfig(FlagConfigFilePath)
+	debugLevel := "info"
+	if config.CforedDebugLevel != nil {
+		debugLevel = *config.CforedDebugLevel
+	}
+	if FlagDebugLevel != "" {
+		debugLevel = FlagDebugLevel
+	}
+
+	util.InitLogger(debugLevel)
+
+	if err := os.MkdirAll(config.CforedLogDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create log directory: %s\n", err.Error())
+		os.Exit(1)
+	}
+
+	logFile := lumberjack.Logger{
+		Filename:   config.CforedLogDir + "/cfored.log",
+		MaxSize:    500, // megabytes
+		MaxBackups: 3,
+	}
+
+	log.SetOutput(io.MultiWriter(os.Stderr, &logFile))
 
 	util.DetectNetworkProxy()
 
