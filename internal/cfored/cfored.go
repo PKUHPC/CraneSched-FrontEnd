@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"path/filepath"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
@@ -87,7 +88,7 @@ func StartCfored() {
 	}
 
 	logFile := lumberjack.Logger{
-		Filename:   config.CforedLogDir + "/cfored.log",
+		Filename:   filepath.Join(config.CforedLogDir, "cfored.log"),
 		MaxSize:    500, // megabytes
 		MaxBackups: 3,
 	}
