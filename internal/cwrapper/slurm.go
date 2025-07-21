@@ -349,7 +349,7 @@ func sacctmgr() *cobra.Command {
 
 			allArgs := append([]string{"cacctmgr"}, append(flags, convertedArgs...)...)
 			cacctmgr.ParseCmdArgs(allArgs)
-			return subcmd.Help()
+			return cmd.Help()
 		},
 	}
 

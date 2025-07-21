@@ -35,7 +35,7 @@ type CAcctMgrCommand struct {
 type AddCommand struct {
 	Action      string           `parser:"@'add'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID          string           `parser:"( @String | @Ident | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -43,7 +43,7 @@ type AddCommand struct {
 type DeleteCommand struct {
 	Action      string           `parser:"@'delete'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID          string           `parser:"( @String | @Ident | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -51,7 +51,7 @@ type DeleteCommand struct {
 type BlockCommand struct {
 	Action      string           `parser:"@'block'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID          string           `parser:"( @String | @Ident | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -59,7 +59,7 @@ type BlockCommand struct {
 type UnblockCommand struct {
 	Action      string           `parser:"@'unblock'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @TimeFormat | @Number )?"`
+	ID          string           `parser:"( @String | @Ident | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -87,12 +87,12 @@ type EntityType struct {
 
 type Flag struct {
 	Name  string `parser:"'-' '-'? @Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
+	Value string `parser:"( '=' (@String | @Ident | @Number) | (@String | @Ident | @Number) )?"`
 }
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @TimeFormat | @Number) | (@String | @Ident | @TimeFormat | @Number) )?"`
+	Value string `parser:"( '=' (@String | @Ident | @Number) | (@String | @Ident | @Number) )?"`
 }
 
 type WhereClause struct {
@@ -103,7 +103,7 @@ type WhereClause struct {
 type SetParam struct {
 	Key   string `parser:"@Ident"`
 	Op    string `parser:"@('=' | '+=' | '-=')"`
-	Value string `parser:"@(String | Ident | TimeFormat | Number)"`
+	Value string `parser:"@(String | Ident | Number)"`
 }
 
 type SetClause struct {
@@ -113,11 +113,10 @@ type SetClause struct {
 
 var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
-	{Name: "String", Pattern: `"[^"]*"|'[^']*'`},
-	{Name: "TimeFormat", Pattern: `\d+:\d+:\d+|\d+-\d+:\d+:\d+`},
+	{Name: "String", Pattern: `[-+]?("[^"]*"|'[^']*'|""|'')`},
+	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\@\-\.,:\[\]T]*`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
-	{Name: "Ident", Pattern: `[a-zA-Z][a-zA-Z0-9_\-\.]*`},
-	{Name: "Punct", Pattern: `[-=:,]`},
+	{Name: "Punct", Pattern: `[-=,:]`},
 })
 
 var CAcctMgrParser = participle.MustBuild[CAcctMgrCommand](
@@ -297,66 +296,46 @@ func (c *CAcctMgrCommand) GetSetParams() (map[string]string, map[string]string, 
 	return setMap, addMap, deleteMap
 }
 
-func (c *CAcctMgrCommand) GetGlobalFlag(name string) (string, bool) {
-	var flags []*Flag
+func preParseGlobalFlags(args []string) []string {
+	remainingArgs := []string{}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		var flagName, flagValue string
+		var hasValueInSameArg bool
 
-	switch cmd := c.Command.(type) {
-	case AddCommand:
-		flags = cmd.GlobalFlags
-	case DeleteCommand:
-		flags = cmd.GlobalFlags
-	case BlockCommand:
-		flags = cmd.GlobalFlags
-	case UnblockCommand:
-		flags = cmd.GlobalFlags
-	case ModifyCommand:
-		flags = cmd.GlobalFlags
-	case ShowCommand:
-		flags = cmd.GlobalFlags
-	default:
-		return "", false
-	}
+		if strings.HasPrefix(arg, "-") {
+			if strings.Contains(arg, "=") {
+				parts := strings.SplitN(arg, "=", 2)
+				flagName = parts[0]
+				flagValue = parts[1]
+				hasValueInSameArg = true
+			} else {
+				flagName = arg
+			}
+		} else {
+			remainingArgs = append(remainingArgs, arg)
+			continue
+		}
 
-	for _, flag := range flags {
-		if strings.EqualFold(flag.Name, name) {
-			return flag.Value, true
+		switch flagName {
+		case "-h", "--help":
+			showHelp()
+			os.Exit(0)
+		case "-v", "--version":
+			fmt.Println(util.Version())
+			os.Exit(0)
+		case "-J", "--json":
+			FlagJson = true
+		case "-C", "--config":
+			if hasValueInSameArg {
+				FlagConfigFilePath = flagValue
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				FlagConfigFilePath = args[i+1]
+				i++
+			}
+		default:
+			remainingArgs = append(remainingArgs, arg)
 		}
 	}
-	return "", false
-}
-
-func processGlobalFlags(command *CAcctMgrCommand) {
-	_, hasJson := command.GetGlobalFlag("json")
-	_, hasJ := command.GetGlobalFlag("J")
-	if hasJson || hasJ {
-		FlagJson = true
-	}
-
-	configFilePath, hasConfig := command.GetGlobalFlag("config")
-	configFilePathShort, hasC := command.GetGlobalFlag("C")
-	if hasConfig {
-		FlagConfigFilePath = configFilePath
-	} else if hasC {
-		FlagConfigFilePath = configFilePathShort
-	}
-
-	_, hasHelp := command.GetGlobalFlag("help")
-	_, hasH := command.GetGlobalFlag("h")
-	if hasHelp || hasH {
-		showHelp()
-		os.Exit(0)
-	}
-
-	_, hasVersion := command.GetGlobalFlag("version")
-	_, hasV := command.GetGlobalFlag("v")
-	if hasVersion || hasV {
-		fmt.Println(util.Version())
-		os.Exit(0)
-	}
-
-	_, hasForce := command.GetGlobalFlag("force")
-	_, hasF := command.GetGlobalFlag("f")
-	if hasForce || hasF {
-		FlagForce = true
-	}
+	return remainingArgs
 }
