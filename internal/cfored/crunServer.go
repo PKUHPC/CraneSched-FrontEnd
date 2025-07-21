@@ -530,7 +530,7 @@ CforedCrunStateMachineLoop:
 					"but %s received. Ignoring it...", taskId, ctldReply.Type)
 				break
 			} else {
-				log.Tracef("[Ctld->fored->Crun][Job #%d] TASK_COMPLETION_ACK_REPLY received",
+				log.Tracef("[Ctld->Cfored->Crun][Job #%d] TASK_COMPLETION_ACK_REPLY received",
 					ctldReply.GetPayloadTaskCompletionAck().GetTaskId())
 			}
 
