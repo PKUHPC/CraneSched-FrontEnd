@@ -136,7 +136,7 @@ func (m *StateMachineOfCrun) Init(task *protos.TaskToCtld) {
 	m.err = util.ErrorSuccess
 
 	m.sigs = make(chan os.Signal, 1)
-	signal.Notify(m.sigs, syscall.SIGINT)
+	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
 }
 
 func (m *StateMachineOfCrun) Close() {
@@ -591,7 +591,7 @@ CrunStateMachineLoop:
 
 func (m *StateMachineOfCrun) forwardingSigintHandlerRoutine() {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTTOU)
 
 	lastSigint := time.Now().Add(-2 * time.Second)
 loop:
@@ -623,6 +623,8 @@ loop:
 
 func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	file := os.NewFile(os.Stdout.Fd(), "stdout")
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTTOU, syscall.SIGCONT)
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
@@ -631,10 +633,45 @@ func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	}(file)
 
 	writer := bufio.NewWriter(file)
-
+	waitSITCONT := false
 writing:
 	for {
+		if waitSITCONT {
+			select {
+			case sig := <-sigChan:
+				log.Tracef("Received signal %s.", sig.String())
+				if sig == syscall.SIGCONT {
+					log.Tracef("Start writing Stdout.")
+				}
+			case <-m.chanOutputFromRemote:
+				//do nothing
+				//_, err := writer.WriteString(msg)
+				//
+				//if err != nil {
+				//	fmt.Printf("Failed to write to fd: %v\n", err)
+				//	break writing
+				//}
+				//err = writer.Flush()
+				//if err != nil {
+				//	fmt.Printf("Failed to flush to fd: %v\n", err)
+				//	break writing
+				//}
+
+			case <-m.taskFinishCtx.Done():
+				break writing
+
+			}
+		}
+
 		select {
+		case sig := <-sigChan:
+			log.Tracef("Received signal %s.", sig.String())
+			if sig == syscall.SIGTTOU {
+				log.Tracef("Stop writing Stdout.")
+				waitSITCONT = true
+			} else {
+				log.Tracef("Unhandled signal %s", sig.String())
+			}
 		case msg := <-m.chanOutputFromRemote:
 			_, err := writer.WriteString(msg)
 
@@ -654,85 +691,7 @@ writing:
 	}
 }
 
-func (m *StateMachineOfCrun) FileReaderRoutine(file *os.File) {
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Errorf("Failed to close stdin file: %s.", err)
-		}
-	}()
-
-	fd := int(file.Fd())
-	epfd, err := unix.EpollCreate1(0)
-	if err != nil {
-		log.Errorf("Failed to create epoll: %v", err)
-		return
-	}
-	defer func(fd int) {
-		closeErr := unix.Close(fd)
-		if closeErr != nil {
-			log.Errorf("Failed to close epfd: %v", closeErr)
-		}
-	}(epfd)
-
-	event := &unix.EpollEvent{
-		Events: unix.EPOLLIN,
-		Fd:     int32(fd),
-	}
-	if err := unix.EpollCtl(epfd, unix.EPOLL_CTL_ADD, fd, event); err != nil {
-		log.Errorf("Failed to add fd to epoll: %v", err)
-		return
-	}
-
-	reader := bufio.NewReader(file)
-	events := make([]unix.EpollEvent, 1)
-
-reading:
-	for {
-		select {
-		case <-m.taskFinishCtx.Done():
-			break reading
-		default:
-		}
-
-		n, err := unix.EpollWait(epfd, events, 500) // 500 ms timeout
-		if err != nil {
-			if err == unix.EINTR {
-				continue
-			}
-			log.Errorf("EpollWait error: %v", err)
-			break reading
-		}
-		if n == 0 {
-			// timeout, no events
-			continue
-		}
-
-		if events[0].Events&unix.EPOLLIN != 0 {
-			if FlagPty {
-				b, err := reader.ReadByte()
-				if err != nil {
-					if err == io.EOF {
-						break reading
-					}
-					log.Errorf("Failed to read byte from stdin: %v", err)
-					break reading
-				}
-				m.chanInputFromTerm <- string(b)
-			} else {
-				line, err := reader.ReadString('\n')
-				if err != nil {
-					if err == io.EOF {
-						break reading
-					}
-					log.Errorf("Failed to read line from stdin: %v", err)
-					break reading
-				}
-				m.chanInputFromTerm <- line
-			}
-		}
-	}
-}
-
+// StdinReaderRoutine reads from stdin and sends input to the channel, exits on SIGTTIN.
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	file := os.NewFile(os.Stdin.Fd(), "stdin")
 	defer func(file *os.File) {
@@ -743,10 +702,34 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	}(file)
 
 	reader := bufio.NewReader(file)
-
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTTIN, syscall.SIGCONT)
+	waitSIGCONT := false
 reading:
 	for {
+		if waitSIGCONT {
+			select {
+			case sig := <-sigChan:
+				{
+					log.Tracef("Received signal %s.", sig.String())
+					if sig == syscall.SIGCONT {
+						waitSIGCONT = false
+						log.Tracef("Continue reading Stdin.")
+					}
+				}
+			case <-m.taskFinishCtx.Done():
+				break reading
+			}
+
+		}
 		select {
+		case sig := <-sigChan:
+			log.Tracef("Received signal %s.", sig.String())
+			if sig == syscall.SIGTTIN {
+				log.Tracef("Stop reading Stdin.")
+				waitSIGCONT = true
+			}
+			break reading // Exit on SIGTTIN
 		case <-m.taskFinishCtx.Done():
 			break reading
 
@@ -853,7 +836,8 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigintHandlerRoutine()
-	go m.FileReaderRoutine(os.NewFile(os.Stdin.Fd(), "stdin"))
+	go m.StdinReaderRoutine()
+	//go m.FileReaderRoutine(os.NewFile(os.Stdin.Fd(), "stdin"))
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()
