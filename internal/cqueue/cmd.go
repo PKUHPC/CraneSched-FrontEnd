@@ -21,7 +21,6 @@ package cqueue
 import (
 	"CraneFrontEnd/internal/util"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -50,13 +49,7 @@ var (
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if cmd.PersistentFlags().Changed("config") {
-				currentPath, _ := cmd.PersistentFlags().GetString("config")
-				defaultPath := util.DefaultConfigPath
-
-				log.Infof("The default path is: %s", defaultPath)
-				log.Infof("The real path is: %s", currentPath)
-			}
+			util.ConfigDeal(cmd)
 			util.DetectNetworkProxy()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -153,7 +146,7 @@ func initCustomHelpTemplate(cmd *cobra.Command) {
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	initCustomHelpTemplate(RootCmd)
-	RootCmd.SetUsageTemplate(`Usage: squeue [-A account] [-C config] [-F full] 
+	RootCmd.SetUsageTemplate(`Usage: cqueue [-A account] [-C config] [-F full] 
               [-i seconds] [-j job(ID)] [--json] [-m --max-lines] 
               [-n name] [-N noheader] [-o format] [-p partitions] 
               [-q qos][-S start] [-t state] [-u user(name)] [-h --help]

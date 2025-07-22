@@ -44,6 +44,7 @@ var (
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			util.ConfigDeal(cmd)
 			util.DetectNetworkProxy()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -61,8 +62,56 @@ func ParseCmdArgs() {
 	util.RunAndHandleExit(RootCmd)
 }
 
+func HelpTemplate() string {
+	return `{{.Short}}
+Usage: {{.CommandPath}}[flags]
+  -C, --config string              Path to configuration file, default 
+                                   path is ("/etc/crane/config.yaml")   
+  -D, --dead                       Display non-reponding nodes only
+  -i, --iterate=seconds            specify an interation period
+      --json                       Produce JSON output
+  -n, --nodes=node(s)              Dislay the specified nodes,comma separated
+                                   default is all
+  -N, --noheader                   no headers on output
+  -o, --format=format              format specification
+                                   Fields are identified by a percent sign (%) 
+                                   followed by a character or string. Use a dot (.) 
+                                   and a number between % and the format character 
+                                   or string to specify a minimum width for the field.
+                                   %p/%Partition      - Display all partitions.
+                                   %a/%Avail          - Display the state of the node.
+                                   %n/%Nodes          - Display the number of partition nodes.
+                                   %p/%Partition      - Display the status of partition nodes.
+                                   %p/%Partition      - Display all node list in the partition.
+                                    
+  
+  -p, --partition=partition(s)     comma separated list of partitions
+                                   to view, default is all partitions
+  -r, --responding                 Display responding nodes only
+  -t, --states=states              comma separated list of states to view,
+                                   Valid value are 'IDLE', 'MIX','ALLOC' 
+                                   and 'DOWN'.    
+                                   Example:  -t idle,min  or  -t=alloc 
+  -v, --version                    output version information and exit
+
+Help options:
+  -h,--help                        show cqueue's help message
+`
+}
+
+func initCustomHelpTemplate(cmd *cobra.Command) {
+	cmd.SetHelpTemplate(HelpTemplate())
+}
+
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
+	initCustomHelpTemplate(RootCmd)
+	RootCmd.SetUsageTemplate(`Usage: cinfo [-C config] [-D dead] 
+             [-i seconds] [--json] [-n nodes] [-N noheader] 
+             [-o format] [-p partitions] [-r responding]
+             [-t state] [-v version] [-h --help]
+	`)
+
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().BoolVarP(&FlagFilterDownOnly, "dead", "d", false,
