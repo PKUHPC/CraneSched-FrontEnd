@@ -94,13 +94,13 @@ func ParseCmdArgs(args []string) {
 	command, err := ParseCControlCommand(cmdStr)
 
 	if err != nil {
-		log.Error("error: command format is incorrect")
+		log.Errorf("Error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
 	result := executeCommand(command)
 	if result != util.ErrorSuccess {
-		log.Errorf("command execution failed")
+		log.Errorf("Command execution failed")
 	}
 	os.Exit(result)
 }
@@ -280,31 +280,65 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
 
 	var lastErr int = util.ErrorSuccess
+	var jobParamFlags UpdateJobParamFlags
+	jobParamValuesMap := make(map[UpdateJobParamFlags]string)
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "priority":
-			priority, err := strconv.ParseFloat(value, 64)
-			if err != nil {
-				lastErr = util.ErrorCmdArg
-			}
-			FlagPriority = priority
-			err = ChangeTaskPriority(FlagTaskIds, FlagPriority)
-			if err != nil {
-				log.Errorf("change task priority failed: %s", err)
-				lastErr = util.ErrorGeneric
-			}
+			jobParamFlags |= PriorityTypeFlag
+			jobParamValuesMap[PriorityTypeFlag] = value
 		case "timelimit":
-			FlagTimeLimit = value
-			err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
-			if err != nil {
-				log.Errorf("change task time limit failed: %s", err)
-				lastErr = util.ErrorGeneric
+			jobParamFlags |= TimelimitTypeFlag
+			jobParamValuesMap[TimelimitTypeFlag] = value
+		case "comment":
+			jobParamFlags |= CommentTypeFlag
+			jobParamValuesMap[CommentTypeFlag] = value
+		case "mailuser":
+			jobParamFlags |= MailUserTypeFlag
+			jobParamValuesMap[MailUserTypeFlag] = value
+		case "mailtype":
+			if !util.CheckMailType(value) {
+				log.Errorf("Invalid mailtype value to modify: %s", value)
+				return util.ErrorCmdArg
 			}
+			jobParamFlags |= MailTypeTypeFlag
+			jobParamValuesMap[MailTypeTypeFlag] = value
 		case "jobid", "job":
 			continue
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if jobParamFlags&PriorityTypeFlag != 0 {
+		value := jobParamValuesMap[PriorityTypeFlag]
+		priority, err := strconv.ParseFloat(value, 64)
+		if err != nil {
 			lastErr = util.ErrorCmdArg
+		}
+		FlagPriority = priority
+		err = ChangeTaskPriority(FlagTaskIds, FlagPriority)
+		if err != nil {
+			log.Errorf("change task priority failed: %s", err)
+			lastErr = util.ErrorGeneric
+		}
+	}
+
+	if jobParamFlags&TimelimitTypeFlag != 0 {
+		FlagTimeLimit = jobParamValuesMap[TimelimitTypeFlag]
+		err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
+		if err != nil {
+			log.Errorf("change task time limit failed: %s", err)
+			lastErr = util.ErrorGeneric
+		}
+	}
+
+	if jobParamFlags&(CommentTypeFlag|MailUserTypeFlag|MailTypeTypeFlag) != 0 {
+		err := ChangeTaskExtraAttrs(FlagTaskIds, jobParamValuesMap)
+		if err != nil {
+			log.Errorf("change job ExtraAttrs failed: %s", err)
+			lastErr = util.ErrorGeneric
 		}
 	}
 
