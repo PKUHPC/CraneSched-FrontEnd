@@ -64,7 +64,7 @@ COMMANDS:
     state: Valid states are 'drain' or 'resume'
     reason: Required when setting state to 'drain'
 
-  update jobid=<jobid> [priority=<priority>] [timelimit=<timelimit>] [comment=<comment>][mailuser=<mailuser>][mailtype=<mailtype>]
+  update jobid=<jobid> [priority=<priority>] [timelimit=<timelimit>] [comment=<comment>] [mailuser=<mailuser>] [mailtype=<mailtype>]
     Update attributes of a job.
     job/jobid: ID of the job to update
     priority: New priority value

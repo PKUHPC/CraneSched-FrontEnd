@@ -310,6 +310,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 			return util.ErrorCmdArg
 		}
 	}
+
 	if jobParamFlags&PriorityTypeFlag != 0 {
 		value := jobParamValuesMap[PriorityTypeFlag]
 		priority, err := strconv.ParseFloat(value, 64)
