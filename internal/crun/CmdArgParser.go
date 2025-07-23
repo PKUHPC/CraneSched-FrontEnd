@@ -41,6 +41,7 @@ var (
 	FlagGres          string
 	FlagPty           bool
 	FlagExclusive     bool
+	FlagGpusPerNode   string
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -107,4 +108,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus-per-node required per task, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
 }
