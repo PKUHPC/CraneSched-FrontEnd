@@ -84,49 +84,7 @@ var (
 	FlagDescription         string
 )
 
-func resetFlags() {
-	FlagAccount = protos.AccountInfo{}
-	FlagUser = protos.UserInfo{}
-	FlagQos = protos.QosInfo{}
-	FlagPartition = ""
-	FlagSetPartition = ""
-	FlagLevel = ""
-	FlagSetLevel = ""
-	FlagSetDefaultAccount = ""
-	FlagUserCoordinator = false
-	FlagUserDefaultQos = ""
-	FlagUserPartitions = []string{}
-	FlagUserQosList = []string{}
-	FlagForce = false
-	FlagFull = false
-	FlagJson = false
-	FlagConfigFilePath = util.DefaultConfigPath
-	FlagNoHeader = false
-	FlagFormat = ""
-	FlagNodeList = ""
-	FlagNumLimit = 0
-	FlagEntityName = ""
-	FlagEntityAccount = ""
-	FlagEntityPartitions = ""
-	FlagDefaultQos = ""
-	FlagAllowedQosList = ""
-	FlagAllowedPartitions = ""
-	FlagDeleteQosList = ""
-	FlagDeletePartitionList = ""
-	FlagSetQosList = ""
-	FlagSetPartitionList = ""
-	FlagPartitions = ""
-	FlagQosList = ""
-	FlagMaxCpu = ""
-	FlagMaxJob = ""
-	FlagMaxTimeLimit = ""
-	FlagPriority = ""
-	FlagAdminLevel = ""
-	FlagDescription = ""
-}
-
 func ParseCmdArgs(args []string) {
-	resetFlags()
 	commandArgs := preParseGlobalFlags(args[1:])
 
 	if len(commandArgs) == 0 {
