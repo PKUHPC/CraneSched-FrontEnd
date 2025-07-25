@@ -96,14 +96,20 @@ type KeyValueParam struct {
 	Value string `parser:"( '=' (@String | @Ident | @Number) | (@String | @Ident | @Number) )?"`
 }
 
+type WhereParam struct {
+	Key   string `parser:"@Ident"`
+	Op    string `parser:"'='"`
+	Value string `parser:"@(String | Ident | Number)"`
+}
+
 type WhereClause struct {
-	Where       string           `parser:"@'where'"`
-	WhereParams []*KeyValueParam `parser:"@@*"`
+	Where       string        `parser:"@'where'"`
+	WhereParams []*WhereParam `parser:"@@*"`
 }
 
 type SetParam struct {
 	Key   string `parser:"@Ident"`
-	Op    string `parser:"@('=' | '+=' | '-=')"`
+	Op    string `parser:"@AssignOp"`
 	Value string `parser:"@(String | Ident | Number)"`
 }
 
@@ -114,10 +120,11 @@ type SetClause struct {
 
 var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
-	{Name: "String", Pattern: `[-+]?("[^"]*"|'[^']*'|""|'')`},
-	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\@\-\.,:\[\]T]*`},
+	{Name: "AssignOp", Pattern: `(\+=|\-=|=)`},
+	{Name: "String", Pattern: `("[^"]*"|'[^']*'|""|'')`},
+	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\-\.,:\[\]T]*`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
-	{Name: "Punct", Pattern: `[-=,:]`},
+	{Name: "Punct", Pattern: `[-,:]`},
 })
 
 var CAcctMgrParser = participle.MustBuild[CAcctMgrCommand](
@@ -265,8 +272,10 @@ func (c *CAcctMgrCommand) GetWhereParams() map[string]string {
 
 	switch cmd := c.Command.(type) {
 	case ModifyCommand:
-		for _, param := range cmd.Where.WhereParams {
-			whereMap[strings.ToLower(param.Key)] = param.Value
+		if cmd.Where != nil {
+			for _, param := range cmd.Where.WhereParams {
+				whereMap[strings.ToLower(param.Key)] = param.Value
+			}
 		}
 	default:
 		return nil
@@ -285,12 +294,13 @@ func (c *CAcctMgrCommand) GetSetParams() (map[string]string, map[string]string, 
 			return nil, nil, nil
 		}
 		for _, param := range cmd.Set.SetParams {
+			key := strings.ToLower(param.Key)
 			if param.Op == "=" {
-				setMap[param.Key] = param.Value
+				setMap[key] = param.Value
 			} else if param.Op == "+=" {
-				addMap[param.Key] = param.Value
+				addMap[key] = param.Value
 			} else if param.Op == "-=" {
-				deleteMap[param.Key] = param.Value
+				deleteMap[key] = param.Value
 			}
 		}
 	default:

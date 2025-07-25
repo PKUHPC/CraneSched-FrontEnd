@@ -452,13 +452,24 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	WhereParams := command.GetWhereParams()
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify account command requires 'where' clause to specify which account to modify")
+		return util.ErrorCmdArg
+	}
+
 	for key, value := range WhereParams {
 		switch key {
 		case "name":
 			FlagEntityName = value
 		default:
+			log.Errorf("Error: unknown where parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
 		}
+	}
+
+	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
+		log.Errorf("Error: modify account command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
 	}
 
 	for key, value := range SetParams {
@@ -479,6 +490,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 			FlagSetDefaultAccount = value
 			ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Add)
 		default:
+			log.Errorf("Error: unknown set parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -492,6 +504,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 			FlagAllowedQosList = value
 			ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, protos.OperationType_Add)
 		default:
+			log.Errorf("Error: unknown add parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -505,6 +518,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 			FlagDeleteQosList = value
 			ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, protos.OperationType_Delete)
 		default:
+			log.Errorf("Error: unknown delete parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -516,6 +530,11 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	WhereParams := command.GetWhereParams()
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify user command requires 'where' clause to specify which user to modify")
+		return util.ErrorCmdArg
+	}
+
 	for key, value := range WhereParams {
 		switch key {
 		case "name":
@@ -525,8 +544,14 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		case "partition":
 			FlagEntityPartitions = value
 		default:
+			log.Errorf("Error: unknown where parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
 		}
+	}
+
+	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
+		log.Errorf("Error: modify user command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
 	}
 
 	for key, value := range SetParams {
@@ -544,6 +569,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 			FlagAdminLevel = value
 			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		default:
+			log.Errorf("Error: unknown set parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -557,6 +583,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 			FlagAllowedQosList = value
 			ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
 		default:
+			log.Errorf("Error: unknown add parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -570,6 +597,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 			FlagDeleteQosList = value
 			ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
 		default:
+			log.Errorf("Error: unknown delete parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -581,13 +609,24 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	WhereParams := command.GetWhereParams()
 	SetParams, _, _ := command.GetSetParams()
 
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify qos command requires 'where' clause to specify which qos to modify")
+		return util.ErrorCmdArg
+	}
+
 	for key, value := range WhereParams {
 		switch key {
 		case "name":
 			FlagEntityName = value
 		default:
+			log.Errorf("Error: unknown where parameter '%s' for qos modification", key)
 			return util.ErrorCmdArg
 		}
+	}
+
+	if len(SetParams) == 0 {
+		log.Errorf("Error: modify qos command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
 	}
 
 	for key, value := range SetParams {
@@ -608,6 +647,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 			FlagDescription = value
 			ModifyQos(protos.ModifyField_Description, FlagDescription, FlagEntityName)
 		default:
+			log.Errorf("Error: unknown set parameter '%s' for qos modification", key)
 			return util.ErrorCmdArg
 		}
 	}
