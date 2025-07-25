@@ -137,6 +137,7 @@ func showHelp() {
     Modify attributes of an existing account, user, or QoS.
     Account options:
       where name=<account>         Specify the account to modify
+      set description=<desc>       Set account description
       set defaultQos=<qos>         Set default QoS
       set allowedPartition+=<part1,part2,...>   Add allowed partitions
       set allowedQos+=<qos1,qos2,...>          Add allowed QoS

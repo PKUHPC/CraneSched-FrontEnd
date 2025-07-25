@@ -75,6 +75,7 @@ type ModifyCommand struct {
 type ShowCommand struct {
 	Action      string           `parser:"@'show'"`
 	Entity      *EntityType      `parser:"@@?"`
+	ID          string           `parser:"( @String | @Ident | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -226,6 +227,8 @@ func (c *CAcctMgrCommand) GetID() string {
 	case BlockCommand:
 		return cmd.ID
 	case UnblockCommand:
+		return cmd.ID
+	case ShowCommand:
 		return cmd.ID
 	default:
 		return ""

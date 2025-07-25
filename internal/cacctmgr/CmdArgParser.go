@@ -127,20 +127,12 @@ func ParseCmdArgs(args []string) {
 	command, err := ParseCAcctMgrCommand(cmdStr)
 
 	if err != nil {
-		log.Error("error: command format is incorrect")
+		log.Errorf("Error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
 	result := executeCommand(command)
-	if result != util.ErrorSuccess {
-		switch result {
-		case util.ErrorCmdArg:
-			log.Error("error: command execution failed")
-			os.Exit(result)
-		default:
-			log.Errorf("error: command execution failed (error code: %d)", result)
-		}
-	}
+	os.Exit(result)
 }
 
 func executeCommand(command *CAcctMgrCommand) int {
@@ -471,6 +463,9 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 
 	for key, value := range SetParams {
 		switch key {
+		case "description":
+			FlagDescription = value
+			ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Add)
 		case "defaultqos":
 			FlagDefaultQos = value
 			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Add)
