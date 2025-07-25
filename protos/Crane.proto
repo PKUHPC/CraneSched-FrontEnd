@@ -259,6 +259,18 @@ message ModifyCranedStateReply {
   repeated string not_modified_reasons = 4;
 }
 
+message EnableAutoPowerControlRequest {
+  uint32 uid = 1;
+  repeated string craned_ids = 2;
+  bool enable = 3;
+}
+
+message EnableAutoPowerControlReply {
+  repeated string modified_nodes = 1;
+  repeated string not_modified_nodes = 2;
+  repeated string not_modified_reasons = 3;
+}
+
 message AddAccountRequest {
   uint32 uid = 1;
   AccountInfo account = 2;
@@ -693,7 +705,7 @@ message StreamCrunRequest {
 
   message TaskIOForwardReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    string msg = 2;
   }
 
   message TaskX11ForwardReq {
@@ -746,7 +758,7 @@ message StreamCrunReply {
   }
 
   message TaskIOForwardReply {
-    bytes msg = 1;
+    string msg = 1;
   }
 
   message TaskX11ForwardReply {
@@ -780,7 +792,7 @@ message StreamTaskIORequest {
 
   message CranedTaskOutputReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    string msg = 2;
   }
 
   message CranedUnRegisterReq {
@@ -815,7 +827,7 @@ message StreamTaskIOReply {
 
   message CranedTaskInputReq {
     uint32 task_id = 1;
-    bytes msg = 2;
+    string msg = 2;
   }
 
   message CranedUnregisterReply {
@@ -847,18 +859,6 @@ message PowerStateChangeReply {
   bool ok = 1;
 }
 
-message EnableAutoPowerControlRequest {
-  uint32 uid = 1;
-  repeated string craned_ids = 2;
-  bool enable = 3;
-}
-
-message EnableAutoPowerControlReply {
-  repeated string modified_nodes = 1;
-  repeated string not_modified_nodes = 2;
-  repeated string not_modified_reasons = 3;
-}
-
 message SignUserCertificateRequest {
   uint32 uid = 1;
   string csr_content = 2;
@@ -882,7 +882,6 @@ message ResetUserCredentialReply {
   repeated RichError rich_error_list = 2;
 }
 
-// Todo: Divide service into two parts: one for Craned and one for Crun
 //  We need to distinguish the message sender
 //  and have some kind of authentication
 service CraneCtld {
@@ -899,8 +898,8 @@ service CraneCtld {
   rpc QueryReservationInfo(QueryReservationInfoRequest) returns (QueryReservationInfoReply);
   rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
-  rpc ModifyPartitionAcl(ModifyPartitionAclRequest) returns (ModifyPartitionAclReply);
   rpc EnableAutoPowerControl(EnableAutoPowerControlRequest) returns (EnableAutoPowerControlReply);
+  rpc ModifyPartitionAcl(ModifyPartitionAclRequest) returns (ModifyPartitionAclReply);
   rpc ModifyTasksExtraAttrs(ModifyTasksExtraAttrsRequest) returns (ModifyTasksExtraAttrsReply);
 
   /* RPCs called from cacctmgr */
@@ -921,7 +920,6 @@ service CraneCtld {
   rpc ModifyQos(ModifyQosRequest) returns (ModifyQosReply);
 
   rpc BlockAccountOrUser(BlockAccountOrUserRequest) returns (BlockAccountOrUserReply);
-
   rpc ResetUserCredential(ResetUserCredentialRequest) returns (ResetUserCredentialReply);
 
   /* RPCs called from cinfo */
