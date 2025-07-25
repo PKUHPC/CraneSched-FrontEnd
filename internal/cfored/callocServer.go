@@ -2,6 +2,8 @@ package cfored
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
+	"google.golang.org/grpc/peer"
 	"io"
 	"math"
 
@@ -57,6 +59,32 @@ CforedStateMachineLoop:
 
 			if callocRequest.Type != protos.StreamCallocRequest_TASK_REQUEST {
 				log.Fatal("[Cfored<->Calloc] Expect TASK_REQUEST")
+			}
+
+			ctx := toCallocStream.Context()
+			p, ok := peer.FromContext(ctx)
+			if ok {
+				if auth, ok := p.AuthInfo.(*util.UnixPeerAuthInfo); ok {
+					uid := callocRequest.GetPayloadTaskReq().Task.Uid
+					if uid != auth.UID {
+						log.Debug("Peer UID is ", auth.UID, ", task UID is ", callocRequest.GetPayloadTaskReq().Task.Uid, ", mismatch!")
+						reply = &protos.StreamCallocReply{
+							Type: protos.StreamCallocReply_TASK_ID_REPLY,
+							Payload: &protos.StreamCallocReply_PayloadTaskIdReply{
+								PayloadTaskIdReply: &protos.StreamCallocReply_TaskIdReply{
+									Ok:            false,
+									FailureReason: "Uid mismatch!",
+								},
+							},
+						}
+
+						if err := toCallocStream.Send(reply); err != nil {
+							log.Error(err)
+						}
+
+						break CforedStateMachineLoop
+					}
+				}
 			}
 
 			if !gVars.ctldConnected.Load() {
