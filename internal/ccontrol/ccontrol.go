@@ -35,22 +35,11 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 var (
-	secureStub protos.CraneCtldSecureClient
-	plainStub  protos.CraneCtldPlainClient
-)
-
-type UpdateJobParamFlags int
-
-const (
-	CommentTypeFlag UpdateJobParamFlags = 1 << iota
-	MailUserTypeFlag
-	MailTypeTypeFlag
-	PriorityTypeFlag
-	TimelimitTypeFlag
+	userUid uint32
+	stub    protos.CraneCtldClient
 )
 
 func formatDeviceMap(data *protos.DeviceMap) string {
@@ -124,7 +113,7 @@ func formatDeniedAccounts(deniedAccounts []string) string {
 
 func ShowNodes(nodeName string, queryAll bool) error {
 	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
-	reply, err := plainStub.QueryCranedInfo(context.Background(), req)
+	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -209,7 +198,7 @@ func ShowNodes(nodeName string, queryAll bool) error {
 
 func ShowPartitions(partitionName string, queryAll bool) error {
 	req := &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
-	reply, err := plainStub.QueryPartitionInfo(context.Background(), req)
+	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partition")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -339,7 +328,7 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	}
 
 	req = &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
-	reply, err := plainStub.QueryTasksInfo(context.Background(), req)
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show jobs")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -375,9 +364,9 @@ func ShowJobs(jobIds string, queryAll bool) error {
 		}
 	}
 
-	formatJobExTraAttrsField := func(s, key string) string {
+	formatJobComment := func(s string) string {
 		if gjson.Valid(s) {
-			return gjson.Get(s, key).String()
+			return gjson.Get(s, "comment").String()
 		}
 		return ""
 	}
@@ -468,13 +457,7 @@ func ShowJobs(jobIds string, queryAll bool) error {
 			"\tExclusive=%v Comment=%v\n",
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-			strconv.FormatBool(taskInfo.Exclusive), formatJobExTraAttrsField(taskInfo.ExtraAttr, "comment"))
-
-		mailUserStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.user")
-		mailTypeStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.type")
-		if mailUserStr != "" || mailTypeStr != "" {
-			fmt.Printf("\tMailUser=%v MailType=%v\n", mailUserStr, mailTypeStr)
-		}
+			strconv.FormatBool(taskInfo.Exclusive), formatJobComment(taskInfo.ExtraAttr))
 	}
 
 	// If any job is requested but not returned, remind the user
@@ -566,18 +549,6 @@ func SummarizeReply(proto interface{}) error {
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
 		return nil
-	case *protos.ModifyTasksExtraAttrsReply:
-		if len(reply.ModifiedTasks) > 0 {
-			modifiedTasksString := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
-			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
-		}
-		if len(reply.NotModifiedTasks) > 0 {
-			for i := 0; i < len(reply.NotModifiedTasks); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
-			}
-			return &util.CraneError{Code: util.ErrorBackend}
-		}
-		return nil
 	default:
 		return &util.CraneError{Code: util.ErrorGeneric}
 	}
@@ -608,7 +579,7 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) error {
 			TimeLimitSeconds: seconds,
 		},
 	}
-	reply, err := secureStub.ModifyTask(context.Background(), req)
+	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task time limit")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -667,7 +638,7 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: 0}
 	}
 
-	reply, err := secureStub.ModifyTask(context.Background(), req)
+	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		return &util.CraneError{
 			Code:    util.ErrorNetwork,
@@ -720,7 +691,7 @@ func ChangeTaskPriority(taskStr string, priority float64) error {
 		},
 	}
 
-	reply, err := secureStub.ModifyTask(context.Background(), req)
+	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task priority")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -736,109 +707,6 @@ func ChangeTaskPriority(taskStr string, priority float64) error {
 	}
 
 	return SummarizeReply(reply)
-}
-
-func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]string) error {
-	jobIdList, err := util.ParseJobIdList(taskStr, ",")
-	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: err.Error(),
-		}
-	}
-
-	req := &protos.QueryTasksInfoRequest{
-		FilterTaskIds:               jobIdList,
-		OptionIncludeCompletedTasks: false,
-	}
-	reply, err := stub.QueryTasksInfo(context.Background(), req)
-	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorNetwork,
-			Message: fmt.Sprintf("Failed to modify the job: %s", err),
-		}
-	}
-
-	if !reply.GetOk() {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to retrive the information of job %s", taskStr),
-		}
-	}
-
-	if len(reply.TaskInfoList) == 0 {
-		jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Job %s is completed or does not exist", jobIdListString),
-		}
-	}
-
-	updateJobExtraAttr := func(origin string, JobParamvalMap map[UpdateJobParamFlags]string) (string, error) {
-		var extraAttrsKeyMap = map[UpdateJobParamFlags]string{
-			CommentTypeFlag:  "comment",
-			MailUserTypeFlag: "mail.user",
-			MailTypeTypeFlag: "mail.type",
-		}
-		var err error
-		newJsonStr := origin
-		for flag, key := range extraAttrsKeyMap {
-			if newValue, exist := JobParamvalMap[flag]; exist {
-				newJsonStr, err = sjson.Set(newJsonStr, key, newValue)
-				if err != nil {
-					return "", fmt.Errorf("set %s failed: %w", key, err)
-				}
-			}
-		}
-		return newJsonStr, nil
-	}
-
-	pdOrRJobMap := make(map[uint32]string)
-	validJobList := map[uint32]bool{}
-	for _, taskInfo := range reply.TaskInfoList {
-		newJsonStr, err := updateJobExtraAttr(taskInfo.ExtraAttr, valueMap)
-		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to set extra attributes JSON: %s", err),
-			}
-		}
-		pdOrRJobMap[taskInfo.TaskId] = newJsonStr
-		validJobList[taskInfo.TaskId] = true
-	}
-
-	notGetInfoJobs := []uint32{}
-	for _, jobId := range jobIdList {
-		if !validJobList[jobId] {
-			notGetInfoJobs = append(notGetInfoJobs, jobId)
-		}
-	}
-	if len(notGetInfoJobs) > 0 {
-		notGetInfoJobsString := util.ConvertSliceToString(notGetInfoJobs, ", ")
-		log.Warnf("Job %s is completed or does not exist.\n", notGetInfoJobsString)
-	}
-
-	request := &protos.ModifyTasksExtraAttrsRequest{
-		Uid:            uint32(os.Getuid()),
-		ExtraAttrsList: pdOrRJobMap,
-	}
-
-	rep, err := stub.ModifyTasksExtraAttrs(context.Background(), request)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change task extra attrs")
-		return &util.CraneError{Code: util.ErrorNetwork}
-	}
-
-	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(rep))
-		if len(rep.NotModifiedTasks) == 0 {
-			return nil
-		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
-		}
-	}
-
-	return SummarizeReply(rep)
 }
 
 func ChangeNodeState(nodeRegex string, state string, reason string) error {
@@ -890,7 +758,7 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 		}
 	}
 
-	reply, err := secureStub.ModifyNode(context.Background(), req)
+	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify node state")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -919,7 +787,7 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) e
 		Accounts:      accountList,
 	}
 
-	reply, err := secureStub.ModifyPartitionAcl(context.Background(), &req)
+	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
 		return &util.CraneError{Code: util.ErrorNetwork}

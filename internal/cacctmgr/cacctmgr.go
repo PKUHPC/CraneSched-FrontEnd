@@ -1324,3 +1324,46 @@ func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error)
 
 	return filteredRecords, nil
 }
+
+func ResetUserCredential(value string) util.CraneCmdError {
+	var userList []string
+
+	if value == "" {
+		log.Errorf("User is empty")
+		return util.ErrorCmdArg
+	}
+
+	if value != "all" {
+		var err error
+		userList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.ResetUserCredentialRequest{Uid: userUid, UserList: userList}
+	reply, err := stub.ResetUserCredential(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to reset user credential")
+		return util.ErrorNetwork
+	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if !reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+		return util.ErrorBackend
+	}
+
+	fmt.Printf("reset user %s credential succeeded.\n", value)
+	return util.ErrorSuccess
+}

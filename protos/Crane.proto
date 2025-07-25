@@ -923,7 +923,6 @@ service CraneCtld {
   rpc ModifyQos(ModifyQosRequest) returns (ModifyQosReply);
 
   rpc BlockAccountOrUser(BlockAccountOrUserRequest) returns (BlockAccountOrUserReply);
-
   rpc ResetUserCredential(ResetUserCredentialRequest) returns (ResetUserCredentialReply);
 
   /* RPCs called from cinfo */

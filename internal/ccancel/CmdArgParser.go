@@ -75,7 +75,7 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldSecureByConfig(config)
+			stub = util.GetStubToCtldByConfig(config)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return CancelTask(args)

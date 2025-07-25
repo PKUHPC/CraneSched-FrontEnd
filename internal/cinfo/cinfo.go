@@ -232,7 +232,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 
 func Query() error {
 	config := util.ParseConfig(FlagConfigFilePath)
-	stub := util.GetStubToCtldPlain(config)
+	stub := util.GetStubToCtldByConfig(config)
 
 	var resourceStateList []protos.CranedResourceState
 	var controlStateList []protos.CranedControlState

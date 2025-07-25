@@ -9,29 +9,30 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"math"
 	"os"
-
-	log "github.com/sirupsen/logrus"
+	"time"
 )
 
-func SignAndSaveUserCertificate(config *Config) CraneCmdError {
+func SignAndSaveUserCertificate(config *Config) error {
 
 	if FileExists(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath)) {
-		return ErrorSuccess
+		return nil
 	}
 
 	return DoSignAndSaveUserCertificate(config)
 }
 
-func DoSignAndSaveUserCertificate(config *Config) CraneCmdError {
-
-	var client protos.CraneCtldPlainClient
+func DoSignAndSaveUserCertificate(config *Config) error {
+	var client protos.CraneCtldClient
 
 	uid := uint32(os.Getuid())
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return ErrorGeneric
+		return err
 	}
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PRIVATE KEY",
@@ -39,20 +40,20 @@ func DoSignAndSaveUserCertificate(config *Config) CraneCmdError {
 	})
 
 	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.key", DefaultUserConfigPath), privateKeyPEM, 0600); err != nil {
-		return ErrorGeneric
+		return err
 	}
 
 	csrTemplate := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName: fmt.Sprintf("%d.%s", uid, config.DomainSuffix),
+			CommonName: fmt.Sprintf("%d.%s", uid, config.SslConfig.DomainSuffix),
 		},
-		DNSNames:           []string{fmt.Sprintf("*.%s", config.DomainSuffix), "localhost"},
+		DNSNames:           []string{fmt.Sprintf("*.%s", config.SslConfig.DomainSuffix), "localhost"},
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
 
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
 	if err != nil {
-		return ErrorGeneric
+		return err
 	}
 
 	csrPEM := pem.EncodeToMemory(&pem.Block{
@@ -61,31 +62,47 @@ func DoSignAndSaveUserCertificate(config *Config) CraneCmdError {
 	})
 
 	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.csr", DefaultUserConfigPath), csrPEM, 0600); err != nil {
-		return ErrorGeneric
+		return err
 	}
 
-	client = GetStubToCtldPlain(config)
+	serverAddr := fmt.Sprintf("%s.%s:%s",
+		config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
 
-	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.DomainSuffix)}
+	creds, err := credentials.NewClientTLSFromFile(config.SslConfig.ExternalCaFilePath, "*."+config.SslConfig.DomainSuffix)
+	if err != nil {
+		return err
+	}
+
+	conn, err := grpc.NewClient(serverAddr,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithKeepaliveParams(ClientKeepAliveParams),
+		grpc.WithConnectParams(ClientConnectParams),
+		grpc.WithIdleTimeout(time.Duration(math.MaxInt64)))
+
+	if err != nil {
+		return err
+	}
+
+	client = protos.NewCraneCtldClient(conn)
+
+	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.SslConfig.DomainSuffix)}
 
 	response, err := client.SignUserCertificate(context.Background(), request)
 	if err != nil {
-		GrpcErrorPrintf(err, "Failed to authenticate user")
-		return ErrorNetwork
+		return err
 	}
 
 	if !response.Ok {
-		log.Error("Failed to authenticate user: ", ErrMsg(response.Reason))
-		return ErrorBackend
-	}
-
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath), []byte(response.Certificate), 0644); err != nil {
-		return ErrorGeneric
+		return fmt.Errorf(ErrMsg(response.Reason))
 	}
 
 	if err := SaveFileWithPermissions(fmt.Sprintf("%s/external.pem", DefaultUserConfigPath), []byte(response.ExternalCertificate), 0644); err != nil {
-		return ErrorGeneric
+		return err
 	}
 
-	return ErrorSuccess
+	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath), []byte(response.Certificate), 0644); err != nil {
+		return err
+	}
+
+	return nil
 }

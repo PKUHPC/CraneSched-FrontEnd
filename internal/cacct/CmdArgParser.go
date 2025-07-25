@@ -50,7 +50,7 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldPlain(config)
+			stub = util.GetStubToCtldByConfig(config)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {

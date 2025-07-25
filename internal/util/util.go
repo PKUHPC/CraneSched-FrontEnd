@@ -32,17 +32,22 @@ type Config struct {
 	CraneCtldForInternalListenPort string            `yaml:"CraneCtldForInternalListenPort"`
 	CranedNodeList                 []ConfigNodesList `yaml:"Nodes"`
 
-	UseTls             bool   `yaml:"UseTls"`
-	ServerCertFilePath string `yaml:"ServerCertFilePath"`
-	ServerKeyFilePath  string `yaml:"ServerKeyFilePath"`
-	CaCertFilePath     string `yaml:"CaCertFilePath"`
-	DomainSuffix       string `yaml:"DomainSuffix"`
+	UseTls    bool      `yaml:"UseTls"`
+	SslConfig SSLConfig `yaml:"SSL"`
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
 	CforedLogDir         string       `yaml:"CforedLogDir"`
 	CforedDebugLevel     *string      `yaml:"CforedDebugLevel"`
 	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
 	Plugin               PluginConfig `yaml:"Plugin"`
+}
+
+type SSLConfig struct {
+	InternalCertFilePath string `yaml:"InternalCertFilePath"`
+	InternalKeyFilePath  string `yaml:"InternalKeyFilePath"`
+	InternalCaFilePath   string `yaml:"InternalCaFilePath"`
+	ExternalCaFilePath   string `yaml:"ExternalCaFilePath"`
+	DomainSuffix         string `yaml:"DomainSuffix"`
 }
 
 type PluginConfig struct {
