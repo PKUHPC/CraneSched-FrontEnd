@@ -87,6 +87,30 @@ func showHelp() {
       name=<name1,name2,...>    Show only these users (comma-separated)
       (If not specified, all users will be displayed)
   
+	block account <name> [account=<account>]
+    Block the specified account from submitting jobs.
+    Parameter details:
+      name                      Name of the account to block
+      account=<account>         Specify the account context (optional)
+  
+	block user <name> [account=<account>]
+    Block the specified user from submitting jobs.
+    Parameter details:
+      name                      Name of the user to block
+      account=<account>         Specify the account context (optional)
+  
+	unblock account <name> [account=<account>]
+    Unblock the specified account to allow job submission.
+    Parameter details:
+      name                      Name of the account to unblock
+      account=<account>         Specify the account context (optional)
+  
+	unblock user <name> [account=<account>]
+    Unblock the specified user to allow job submission.
+    Parameter details:
+      name                      Name of the user to unblock
+      account=<account>         Specify the account context (optional)
+  
 	add qos <name> [description=<desc>] [priority=<priority>] 
 		[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
     Create a new QoS with the specified attributes.

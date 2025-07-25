@@ -267,12 +267,12 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			}
 			FlagQos.MaxCpusPerUser = uint32(maxCpus)
 		case "maxtimelimitpertask":
-			maxTimeLimit, err := util.ParseDurationStrToSeconds(value)
+			maxTimeLimit, err := strconv.ParseUint(value, 10, 64)
 			if err != nil {
 				log.Debugf("invalid max-time-limit-per-task value: %s", value)
 				return util.ErrorCmdArg
 			}
-			FlagQos.MaxTimeLimitPerTask = uint64(maxTimeLimit)
+			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
 		default:
 			log.Debugf("unknown flag: %s", key)
 			return util.ErrorCmdArg
