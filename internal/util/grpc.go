@@ -20,6 +20,7 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -30,12 +31,16 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"time"
+
+	grpccodes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	grpccodes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -65,9 +70,55 @@ var ClientConnectParams = grpc.ConnectParams{
 	},
 }
 
+type UnixPeerAuthInfo struct {
+	UID uint32
+	GID uint32
+	PID int32
+}
+
+func (a *UnixPeerAuthInfo) AuthType() string { return "unix-peer" }
+
+type UnixPeerCredentials struct{}
+
+func (c *UnixPeerCredentials) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+
+	uconn, ok := conn.(*net.UnixConn)
+	if !ok {
+		return nil, nil, fmt.Errorf("not a unix socket")
+	}
+
+	file, err := uconn.File()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+
+	ucred, err := syscall.GetsockoptUcred(int(file.Fd()), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return conn, &UnixPeerAuthInfo{
+		UID: ucred.Uid,
+		GID: ucred.Gid,
+		PID: ucred.Pid,
+	}, nil
+}
+
+func (c *UnixPeerCredentials) ClientHandshake(ctx context.Context, addr string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+
+	return conn, &UnixPeerAuthInfo{}, nil
+}
+
+func (c *UnixPeerCredentials) Info() credentials.ProtocolInfo {
+	return credentials.ProtocolInfo{SecurityProtocol: "unix-peer"}
+}
+func (c *UnixPeerCredentials) Clone() credentials.TransportCredentials { return c }
+func (c *UnixPeerCredentials) OverrideServerName(s string) error       { return nil }
+
 func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 	if config.UseTls {
-		CaCertContent, err := os.ReadFile(config.ServerCertFilePath)
+		CaCertContent, err := os.ReadFile(config.SslConfig.InternalCaFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +128,7 @@ func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 			return nil, err
 		}
 
-		cert, err := tls.LoadX509KeyPair(config.ServerCertFilePath, config.ServerKeyFilePath)
+		cert, err := tls.LoadX509KeyPair(config.SslConfig.InternalCertFilePath, config.SslConfig.InternalKeyFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -144,52 +195,31 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.DomainSuffix, config.CraneCtldListenPort)
+			config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
 
-		ServerCertContent, err := os.ReadFile(config.ServerCertFilePath)
+		refreshCertificateFunc := func() error {
+			return DoSignAndSaveUserCertificate(config)
+		}
+
+		updateConnFunc := func() (*grpc.ClientConn, error) {
+			tlsConfig, err := UpdateTLSConfig(config)
+			if err != nil {
+				return nil, err
+			}
+			return grpc.NewClient(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		}
+
+		tlsConfig, err := UpdateTLSConfig(config)
 		if err != nil {
-			log.Errorln("Read server certificate error: " + err.Error())
-			os.Exit(ErrorGeneric)
+			log.Fatalf("Failed to load user certificate: %v", err)
 		}
-
-		ServerKeyContent, err := os.ReadFile(config.ServerKeyFilePath)
-		if err != nil {
-			log.Errorln("Read server key error: " + err.Error())
-			os.Exit(ErrorGeneric)
-		}
-
-		CaCertContent, err := os.ReadFile(config.CaCertFilePath)
-		if err != nil {
-			log.Errorln("Read CA certifacate error: " + err.Error())
-			os.Exit(ErrorGeneric)
-		}
-
-		tlsKeyPair, err := tls.X509KeyPair(ServerCertContent, ServerKeyContent)
-		if err != nil {
-			log.Errorln("tlsKeyPair error: " + err.Error())
-			os.Exit(ErrorGeneric)
-		}
-
-		caPool := x509.NewCertPool()
-		if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
-			log.Errorln("AppendCertsFromPEM error: " + err.Error())
-			os.Exit(ErrorGeneric)
-		}
-
-		creds := credentials.NewTLS(&tls.Config{
-			Certificates:       []tls.Certificate{tlsKeyPair},
-			RootCAs:            caPool,
-			InsecureSkipVerify: false,
-			// NextProtos is a list of supported application level protocols, in
-			// order of preference.
-			NextProtos: []string{"h2"},
-		})
 
 		conn, err := grpc.NewClient(serverAddr,
-			grpc.WithTransportCredentials(creds),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+			grpc.WithUnaryInterceptor(RefreshCertInterceptor(refreshCertificateFunc, updateConnFunc)),
 			grpc.WithKeepaliveParams(ClientKeepAliveParams),
 			grpc.WithConnectParams(ClientConnectParams),
-			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)), // GRPC_ARG_CLIENT_IDLE_TIMEOUT_MS
+			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
 		)
 		if err != nil {
 			log.Errorln("Cannot connect to CraneCtld: " + err.Error())
@@ -225,21 +255,21 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 
 	if config.UseTls {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.DomainSuffix, config.CraneCtldForInternalListenPort)
+			config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldForInternalListenPort)
 
-		ServerCertContent, err := os.ReadFile(config.ServerCertFilePath)
+		ServerCertContent, err := os.ReadFile(config.SslConfig.InternalCertFilePath)
 		if err != nil {
 			log.Errorln("Read server certificate error: " + err.Error())
 			os.Exit(ErrorGeneric)
 		}
 
-		ServerKeyContent, err := os.ReadFile(config.ServerKeyFilePath)
+		ServerKeyContent, err := os.ReadFile(config.SslConfig.InternalKeyFilePath)
 		if err != nil {
 			log.Errorln("Read server key error: " + err.Error())
 			os.Exit(ErrorGeneric)
 		}
 
-		CaCertContent, err := os.ReadFile(config.CaCertFilePath)
+		CaCertContent, err := os.ReadFile(config.SslConfig.InternalCaFilePath)
 		if err != nil {
 			log.Errorln("Read CA certifacate error: " + err.Error())
 			os.Exit(ErrorGeneric)
@@ -296,13 +326,118 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 	return conn, stub
 }
 
+func UpdateTLSConfig(config *Config) (*tls.Config, error) {
+
+	if err := SignAndSaveUserCertificate(config); err != nil {
+		caCert, err := os.ReadFile(config.SslConfig.ExternalCaFilePath)
+		if err != nil {
+			return nil, err
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+
+		tlsConfig := &tls.Config{
+			RootCAs:    caCertPool,
+			ServerName: "*." + config.SslConfig.DomainSuffix,
+		}
+
+		return tlsConfig, nil
+	}
+
+	userKeyPath, err := ExpandPath(DefaultUserConfigPath + "/user.key")
+	if err != nil {
+		return nil, err
+	}
+	userCertPath, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
+	if err != nil {
+		return nil, err
+	}
+	externalCertPath, err := ExpandPath(DefaultUserConfigPath + "/external.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	if !FileExists(userKeyPath) || !FileExists(userCertPath) || !FileExists(externalCertPath) {
+		return nil, fmt.Errorf("certificate files not found")
+	}
+
+	cert, err := tls.LoadX509KeyPair(userCertPath, userKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load client certificate: %v", err)
+	}
+
+	CaCertContent, err := os.ReadFile(externalCertPath)
+	if err != nil {
+		return nil, err
+	}
+
+	caPool := x509.NewCertPool()
+	if ok := caPool.AppendCertsFromPEM(CaCertContent); !ok {
+		return nil, fmt.Errorf("failed to append cert Content")
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caPool,
+	}
+
+	return tlsConfig, nil
+}
+
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
 		if rpcErr.Code() == grpccodes.Unavailable {
 			log.Errorf("%s: Connection to CraneCtld is broken.", s)
+		} else if rpcErr.Code() == grpccodes.Unauthenticated {
+			log.Errorf("%s: Access denied.", s)
 		} else {
 			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
 		}
+	}
+}
+
+func RefreshCertInterceptor(refreshCertificateFunc func() error, updateConnFunc func() (*grpc.ClientConn, error)) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply interface{},
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		var err error
+
+		err = invoker(ctx, method, req, reply, cc, opts...)
+		if err == nil {
+			return nil
+		}
+
+		rpcErr, _ := status.FromError(err)
+		if (rpcErr.Code() == grpccodes.Unavailable && strings.Contains(rpcErr.Message(), "certificate")) ||
+			rpcErr.Code() == grpccodes.Unauthenticated && rpcErr.Message() != "Certificate is empty" {
+			pem_path, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
+			if err != nil {
+				return err
+			}
+			RemoveFileIfExists(pem_path)
+
+			if refreshErr := refreshCertificateFunc(); refreshErr != nil {
+				log.Errorf(refreshErr.Error())
+				return refreshErr
+			}
+
+			newConn, err := updateConnFunc()
+			if err != nil {
+				return err
+			}
+			cc.Close()
+			err = invoker(ctx, method, req, reply, newConn, opts...)
+			if err == nil {
+				return nil
+			}
+		}
+
+		return err
 	}
 }
