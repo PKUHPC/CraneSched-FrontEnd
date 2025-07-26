@@ -858,6 +858,16 @@ func MainCrun(args []string) error {
 		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 	}
+	if FlagMemPerCpu != "" {
+		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: %v.", err),
+			}
+		}
+		task.MemPerCpu = &memInBytePerCpu
+	}
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		task.ReqResources.DeviceMap = gresMap
