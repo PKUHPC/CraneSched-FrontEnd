@@ -29,8 +29,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"sync"
+	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/olekukonko/tablewriter"
@@ -555,7 +555,7 @@ func DeleteQos(value string) util.CraneCmdError {
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", value)
+		log.Error(err, "Failed to delete QoS %s", value)
 		return util.ErrorNetwork
 	}
 
