@@ -20,7 +20,9 @@ package cfored
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
+	"google.golang.org/grpc"
 	"sync"
 	"time"
 
@@ -28,6 +30,8 @@ import (
 )
 
 type GrpcCtldClient struct {
+	config           *util.Config
+	ctldConn         *grpc.ClientConn
 	ctldClientStub   protos.CraneCtldForInternalClient
 	ctldReplyChannel chan *protos.StreamCtldReply
 }
@@ -74,6 +78,7 @@ CtldClientStateMachineLoop:
 			default: // SIGINT or SIGTERM received.
 			}
 
+			client.ctldConn, client.ctldClientStub = util.GetStubToCtldForInternalByConfig(client.config)
 			stream, err = client.ctldClientStub.CforedStream(context.Background())
 			if err != nil {
 				log.Errorf("[Cfored<->Ctld] Cannot connect to CraneCtld: %s. "+

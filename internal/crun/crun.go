@@ -92,8 +92,8 @@ type StateMachineOfCrun struct {
 	// These fields are used under Forwarding State.
 	taskFinishCtx           context.Context
 	taskFinishCb            context.CancelFunc
-	chanInputFromTerm       chan string
-	chanOutputFromRemote    chan string
+	chanInputFromTerm       chan []byte
+	chanOutputFromRemote    chan []byte
 	chanX11InputFromLocal   chan []byte
 	chanX11OutputFromRemote chan []byte
 }
@@ -636,7 +636,7 @@ writing:
 	for {
 		select {
 		case msg := <-m.chanOutputFromRemote:
-			_, err := writer.WriteString(msg)
+			_, err := writer.Write(msg)
 
 			if err != nil {
 				fmt.Printf("Failed to write to fd: %v\n", err)
@@ -681,9 +681,9 @@ reading:
 					log.Errorf("Failed to read from fd: %v", err)
 					break reading
 				}
-				m.chanInputFromTerm <- string(data)
+				m.chanInputFromTerm <- []byte{data}
 			} else {
-				data, err := reader.ReadString('\n')
+				data, err := reader.ReadBytes('\n')
 				if err != nil {
 					if err == io.EOF {
 						break reading
@@ -767,8 +767,8 @@ loop:
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
 
-	m.chanInputFromTerm = make(chan string, 100)
-	m.chanOutputFromRemote = make(chan string, 20)
+	m.chanInputFromTerm = make(chan []byte, 100)
+	m.chanOutputFromRemote = make(chan []byte, 20)
 
 	m.chanX11InputFromLocal = make(chan []byte, 100)
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
