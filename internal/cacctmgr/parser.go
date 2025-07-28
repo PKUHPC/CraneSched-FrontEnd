@@ -108,7 +108,7 @@ type WhereClause struct {
 
 type SetParam struct {
 	Key   string `parser:"@Ident"`
-	Op    string `parser:"@AssignOp"`
+	Op    string `parser:"@AssignOp?"`
 	Value string `parser:"@(String | Ident | Number)"`
 }
 
@@ -297,11 +297,16 @@ func (c *CAcctMgrCommand) GetSetParams() (map[string]string, map[string]string, 
 		for _, param := range cmd.Set.SetParams {
 			key := param.Key
 			value := unquoteIfQuoted(param.Value)
-			if param.Op == "=" {
+			op := param.Op
+			// If no operator is specified, default to "="
+			if op == "" {
+				op = "="
+			}
+			if op == "=" {
 				setMap[key] = value
-			} else if param.Op == "+=" {
+			} else if op == "+=" {
 				addMap[key] = value
-			} else if param.Op == "-=" {
+			} else if op == "-=" {
 				deleteMap[key] = value
 			}
 		}

@@ -46,7 +46,7 @@ var (
 
 	// FlagSetLevel and FlagLevel are different as
 	// they have different default values.
-	FlagLevel             string
+	FlagLevel             string = "none"
 	FlagSetLevel          string
 	FlagSetDefaultAccount string
 
@@ -212,7 +212,6 @@ func executeAddAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeAddUserCommand(command *CAcctMgrCommand) int {
-	// Reset FlagUser and related variables to default values
 	FlagUser = protos.UserInfo{}
 	FlagUser.Name = command.GetID()
 	FlagUserPartitions = []string{}
@@ -221,7 +220,7 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 
 	KVParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(KVParams, []string{"level"})
+	err := checkEmptyKVParams(KVParams, []string{"account"})
 	if err != util.ErrorSuccess {
 		return err
 	}
@@ -248,7 +247,6 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeAddQosCommand(command *CAcctMgrCommand) int {
-	// Reset FlagQos to default values (the defaults are already set in the variable declaration)
 	FlagQos = protos.QosInfo{
 		MaxJobsPerUser:      math.MaxUint32,
 		MaxCpusPerUser:      math.MaxUint32,
@@ -316,7 +314,6 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 }
 
 func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
-	// Reset FlagEntityName
 	FlagEntityName = command.GetID()
 
 	KVParams := command.GetKVMaps()
@@ -519,6 +516,11 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		return util.ErrorCmdArg
 	}
 
+	err := checkEmptyKVParams(WhereParams, []string{"name"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
 	for key, value := range WhereParams {
 		switch strings.ToLower(key) {
 		case "name":
@@ -589,7 +591,6 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyUserCommand(command *CAcctMgrCommand) int {
-	// Reset related flags
 	FlagEntityName = ""
 	FlagEntityAccount = ""
 	FlagEntityPartitions = ""
@@ -608,6 +609,11 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	if len(WhereParams) == 0 {
 		log.Errorf("Error: modify user command requires 'where' clause to specify which user to modify")
 		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"name"})
+	if err != util.ErrorSuccess {
+		return err
 	}
 
 	for key, value := range WhereParams {
@@ -681,7 +687,6 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyQosCommand(command *CAcctMgrCommand) int {
-	// Reset related flags
 	FlagEntityName = ""
 	FlagMaxCpu = ""
 	FlagMaxJob = ""
@@ -695,6 +700,11 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	if len(WhereParams) == 0 {
 		log.Errorf("Error: modify qos command requires 'where' clause to specify which qos to modify")
 		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"name"})
+	if err != util.ErrorSuccess {
+		return err
 	}
 
 	for key, value := range WhereParams {
