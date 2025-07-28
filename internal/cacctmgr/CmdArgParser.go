@@ -215,7 +215,7 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 	FlagUser = protos.UserInfo{}
 	FlagUser.Name = command.GetID()
 	FlagUserPartitions = []string{}
-	FlagLevel = ""
+	FlagLevel = "none"
 	FlagUserCoordinator = false
 
 	KVParams := command.GetKVMaps()
