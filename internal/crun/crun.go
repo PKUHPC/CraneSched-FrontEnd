@@ -1105,6 +1105,9 @@ func MainCrun(args []string) error {
 	if FlagHold {
 		task.Hold = true
 	}
+	if FlagFlagWckeySet {
+		task.Wckey = &FlagWckey
+	}
 
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)

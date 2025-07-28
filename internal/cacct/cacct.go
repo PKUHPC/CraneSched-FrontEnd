@@ -160,7 +160,7 @@ func QueryJob() error {
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey"}
 
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
@@ -222,7 +222,8 @@ func QueryJob() error {
 				strconv.FormatBool(taskInfo.Held),
 				strconv.FormatUint(uint64(taskInfo.Priority), 10),
 				taskInfo.GetCranedList(),
-				exitCode}
+				exitCode,
+				taskInfo.Wckey}
 		}
 	} else {
 		header = []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
