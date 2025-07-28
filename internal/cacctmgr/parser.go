@@ -98,12 +98,11 @@ type KeyValueParam struct {
 
 type WhereParam struct {
 	Key   string `parser:"@Ident"`
-	Op    string `parser:"'='"`
-	Value string `parser:"@(String | Ident | Number)"`
+	Value string `parser:"( '=' (@String | @Ident | @Number) | @String | @Ident | @Number )"`
 }
 
 type WhereClause struct {
-	Where       string        `parser:"@'where'"`
+	Where       string        `parser:"@WHERE"`
 	WhereParams []*WhereParam `parser:"@@*"`
 }
 
@@ -114,16 +113,18 @@ type SetParam struct {
 }
 
 type SetClause struct {
-	Set       string      `parser:"@'set'"`
+	Set       string      `parser:"@SET"`
 	SetParams []*SetParam `parser:"@@*"`
 }
 
 var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
+	{Name: "SET", Pattern: `set`},
+	{Name: "WHERE", Pattern: `where`},
 	{Name: "AssignOp", Pattern: `(\+=|\-=|=)`},
 	{Name: "String", Pattern: `("[^"]*"|'[^']*'|""|'')`},
-	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\-\.,:\[\]T]*`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
+	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\.,:\[\]T]*`},
 	{Name: "Punct", Pattern: `[-,:]`},
 })
 
@@ -219,7 +220,7 @@ func (c *CAcctMgrCommand) GetKVParamValue(key string) string {
 
 	for _, param := range params {
 		if strings.EqualFold(param.Key, strings.ToLower(key)) {
-			return param.Value
+			return unquoteIfQuoted(param.Value)
 		}
 	}
 	return ""
@@ -262,7 +263,7 @@ func (c *CAcctMgrCommand) GetKVMaps() map[string]string {
 	}
 
 	for _, param := range params {
-		kvMap[strings.ToLower(param.Key)] = param.Value
+		kvMap[param.Key] = unquoteIfQuoted(param.Value)
 	}
 	return kvMap
 }
@@ -274,7 +275,7 @@ func (c *CAcctMgrCommand) GetWhereParams() map[string]string {
 	case ModifyCommand:
 		if cmd.Where != nil {
 			for _, param := range cmd.Where.WhereParams {
-				whereMap[strings.ToLower(param.Key)] = param.Value
+				whereMap[param.Key] = unquoteIfQuoted(param.Value)
 			}
 		}
 	default:
@@ -294,13 +295,14 @@ func (c *CAcctMgrCommand) GetSetParams() (map[string]string, map[string]string, 
 			return nil, nil, nil
 		}
 		for _, param := range cmd.Set.SetParams {
-			key := strings.ToLower(param.Key)
+			key := param.Key
+			value := unquoteIfQuoted(param.Value)
 			if param.Op == "=" {
-				setMap[key] = param.Value
+				setMap[key] = value
 			} else if param.Op == "+=" {
-				addMap[key] = param.Value
+				addMap[key] = value
 			} else if param.Op == "-=" {
-				deleteMap[key] = param.Value
+				deleteMap[key] = value
 			}
 		}
 	default:
@@ -353,4 +355,13 @@ func preParseGlobalFlags(args []string) []string {
 		}
 	}
 	return remainingArgs
+}
+
+func unquoteIfQuoted(s string) string {
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
 }

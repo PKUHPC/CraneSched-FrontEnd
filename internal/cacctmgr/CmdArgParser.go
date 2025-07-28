@@ -21,6 +21,7 @@ package cacctmgr
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -31,7 +32,11 @@ import (
 var (
 	FlagAccount protos.AccountInfo
 	FlagUser    protos.UserInfo
-	FlagQos     protos.QosInfo
+	FlagQos     = protos.QosInfo{
+		MaxJobsPerUser:      math.MaxUint32,
+		MaxCpusPerUser:      math.MaxUint32,
+		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
+	}
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -156,7 +161,7 @@ func executeCommand(command *CAcctMgrCommand) int {
 	case "show":
 		return executeShowCommand(command)
 	default:
-		log.Debugf("unknown operation type: %s", action)
+		log.Errorf("unknown operation type: %s", action)
 		return util.ErrorCmdArg
 	}
 }
@@ -172,16 +177,19 @@ func executeAddCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeAddQosCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
+		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeAddAccountCommand(command *CAcctMgrCommand) int {
+	// Reset FlagAccount to default values
+	FlagAccount = protos.AccountInfo{}
 	FlagAccount.Name = command.GetID()
+
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "name":
 			FlagAccount.Name = value
 		case "description":
@@ -195,7 +203,7 @@ func executeAddAccountCommand(command *CAcctMgrCommand) int {
 		case "qoslist":
 			FlagAccount.AllowedQosList = strings.Split(value, ",")
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -204,10 +212,22 @@ func executeAddAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeAddUserCommand(command *CAcctMgrCommand) int {
+	// Reset FlagUser and related variables to default values
+	FlagUser = protos.UserInfo{}
 	FlagUser.Name = command.GetID()
+	FlagUserPartitions = []string{}
+	FlagLevel = ""
+	FlagUserCoordinator = false
+
 	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"level"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "account":
 			FlagUser.Account = value
 		case "coordinator":
@@ -219,7 +239,7 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 		case "name":
 			FlagUser.Name = value
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -228,11 +248,17 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeAddQosCommand(command *CAcctMgrCommand) int {
+	// Reset FlagQos to default values (the defaults are already set in the variable declaration)
+	FlagQos = protos.QosInfo{
+		MaxJobsPerUser:      math.MaxUint32,
+		MaxCpusPerUser:      math.MaxUint32,
+		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
+	}
 	FlagQos.Name = command.GetID()
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "name":
 			FlagQos.Name = value
 		case "description":
@@ -240,33 +266,33 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 		case "priority":
 			priority, err := strconv.ParseUint(value, 10, 32)
 			if err != nil {
-				log.Debugf("invalid priority value: %s", value)
+				log.Errorf("invalid argument \"%s\" for \"priority\" flag: %v", value, err)
 				return util.ErrorCmdArg
 			}
 			FlagQos.Priority = uint32(priority)
 		case "maxjobsperuser":
 			maxJobs, err := strconv.ParseUint(value, 10, 32)
 			if err != nil {
-				log.Debugf("invalid max-jobs-per-user value: %s", value)
+				log.Errorf("invalid argument \"%s\" for \"maxJobsPerUser\" flag: %v", value, err)
 				return util.ErrorCmdArg
 			}
 			FlagQos.MaxJobsPerUser = uint32(maxJobs)
 		case "maxcpusperuser":
 			maxCpus, err := strconv.ParseUint(value, 10, 32)
 			if err != nil {
-				log.Debugf("invalid max-cpus-per-user value: %s", value)
+				log.Errorf("invalid argument \"%s\" for \"maxCpusPerUser\" flag: %v", value, err)
 				return util.ErrorCmdArg
 			}
 			FlagQos.MaxCpusPerUser = uint32(maxCpus)
 		case "maxtimelimitpertask":
 			maxTimeLimit, err := strconv.ParseUint(value, 10, 64)
 			if err != nil {
-				log.Debugf("invalid max-time-limit-per-task value: %s", value)
+				log.Errorf("invalid argument \"%s\" for \"maxTimeLimitPerTask\" flag: %v", value, err)
 				return util.ErrorCmdArg
 			}
 			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -284,12 +310,13 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeDeleteQosCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
+		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
+	// Reset FlagEntityName
 	FlagEntityName = command.GetID()
 
 	KVParams := command.GetKVMaps()
@@ -303,17 +330,19 @@ func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeDeleteUserCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
 	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "account":
 			FlagEntityAccount = value
 		case "name":
 			FlagEntityName = value
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -322,6 +351,7 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeDeleteQosCommand(command *CAcctMgrCommand) int {
+	// Reset FlagEntityName
 	FlagEntityName = command.GetID()
 
 	KVParams := command.GetKVMaps()
@@ -343,22 +373,24 @@ func executeBlockCommand(command *CAcctMgrCommand) int {
 	case "user":
 		return executeBlockUserCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
+		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeBlockAccountCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
 	Name := command.GetID()
+	FlagEntityAccount = ""
 
 	KVParams := command.GetKVMaps()
 
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -367,15 +399,23 @@ func executeBlockAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeBlockUserCommand(command *CAcctMgrCommand) int {
-	FlagEntityName := command.GetID()
+	// Reset related flags
+	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
 
 	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"account"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -392,22 +432,24 @@ func executeUnblockCommand(command *CAcctMgrCommand) int {
 	case "user":
 		return executeUnblockUserCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
+		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeUnblockAccountCommand(command *CAcctMgrCommand) int {
-	FlagEntityName := command.GetID()
+	// Reset related flags
+	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
 
 	KVParams := command.GetKVMaps()
 
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -416,15 +458,23 @@ func executeUnblockAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeUnblockUserCommand(command *CAcctMgrCommand) int {
-	FlagEntityName := command.GetID()
+	// Reset related flags
+	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
 
 	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"account"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			log.Debugf("unknown flag: %s", key)
+			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -443,12 +493,24 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeModifyQosCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
+		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
 
 func executeModifyAccountCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = ""
+	FlagDescription = ""
+	FlagDefaultQos = ""
+	FlagSetPartitionList = ""
+	FlagSetQosList = ""
+	FlagSetDefaultAccount = ""
+	FlagAllowedPartitions = ""
+	FlagAllowedQosList = ""
+	FlagDeletePartitionList = ""
+	FlagDeleteQosList = ""
+
 	WhereParams := command.GetWhereParams()
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
@@ -458,7 +520,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range WhereParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
 		default:
@@ -473,7 +535,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range SetParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "description":
 			FlagDescription = value
 			ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Add)
@@ -527,6 +589,19 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyUserCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = ""
+	FlagEntityAccount = ""
+	FlagEntityPartitions = ""
+	FlagSetPartitionList = ""
+	FlagSetQosList = ""
+	FlagSetDefaultAccount = ""
+	FlagAdminLevel = ""
+	FlagAllowedPartitions = ""
+	FlagAllowedQosList = ""
+	FlagDeletePartitionList = ""
+	FlagDeleteQosList = ""
+
 	WhereParams := command.GetWhereParams()
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
@@ -606,6 +681,14 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyQosCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = ""
+	FlagMaxCpu = ""
+	FlagMaxJob = ""
+	FlagMaxTimeLimit = ""
+	FlagPriority = ""
+	FlagDescription = ""
+
 	WhereParams := command.GetWhereParams()
 	SetParams, _, _ := command.GetSetParams()
 
@@ -665,7 +748,7 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 	case "qos":
 		return executeShowQosCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
+		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
@@ -701,4 +784,34 @@ func executeShowQosCommand(command *CAcctMgrCommand) int {
 	}
 
 	return ShowQos(name)
+}
+
+func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
+	if len(kvParams) == 0 && len(requiredFields) > 0 {
+		log.Errorf("no attributes provided")
+		return util.ErrorCmdArg
+	}
+
+	if len(requiredFields) > 0 {
+		missingFields := []string{}
+		for _, field := range requiredFields {
+			found := false
+			for key := range kvParams {
+				if strings.EqualFold(key, field) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missingFields = append(missingFields, field)
+			}
+		}
+
+		if len(missingFields) > 0 {
+			log.Errorf("missing required fields: %s", strings.Join(missingFields, ", "))
+			return util.ErrorCmdArg
+		}
+	}
+
+	return util.ErrorSuccess
 }
