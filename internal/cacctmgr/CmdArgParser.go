@@ -318,7 +318,7 @@ func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
 		}
@@ -353,7 +353,7 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) int {
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
 		}
@@ -540,19 +540,19 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		switch strings.ToLower(key) {
 		case "description":
 			FlagDescription = value
-			ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Overwrite)
 		case "defaultqos":
 			FlagDefaultQos = value
-			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Overwrite)
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, protos.OperationType_Overwrite)
 		case "allowedqos":
 			FlagSetQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, protos.OperationType_Overwrite)
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Add)
+			ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Overwrite)
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
@@ -560,7 +560,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range AddParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
 			ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, protos.OperationType_Add)
@@ -574,7 +574,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range DeleteParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
 			ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, protos.OperationType_Delete)
@@ -617,7 +617,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range WhereParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
 		case "account":
@@ -636,19 +636,19 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range SetParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
 		case "allowedqos":
 			FlagSetQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
 		case "adminlevel":
 			FlagAdminLevel = value
-			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
@@ -656,7 +656,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range AddParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
 			ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
@@ -670,7 +670,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range DeleteParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
 			ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
@@ -708,7 +708,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range WhereParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
 		default:
@@ -723,7 +723,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	}
 
 	for key, value := range SetParams {
-		switch key {
+		switch strings.ToLower(key) {
 		case "maxcpusperuser":
 			FlagMaxCpu = value
 			ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName)
@@ -797,17 +797,12 @@ func executeShowQosCommand(command *CAcctMgrCommand) int {
 }
 
 func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
-	if len(kvParams) == 0 && len(requiredFields) > 0 {
-		log.Errorf("no attributes provided")
-		return util.ErrorCmdArg
-	}
-
 	if len(requiredFields) > 0 {
 		missingFields := []string{}
 		for _, field := range requiredFields {
 			found := false
 			for key := range kvParams {
-				if strings.EqualFold(key, field) {
+				if strings.ToLower(key) == field {
 					found = true
 					break
 				}
@@ -818,7 +813,11 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int
 		}
 
 		if len(missingFields) > 0 {
-			log.Errorf("missing required fields: %s", strings.Join(missingFields, ", "))
+			if len(missingFields) == 1 {
+				log.Errorf("Error: required flag \"%s\" not set", missingFields[0])
+			} else {
+				log.Errorf("Error: required flags \"%s\" not set", strings.Join(missingFields, "\", \""))
+			}
 			return util.ErrorCmdArg
 		}
 	}
