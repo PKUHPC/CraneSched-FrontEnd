@@ -786,3 +786,64 @@ func ShowQos(value string) util.ExitCode {
 	PrintQosList(reply.QosList)
 	return util.ErrorSuccess
 }
+
+func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
+	if len(wckeyList) == 0 {
+		return
+	}
+	sort.Slice(wckeyList, func(i, j int) bool {
+		return wckeyList[i].UserName < wckeyList[j].UserName
+	})
+
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	table.SetHeader([]string{"Name", "Cluster", "User"})
+
+	tableData := make([][]string, 0, len(wckeyList))
+	for _, wckey := range wckeyList {
+		name := wckey.Name
+		if wckey.IsDef {
+			name = "*" + name
+		}
+		tableData = append(tableData, []string{
+			name,
+			wckey.Cluster,
+			wckey.UserName,
+		})
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
+}
+
+func ShowWckey() util.ExitCode {
+	req := protos.QueryWckeyInfoRequest{Uid: userUid}
+	reply, err := stub.QueryWckeyInfo(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show the wckey")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if !reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+	}
+
+	PrintWckeyList(reply.WckeyList)
+
+	return util.ErrorSuccess
+}

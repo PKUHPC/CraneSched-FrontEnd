@@ -50,6 +50,8 @@ var (
 	FlagStderrPath    string
 	FlagOpenMode      string
 	FlagExclusive     bool
+	FlagWckey        string
+	FlagFlagWckeySet bool
 
 	FlagInterpreter   string
 	FlagWrappedScript string
@@ -87,6 +89,11 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagRepeat == 0 {
 				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
+			}
+		  if cmd.Flags().Changed("wckey") {
+			FlagFlagWckeySet = true
+			} else {
+				FlagFlagWckeySet = false
 			}
 
 			task, err := BuildCbatchJob(cmd, args)
@@ -149,6 +156,7 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL (default is NONE)")
 	RootCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
+	RootCmd.Flags().StringVar(&FlagWckey, "wckey", "", "Wckey of the job")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")

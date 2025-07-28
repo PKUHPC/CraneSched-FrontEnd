@@ -37,6 +37,7 @@ var (
 		MaxCpusPerUser:      math.MaxUint32,
 		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
 	}
+	FlagWckey   protos.WckeyInfo
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -152,6 +153,8 @@ func executeAddCommand(command *CAcctMgrCommand) int {
 		return executeAddUserCommand(command)
 	case "qos":
 		return executeAddQosCommand(command)
+	case "wckey":	
+		return executeAddWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -269,6 +272,32 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 	return AddQos(&FlagQos)
 }
 
+func executeAddWckeyCommand(command *CAcctMgrCommand) int {
+	FlagWckey = protos.WckeyInfo{}
+	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"name", "cluster", "user"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagWckey.Name = value
+		case "cluster":
+			FlagWckey.Cluster = value
+		case "user":
+			FlagWckey.UserName = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return AddWckey(&FlagWckey)
+}
+
 func executeDeleteCommand(command *CAcctMgrCommand) int {
 	entity := command.GetEntity()
 
@@ -279,6 +308,8 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 		return executeDeleteUserCommand(command)
 	case "qos":
 		return executeDeleteQosCommand(command)
+	case "wckey":
+		return executeDeleteWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -346,6 +377,28 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) int {
 		}
 	}
 	return DeleteQos(FlagEntityName)
+}
+
+func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
+	FlagWckey = protos.WckeyInfo{}
+	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"name", "cluster", "user"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagWckey.Name = value
+		case "cluster":
+			FlagWckey.Cluster = value
+		case "user":
+			FlagWckey.UserName = value
+		}
+	}
+	return DeleteWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
 }
 
 func executeBlockCommand(command *CAcctMgrCommand) int {
@@ -496,6 +549,8 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 		return executeModifyUserCommand(command)
 	case "qos":
 		return executeModifyQosCommand(command)
+	case "wckey":
+		return executeModifyWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -694,6 +749,28 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	}
 
 	return util.ErrorSuccess
+}
+
+func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
+	FlagWckey = protos.WckeyInfo{}
+	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"name", "cluster", "user"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagWckey.Name = value
+		case "cluster":
+			FlagWckey.Cluster = value
+		case "user":
+			FlagWckey.UserName = value
+		}
+	}
+	return ModifyDefaultWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
 }
 
 func executeModifyQosCommand(command *CAcctMgrCommand) int {

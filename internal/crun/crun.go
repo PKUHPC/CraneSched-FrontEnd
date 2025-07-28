@@ -1300,6 +1300,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 
 	}
+	if FlagFlagWckeySet {
+		task.Wckey = &FlagWckey
+	}
 
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
