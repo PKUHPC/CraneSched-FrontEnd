@@ -24,6 +24,9 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"net"
+	"os/user"
+	"regexp"
+	"strconv"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -762,74 +765,90 @@ reading:
 	}
 }
 
-func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (*os.File, error) {
+func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	if pattern == "" {
-		return pattern
+		return pattern, nil
 	}
+	if strings.Contains(pattern, "\\\\") {
+		return pattern, nil
+	}
+	user, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
+	if err != nil {
+		return pattern, fmt.Errorf("Failed to lookup user by uid %d: %s", m.task.Uid, err)
+	}
+	replacements := map[string]string{
+		"%%": "%",
+		//Job array's master job allocation number.
+		//"%A": "",
+		//Job array ID (index) number.
+		//"%a": "",
+		//jobid.stepid of the running job (e.g. "128.0")
+		//"%J": "111.0",
+		// job id
+		"%j": fmt.Sprintf("%d", m.taskId),
+		// step id
+		"%s": "0",
+		//short hostname
+		//"%N": "node1",
+		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
+		//"%n": "0",
+		//task identifier (rank) relative to current job.
+		//"%t": "0",
+		//User name
+		"%u": user.Name,
+		// Job name
+		"%x": m.task.Name,
+	}
+	// 构建正则：%% 或 %加一个数字和字母（例如 %5j）
+	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
 
-	var result strings.Builder
-	result.Grow(len(pattern) * 2) // 预分配空间
-
-	i := 0
-	for i < len(pattern) {
-		if pattern[i] == '\\' && i+1 < len(pattern) {
-			// 处理 \\ - 不处理任何替换符号
-			result.WriteByte(pattern[i+1])
-			i += 2
-		} else if pattern[i] == '%' && i+1 < len(pattern) {
-			// 处理 % 开头的格式说明符
-			switch pattern[i+1] {
-			case '%':
-				// %% - 字符 "%"
-				result.WriteByte('%')
-			case 'A':
-				// %A - Job array's master job allocation number
-				result.WriteString(JobArrayMasterID)
-			case 'a':
-				// %a - Job array ID (index) number
-				result.WriteString(JobArrayIndex)
-			case 'J':
-				// %J - jobid.stepid of the running job
-				result.WriteString(JobID + "." + StepID)
-			case 'j':
-				// %j - jobid of the running job
-				result.WriteString(JobID)
-			case 's':
-				// %s - stepid of the running job
-				result.WriteString(StepID)
-			case 'N':
-				// %N - short hostname
-				result.WriteString(ShortHostname)
-			case 'n':
-				// %n - Node identifier relative to current job
-				result.WriteString(NodeID)
-			case 't':
-				// %t - task identifier (rank) relative to current job
-				result.WriteString(TaskID)
-			case 'u':
-				// %u - User name
-				result.WriteString(Username)
-			case 'x':
-				// %x - Job name
-				result.WriteString(JobName)
-			default:
-				// 未知的格式说明符，保持原样
-				result.WriteByte('%')
-				result.WriteByte(pattern[i+1])
-			}
-			i += 2
-		} else {
-			// 普通字符
-			result.WriteByte(pattern[i])
-			i++
+	// 替换逻辑
+	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
+		// 提取填充数字和格式符
+		parts := re.FindStringSubmatch(match)
+		if len(parts) < 3 {
+			return match // fallback
 		}
-	}
 
-	return result.String()
+		padding := parts[1]   // '5' in '%5j'
+		specifier := parts[2] // 'j' in '%5j'
 
+		value, found := replacements["%"+specifier]
+		if !found {
+			return match // fallback
+		}
+
+		// 如果格式符对应的是数字类型，进行零填充
+		if specifier == "j" || specifier == "s" {
+			if padding == "" {
+				return value
+			}
+			padLen, err := strconv.Atoi(padding)
+			if err != nil {
+				return value
+			}
+
+			// 填充
+			return fmt.Sprintf("%0*"+specifier, padLen, value)
+		}
+
+		return value
+	})
+
+	return result, nil
 }
 func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
-	strings.ReplaceAll()
+	parsedFilePath, err := m.ParseFilePattern(filePattern)
+	if err != nil {
+		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
+		return
+	}
+	file, err := os.Open(parsedFilePath)
+	if err != nil {
+		log.Errorf("Failed to open file %s: %s", parsedFilePath, err)
+		return
+	}
+	log.Debugf("Reading from file %s", parsedFilePath)
 	reader := bufio.NewReader(file)
 
 	defer func(file *os.File) {
@@ -843,11 +862,11 @@ reading:
 		select {
 		case <-m.taskFinishCtx.Done():
 			break reading
-
 		default:
-			data, err := reader.ReadString('\n')
+			data, err := reader.ReadBytes('\n')
 			if err != nil {
 				if err == io.EOF {
+					m.chanInputFromTerm <- nil
 					break reading
 				}
 				log.Errorf("Failed to read from fd: %v", err)
@@ -934,8 +953,22 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigintHandlerRoutine()
-	go m.StdinReaderRoutine()
-	go m.FileReaderRoutine(os.NewFile(os.Stdin.Fd(), "stdin"))
+	if FlagInput == "all" {
+		go m.StdinReaderRoutine()
+	} else {
+		num, err := strconv.Atoi(FlagInput)
+		if err != nil {
+			go m.FileReaderRoutine(FlagInput)
+		} else {
+			if uint32(num) > m.task.NtasksPerNode*m.task.NodeNum {
+				go m.FileReaderRoutine(FlagInput)
+			} else {
+				//TODO: should fwd io to the task with relative id equal to task id instead of file
+				go m.FileReaderRoutine(FlagInput)
+			}
+		}
+	}
+
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()
