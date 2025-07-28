@@ -113,7 +113,7 @@ func (c *UnixPeerCredentials) ClientHandshake(ctx context.Context, addr string, 
 func (c *UnixPeerCredentials) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{SecurityProtocol: "unix-peer"}
 }
-func (c *UnixPeerCredentials) Clone() credentials.TransportCredentials { return c }
+func (c *UnixPeerCredentials) Clone() credentials.TransportCredentials { return &UnixPeerCredentials{} }
 func (c *UnixPeerCredentials) OverrideServerName(s string) error       { return nil }
 
 func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
@@ -415,7 +415,7 @@ func RefreshCertInterceptor(refreshCertificateFunc func() error, updateConnFunc 
 
 		rpcErr, _ := status.FromError(err)
 		if (rpcErr.Code() == grpccodes.Unavailable && strings.Contains(rpcErr.Message(), "certificate")) ||
-			rpcErr.Code() == grpccodes.Unauthenticated && rpcErr.Message() != "Certificate is empty" {
+			rpcErr.Code() == grpccodes.Unauthenticated {
 			pem_path, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
 			if err != nil {
 				return err
