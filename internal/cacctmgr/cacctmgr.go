@@ -29,8 +29,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"sync"
+	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/olekukonko/tablewriter"
@@ -53,24 +53,24 @@ type ServerAddr struct {
 }
 
 type ResourceUsageRecord struct {
-	ClusterName      string
-	NodeName         string
-	Uid              uint64
-	StartTime        int64
-	EndTime          int64
-	State            string
-	Reason           string
-	Timestamp        time.Time
+	ClusterName string
+	NodeName    string
+	Uid         uint64
+	StartTime   int64
+	EndTime     int64
+	State       string
+	Reason      string
+	Timestamp   time.Time
 }
 
 type EventInfoJson struct {
-	ClusterName         string                    `json:"cluster_name"`
-	NodeName            string                    `json:"node_name"`
-	Uid                 uint64                    `json:"uid"`
-	StartTime           string                    `json:"start_time"`
-	EndTime             string                    `json:"end_time"`
-	State               string                    `json:"state"`
-	Reason              string                    `json:"reason"`
+	ClusterName string `json:"cluster_name"`
+	NodeName    string `json:"node_name"`
+	Uid         uint64 `json:"uid"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
+	State       string `json:"state"`
+	Reason      string `json:"reason"`
 }
 
 func PrintUserList(userList []*protos.UserInfo) {
@@ -140,6 +140,33 @@ func PrintUserList(userList []*protos.UserInfo) {
 
 	table.AppendBulk(tableData)
 	table.Render()
+}
+
+func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
+    // if len(wckeyList) == 0 {
+    //     return
+    // }
+
+    table := tablewriter.NewWriter(os.Stdout)
+    util.SetBorderTable(table)
+    table.SetHeader([]string{"Name", "Cluster", "User", "is_def"})
+
+    tableData := make([][]string, 0, len(wckeyList))
+    for _, wckey := range wckeyList {
+        name := wckey.Name
+        if wckey.IsDef {
+            name += "*"
+        }
+        tableData = append(tableData, []string{
+            name,
+            wckey.Cluster,
+            wckey.UserName,
+            strconv.FormatBool(wckey.IsDef),
+        })
+    }
+
+    table.AppendBulk(tableData)
+    table.Render()
 }
 
 func PrintQosList(qosList []*protos.QosInfo) {
@@ -473,6 +500,44 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	}
 }
 
+func AddWckey(wckey *protos.WckeyInfo) util.CraneCmdError {
+	if err := util.CheckEntityName(wckey.Name); err != nil {
+		log.Errorf("Failed to add wckey: invalid wckey name: %v", err)
+		return util.ErrorCmdArg
+	}
+
+	// if err := util.CheckEntityName(wckey.DefaultWckey); err != nil {
+	// 	log.Errorf("Failed to add wckey: invalid wckey default name: %v", err)
+	// 	return util.ErrorCmdArg
+	// }
+
+	req := new(protos.AddWckeyRequest)
+	req.Uid = userUid
+	req.Wckey = wckey
+
+	reply, err := stub.AddWckey(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to add wckey: ")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+	if reply.GetOk() {
+		fmt.Println("Wckey added successfully.")
+		return util.ErrorSuccess
+	} else {
+		fmt.Printf("Failed to add wckey: %s.\n", util.ErrMsg(reply.GetCode()))
+		return util.ErrorBackend
+	}
+}
+
 func DeleteAccount(value string) util.CraneCmdError {
 
 	accountList, err := util.ParseStringParamList(value, ",")
@@ -578,6 +643,33 @@ func DeleteQos(value string) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 }
+
+func DeleteWckey(name, cluster, userName string) util.CraneCmdError {
+	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, Cluster: cluster, UserName: userName}
+
+	reply, err := stub.DeleteWckey(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to delete wckey %s, cluster %s, user %s", name, cluster, userName)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+	if reply.GetOk() {
+		fmt.Printf("Successfully deleted wckey: %s, cluster: %s, user: %s\n", name, cluster, userName)
+		return util.ErrorSuccess
+	} else {
+		fmt.Printf("Failed to delete wckey: %s, cluster: %s, user: %s\n", name, cluster, userName)
+		return util.ErrorBackend
+	}
+}
+
 
 func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.CraneCmdError {
 	var valueList []string
@@ -737,6 +829,38 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 	}
 }
 
+func ModifyDefaultWckey(name, cluster, userName string) util.CraneCmdError {
+	req := protos.ModifyWckeyRequest{
+		Uid:         userUid,
+		Name:        name,
+		Cluster:     cluster,
+		UserName:    userName,
+	}
+
+	reply, err := stub.ModifyWckey(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+	if reply.GetOk() {
+		fmt.Println("Modify information succeeded.")
+		return util.ErrorSuccess
+	} else {
+		fmt.Printf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		return util.ErrorBackend
+	}
+}
+
+
 func ShowAccounts() util.CraneCmdError {
 	req := protos.QueryAccountInfoRequest{Uid: userUid}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
@@ -765,6 +889,38 @@ func ShowAccounts() util.CraneCmdError {
 	}
 
 	PrintAccountList(reply.AccountList)
+
+	return util.ErrorSuccess
+}
+
+func ShowWckey() util.CraneCmdError {
+	req := protos.QueryWckeyInfoRequest{Uid: userUid}
+	reply, err := stub.QueryWckeyInfo(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show the wckey")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if !reply.GetOk() {
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Println(util.ErrMsg(richError.Code))
+				break
+			}
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+	}
+
+	PrintWckeyList(reply.WckeyList)
 
 	return util.ErrorSuccess
 }
@@ -1041,7 +1197,6 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 	return missing, nil
 }
 
-
 func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
 
 	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
@@ -1085,21 +1240,21 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	dataMap := make(map[string]*ResourceUsageRecord)
 	for result.Next() {
 		record := result.Record()
-	
+
 		clusterName := fmt.Sprintf("%v", record.ValueByKey("cluster_name"))
 		nodeName := fmt.Sprintf("%v", record.ValueByKey("node_name"))
 		field := fmt.Sprintf("%v", record.Field())
 		timestamp := record.Time()
-	
+
 		key := fmt.Sprintf("%s:%s:%s", clusterName, nodeName, timestamp)
 		if _, exists := dataMap[key]; !exists {
-			dataMap[key] = &ResourceUsageRecord {
+			dataMap[key] = &ResourceUsageRecord{
 				ClusterName: clusterName,
 				NodeName:    nodeName,
 				Timestamp:   timestamp,
 			}
 		}
-	
+
 		switch field {
 		case "uid":
 			if uid, ok := record.Value().(uint64); ok {
@@ -1118,8 +1273,8 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 				dataMap[key].Reason = reason
 			}
 		}
-	}	
-	
+	}
+
 	if result.Err() != nil {
 		return nil, fmt.Errorf("query parsing error: %w", result.Err())
 	}
@@ -1128,7 +1283,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	for _, record := range dataMap {
 		records = append(records, record)
 	}
-	
+
 	if len(records) == 0 {
 		return nil, fmt.Errorf("no matching data available")
 	}
@@ -1136,13 +1291,12 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	sort.SliceStable(records, func(i, j int) bool {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
-	
+
 	return records, nil
 }
 
-
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
-	nodeNames := []string{} 
+	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
 		nodeNames, ok = util.ParseHostList(nodeRegex)
@@ -1165,7 +1319,7 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 	} else {
 		var err error
 		nodeNames, err = util.GetValidNodeList(config.CranedNodeList)
-		if err!= nil {
+		if err != nil {
 			log.Errorf("Invalid input for nodes: %v", err)
 			return util.ErrorCmdArg
 		}
@@ -1189,7 +1343,6 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-
 	if FlagJson {
 		eventJsonList := []*EventInfoJson{}
 		for _, record := range filteredRecords {
@@ -1197,12 +1350,12 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 			endTime := FormatNanoTime(record.EndTime)
 			eventJson := &EventInfoJson{
 				ClusterName: record.ClusterName,
-				NodeName: record.NodeName,
-				Uid:record.Uid,
-				StartTime:startTime,
-				EndTime:endTime,
-				State:record.State,
-				Reason:record.Reason,
+				NodeName:    record.NodeName,
+				Uid:         record.Uid,
+				StartTime:   startTime,
+				EndTime:     endTime,
+				State:       record.State,
+				Reason:      record.Reason,
 			}
 			eventJsonList = append(eventJsonList, eventJson)
 		}
@@ -1242,7 +1395,6 @@ func FormatNanoTime(ns int64) string {
 	}
 	return time.Unix(0, int64(ns)).In(time.Local).Format("2006-01-02 15:04:05")
 }
-
 
 func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error) {
 	if len(records) == 0 {

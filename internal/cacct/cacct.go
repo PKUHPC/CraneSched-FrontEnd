@@ -182,7 +182,7 @@ func QueryJob() error {
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey"}
 
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
@@ -244,7 +244,8 @@ func QueryJob() error {
 				strconv.FormatBool(taskInfo.Held),
 				strconv.FormatUint(uint64(taskInfo.Priority), 10),
 				taskInfo.GetCranedList(),
-				exitCode}
+				exitCode,
+				taskInfo.Wckey}
 		}
 	} else {
 		header = []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
@@ -436,7 +437,7 @@ func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 		return "0"
 	}
 	allocMemPerNode := task.AllocatedResView.AllocatableRes.MemoryLimitBytes / uint64(task.NodeNum)
-    return util.FormatMemToMB(allocMemPerNode)
+	return util.FormatMemToMB(allocMemPerNode)
 }
 
 // NodeNum (N)
@@ -534,8 +535,8 @@ var fieldProcessors = map[string]FieldProcessor{
 	"account": {"Account", ProcessAccount},
 
 	// Group C
-	"C":         {"ReqCpus", ProcessReqCPUs},
-	"reqcpus"  : {"ReqCpus", ProcessReqCPUs},
+	"C":       {"ReqCpus", ProcessReqCPUs},
+	"reqcpus": {"ReqCpus", ProcessReqCPUs},
 
 	// Group c
 	"c":         {"AllocCPUs", ProcessAllocCPUs},
@@ -635,7 +636,7 @@ var fieldProcessors = map[string]FieldProcessor{
 
 	// Group X
 	"X":         {"Exclusive", ProcessExclusive},
-	"exclusive":  {"Exclusive", ProcessExclusive},
+	"exclusive": {"Exclusive", ProcessExclusive},
 
 	// Group x
 	"x":            {"ExcludeNodes", ProcessExcludeNodes},

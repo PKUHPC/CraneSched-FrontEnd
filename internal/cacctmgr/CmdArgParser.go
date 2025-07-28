@@ -34,6 +34,7 @@ var (
 	FlagAccount protos.AccountInfo
 	FlagUser    protos.UserInfo
 	FlagQos     protos.QosInfo
+	FlagWckey   protos.WckeyInfo
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -122,6 +123,18 @@ var (
 		},
 	}
 
+	addWckeyCmd = &cobra.Command{
+		Use:   "wckey",
+		Short: "Add a new wckey",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := AddWckey(&FlagWckey); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+
 	/* --------------------------------------------------- remove --------------------------------------------------- */
 	removeCmd = &cobra.Command{
 		Use:           "delete",
@@ -159,6 +172,17 @@ var (
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := DeleteQos(FlagQos.Name); err != util.ErrorSuccess {
+				os.Exit(err)
+			}
+		},
+	}
+	removeWckeyCmd = &cobra.Command{
+		Use:   "wckey",
+		Short: "Delete an existing Wckey",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := DeleteWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName); err != util.ErrorSuccess {
 				os.Exit(err)
 			}
 		},
@@ -325,6 +349,28 @@ var (
 			}
 		},
 	}
+	modifyWckeyCmd = &cobra.Command{
+		Use:   "wckey",
+		Short: "Modify default wckey information",
+		Long:  "",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
+				return err
+			}
+
+			if cmd.Flags().NFlag() < 2 {
+				return fmt.Errorf("you must specify at least one modification item")
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if cmd.Flags().Changed("default-wckey") {
+				err := ModifyDefaultWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
+				os.Exit(err)
+			}
+		},
+	}
+
 
 	/* ---------------------------------------------------- show ---------------------------------------------------- */
 	showCmd = &cobra.Command{
@@ -408,6 +454,22 @@ var (
 				}
 			})
 			QueryEventInfoByNodes(FlagNodeList)
+		},
+	}
+	showWckeyCmd = &cobra.Command{
+		Use:     "wckey",
+		//Aliases: []string{"users"},
+		Short:   "Display information about wckey",
+		Long:    "",
+		Args:    cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				if err := ShowWckey(); err != util.ErrorSuccess {
+					os.Exit(err)
+				}
+			} else {
+				
+			}
 		},
 	}
 	/* --------------------------------------------------- block ---------------------------------------------------- */
@@ -526,6 +588,22 @@ func init() {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
+
+		addCmd.AddCommand(addWckeyCmd)
+		{
+			addWckeyCmd.Flags().StringVarP(&FlagWckey.Name, "name", "N", "", "Set the name of the wckey")
+			addWckeyCmd.Flags().StringVarP(&FlagWckey.Cluster, "cluster", "c", "", "Set the cluster of the wckey")
+			addWckeyCmd.Flags().StringVarP(&FlagWckey.UserName, "user", "U", "", "Set the user of the wckey")
+			if err := addWckeyCmd.MarkFlagRequired("cluster"); err != nil {
+				log.Fatalln("Can't mark 'cluster' flag required")
+			}
+			if err := addWckeyCmd.MarkFlagRequired("user"); err != nil {
+				log.Fatalln("Can't mark 'user' flag required")
+			}
+			if err := addWckeyCmd.MarkFlagRequired("name"); err != nil {
+					log.Fatalln("Can't mark 'name' flag required")
+				}
+		}
 	}
 
 	/* --------------------------------------------------- remove --------------------------------------------------- */
@@ -552,6 +630,16 @@ func init() {
 			removeUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Remove user with this name")
 			removeUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Remove user from this account")
 			if err := removeUserCmd.MarkFlagRequired("name"); err != nil {
+				log.Fatalln("Can't mark 'name' flag required")
+			}
+		}
+
+		removeCmd.AddCommand(removeWckeyCmd)
+		{
+			removeWckeyCmd.Flags().StringVarP(&FlagWckey.Name, "name", "N", "", "Remove wckey with this name")
+			removeWckeyCmd.Flags().StringVarP(&FlagWckey.Cluster, "cluster", "c", "", "Remove wckey with this cluster")
+			removeWckeyCmd.Flags().StringVarP(&FlagWckey.UserName, "user", "U", "", "Remove wckey with this user")
+			if err := removeWckeyCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
@@ -641,6 +729,18 @@ func init() {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
 		}
+		modifyCmd.AddCommand(modifyWckeyCmd)
+		{
+
+			modifyWckeyCmd.Flags().StringVarP(&FlagWckey.Name, "default-wckey", "D", "", "Specify the name of the default wckey to be modified")
+			modifyWckeyCmd.Flags().StringVarP(&FlagWckey.Cluster, "cluster", "c", "", "Set cluster of the Wckey")
+			modifyWckeyCmd.Flags().StringVarP(&FlagWckey.UserName, "user", "U", "", "Set job user of the Wckey")
+
+			// Rules
+			if err := modifyWckeyCmd.MarkFlagRequired("default-wckey"); err != nil {
+				log.Fatalln("Can't mark 'default-wckey' flag required")
+			}
+		}
 	}
 
 	/* ---------------------------------------------------- show/find ---------------------------------------------------- */
@@ -648,6 +748,7 @@ func init() {
 	{
 		showCmd.AddCommand(showAccountCmd)
 		showCmd.AddCommand(showQosCmd)
+		showCmd.AddCommand(showWckeyCmd)
 		showCmd.AddCommand(showUserCmd)
 		{
 			showUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Display the user under the specified account")

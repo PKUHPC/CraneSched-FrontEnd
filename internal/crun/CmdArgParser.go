@@ -41,6 +41,9 @@ var (
 	FlagGres          string
 	FlagPty           bool
 	FlagExclusive     bool
+	FlagWckey        string
+		FlagFlagWckeySet bool
+
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -65,6 +68,11 @@ var (
 			util.DetectNetworkProxy()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("wckey") {
+			FlagFlagWckeySet = true
+			} else {
+				FlagFlagWckeySet = false
+			}
 			return MainCrun(args)
 		},
 	}
@@ -110,4 +118,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
+	RootCmd.Flags().StringVar(&FlagWckey, "wckey", "", "Wckey of the job")
 }
