@@ -108,7 +108,7 @@ func StartCfored() {
 	gVars.ctldReplyChannelMapByTaskId = make(map[uint32]chan *protos.StreamCtldReply)
 	gVars.pidTaskIdMap = make(map[int32]uint32)
 
-	gCranedChanKeeper = NewCranedChannelKeeper()
+	gSupervisorChanKeeper = NewCranedChannelKeeper()
 
 	hostName, err := os.Hostname()
 	if err != nil {
