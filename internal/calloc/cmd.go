@@ -41,8 +41,8 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagExclusive     bool
-	FlagWckey        string
-	FlagFlagWckeySet bool
+	FlagWckey         string
+	FlagFlagWckeySet  bool
 
 	FlagExtraAttr string
 	FlagMailType  string
@@ -68,7 +68,7 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("wckey") {
-			FlagFlagWckeySet = true
+				FlagFlagWckeySet = true
 			} else {
 				FlagFlagWckeySet = false
 			}

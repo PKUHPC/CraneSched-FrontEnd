@@ -50,8 +50,8 @@ var (
 	FlagStderrPath    string
 	FlagOpenMode      string
 	FlagExclusive     bool
-	FlagWckey        string
-	FlagFlagWckeySet bool
+	FlagWckey         string
+	FlagFlagWckeySet  bool
 
 	FlagInterpreter   string
 	FlagWrappedScript string
@@ -90,8 +90,8 @@ var (
 			if FlagRepeat == 0 {
 				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
 			}
-		  if cmd.Flags().Changed("wckey") {
-			FlagFlagWckeySet = true
+			if cmd.Flags().Changed("wckey") {
+				FlagFlagWckeySet = true
 			} else {
 				FlagFlagWckeySet = false
 			}
