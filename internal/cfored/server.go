@@ -297,7 +297,7 @@ CforedSupervisorStateMachineLoop:
 						default:
 							log.Errorf("[Cfored<-Supervisor] Supervisor for task #%d step #%d "+
 								"on Craned %s unexpected down", taskId, stepId, cranedId)
-							gCranedChanKeeper.SupervisorCrashAndRemoveAllChannel(0, 0, cranedId)
+							gCranedChanKeeper.SupervisorCrashAndRemoveAllChannel(taskId, stepId, cranedId)
 							state = SupervisorUnReg
 							break supervisorIOForwarding
 						}
