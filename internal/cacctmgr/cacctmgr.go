@@ -40,10 +40,10 @@ import (
 )
 
 var (
-	userUid       uint32
-	stub          protos.CraneCtldClient
-	config        *util.Config
-	dbConfig      *util.InfluxDbConfig
+	userUid          uint32
+	stub             protos.CraneCtldClient
+	config           *util.Config
+	dbConfig         *util.InfluxDbConfig
 	dbConfigInitOnce sync.Once
 )
 
@@ -53,24 +53,24 @@ type ServerAddr struct {
 }
 
 type ResourceUsageRecord struct {
-	ClusterName      string
-	NodeName         string
-	Uid              uint64
-	StartTime        int64
-	EndTime          int64
-	State            string
-	Reason           string
-	Timestamp        time.Time
+	ClusterName string
+	NodeName    string
+	Uid         uint64
+	StartTime   int64
+	EndTime     int64
+	State       string
+	Reason      string
+	Timestamp   time.Time
 }
 
 type EventInfoJson struct {
-	ClusterName         string                    `json:"cluster_name"`
-	NodeName            string                    `json:"node_name"`
-	Uid                 uint64                    `json:"uid"`
-	StartTime           string                    `json:"start_time"`
-	EndTime             string                    `json:"end_time"`
-	State               string                    `json:"state"`
-	Reason              string                    `json:"reason"`
+	ClusterName string `json:"cluster_name"`
+	NodeName    string `json:"node_name"`
+	Uid         uint64 `json:"uid"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
+	State       string `json:"state"`
+	Reason      string `json:"reason"`
 }
 
 func PrintUserList(userList []*protos.UserInfo) {
@@ -361,7 +361,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add account: ")
+		log.Errorf("Failed to add account: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -419,7 +419,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 
 	reply, err := stub.AddUser(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add user: ")
+		log.Errorf("Failed to add user: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -452,7 +452,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add QoS: ")
+		log.Errorf("Failed to add QoS: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -485,7 +485,7 @@ func DeleteAccount(value string) util.CraneCmdError {
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete account %s", value)
+		log.Errorf("Failed to delete account %s: %v", value, err)
 		return util.ErrorNetwork
 	}
 
@@ -520,7 +520,7 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 
 	reply, err := stub.DeleteUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to remove user %s", value)
+		log.Errorf("Failed to remove user %s: %v", value, err)
 		return util.ErrorNetwork
 	}
 
@@ -555,7 +555,7 @@ func DeleteQos(value string) util.CraneCmdError {
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
-		log.Error(err, "Failed to delete QoS %s", value)
+		log.Errorf("Failed to delete QoS %s: %v", value, err)
 		return util.ErrorNetwork
 	}
 
@@ -613,7 +613,7 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 
 	reply, err := stub.ModifyAccount(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Modify information")
+		log.Errorf("Failed to modify account information: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -678,7 +678,7 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 	reply, err := stub.ModifyUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify the uesr information")
+		log.Errorf("Failed to modify user information: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -716,7 +716,7 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 
 	reply, err := stub.ModifyQos(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
+		log.Errorf("Failed to modify QoS: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -741,7 +741,7 @@ func ShowAccounts() util.CraneCmdError {
 	req := protos.QueryAccountInfoRequest{Uid: userUid}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show accounts")
+		log.Errorf("Failed to show accounts: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -784,7 +784,7 @@ func ShowUser(value string, account string) util.CraneCmdError {
 	req := protos.QueryUserInfoRequest{Uid: userUid, UserList: userList, Account: account}
 	reply, err := stub.QueryUserInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show the user")
+		log.Errorf("Failed to show user: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -825,7 +825,7 @@ func ShowQos(value string) util.CraneCmdError {
 	req := protos.QueryQosInfoRequest{Uid: userUid, QosList: qosList}
 	reply, err := stub.QueryQosInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show the QoS")
+		log.Errorf("Failed to show QoS: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -867,7 +867,7 @@ func FindAccount(value string) util.CraneCmdError {
 	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: accountList}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to find the account")
+		log.Errorf("Failed to find account: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -910,7 +910,7 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to block the entity")
+		log.Errorf("Failed to block entity: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -952,7 +952,7 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to unblock the entity")
+		log.Errorf("Failed to unblock entity: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -1041,7 +1041,6 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 	return missing, nil
 }
 
-
 func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
 
 	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
@@ -1085,21 +1084,21 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	dataMap := make(map[string]*ResourceUsageRecord)
 	for result.Next() {
 		record := result.Record()
-	
+
 		clusterName := fmt.Sprintf("%v", record.ValueByKey("cluster_name"))
 		nodeName := fmt.Sprintf("%v", record.ValueByKey("node_name"))
 		field := fmt.Sprintf("%v", record.Field())
 		timestamp := record.Time()
-	
+
 		key := fmt.Sprintf("%s:%s:%s", clusterName, nodeName, timestamp)
 		if _, exists := dataMap[key]; !exists {
-			dataMap[key] = &ResourceUsageRecord {
+			dataMap[key] = &ResourceUsageRecord{
 				ClusterName: clusterName,
 				NodeName:    nodeName,
 				Timestamp:   timestamp,
 			}
 		}
-	
+
 		switch field {
 		case "uid":
 			if uid, ok := record.Value().(uint64); ok {
@@ -1118,8 +1117,8 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 				dataMap[key].Reason = reason
 			}
 		}
-	}	
-	
+	}
+
 	if result.Err() != nil {
 		return nil, fmt.Errorf("query parsing error: %w", result.Err())
 	}
@@ -1128,7 +1127,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	for _, record := range dataMap {
 		records = append(records, record)
 	}
-	
+
 	if len(records) == 0 {
 		return nil, fmt.Errorf("no matching data available")
 	}
@@ -1136,13 +1135,12 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	sort.SliceStable(records, func(i, j int) bool {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
-	
+
 	return records, nil
 }
 
-
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
-	nodeNames := []string{} 
+	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
 		nodeNames, ok = util.ParseHostList(nodeRegex)
@@ -1165,7 +1163,7 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 	} else {
 		var err error
 		nodeNames, err = util.GetValidNodeList(config.CranedNodeList)
-		if err!= nil {
+		if err != nil {
 			log.Errorf("Invalid input for nodes: %v", err)
 			return util.ErrorCmdArg
 		}
@@ -1189,7 +1187,6 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-
 	if FlagJson {
 		eventJsonList := []*EventInfoJson{}
 		for _, record := range filteredRecords {
@@ -1197,12 +1194,12 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 			endTime := FormatNanoTime(record.EndTime)
 			eventJson := &EventInfoJson{
 				ClusterName: record.ClusterName,
-				NodeName: record.NodeName,
-				Uid:record.Uid,
-				StartTime:startTime,
-				EndTime:endTime,
-				State:record.State,
-				Reason:record.Reason,
+				NodeName:    record.NodeName,
+				Uid:         record.Uid,
+				StartTime:   startTime,
+				EndTime:     endTime,
+				State:       record.State,
+				Reason:      record.Reason,
 			}
 			eventJsonList = append(eventJsonList, eventJson)
 		}
@@ -1242,7 +1239,6 @@ func FormatNanoTime(ns int64) string {
 	}
 	return time.Unix(0, int64(ns)).In(time.Local).Format("2006-01-02 15:04:05")
 }
-
 
 func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error) {
 	if len(records) == 0 {

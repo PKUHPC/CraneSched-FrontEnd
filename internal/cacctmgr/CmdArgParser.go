@@ -814,9 +814,9 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int
 
 		if len(missingFields) > 0 {
 			if len(missingFields) == 1 {
-				log.Errorf("Error: required flag \"%s\" not set", missingFields[0])
+				log.Errorf("Error: required flag %s not set", missingFields[0])
 			} else {
-				log.Errorf("Error: required flags \"%s\" not set", strings.Join(missingFields, "\", \""))
+				log.Errorf("Error: required flags %s not set", strings.Join(missingFields, "\", \""))
 			}
 			return util.ErrorCmdArg
 		}
