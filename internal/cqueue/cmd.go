@@ -135,6 +135,7 @@ Supported format identifiers or string, string case insensitive:
 	%i/%StepId             - Display the ID of the step (format: jobId.stepId). (For steps only)
 	%j/%JobID              - Display the ID of the job (or parent job ID for steps).
 	%k/%Comment            - Display the comment of the job. (For jobs only)
+	%K/%Wckey              - Display the wckey of the job.
 	%L/%NodeList           - Display the list of nodes the job/step is running on.
 	%l/%TimeLimit          - Display the time limit for the job/step.
 	%M/%ReqMemPerNode      - Display the requested mem per node of the job. (For jobs only)
