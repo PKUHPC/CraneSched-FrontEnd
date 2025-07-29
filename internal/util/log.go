@@ -19,8 +19,11 @@
 package util
 
 import (
+	"fmt"
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
+	"path"
+	"runtime"
 )
 
 func InitLogger(level string) {
@@ -35,6 +38,13 @@ func InitLogger(level string) {
 		log.Warnf("Invalid log level %s, using info level", level)
 		log.SetLevel(log.InfoLevel)
 	}
-	log.SetReportCaller(false)
-	log.SetFormatter(&nested.Formatter{})
+	log.SetReportCaller(true)
+	log.SetFormatter(&nested.Formatter{
+		HideKeys:    false,
+		CallerFirst: true,
+		CustomCallerFormatter: func(frame *runtime.Frame) string {
+			// File name + line number only.
+			return fmt.Sprintf(" %s:%d", path.Base(frame.File), frame.Line)
+		},
+	})
 }
