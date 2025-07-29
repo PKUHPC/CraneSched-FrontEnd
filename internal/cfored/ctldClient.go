@@ -59,6 +59,7 @@ func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 	var request *protos.StreamCforedRequest
 	var stream protos.CraneCtld_CforedStreamClient
 	var err error
+	client.ctldConn = nil
 
 	state := StartReg
 CtldClientStateMachineLoop:
@@ -72,6 +73,12 @@ CtldClientStateMachineLoop:
 				// SIGINT or SIGTERM received.
 				break CtldClientStateMachineLoop
 			default: // SIGINT or SIGTERM received.
+			}
+			if client.ctldConn != nil {
+				err = client.ctldConn.Close()
+				if err != nil {
+					log.Errorf("Failed to close to ctld connection: %s", err.Error())
+				}
 			}
 
 			stream, err = client.ctldClientStub.CforedStream(context.Background())
