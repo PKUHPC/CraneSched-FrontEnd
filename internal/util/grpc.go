@@ -220,6 +220,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.CraneCtldForInternalClient) {
 	var serverAddr string
 	var conn *grpc.ClientConn
+	var err error
 	var stub protos.CraneCtldForInternalClient
 
 	if config.UseTls {
@@ -265,7 +266,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 			NextProtos: []string{"h2"},
 		})
 
-		conn, err := grpc.NewClient(serverAddr,
+		conn, err = grpc.NewClient(serverAddr,
 			grpc.WithTransportCredentials(creds),
 			grpc.WithKeepaliveParams(ClientKeepAliveParams),
 			grpc.WithConnectParams(ClientConnectParams),
@@ -279,7 +280,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 	} else {
 		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForInternalListenPort)
 
-		conn, err := grpc.NewClient(serverAddr,
+		conn, err = grpc.NewClient(serverAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithKeepaliveParams(ClientKeepAliveParams),
 			grpc.WithConnectParams(ClientConnectParams),
