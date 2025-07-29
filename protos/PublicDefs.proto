@@ -326,7 +326,8 @@ message TaskInfo {
   repeated string execution_node = 38;
   bool exclusive = 39;
   ResourceView allocated_res_view = 40;
-  string wckey = 41;
+  bool wckey_valid = 41;
+  string wckey = 42;
 }
 
 message PartitionInfo {
@@ -494,6 +495,7 @@ enum ErrCode {
   ERR_WCKEY_ALREADY_EXISTS = 72;
   ERR_INVALID_CLUSTER = 73;
   ERR_IS_DEFAULT_WCKEY = 74;
+  ERR_NO_DEFAULT_WCKEY = 75;
 }
 
 enum EntityType {
@@ -573,7 +575,7 @@ message UserInfo {
   repeated AllowedPartitionQos allowed_partition_qos_list = 5;
   repeated string coordinator_accounts = 6;
   AdminLevel admin_level = 7;
-  repeated Wckey Wckey_list = 8;
+  repeated Wckey wckey_list = 8;
 }
 
 message QosInfo {

@@ -49,8 +49,8 @@ var (
 	FlagStderrPath    string
 	FlagOpenMode      string
 	FlagExclusive     bool
-	FlagWckey        string
-	FlagFlagWckeySet bool
+	FlagWckey         string
+	FlagFlagWckeySet  bool
 
 	FlagInterpreter string
 	FlagContainer   string
@@ -93,8 +93,8 @@ var (
 					Message: "Invalid argument: --repeat must > 0.",
 				}
 			}
-		  if cmd.Flags().Changed("wckey") {
-			FlagFlagWckeySet = true
+			if cmd.Flags().Changed("wckey") {
+				FlagFlagWckeySet = true
 			} else {
 				FlagFlagWckeySet = false
 			}

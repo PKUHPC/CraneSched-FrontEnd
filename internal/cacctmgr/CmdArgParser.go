@@ -353,16 +353,7 @@ var (
 		Use:   "wckey",
 		Short: "Modify default wckey information",
 		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
-				return err
-			}
-
-			if cmd.Flags().NFlag() < 2 {
-				return fmt.Errorf("you must specify at least one modification item")
-			}
-			return nil
-		},
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("default-wckey") {
 				err := ModifyDefaultWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
@@ -370,7 +361,6 @@ var (
 			}
 		},
 	}
-
 
 	/* ---------------------------------------------------- show ---------------------------------------------------- */
 	showCmd = &cobra.Command{
@@ -457,18 +447,13 @@ var (
 		},
 	}
 	showWckeyCmd = &cobra.Command{
-		Use:     "wckey",
-		//Aliases: []string{"users"},
-		Short:   "Display information about wckey",
-		Long:    "",
-		Args:    cobra.MaximumNArgs(1),
+		Use:   "wckey",
+		Short: "Display information about wckey",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				if err := ShowWckey(); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			} else {
-				
+			if err := ShowWckey(); err != util.ErrorSuccess {
+				os.Exit(err)
 			}
 		},
 	}
@@ -601,8 +586,8 @@ func init() {
 				log.Fatalln("Can't mark 'user' flag required")
 			}
 			if err := addWckeyCmd.MarkFlagRequired("name"); err != nil {
-					log.Fatalln("Can't mark 'name' flag required")
-				}
+				log.Fatalln("Can't mark 'name' flag required")
+			}
 		}
 	}
 

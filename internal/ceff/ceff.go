@@ -353,7 +353,7 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 		fmt.Printf(
 			"Nodes: %v\n"+
 				"Cores per node: %.2f\n",
-			taskInfo.NodeNum, cpuTotal / float64(taskInfo.NodeNum))
+			taskInfo.NodeNum, cpuTotal/float64(taskInfo.NodeNum))
 	}
 
 	if taskInfo.Status == protos.TaskStatus_Pending {
@@ -375,7 +375,7 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	// Calculate mem efficiency
 	memEfficiency := 0.0
 	mallocMemMbPerNode := float64(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
-		 float64(taskInfo.NodeNum) / (1024 * 1024)
+		float64(taskInfo.NodeNum) / (1024 * 1024)
 	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
@@ -449,7 +449,7 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 	// Calculate mem efficiency
 	memEfficiency := 0.0
 	mallocMemMbPerNode := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes) /
-				 float64(taskInfo.NodeNum) / (1024 * 1024)
+		float64(taskInfo.NodeNum) / (1024 * 1024)
 	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100

@@ -40,10 +40,10 @@ import (
 )
 
 var (
-	userUid       uint32
-	stub          protos.CraneCtldClient
-	config        *util.Config
-	dbConfig      *util.InfluxDbConfig
+	userUid          uint32
+	stub             protos.CraneCtldClient
+	config           *util.Config
+	dbConfig         *util.InfluxDbConfig
 	dbConfigInitOnce sync.Once
 )
 
@@ -143,30 +143,29 @@ func PrintUserList(userList []*protos.UserInfo) {
 }
 
 func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
-    // if len(wckeyList) == 0 {
-    //     return
-    // }
+	if len(wckeyList) == 0 {
+		return
+	}
 
-    table := tablewriter.NewWriter(os.Stdout)
-    util.SetBorderTable(table)
-    table.SetHeader([]string{"Name", "Cluster", "User", "is_def"})
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	table.SetHeader([]string{"Name", "Cluster", "User"})
 
-    tableData := make([][]string, 0, len(wckeyList))
-    for _, wckey := range wckeyList {
-        name := wckey.Name
-        if wckey.IsDef {
-            name += "*"
-        }
-        tableData = append(tableData, []string{
-            name,
-            wckey.Cluster,
-            wckey.UserName,
-            strconv.FormatBool(wckey.IsDef),
-        })
-    }
+	tableData := make([][]string, 0, len(wckeyList))
+	for _, wckey := range wckeyList {
+		name := wckey.Name
+		if wckey.IsDef {
+			name += "*"
+		}
+		tableData = append(tableData, []string{
+			name,
+			wckey.Cluster,
+			wckey.UserName,
+		})
+	}
 
-    table.AppendBulk(tableData)
-    table.Render()
+	table.AppendBulk(tableData)
+	table.Render()
 }
 
 func PrintQosList(qosList []*protos.QosInfo) {
@@ -506,11 +505,6 @@ func AddWckey(wckey *protos.WckeyInfo) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-	// if err := util.CheckEntityName(wckey.DefaultWckey); err != nil {
-	// 	log.Errorf("Failed to add wckey: invalid wckey default name: %v", err)
-	// 	return util.ErrorCmdArg
-	// }
-
 	req := new(protos.AddWckeyRequest)
 	req.Uid = userUid
 	req.Wckey = wckey
@@ -665,11 +659,10 @@ func DeleteWckey(name, cluster, userName string) util.CraneCmdError {
 		fmt.Printf("Successfully deleted wckey: %s, cluster: %s, user: %s\n", name, cluster, userName)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to delete wckey: %s, cluster: %s, user: %s\n", name, cluster, userName)
+		fmt.Printf("Failed to delete wckey: %s, cluster: %s, user: %s: %s\n", name, cluster, userName, util.ErrMsg(reply.GetRichError().GetCode()))
 		return util.ErrorBackend
 	}
 }
-
 
 func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.CraneCmdError {
 	var valueList []string
@@ -831,10 +824,10 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 
 func ModifyDefaultWckey(name, cluster, userName string) util.CraneCmdError {
 	req := protos.ModifyWckeyRequest{
-		Uid:         userUid,
-		Name:        name,
-		Cluster:     cluster,
-		UserName:    userName,
+		Uid:      userUid,
+		Name:     name,
+		Cluster:  cluster,
+		UserName: userName,
 	}
 
 	reply, err := stub.ModifyWckey(context.Background(), &req)
@@ -859,7 +852,6 @@ func ModifyDefaultWckey(name, cluster, userName string) util.CraneCmdError {
 		return util.ErrorBackend
 	}
 }
-
 
 func ShowAccounts() util.CraneCmdError {
 	req := protos.QueryAccountInfoRequest{Uid: userUid}

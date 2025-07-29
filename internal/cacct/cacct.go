@@ -405,6 +405,11 @@ func ProcessJobID(task *protos.TaskInfo) string {
 	return strconv.FormatUint(uint64(task.TaskId), 10)
 }
 
+// Wckey (K)
+func ProcessWckey(task *protos.TaskInfo) string {
+	return task.Wckey
+}
+
 // Comment (k)
 func ProcessComment(task *protos.TaskInfo) string {
 	if !gjson.Valid(task.ExtraAttr) {
@@ -562,6 +567,10 @@ var fieldProcessors = map[string]FieldProcessor{
 	"j":     {"JobID", ProcessJobID},
 	"jobid": {"JobID", ProcessJobID},
 
+	// Group K
+	"K":     {"Wckey", ProcessWckey},
+	"wckey": {"Wckey", ProcessWckey},
+
 	// Group k
 	"k":       {"Comment", ProcessComment},
 	"comment": {"Comment", ProcessComment},
@@ -695,7 +704,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, C/ReqCpus, c/AllocCPUs, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, L/NodeList, l/TimeLimit,\n" +
+				"a/Account, C/ReqCpus, c/AllocCPUs, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
 				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
 				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
 			os.Exit(util.ErrorInvalidFormat)

@@ -41,9 +41,8 @@ var (
 	FlagGres          string
 	FlagPty           bool
 	FlagExclusive     bool
-	FlagWckey        string
-		FlagFlagWckeySet bool
-
+	FlagWckey         string
+	FlagFlagWckeySet  bool
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -69,7 +68,7 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("wckey") {
-			FlagFlagWckeySet = true
+				FlagFlagWckeySet = true
 			} else {
 				FlagFlagWckeySet = false
 			}
