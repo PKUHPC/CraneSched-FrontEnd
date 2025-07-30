@@ -55,6 +55,8 @@ var (
 
 	FlagReservation string
 
+	FlagHold bool
+
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
 		Short:   "Allocate resource and run executable interactive",
@@ -107,4 +109,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 }

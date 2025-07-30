@@ -486,6 +486,9 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagExclusive {
 		task.Exclusive = true
 	}
+	if FlagHold {
+		task.Hold = true
+	}
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
