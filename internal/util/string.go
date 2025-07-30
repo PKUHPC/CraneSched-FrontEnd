@@ -65,6 +65,11 @@ func ParseConfig(configFilePath string) *Config {
 		config.CranedCforedSockPath = filepath.Join(config.CraneBaseDir, config.CranedCforedSockPath)
 	}
 
+	if config.CraneCtldForInternalListenPort == "" {
+		log.Errorf("CraneCtldForInternalListenPort is not set in config file %s", configFilePath)
+		os.Exit(ErrorGeneric)
+	}
+
 	return config
 }
 
