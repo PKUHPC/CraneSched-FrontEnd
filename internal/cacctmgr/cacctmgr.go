@@ -334,6 +334,9 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 }
 
 func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for add operations")
+	}
 	if err := util.CheckEntityName(account.Name); err != nil {
 		log.Errorf("Failed to add account: invalid account name: %v", err)
 		return util.ErrorCmdArg
@@ -383,6 +386,9 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for add operations")
+	}
 	var err error
 	if err = util.CheckEntityName(user.Name); err != nil {
 		log.Errorf("Failed to add user: invalid user name: %v", err)
@@ -441,6 +447,9 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 }
 
 func AddQos(qos *protos.QosInfo) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for add operations")
+	}
 	if err := util.CheckEntityName(qos.Name); err != nil {
 		log.Errorf("Failed to add QoS: invalid QoS name: %v", err)
 		return util.ErrorCmdArg
@@ -474,6 +483,10 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 }
 
 func DeleteAccount(value string) util.CraneCmdError {
+
+	if FlagForce {
+		log.Warning("--force flag is not used for delete operations")
+	}
 
 	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
@@ -511,6 +524,10 @@ func DeleteAccount(value string) util.CraneCmdError {
 
 func DeleteUser(value string, account string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is not used for delete operations")
+	}
+
 	userList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
@@ -545,6 +562,10 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 }
 
 func DeleteQos(value string) util.CraneCmdError {
+
+	if FlagForce {
+		log.Warning("--force flag is not used for delete operations")
+	}
 
 	qosList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
@@ -707,6 +728,9 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 }
 
 func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for QoS modify operations")
+	}
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
@@ -738,6 +762,9 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 }
 
 func ShowAccounts() util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for show operations")
+	}
 	req := protos.QueryAccountInfoRequest{Uid: userUid}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
@@ -770,6 +797,10 @@ func ShowAccounts() util.CraneCmdError {
 }
 
 func ShowUser(value string, account string) util.CraneCmdError {
+
+	if FlagForce {
+		log.Warning("--force flag is not used for show operations")
+	}
 
 	var userList []string
 	if value != "" {
@@ -813,6 +844,9 @@ func ShowUser(value string, account string) util.CraneCmdError {
 }
 
 func ShowQos(value string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for show operations")
+	}
 	var qosList []string
 	if value != "" {
 		var err error
@@ -854,6 +888,9 @@ func ShowQos(value string) util.CraneCmdError {
 }
 
 func FindAccount(value string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for show operations")
+	}
 	var accountList []string
 	if value != "" {
 		var err error
@@ -897,6 +934,10 @@ func FindAccount(value string) util.CraneCmdError {
 
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is not used for block operations")
+	}
+
 	var entityList []string
 	if value != "all" {
 		var err error
@@ -938,6 +979,10 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 }
 
 func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
+
+	if FlagForce {
+		log.Warning("--force flag is not used for unblock operations")
+	}
 
 	var entityList []string
 	if value != "all" {
@@ -1140,6 +1185,9 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 }
 
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is not used for query operations")
+	}
 	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
