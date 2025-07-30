@@ -155,7 +155,7 @@ func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
 	for _, wckey := range wckeyList {
 		name := wckey.Name
 		if wckey.IsDef {
-			name += "*"
+			name = "*" + name;
 		}
 		tableData = append(tableData, []string{
 			name,
@@ -823,14 +823,14 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 }
 
 func ModifyDefaultWckey(name, cluster, userName string) util.CraneCmdError {
-	req := protos.ModifyWckeyRequest{
+	req := protos.ModifyDefaultWckeyRequest{
 		Uid:      userUid,
 		Name:     name,
 		Cluster:  cluster,
 		UserName: userName,
 	}
 
-	reply, err := stub.ModifyWckey(context.Background(), &req)
+	reply, err := stub.ModifyDefaultWckey(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
 		return util.ErrorNetwork
