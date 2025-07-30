@@ -148,7 +148,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) error {
 	tableData := make([][]string, len(reply.TaskInfoList))
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
-			"Account", "NodeNum", "ReqCPUs","ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "Status", "Time", "TimeLimit",
+			"Account", "NodeNum", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "Status", "Time", "TimeLimit",
 			"StartTime", "SubmitTime", "Type", "Qos", "Exclusive", "Held", "Priority", "NodeList/Reason"}
 		for i := range reply.TaskInfoList {
 			taskInfo := reply.TaskInfoList[i]
@@ -366,9 +366,9 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 	if task.NodeNum == 0 {
 		return "0"
-   	}
-   	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
-			uint64(task.NodeNum))
+	}
+	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
+		uint64(task.NodeNum))
 }
 
 // 'M' group
@@ -477,11 +477,10 @@ var fieldMap = map[string]FieldProcessor{
 	"account": {"Account", ProcessAccount},
 
 	// 'c' group
-	"c":             {"AllocCpus", ProcessAllocCpus},
-	"alloccpus":     {"AllocCpus", ProcessAllocCpus},
-	"C":             {"ReqCpus", ProcessReqCPUs},
-	"reqcpus":       {"ReqCpus", ProcessReqCPUs},
-
+	"c":         {"AllocCpus", ProcessAllocCpus},
+	"alloccpus": {"AllocCpus", ProcessAllocCpus},
+	"C":         {"ReqCpus", ProcessReqCPUs},
+	"reqcpus":   {"ReqCpus", ProcessReqCPUs},
 
 	// 'e' group
 	"e":           {"ElapsedTime", ProcessElapsedTime},
@@ -558,8 +557,8 @@ var fieldMap = map[string]FieldProcessor{
 	// 'x' group
 	"x":            {"ExcludeNodes", ProcessExcludeNodes},
 	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
-	"X":          {"Exclusive", ProcessExclusive},
-	"exclusive":  {"Exclusive", ProcessExclusive},
+	"X":            {"Exclusive", ProcessExclusive},
+	"exclusive":    {"Exclusive", ProcessExclusive},
 }
 
 // FormatData formats the output data according to the format string.
