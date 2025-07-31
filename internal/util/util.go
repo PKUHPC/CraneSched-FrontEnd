@@ -33,7 +33,7 @@ type Config struct {
 	CranedNodeList                 []ConfigNodesList `yaml:"Nodes"`
 
 	UseTls    bool      `yaml:"UseTls"`
-	SslConfig SSLConfig `yaml:"SSL"`
+	TLsConfig TLSConfig `yaml:"TLS"`
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
 	CforedLogDir         string       `yaml:"CforedLogDir"`
@@ -42,11 +42,12 @@ type Config struct {
 	Plugin               PluginConfig `yaml:"Plugin"`
 }
 
-type SSLConfig struct {
+type TLSConfig struct {
 	InternalCertFilePath string `yaml:"InternalCertFilePath"`
 	InternalKeyFilePath  string `yaml:"InternalKeyFilePath"`
 	InternalCaFilePath   string `yaml:"InternalCaFilePath"`
 	ExternalCaFilePath   string `yaml:"ExternalCaFilePath"`
+	ExternalCertFilePath string `yaml:"ExternalCertFilePath"`
 	DomainSuffix         string `yaml:"DomainSuffix"`
 }
 
