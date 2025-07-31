@@ -96,10 +96,6 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 		return fmt.Errorf(ErrMsg(response.Reason))
 	}
 
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/external.pem", DefaultUserConfigPath), []byte(response.ExternalCertificate), 0644); err != nil {
-		return err
-	}
-
 	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath), []byte(response.Certificate), 0644); err != nil {
 		return err
 	}
