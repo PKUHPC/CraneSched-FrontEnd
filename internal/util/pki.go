@@ -45,9 +45,9 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 
 	csrTemplate := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName: fmt.Sprintf("%d.%s", uid, config.SslConfig.DomainSuffix),
+			CommonName: fmt.Sprintf("%d.%s", uid, config.TLsConfig.DomainSuffix),
 		},
-		DNSNames:           []string{fmt.Sprintf("*.%s", config.SslConfig.DomainSuffix), "localhost"},
+		DNSNames:           []string{fmt.Sprintf("*.%s", config.TLsConfig.DomainSuffix), "localhost"},
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
 
@@ -66,9 +66,9 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 	}
 
 	serverAddr := fmt.Sprintf("%s.%s:%s",
-		config.ControlMachine, config.SslConfig.DomainSuffix, config.CraneCtldListenPort)
+		config.ControlMachine, config.TLsConfig.DomainSuffix, config.CraneCtldListenPort)
 
-	creds, err := credentials.NewClientTLSFromFile(config.SslConfig.ExternalCaFilePath, "*."+config.SslConfig.DomainSuffix)
+	creds, err := credentials.NewClientTLSFromFile(config.TLsConfig.ExternalCaFilePath, "*."+config.TLsConfig.DomainSuffix)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 
 	client = protos.NewCraneCtldClient(conn)
 
-	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.SslConfig.DomainSuffix)}
+	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.TLsConfig.DomainSuffix)}
 
 	response, err := client.SignUserCertificate(context.Background(), request)
 	if err != nil {
