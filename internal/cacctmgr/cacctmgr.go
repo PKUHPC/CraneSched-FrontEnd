@@ -146,6 +146,9 @@ func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
 	if len(wckeyList) == 0 {
 		return
 	}
+	sort.Slice(wckeyList, func(i, j int) bool {
+		return wckeyList[i].UserName < wckeyList[j].UserName
+	})
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
@@ -155,7 +158,7 @@ func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
 	for _, wckey := range wckeyList {
 		name := wckey.Name
 		if wckey.IsDef {
-			name = "*" + name;
+			name = "*" + name
 		}
 		tableData = append(tableData, []string{
 			name,
@@ -832,7 +835,7 @@ func ModifyDefaultWckey(name, cluster, userName string) util.CraneCmdError {
 
 	reply, err := stub.ModifyDefaultWckey(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
+		util.GrpcErrorPrintf(err, "Failed to modify default wckey")
 		return util.ErrorNetwork
 	}
 

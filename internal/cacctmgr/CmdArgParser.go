@@ -351,7 +351,7 @@ var (
 	}
 	modifyWckeyCmd = &cobra.Command{
 		Use:   "wckey",
-		Short: "Modify default wckey information",
+		Short: "Modify default wckey for a user in a cluster",
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -627,6 +627,12 @@ func init() {
 			if err := removeWckeyCmd.MarkFlagRequired("name"); err != nil {
 				log.Fatalln("Can't mark 'name' flag required")
 			}
+			if err := removeWckeyCmd.MarkFlagRequired("cluster"); err != nil {
+				log.Fatalln("Can't mark 'cluster' flag required")
+			}
+			if err := removeWckeyCmd.MarkFlagRequired("user"); err != nil {
+				log.Fatalln("Can't mark 'user' flag required")
+			}
 		}
 	}
 
@@ -724,6 +730,12 @@ func init() {
 			// Rules
 			if err := modifyWckeyCmd.MarkFlagRequired("default-wckey"); err != nil {
 				log.Fatalln("Can't mark 'default-wckey' flag required")
+			}
+			if err := modifyWckeyCmd.MarkFlagRequired("cluster"); err != nil {
+				log.Fatalln("Can't mark 'cluster' flag required")
+			}
+			if err := modifyWckeyCmd.MarkFlagRequired("user"); err != nil {
+				log.Fatalln("Can't mark 'user' flag required")
 			}
 		}
 	}
