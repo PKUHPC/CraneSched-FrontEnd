@@ -29,27 +29,27 @@ import (
 )
 
 var (
-	FlagNodes         uint32
-	FlagCpuPerTask    float64
-	FlagNtasksPerNode uint32
-	FlagTime          string
-	FlagMem           string
-	FlagPartition     string
-	FlagJob           string
-	FlagAccount       string
-	FlagQos           string
-	FlagCwd           string
-	FlagRepeat        uint32
-	FlagNodelist      string
-	FlagExcludes      string
-	FlagGres          string
-	FlagGetUserEnv    bool
-	FlagExport        string
-	FlagStdoutPath    string
-	FlagStderrPath    string
-	FlagOpenMode      string
-	FlagExclusive     bool
+	FlagNodes          uint32
+	FlagCpuPerTask     float64
 	FlagCoresPerSocket uint32
+	FlagNtasksPerNode  uint32
+	FlagTime           string
+	FlagMem            string
+	FlagPartition      string
+	FlagJob            string
+	FlagAccount        string
+	FlagQos            string
+	FlagCwd            string
+	FlagRepeat         uint32
+	FlagNodelist       string
+	FlagExcludes       string
+	FlagGres           string
+	FlagGetUserEnv     bool
+	FlagExport         string
+	FlagStdoutPath     string
+	FlagStderrPath     string
+	FlagOpenMode       string
+	FlagExclusive      bool
 
 	FlagInterpreter string
 	FlagContainer   string

@@ -24,24 +24,24 @@ import (
 )
 
 var (
-	FlagNodes         uint32
-	FlagCpuPerTask    float64
-	FlagNtasksPerNode uint32
-	FlagTime          string
-	FlagMem           string
-	FlagPartition     string
-	FlagJob           string
-	FlagAccount       string
-	FlagQos           string
-	FlagCwd           string
-	FlagNodelist      string
-	FlagExcludes      string
-	FlagGetUserEnv    bool
-	FlagExport        string
-	FlagGres          string
-	FlagPty           bool
-	FlagExclusive     bool
+	FlagNodes          uint32
+	FlagCpuPerTask     float64
 	FlagCoresPerSocket uint32
+	FlagNtasksPerNode  uint32
+	FlagTime           string
+	FlagMem            string
+	FlagPartition      string
+	FlagJob            string
+	FlagAccount        string
+	FlagQos            string
+	FlagCwd            string
+	FlagNodelist       string
+	FlagExcludes       string
+	FlagGetUserEnv     bool
+	FlagExport         string
+	FlagGres           string
+	FlagPty            bool
+	FlagExclusive      bool
 
 	FlagX11    bool
 	FlagX11Fwd bool
