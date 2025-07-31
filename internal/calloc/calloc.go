@@ -489,6 +489,9 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagHold {
 		task.Hold = true
 	}
+	if FlagFlagWckeySet {
+		task.Wckey = &FlagWckey
+	}
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {

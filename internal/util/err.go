@@ -22,8 +22,9 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"errors"
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 type CraneCmdError = int
@@ -63,6 +64,11 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_INVALID_ADMIN_LEVEL:           "Unknown admin level",
 	protos.ErrCode_ERR_USER_ACCOUNT_MISMATCH:         "The user does not belong to this account",
 	protos.ErrCode_ERR_NO_ACCOUNT_SPECIFIED:          "No account is specified for the user",
+	protos.ErrCode_ERR_INVALID_WCKEY:                 "The entered wckey does not exist or no input wckey",
+	protos.ErrCode_ERR_WCKEY_ALREADY_EXISTS:          "The wckey already exists in the crane",
+	protos.ErrCode_ERR_INVALID_CLUSTER:               "The entered cluster does not exist",
+	protos.ErrCode_ERR_IS_DEFAULT_WCKEY:              "The wckey is default wckey, please modify default wckey then delete wckey",
+	protos.ErrCode_ERR_NO_DEFAULT_WCKEY:              "No default wckey, please submit job by wckey or set default wckey",
 
 	// Account-related errors
 	protos.ErrCode_ERR_INVALID_ACCOUNT:        "The entered account does not exist",

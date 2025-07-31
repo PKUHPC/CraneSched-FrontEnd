@@ -168,6 +168,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.Exclusive = val
+		case "--wckey":
+			wckey := arg.val
+			task.Wckey = &wckey
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -285,6 +288,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 	if FlagHold {
 		task.Hold = true
+	}
+	if FlagFlagWckeySet {
+		task.Wckey = &FlagWckey
 	}
 
 	// Set and check the extra attributes
