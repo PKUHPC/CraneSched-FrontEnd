@@ -166,21 +166,69 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	return seconds, nil
 }
 
+func parseTimeUnitDuration(duration string) (int64, error) {
+	// Handle formats like: 1hour, 30minutes, 2days, 1week, etc.
+	// Also handle just numbers (interpreted as seconds)
+	re := regexp.MustCompile(`^(\d+)([a-zA-Z]*)$`)
+	result := re.FindStringSubmatch(duration)
+	if result == nil {
+		return 0, fmt.Errorf("invalid duration format: %s", duration)
+	}
+
+	value, err := strconv.ParseInt(result[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number in duration: %s", result[1])
+	}
+
+	unit := strings.ToLower(result[2])
+	switch unit {
+	case "", "s", "sec", "second", "seconds":
+		return value, nil
+	case "m", "min", "minute", "minutes":
+		return value * 60, nil
+	case "h", "hour", "hours":
+		return value * 3600, nil
+	case "d", "day", "days":
+		return value * 24 * 3600, nil
+	case "w", "week", "weeks":
+		return value * 7 * 24 * 3600, nil
+	default:
+		return 0, fmt.Errorf("unsupported time unit: %s", unit)
+	}
+}
+
 func ParseTime(ts string) (time.Time, error) {
+	// Handle special keywords
+	now := time.Now()
+	switch ts {
+	case "now":
+		return now.Round(0), nil
+	case "today":
+		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()), nil
+	case "tomorrow":
+		tomorrow := now.AddDate(0, 0, 1)
+		return time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 0, 0, 0, 0, tomorrow.Location()), nil
+	case "midnight":
+		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()), nil
+	case "noon":
+		return time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location()), nil
+	}
+
+	// Handle "now + offset" and "now - offset"
 	if strings.HasPrefix(ts, "now") {
 		t := time.Time{}
 		if ts == "now" {
 			t = time.Now()
 		} else if ts[3] == '+' {
 			// '+' adds offset to Now()
-			seconds, err := ParseDurationStrToSeconds(ts[4:])
+			seconds, err := parseTimeUnitDuration(ts[4:])
 			if err != nil {
 				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
 			t = time.Now().Add(time.Duration(seconds) * time.Second)
 		} else if ts[3] == '-' {
 			// '-' subtracts offset from Now()
-			seconds, err := ParseDurationStrToSeconds(ts[4:])
+			seconds, err := parseTimeUnitDuration(ts[4:])
 			if err != nil {
 				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
