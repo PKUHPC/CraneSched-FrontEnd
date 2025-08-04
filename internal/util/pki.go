@@ -18,7 +18,7 @@ import (
 
 func SignAndSaveUserCertificate(config *Config) error {
 
-	if FileExists(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath)) {
+	if FileExists(fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath)) {
 		return nil
 	}
 
@@ -30,6 +30,8 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 
 	uid := uint32(os.Getuid())
 
+	RemoveFileIfExists(fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath))
+
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return err
@@ -39,7 +41,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
 
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.key", DefaultUserConfigPath), privateKeyPEM, 0600); err != nil {
+	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.key", config.TLsConfig.UserTlsCertPath), privateKeyPEM, 0600); err != nil {
 		return err
 	}
 
@@ -61,7 +63,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 		Bytes: csrBytes,
 	})
 
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.csr", DefaultUserConfigPath), csrPEM, 0600); err != nil {
+	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.csr", config.TLsConfig.UserTlsCertPath), csrPEM, 0600); err != nil {
 		return err
 	}
 
@@ -96,7 +98,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 		return fmt.Errorf(ErrMsg(response.Reason))
 	}
 
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", DefaultUserConfigPath), []byte(response.Certificate), 0644); err != nil {
+	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath), []byte(response.Certificate), 0644); err != nil {
 		return err
 	}
 

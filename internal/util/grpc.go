@@ -197,6 +197,14 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
 			config.ControlMachine, config.TLsConfig.DomainSuffix, config.CraneCtldListenPort)
 
+		if config.TLsConfig.UserTlsCertPath == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				log.Fatal(err.Error())
+			}
+			config.TLsConfig.UserTlsCertPath = filepath.Join(home, DefaultUserConfigPrefix)
+		}
+
 		refreshCertificateFunc := func() error {
 			return DoSignAndSaveUserCertificate(config)
 		}
@@ -344,20 +352,10 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 		return tlsConfig, nil
 	}
 
-	userKeyPath, err := ExpandPath(DefaultUserConfigPath + "/user.key")
-	if err != nil {
-		return nil, err
-	}
-	userCertPath, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
-	if err != nil {
-		return nil, err
-	}
-	externalCertPath, err := ExpandPath(config.TLsConfig.ExternalCertFilePath)
-	if err != nil {
-		return nil, err
-	}
+	userKeyPath := fmt.Sprintf("%s/user.key", config.TLsConfig.UserTlsCertPath)
+	userCertPath := fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath)
 
-	if !FileExists(userKeyPath) || !FileExists(userCertPath) || !FileExists(externalCertPath) {
+	if !FileExists(userKeyPath) || !FileExists(userCertPath) || !FileExists(config.TLsConfig.ExternalCertFilePath) {
 		return nil, fmt.Errorf("certificate files not found")
 	}
 
@@ -366,7 +364,7 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to load client certificate: %v", err)
 	}
 
-	CaCertContent, err := os.ReadFile(externalCertPath)
+	CaCertContent, err := os.ReadFile(config.TLsConfig.ExternalCertFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -416,12 +414,6 @@ func RefreshCertInterceptor(refreshCertificateFunc func() error, updateConnFunc 
 		rpcErr, _ := status.FromError(err)
 		if (rpcErr.Code() == grpccodes.Unavailable && strings.Contains(rpcErr.Message(), "certificate")) ||
 			rpcErr.Code() == grpccodes.Unauthenticated {
-			pem_path, err := ExpandPath(DefaultUserConfigPath + "/user.pem")
-			if err != nil {
-				return err
-			}
-			RemoveFileIfExists(pem_path)
-
 			if refreshErr := refreshCertificateFunc(); refreshErr != nil {
 				log.Errorf(refreshErr.Error())
 				return refreshErr

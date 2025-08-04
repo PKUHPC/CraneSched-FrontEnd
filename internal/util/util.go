@@ -47,6 +47,7 @@ type TLSConfig struct {
 	ExternalCaFilePath   string `yaml:"ExternalCaFilePath"`
 	ExternalCertFilePath string `yaml:"ExternalCertFilePath"`
 	DomainSuffix         string `yaml:"DomainSuffix"`
+	UserTlsCertPath      string `yaml:"UserTlsCertPath"`
 }
 
 type PluginConfig struct {
@@ -79,7 +80,7 @@ const (
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
-	DefaultUserConfigPath = "~/.config/crane"
+	DefaultUserConfigPrefix = "/.config/crane"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"

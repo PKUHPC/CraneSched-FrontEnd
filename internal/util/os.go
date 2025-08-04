@@ -30,44 +30,25 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func ExpandPath(path string) (string, error) {
-	if len(path) > 0 && path[0] == '~' {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, path[1:]), nil
-	}
-	return path, nil
-}
-
 func FileExists(path string) bool {
-	filePath, err := ExpandPath(path)
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(filePath)
+	_, err := os.Stat(path)
 	return err == nil
 }
 
 func SaveFileWithPermissions(path string, content []byte, perm os.FileMode) error {
-	filePath, err := ExpandPath(path)
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(filePath)
+	dir := filepath.Dir(path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err := os.MkdirAll(dir, 0755)
 		if err != nil {
 			return err
 		}
 	}
-	err = os.WriteFile(filePath, content, perm)
+	err := os.WriteFile(path, content, perm)
 	if err != nil {
 		return err
 	}
 
-	err = os.Chmod(filePath, perm)
+	err = os.Chmod(path, perm)
 	if err != nil {
 		return err
 	}
