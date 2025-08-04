@@ -67,7 +67,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_INVALID_WCKEY:                 "The entered wckey does not exist or no input wckey",
 	protos.ErrCode_ERR_WCKEY_ALREADY_EXISTS:          "The wckey already exists in the crane",
 	protos.ErrCode_ERR_INVALID_CLUSTER:               "The entered cluster does not exist",
-	protos.ErrCode_ERR_IS_DEFAULT_WCKEY:              "The wckey is default wckey, please modify default wckey then delete wckey",
+	protos.ErrCode_ERR_DEL_DEFAULT_WCKEY:             "The wckey is default wckey, please modify default wckey then delete wckey",
 	protos.ErrCode_ERR_NO_DEFAULT_WCKEY:              "No default wckey, please submit job by wckey or set default wckey",
 
 	// Account-related errors
