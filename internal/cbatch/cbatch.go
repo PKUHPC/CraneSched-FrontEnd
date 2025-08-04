@@ -301,12 +301,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	// Set total limit of cpu cores
 	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
-	SubmitHostname, err := os.Hostname()
+	submitHostname, err := os.Hostname()
 	if err != nil {
 		log.Errorf("Invalid argument: %v", err)
 		return false, nil
 	}
-	task.SubmitHostname = SubmitHostname
+	task.SubmitHostname = submitHostname
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
