@@ -788,7 +788,7 @@ message WckeyInfo {
   string name = 1;
   string cluster = 2;
   string user_name = 3;
-  bool is_def = 4;
+  bool is_def = 4;  //default
 }
 
 message TimeInterval {
