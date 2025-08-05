@@ -32,6 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type CbatchArg struct {
@@ -168,6 +169,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.Exclusive = val
+		case "--begin":
+			beginTime, err := util.ParseTime(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
+			}
+			task.BeginTime = timestamppb.New(beginTime)
 		default:
 			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
 			return false, nil
@@ -285,6 +293,14 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	}
 	if FlagHold {
 		task.Hold = true
+	}
+	if FlagBegin != "" {
+		beginTime, err := util.ParseTime(FlagBegin)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --begin: %v", err)
+			return false, nil
+		}
+		task.BeginTime = timestamppb.New(beginTime)
 	}
 
 	// Set and check the extra attributes

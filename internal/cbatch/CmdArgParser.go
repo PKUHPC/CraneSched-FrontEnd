@@ -64,6 +64,7 @@ var (
 	FlagJson           bool
 
 	FlagReservation string
+	FlagBegin       string
 
 	FlagHold bool
 
@@ -171,4 +172,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
+	RootCmd.Flags().StringVar(&FlagBegin, "begin", "", "Defer job until specified time.")
 }
