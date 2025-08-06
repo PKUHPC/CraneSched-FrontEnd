@@ -380,9 +380,10 @@ CforedCrunStateMachineLoop:
 					} else {
 						switch crunRequest.Type {
 						case protos.StreamCrunRequest_TASK_IO_FORWARD:
-							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to task, msg size[%d]",
-								crunRequest.GetPayloadTaskIoForwardReq().GetTaskId(),
-								stepId, len(crunRequest.GetPayloadTaskIoForwardReq().GetMsg()))
+							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
+								" task, msg size[%d], EOF [%v]", taskId, stepId,
+								len(crunRequest.GetPayloadTaskIoForwardReq().GetMsg()),
+								crunRequest.GetPayloadTaskIoForwardReq().Eof)
 							gSupervisorChanKeeper.forwardCrunRequestToSupervisor(taskId, stepId, crunRequest)
 
 						case protos.StreamCrunRequest_TASK_X11_FORWARD:

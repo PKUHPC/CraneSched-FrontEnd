@@ -405,6 +405,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 						PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
 							TaskId: m.taskId,
 							Msg:    msg,
+							Eof:    msg == nil,
 						},
 					},
 				}
@@ -638,46 +639,31 @@ func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	}(file)
 
 	writer := bufio.NewWriter(file)
-	waitSITCONT := false
+	waitSIGCONT := false
 writing:
 	for {
-		if waitSITCONT {
-			select {
-			case sig := <-sigChan:
-				log.Tracef("Received signal %s.", sig.String())
-				if sig == syscall.SIGCONT {
-					log.Tracef("Start writing Stdout.")
-				}
-			case <-m.chanOutputFromRemote:
-				//do nothing
-				//_, err := writer.WriteString(msg)
-				//
-				//if err != nil {
-				//	fmt.Printf("Failed to write to fd: %v\n", err)
-				//	break writing
-				//}
-				//err = writer.Flush()
-				//if err != nil {
-				//	fmt.Printf("Failed to flush to fd: %v\n", err)
-				//	break writing
-				//}
-
-			case <-m.taskFinishCtx.Done():
-				break writing
-
-			}
-		}
-
 		select {
 		case sig := <-sigChan:
 			log.Tracef("Received signal %s.", sig.String())
-			if sig == syscall.SIGTTOU {
-				log.Tracef("Stop writing Stdout.")
-				waitSITCONT = true
-			} else {
+			switch sig {
+			case syscall.SIGTTOU:
+				{
+					log.Tracef("Stop writing Stdout.")
+					waitSIGCONT = true
+				}
+			case syscall.SIGCONT:
+				{
+					log.Tracef("Start writing Stdout.")
+					waitSIGCONT = false
+				}
+			default:
 				log.Tracef("Unhandled signal %s", sig.String())
 			}
+
 		case msg := <-m.chanOutputFromRemote:
+			if waitSIGCONT {
+				break
+			}
 			_, err := writer.Write(msg)
 
 			if err != nil {
@@ -696,7 +682,6 @@ writing:
 	}
 }
 
-// StdinReaderRoutine reads from stdin and sends input to the channel, exits on SIGTTIN.
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	file := os.NewFile(os.Stdin.Fd(), "stdin")
 	defer func(file *os.File) {
@@ -712,33 +697,32 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	waitSIGCONT := false
 reading:
 	for {
-		if waitSIGCONT {
-			select {
-			case sig := <-sigChan:
-				{
-					log.Tracef("Received signal %s.", sig.String())
-					if sig == syscall.SIGCONT {
-						waitSIGCONT = false
-						log.Tracef("Continue reading Stdin.")
-					}
-				}
-			case <-m.taskFinishCtx.Done():
-				break reading
-			}
-
-		}
 		select {
 		case sig := <-sigChan:
 			log.Tracef("Received signal %s.", sig.String())
-			if sig == syscall.SIGTTIN {
-				log.Tracef("Stop reading Stdin.")
-				waitSIGCONT = true
+			switch sig {
+			case syscall.SIGCONT:
+				{
+					waitSIGCONT = false
+					log.Tracef("Continue reading Stdin.")
+				}
+			case syscall.SIGTTIN:
+				{
+					log.Tracef("Stop reading Stdin.")
+					waitSIGCONT = true
+				}
+			default:
+				log.Tracef("Unhandled signal %s", sig.String())
 			}
-			break reading // Exit on SIGTTIN
+
 		case <-m.taskFinishCtx.Done():
 			break reading
 
 		default:
+			if waitSIGCONT {
+				time.Sleep(time.Millisecond * 20)
+				continue
+			}
 			if FlagPty {
 				data, err := reader.ReadByte()
 				if err != nil {

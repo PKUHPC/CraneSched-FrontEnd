@@ -345,8 +345,8 @@ CforedSupervisorStateMachineLoop:
 					case protos.StreamCrunRequest_TASK_IO_FORWARD:
 						payload := crunReq.GetPayloadTaskIoForwardReq()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding input len [%d] to craned %s",
-							taskId, stepId, len(msg), cranedId)
+						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding input len [%d] EOF[%v] to craned %s",
+							taskId, stepId, len(msg), payload.Eof, cranedId)
 						reply = &protos.StreamTaskIOReply{
 							Type: protos.StreamTaskIOReply_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
@@ -354,6 +354,7 @@ CforedSupervisorStateMachineLoop:
 									TaskId: taskId,
 									StepId: stepId,
 									Msg:    msg,
+									Eof:    payload.Eof,
 								},
 							},
 						}
