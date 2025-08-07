@@ -25,11 +25,12 @@ import (
 )
 
 var (
-	FlagConfigFilePath   string
-	FlagFull             bool
-	FlagNoHeader         bool
-	FlagStartTime        bool
-	FlagSelf             bool
+	FlagConfigFilePath string
+	FlagFull           bool
+	FlagNoHeader       bool
+	FlagStartTime      bool
+	FlagSelf           bool
+
 	FlagFilterPartitions string
 	FlagFilterJobIDs     string
 	FlagFilterJobNames   string
@@ -37,10 +38,14 @@ var (
 	FlagFilterStates     string
 	FlagFilterUsers      string
 	FlagFilterAccounts   string
-	FlagFormat           string
-	FlagIterate          uint64
-	FlagNumLimit         uint32
-	FlagJson             bool
+
+	FlagFormat string
+
+	FlagIterate uint64
+
+	FlagNumLimit uint32
+
+	FlagJson bool
 
 	RootCmd = &cobra.Command{
 		Use:     "cqueue [flags]",
@@ -55,13 +60,9 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					return &util.CraneError{
-						Code:    util.ErrorCmdArg,
-						Message: "Output line number limit must be greater than 0.",
-					}
+					return util.GetCraneError(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
 				}
 			}
-
 			if FlagIterate != 0 {
 				return loopedQuery(FlagIterate)
 			} else {
@@ -139,19 +140,26 @@ Help options:
 `
 }
 
-func initCustomHelpTemplate(cmd *cobra.Command) {
-	cmd.SetHelpTemplate(HelpTemplate())
+func register() {
+	RegisterFlag("FlagFilterJobNames",&StringHandler{})
+	RegisterFlag("FlagFilterUsers", &StringHandler{})
+	RegisterFlag("FlagFilterQos", &StringHandler{})
+	RegisterFlag("FlagFilterAccounts", &StringHandler{})
+	RegisterFlag("FlagFilterPartitions", &StringHandler{})
+	RegisterFlag("FlagFilterJobIDs", &JobIDHandler{})
 }
 
 func init() {
+
+	register()
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	initCustomHelpTemplate(RootCmd)
+	RootCmd.SetHelpTemplate(HelpTemplate())
 	RootCmd.SetUsageTemplate(`Usage: cqueue [-A account] [-C config] [-F full] 
               [-i seconds] [-j job(ID)] [--json] [-m --max-lines] 
               [-n name] [-N noheader] [-o format] [-p partitions] 
-              [-q qos][-S start] [-t state] [-u user(name)] [-h --help]
+              [-q qos][-S start] [-t state] [-u user(name)] 
+              [-v --version] [-h --help]
 	`)
-
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
