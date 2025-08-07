@@ -442,7 +442,7 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 	log.Tracef("Listening on unix socket %s", config.CranedCforedSockPath)
 
 	var serverOptions []grpc.ServerOption
-	if config.UseTls {
+	if config.TLsConfig.Enabled {
 		creds := &util.UnixPeerCredentials{}
 		serverOptions = []grpc.ServerOption{
 			grpc.KeepaliveParams(util.ServerKeepAliveParams),

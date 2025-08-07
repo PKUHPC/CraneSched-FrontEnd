@@ -24,8 +24,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"google.golang.org/grpc/backoff"
-	"google.golang.org/grpc/keepalive"
 	"io/fs"
 	"math"
 	"net"
@@ -34,6 +32,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/keepalive"
 
 	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -117,7 +118,7 @@ func (c *UnixPeerCredentials) Clone() credentials.TransportCredentials { return 
 func (c *UnixPeerCredentials) OverrideServerName(s string) error       { return nil }
 
 func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
-	if config.UseTls {
+	if config.TLsConfig.Enabled {
 		CaCertContent, err := os.ReadFile(config.TLsConfig.InternalCaFilePath)
 		if err != nil {
 			return nil, err
@@ -193,7 +194,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
 
-	if config.UseTls {
+	if config.TLsConfig.Enabled {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
 			config.ControlMachine, config.TLsConfig.DomainSuffix, config.CraneCtldListenPort)
 
@@ -261,7 +262,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 	var err error
 	var stub protos.CraneCtldForInternalClient
 
-	if config.UseTls {
+	if config.TLsConfig.Enabled {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
 			config.ControlMachine, config.TLsConfig.DomainSuffix, config.CraneCtldForInternalListenPort)
 
