@@ -167,6 +167,12 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 }
 
 func parseTimeUnitDuration(duration string) (int64, error) {
+	// Handle formats like: dd-HH:MM:SS
+	seconds, err := ParseDurationStrToSeconds(duration)
+	if err == nil {
+		return seconds, nil
+	}
+
 	// Handle formats like: 1hour, 30minutes, 2days, 1week, etc.
 	// Also handle just numbers (interpreted as seconds)
 	re := regexp.MustCompile(`^(\d+)([a-zA-Z]*)$`)
