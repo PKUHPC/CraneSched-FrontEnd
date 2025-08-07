@@ -436,7 +436,7 @@ func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 		return "0"
 	}
 	allocMemPerNode := task.AllocatedResView.AllocatableRes.MemoryLimitBytes / uint64(task.NodeNum)
-    return util.FormatMemToMB(allocMemPerNode)
+	return util.FormatMemToMB(allocMemPerNode)
 }
 
 // NodeNum (N)
@@ -534,8 +534,8 @@ var fieldProcessors = map[string]FieldProcessor{
 	"account": {"Account", ProcessAccount},
 
 	// Group C
-	"C":         {"ReqCpus", ProcessReqCPUs},
-	"reqcpus"  : {"ReqCpus", ProcessReqCPUs},
+	"C":       {"ReqCpus", ProcessReqCPUs},
+	"reqcpus": {"ReqCpus", ProcessReqCPUs},
 
 	// Group c
 	"c":         {"AllocCPUs", ProcessAllocCPUs},
@@ -635,7 +635,7 @@ var fieldProcessors = map[string]FieldProcessor{
 
 	// Group X
 	"X":         {"Exclusive", ProcessExclusive},
-	"exclusive":  {"Exclusive", ProcessExclusive},
+	"exclusive": {"Exclusive", ProcessExclusive},
 
 	// Group x
 	"x":            {"ExcludeNodes", ProcessExcludeNodes},
