@@ -116,6 +116,7 @@ Supported format identifiers or string, string case insensitive:
 	%h/%Held               - Display the hold state of the job.
 	%j/%JobID              - Display the ID of the job.
 	%k/%Comment            - Display the comment of the job.
+	%K/%Wckey              - Display the wckey of the job.
 	%L/%NodeList           - Display the list of nodes the job is running on.
 	%l/%TimeLimit          - Display the time limit for the job.
 	%M/%ReqMemPerNode      - Display the requested mem per node of the job.
