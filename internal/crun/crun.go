@@ -835,6 +835,7 @@ func MainCrun(args []string) error {
 	task.NodeNum = FlagNodes
 	task.CpusPerTask = FlagCpuPerTask
 	task.NtasksPerNode = FlagNtasksPerNode
+	task.CoresPerSocket = FlagCoresPerSocket
 	task.Name = util.ExtractExecNameFromArgs(args)
 
 	if FlagTime != "" {

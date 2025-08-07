@@ -29,26 +29,27 @@ import (
 )
 
 var (
-	FlagNodes         uint32
-	FlagCpuPerTask    float64
-	FlagNtasksPerNode uint32
-	FlagTime          string
-	FlagMem           string
-	FlagPartition     string
-	FlagJob           string
-	FlagAccount       string
-	FlagQos           string
-	FlagCwd           string
-	FlagRepeat        uint32
-	FlagNodelist      string
-	FlagExcludes      string
-	FlagGres          string
-	FlagGetUserEnv    bool
-	FlagExport        string
-	FlagStdoutPath    string
-	FlagStderrPath    string
-	FlagOpenMode      string
-	FlagExclusive     bool
+	FlagNodes          uint32
+	FlagCpuPerTask     float64
+	FlagCoresPerSocket uint32
+	FlagNtasksPerNode  uint32
+	FlagTime           string
+	FlagMem            string
+	FlagPartition      string
+	FlagJob            string
+	FlagAccount        string
+	FlagQos            string
+	FlagCwd            string
+	FlagRepeat         uint32
+	FlagNodelist       string
+	FlagExcludes       string
+	FlagGres           string
+	FlagGetUserEnv     bool
+	FlagExport         string
+	FlagStdoutPath     string
+	FlagStderrPath     string
+	FlagOpenMode       string
+	FlagExclusive      bool
 
 	FlagInterpreter string
 	FlagContainer   string
@@ -143,6 +144,7 @@ func init() {
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per job")
+	RootCmd.Flags().Uint32VarP(&FlagCoresPerSocket, "cores-per-socket", "", 0, "Number of cores per socket")
 	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
