@@ -39,8 +39,10 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagGres          string
-	FlagPty           bool
-	FlagExclusive     bool
+
+	FlagInput     string
+	FlagPty       bool
+	FlagExclusive bool
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -98,6 +100,7 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 
+	RootCmd.Flags().StringVarP(&FlagInput, "input", "i", "all", "Source and destination of stdin redirection")
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
 
 	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Enable X11 support, default is false. If not with --x11-forwarding, direct X11 is used (insecure)")

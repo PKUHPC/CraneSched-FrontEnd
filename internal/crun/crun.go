@@ -24,6 +24,9 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"net"
+	"os/user"
+	"regexp"
+	"strconv"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -76,6 +79,8 @@ type StateMachineOfCrun struct {
 	task   *protos.TaskToCtld
 	taskId uint32 // This field will be set after ReqTaskId state
 
+	inputFlag string // Crun --input flag, used to determine how to read input from stdin
+
 	state StateOfCrun
 	err   util.CraneCmdError // Hold the final error of the state machine if any
 
@@ -92,6 +97,8 @@ type StateMachineOfCrun struct {
 	// These fields are used under Forwarding State.
 	taskFinishCtx           context.Context
 	taskFinishCb            context.CancelFunc
+	taskErrCtx              context.Context
+	taskErrCb               context.CancelFunc
 	chanInputFromTerm       chan []byte
 	chanOutputFromRemote    chan []byte
 	chanX11InputFromLocal   chan []byte
@@ -136,7 +143,7 @@ func (m *StateMachineOfCrun) Init(task *protos.TaskToCtld) {
 	m.err = util.ErrorSuccess
 
 	m.sigs = make(chan os.Signal, 1)
-	signal.Notify(m.sigs, syscall.SIGINT)
+	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
 }
 
 func (m *StateMachineOfCrun) Close() {
@@ -400,6 +407,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 						PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
 							TaskId: m.taskId,
 							Msg:    msg,
+							Eof:    msg == nil,
 						},
 					},
 				}
@@ -447,6 +455,28 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			}
 
 			log.Debug("Sending TASK_COMPLETION_REQUEST with COMPLETED state...")
+			if err := m.stream.Send(request); err != nil {
+				log.Errorf("The connection to Cfored was broken: %s. "+
+					"Exiting...", err)
+				gVars.connectionBroken = true
+				m.state = End
+				m.err = util.ErrorNetwork
+			} else {
+				m.state = WaitAck
+			}
+
+		case <-m.taskErrCtx.Done():
+			request = &protos.StreamCrunRequest{
+				Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
+				Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
+					PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
+						TaskId: m.taskId,
+						Status: protos.TaskStatus_Cancelled,
+					},
+				},
+			}
+
+			log.Debug("Sending TASK_COMPLETION_REQUEST with Cancelled state...")
 			if err := m.stream.Send(request); err != nil {
 				log.Errorf("The connection to Cfored was broken: %s. "+
 					"Exiting...", err)
@@ -591,7 +621,7 @@ CrunStateMachineLoop:
 
 func (m *StateMachineOfCrun) forwardingSigintHandlerRoutine() {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTTOU)
 
 	lastSigint := time.Now().Add(-2 * time.Second)
 loop:
@@ -623,6 +653,8 @@ loop:
 
 func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	file := os.NewFile(os.Stdout.Fd(), "stdout")
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTTOU, syscall.SIGCONT)
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
@@ -631,11 +663,31 @@ func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	}(file)
 
 	writer := bufio.NewWriter(file)
-
+	waitSIGCONT := false
 writing:
 	for {
 		select {
+		case sig := <-sigChan:
+			log.Tracef("Received signal %s.", sig.String())
+			switch sig {
+			case syscall.SIGTTOU:
+				{
+					log.Tracef("Stop writing Stdout.")
+					waitSIGCONT = true
+				}
+			case syscall.SIGCONT:
+				{
+					log.Tracef("Start writing Stdout.")
+					waitSIGCONT = false
+				}
+			default:
+				log.Tracef("Unhandled signal %s", sig.String())
+			}
+
 		case msg := <-m.chanOutputFromRemote:
+			if waitSIGCONT {
+				break
+			}
 			_, err := writer.Write(msg)
 
 			if err != nil {
@@ -664,14 +716,37 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	}(file)
 
 	reader := bufio.NewReader(file)
-
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTTIN, syscall.SIGCONT)
+	waitSIGCONT := false
 reading:
 	for {
 		select {
+		case sig := <-sigChan:
+			log.Tracef("Received signal %s.", sig.String())
+			switch sig {
+			case syscall.SIGCONT:
+				{
+					waitSIGCONT = false
+					log.Tracef("Continue reading Stdin.")
+				}
+			case syscall.SIGTTIN:
+				{
+					log.Tracef("Stop reading Stdin.")
+					waitSIGCONT = true
+				}
+			default:
+				log.Tracef("Unhandled signal %s", sig.String())
+			}
+
 		case <-m.taskFinishCtx.Done():
 			break reading
 
 		default:
+			if waitSIGCONT {
+				time.Sleep(time.Millisecond * 20)
+				continue
+			}
 			if FlagPty {
 				data, err := reader.ReadByte()
 				if err != nil {
@@ -694,6 +769,117 @@ reading:
 				m.chanInputFromTerm <- data
 			}
 
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
+	if pattern == "" {
+		return pattern, nil
+	}
+	if strings.Contains(pattern, "\\\\") {
+		return pattern, nil
+	}
+	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
+	if err != nil {
+		return pattern, fmt.Errorf("Failed to lookup user by uid %d: %s", m.task.Uid, err)
+	}
+	replacements := map[string]string{
+		"%%": "%",
+		//Job array's master job allocation number.
+		//"%A": "",
+		//Job array ID (index) number.
+		//"%a": "",
+		//jobid.stepid of the running job (e.g. "128.0")
+		//"%J": "111.0",
+		// job id
+		"%j": fmt.Sprintf("%d", m.taskId),
+		// step id
+		"%s": "0",
+		//short hostname
+		//"%N": "node1",
+		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
+		//"%n": "0",
+		//task identifier (rank) relative to current job.
+		//"%t": "0",
+		//User name
+		"%u": currentUser.Name,
+		// Job name
+		"%x": m.task.Name,
+	}
+
+	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
+
+	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
+
+		parts := re.FindStringSubmatch(match)
+		if len(parts) < 3 {
+			return match // fallback
+		}
+
+		padding := parts[1]   // '5' in '%5j'
+		specifier := parts[2] // 'j' in '%5j'
+
+		value, found := replacements["%"+specifier]
+		if !found {
+			return match // fallback
+		}
+
+		if specifier == "j" || specifier == "s" {
+			if padding == "" {
+				return value
+			}
+			_, err := strconv.Atoi(padding)
+			if err != nil {
+				return value
+			}
+			paddedFormat := "%0" + padding + "v"
+			return fmt.Sprintf(paddedFormat, value)
+		}
+
+		return value
+	})
+
+	return result, nil
+}
+func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
+	parsedFilePath, err := m.ParseFilePattern(filePattern)
+	if err != nil {
+		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
+		return
+	}
+	file, err := os.Open(parsedFilePath)
+	if err != nil {
+		log.Errorf("Failed to open file %s: %s", parsedFilePath, err)
+		m.chanInputFromTerm <- nil
+		m.taskErrCb()
+		return
+	}
+	log.Debugf("Reading from file %s", parsedFilePath)
+	reader := bufio.NewReader(file)
+
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("Failed to close stdin file: %s.", err)
+		}
+	}(file)
+reading:
+	for {
+		select {
+		case <-m.taskFinishCtx.Done():
+			break reading
+		default:
+			data, err := reader.ReadBytes('\n')
+			if err != nil {
+				if err == io.EOF {
+					m.chanInputFromTerm <- nil
+					break reading
+				}
+				log.Errorf("Failed to read from fd: %v", err)
+				break reading
+			}
+			m.chanInputFromTerm <- data
 		}
 	}
 }
@@ -766,6 +952,7 @@ loop:
 
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
+	m.taskErrCtx, m.taskErrCb = context.WithCancel(context.Background())
 
 	m.chanInputFromTerm = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
@@ -774,7 +961,22 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigintHandlerRoutine()
-	go m.StdinReaderRoutine()
+	if strings.ToLower(FlagInput) == "all" {
+		go m.StdinReaderRoutine()
+	} else {
+		num, err := strconv.Atoi(FlagInput)
+		if err != nil {
+			go m.FileReaderRoutine(FlagInput)
+		} else {
+			if uint32(num) > m.task.NtasksPerNode*m.task.NodeNum {
+				go m.FileReaderRoutine(FlagInput)
+			} else {
+				//TODO: should fwd io to the task with relative id equal to task id instead of file
+				go m.FileReaderRoutine(FlagInput)
+			}
+		}
+	}
+
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()
@@ -983,6 +1185,7 @@ func MainCrun(args []string) error {
 	iaMeta.InteractiveType = protos.InteractiveTaskType_Crun
 
 	m := new(StateMachineOfCrun)
+	m.inputFlag = FlagInput
 
 	m.Init(task)
 	m.Run()
