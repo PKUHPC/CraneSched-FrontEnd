@@ -66,7 +66,7 @@ CforedCrunStateMachineLoop:
 	for {
 		switch state {
 		case CrunWaitTaskIdAllocReq:
-			log.Infof("[Cfored<->Crun][Pid #%d] Enter State WAIT_TASK_ID_ALLOC_REQ", crunPid)
+			log.Infof("[Cfored<->Crun] Enter State WAIT_TASK_ID_ALLOC_REQ")
 
 			item := <-crunRequestChannel
 			crunRequest, err := item.message, item.err
@@ -81,11 +81,12 @@ CforedCrunStateMachineLoop:
 				}
 			}
 
-			log.Debug("[Cfored<-Crun] Receive TaskIdAllocReq")
-
 			if crunRequest.Type != protos.StreamCrunRequest_TASK_REQUEST {
-				log.Fatal("[Cfored<-Crun] Expect TASK_REQUEST")
+				log.Fatalf("[Cfored<-Crun] Expect TASK_REQUEST but got %s", crunRequest.Type)
+				break
 			}
+
+			log.Debug("[Cfored<-Crun] Receive TASK_REQUEST")
 
 			if !gVars.ctldConnected.Load() {
 				reply = &protos.StreamCrunReply{

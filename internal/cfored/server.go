@@ -115,7 +115,7 @@ func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []s
 			keeper.toSupervisorChannelCV.Wait() // gVars.toSupervisorChannelMtx is unlocked.
 			// Once Wait() returns, the lock is held again.
 		} else {
-			log.Debug("[Cfored<->Crun] All related craned up now")
+			log.Debugf("[Cfored<->Crun][Job #%d.%d] All related craned up now", taskId, stepId)
 			readyChan <- true
 			break
 		}
