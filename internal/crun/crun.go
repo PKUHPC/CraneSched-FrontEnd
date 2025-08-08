@@ -97,6 +97,8 @@ type StateMachineOfCrun struct {
 	// These fields are used under Forwarding State.
 	taskFinishCtx           context.Context
 	taskFinishCb            context.CancelFunc
+	taskErrCtx              context.Context
+	taskErrCb               context.CancelFunc
 	chanInputFromTerm       chan []byte
 	chanOutputFromRemote    chan []byte
 	chanX11InputFromLocal   chan []byte
@@ -463,6 +465,28 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				m.state = WaitAck
 			}
 
+		case <-m.taskErrCtx.Done():
+			request = &protos.StreamCrunRequest{
+				Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
+				Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
+					PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
+						TaskId: m.taskId,
+						Status: protos.TaskStatus_Cancelled,
+					},
+				},
+			}
+
+			log.Debug("Sending TASK_COMPLETION_REQUEST with Cancelled state...")
+			if err := m.stream.Send(request); err != nil {
+				log.Errorf("The connection to Cfored was broken: %s. "+
+					"Exiting...", err)
+				gVars.connectionBroken = true
+				m.state = End
+				m.err = util.ErrorNetwork
+			} else {
+				m.state = WaitAck
+			}
+
 		case item := <-m.cforedReplyReceiver.replyChannel:
 			cforedReply, err := item.reply, item.err
 			if err != nil {
@@ -805,13 +829,12 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 			if padding == "" {
 				return value
 			}
-			padLen, err := strconv.Atoi(padding)
+			_, err := strconv.Atoi(padding)
 			if err != nil {
 				return value
 			}
-
-			// padding
-			return fmt.Sprintf("%0*"+specifier, padLen, value)
+			paddedFormat := "%0" + padding + "v"
+			return fmt.Sprintf(paddedFormat, value)
 		}
 
 		return value
@@ -828,6 +851,8 @@ func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
 	file, err := os.Open(parsedFilePath)
 	if err != nil {
 		log.Errorf("Failed to open file %s: %s", parsedFilePath, err)
+		m.chanInputFromTerm <- nil
+		m.taskErrCb()
 		return
 	}
 	log.Debugf("Reading from file %s", parsedFilePath)
@@ -927,6 +952,7 @@ loop:
 
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
+	m.taskErrCtx, m.taskErrCb = context.WithCancel(context.Background())
 
 	m.chanInputFromTerm = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
