@@ -141,12 +141,13 @@ Help options:
 }
 
 func register() {
-	RegisterFlag("FlagFilterJobNames",&StringHandler{})
+	RegisterFlag("FlagFilterJobNames", &StringHandler{})
 	RegisterFlag("FlagFilterUsers", &StringHandler{})
 	RegisterFlag("FlagFilterQos", &StringHandler{})
 	RegisterFlag("FlagFilterAccounts", &StringHandler{})
 	RegisterFlag("FlagFilterPartitions", &StringHandler{})
 	RegisterFlag("FlagFilterJobIDs", &JobIDHandler{})
+	RegisterFlag("FlagFilterStates", &StatesHandler{})
 }
 
 func init() {
