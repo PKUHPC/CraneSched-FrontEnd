@@ -756,7 +756,7 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	if strings.Contains(pattern, "\\\\") {
 		return pattern, nil
 	}
-	user, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
+	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
 	if err != nil {
 		return pattern, fmt.Errorf("Failed to lookup user by uid %d: %s", m.task.Uid, err)
 	}
@@ -779,16 +779,15 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 		//task identifier (rank) relative to current job.
 		//"%t": "0",
 		//User name
-		"%u": user.Name,
+		"%u": currentUser.Name,
 		// Job name
 		"%x": m.task.Name,
 	}
-	// 构建正则：%% 或 %加一个数字和字母（例如 %5j）
+
 	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
 
-	// 替换逻辑
 	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
-		// 提取填充数字和格式符
+
 		parts := re.FindStringSubmatch(match)
 		if len(parts) < 3 {
 			return match // fallback
@@ -802,7 +801,6 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 			return match // fallback
 		}
 
-		// 如果格式符对应的是数字类型，进行零填充
 		if specifier == "j" || specifier == "s" {
 			if padding == "" {
 				return value
@@ -812,7 +810,7 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 				return value
 			}
 
-			// 填充
+			// padding
 			return fmt.Sprintf("%0*"+specifier, padLen, value)
 		}
 
