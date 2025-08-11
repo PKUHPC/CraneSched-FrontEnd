@@ -908,6 +908,9 @@ func MainCrun(args []string) error {
 	if FlagExclusive {
 		task.Exclusive = true
 	}
+	if FlagHold {
+		task.Hold = true
+	}
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {

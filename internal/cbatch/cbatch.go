@@ -283,6 +283,9 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagExclusive {
 		task.Exclusive = true
 	}
+	if FlagHold {
+		task.Hold = true
+	}
 
 	// Set and check the extra attributes
 	var extraFromCli string

@@ -65,6 +65,8 @@ var (
 
 	FlagReservation string
 
+	FlagHold bool
+
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
 		Short:   "Submit batch job",
@@ -168,4 +170,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 }
