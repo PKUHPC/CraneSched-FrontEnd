@@ -23,6 +23,7 @@ import "C"
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"errors"
 	"net"
 	"os/user"
 	"regexp"
@@ -619,15 +620,14 @@ CrunStateMachineLoop:
 	}
 }
 
-func (m *StateMachineOfCrun) forwardingSigintHandlerRoutine() {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTTOU)
+func (m *StateMachineOfCrun) forwardingSigHandlerRoutine() {
+	signal.Ignore(syscall.SIGTTOU, syscall.SIGTTIN)
 
 	lastSigint := time.Now().Add(-2 * time.Second)
 loop:
 	for {
 		select {
-		case sig := <-sigs:
+		case sig := <-m.sigs:
 			switch sig {
 			/*
 				multiple sigint will cancel this job
@@ -653,8 +653,6 @@ loop:
 
 func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 	file := os.NewFile(os.Stdout.Fd(), "stdout")
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGTTOU, syscall.SIGCONT)
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
@@ -662,27 +660,12 @@ func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 		}
 	}(file)
 
+	log.Trace("Starting StdoutWriterRoutine")
 	writer := bufio.NewWriter(file)
 	waitSIGCONT := false
 writing:
 	for {
 		select {
-		case sig := <-sigChan:
-			log.Tracef("Received signal %s.", sig.String())
-			switch sig {
-			case syscall.SIGTTOU:
-				{
-					log.Tracef("Stop writing Stdout.")
-					waitSIGCONT = true
-				}
-			case syscall.SIGCONT:
-				{
-					log.Tracef("Start writing Stdout.")
-					waitSIGCONT = false
-				}
-			default:
-				log.Tracef("Unhandled signal %s", sig.String())
-			}
 
 		case msg := <-m.chanOutputFromRemote:
 			if waitSIGCONT {
@@ -707,70 +690,95 @@ writing:
 }
 
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
-	file := os.NewFile(os.Stdin.Fd(), "stdin")
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Errorf("Failed to close stdin file: %s.", err)
-		}
-	}(file)
 
-	reader := bufio.NewReader(file)
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGTTIN, syscall.SIGCONT)
-	waitSIGCONT := false
+	err := syscall.SetNonblock(int(os.Stdin.Fd()), true)
+	if err != nil {
+		return
+	}
+
+	epfd, err := syscall.EpollCreate1(0)
+	if err != nil {
+		log.Tracef("EpollCreate1: %v", err)
+		return
+	}
+
+	event := &syscall.EpollEvent{
+		Events: syscall.EPOLLIN,
+		Fd:     int32(int(os.Stdin.Fd())),
+	}
+
+	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, int(os.Stdin.Fd()), event); err != nil {
+		log.Tracef("EpollCtl: %v", err)
+		return
+	}
+
+	defer syscall.Close(epfd)
+	defer close(m.chanInputFromTerm)
+	events := make([]syscall.EpollEvent, 10)
+	buf := make([]byte, 4096)
 reading:
 	for {
-		select {
-		case sig := <-sigChan:
-			log.Tracef("Received signal %s.", sig.String())
-			switch sig {
-			case syscall.SIGCONT:
-				{
-					waitSIGCONT = false
-					log.Tracef("Continue reading Stdin.")
-				}
-			case syscall.SIGTTIN:
-				{
-					log.Tracef("Stop reading Stdin.")
-					waitSIGCONT = true
-				}
-			default:
-				log.Tracef("Unhandled signal %s", sig.String())
+		if FlagPty {
+			ptyAttr := unix.Termios{}
+			err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
+			if err != nil {
+				log.Errorf("Failed to get stdin attr")
 			}
+			termios.Cfmakeraw(&ptyAttr)
+			err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
+			if err != nil {
+				log.Errorf("Failed to set stdin attr")
+			}
+		}
 
+		select {
 		case <-m.taskFinishCtx.Done():
 			break reading
-
 		default:
-			if waitSIGCONT {
-				time.Sleep(time.Millisecond * 20)
-				continue
-			}
-			if FlagPty {
-				data, err := reader.ReadByte()
-				if err != nil {
-					if err == io.EOF {
-						break reading
-					}
-					log.Errorf("Failed to read from fd: %v", err)
-					break reading
-				}
-				m.chanInputFromTerm <- []byte{data}
-			} else {
-				data, err := reader.ReadBytes('\n')
-				if err != nil {
-					if err == io.EOF {
-						break reading
-					}
-					log.Errorf("Failed to read from fd: %v", err)
-					break reading
-				}
-				m.chanInputFromTerm <- data
-			}
+		}
 
+		n, err := syscall.EpollWait(epfd, events, 100) //100MS timeout
+		if err != nil {
+			if errors.Is(err, syscall.EINTR) {
+				log.Trace("EpollWait interrupted by signal, retrying")
+				continue // 重试
+			}
+			log.Tracef("EpollWait: %v", err)
+			return
+		}
+		for i := 0; i < n; i++ {
+			if events[i].Fd == int32(int(os.Stdin.Fd())) && events[i].Events&syscall.EPOLLIN != 0 {
+				nr, err := syscall.Read(int(os.Stdin.Fd()), buf)
+				if err != nil {
+					if errors.Is(err, syscall.EAGAIN) {
+						log.Trace("Read EAGAIN, no data available now")
+						continue
+					}
+					if errors.Is(err, syscall.EINTR) {
+						log.Trace("Read interrupted by signal, retrying")
+						continue
+					}
+					if errors.Is(err, syscall.EIO) {
+						if FlagPty {
+							continue
+						}
+						log.Trace("Read EIO, fatal IO error, exiting goroutine")
+						return
+					}
+					return
+				}
+				if nr == 0 {
+					log.Trace("Read 0 bytes (EOF), closing channel and exiting goroutine")
+					return
+				}
+				data := make([]byte, nr)
+				copy(data, buf[:nr])
+				m.chanInputFromTerm <- data
+				log.Tracef("Sent %d bytes to channel", nr)
+			}
 		}
 	}
+
 }
 
 func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
@@ -960,7 +968,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanX11InputFromLocal = make(chan []byte, 100)
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
-	go m.forwardingSigintHandlerRoutine()
+	go m.forwardingSigHandlerRoutine()
 	if strings.ToLower(FlagInput) == "all" {
 		go m.StdinReaderRoutine()
 	} else {
