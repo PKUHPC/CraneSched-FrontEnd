@@ -463,12 +463,19 @@ func ShowJobs(jobIds string, queryAll bool) error {
 				formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
 			)
 		}
-
-		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
-			"\tExclusive=%v Comment=%v\n",
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-			strconv.FormatBool(taskInfo.Exclusive), formatJobExTraAttrsField(taskInfo.ExtraAttr, "comment"))
+		if taskInfo.WckeyValid {
+			fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+				"\tExclusive=%v Comment=%v Wckey=%v\n",
+				formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
+				formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+				strconv.FormatBool(taskInfo.Exclusive), formatJobExTraAttrsField(taskInfo.ExtraAttr, "comment"), taskInfo.Wckey)
+		} else {
+			fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+				"\tExclusive=%v Comment=%v\n",
+				formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
+				formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
+				strconv.FormatBool(taskInfo.Exclusive), formatJobExTraAttrsField(taskInfo.ExtraAttr, "comment"))
+		}
 
 		mailUserStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.user")
 		mailTypeStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.type")

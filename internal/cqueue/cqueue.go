@@ -148,7 +148,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) error {
 	tableData := make([][]string, len(reply.TaskInfoList))
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
-			"Account", "NodeNum", "ReqCPUs","ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "Status", "Time", "TimeLimit",
+			"Account", "NodeNum", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "Status", "Time", "TimeLimit",
 			"StartTime", "SubmitTime", "Type", "Qos", "Exclusive", "Held", "Priority", "NodeList/Reason"}
 		for i := range reply.TaskInfoList {
 			taskInfo := reply.TaskInfoList[i]
@@ -350,6 +350,11 @@ func ProcessComment(task *protos.TaskInfo) string {
 	return gjson.Get(task.ExtraAttr, "comment").String()
 }
 
+// 'K' group
+func ProcessWckey(task *protos.TaskInfo) string {
+	return task.Wckey
+}
+
 // 'l' group
 func ProcessTimeLimit(task *protos.TaskInfo) string {
 	if task.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
@@ -366,9 +371,9 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 	if task.NodeNum == 0 {
 		return "0"
-   	}
-   	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
-			uint64(task.NodeNum))
+	}
+	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
+		uint64(task.NodeNum))
 }
 
 // 'M' group
@@ -477,11 +482,10 @@ var fieldMap = map[string]FieldProcessor{
 	"account": {"Account", ProcessAccount},
 
 	// 'c' group
-	"c":             {"AllocCpus", ProcessAllocCpus},
-	"alloccpus":     {"AllocCpus", ProcessAllocCpus},
-	"C":             {"ReqCpus", ProcessReqCPUs},
-	"reqcpus":       {"ReqCpus", ProcessReqCPUs},
-
+	"c":         {"AllocCpus", ProcessAllocCpus},
+	"alloccpus": {"AllocCpus", ProcessAllocCpus},
+	"C":         {"ReqCpus", ProcessReqCPUs},
+	"reqcpus":   {"ReqCpus", ProcessReqCPUs},
 
 	// 'e' group
 	"e":           {"ElapsedTime", ProcessElapsedTime},
@@ -498,6 +502,8 @@ var fieldMap = map[string]FieldProcessor{
 	// 'k' group
 	"k":       {"Comment", ProcessComment},
 	"comment": {"Comment", ProcessComment},
+	"K":       {"Wckey", ProcessWckey},
+	"wckey":   {"Wckey", ProcessWckey},
 
 	// 'l' group
 	"l":         {"TimeLimit", ProcessTimeLimit},
@@ -558,8 +564,8 @@ var fieldMap = map[string]FieldProcessor{
 	// 'x' group
 	"x":            {"ExcludeNodes", ProcessExcludeNodes},
 	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
-	"X":          {"Exclusive", ProcessExclusive},
-	"exclusive":  {"Exclusive", ProcessExclusive},
+	"X":            {"Exclusive", ProcessExclusive},
+	"exclusive":    {"Exclusive", ProcessExclusive},
 }
 
 // FormatData formats the output data according to the format string.
@@ -619,13 +625,13 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 			field = strings.ToLower(field)
 		}
 
-		//a-Account, c-AllocCPUs, C-ReqCpus, e-ElapsedTime, h-Held, j-JobID, l-TimeLimit, L-NodeList, k-Comment,
+		//a-Account, c-AllocCPUs, C-ReqCpus, e-ElapsedTime, h-Held, j-JobID, k-Comment, K-Wckey, l-TimeLimit, L-NodeList,
 		//m-AllocMemPerNode, M-ReqMemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, Q-ReqCpuPerNode, r-ReqNodes,
 		//R-Reason, s-SubmitTime, S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes, X-Exclusive.
 		fieldProcessor, found := fieldMap[field]
 		if !found {
 			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n"+
-				"a/Account, c/AllocCPUs, C/ReqCpus, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, L/NodeList, k/Comment,\n"+
+				"a/Account, c/AllocCPUs, C/ReqCpus, e/ElapsedTime, h/Held, j/JobID, k/Comment, K-Wckey, l/TimeLimit, L/NodeList\n"+
 				"m/AllocMemPerNode, M/ReqMemPerNode, n/Name, N/NodeNum, o/Command, p/Priority, P/Partition, q/Qos, Q/ReqCpuPerNode, r/ReqNodes,\n"+
 				"R/Reason, s/SubmitTime, S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes, X/Exclusive.", field)
 			os.Exit(util.ErrorInvalidFormat)
