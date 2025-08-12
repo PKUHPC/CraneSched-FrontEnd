@@ -965,7 +965,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigHandlerRoutine()
-	if strings.ToLower(FlagInput) == "all" {
+	if strings.ToLower(FlagInput) == FlagInputALL {
 		go m.StdinReaderRoutine()
 	} else {
 		num, err := strconv.Atoi(FlagInput)
