@@ -738,7 +738,7 @@ reading:
 		if err != nil {
 			if errors.Is(err, syscall.EINTR) {
 				log.Trace("EpollWait interrupted by signal, retrying")
-				continue // 重试
+				continue
 			}
 			log.Tracef("EpollWait: %v", err)
 			return
