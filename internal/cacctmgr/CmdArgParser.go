@@ -89,6 +89,15 @@ var (
 	FlagDescription         string
 )
 
+func validateUintValue(value string, fieldName string, bitSize int) error {
+	_, err := strconv.ParseUint(value, 10, bitSize)
+	if err != nil {
+		log.Errorf("invalid argument %s for %s flag: %v", value, fieldName, err)
+		return err
+	}
+	return nil
+}
+
 func ParseCmdArgs(args []string) {
 	commandArgs := preParseGlobalFlags(args[1:])
 
@@ -262,32 +271,28 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 		case "description":
 			FlagQos.Description = value
 		case "priority":
-			priority, err := strconv.ParseUint(value, 10, 32)
-			if err != nil {
-				log.Errorf("invalid argument \"%s\" for \"priority\" flag: %v", value, err)
+			if err := validateUintValue(value, "priority", 32); err != nil {
 				return util.ErrorCmdArg
 			}
+			priority, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.Priority = uint32(priority)
 		case "maxjobsperuser":
-			maxJobs, err := strconv.ParseUint(value, 10, 32)
-			if err != nil {
-				log.Errorf("invalid argument \"%s\" for \"maxJobsPerUser\" flag: %v", value, err)
+			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
 				return util.ErrorCmdArg
 			}
+			maxJobs, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobsPerUser = uint32(maxJobs)
 		case "maxcpusperuser":
-			maxCpus, err := strconv.ParseUint(value, 10, 32)
-			if err != nil {
-				log.Errorf("invalid argument \"%s\" for \"maxCpusPerUser\" flag: %v", value, err)
+			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
 				return util.ErrorCmdArg
 			}
+			maxCpus, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxCpusPerUser = uint32(maxCpus)
 		case "maxtimelimitpertask":
-			maxTimeLimit, err := strconv.ParseUint(value, 10, 64)
-			if err != nil {
-				log.Errorf("invalid argument \"%s\" for \"maxTimeLimitPerTask\" flag: %v", value, err)
+			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
 				return util.ErrorCmdArg
 			}
+			maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
 			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
 		default:
 			log.Errorf("unknown flag: %s", key)
@@ -725,15 +730,27 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "maxcpusperuser":
+			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
 			FlagMaxCpu = value
 			ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName)
 		case "maxjobsperuser":
+			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
 			FlagMaxJob = value
 			ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagEntityName)
 		case "maxtimelimitpertask":
+			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+				return util.ErrorCmdArg
+			}
 			FlagMaxTimeLimit = value
 			ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagEntityName)
 		case "priority":
+			if err := validateUintValue(value, "priority", 32); err != nil {
+				return util.ErrorCmdArg
+			}
 			FlagPriority = value
 			ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName)
 		case "description":
