@@ -50,6 +50,13 @@ func (e *CraneError) Error() string {
 	return e.Message
 }
 
+func GetCraneError(code CraneCmdError,message string) *CraneError {
+	return &CraneError {
+			Code:    code,
+			Message: message,
+		}
+}
+
 var errMsgMap = map[protos.ErrCode]string{
 
 	// User-related errors

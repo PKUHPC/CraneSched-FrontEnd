@@ -51,7 +51,7 @@ func ParseConfig(configFilePath string) *Config {
 	config := &Config{}
 	err = yaml.Unmarshal(confFile, config)
 	if err != nil {
-		log.Errorf("Failed to read config file %s: %v", configFilePath, err)
+		log.Errorf("Config syntax error in %s: %v", configFilePath, err)
 		os.Exit(ErrorCmdArg)
 	}
 
