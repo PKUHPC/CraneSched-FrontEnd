@@ -353,7 +353,7 @@ func preParseGlobalFlags(args []string) []string {
 				FlagConfigFilePath = args[i+1]
 				i++
 			}
-		case "--force":
+		case "--force", "-f":
 			FlagForce = true
 		default:
 			remainingArgs = append(remainingArgs, arg)
