@@ -727,7 +727,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 		case "maxcpusperuser":
 			FlagMaxCpu = value
 			ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName)
-		case "maxsubmitjobsperuser":
+		case "maxjobsperuser":
 			FlagMaxJob = value
 			ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagEntityName)
 		case "maxtimelimitpertask":

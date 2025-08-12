@@ -42,127 +42,127 @@ func showHelp() {
 	qos       - Quality of Service settings
   
   COMMANDS:
-	add account <name> [description=<desc>] [parent=<parent>] [defaultQos=<qos>] 
-			[partition=<part1,part2,...>] [qosList=<qos1,qos2,...>] [name=<name1,name2,...>]
+	add account <name> [Description=<desc>] [Parent=<parent>] [DefaultQos=<qos>] 
+			[Partition=<part1,part2,...>] [QosList=<qos1,qos2,...>] [Name=<name1,name2,...>]
     Create a new account with the specified attributes.
     Parameter details:
-      description=<desc>         Description of the account
-      parent=<parent>            Name of the parent account
-      defaultQos=<qos>           Default QoS for the account
-      partition=<part1,part2,...>  Allowed partitions (comma-separated)
-      qosList=<qos1,qos2,...>    Allowed QoS list (comma-separated)
-      name=<name1,name2,...>    List of account name for batch creation
+      Description=<desc>         Description of the account
+      Parent=<parent>            Name of the parent account
+      DefaultQos=<qos>           Default QoS for the account
+      Partition=<part1,part2,...>  Allowed partitions (comma-separated)
+      QosList=<qos1,qos2,...>    Allowed QoS list (comma-separated)
+      Name=<name1,name2,...>    List of account name for batch creation
   
 	delete account <name>
     Remove the specified account(s) from the system.
     Parameter details:
-      name=<name1,name2,...>    Name of accounts to delete (comma-separated)
+      Name=<name1,name2,...>    Name of accounts to delete (comma-separated)
   
-	show account [name=<name1,name2,...>]
+	show account [Name=<name1,name2,...>]
     Display information about accounts.
     Parameter details:
-      name=<name1,name2,...>    Show only these accounts (comma-separated)
+      Name=<name1,name2,...>    Show only these accounts (comma-separated)
       (If not specified, all accounts will be displayed)
   
-	add user <name> account=<account> [coordinator=true|false] [level=<level>] 
-		[partition=<part1,part2,...>] [name=<name1,name2,...>]
+	add user <name> Account=<account> [Coordinator=true|false] [Level=<level>] 
+		[Partition=<part1,part2,...>] [Name=<name1,name2,...>]
     Create a new user and associate with an account.
     Parameter details:
-      account=<account>          Account the user belongs to (required)
-      coordinator=true|false     Whether the user is a coordinator for the account
-      level=<level>              User admin level
-      partition=<part1,part2,...>  Allowed partitions (comma-separated)
-      name=<name1,name2,...>    List of user name for batch creation
+      Account=<account>          Account the user belongs to (required)
+      Coordinator=true|false     Whether the user is a coordinator for the account
+      Level=<level>              User admin level
+      Partition=<part1,part2,...>  Allowed partitions (comma-separated)
+      Name=<name1,name2,...>    List of user name for batch creation
   
-	delete user <name> [account=<account>] [name=<name1,name2,...>]
+	delete user <name> [Account=<account>] [Name=<name1,name2,...>]
     Remove a user from the system or from a specific account.
     Parameter details:
-      account=<account>          Specify the account (optional)
-      name=<name1,name2,...>    Name of users to delete (comma-separated)
+      Account=<account>          Specify the account (optional)
+      Name=<name1,name2,...>    Name of users to delete (comma-separated)
   
-	show user [accounts=<account>] [name=<name1,name2,...>]
+	show user [Accounts=<account>] [Name=<name1,name2,...>]
     Display information about users.
     Parameter details:
-      accounts=<account>         Show users of this account only
-      name=<name1,name2,...>    Show only these users (comma-separated)
+      Accounts=<account>         Show users of this account only
+      Name=<name1,name2,...>    Show only these users (comma-separated)
       (If not specified, all users will be displayed)
   
-	block account <name> [account=<account>]
+	block account <name> [Account=<account>]
     Block the specified account from submitting jobs.
     Parameter details:
       name                      Name of the account to block
-      account=<account>         Specify the account context (optional)
+      Account=<account>         Specify the account context (optional)
   
-	block user <name> [account=<account>]
+	block user <name> [Account=<account>]
     Block the specified user from submitting jobs.
     Parameter details:
       name                      Name of the user to block
-      account=<account>         Specify the account context (optional)
+      Account=<account>         Specify the account context (optional)
   
-	unblock account <name> [account=<account>]
+	unblock account <name> [Account=<account>]
     Unblock the specified account to allow job submission.
     Parameter details:
       name                      Name of the account to unblock
-      account=<account>         Specify the account context (optional)
+      Account=<account>         Specify the account context (optional)
   
-	unblock user <name> [account=<account>]
+	unblock user <name> [Account=<account>]
     Unblock the specified user to allow job submission.
     Parameter details:
       name                      Name of the user to unblock
-      account=<account>         Specify the account context (optional)
+      Account=<account>         Specify the account context (optional)
   
-	add qos <name> [description=<desc>] [priority=<priority>] 
-		[maxJobsPerUser=<num>] [maxCpusPerUser=<num>] [maxTimeLimitPerTask=<seconds>]
+	add qos <name> [Description=<desc>] [Priority=<priority>] 
+		[MaxJobsPerUser=<num>] [MaxCpusPerUser=<num>] [MaxTimeLimitPerTask=<seconds>]
     Create a new QoS with the specified attributes.
     Parameter details:
-      description=<desc>         Description of the QoS
-      priority=<priority>        Priority (higher value means higher priority)
-      maxJobsPerUser=<num>       Maximum number of jobs per user
-      maxCpusPerUser=<num>       Maximum number of CPUs per user
-      maxTimeLimitPerTask=<seconds>  Maximum run time per task in seconds
-      name=<name1,name2,...>    List of QoS name for batch creation
+      Description=<desc>         Description of the QoS
+      Priority=<priority>        Priority (higher value means higher priority)
+      MaxJobsPerUser=<num>       Maximum number of jobs per user
+      MaxCpusPerUser=<num>       Maximum number of CPUs per user
+      MaxTimeLimitPerTask=<seconds>  Maximum run time per task in seconds
+      Name=<name1,name2,...>    List of QoS name for batch creation
   
-	delete qos <name> [name=<name1,name2,...>]
+	delete qos <name> [Name=<name1,name2,...>]
     Remove the specified QoS from the system.
     Parameter details:
-      name=<name1,name2,...>    Name of QoS to delete (comma-separated)
+      Name=<name1,name2,...>    Name of QoS to delete (comma-separated)
   
-	show qos <name> [name=<name1,name2,...>]
+	show qos <name> [Name=<name1,name2,...>]
     Display information about QoS.
     Parameter details:
-      name=<name1,name2,...>    Show only these QoS (comma-separated)
+      Name=<name1,name2,...>    Show only these QoS (comma-separated)
       (If not specified, all QoS will be displayed)
 
   modify <entity> where [OPTIONS] set [OPTIONS]
     Modify attributes of an existing account, user, or QoS.
     Account options:
-      where name=<account>         Specify the account to modify
-      set description=<desc>       Set account description
-      set defaultQos=<qos>         Set default QoS
-      set allowedPartition+=<part1,part2,...>   Add allowed partitions
-      set allowedQos+=<qos1,qos2,...>          Add allowed QoS
-      set allowedPartition-=<part1,part2,...> Delete allowed partitions
-      set allowedQos-=<qos1,qos2,...>        Delete allowed QoS
-      set allowedPartition=<part1,part2,...>      Set allowed partitions directly
-      set allowedQos=<qos1,qos2,...>              Set allowed QoS directly
+      where Name=<account>         Specify the account to modify
+      set Description=<desc>       Set account description
+      set DefaultQos=<qos>         Set default QoS
+      set AllowedPartition+=<part1,part2,...>   Add allowed partitions
+      set AllowedQos+=<qos1,qos2,...>          Add allowed QoS
+      set AllowedPartition-=<part1,part2,...> Delete allowed partitions
+      set AllowedQos-=<qos1,qos2,...>        Delete allowed QoS
+      set AllowedPartition=<part1,part2,...>      Set allowed partitions directly
+      set AllowedQos=<qos1,qos2,...>              Set allowed QoS directly
     User options:
-      where name=<user> [account=<account>] [partition=<part1,part2,...>]
-      set adminlevel=<level>         Set user admin level
-      set defaultaccount=<account>   Set default account
-      set defaultqos=<qos>           Set default QoS
-      set allowedPartition+=...    Add allowed partitions
-      set allowedQos+=...          Add allowed QoS
-      set allowedPartition-=... Delete allowed partitions
-      set allowedQos-=...       Delete allowed QoS
-      set allowedPartition=...       Set allowed partitions directly
-      set allowedQos=...             Set allowed QoS directly
+      where Name=<user> [Account=<account>] [Partition=<part1,part2,...>]
+      set AdminLevel=<level>         Set user admin level
+      set DefaultAccount=<account>   Set default account
+      set DefaultQos=<qos>           Set default QoS
+      set AllowedPartition+=...    Add allowed partitions
+      set AllowedQos+=...          Add allowed QoS
+      set AllowedPartition-=... Delete allowed partitions
+      set AllowedQos-=...       Delete allowed QoS
+      set AllowedPartition=...       Set allowed partitions directly
+      set AllowedQos=...             Set allowed QoS directly
     QoS options:
-      where name=<qos>
-      set description=<desc>         Set description
-      set maxcpusperuser=<num>        Set max CPUs per user
-      set maxsubmitjobsperuser=<num> Set max jobs per user
-      set maxtimelimitpertask=<sec>  Set max time per task (seconds)
-      set priority=<priority>        Set priority
+      where Name=<qos>
+      set Description=<desc>         Set description
+      set MaxCpusPerUser=<num>        Set max CPUs per user
+      set MaxSubmitJobsPerUser=<num> Set max jobs per user
+      set MaxTimeLimitPerTask=<sec>  Set max time per task (seconds)
+      set Priority=<priority>        Set priority
 
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
