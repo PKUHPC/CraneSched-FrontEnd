@@ -723,11 +723,8 @@ reading:
 						continue
 					}
 					if errors.Is(err, syscall.EIO) {
-						if FlagPty {
-							continue
-						}
-						log.Trace("Read EIO, fatal IO error, exiting goroutine")
-						return
+						log.Trace("Read EIO.")
+						continue
 					}
 					return
 				}
