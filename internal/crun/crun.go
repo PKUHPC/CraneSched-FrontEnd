@@ -662,15 +662,12 @@ func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 
 	log.Trace("Starting StdoutWriterRoutine")
 	writer := bufio.NewWriter(file)
-	waitSIGCONT := false
+
 writing:
 	for {
 		select {
 
 		case msg := <-m.chanOutputFromRemote:
-			if waitSIGCONT {
-				break
-			}
 			_, err := writer.Write(msg)
 
 			if err != nil {
@@ -747,7 +744,7 @@ reading:
 			return
 		}
 		for i := 0; i < n; i++ {
-			if events[i].Fd == int32(int(os.Stdin.Fd())) && events[i].Events&syscall.EPOLLIN != 0 {
+			if events[i].Fd == int32(os.Stdin.Fd()) && events[i].Events&syscall.EPOLLIN != 0 {
 				nr, err := syscall.Read(int(os.Stdin.Fd()), buf)
 				if err != nil {
 					if errors.Is(err, syscall.EAGAIN) {
@@ -759,11 +756,8 @@ reading:
 						continue
 					}
 					if errors.Is(err, syscall.EIO) {
-						if FlagPty {
-							continue
-						}
-						log.Trace("Read EIO, fatal IO error, exiting goroutine")
-						return
+						log.Trace("Read EIO.")
+						continue
 					}
 					return
 				}
@@ -771,9 +765,7 @@ reading:
 					log.Trace("Read 0 bytes (EOF), closing channel and exiting goroutine")
 					return
 				}
-				data := make([]byte, nr)
-				copy(data, buf[:nr])
-				m.chanInputFromTerm <- data
+				m.chanInputFromTerm <- buf[:nr]
 				log.Tracef("Sent %d bytes to channel", nr)
 			}
 		}
