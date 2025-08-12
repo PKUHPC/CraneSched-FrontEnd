@@ -335,7 +335,7 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 
 func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	if FlagForce {
-		log.Warning("--force flag is not used for add operations")
+		log.Warning("The --force flag is ignored for add operations")
 	}
 	if err := util.CheckEntityName(account.Name); err != nil {
 		log.Errorf("Failed to add account: invalid account name: %v", err)
@@ -387,7 +387,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
 	if FlagForce {
-		log.Warning("--force flag is not used for add operations")
+		log.Warning("The --force flag is ignored for add operations")
 	}
 	var err error
 	if err = util.CheckEntityName(user.Name); err != nil {
@@ -448,7 +448,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 
 func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	if FlagForce {
-		log.Warning("--force flag is not used for add operations")
+		log.Warning("The --force flag is ignored for add operations")
 	}
 	if err := util.CheckEntityName(qos.Name); err != nil {
 		log.Errorf("Failed to add QoS: invalid QoS name: %v", err)

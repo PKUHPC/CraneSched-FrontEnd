@@ -405,6 +405,11 @@ func executeBlockUserCommand(command *CAcctMgrCommand) int {
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
 
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity user not set")
+		return util.ErrorCmdArg
+	}
+
 	KVParams := command.GetKVMaps()
 
 	err := checkEmptyKVParams(KVParams, []string{"account"})
@@ -463,6 +468,12 @@ func executeUnblockUserCommand(command *CAcctMgrCommand) int {
 	// Reset related flags
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
+
+	// Check if user name is provided
+	if FlagEntityName == "" {
+		log.Errorf("Error: required argument user not set")
+		return util.ErrorCmdArg
+	}
 
 	KVParams := command.GetKVMaps()
 
@@ -834,9 +845,9 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int
 
 		if len(missingFields) > 0 {
 			if len(missingFields) == 1 {
-				log.Errorf("Error: required flag %s not set", missingFields[0])
+				log.Errorf("Error: required argument %s not set", missingFields[0])
 			} else {
-				log.Errorf("Error: required flags %s not set", strings.Join(missingFields, "\", \""))
+				log.Errorf("Error: required arguments %s not set", strings.Join(missingFields, "\", \""))
 			}
 			return util.ErrorCmdArg
 		}

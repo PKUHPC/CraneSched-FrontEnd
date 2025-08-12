@@ -130,37 +130,6 @@ func sacct() *cobra.Command {
 }
 
 func sacctmgr() *cobra.Command {
-	entity := func(name string) bool {
-		supported := []string{"account", "user", "qos"}
-		return slices.Contains(supported, name)
-	}
-
-	option := func(arg string) (string, error) {
-		if arg == "name" || arg == "names" {
-			return "--name", nil
-		} else if arg == "account" || arg == "accounts" {
-			return "--account", nil
-		} else if arg == "partition" || arg == "partitions" {
-			return "--partition", nil
-		} else if arg == "parent" {
-			return "--parent", nil
-		} else if arg == "adminlevel" {
-			return "--level", nil
-		} else if arg == "description" {
-			return "--description", nil
-		} else if arg == "priority" {
-			return "--priority", nil
-		} else if arg == "maxjobpu" || arg == "maxjobsperuser" {
-			return "--max-jobs-per-user", nil
-		} else if arg == "maxcpupu" || arg == "maxcpuperuser" {
-			return "--max-cpus-per-user", nil
-		} else if arg == "maxwall" || arg == "maxwalldurationperjob" {
-			return "--max-time-limit-per-task", nil
-		} else {
-			return arg, errors.New("Unsupported arguments: " + arg)
-		}
-	}
-
 	cmd := &cobra.Command{
 		Use:                "sacctmgr",
 		Short:              "Wrapper of cacctmgr command",
@@ -168,188 +137,66 @@ func sacctmgr() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// As sacctmgr only has flags on RootCmd,
-			// we collect all flags first
-			flags := make([]string, 0)
-			convertedArgs := make([]string, 0)
+			convertedArgs := make([]string, 0, len(args)+1)
+			convertedArgs = append(convertedArgs, "cacctmgr")
+
+			// Handle help
 			for _, arg := range args {
 				if arg == "--help" || arg == "-h" {
 					fmt.Println("Please refer to the user manual of Slurm.")
 					return nil
-				} else if strings.HasPrefix(arg, "-") {
-					flags = append(flags, arg)
-				} else {
-					convertedArgs = append(convertedArgs, arg)
 				}
 			}
 
-			// Check length and entities
-			if len(convertedArgs) < 2 {
-				log.Error("cacctmgr requires at least 2 arguments")
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			// Keyword mapping for subcommands
-			switch convertedArgs[0] {
-			case "create":
-				convertedArgs[0] = "add"
-			case "remove":
-				convertedArgs[0] = "delete"
-			case "update":
-				convertedArgs[0] = "modify"
-			case "list":
-				convertedArgs[0] = "show"
-			}
-
-			// Check entities
-			if !entity(strings.ToLower(convertedArgs[1])) {
-				log.Error("cacctmgr unsupported entity: ", convertedArgs[1])
-				os.Exit(util.ErrorCmdArg)
-			}
-
-			// Convert XXX=YYY into xxx=YYY
-			// If XXX is missing, use `name`
-			re := regexp.MustCompile(`(?i)^(\w+)=(.+)`)
-			for i := 2; i < len(convertedArgs); i++ {
-				// Ignore `where` and `set` options
-				arg := convertedArgs[i]
-				if arg == "where" || arg == "set" {
-					continue
-				}
-
-				if re.MatchString(arg) {
-					matches := re.FindStringSubmatch(arg)
-					// The regex must has 3 matches
-					arg = strings.ToLower(matches[1]) + "=" + matches[2]
-				} else {
-					arg = "name=" + arg
-				}
-
-				convertedArgs[i] = arg
-			}
-
-			// Handle the subcommands
-			if convertedArgs[0] == "add" || convertedArgs[0] == "delete" {
-				// For `add` and `delete`, there is no `where` or `set` options
-				var err error
-				for i := 2; i < len(convertedArgs); i++ {
-					if convertedArgs[i] == "where" || convertedArgs[i] == "set" {
-						log.Error("cacctmgr add/delete does not support where/set")
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					if strings.Contains(convertedArgs[i], ",") {
-						log.Error("cacctmgr add/delete allows only one entity at a time")
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					l := strings.Split(convertedArgs[i], "=")
-					if len(l) != 2 {
-						log.Error("Invalid argument: ", convertedArgs[i])
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					l[0], err = option(l[0])
-					if err != nil {
-						log.Error(err)
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					convertedArgs[i] = l[0] + "=" + l[1]
-				}
-			} else if convertedArgs[0] == "modify" {
-				// For `modify`, there is `where` and `set`
-				// Find all `where` and `set` options
-				whereMap := make(map[string]string)
-				setMap := make(map[string]string)
-				mode := "where"
-				for i := 2; i < len(convertedArgs); i++ {
-					if strings.Contains(convertedArgs[i], ",") {
-						log.Error("cacctmgr modify allows only one entity at a time")
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					l := strings.Split(convertedArgs[i], "=")
-					if len(l) != 2 {
-						if convertedArgs[i] == "where" || convertedArgs[i] == "set" {
-							mode = convertedArgs[i]
-							continue
+			// Process each argument
+			for _, arg := range args {
+				switch arg {
+				// Map slurm commands to crane commands
+				case "create":
+					convertedArgs = append(convertedArgs, "add")
+				case "remove":
+					convertedArgs = append(convertedArgs, "delete")
+				case "update":
+					convertedArgs = append(convertedArgs, "modify")
+				case "list":
+					convertedArgs = append(convertedArgs, "show")
+				// Convert option names to lowercase for consistency
+				default:
+					if strings.Contains(arg, "=") {
+						parts := strings.SplitN(arg, "=", 2)
+						key := strings.ToLower(parts[0])
+						value := parts[1]
+						
+						switch key {
+						case "names":
+							key = "name"
+						case "accounts":
+							key = "account"
+						case "partitions":
+							key = "partition"
+						case "adminlevel":
+							key = "adminlevel"
+						case "maxjobpu", "maxjobsperuser":
+							key = "maxjobsperuser"
+						case "maxcpupu", "maxcpuperuser":
+							key = "maxcpusperuser"
+						case "maxwall", "maxwalldurationperjob":
+							key = "maxtimelimitpertask"
+						case "maxsubmitjobsperuser":
+							key = "maxjobsperuser"
 						}
-						log.Error("Invalid argument: ", convertedArgs[i])
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					if mode == "where" {
-						whereMap[l[0]] = l[1]
+						
+						convertedArgs = append(convertedArgs, key+"="+value)
 					} else {
-						setMap[l[0]] = l[1]
+						// Keep other arguments as-is (like "where", "set", entity names, etc.)
+						convertedArgs = append(convertedArgs, strings.ToLower(arg))
 					}
 				}
-				convertedArgs = convertedArgs[:2]
-
-				if len(whereMap) == 0 || len(setMap) == 0 {
-					log.Error("Modify requires both where and set conditions")
-					os.Exit(util.ErrorCmdArg)
-				}
-
-				// Check where condition
-				for k, v := range whereMap {
-					if k != "name" && k != "names" {
-						log.Error("Modify only supports where name=XXX")
-						os.Exit(util.ErrorCmdArg)
-					}
-					convertedArgs = append(convertedArgs, "--name="+v)
-				}
-
-				// Check set condition
-				for k, v := range setMap {
-					if nk, err := option(k); err != nil {
-						log.Error(err)
-						os.Exit(util.ErrorCmdArg)
-					} else {
-						convertedArgs = append(convertedArgs, nk, v)
-					}
-				}
-			} else if convertedArgs[0] == "show" {
-				// For `list`, there is `where` but no `set`
-				whereMap := make(map[string]string)
-				for i := 2; i < len(convertedArgs); i++ {
-					if strings.Contains(convertedArgs[i], ",") {
-						log.Error("cacctmgr show allows only one entity at a time")
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					l := strings.Split(convertedArgs[i], "=")
-					if len(l) != 2 {
-						if convertedArgs[i] == "where" {
-							continue
-						}
-						log.Error("Invalid argument: ", convertedArgs[i])
-						os.Exit(util.ErrorCmdArg)
-					}
-
-					whereMap[l[0]] = l[1]
-				}
-
-				convertedArgs = convertedArgs[:2]
-				for k, v := range whereMap {
-					if k == "name" || k == "names" {
-						convertedArgs = append(convertedArgs, v)
-					} else if k == "account" || k == "accounts" {
-						convertedArgs = append(convertedArgs, "--account="+v)
-					} else {
-						log.Error("Unsupported arguments: ", k)
-						os.Exit(util.ErrorCmdArg)
-					}
-				}
-			} else {
-				log.Error("Unsupported subcommand: ", convertedArgs[0])
-				os.Exit(util.ErrorCmdArg)
 			}
 
-			allArgs := append([]string{"cacctmgr"}, append(flags, convertedArgs...)...)
-			cacctmgr.ParseCmdArgs(allArgs)
-			return cmd.Help()
+			// Call cacctmgr with converted arguments
+			cacctmgr.ParseCmdArgs(convertedArgs)
+			return nil
 		},
 	}
 
