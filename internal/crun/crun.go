@@ -857,7 +857,7 @@ func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
 	}
 	log.Debugf("Reading from file %s", parsedFilePath)
 	reader := bufio.NewReader(file)
-
+	buffer := make([]byte, 4096)
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
@@ -870,7 +870,7 @@ reading:
 		case <-m.taskFinishCtx.Done():
 			break reading
 		default:
-			data, err := reader.ReadBytes('\n')
+			n, err := reader.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
 					m.chanInputFromTerm <- nil
@@ -879,7 +879,7 @@ reading:
 				log.Errorf("Failed to read from fd: %v", err)
 				break reading
 			}
-			m.chanInputFromTerm <- data
+			m.chanInputFromTerm <- buffer[:n]
 		}
 	}
 }
