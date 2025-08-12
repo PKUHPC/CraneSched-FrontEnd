@@ -651,6 +651,9 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
 			ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+		case "defaultqos":
+			FlagUserDefaultQos = value
+			ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
 		case "adminlevel":
 			FlagAdminLevel = value
 			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)

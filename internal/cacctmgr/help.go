@@ -160,7 +160,7 @@ func showHelp() {
       where Name=<qos>
       set Description=<desc>         Set description
       set MaxCpusPerUser=<num>        Set max CPUs per user
-      set MaxSubmitJobsPerUser=<num> Set max jobs per user
+      set MaxJobsPerUser=<num> Set max jobs per user
       set MaxTimeLimitPerTask=<sec>  Set max time per task (seconds)
       set Priority=<priority>        Set priority
 
