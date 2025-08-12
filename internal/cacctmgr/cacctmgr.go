@@ -29,8 +29,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"sync"
+	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/olekukonko/tablewriter"
@@ -40,10 +40,10 @@ import (
 )
 
 var (
-	userUid       uint32
-	stub          protos.CraneCtldClient
-	config        *util.Config
-	dbConfig      *util.InfluxDbConfig
+	userUid          uint32
+	stub             protos.CraneCtldClient
+	config           *util.Config
+	dbConfig         *util.InfluxDbConfig
 	dbConfigInitOnce sync.Once
 )
 
@@ -53,24 +53,24 @@ type ServerAddr struct {
 }
 
 type ResourceUsageRecord struct {
-	ClusterName      string
-	NodeName         string
-	Uid              uint64
-	StartTime        int64
-	EndTime          int64
-	State            string
-	Reason           string
-	Timestamp        time.Time
+	ClusterName string
+	NodeName    string
+	Uid         uint64
+	StartTime   int64
+	EndTime     int64
+	State       string
+	Reason      string
+	Timestamp   time.Time
 }
 
 type EventInfoJson struct {
-	ClusterName         string                    `json:"cluster_name"`
-	NodeName            string                    `json:"node_name"`
-	Uid                 uint64                    `json:"uid"`
-	StartTime           string                    `json:"start_time"`
-	EndTime             string                    `json:"end_time"`
-	State               string                    `json:"state"`
-	Reason              string                    `json:"reason"`
+	ClusterName string `json:"cluster_name"`
+	NodeName    string `json:"node_name"`
+	Uid         uint64 `json:"uid"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
+	State       string `json:"state"`
+	Reason      string `json:"reason"`
 }
 
 func PrintUserList(userList []*protos.UserInfo) {
@@ -1041,7 +1041,6 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 	return missing, nil
 }
 
-
 func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
 
 	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
@@ -1085,21 +1084,21 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	dataMap := make(map[string]*ResourceUsageRecord)
 	for result.Next() {
 		record := result.Record()
-	
+
 		clusterName := fmt.Sprintf("%v", record.ValueByKey("cluster_name"))
 		nodeName := fmt.Sprintf("%v", record.ValueByKey("node_name"))
 		field := fmt.Sprintf("%v", record.Field())
 		timestamp := record.Time()
-	
+
 		key := fmt.Sprintf("%s:%s:%s", clusterName, nodeName, timestamp)
 		if _, exists := dataMap[key]; !exists {
-			dataMap[key] = &ResourceUsageRecord {
+			dataMap[key] = &ResourceUsageRecord{
 				ClusterName: clusterName,
 				NodeName:    nodeName,
 				Timestamp:   timestamp,
 			}
 		}
-	
+
 		switch field {
 		case "uid":
 			if uid, ok := record.Value().(uint64); ok {
@@ -1118,8 +1117,8 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 				dataMap[key].Reason = reason
 			}
 		}
-	}	
-	
+	}
+
 	if result.Err() != nil {
 		return nil, fmt.Errorf("query parsing error: %w", result.Err())
 	}
@@ -1128,7 +1127,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	for _, record := range dataMap {
 		records = append(records, record)
 	}
-	
+
 	if len(records) == 0 {
 		return nil, fmt.Errorf("no matching data available")
 	}
@@ -1136,13 +1135,12 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	sort.SliceStable(records, func(i, j int) bool {
 		return records[i].Timestamp.Before(records[j].Timestamp)
 	})
-	
+
 	return records, nil
 }
 
-
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
-	nodeNames := []string{} 
+	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
 		nodeNames, ok = util.ParseHostList(nodeRegex)
@@ -1165,7 +1163,7 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 	} else {
 		var err error
 		nodeNames, err = util.GetValidNodeList(config.CranedNodeList)
-		if err!= nil {
+		if err != nil {
 			log.Errorf("Invalid input for nodes: %v", err)
 			return util.ErrorCmdArg
 		}
@@ -1189,7 +1187,6 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 		return util.ErrorCmdArg
 	}
 
-
 	if FlagJson {
 		eventJsonList := []*EventInfoJson{}
 		for _, record := range filteredRecords {
@@ -1197,12 +1194,12 @@ func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
 			endTime := FormatNanoTime(record.EndTime)
 			eventJson := &EventInfoJson{
 				ClusterName: record.ClusterName,
-				NodeName: record.NodeName,
-				Uid:record.Uid,
-				StartTime:startTime,
-				EndTime:endTime,
-				State:record.State,
-				Reason:record.Reason,
+				NodeName:    record.NodeName,
+				Uid:         record.Uid,
+				StartTime:   startTime,
+				EndTime:     endTime,
+				State:       record.State,
+				Reason:      record.Reason,
 			}
 			eventJsonList = append(eventJsonList, eventJson)
 		}
@@ -1242,7 +1239,6 @@ func FormatNanoTime(ns int64) string {
 	}
 	return time.Unix(0, int64(ns)).In(time.Local).Format("2006-01-02 15:04:05")
 }
-
 
 func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error) {
 	if len(records) == 0 {
