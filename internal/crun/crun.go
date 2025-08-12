@@ -60,6 +60,10 @@ const (
 	End           StateOfCrun = 7
 )
 
+const (
+	FlagInputALL string = "all"
+)
+
 type GlobalVariables struct {
 	cwd string
 
@@ -1186,6 +1190,13 @@ func MainCrun(args []string) error {
 
 	m := new(StateMachineOfCrun)
 	m.inputFlag = FlagInput
+
+	if FlagPty && strings.ToLower(FlagInput) != FlagInputALL {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("--input is incompatible with --pty."),
+		}
+	}
 
 	m.Init(task)
 	m.Run()
