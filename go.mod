@@ -3,6 +3,7 @@ module CraneFrontEnd
 go 1.22
 
 require (
+	github.com/alecthomas/participle/v2 v2.1.4
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/containerd/cgroups v1.1.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
@@ -23,7 +24,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
@@ -56,7 +56,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/participle/v2 v2.1.4
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
