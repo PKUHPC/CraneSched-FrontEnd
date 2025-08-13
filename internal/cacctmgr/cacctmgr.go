@@ -485,7 +485,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 func DeleteAccount(value string) util.CraneCmdError {
 
 	if FlagForce {
-		log.Warning("--force flag is not used for delete operations")
+		log.Warning("--force flag is ignored for delete operations")
 	}
 
 	accountList, err := util.ParseStringParamList(value, ",")
@@ -525,7 +525,7 @@ func DeleteAccount(value string) util.CraneCmdError {
 func DeleteUser(value string, account string) util.CraneCmdError {
 
 	if FlagForce {
-		log.Warning("--force flag is not used for delete operations")
+		log.Warning("--force flag is ignored for delete operations")
 	}
 
 	userList, err := util.ParseStringParamList(value, ",")
@@ -564,7 +564,7 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 func DeleteQos(value string) util.CraneCmdError {
 
 	if FlagForce {
-		log.Warning("--force flag is not used for delete operations")
+		log.Warning("--force flag is ignored for delete operations")
 	}
 
 	qosList, err := util.ParseStringParamList(value, ",")
@@ -729,7 +729,7 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
 	if FlagForce {
-		log.Warning("--force flag is not used for QoS modify operations")
+		log.Warning("--force flag is ignored for QoS modify operations")
 	}
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
@@ -763,7 +763,7 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 
 func ShowAccounts() util.CraneCmdError {
 	if FlagForce {
-		log.Warning("--force flag is not used for show operations")
+		log.Warning("--force flag is ignored for show operations")
 	}
 	req := protos.QueryAccountInfoRequest{Uid: userUid}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
@@ -799,7 +799,7 @@ func ShowAccounts() util.CraneCmdError {
 func ShowUser(value string, account string) util.CraneCmdError {
 
 	if FlagForce {
-		log.Warning("--force flag is not used for show operations")
+		log.Warning("--force flag is ignored for show operations")
 	}
 
 	var userList []string
@@ -845,7 +845,7 @@ func ShowUser(value string, account string) util.CraneCmdError {
 
 func ShowQos(value string) util.CraneCmdError {
 	if FlagForce {
-		log.Warning("--force flag is not used for show operations")
+		log.Warning("--force flag is ignored for show operations")
 	}
 	var qosList []string
 	if value != "" {
@@ -889,7 +889,7 @@ func ShowQos(value string) util.CraneCmdError {
 
 func FindAccount(value string) util.CraneCmdError {
 	if FlagForce {
-		log.Warning("--force flag is not used for show operations")
+		log.Warning("--force flag is ignored for show operations")
 	}
 	var accountList []string
 	if value != "" {
@@ -935,7 +935,7 @@ func FindAccount(value string) util.CraneCmdError {
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
 	if FlagForce {
-		log.Warning("--force flag is not used for block operations")
+		log.Warning("--force flag is ignored for block operations")
 	}
 
 	var entityList []string
@@ -981,7 +981,7 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
 	if FlagForce {
-		log.Warning("--force flag is not used for unblock operations")
+		log.Warning("--force flag is ignored for unblock operations")
 	}
 
 	var entityList []string
@@ -1185,6 +1185,9 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 }
 
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for query operations")
+	}
 	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
