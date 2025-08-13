@@ -321,6 +321,11 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
 	FlagEntityName = command.GetID()
 
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity account not set")
+		return util.ErrorCmdArg
+	}
+
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
@@ -335,6 +340,11 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) int {
 	// Reset related flags
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
+
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity user not set")
+		return util.ErrorCmdArg
+	}
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
@@ -355,6 +365,11 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) int {
 func executeDeleteQosCommand(command *CAcctMgrCommand) int {
 	// Reset FlagEntityName
 	FlagEntityName = command.GetID()
+
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity qos not set")
+		return util.ErrorCmdArg
+	}
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
@@ -384,6 +399,11 @@ func executeBlockAccountCommand(command *CAcctMgrCommand) int {
 	// Reset related flags
 	Name := command.GetID()
 	FlagEntityAccount = ""
+
+	if Name == "" {
+		log.Errorf("Error: required entity account not set")
+		return util.ErrorCmdArg
+	}
 
 	KVParams := command.GetKVMaps()
 
@@ -449,6 +469,11 @@ func executeUnblockAccountCommand(command *CAcctMgrCommand) int {
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
 
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity account not set")
+		return util.ErrorCmdArg
+	}
+
 	KVParams := command.GetKVMaps()
 
 	for key, value := range KVParams {
@@ -469,9 +494,8 @@ func executeUnblockUserCommand(command *CAcctMgrCommand) int {
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
 
-	// Check if user name is provided
 	if FlagEntityName == "" {
-		log.Errorf("Error: required argument user not set")
+		log.Errorf("Error: required entity user not set")
 		return util.ErrorCmdArg
 	}
 
