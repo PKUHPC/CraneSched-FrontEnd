@@ -166,7 +166,7 @@ func sacctmgr() *cobra.Command {
 						parts := strings.SplitN(arg, "=", 2)
 						key := strings.ToLower(parts[0])
 						value := parts[1]
-						
+
 						switch key {
 						case "names":
 							key = "name"
@@ -185,7 +185,7 @@ func sacctmgr() *cobra.Command {
 						case "maxsubmitjobsperuser":
 							key = "maxjobsperuser"
 						}
-						
+
 						convertedArgs = append(convertedArgs, key+"="+value)
 					} else {
 						// Keep other arguments as-is (like "where", "set", entity names, etc.)
