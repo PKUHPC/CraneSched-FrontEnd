@@ -334,6 +334,9 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 }
 
 func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("The --force flag is ignored for add operations")
+	}
 	if err := util.CheckEntityName(account.Name); err != nil {
 		log.Errorf("Failed to add account: invalid account name: %v", err)
 		return util.ErrorCmdArg
@@ -361,7 +364,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add account: ")
+		log.Errorf("Failed to add account: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -383,6 +386,9 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 }
 
 func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("The --force flag is ignored for add operations")
+	}
 	var err error
 	if err = util.CheckEntityName(user.Name); err != nil {
 		log.Errorf("Failed to add user: invalid user name: %v", err)
@@ -419,7 +425,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 
 	reply, err := stub.AddUser(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add user: ")
+		log.Errorf("Failed to add user: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -441,6 +447,9 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 }
 
 func AddQos(qos *protos.QosInfo) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("The --force flag is ignored for add operations")
+	}
 	if err := util.CheckEntityName(qos.Name); err != nil {
 		log.Errorf("Failed to add QoS: invalid QoS name: %v", err)
 		return util.ErrorCmdArg
@@ -452,7 +461,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add QoS: ")
+		log.Errorf("Failed to add QoS: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -475,6 +484,10 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 
 func DeleteAccount(value string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is ignored for delete operations")
+	}
+
 	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
@@ -485,7 +498,7 @@ func DeleteAccount(value string) util.CraneCmdError {
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete account %s", value)
+		log.Errorf("Failed to delete account %s: %v", value, err)
 		return util.ErrorNetwork
 	}
 
@@ -511,6 +524,10 @@ func DeleteAccount(value string) util.CraneCmdError {
 
 func DeleteUser(value string, account string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is ignored for delete operations")
+	}
+
 	userList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
@@ -520,7 +537,7 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 
 	reply, err := stub.DeleteUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to remove user %s", value)
+		log.Errorf("Failed to remove user %s: %v", value, err)
 		return util.ErrorNetwork
 	}
 
@@ -546,6 +563,10 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 
 func DeleteQos(value string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is ignored for delete operations")
+	}
+
 	qosList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
@@ -555,7 +576,7 @@ func DeleteQos(value string) util.CraneCmdError {
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete QoS %s", value)
+		log.Errorf("Failed to delete QoS %s: %v", value, err)
 		return util.ErrorNetwork
 	}
 
@@ -613,7 +634,7 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 
 	reply, err := stub.ModifyAccount(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Modify information")
+		log.Errorf("Failed to modify account information: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -678,7 +699,7 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 	reply, err := stub.ModifyUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify the uesr information")
+		log.Errorf("Failed to modify user information: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -707,6 +728,9 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 }
 
 func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for QoS modify operations")
+	}
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
@@ -716,7 +740,7 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 
 	reply, err := stub.ModifyQos(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify the QoS")
+		log.Errorf("Failed to modify QoS: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -738,10 +762,13 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 }
 
 func ShowAccounts() util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for show operations")
+	}
 	req := protos.QueryAccountInfoRequest{Uid: userUid}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show accounts")
+		log.Errorf("Failed to show accounts: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -771,6 +798,10 @@ func ShowAccounts() util.CraneCmdError {
 
 func ShowUser(value string, account string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is ignored for show operations")
+	}
+
 	var userList []string
 	if value != "" {
 		var err error
@@ -784,7 +815,7 @@ func ShowUser(value string, account string) util.CraneCmdError {
 	req := protos.QueryUserInfoRequest{Uid: userUid, UserList: userList, Account: account}
 	reply, err := stub.QueryUserInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show the user")
+		log.Errorf("Failed to show user: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -813,6 +844,9 @@ func ShowUser(value string, account string) util.CraneCmdError {
 }
 
 func ShowQos(value string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for show operations")
+	}
 	var qosList []string
 	if value != "" {
 		var err error
@@ -825,7 +859,7 @@ func ShowQos(value string) util.CraneCmdError {
 	req := protos.QueryQosInfoRequest{Uid: userUid, QosList: qosList}
 	reply, err := stub.QueryQosInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show the QoS")
+		log.Errorf("Failed to show QoS: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -854,6 +888,9 @@ func ShowQos(value string) util.CraneCmdError {
 }
 
 func FindAccount(value string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for show operations")
+	}
 	var accountList []string
 	if value != "" {
 		var err error
@@ -867,7 +904,7 @@ func FindAccount(value string) util.CraneCmdError {
 	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: accountList}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to find the account")
+		log.Errorf("Failed to find account: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -897,6 +934,10 @@ func FindAccount(value string) util.CraneCmdError {
 
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is ignored for block operations")
+	}
+
 	var entityList []string
 	if value != "all" {
 		var err error
@@ -910,7 +951,7 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to block the entity")
+		log.Errorf("Failed to block entity: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -939,6 +980,10 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 
 func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
 
+	if FlagForce {
+		log.Warning("--force flag is ignored for unblock operations")
+	}
+
 	var entityList []string
 	if value != "all" {
 		var err error
@@ -952,7 +997,7 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to unblock the entity")
+		log.Errorf("Failed to unblock entity: %v", err)
 		return util.ErrorNetwork
 	}
 
@@ -1140,6 +1185,9 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 }
 
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for query operations")
+	}
 	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {

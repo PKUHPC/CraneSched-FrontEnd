@@ -21,19 +21,22 @@ package cacctmgr
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 var (
 	FlagAccount protos.AccountInfo
 	FlagUser    protos.UserInfo
-	FlagQos     protos.QosInfo
+	FlagQos     = protos.QosInfo{
+		MaxJobsPerUser:      math.MaxUint32,
+		MaxCpusPerUser:      math.MaxUint32,
+		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
+	}
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -43,7 +46,7 @@ var (
 
 	// FlagSetLevel and FlagLevel are different as
 	// they have different default values.
-	FlagLevel             string
+	FlagLevel             string = "none"
 	FlagSetLevel          string
 	FlagSetDefaultAccount string
 
@@ -57,7 +60,7 @@ var (
 	FlagForce          bool
 	FlagFull           bool
 	FlagJson           bool
-	FlagConfigFilePath string
+	FlagConfigFilePath string = util.DefaultConfigPath
 
 	// These flags are implemented,
 	// but not added to any cmd!
@@ -66,625 +69,813 @@ var (
 	FlagNodeList string
 	FlagNumLimit uint32
 
-	RootCmd = &cobra.Command{
-		Use:     "cacctmgr",
-		Short:   "Manage account, user and QoS tables",
-		Long:    "",
-		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// The PersistentPreRun functions will be inherited and executed by children (sub-commands)
-			// if they do not declare their own.
-			util.DetectNetworkProxy()
-			config = util.ParseConfig(FlagConfigFilePath)
-			stub = util.GetStubToCtldByConfig(config)
-			userUid = uint32(os.Getuid())
-		},
-	}
-
-	/* ---------------------------------------------------- add  ---------------------------------------------------- */
-	addCmd = &cobra.Command{
-		Use:           "add",
-		Short:         "Add entity",
-		SilenceErrors: true,
-		Long:          "",
-	}
-	addAccountCmd = &cobra.Command{
-		Use:   "account",
-		Short: "Add a new account",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := AddAccount(&FlagAccount); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	addUserCmd = &cobra.Command{
-		Use:   "user",
-		Short: "Add a new user",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := AddUser(&FlagUser, FlagUserPartitions, FlagLevel, FlagUserCoordinator); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	addQosCmd = &cobra.Command{
-		Use:   "qos",
-		Short: "Add a new QoS",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := AddQos(&FlagQos); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-
-	/* --------------------------------------------------- remove --------------------------------------------------- */
-	removeCmd = &cobra.Command{
-		Use:           "delete",
-		Aliases:       []string{"remove"},
-		SilenceErrors: true,
-		Short:         "Delete entity",
-		Long:          "",
-	}
-	removeAccountCmd = &cobra.Command{
-		Use:   "account",
-		Short: "Delete an existing account",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteAccount(FlagAccount.Name); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	removeUserCmd = &cobra.Command{
-		Use:   "user",
-		Short: "Delete an existing user",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteUser(FlagUser.Name, FlagUser.Account); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	removeQosCmd = &cobra.Command{
-		Use:   "qos",
-		Short: "Delete an existing QoS",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := DeleteQos(FlagQos.Name); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-
-	/* --------------------------------------------------- modify  -------------------------------------------------- */
-	modifyCmd = &cobra.Command{
-		Use:           "modify",
-		SilenceErrors: true,
-		Short:         "Modify entity",
-		Long:          "",
-	}
-	modifyAccountCmd = &cobra.Command{
-		Use:   "account",
-		Short: "Modify account information",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
-				return err
-			}
-
-			if cmd.Flags().NFlag() < 2 {
-				return fmt.Errorf("you must specify at least one modification item")
-			}
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			err := util.ErrorSuccess
-			if cmd.Flags().Changed("description") { //See if a flag was set by the user
-				err = ModifyAccount(protos.ModifyField_Description, FlagAccount.Description, FlagAccount.Name, protos.OperationType_Overwrite)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-			//if cmd.Flags().Changed("parent") {
-			//	ModifyAccount("parent_account", FlagAccount.ParentAccount, FlagName, protos.ModifyEntityRequest_Overwrite)
-			//}
-			if cmd.Flags().Changed("set-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, strings.Join(FlagAccount.AllowedPartitions, ","), FlagAccount.Name, protos.OperationType_Overwrite)
-			} else if cmd.Flags().Changed("add-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Add)
-			} else if cmd.Flags().Changed("delete-allowed-partition") {
-				err = ModifyAccount(protos.ModifyField_Partition, FlagSetPartition, FlagAccount.Name, protos.OperationType_Delete)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-			if cmd.Flags().Changed("set-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, strings.Join(FlagAccount.AllowedQosList, ","), FlagAccount.Name, protos.OperationType_Overwrite)
-			} else if cmd.Flags().Changed("add-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperationType_Add)
-			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
-				err = ModifyAccount(protos.ModifyField_Qos, FlagQos.Name, FlagAccount.Name, protos.OperationType_Delete)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-			if cmd.Flags().Changed("default-qos") {
-				err = ModifyAccount(protos.ModifyField_DefaultQos, FlagAccount.DefaultQos, FlagAccount.Name, protos.OperationType_Overwrite)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	modifyUserCmd = &cobra.Command{
-		Use:   "user",
-		Short: "Modify user information",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
-				return err
-			}
-
-			if cmd.Flags().NFlag() < 2 {
-				return fmt.Errorf("you must specify at least one modification item")
-			}
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			err := util.ErrorSuccess
-			// Check if a flag was set explicitly
-			if cmd.Flags().Changed("admin-level") {
-				err = ModifyUser(protos.ModifyField_AdminLevel, FlagSetLevel, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-
-			if cmd.Flags().Changed("default-account") {
-				err = ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-
-			if cmd.Flags().Changed("set-allowed-partition") {
-				err = ModifyUser(protos.ModifyField_Partition, strings.Join(FlagUserPartitions, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
-			} else if cmd.Flags().Changed("add-allowed-partition") {
-				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Add)
-			} else if cmd.Flags().Changed("delete-allowed-partition") {
-				err = ModifyUser(protos.ModifyField_Partition, FlagSetPartition, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Delete)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-			if cmd.Flags().Changed("set-allowed-qos-list") {
-				err = ModifyUser(protos.ModifyField_Qos, strings.Join(FlagUserQosList, ","), FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
-			} else if cmd.Flags().Changed("add-allowed-qos-list") {
-				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Add)
-			} else if cmd.Flags().Changed("delete-allowed-qos-list") {
-				err = ModifyUser(protos.ModifyField_Qos, FlagQos.Name, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Delete)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-			if cmd.Flags().Changed("default-qos") {
-				err = ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagUser.Name, FlagUser.Account, FlagPartition, protos.OperationType_Overwrite)
-			}
-			if err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	modifyQosCmd = &cobra.Command{
-		Use:   "qos",
-		Short: "Modify QoS information",
-		Long:  "",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if err := cobra.ExactArgs(0)(cmd, args); err != nil {
-				return err
-			}
-
-			if cmd.Flags().NFlag() < 2 {
-				return fmt.Errorf("you must specify at least one modification item")
-			}
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if cmd.Flags().Changed("description") {
-				if err := ModifyQos(protos.ModifyField_Description, FlagQos.Description, FlagQos.Name); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-			if cmd.Flags().Changed("priority") {
-				if err := ModifyQos(protos.ModifyField_Priority, fmt.Sprint(FlagQos.Priority), FlagQos.Name); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-			if cmd.Flags().Changed("max-jobs-per-user") {
-				if err := ModifyQos(protos.ModifyField_MaxJobsPerUser, fmt.Sprint(FlagQos.MaxJobsPerUser), FlagQos.Name); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-			if cmd.Flags().Changed("max-cpus-per-user") {
-				if err := ModifyQos(protos.ModifyField_MaxCpusPerUser, fmt.Sprint(FlagQos.MaxCpusPerUser), FlagQos.Name); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-			if cmd.Flags().Changed("max-time-limit-per-task") {
-				if err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, fmt.Sprint(FlagQos.MaxTimeLimitPerTask), FlagQos.Name); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-		},
-	}
-
-	/* ---------------------------------------------------- show ---------------------------------------------------- */
-	showCmd = &cobra.Command{
-		Use:           "show",
-		Aliases:       []string{"search", "query", "find"},
-		SilenceErrors: true,
-		Short:         "Display information about a specific entity",
-		Long:          "",
-	}
-	showAccountCmd = &cobra.Command{
-		Use:     "account",
-		Aliases: []string{"accounts"},
-		Short:   "Display information about specific account entities",
-		Long:    "",
-		Args:    cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				if err := ShowAccounts(); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			} else {
-				if err := FindAccount(args[0]); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-		},
-	}
-	showUserCmd = &cobra.Command{
-		Use:     "user",
-		Aliases: []string{"users"},
-		Short:   "Display information about specific user entities",
-		Long:    "",
-		Args:    cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				if err := ShowUser("", FlagUser.Account); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			} else {
-				if err := ShowUser(args[0], FlagUser.Account); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-		},
-	}
-	showQosCmd = &cobra.Command{
-		Use:   "qos [flags] name",
-		Short: "Display information about specific QoS entities",
-		Long:  "",
-		Args:  cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				if err := ShowQos(""); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			} else {
-				if err := ShowQos(args[0]); err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			}
-		},
-	}
-
-	showEventCmd = &cobra.Command{
-		Use:   "event",
-		Short: "Display the node event table",
-		Long:  "",
-		Run: func(cmd *cobra.Command, args []string) {
-			if cmd.Flags().Changed("max-lines") {
-				if FlagNumLimit == 0 {
-					log.Error("Output line number limit must be greater than 0.")
-					os.Exit(util.ErrorCmdArg)
-				}
-			}
-
-			var err util.CraneCmdError
-			dbConfigInitOnce.Do(func() {
-				dbConfig, err = GetEventPluginConfig(config)
-				if err != util.ErrorSuccess {
-					os.Exit(err)
-				}
-			})
-			QueryEventInfoByNodes(FlagNodeList)
-		},
-	}
-	/* --------------------------------------------------- block ---------------------------------------------------- */
-	blockCmd = &cobra.Command{
-		Use:           "block",
-		SilenceErrors: true,
-		Short:         "Block the entity so that it cannot be used",
-		Long:          "",
-	}
-	blockAccountCmd = &cobra.Command{
-		Use:   "account [flags] name",
-		Short: "Block an account",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := BlockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	blockUserCmd = &cobra.Command{
-		Use:   "user [flags] name",
-		Short: "Block a user under an account",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := BlockAccountOrUser(args[0], protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	/* -------------------------------------------------- unblock --------------------------------------------------- */
-	unblockCmd = &cobra.Command{
-		Use:           "unblock",
-		SilenceErrors: true,
-		Short:         "Unblock the entity",
-		Long:          "",
-	}
-	unblockAccountCmd = &cobra.Command{
-		Use:   "account [flags] name",
-		Short: "Unblock an account",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := UnblockAccountOrUser(args[0], protos.EntityType_Account, ""); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
-	unblockUserCmd = &cobra.Command{
-		Use:   "user [flags] name",
-		Short: "Unblock a user under an account",
-		Long:  "",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := UnblockAccountOrUser(args[0], protos.EntityType_User, FlagUser.Account); err != util.ErrorSuccess {
-				os.Exit(err)
-			}
-		},
-	}
+	FlagEntityName          string
+	FlagEntityAccount       string
+	FlagEntityPartitions    string
+	FlagDefaultQos          string
+	FlagAllowedQosList      string
+	FlagAllowedPartitions   string
+	FlagDeleteQosList       string
+	FlagDeletePartitionList string
+	FlagSetQosList          string
+	FlagSetPartitionList    string
+	FlagPartitions          string
+	FlagQosList             string
+	FlagMaxCpu              string
+	FlagMaxJob              string
+	FlagMaxTimeLimit        string
+	FlagPriority            string
+	FlagAdminLevel          string
+	FlagDescription         string
 )
 
-func ParseCmdArgs() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(util.ErrorGeneric)
+func validateUintValue(value string, fieldName string, bitSize int) error {
+	_, err := strconv.ParseUint(value, 10, bitSize)
+	if err != nil {
+		log.Errorf("invalid argument %s for %s flag: %v", value, fieldName, err)
+		return err
+	}
+	return nil
+}
+
+func ParseCmdArgs(args []string) {
+	commandArgs := preParseGlobalFlags(args[1:])
+
+	if len(commandArgs) == 0 {
+		showHelp()
+		os.Exit(0)
+	}
+
+	var processedArgs []string
+	for _, arg := range commandArgs {
+		if arg == "" {
+			processedArgs = append(processedArgs, "\"\"")
+			continue
+		}
+
+		if strings.Contains(arg, "=") {
+			parts := strings.SplitN(arg, "=", 2)
+			key := parts[0]
+			value := parts[1]
+
+			if value == "" {
+				processedArgs = append(processedArgs, key+"=\"\"")
+				continue
+			}
+
+			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
+				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
+				processedArgs = append(processedArgs, arg)
+			} else if strings.Contains(value, " ") {
+				processedArgs = append(processedArgs, key+"="+strconv.Quote(value))
+			} else {
+				processedArgs = append(processedArgs, arg)
+			}
+		} else if strings.Contains(arg, " ") && !strings.HasPrefix(arg, "'") && !strings.HasPrefix(arg, "\"") {
+			processedArgs = append(processedArgs, strconv.Quote(arg))
+		} else {
+			processedArgs = append(processedArgs, arg)
+		}
+	}
+	cmdStr := strings.Join(processedArgs, " ")
+	command, err := ParseCAcctMgrCommand(cmdStr)
+
+	if err != nil {
+		log.Errorf("Error: command format is incorrect %v", err)
+		os.Exit(util.ErrorCmdArg)
+	}
+
+	result := executeCommand(command)
+	os.Exit(result)
+}
+
+func executeCommand(command *CAcctMgrCommand) int {
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub = util.GetStubToCtldByConfig(config)
+	userUid = uint32(os.Getuid())
+
+	action := command.GetAction()
+
+	switch action {
+	case "add":
+		return executeAddCommand(command)
+	case "delete":
+		return executeDeleteCommand(command)
+	case "block":
+		return executeBlockCommand(command)
+	case "unblock":
+		return executeUnblockCommand(command)
+	case "modify":
+		return executeModifyCommand(command)
+	case "show":
+		return executeShowCommand(command)
+	default:
+		log.Errorf("unknown operation type: %s", action)
+		return util.ErrorCmdArg
 	}
 }
 
-func init() {
-	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
-		util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json",
-		false, "Output in JSON format")
+func executeAddCommand(command *CAcctMgrCommand) int {
+	entity := command.GetEntity()
 
-	/* ---------------------------------------------------- add  ---------------------------------------------------- */
-	RootCmd.AddCommand(addCmd)
-	{
-		addCmd.AddCommand(addAccountCmd)
-		{
-			addAccountCmd.Flags().StringVarP(&FlagAccount.Name, "name", "N", "", "Set the name of the account")
-			addAccountCmd.Flags().StringVarP(&FlagAccount.Description, "description", "D", "", "Set the description of the account")
-			addAccountCmd.Flags().StringVarP(&FlagAccount.ParentAccount, "parent", "P", "", "Set the parent account of the account")
-			addAccountCmd.Flags().StringSliceVarP(&FlagAccount.AllowedPartitions, "partition", "p", nil, "Set allowed partitions of the account (comma seperated list)")
-			addAccountCmd.Flags().StringVarP(&FlagAccount.DefaultQos, "default-qos", "Q", "", "Set default QoS of the account")
-			addAccountCmd.Flags().StringSliceVarP(&FlagAccount.AllowedQosList, "qos", "q", nil, "Set allowed QoS of the account (comma seperated list)")
-			if err := addAccountCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
-		}
+	switch entity {
+	case "account":
+		return executeAddAccountCommand(command)
+	case "user":
+		return executeAddUserCommand(command)
+	case "qos":
+		return executeAddQosCommand(command)
+	default:
+		log.Errorf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
 
-		addCmd.AddCommand(addUserCmd)
-		{
-			addUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Set the name of the user")
-			addUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Set the account of the user")
-			addUserCmd.Flags().StringSliceVarP(&FlagUserPartitions, "partition", "p", nil, "Set allowed partitions of the user (comma seperated list)")
-			addUserCmd.Flags().StringVarP(&FlagLevel, "level", "L", "none", "Set admin level (none/operator) of the user")
-			addUserCmd.Flags().BoolVarP(&FlagUserCoordinator, "coordinator", "c", false, "Set the user as a coordinator of the account")
-			if err := addUserCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
-			if err := addUserCmd.MarkFlagRequired("account"); err != nil {
-				log.Fatalln("Can't mark 'account' flag required")
-			}
-		}
+func executeAddAccountCommand(command *CAcctMgrCommand) int {
+	// Reset FlagAccount to default values
+	FlagAccount = protos.AccountInfo{}
+	FlagAccount.Name = command.GetID()
 
-		addCmd.AddCommand(addQosCmd)
-		{
-			addQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Set the name of the QoS")
-			addQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set the description of the QoS")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
-			addQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			addQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
-			if err := addQosCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
+	KVParams := command.GetKVMaps()
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagAccount.Name = value
+		case "description":
+			FlagAccount.Description = value
+		case "parent":
+			FlagAccount.ParentAccount = value
+		case "defaultqos":
+			FlagAccount.DefaultQos = value
+		case "partition":
+			FlagAccount.AllowedPartitions = strings.Split(value, ",")
+		case "qoslist":
+			FlagAccount.AllowedQosList = strings.Split(value, ",")
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		}
 	}
 
-	/* --------------------------------------------------- remove --------------------------------------------------- */
-	RootCmd.AddCommand(removeCmd)
-	{
-		removeCmd.AddCommand(removeAccountCmd)
-		{
-			removeAccountCmd.Flags().StringVarP(&FlagAccount.Name, "name", "N", "", "Remove account with this name")
-			if err := removeAccountCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
-		}
+	return AddAccount(&FlagAccount)
+}
 
-		removeCmd.AddCommand(removeQosCmd)
-		{
-			removeQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Remove QoS with this name")
-			if err := removeQosCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
-		}
+func executeAddUserCommand(command *CAcctMgrCommand) int {
+	FlagUser = protos.UserInfo{}
+	FlagUser.Name = command.GetID()
+	FlagUserPartitions = []string{}
+	FlagLevel = "none"
+	FlagUserCoordinator = false
 
-		removeCmd.AddCommand(removeUserCmd)
-		{
-			removeUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Remove user with this name")
-			removeUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Remove user from this account")
-			if err := removeUserCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
+	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"account"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "account":
+			FlagUser.Account = value
+		case "coordinator":
+			FlagUserCoordinator = value == "true"
+		case "level":
+			FlagLevel = value
+		case "partition":
+			FlagUserPartitions = strings.Split(value, ",")
+		case "name":
+			FlagUser.Name = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		}
 	}
 
-	/* --------------------------------------------------- modify  -------------------------------------------------- */
-	RootCmd.AddCommand(modifyCmd)
-	{
-		modifyCmd.AddCommand(modifyAccountCmd)
-		{
-			// Where flags
-			modifyAccountCmd.Flags().StringVarP(&FlagAccount.Name, "name", "N", "", "Specify the name of the account to be modified")
+	return AddUser(&FlagUser, FlagUserPartitions, FlagLevel, FlagUserCoordinator)
+}
 
-			// Set flags
-			modifyAccountCmd.Flags().StringVarP(&FlagAccount.Description, "description", "D", "", "Set the description of the account")
-			// modifyAccountCmd.Flags().StringVarP(&FlagAccount.ParentAccount, "parent", "P", "", "Modify parent account")
-			modifyAccountCmd.Flags().StringVarP(&FlagAccount.DefaultQos, "default-qos", "Q", "", "Set default QoS of the account")
+func executeAddQosCommand(command *CAcctMgrCommand) int {
+	FlagQos = protos.QosInfo{
+		MaxJobsPerUser:      math.MaxUint32,
+		MaxCpusPerUser:      math.MaxUint32,
+		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
+	}
+	FlagQos.Name = command.GetID()
 
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the account (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add partition to allowed partition list")
-			modifyAccountCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete partition from allowed partition list")
-
-			modifyAccountCmd.Flags().StringSliceVar(&FlagAccount.AllowedQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
-			modifyAccountCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
-
-			// Other flags
-			modifyAccountCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced to operate")
-
-			// Rules
-			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
-			modifyAccountCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
-			modifyAccountCmd.MarkFlagsOneRequired("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition",
-				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "description", "default-qos")
-			if err := modifyAccountCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
+	KVParams := command.GetKVMaps()
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagQos.Name = value
+		case "description":
+			FlagQos.Description = value
+		case "priority":
+			if err := validateUintValue(value, "priority", 32); err != nil {
+				return util.ErrorCmdArg
 			}
+			priority, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.Priority = uint32(priority)
+		case "maxjobsperuser":
+			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxJobs, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.MaxJobsPerUser = uint32(maxJobs)
+		case "maxcpusperuser":
+			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxCpus, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.MaxCpusPerUser = uint32(maxCpus)
+		case "maxtimelimitpertask":
+			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
+			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		}
+	}
+	return AddQos(&FlagQos)
+}
 
-		modifyCmd.AddCommand(modifyUserCmd)
-		{
-			// Where flags
-			modifyUserCmd.Flags().StringVarP(&FlagUser.Name, "name", "N", "", "Specify the name of the user to be modified")
-			modifyUserCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Specify the partition used (if not set, all partitions are modified)")
-			modifyUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Specify the account used (if not set, default account is used)")
+func executeDeleteCommand(command *CAcctMgrCommand) int {
+	entity := command.GetEntity()
 
-			// Set flags
-			modifyUserCmd.Flags().StringVarP(&FlagUserDefaultQos, "default-qos", "Q", "", "Set default QoS of the user")
-			modifyUserCmd.Flags().StringVarP(&FlagSetLevel, "admin-level", "L", "", "Set admin level (none/operator/admin) of the user")
-			modifyUserCmd.Flags().StringVarP(&FlagSetDefaultAccount, "default-account", "D", "", "Modify default account of the user")
+	switch entity {
+	case "account":
+		return executeDeleteAccountCommand(command)
+	case "user":
+		return executeDeleteUserCommand(command)
+	case "qos":
+		return executeDeleteQosCommand(command)
+	default:
+		log.Errorf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
 
-			modifyUserCmd.Flags().StringSliceVar(&FlagUserPartitions, "set-allowed-partition", nil, "Overwrite allowed partitions of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "add-allowed-partition", "", "Add partition to allowed partition list")
-			modifyUserCmd.Flags().StringVar(&FlagSetPartition, "delete-allowed-partition", "", "Delete partition to allowed partition list")
+func executeDeleteAccountCommand(command *CAcctMgrCommand) int {
+	FlagEntityName = command.GetID()
 
-			modifyUserCmd.Flags().StringSliceVar(&FlagUserQosList, "set-allowed-qos-list", nil, "Overwrite allowed QoS list of the user (comma seperated list)")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "add-allowed-qos-list", "", "Add QoS to allowed QoS list")
-			modifyUserCmd.Flags().StringVar(&FlagQos.Name, "delete-allowed-qos-list", "", "Delete QoS from allowed QoS list")
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity account not set")
+		return util.ErrorCmdArg
+	}
 
-			// Other flags
-			modifyUserCmd.Flags().BoolVarP(&FlagForce, "force", "F", false, "Forced operation")
-
-			// Rules
-			modifyUserCmd.MarkFlagsMutuallyExclusive("partition", "set-allowed-partition", "add-allowed-partition", "delete-allowed-partition")
-			modifyUserCmd.MarkFlagsMutuallyExclusive("set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list")
-			modifyUserCmd.MarkFlagsOneRequired("set-allowed-partition", "add-allowed-partition", "delete-allowed-partition",
-				"set-allowed-qos-list", "add-allowed-qos-list", "delete-allowed-qos-list", "default-qos", "admin-level", "default-account")
-			if err := modifyUserCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
+	KVParams := command.GetKVMaps()
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagEntityName = value
 		}
+	}
+	return DeleteAccount(FlagEntityName)
+}
 
-		modifyCmd.AddCommand(modifyQosCmd)
-		{
-			// Where flags
-			modifyQosCmd.Flags().StringVarP(&FlagQos.Name, "name", "N", "", "Specify the name of the QoS to be modified")
+func executeDeleteUserCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
 
-			// Set flags
-			modifyQosCmd.Flags().StringVarP(&FlagQos.Description, "description", "D", "", "Set description of the QoS")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.Priority, "priority", "P", 0, "Set job priority of the QoS")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxJobsPerUser, "max-jobs-per-user", "J", math.MaxUint32, "Set the maximum number of jobs per user")
-			modifyQosCmd.Flags().Uint32VarP(&FlagQos.MaxCpusPerUser, "max-cpus-per-user", "c", math.MaxUint32, "Set the maximum number of CPUs per user")
-			modifyQosCmd.Flags().Uint64VarP(&FlagQos.MaxTimeLimitPerTask, "max-time-limit-per-task", "T", util.MaxJobTimeLimit, "Set the maximum time limit per job (in seconds)")
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity user not set")
+		return util.ErrorCmdArg
+	}
 
-			// Rules
-			if err := modifyQosCmd.MarkFlagRequired("name"); err != nil {
-				log.Fatalln("Can't mark 'name' flag required")
-			}
+	KVParams := command.GetKVMaps()
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "account":
+			FlagEntityAccount = value
+		case "name":
+			FlagEntityName = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		}
 	}
 
-	/* ---------------------------------------------------- show/find ---------------------------------------------------- */
-	RootCmd.AddCommand(showCmd)
-	{
-		showCmd.AddCommand(showAccountCmd)
-		showCmd.AddCommand(showQosCmd)
-		showCmd.AddCommand(showUserCmd)
-		{
-			showUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Display the user under the specified account")
-		}
-		showCmd.AddCommand(showEventCmd)
-		{
-			showEventCmd.Flags().StringVarP(&FlagNodeList, "NodeList", "n", "", "Input NodeList")
-			showEventCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
-				"Limit the number of lines in the output, default is 0 (no limit)")
-		}
+	return DeleteUser(FlagEntityName, FlagEntityAccount)
+}
 
-		showCmd.PersistentFlags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
+func executeDeleteQosCommand(command *CAcctMgrCommand) int {
+	// Reset FlagEntityName
+	FlagEntityName = command.GetID()
+
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity qos not set")
+		return util.ErrorCmdArg
 	}
 
-	/* --------------------------------------------------- block ---------------------------------------------------- */
-	RootCmd.AddCommand(blockCmd)
-	{
-		blockCmd.AddCommand(blockAccountCmd)
-		blockCmd.AddCommand(blockUserCmd)
-		{
-			blockUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Block the user under the specified account")
-			if err := blockUserCmd.MarkFlagRequired("account"); err != nil {
-				log.Fatalln("Can't mark 'account' flag required")
+	KVParams := command.GetKVMaps()
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagEntityName = value
+		}
+	}
+	return DeleteQos(FlagEntityName)
+}
+
+func executeBlockCommand(command *CAcctMgrCommand) int {
+	entity := command.GetEntity()
+
+	switch entity {
+	case "account":
+		return executeBlockAccountCommand(command)
+	case "user":
+		return executeBlockUserCommand(command)
+	default:
+		log.Errorf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeBlockAccountCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	Name := command.GetID()
+	FlagEntityAccount = ""
+
+	if Name == "" {
+		log.Errorf("Error: required entity account not set")
+		return util.ErrorCmdArg
+	}
+
+	KVParams := command.GetKVMaps()
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "account":
+			FlagEntityAccount = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return BlockAccountOrUser(Name, protos.EntityType_Account, FlagEntityAccount)
+}
+
+func executeBlockUserCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
+
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity user not set")
+		return util.ErrorCmdArg
+	}
+
+	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"account"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "account":
+			FlagEntityAccount = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return BlockAccountOrUser(FlagEntityName, protos.EntityType_User, FlagEntityAccount)
+}
+
+func executeUnblockCommand(command *CAcctMgrCommand) int {
+	entity := command.GetEntity()
+
+	switch entity {
+	case "account":
+		return executeUnblockAccountCommand(command)
+	case "user":
+		return executeUnblockUserCommand(command)
+	default:
+		log.Errorf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeUnblockAccountCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
+
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity account not set")
+		return util.ErrorCmdArg
+	}
+
+	KVParams := command.GetKVMaps()
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "account":
+			FlagEntityAccount = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return UnblockAccountOrUser(FlagEntityName, protos.EntityType_Account, FlagEntityAccount)
+}
+
+func executeUnblockUserCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = command.GetID()
+	FlagEntityAccount = ""
+
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity user not set")
+		return util.ErrorCmdArg
+	}
+
+	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"account"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "account":
+			FlagEntityAccount = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return UnblockAccountOrUser(FlagEntityName, protos.EntityType_User, FlagEntityAccount)
+}
+
+func executeModifyCommand(command *CAcctMgrCommand) int {
+	entity := command.GetEntity()
+
+	switch entity {
+	case "account":
+		return executeModifyAccountCommand(command)
+	case "user":
+		return executeModifyUserCommand(command)
+	case "qos":
+		return executeModifyQosCommand(command)
+	default:
+		log.Errorf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeModifyAccountCommand(command *CAcctMgrCommand) int {
+	// Reset related flags
+	FlagEntityName = ""
+	FlagDescription = ""
+	FlagDefaultQos = ""
+	FlagSetPartitionList = ""
+	FlagSetQosList = ""
+	FlagSetDefaultAccount = ""
+	FlagAllowedPartitions = ""
+	FlagAllowedQosList = ""
+	FlagDeletePartitionList = ""
+	FlagDeleteQosList = ""
+
+	WhereParams := command.GetWhereParams()
+	SetParams, AddParams, DeleteParams := command.GetSetParams()
+
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify account command requires 'where' clause to specify which account to modify")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"name"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagEntityName = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for account modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
+		log.Errorf("Error: modify account command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range SetParams {
+		switch strings.ToLower(key) {
+		case "description":
+			FlagDescription = value
+			ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Overwrite)
+		case "defaultqos":
+			FlagDefaultQos = value
+			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Overwrite)
+		case "allowedpartition":
+			FlagSetPartitionList = value
+			ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, protos.OperationType_Overwrite)
+		case "allowedqos":
+			FlagSetQosList = value
+			ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, protos.OperationType_Overwrite)
+		case "defaultaccount":
+			FlagSetDefaultAccount = value
+			ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Overwrite)
+		default:
+			log.Errorf("Error: unknown set parameter '%s' for account modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range AddParams {
+		switch strings.ToLower(key) {
+		case "allowedpartition":
+			FlagAllowedPartitions = value
+			ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, protos.OperationType_Add)
+		case "allowedqos":
+			FlagAllowedQosList = value
+			ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, protos.OperationType_Add)
+		default:
+			log.Errorf("Error: unknown add parameter '%s' for account modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range DeleteParams {
+		switch strings.ToLower(key) {
+		case "allowedpartition":
+			FlagDeletePartitionList = value
+			ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, protos.OperationType_Delete)
+		case "allowedqos":
+			FlagDeleteQosList = value
+			ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, protos.OperationType_Delete)
+		default:
+			log.Errorf("Error: unknown delete parameter '%s' for account modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return util.ErrorSuccess
+}
+
+func executeModifyUserCommand(command *CAcctMgrCommand) int {
+	FlagEntityName = ""
+	FlagEntityAccount = ""
+	FlagEntityPartitions = ""
+	FlagSetPartitionList = ""
+	FlagSetQosList = ""
+	FlagSetDefaultAccount = ""
+	FlagAdminLevel = ""
+	FlagAllowedPartitions = ""
+	FlagAllowedQosList = ""
+	FlagDeletePartitionList = ""
+	FlagDeleteQosList = ""
+
+	WhereParams := command.GetWhereParams()
+	SetParams, AddParams, DeleteParams := command.GetSetParams()
+
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify user command requires 'where' clause to specify which user to modify")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"name"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagEntityName = value
+		case "account":
+			FlagEntityAccount = value
+		case "partition":
+			FlagEntityPartitions = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for user modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
+		log.Errorf("Error: modify user command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range SetParams {
+		switch strings.ToLower(key) {
+		case "allowedpartition":
+			FlagSetPartitionList = value
+			ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+		case "allowedqos":
+			FlagSetQosList = value
+			ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+		case "defaultaccount":
+			FlagSetDefaultAccount = value
+			ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+		case "defaultqos":
+			FlagUserDefaultQos = value
+			ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+		case "adminlevel":
+			FlagAdminLevel = value
+			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+		default:
+			log.Errorf("Error: unknown set parameter '%s' for user modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range AddParams {
+		switch strings.ToLower(key) {
+		case "allowedpartition":
+			FlagAllowedPartitions = value
+			ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+		case "allowedqos":
+			FlagAllowedQosList = value
+			ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+		default:
+			log.Errorf("Error: unknown add parameter '%s' for user modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	for key, value := range DeleteParams {
+		switch strings.ToLower(key) {
+		case "allowedpartition":
+			FlagDeletePartitionList = value
+			ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
+		case "allowedqos":
+			FlagDeleteQosList = value
+			ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
+		default:
+			log.Errorf("Error: unknown delete parameter '%s' for user modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return util.ErrorSuccess
+}
+
+func executeModifyQosCommand(command *CAcctMgrCommand) int {
+	FlagEntityName = ""
+	FlagMaxCpu = ""
+	FlagMaxJob = ""
+	FlagMaxTimeLimit = ""
+	FlagPriority = ""
+	FlagDescription = ""
+
+	WhereParams := command.GetWhereParams()
+	SetParams, _, _ := command.GetSetParams()
+
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify qos command requires 'where' clause to specify which qos to modify")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"name"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagEntityName = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for qos modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(SetParams) == 0 {
+		log.Errorf("Error: modify qos command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range SetParams {
+		switch strings.ToLower(key) {
+		case "maxcpusperuser":
+			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			FlagMaxCpu = value
+			ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName)
+		case "maxjobsperuser":
+			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			FlagMaxJob = value
+			ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagEntityName)
+		case "maxtimelimitpertask":
+			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+				return util.ErrorCmdArg
+			}
+			FlagMaxTimeLimit = value
+			ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagEntityName)
+		case "priority":
+			if err := validateUintValue(value, "priority", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			FlagPriority = value
+			ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName)
+		case "description":
+			FlagDescription = value
+			ModifyQos(protos.ModifyField_Description, FlagDescription, FlagEntityName)
+		default:
+			log.Errorf("Error: unknown set parameter '%s' for qos modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+	return util.ErrorSuccess
+}
+
+func executeShowCommand(command *CAcctMgrCommand) int {
+	entity := command.GetEntity()
+
+	switch entity {
+	case "account":
+		return executeShowAccountCommand(command)
+	case "user":
+		return executeShowUserCommand(command)
+	case "qos":
+		return executeShowQosCommand(command)
+	default:
+		log.Errorf("unknown entity type: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeShowAccountCommand(command *CAcctMgrCommand) int {
+	name := command.GetID()
+	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+		name = nameParam
+	}
+
+	if name == "" {
+		return ShowAccounts()
+	}
+
+	return FindAccount(name)
+}
+
+func executeShowUserCommand(command *CAcctMgrCommand) int {
+	name := command.GetID()
+	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+		name = nameParam
+	}
+
+	account := command.GetKVParamValue("accounts")
+
+	return ShowUser(name, account)
+}
+
+func executeShowQosCommand(command *CAcctMgrCommand) int {
+	name := command.GetID()
+	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+		name = nameParam
+	}
+
+	return ShowQos(name)
+}
+
+func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
+	if len(requiredFields) > 0 {
+		missingFields := []string{}
+		for _, field := range requiredFields {
+			found := false
+			for key := range kvParams {
+				if strings.ToLower(key) == field {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missingFields = append(missingFields, field)
 			}
 		}
-	}
 
-	/* -------------------------------------------------- unblock --------------------------------------------------- */
-	RootCmd.AddCommand(unblockCmd)
-	{
-		unblockCmd.AddCommand(unblockAccountCmd)
-		unblockCmd.AddCommand(unblockUserCmd)
-		{
-			unblockUserCmd.Flags().StringVarP(&FlagUser.Account, "account", "A", "", "Unblock the user under the specified account")
-			if err := unblockUserCmd.MarkFlagRequired("account"); err != nil {
-				log.Fatalln("Can't mark 'account' flag required")
+		if len(missingFields) > 0 {
+			if len(missingFields) == 1 {
+				log.Errorf("Error: required argument %s not set", missingFields[0])
+			} else {
+				log.Errorf("Error: required arguments %s not set", strings.Join(missingFields, "\", \""))
 			}
+			return util.ErrorCmdArg
 		}
 	}
+
+	return util.ErrorSuccess
 }
