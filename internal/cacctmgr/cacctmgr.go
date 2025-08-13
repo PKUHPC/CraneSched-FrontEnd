@@ -1185,9 +1185,6 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 }
 
 func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
-	if FlagForce {
-		log.Warning("--force flag is not used for query operations")
-	}
 	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
