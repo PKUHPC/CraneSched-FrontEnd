@@ -19,7 +19,10 @@ import (
 
 func SignAndSaveUserCertificate(config *Config) error {
 
-	if FileExists(fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath)) {
+	certPath := fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath)
+	keyPath := fmt.Sprintf("%s/user.key", config.TlsConfig.UserTlsCertPath)
+
+	if FileExists(certPath) && FileExists(keyPath) {
 		return nil
 	}
 
