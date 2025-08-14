@@ -56,7 +56,7 @@ PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_P
 CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 # Targets
-.PHONY: all protos build clean install plugin plugin-energy plugin-other
+.PHONY: all protos build clean install plugin plugin-energy plugin-other format
 
 all: build plugin
 build: protos
@@ -134,4 +134,10 @@ install:
 	@mkdir -p /usr/lib/systemd/system
 	@cp etc/*.service /usr/lib/systemd/system
 	@echo "  - You may need to reload systemd daemons: 'systemctl daemon-reload'"
+	@echo "  - Done."
+
+format:
+	@echo "- Running go mod tidy and gofmt..."
+	@$(COMMON_ENV) $(GO) mod tidy
+	@$(COMMON_ENV) gofmt -w .
 	@echo "  - Done."
