@@ -118,8 +118,8 @@ func (c *UnixPeerCredentials) Clone() credentials.TransportCredentials { return 
 func (c *UnixPeerCredentials) OverrideServerName(s string) error       { return nil }
 
 func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
-	if config.TLsConfig.Enabled {
-		CaCertContent, err := os.ReadFile(config.TLsConfig.InternalCaFilePath)
+	if config.TlsConfig.Enabled {
+		CaCertContent, err := os.ReadFile(config.TlsConfig.InternalCaFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 			return nil, err
 		}
 
-		cert, err := tls.LoadX509KeyPair(config.TLsConfig.InternalCertFilePath, config.TLsConfig.InternalKeyFilePath)
+		cert, err := tls.LoadX509KeyPair(config.TlsConfig.InternalCertFilePath, config.TlsConfig.InternalKeyFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -194,16 +194,16 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var serverAddr string
 	var stub protos.CraneCtldClient
 
-	if config.TLsConfig.Enabled {
+	if config.TlsConfig.Enabled {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.TLsConfig.DomainSuffix, config.CraneCtldListenPort)
+			config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldListenPort)
 
-		if config.TLsConfig.UserTlsCertPath == "" {
+		if config.TlsConfig.UserTlsCertPath == "" {
 			home, err := os.UserHomeDir()
 			if err != nil {
 				log.Fatal(err.Error())
 			}
-			config.TLsConfig.UserTlsCertPath = filepath.Join(home, DefaultUserConfigPrefix)
+			config.TlsConfig.UserTlsCertPath = filepath.Join(home, DefaultUserConfigPrefix)
 		}
 
 		refreshCertificateFunc := func() error {
@@ -262,23 +262,23 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 	var err error
 	var stub protos.CraneCtldForInternalClient
 
-	if config.TLsConfig.Enabled {
+	if config.TlsConfig.Enabled {
 		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.TLsConfig.DomainSuffix, config.CraneCtldForInternalListenPort)
+			config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldForInternalListenPort)
 
-		ServerCertContent, err := os.ReadFile(config.TLsConfig.InternalCertFilePath)
+		ServerCertContent, err := os.ReadFile(config.TlsConfig.InternalCertFilePath)
 		if err != nil {
 			log.Errorln("Read server certificate error: " + err.Error())
 			os.Exit(ErrorGeneric)
 		}
 
-		ServerKeyContent, err := os.ReadFile(config.TLsConfig.InternalKeyFilePath)
+		ServerKeyContent, err := os.ReadFile(config.TlsConfig.InternalKeyFilePath)
 		if err != nil {
 			log.Errorln("Read server key error: " + err.Error())
 			os.Exit(ErrorGeneric)
 		}
 
-		CaCertContent, err := os.ReadFile(config.TLsConfig.InternalCaFilePath)
+		CaCertContent, err := os.ReadFile(config.TlsConfig.InternalCaFilePath)
 		if err != nil {
 			log.Errorln("Read CA certifacate error: " + err.Error())
 			os.Exit(ErrorGeneric)
@@ -338,7 +338,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 
 	if err := SignAndSaveUserCertificate(config); err != nil {
-		caCert, err := os.ReadFile(config.TLsConfig.ExternalCaFilePath)
+		caCert, err := os.ReadFile(config.TlsConfig.ExternalCaFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -347,16 +347,17 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 
 		tlsConfig := &tls.Config{
 			RootCAs:    caCertPool,
-			ServerName: "*." + config.TLsConfig.DomainSuffix,
+			ServerName: "*." + config.TlsConfig.DomainSuffix,
+			MinVersion: tls.VersionTLS13,
 		}
 
 		return tlsConfig, nil
 	}
 
-	userKeyPath := fmt.Sprintf("%s/user.key", config.TLsConfig.UserTlsCertPath)
-	userCertPath := fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath)
+	userKeyPath := fmt.Sprintf("%s/user.key", config.TlsConfig.UserTlsCertPath)
+	userCertPath := fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath)
 
-	if !FileExists(userKeyPath) || !FileExists(userCertPath) || !FileExists(config.TLsConfig.ExternalCertFilePath) {
+	if !FileExists(userKeyPath) || !FileExists(userCertPath) || !FileExists(config.TlsConfig.ExternalCertFilePath) {
 		return nil, fmt.Errorf("certificate files not found")
 	}
 
@@ -365,7 +366,7 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to load client certificate: %v", err)
 	}
 
-	CaCertContent, err := os.ReadFile(config.TLsConfig.ExternalCertFilePath)
+	CaCertContent, err := os.ReadFile(config.TlsConfig.ExternalCertFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -378,6 +379,7 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caPool,
+		MinVersion:   tls.VersionTLS13,
 	}
 
 	return tlsConfig, nil

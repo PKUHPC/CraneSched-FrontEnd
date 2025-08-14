@@ -32,7 +32,7 @@ import (
 
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
-	return err == nil
+	return err == nil || !os.IsNotExist(err)
 }
 
 func SaveFileWithPermissions(path string, content []byte, perm os.FileMode) error {

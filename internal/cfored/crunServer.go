@@ -21,10 +21,11 @@ package cfored
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
-	"google.golang.org/grpc/peer"
 	"io"
 	"math"
 	"sync/atomic"
+
+	"google.golang.org/grpc/peer"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -96,13 +97,13 @@ CforedCrunStateMachineLoop:
 				if auth, ok := p.AuthInfo.(*util.UnixPeerAuthInfo); ok {
 					uid := crunRequest.GetPayloadTaskReq().Task.Uid
 					if uid != auth.UID {
-						log.Debug("Peer UID is ", auth.UID, ", task UID is ", crunRequest.GetPayloadTaskReq().Task.Uid, ", mismatch!")
+						log.Warnf("Security: UID mismatch - peer UID %d does not match task UID %d", auth.UID, crunRequest.GetPayloadTaskReq().Task.Uid)
 						reply = &protos.StreamCrunReply{
 							Type: protos.StreamCrunReply_TASK_ID_REPLY,
 							Payload: &protos.StreamCrunReply_PayloadTaskIdReply{
 								PayloadTaskIdReply: &protos.StreamCrunReply_TaskIdReply{
 									Ok:            false,
-									FailureReason: "Uid mismatch!",
+									FailureReason: "Permission denied: caller UID does not match task UID",
 								},
 							},
 						}

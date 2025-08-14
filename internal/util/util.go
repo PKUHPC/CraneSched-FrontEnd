@@ -32,7 +32,7 @@ type Config struct {
 	CraneCtldForInternalListenPort string            `yaml:"CraneCtldForInternalListenPort"`
 	CranedNodeList                 []ConfigNodesList `yaml:"Nodes"`
 
-	TLsConfig TLSConfig `yaml:"TLS"`
+	TlsConfig TLSConfig `yaml:"TLS"`
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
 	CforedLogDir         string       `yaml:"CforedLogDir"`
@@ -83,7 +83,7 @@ const (
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
-	DefaultUserConfigPrefix = "/.config/crane"
+	DefaultUserConfigPrefix = ".config/crane"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"

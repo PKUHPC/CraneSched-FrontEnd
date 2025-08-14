@@ -35,7 +35,7 @@ func showHelp() {
 	unblock   - Unblock an account or user
 	modify    - Change attributes of an account, user, or QoS
 	show      - Display basic information
-	reset     - Reset user Certificate
+	reset     - Reset user certificate
   
   ENTITIES:
 	account   - User account in the system
@@ -116,6 +116,7 @@ func showHelp() {
 	Reset the specified user's certificate.
 	Parameter details:
       name 					    Name of the user to reset
+      (if name is 'all', all users will be reset.)
   
 	add qos <name> [Description=<desc>] [Priority=<priority>] 
 		[MaxJobsPerUser=<num>] [MaxCpusPerUser=<num>] [MaxTimeLimitPerTask=<seconds>]

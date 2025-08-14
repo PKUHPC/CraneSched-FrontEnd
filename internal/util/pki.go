@@ -9,16 +9,17 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"math"
 	"os"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func SignAndSaveUserCertificate(config *Config) error {
 
-	if FileExists(fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath)) {
+	if FileExists(fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath)) {
 		return nil
 	}
 
@@ -30,26 +31,26 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 
 	uid := uint32(os.Getuid())
 
-	RemoveFileIfExists(fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath))
+	RemoveFileIfExists(fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath))
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate RSA private key: %w", err)
 	}
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
 
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.key", config.TLsConfig.UserTlsCertPath), privateKeyPEM, 0600); err != nil {
+	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.key", config.TlsConfig.UserTlsCertPath), privateKeyPEM, 0600); err != nil {
 		return err
 	}
 
 	csrTemplate := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName: fmt.Sprintf("%d.%s", uid, config.TLsConfig.DomainSuffix),
+			CommonName: fmt.Sprintf("%d.%s", uid, config.TlsConfig.DomainSuffix),
 		},
-		DNSNames:           []string{fmt.Sprintf("*.%s", config.TLsConfig.DomainSuffix), "localhost"},
+		DNSNames:           []string{fmt.Sprintf("*.%s", config.TlsConfig.DomainSuffix), "localhost"},
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
 
@@ -63,14 +64,14 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 		Bytes: csrBytes,
 	})
 
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.csr", config.TLsConfig.UserTlsCertPath), csrPEM, 0600); err != nil {
+	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.csr", config.TlsConfig.UserTlsCertPath), csrPEM, 0600); err != nil {
 		return err
 	}
 
 	serverAddr := fmt.Sprintf("%s.%s:%s",
-		config.ControlMachine, config.TLsConfig.DomainSuffix, config.CraneCtldListenPort)
+		config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldListenPort)
 
-	creds, err := credentials.NewClientTLSFromFile(config.TLsConfig.ExternalCaFilePath, "*."+config.TLsConfig.DomainSuffix)
+	creds, err := credentials.NewClientTLSFromFile(config.TlsConfig.ExternalCaFilePath, "*."+config.TlsConfig.DomainSuffix)
 	if err != nil {
 		return err
 	}
@@ -87,7 +88,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 
 	client = protos.NewCraneCtldClient(conn)
 
-	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.TLsConfig.DomainSuffix)}
+	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.TlsConfig.DomainSuffix)}
 
 	response, err := client.SignUserCertificate(context.Background(), request)
 	if err != nil {
@@ -98,7 +99,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 		return fmt.Errorf(ErrMsg(response.Reason))
 	}
 
-	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", config.TLsConfig.UserTlsCertPath), []byte(response.Certificate), 0644); err != nil {
+	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath), []byte(response.Certificate), 0644); err != nil {
 		return err
 	}
 
