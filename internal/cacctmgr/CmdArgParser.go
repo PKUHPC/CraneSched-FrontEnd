@@ -169,6 +169,8 @@ func executeCommand(command *CAcctMgrCommand) int {
 		return executeModifyCommand(command)
 	case "show":
 		return executeShowCommand(command)
+	case "reset":
+		return executeResetCommand(command)
 	default:
 		log.Errorf("unknown operation type: %s", action)
 		return util.ErrorCmdArg
@@ -849,6 +851,16 @@ func executeShowQosCommand(command *CAcctMgrCommand) int {
 	}
 
 	return ShowQos(name)
+}
+
+// Reset cert
+func executeResetCommand(command *CAcctMgrCommand) int {
+	name := command.GetID()
+	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+		name = nameParam
+	}
+
+	return ResetUserCredential(name)
 }
 
 func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
