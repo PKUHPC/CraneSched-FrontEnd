@@ -142,6 +142,10 @@ func PrintUserList(userList []*protos.UserInfo) {
 	table.Render()
 }
 
+func PrintTxnLogList(txnLogList []*protos.QueryTxnLogReply_Txn) {
+
+}
+
 func PrintQosList(qosList []*protos.QosInfo) {
 	if len(qosList) == 0 {
 		return
@@ -1022,6 +1026,43 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 		}
 		return util.ErrorBackend
 	}
+}
+
+func ShowTxn(actor string, target string, action string, info string, start_time string, end_time string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for unblock operations")
+	}
+
+	req := protos.QueryTxnLogRequest{
+		Actor:     actor,
+		Target:    target,
+		Action:    action,
+		Info:      info,
+		StartTime: start_time,
+		EndTime:   end_time,
+	}
+	reply, err := stub.QueryTxnLog(context.Background(), &req)
+	if err != nil {
+		log.Errorf("Failed to show txn: %v", err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		}
+		return util.ErrorBackend
+	}
+
+	if !reply.GetOk() {
+		fmt.Println(util.ErrMsg(reply.GetCode()))
+		return util.ErrorBackend
+	}
+
+	PrintQosList(reply.QosList)
+
+	return util.ErrorSuccess
 }
 
 // Extracts the EventPlugin InfluxDB configuration from the specified YAML configuration files
