@@ -1061,30 +1061,9 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 }
 
-func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string, endTimeValue string) util.CraneCmdError {
+func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string) util.CraneCmdError {
 	if FlagForce {
 		log.Warning("--force flag is ignored for unblock operations")
-	}
-
-	startTimeUnix := int64(0)
-	endTimeUnix := int64(0)
-
-	if startTimeValue != "" {
-		startTime, err := util.ParseTime(startTimeValue)
-		if err != nil {
-			log.Error(err)
-			return util.ErrorCmdArg
-		}
-		startTimeUnix = startTime.Unix()
-	}
-
-	if endTimeValue != "" {
-		endTime, err := util.ParseTime(endTimeValue)
-		if err != nil {
-			log.Error(err)
-			return util.ErrorCmdArg
-		}
-		endTimeUnix = endTime.Unix()
 	}
 
 	var action string
@@ -1099,12 +1078,19 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 	}
 
 	req := protos.QueryTxnLogRequest{
-		Actor:     actor,
-		Target:    target,
-		Action:    action,
-		Info:      info,
-		StartTime: startTimeUnix,
-		EndTime:   endTimeUnix,
+		Actor:  actor,
+		Target: target,
+		Action: action,
+		Info:   info,
+	}
+
+	if startTimeValue != "" {
+		req.TimeInterval = &protos.TimeInterval{}
+		err := util.ParseInterval(startTimeValue, req.TimeInterval)
+		if err != nil {
+			log.Error(err)
+			return util.ErrorCmdArg
+		}
 	}
 
 	reply, err := stub.QueryTxnLog(context.Background(), &req)

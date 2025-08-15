@@ -871,7 +871,6 @@ func executeShowTxnLogCommand(command *CAcctMgrCommand) int {
 	FlagAction := ""
 	FlagInfo := ""
 	FlagStartTime := ""
-	FlagEndTime := ""
 
 	WhereParams := command.GetWhereParams()
 
@@ -887,15 +886,13 @@ func executeShowTxnLogCommand(command *CAcctMgrCommand) int {
 			FlagInfo = value
 		case "starttime":
 			FlagStartTime = value
-		case "endtime":
-			FlagEndTime = value
 		default:
 			log.Errorf("Error: unknown where parameter '%s' for show transaction", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return ShowTxn(FlagActor, FlagTarget, FlagAction, FlagInfo, FlagStartTime, FlagEndTime)
+	return ShowTxn(FlagActor, FlagTarget, FlagAction, FlagInfo, FlagStartTime)
 }
 
 func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
