@@ -22,12 +22,38 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
 )
+
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
+}
+
+func SaveFileWithPermissions(path string, content []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			return err
+		}
+	}
+	err := os.WriteFile(path, content, perm)
+	if err != nil {
+		return err
+	}
+
+	err = os.Chmod(path, perm)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func RemoveFileIfExists(path string) bool {
 	if _, err := os.Stat(path); err == nil {

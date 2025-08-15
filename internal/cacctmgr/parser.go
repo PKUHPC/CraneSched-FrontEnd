@@ -80,6 +80,13 @@ type ShowCommand struct {
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
+type ResetCommand struct {
+	Action      string           `parser:"@'reset'"`
+	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	GlobalFlags []*Flag          `parser:"@@*"`
+}
+
 type EntityType struct {
 	Account bool `parser:"@'account'"`
 	User    bool `parser:"| @'user'"`
@@ -131,7 +138,7 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CAcctMgrParser = participle.MustBuild[CAcctMgrCommand](
 	participle.Lexer(CAcctMgrLexer),
 	participle.Elide("whitespace"),
-	participle.Union[any](AddCommand{}, DeleteCommand{}, BlockCommand{}, UnblockCommand{}, ModifyCommand{}, ShowCommand{}),
+	participle.Union[any](AddCommand{}, DeleteCommand{}, BlockCommand{}, UnblockCommand{}, ModifyCommand{}, ShowCommand{}, ResetCommand{}),
 )
 
 func ParseCAcctMgrCommand(input string) (*CAcctMgrCommand, error) {
@@ -164,6 +171,8 @@ func (c *CAcctMgrCommand) GetAction() string {
 	case ModifyCommand:
 		return cmd.Action
 	case ShowCommand:
+		return cmd.Action
+	case ResetCommand:
 		return cmd.Action
 	default:
 		return ""
@@ -214,6 +223,8 @@ func (c *CAcctMgrCommand) GetKVParamValue(key string) string {
 		params = cmd.KVParams
 	case ShowCommand:
 		params = cmd.KVParams
+	case ResetCommand:
+		params = cmd.KVParams
 	default:
 		return ""
 	}
@@ -238,6 +249,8 @@ func (c *CAcctMgrCommand) GetID() string {
 		return cmd.ID
 	case ShowCommand:
 		return cmd.ID
+	case ResetCommand:
+		return cmd.ID
 	default:
 		return ""
 	}
@@ -257,6 +270,8 @@ func (c *CAcctMgrCommand) GetKVMaps() map[string]string {
 	case UnblockCommand:
 		params = cmd.KVParams
 	case ShowCommand:
+		params = cmd.KVParams
+	case ResetCommand:
 		params = cmd.KVParams
 	default:
 		return kvMap

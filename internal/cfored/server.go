@@ -441,11 +441,22 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 
 	log.Tracef("Listening on unix socket %s", config.CranedCforedSockPath)
 
-	serverOptions := []grpc.ServerOption{
-		grpc.KeepaliveParams(util.ServerKeepAliveParams),
-		grpc.KeepaliveEnforcementPolicy(util.ServerKeepAlivePolicy),
+	var serverOptions []grpc.ServerOption
+	if config.TlsConfig.Enabled {
+		creds := &util.UnixPeerCredentials{}
+		serverOptions = []grpc.ServerOption{
+			grpc.KeepaliveParams(util.ServerKeepAliveParams),
+			grpc.KeepaliveEnforcementPolicy(util.ServerKeepAlivePolicy),
+			grpc.Creds(creds),
+		}
+	} else {
+		serverOptions = []grpc.ServerOption{
+			grpc.KeepaliveParams(util.ServerKeepAliveParams),
+			grpc.KeepaliveEnforcementPolicy(util.ServerKeepAlivePolicy),
+		}
 	}
-	grpcServer := grpc.NewServer(serverOptions...)
+
+	unixGrpcServer := grpc.NewServer(serverOptions...)
 
 	cforedServer := GrpcCforedServer{}
 
@@ -469,19 +480,29 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 			break
 		}
 		wg.Done()
-	}(signals, grpcServer, wgAllRoutines)
+	}(signals, unixGrpcServer, wgAllRoutines)
 
-	protos.RegisterCraneForeDServer(grpcServer, &cforedServer)
+	protos.RegisterCraneForeDServer(unixGrpcServer, &cforedServer)
 
 	wgAllRoutines.Add(1)
 	go func(wg *sync.WaitGroup) {
+		// --- TCP gRPC Server ---
+		serverOptions = []grpc.ServerOption{
+			grpc.KeepaliveParams(util.ServerKeepAliveParams),
+			grpc.KeepaliveEnforcementPolicy(util.ServerKeepAlivePolicy),
+		}
+		tcpGrpcServer := grpc.NewServer(serverOptions...)
 		bindAddr := fmt.Sprintf("%s:%s", util.DefaultCforedServerListenAddress, util.DefaultCforedServerListenPort)
-		socket, err := util.GetTCPSocket(bindAddr, config)
+		socket, err = util.GetTCPSocket(bindAddr, config)
 		if err != nil {
 			log.Fatalf("Failed to listen on tcp socket: %s", err.Error())
 		}
 
-		err = grpcServer.Serve(socket)
+		protos.RegisterCraneForeDServer(tcpGrpcServer, &cforedServer)
+
+		log.Tracef("Listening on tcp socket %s:%s", util.DefaultCforedServerListenAddress, util.DefaultCforedServerListenPort)
+
+		err = tcpGrpcServer.Serve(socket)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -489,7 +510,7 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 		wgAllRoutines.Done()
 	}(wgAllRoutines)
 
-	err = grpcServer.Serve(socket)
+	err = unixGrpcServer.Serve(socket)
 	if err != nil {
 		log.Fatal(err)
 	}

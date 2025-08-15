@@ -32,17 +32,24 @@ type Config struct {
 	CraneCtldForInternalListenPort string            `yaml:"CraneCtldForInternalListenPort"`
 	CranedNodeList                 []ConfigNodesList `yaml:"Nodes"`
 
-	UseTls             bool   `yaml:"UseTls"`
-	ServerCertFilePath string `yaml:"ServerCertFilePath"`
-	ServerKeyFilePath  string `yaml:"ServerKeyFilePath"`
-	CaCertFilePath     string `yaml:"CaCertFilePath"`
-	DomainSuffix       string `yaml:"DomainSuffix"`
+	TlsConfig TLSConfig `yaml:"TLS"`
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
 	CforedLogDir         string       `yaml:"CforedLogDir"`
 	CforedDebugLevel     *string      `yaml:"CforedDebugLevel"`
 	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
 	Plugin               PluginConfig `yaml:"Plugin"`
+}
+
+type TLSConfig struct {
+	Enabled              bool   `yaml:"Enabled"`
+	InternalCertFilePath string `yaml:"InternalCertFilePath"`
+	InternalKeyFilePath  string `yaml:"InternalKeyFilePath"`
+	InternalCaFilePath   string `yaml:"InternalCaFilePath"`
+	ExternalCaFilePath   string `yaml:"ExternalCaFilePath"`
+	ExternalCertFilePath string `yaml:"ExternalCertFilePath"`
+	DomainSuffix         string `yaml:"DomainSuffix"`
+	UserTlsCertPath      string `yaml:"UserTlsCertPath"`
 }
 
 type PluginConfig struct {
@@ -75,6 +82,8 @@ const (
 	DefaultCforedLogDir = "cfored/"
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
+
+	DefaultUserConfigPrefix = ".config/crane"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
 	DefaultCforedServerListenAddress = "0.0.0.0"
