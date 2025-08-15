@@ -55,14 +55,14 @@ var (
 
 	FlagReservation string
 
-	FlagHold bool
+	FlagHold  bool
+	FlagQuiet bool
 
 	FlagLicenses string
 	// not implement feature:
 	FlagNTasks     string
 	FlagDependency string
 	FlagNoKill     string
-	FlagQuiet      string
 	FlagVerbose    string
 
 	RootCmd = &cobra.Command{
@@ -116,4 +116,5 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus required per node, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
 	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
+	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 }
