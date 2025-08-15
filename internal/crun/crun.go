@@ -253,7 +253,9 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 		if payload.Ok {
 			m.jobId = payload.JobId
 			m.stepId = payload.StepId
-			fmt.Printf("Task id allocated: %d, waiting resources.\n", m.jobId)
+			if !FlagQuiet {
+				fmt.Printf("Task id allocated: %d, waiting resources.\n", m.jobId)
+			}
 			m.state = WaitRes
 		} else {
 			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
@@ -296,7 +298,9 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 			Ok := cforedPayload.Ok
 
 			if Ok {
-				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+				if !FlagQuiet {
+					fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+				}
 				m.state = WaitForward
 			} else {
 				log.Errorln("Failed to allocate task resource. Exiting...")
@@ -342,7 +346,9 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 			cforedPayload := cforedReply.GetPayloadTaskIoForwardReadyReply()
 			Ok := cforedPayload.Ok
 			if Ok {
-				fmt.Println("Task io forward ready, waiting input.")
+				if !FlagQuiet {
+					fmt.Println("Task io forward ready, waiting input.")
+				}
 				m.state = Forwarding
 				return
 			} else {
