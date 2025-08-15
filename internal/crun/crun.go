@@ -807,7 +807,7 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 		//task identifier (rank) relative to current job.
 		//"%t": "0",
 		//User name
-		"%u": currentUser.Name,
+		"%u": currentUser.Username,
 		// Job name
 		"%x": m.task.Name,
 	}
@@ -877,6 +877,7 @@ reading:
 			n, err := reader.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
+					m.chanInputFromTerm <- buffer[:n]
 					m.chanInputFromTerm <- nil
 					break reading
 				}
