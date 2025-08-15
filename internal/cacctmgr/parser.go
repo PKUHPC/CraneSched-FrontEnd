@@ -75,6 +75,7 @@ type ModifyCommand struct {
 type ShowCommand struct {
 	Action      string           `parser:"@'show'"`
 	Entity      *EntityType      `parser:"@@?"`
+	Where       *WhereClause     `parser:"@@?"`
 	ID          string           `parser:"( @String | @Ident | @Number )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
@@ -91,6 +92,7 @@ type EntityType struct {
 	Account bool `parser:"@'account'"`
 	User    bool `parser:"| @'user'"`
 	Qos     bool `parser:"| @'qos'"`
+	Txn     bool `parser:"| @'transaction'"`
 }
 
 type Flag struct {
@@ -153,6 +155,8 @@ func (r EntityType) String() string {
 		return "user"
 	case r.Qos:
 		return "qos"
+	case r.Txn:
+		return "transaction"
 	default:
 		return ""
 	}
@@ -288,6 +292,12 @@ func (c *CAcctMgrCommand) GetWhereParams() map[string]string {
 
 	switch cmd := c.Command.(type) {
 	case ModifyCommand:
+		if cmd.Where != nil {
+			for _, param := range cmd.Where.WhereParams {
+				whereMap[param.Key] = unquoteIfQuoted(param.Value)
+			}
+		}
+	case ShowCommand:
 		if cmd.Where != nil {
 			for _, param := range cmd.Where.WhereParams {
 				whereMap[param.Key] = unquoteIfQuoted(param.Value)

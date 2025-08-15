@@ -143,7 +143,40 @@ func PrintUserList(userList []*protos.UserInfo) {
 }
 
 func PrintTxnLogList(txnLogList []*protos.QueryTxnLogReply_Txn) {
+	if len(txnLogList) == 0 {
+		return
+	}
 
+	var TxnActionToString = []string{
+		"Add Account", "Modify Account", "Delete Account",
+		"Add User", "Modify User", "Delete User",
+		"Add QoS", "Modify QoS", "Delete QoS",
+	}
+
+	sort.Slice(txnLogList, func(i, j int) bool { return txnLogList[i].CreationTime < txnLogList[j].CreationTime })
+
+	// Table format control
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"CreationTime", "Actor", "Action", "Target", "Info"})
+	tableData := make([][]string, len(txnLogList))
+	for _, txnLog := range txnLogList {
+
+		CreationTime := time.Unix(txnLog.CreationTime, 0)
+
+		tableData = append(tableData, []string{
+			CreationTime.Format("2006-01-02 15:04:05"),
+			txnLog.Actor,
+			TxnActionToString[txnLog.Action],
+			txnLog.Target,
+			txnLog.Info})
+	}
+
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
 }
 
 func PrintQosList(qosList []*protos.QosInfo) {
@@ -1028,9 +1061,41 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 }
 
-func ShowTxn(actor string, target string, action string, info string, start_time string, end_time string) util.CraneCmdError {
+func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string, endTimeValue string) util.CraneCmdError {
 	if FlagForce {
 		log.Warning("--force flag is ignored for unblock operations")
+	}
+
+	startTimeUnix := int64(0)
+	endTimeUnix := int64(0)
+
+	if startTimeValue != "" {
+		startTime, err := util.ParseTime(startTimeValue)
+		if err != nil {
+			log.Error(err)
+			return util.ErrorCmdArg
+		}
+		startTimeUnix = startTime.Unix()
+	}
+
+	if endTimeValue != "" {
+		endTime, err := util.ParseTime(endTimeValue)
+		if err != nil {
+			log.Error(err)
+			return util.ErrorCmdArg
+		}
+		endTimeUnix = endTime.Unix()
+	}
+
+	var action string
+	if actionValue != "" {
+		value, ok := util.StringToTxnAction(actionValue)
+		if !ok {
+			log.Errorf("Invalid action specified: %v.\n", actionValue)
+			return util.ErrorCmdArg
+		}
+
+		action = strconv.Itoa(int(value))
 	}
 
 	req := protos.QueryTxnLogRequest{
@@ -1038,9 +1103,10 @@ func ShowTxn(actor string, target string, action string, info string, start_time
 		Target:    target,
 		Action:    action,
 		Info:      info,
-		StartTime: start_time,
-		EndTime:   end_time,
+		StartTime: startTimeUnix,
+		EndTime:   endTimeUnix,
 	}
+
 	reply, err := stub.QueryTxnLog(context.Background(), &req)
 	if err != nil {
 		log.Errorf("Failed to show txn: %v", err)
@@ -1060,7 +1126,7 @@ func ShowTxn(actor string, target string, action string, info string, start_time
 		return util.ErrorBackend
 	}
 
-	PrintQosList(reply.QosList)
+	PrintTxnLogList(reply.TxnLogList)
 
 	return util.ErrorSuccess
 }

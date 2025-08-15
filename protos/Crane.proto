@@ -891,8 +891,8 @@ message QueryTxnLogRequest{
   string target = 3;
   string action = 4;
   string info = 5;
-  string start_time = 6;
-  string end_time = 7;
+  int64 start_time = 6;
+  int64 end_time = 7;
 }
 
 message QueryTxnLogReply{
@@ -901,8 +901,9 @@ message QueryTxnLogReply{
   message Txn {
     string actor = 1;
     string target = 2;
-    string action = 3;
+    TxnAction action = 3;
     string info = 4;
+    int64 creation_time = 5;
   }
   repeated Txn txn_log_list = 3;
 }

@@ -814,6 +814,8 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 		return executeShowUserCommand(command)
 	case "qos":
 		return executeShowQosCommand(command)
+	case "transaction":
+		return executeShowTxnLogCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -861,6 +863,39 @@ func executeResetCommand(command *CAcctMgrCommand) int {
 	}
 
 	return ResetUserCredential(name)
+}
+
+func executeShowTxnLogCommand(command *CAcctMgrCommand) int {
+	FlagActor := ""
+	FlagTarget := ""
+	FlagAction := ""
+	FlagInfo := ""
+	FlagStartTime := ""
+	FlagEndTime := ""
+
+	WhereParams := command.GetWhereParams()
+
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "actor":
+			FlagActor = value
+		case "target":
+			FlagTarget = value
+		case "action":
+			FlagAction = value
+		case "info":
+			FlagInfo = value
+		case "starttime":
+			FlagStartTime = value
+		case "endtime":
+			FlagEndTime = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for show transaction", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return ShowTxn(FlagActor, FlagTarget, FlagAction, FlagInfo, FlagStartTime, FlagEndTime)
 }
 
 func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
