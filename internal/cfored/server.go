@@ -433,12 +433,12 @@ func (cforedServer *GrpcCforedServer) QueryStepFromPort(ctx context.Context,
 }
 
 func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
-	socket, err := util.GetUnixSocket(config.CranedCforedSockPath, 0666)
+	// 1. Unix gRPC Server
+	unixSocket, err := util.GetUnixSocket(config.CranedCforedSockPath, 0666)
 	if err != nil {
 		log.Errorf("Failed to listen on unix socket: %s", err.Error())
 		return
 	}
-
 	log.Tracef("Listening on unix socket %s", config.CranedCforedSockPath)
 
 	var serverOptions []grpc.ServerOption
@@ -457,14 +457,43 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 	}
 
 	unixGrpcServer := grpc.NewServer(serverOptions...)
-
 	cforedServer := GrpcCforedServer{}
+	protos.RegisterCraneForeDServer(unixGrpcServer, &cforedServer)
+
+	// 2. TCP gRPC Server
+	bindAddr := fmt.Sprintf("%s:%s", util.DefaultCforedServerListenAddress, util.DefaultCforedServerListenPort)
+	tcpSocket, err := util.GetTCPSocket(bindAddr, config)
+	if err != nil {
+		log.Fatalf("Failed to listen on tcp socket: %s", err.Error())
+	}
+	log.Tracef("Listening on tcp socket %s:%s", util.DefaultCforedServerListenAddress, util.DefaultCforedServerListenPort)
+
+	tcpServerOptions := []grpc.ServerOption{
+		grpc.KeepaliveParams(util.ServerKeepAliveParams),
+		grpc.KeepaliveEnforcementPolicy(util.ServerKeepAlivePolicy),
+	}
+	tcpGrpcServer := grpc.NewServer(tcpServerOptions...)
+	protos.RegisterCraneForeDServer(tcpGrpcServer, &cforedServer)
 
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
+	wgAllRoutines.Add(2)
+	go func() {
+		defer wgAllRoutines.Done()
+		if err := unixGrpcServer.Serve(unixSocket); err != nil {
+			log.Errorf("Unix gRPC server stopped: %v", err)
+		}
+	}()
+	go func() {
+		defer wgAllRoutines.Done()
+		if err := tcpGrpcServer.Serve(tcpSocket); err != nil {
+			log.Errorf("TCP gRPC server stopped: %v", err)
+		}
+	}()
+
 	wgAllRoutines.Add(1)
-	go func(sigs chan os.Signal, server *grpc.Server, wg *sync.WaitGroup) {
+	go func(sigs chan os.Signal, unixServer *grpc.Server, tcpServer *grpc.Server, wg *sync.WaitGroup) {
 		select {
 		case sig := <-sigs:
 			log.Infof("Receive signal: %s. Exiting...", sig.String())
@@ -472,46 +501,16 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 			switch sig {
 			case syscall.SIGINT:
 				gVars.globalCtxCancel()
-				server.GracefulStop()
+				unixServer.GracefulStop()
+				tcpServer.GracefulStop()
 			case syscall.SIGTERM:
-				server.Stop()
+				unixServer.Stop()
+				tcpServer.Stop()
 			}
 		case <-gVars.globalCtx.Done():
 			break
 		}
 		wg.Done()
-	}(signals, unixGrpcServer, wgAllRoutines)
+	}(signals, unixGrpcServer, tcpGrpcServer, wgAllRoutines)
 
-	protos.RegisterCraneForeDServer(unixGrpcServer, &cforedServer)
-
-	wgAllRoutines.Add(1)
-	go func(wg *sync.WaitGroup) {
-		// --- TCP gRPC Server ---
-		serverOptions = []grpc.ServerOption{
-			grpc.KeepaliveParams(util.ServerKeepAliveParams),
-			grpc.KeepaliveEnforcementPolicy(util.ServerKeepAlivePolicy),
-		}
-		tcpGrpcServer := grpc.NewServer(serverOptions...)
-		bindAddr := fmt.Sprintf("%s:%s", util.DefaultCforedServerListenAddress, util.DefaultCforedServerListenPort)
-		socket, err = util.GetTCPSocket(bindAddr, config)
-		if err != nil {
-			log.Fatalf("Failed to listen on tcp socket: %s", err.Error())
-		}
-
-		protos.RegisterCraneForeDServer(tcpGrpcServer, &cforedServer)
-
-		log.Tracef("Listening on tcp socket %s:%s", util.DefaultCforedServerListenAddress, util.DefaultCforedServerListenPort)
-
-		err = tcpGrpcServer.Serve(socket)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		wgAllRoutines.Done()
-	}(wgAllRoutines)
-
-	err = unixGrpcServer.Serve(socket)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
