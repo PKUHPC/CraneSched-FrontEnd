@@ -778,15 +778,17 @@ reading:
 }
 
 func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
+	log.Tracef("Parsefile pattern: %s", pattern)
 	if pattern == "" {
 		return pattern, nil
 	}
-	if strings.Contains(pattern, "\\\\") {
+	// User input two backslash , but we will only get one.
+	if strings.Contains(pattern, "\\") {
 		return pattern, nil
 	}
 	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
 	if err != nil {
-		return pattern, fmt.Errorf("Failed to lookup user by uid %d: %s", m.task.Uid, err)
+		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", m.task.Uid, err)
 	}
 	replacements := map[string]string{
 		"%%": "%",
@@ -815,8 +817,10 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
 
 	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
-
 		parts := re.FindStringSubmatch(match)
+		if parts[0] == "%%" {
+			return "%"
+		}
 		if len(parts) < 3 {
 			return match // fallback
 		}
