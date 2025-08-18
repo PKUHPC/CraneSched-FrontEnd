@@ -784,7 +784,7 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	}
 	// User input two backslash , but we will only get one.
 	if strings.Contains(pattern, "\\") {
-		return strings.ReplaceAll(pattern, "\\", "\\\\"), nil
+		return strings.ReplaceAll(pattern, "\\", ""), nil
 	}
 	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
 	if err != nil {
