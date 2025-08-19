@@ -230,7 +230,7 @@ CforedCrunStateMachineLoop:
 				} else {
 					// Crun task req failed
 					// channel was already removed from gVars.ctldReplyChannelMapByPid
-					log.Infof("[Cfored<->Crun][Step #%d.%d] Task request failed", taskId, stepId)
+					log.Infof("[Cfored<->Crun][Pid #%d] Task request failed", crunPid)
 					break CforedCrunStateMachineLoop
 				}
 
