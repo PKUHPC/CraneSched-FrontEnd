@@ -386,8 +386,8 @@ func ProcessEndTime(task *protos.TaskInfo) string {
 // ExitCode (e)
 func ProcessExitCode(task *protos.TaskInfo) string {
 	exitCode := ""
-	if task.ExitCode >= kCraneExitCodeBase {
-		exitCode = fmt.Sprintf("0:%d", task.ExitCode-kCraneExitCodeBase)
+	if task.ExitCode >= kTerminationSignalBase {
+		exitCode = fmt.Sprintf("0:%d", task.ExitCode-kTerminationSignalBase)
 	} else {
 		exitCode = fmt.Sprintf("%d:0", task.ExitCode)
 	}
