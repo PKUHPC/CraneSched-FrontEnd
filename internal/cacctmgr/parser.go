@@ -75,8 +75,8 @@ type ModifyCommand struct {
 type ShowCommand struct {
 	Action      string           `parser:"@'show'"`
 	Entity      *EntityType      `parser:"@@?"`
-	Where       *WhereClause     `parser:"@@?"`
 	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	Where       *WhereClause     `parser:"@@?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -107,7 +107,7 @@ type KeyValueParam struct {
 
 type WhereParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @Number) | @String | @Ident | @Number )"`
+	Value string `parser:"( '=' ( @String | @Ident | @Number) | @String | @Ident | @Number )"`
 }
 
 type WhereClause struct {
@@ -131,9 +131,9 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "SET", Pattern: `set`},
 	{Name: "WHERE", Pattern: `where`},
 	{Name: "AssignOp", Pattern: `(\+=|\-=|=)`},
-	{Name: "String", Pattern: `("[^"]*"|'[^']*'|""|'')`},
+	{Name: "String", Pattern: `[-+]?("[^"]*"|'[^']*'|""|'')`},
+	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\-\.,@:\[\]T]*~?`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
-	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\.,:\[\]T]*`},
 	{Name: "Punct", Pattern: `[-,:]`},
 })
 
