@@ -30,7 +30,6 @@ var (
 	FlagNoHeader       bool
 	FlagStartTime      bool
 	FlagSelf           bool
-
 	FlagFilterPartitions string
 	FlagFilterJobIDs     string
 	FlagFilterJobNames   string
@@ -38,13 +37,9 @@ var (
 	FlagFilterStates     string
 	FlagFilterUsers      string
 	FlagFilterAccounts   string
-
 	FlagFormat string
-
 	FlagIterate uint64
-
 	FlagNumLimit uint32
-
 	FlagJson bool
 
 	RootCmd = &cobra.Command{

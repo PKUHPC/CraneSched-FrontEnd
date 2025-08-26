@@ -24,7 +24,7 @@ func ParseFlag(name,value,msg string) (interface{}, error) {
 	return result, nil
 }
 
-func DealStringFlag(req *protos.QueryTasksInfoRequest,name,FlagString ,msg string) (*protos.QueryTasksInfoRequest,error) {
+func HandleStringFlag(req *protos.QueryTasksInfoRequest,name,FlagString ,msg string) (*protos.QueryTasksInfoRequest,error) {
 	if FlagString != "" {
     	users, err := ParseFlag(name,FlagString, msg)
     	if err != nil {
@@ -35,7 +35,7 @@ func DealStringFlag(req *protos.QueryTasksInfoRequest,name,FlagString ,msg strin
 	return req, nil
 }
 
-func FillReq() (*protos.QueryTasksInfoRequest, error) {
+func FillRequest() (*protos.QueryTasksInfoRequest, error) {
 	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
 	if FlagSelf {
 		cu, err := user.Current()
@@ -52,19 +52,19 @@ func FillReq() (*protos.QueryTasksInfoRequest, error) {
 		}
 		req.FilterTaskStates = stateList.([]protos.TaskStatus)
 	}
-	if  _,err := DealStringFlag(&req,"FlagFilterJobNames",FlagFilterJobNames,"Invalid job name list specified: "); err != nil {
+	if  _,err := HandleStringFlag(&req,"FlagFilterJobNames",FlagFilterJobNames,"Invalid job name list specified: "); err != nil {
     	return nil, err
 	}	
-	if  _,err := DealStringFlag(&req,"FlagFilterUsers",FlagFilterUsers,"Invalid User list specified: "); err != nil {
+	if  _,err := HandleStringFlag(&req,"FlagFilterUsers",FlagFilterUsers,"Invalid User list specified: "); err != nil {
     	return nil, err
 	}
-	if  _,err := DealStringFlag(&req,"FlagFilterQos",FlagFilterQos,"Invalid Qos list specified: "); err != nil {
+	if  _,err := HandleStringFlag(&req,"FlagFilterQos",FlagFilterQos,"Invalid Qos list specified: "); err != nil {
     	return nil, err
 	}
-	if  _,err := DealStringFlag(&req,"FlagFilterAccounts",FlagFilterAccounts,"Invalid account list specified: "); err != nil {
+	if  _,err := HandleStringFlag(&req,"FlagFilterAccounts",FlagFilterAccounts,"Invalid account list specified: "); err != nil {
     	return nil, err
 	}
-	if  _,err := DealStringFlag(&req,"FlagFilterPartitions",FlagFilterPartitions,"Invalid partition list specified: "); err != nil {
+	if  _,err := HandleStringFlag(&req,"FlagFilterPartitions",FlagFilterPartitions,"Invalid partition list specified: "); err != nil {
     	return nil, err
 	}
 	if FlagFilterJobIDs != "" {
@@ -86,7 +86,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 
-	req, err := FillReq()
+	req, err := FillRequest()
 	if (err != nil) {
 		return  &protos.QueryTasksInfoReply{}, err
 	}
