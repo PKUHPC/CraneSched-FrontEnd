@@ -158,7 +158,7 @@ func PrintTxnLogList(txnLogList []*protos.QueryTxnLogReply_Txn) {
 	// Table format control
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"CreationTime", "Actor", "Action", "Target", "Info"})
-	tableData := make([][]string, len(txnLogList))
+	tableData := make([][]string, 0, len(txnLogList))
 	for _, txnLog := range txnLogList {
 
 		CreationTime := time.Unix(txnLog.CreationTime, 0)
@@ -1078,6 +1078,7 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 	}
 
 	req := protos.QueryTxnLogRequest{
+		Uid:    userUid,
 		Actor:  actor,
 		Target: target,
 		Action: action,
