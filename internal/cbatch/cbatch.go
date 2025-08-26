@@ -301,6 +301,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	// Set total limit of cpu cores
 	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
+	submitHostname, err := os.Hostname()
+	if err != nil {
+		log.Errorf("Failed to get hostname of the submitting host: %v", err)
+		return false, nil
+	}
+	task.SubmitHostname = submitHostname
+
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
 		log.Errorf("Invalid argument: invalid output file path: %v", err)
