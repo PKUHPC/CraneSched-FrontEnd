@@ -3,6 +3,7 @@ package cqueue
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
 	"regexp"
 	"strconv"
@@ -70,9 +71,9 @@ func ProcessNodeList(task *protos.TaskInfo) string {
 func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 	if task.NodeNum == 0 {
 		return "0"
-   	}
-   	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
-			uint64(task.NodeNum))
+	}
+	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
+		uint64(task.NodeNum))
 }
 
 // 'M' group
@@ -181,11 +182,10 @@ var fieldMap = map[string]FieldProcessor{
 	"account": {"Account", ProcessAccount},
 
 	// 'c' group
-	"c":             {"AllocCpus", ProcessAllocCpus},
-	"alloccpus":     {"AllocCpus", ProcessAllocCpus},
-	"C":             {"ReqCpus", ProcessReqCPUs},
-	"reqcpus":       {"ReqCpus", ProcessReqCPUs},
-
+	"c":         {"AllocCpus", ProcessAllocCpus},
+	"alloccpus": {"AllocCpus", ProcessAllocCpus},
+	"C":         {"ReqCpus", ProcessReqCPUs},
+	"reqcpus":   {"ReqCpus", ProcessReqCPUs},
 
 	// 'e' group
 	"e":           {"ElapsedTime", ProcessElapsedTime},
@@ -262,94 +262,222 @@ var fieldMap = map[string]FieldProcessor{
 	// 'x' group
 	"x":            {"ExcludeNodes", ProcessExcludeNodes},
 	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
-	"X":          {"Exclusive", ProcessExclusive},
-	"exclusive":  {"Exclusive", ProcessExclusive},
+	"X":            {"Exclusive", ProcessExclusive},
+	"exclusive":    {"Exclusive", ProcessExclusive},
 }
 
-// FormatData formats the output data according to the format string.
-// The format string can accept specifiers in the form of %.<width><format character>.
-// Besides, it can contain prefix, padding and suffix strings, e.g.,
-// "prefix%j_xx%t_x%.5L(Suffix)"
-func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
-	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
-	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
-	if specifiers == nil {
-		log.Errorln("Invalid format specifier.")
-		os.Exit(util.ErrorInvalidFormat)
+type segmentType int
+const (
+	textSegment      segmentType = iota // 0
+	specifierSegment                    // 1
+)
+type formatSegment struct {
+	segmentType segmentType
+	content     string
+	width       int
+}
+type tableBuilder struct {
+	widths  []int
+	headers []string
+	cells   [][]string
+}
+
+func NewTableBuilder(rowCount int) *tableBuilder {
+	return &tableBuilder{
+		cells: make([][]string, rowCount),
+	}
+}
+func BuildColumns(builder *tableBuilder, reply *protos.QueryTasksInfoReply, segments []formatSegment) error {
+	for _, seg := range segments {
+		switch seg.segmentType {
+		case textSegment:
+			AddTextColumn(builder, seg.content)
+		case specifierSegment:
+			if err := AddSpecifierColumn(builder, reply, seg); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+func AddTextColumn(builder *tableBuilder, text string) {
+	builder.widths = append(builder.widths, -1)
+	builder.headers = append(builder.headers, text)
+	for j := range builder.cells {
+		builder.cells[j] = append(builder.cells[j], text)
+	}
+}
+func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply, seg formatSegment) error {
+	field := strings.ToLower(seg.content)
+	processor, found := fieldMap[field]
+	if !found {
+		return fmt.Errorf("invalid format specifier: %s", field)
 	}
 
-	tableOutputWidth := make([]int, 0, len(specifiers))
-	tableOutputHeader := make([]string, 0, len(specifiers))
-	tableOutputCell := make([][]string, len(reply.TaskInfoList))
+	builder.widths = append(builder.widths, seg.width)
+	builder.headers = append(builder.headers, strings.ToUpper(processor.header))
 
-	// Get the prefix of the format string
-	if specifiers[0][0] != 0 {
-		prefix := FlagFormat[0:specifiers[0][0]]
-		tableOutputWidth = append(tableOutputWidth, -1)
-		tableOutputHeader = append(tableOutputHeader, prefix)
-		for j := 0; j < len(reply.TaskInfoList); j++ {
-			tableOutputCell[j] = append(tableOutputCell[j], prefix)
-		}
+	for j, task := range reply.TaskInfoList {
+		builder.cells[j] = append(builder.cells[j], processor.process(task))
+	}
+	return nil
+}
+func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, error) {
+	specifiers := re.FindAllStringSubmatchIndex(format, -1)
+	if specifiers == nil {
+		return nil, fmt.Errorf("invalid format specifier")
+	}
+
+	var segments []formatSegment
+	if start := specifiers[0][0]; start != 0 {
+		segments = append(segments, formatSegment{
+			segmentType: textSegment,
+			content:     format[0:start],
+		})
 	}
 
 	for i, spec := range specifiers {
-		// Get the padding string between specifiers
-		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
-			padding := FlagFormat[specifiers[i-1][1]:spec[0]]
-			tableOutputWidth = append(tableOutputWidth, -1)
-			tableOutputHeader = append(tableOutputHeader, padding)
-			for j := 0; j < len(reply.TaskInfoList); j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], padding)
+		if i > 0 {
+			prevEnd := specifiers[i-1][1]
+			if gap := spec[0] - prevEnd; gap > 0 {
+				segments = append(segments, formatSegment{
+					segmentType: textSegment,
+					content:     format[prevEnd:spec[0]],
+				})
 			}
 		}
-
-		// Parse width specifier
-		if spec[2] == -1 {
-			// w/o width specifier
-			tableOutputWidth = append(tableOutputWidth, -1)
-		} else {
-			// with width specifier
-			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
+		width := -1
+		if spec[2] != -1 {
+			widthVal, err := strconv.ParseUint(format[spec[2]+1:spec[3]], 10, 32)
 			if err != nil {
-				log.Errorln("Invalid width specifier.")
-				os.Exit(util.ErrorInvalidFormat)
+				return nil, fmt.Errorf("invalid width specifier")
 			}
-			tableOutputWidth = append(tableOutputWidth, int(width))
+			width = int(widthVal)
 		}
-
-		// Parse format specifier
-		field := FlagFormat[spec[4]:spec[5]]
-		if len(field) > 1 {
-			field = strings.ToLower(field)
-		}
-
-		//a-Account, c-AllocCPUs, C-ReqCpus, e-ElapsedTime, h-Held, j-JobID, l-TimeLimit, L-NodeList, k-Comment,
-		//m-AllocMemPerNode, M-ReqMemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, Q-ReqCpuPerNode, r-ReqNodes,
-		//R-Reason, s-SubmitTime, S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes, X-Exclusive.
-		fieldProcessor, found := fieldMap[field]
-		if !found {
-			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n"+
-				"a/Account, c/AllocCPUs, C/ReqCpus, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, L/NodeList, k/Comment,\n"+
-				"m/AllocMemPerNode, M/ReqMemPerNode, n/Name, N/NodeNum, o/Command, p/Priority, P/Partition, q/Qos, Q/ReqCpuPerNode, r/ReqNodes,\n"+
-				"R/Reason, s/SubmitTime, S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes, X/Exclusive.", field)
-			os.Exit(util.ErrorInvalidFormat)
-		}
-
-		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(fieldProcessor.header))
-		for j, task := range reply.TaskInfoList {
-			tableOutputCell[j] = append(tableOutputCell[j], fieldProcessor.process(task))
-		}
+		field := format[spec[4]:spec[5]]
+		segments = append(segments, formatSegment{
+			segmentType: specifierSegment,
+			content:     field,
+			width:       width,
+		})
 	}
 
-	// Get the suffix of the format string
-	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
-		suffix := FlagFormat[specifiers[len(specifiers)-1][1]:]
-		tableOutputWidth = append(tableOutputWidth, -1)
-		tableOutputHeader = append(tableOutputHeader, suffix)
-		for j := 0; j < len(reply.TaskInfoList); j++ {
-			tableOutputCell[j] = append(tableOutputCell[j], suffix)
-		}
+	if lastSpec := specifiers[len(specifiers)-1]; len(format) > lastSpec[1] {
+		segments = append(segments, formatSegment{
+			segmentType: textSegment,
+			content:     format[lastSpec[1]:],
+		})
 	}
 
-	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+	return segments, nil
 }
+
+// FormatData formats the output data according to the format string
+func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
+	var formatSpecRegex = regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
+
+	segments, err := ParseFormatSegments(FlagFormat, formatSpecRegex)
+	if err != nil {
+		log.Errorln(err)
+		os.Exit(util.ErrorInvalidFormat)
+	}
+
+	builder := NewTableBuilder(len(reply.TaskInfoList))
+	if err := BuildColumns(builder, reply, segments); err != nil {
+		log.Errorln(err)
+		os.Exit(util.ErrorInvalidFormat)
+	}
+
+	return util.FormatTable(builder.widths, builder.headers, builder.cells)
+}
+
+
+
+
+// // FormatData formats the output data according to the format string.
+// // The format string can accept specifiers in the form of %.<width><format character>.
+// // Besides, it can contain prefix, padding and suffix strings, e.g.,
+// // "prefix%j_xx%t_x%.5L(Suffix)"
+// func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
+// 	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
+// 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
+// 	if specifiers == nil {
+// 		log.Errorln("Invalid format specifier.")
+// 		os.Exit(util.ErrorInvalidFormat)
+// 	}
+
+// 	tableOutputWidth := make([]int, 0, len(specifiers))
+// 	tableOutputHeader := make([]string, 0, len(specifiers))
+// 	tableOutputCell := make([][]string, len(reply.TaskInfoList))
+
+// 	// Get the prefix of the format string
+// 	if specifiers[0][0] != 0 {
+// 		prefix := FlagFormat[0:specifiers[0][0]]
+// 		tableOutputWidth = append(tableOutputWidth, -1)
+// 		tableOutputHeader = append(tableOutputHeader, prefix)
+// 		for j := 0; j < len(reply.TaskInfoList); j++ {
+// 			tableOutputCell[j] = append(tableOutputCell[j], prefix)
+// 		}
+// 	}
+
+// 	for i, spec := range specifiers {
+// 		// Get the padding string between specifiers
+// 		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
+// 			padding := FlagFormat[specifiers[i-1][1]:spec[0]]
+// 			tableOutputWidth = append(tableOutputWidth, -1)
+// 			tableOutputHeader = append(tableOutputHeader, padding)
+// 			for j := 0; j < len(reply.TaskInfoList); j++ {
+// 				tableOutputCell[j] = append(tableOutputCell[j], padding)
+// 			}
+// 		}
+
+// 		// Parse width specifier
+// 		if spec[2] == -1 {
+// 			// w/o width specifier
+// 			tableOutputWidth = append(tableOutputWidth, -1)
+// 		} else {
+// 			// with width specifier
+// 			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
+// 			if err != nil {
+// 				log.Errorln("Invalid width specifier.")
+// 				os.Exit(util.ErrorInvalidFormat)
+// 			}
+// 			tableOutputWidth = append(tableOutputWidth, int(width))
+// 		}
+
+// 		// Parse format specifier
+// 		field := FlagFormat[spec[4]:spec[5]]
+// 		if len(field) > 1 {
+// 			field = strings.ToLower(field)
+// 		}
+
+// 		//a-Account, c-AllocCPUs, C-ReqCpus, e-ElapsedTime, h-Held, j-JobID, l-TimeLimit, L-NodeList, k-Comment,
+// 		//m-AllocMemPerNode, M-ReqMemPerNode, n-Name, N-NodeNum, p-Priority, P-Partition, q-Qos, Q-ReqCpuPerNode, r-ReqNodes,
+// 		//R-Reason, s-SubmitTime, S-StartTime, t-State, T-JobType, u-User, U-Uid, x-ExcludeNodes, X-Exclusive.
+// 		fieldProcessor, found := fieldMap[field]
+// 		if !found {
+// 			log.Errorf("Invalid format specifier or string : %s, string unfold case insensitive, reference:\n"+
+// 				"a/Account, c/AllocCPUs, C/ReqCpus, e/ElapsedTime, h/Held, j/JobID, l/TimeLimit, L/NodeList, k/Comment,\n"+
+// 				"m/AllocMemPerNode, M/ReqMemPerNode, n/Name, N/NodeNum, o/Command, p/Priority, P/Partition, q/Qos, Q/ReqCpuPerNode, r/ReqNodes,\n"+
+// 				"R/Reason, s/SubmitTime, S/StartTime, t/State, T/JobType, u/User, U/Uid, x/ExcludeNodes, X/Exclusive.", field)
+// 			os.Exit(util.ErrorInvalidFormat)
+// 		}
+
+// 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(fieldProcessor.header))
+// 		for j, task := range reply.TaskInfoList {
+// 			tableOutputCell[j] = append(tableOutputCell[j], fieldProcessor.process(task))
+// 		}
+// 	}
+
+// 	// Get the suffix of the format string
+// 	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
+// 		suffix := FlagFormat[specifiers[len(specifiers)-1][1]:]
+// 		tableOutputWidth = append(tableOutputWidth, -1)
+// 		tableOutputHeader = append(tableOutputHeader, suffix)
+// 		for j := 0; j < len(reply.TaskInfoList); j++ {
+// 			tableOutputCell[j] = append(tableOutputCell[j], suffix)
+// 		}
+// 	}
+
+// 	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+// }
