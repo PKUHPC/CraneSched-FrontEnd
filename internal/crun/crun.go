@@ -528,7 +528,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 						"Killing job...", err)
 					gVars.connectionBroken = true
 					m.err = util.ErrorNetwork
-					m.state = TaskKilling
+					m.state = End
 				}
 			} else {
 				switch cforedReply.Type {
