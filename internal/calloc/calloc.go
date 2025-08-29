@@ -322,10 +322,8 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
-				return &util.CraneError{
-					Code:    util.ErrorBackend,
-					Message: fmt.Sprintf("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String()),
-				}
+				log.Warningf("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String())
+				continue
 			}
 
 			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
@@ -511,7 +509,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			Message: fmt.Sprintf("Invalid argument: %s", err),
 		}
 	}
-	util.SetPropagatedEnviron(task)
+	util.SetPropagatedEnviron(&task.Env, &task.GetUserEnv)
 
 	return StartCallocStream(task)
 }
