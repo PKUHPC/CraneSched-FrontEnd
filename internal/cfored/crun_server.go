@@ -189,7 +189,7 @@ CforedCrunStateMachineLoop:
 				log.Tracef("[Ctld->Cfored->Crun][Pid#%d] Receive TaskIdReply, Ok: %v", crunPid, Ok)
 				taskId = ctldReply.GetPayloadTaskIdReply().TaskId
 				//TODO: Set stepId returned bu CraneCtld.
-				stepId = 0
+				stepId = 1
 
 				gVars.ctldReplyChannelMapMtx.Lock()
 				delete(gVars.ctldReplyChannelMapByPid, crunPid)
