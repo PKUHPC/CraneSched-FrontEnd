@@ -115,7 +115,8 @@ func StartCallocStream(task *protos.TaskToCtld) error {
 	var replyChannel chan ReplyReceiveItem
 
 	var request *protos.StreamCallocRequest
-	var taskId uint32
+	var jobId uint32
+	var stepId uint32
 
 	terminalExitChannel := make(chan bool, 1)
 	cancelRequestChannel := make(chan bool, 1)
@@ -179,8 +180,9 @@ CallocStateMachineLoop:
 			payload := cforedReply.GetPayloadTaskIdReply()
 
 			if payload.Ok {
-				taskId = payload.TaskId
-				fmt.Printf("Task id allocated: %d\n", taskId)
+				jobId = payload.JobId
+				stepId = payload.StepId
+				fmt.Printf("Task id allocated: %d\n", jobId)
 
 				state = WaitRes
 			} else {
@@ -231,7 +233,8 @@ CallocStateMachineLoop:
 					Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
 					Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
 						PayloadTaskCompleteReq: &protos.StreamCallocRequest_TaskCompleteReq{
-							TaskId: taskId,
+							JobId:  jobId,
+							StepId: stepId,
 							Status: protos.TaskStatus_Completed,
 						},
 					},
@@ -282,7 +285,8 @@ CallocStateMachineLoop:
 				Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
 					PayloadTaskCompleteReq: &protos.StreamCallocRequest_TaskCompleteReq{
-						TaskId: taskId,
+						JobId:  jobId,
+						StepId: stepId,
 						Status: protos.TaskStatus_Cancelled,
 					},
 				},
