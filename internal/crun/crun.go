@@ -22,10 +22,12 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
-	"github.com/spf13/cobra"
 	"os/user"
 	"regexp"
+	"slices"
 	"strconv"
+
+	"github.com/spf13/cobra"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -833,14 +835,10 @@ reading:
 
 }
 
-func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
+func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, error) {
 	log.Tracef("Parsefile pattern: %s", pattern)
 	if pattern == "" {
-		return pattern, nil
-	}
-	// User input two backslash , but we will only get one.
-	if strings.Contains(pattern, "\\") {
-		return strings.ReplaceAll(pattern, "\\", ""), nil
+		return pattern, true, nil
 	}
 	var uid uint32
 	var name string
@@ -853,16 +851,35 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	}
 	currentUser, err := user.LookupId(fmt.Sprintf("%d", uid))
 	if err != nil {
-		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", uid, err)
+		return pattern, true, fmt.Errorf("failed to lookup user by uid %d: %s", uid, err)
 	}
-	replacements := map[string]string{
+	hostname, err := os.Hostname()
+	if err != nil {
+		return pattern, true, fmt.Errorf("failed to get hostname:%s", err)
+	}
+	nodeId := slices.Index(m.cranedId, hostname)
+	if nodeId == -1 {
+		return pattern, true, fmt.Errorf("failed to find hostname %s in allocated craned nodes", hostname)
+	}
+	// User input two backslash , but we will only get one.
+	if strings.Contains(pattern, "\\") {
+		return strings.ReplaceAll(pattern, "\\", ""), true, nil
+	}
+
+	remoteReplacements := map[string]struct{}{
+		"%N": {},
+		"%n": {},
+		"%t": {},
+	}
+
+	localReplacements := map[string]string{
 		"%%": "%",
 		//Job array's master job allocation number.
 		//"%A": "",
 		//Job array ID (index) number.
 		//"%a": "",
 		//jobid.stepid of the running job (e.g. "128.0")
-		//"%J": "111.0",
+		"%J": fmt.Sprintf("%d.%d", m.jobId, m.stepId),
 		// job id
 		"%j": fmt.Sprintf("%d", m.jobId),
 		// step id
@@ -881,6 +898,8 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 
 	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
 
+	isLocalFile := true
+
 	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
 		parts := re.FindStringSubmatch(match)
 		if parts[0] == "%%" {
@@ -893,7 +912,12 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 		padding := parts[1]   // '5' in '%5j'
 		specifier := parts[2] // 'j' in '%5j'
 
-		value, found := replacements["%"+specifier]
+		_, foundInRemote := remoteReplacements["%"+specifier]
+		if foundInRemote {
+			isLocalFile = false
+		}
+
+		value, found := localReplacements["%"+specifier]
 		if !found {
 			return match // fallback
 		}
@@ -912,13 +936,16 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 
 		return value
 	})
-
-	return result, nil
+	return result, isLocalFile, nil
 }
 func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
-	parsedFilePath, err := m.ParseFilePattern(filePattern)
+	parsedFilePath, isLocalFile, err := m.ParseFilePattern(filePattern)
 	if err != nil {
 		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
+		return
+	}
+	if isLocalFile {
+		log.Debugf("Input file is not a local file: %s", filePattern)
 		return
 	}
 	file, err := os.Open(parsedFilePath)
@@ -966,16 +993,17 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanInputFromLocal = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
 
+	m.chanX11InputFromLocal = make(chan []byte, 100)
+	m.chanX11OutputFromRemote = make(chan []byte, 20)
 	go m.forwardingSigHandlerRoutine()
 	if strings.ToLower(FlagInput) == FlagInputALL {
 		go m.StdinReaderRoutine()
 	} else {
-		//task id
 		_, err := strconv.Atoi(FlagInput)
 		if err != nil {
 			go m.FileReaderRoutine(FlagInput)
 		} else {
-			//TODO: should fwd io to the task with taskId
+			//FIXME: fwd input file to the task of id `num`
 			go m.FileReaderRoutine(FlagInput)
 
 		}
@@ -1058,8 +1086,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.TaskToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
-			CmdLine: strings.Join(args, " "),
-			Cwd:     gVars.cwd,
+			ShScript: strings.Join(args, " "),
+			CmdLine:  strings.Join(args, " "),
+			Cwd:      gVars.cwd,
 
 			Env: make(map[string]string),
 		}
@@ -1078,8 +1107,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
-			CmdLine: strings.Join(args, " "),
-			Cwd:     gVars.cwd,
+			ShScript: strings.Join(args, " "),
+			CmdLine:  strings.Join(args, " "),
+			Cwd:      gVars.cwd,
 
 			Env: make(map[string]string),
 		}
@@ -1345,7 +1375,6 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)
 	}
 
-	iaMeta.ShScript = strings.Join(args, " ")
 	termEnv, exits := syscall.Getenv("TERM")
 	if exits {
 		iaMeta.TermEnv = termEnv

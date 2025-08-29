@@ -159,6 +159,8 @@ message TaskToCtld {
     InteractiveTaskAdditionalMeta interactive_meta = 22;
     ContainerTaskAdditionalMeta container_meta = 23;
   }
+  IoMeta io_meta = 24;
+  string sh_script = 25; // Crun and cbatch script content
 
   string extra_attr = 30;
 
@@ -174,6 +176,7 @@ message TaskToCtld {
 
   bool hold = 38;
   google.protobuf.Timestamp begin_time = 39;
+
   message License {
     string key = 1;
     uint32 count = 2;
@@ -209,6 +212,7 @@ message RuntimeAttrOfTask {
 
   TaskStatus primary_step_status = 21;
   uint32 primary_step_exit_code = 22;
+  map<string, uint32> actual_licenses = 23;
 }
 
 message StepToCtld {
@@ -234,6 +238,9 @@ message StepToCtld {
     InteractiveTaskAdditionalMeta interactive_meta = 22;
     ContainerTaskAdditionalMeta container_meta = 23;
   }
+
+  IoMeta io_meta = 24;
+  string sh_script = 25;
 
   string extra_attr = 30;
 
@@ -314,6 +321,8 @@ message StepToD {
   optional BatchTaskAdditionalMeta batch_meta = 9;
   optional InteractiveTaskAdditionalMeta interactive_meta = 10;
   optional ContainerTaskAdditionalMeta container_meta = 11;
+  IoMeta io_meta = 12;
+  string sh_script = 13;
 
   // If this task is PENDING, start_time is either not set (default constructed)
   // or an estimated start time.
@@ -348,12 +357,16 @@ message JobStepIds {
   repeated uint32 steps = 1;
 }
 
-message BatchTaskAdditionalMeta {
-  string sh_script = 1;
-  optional bool open_mode_append = 2;
+message IoMeta{
+  // Append mode for output and error files
+  optional bool open_mode_append = 1;
+  string input_file_pattern = 2;
   string output_file_pattern = 3;
   string error_file_pattern = 4;
-  string interpreter = 5;
+}
+
+message BatchTaskAdditionalMeta {
+  string interpreter = 1;
 }
 
 message X11Meta {
@@ -366,7 +379,6 @@ message X11Meta {
 
 message InteractiveTaskAdditionalMeta {
   string cfored_name = 1;
-  string sh_script = 2;
   string term_env = 3;
   InteractiveTaskType interactive_type = 4;
 
@@ -688,7 +700,7 @@ enum ErrCode {
   ERR_CRI_GENERIC = 80;              // CRI runtime returns error. For other errors in Crane, use ERR_GENERIC_FAILURE.
   ERR_CRI_DISABLED = 81;             // CRI support is disabled in the cluster.
   ERR_CRI_CONTAINER_NOT_READY = 82;  // Job is pending or container is not ready.
-  ERR_INVALID_MEM_FORMAT = 83;
+  ERR_INVALID_MEM_FORMAT = 83;       // Invalid mem format when parsing mem
   ERR_STEP_RES_BEYOND = 84;          // Step resource request exceeds job resource.
 }
 
