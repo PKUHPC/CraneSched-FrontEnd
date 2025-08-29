@@ -25,21 +25,24 @@ import (
 )
 
 var (
-	FlagNodes         uint32
-	FlagCpuPerTask    float64
-	FlagNtasksPerNode uint32
-	FlagTime          string
-	FlagMem           string
-	FlagPartition     string
-	FlagJob           string
-	FlagAccount       string
-	FlagQos           string
-	FlagCwd           string
-	FlagNodelist      string
-	FlagExcludes      string
-	FlagGetUserEnv    bool
-	FlagExport        string
-	FlagGres          string
+	FlagNodes              uint32
+	NodesOptionStr         = "nodes"
+	FlagCpuPerTask         float64
+	CpuPerTaskOptionStr    = "cpus-per-task"
+	FlagNtasksPerNode      uint32
+	NtasksPerNodeOptionStr = "ntasks-per-node"
+	FlagTime               string
+	FlagMem                string
+	FlagPartition          string
+	FlagJob                string
+	FlagAccount            string
+	FlagQos                string
+	FlagCwd                string
+	FlagNodelist           string
+	FlagExcludes           string
+	FlagGetUserEnv         bool
+	FlagExport             string
+	FlagGres               string
 
 	FlagInput     string
 	FlagPty       bool
@@ -70,7 +73,7 @@ var (
 			util.DetectNetworkProxy()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return MainCrun(args)
+			return MainCrun(cmd, args)
 		},
 	}
 )
@@ -85,10 +88,10 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "",
 		"info", "Available debug level: trace, debug, info")
-	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
-	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
-	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	RootCmd.Flags().Uint32VarP(&FlagNodes, NodesOptionStr, "N", 1, "Number of nodes on which to run (N = min[-max])")
+	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, CpuPerTaskOptionStr, "c", 1, "Number of cpus required per job")
+	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per job,format: \"gpu:a100:1\" or \"gpu:1\"")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, NtasksPerNodeOptionStr, 1, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")

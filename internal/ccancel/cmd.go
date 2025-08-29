@@ -57,7 +57,7 @@ var (
 			}
 
 			if len(args) > 0 {
-				matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
+				matched, _ := regexp.MatchString(`^([1-9][0-9]*(\.[1-9][0-9]*)?)(,[1-9][0-9]*(\.[1-9][0-9]*)?)*$`, args[0])
 				if !matched {
 					return util.NewCraneErr(util.ErrorCmdArg, "job id list must follow the format "+
 						"<job_id> or '<job_id>,<job_id>,<job_id>...'")
