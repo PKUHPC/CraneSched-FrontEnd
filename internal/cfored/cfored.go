@@ -44,7 +44,7 @@ type GlobalVariables struct {
 	// Prevent the situation that de-multiplexer the two maps when
 	// Cfored <--> Ctld state machine just removes the channel of a calloc
 	// from ctldReplyChannelMapByPid and hasn't added the channel
-	// to ctldReplyChannelMapByTaskId. In such a situation, Cfored <--> Ctld
+	// to ctldReplyChannelMapByStep. In such a situation, Cfored <--> Ctld
 	// state machine may think the channel of a calloc is not in both maps
 	// but the channel is actually being moving from one map to another map.
 	ctldReplyChannelMapMtx sync.Mutex
@@ -57,15 +57,15 @@ type GlobalVariables struct {
 	// Used by Cfored <--> Ctld state machine to de-multiplex messages from CraneCtld.
 	// Cfored <--> Ctld state machine GUARANTEES that NO `nil` will be sent into these channels.
 	// Used for calloc/crun with task id allocated.
-	ctldReplyChannelMapByTaskId map[uint32]chan *protos.StreamCtldReply
+	ctldReplyChannelMapByStep map[StepIdentifier]chan *protos.StreamCtldReply
 
 	// Used by Calloc/Crun <--> Cfored state machine to multiplex messages
 	// these messages will be sent to CraneCtld
 	cforedRequestCtldChannel chan *protos.StreamCforedRequest
 
-	pidTaskIdMapMtx sync.RWMutex
+	pidStepMapMtx sync.RWMutex
 
-	pidTaskIdMap map[int32]uint32
+	pidStepMap map[int32]StepIdentifier
 }
 
 var gVars GlobalVariables
@@ -105,8 +105,8 @@ func StartCfored() {
 	gVars.cforedRequestCtldChannel = make(chan *protos.StreamCforedRequest, 8)
 
 	gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
-	gVars.ctldReplyChannelMapByTaskId = make(map[uint32]chan *protos.StreamCtldReply)
-	gVars.pidTaskIdMap = make(map[int32]uint32)
+	gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
+	gVars.pidStepMap = make(map[int32]StepIdentifier)
 
 	gSupervisorChanKeeper = NewCranedChannelKeeper()
 

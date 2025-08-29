@@ -147,7 +147,8 @@ CtldClientStateMachineLoop:
 		case WaitChannelReq:
 			log.Tracef("[Cfored<->Ctld] Enter WAIT_CHANNEL_REQ state.")
 
-			var taskId uint32
+			var jobId uint32
+			var stepId uint32
 
 		WaitChannelReqLoop:
 			for {
@@ -202,23 +203,26 @@ CtldClientStateMachineLoop:
 					case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
 						switch ctldReply.Type {
 						case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
-							taskId = ctldReply.GetPayloadTaskResAllocReply().TaskId
+							jobId = ctldReply.GetPayloadTaskResAllocReply().JobId
+							stepId = ctldReply.GetPayloadTaskResAllocReply().StepId
 						case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
-							taskId = ctldReply.GetPayloadTaskCancelRequest().TaskId
+							jobId = ctldReply.GetPayloadTaskCancelRequest().JobId
+							stepId = ctldReply.GetPayloadTaskCancelRequest().StepId
 						case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
-							taskId = ctldReply.GetPayloadTaskCompletionAck().TaskId
+							jobId = ctldReply.GetPayloadTaskCompletionAck().JobId
+							stepId = ctldReply.GetPayloadTaskCompletionAck().StepId
 						}
 
-						log.Tracef("[Cfored<->Ctld] %s message received. Task Id %d", ctldReply.Type, taskId)
+						log.Tracef("[Cfored<->Ctld][Step #%d.%d] %s message received.", jobId, stepId, ctldReply.Type)
 
 						gVars.ctldReplyChannelMapMtx.Lock()
 
-						toFeCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]
+						toFeCtlReplyChannel, ok := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
 						if ok {
 							toFeCtlReplyChannel <- ctldReply
 						} else {
 							log.Warningf("[Cfored<->Ctld] Task Id %d shall exist in "+
-								"ctldReplyChannelMapByTaskId!", taskId)
+								"ctldReplyChannelMapByStep!", jobId)
 						}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
@@ -248,19 +252,20 @@ CtldClientStateMachineLoop:
 
 			gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
 
-			for taskId, c := range gVars.ctldReplyChannelMapByTaskId {
+			for step, c := range gVars.ctldReplyChannelMapByStep {
 				reply := &protos.StreamCtldReply{
 					Type: protos.StreamCtldReply_TASK_CANCEL_REQUEST,
 					Payload: &protos.StreamCtldReply_PayloadTaskCancelRequest{
 						PayloadTaskCancelRequest: &protos.StreamCtldReply_TaskCancelRequest{
-							TaskId: taskId,
+							JobId:  step.JobId,
+							StepId: step.StepId,
 						},
 					},
 				}
 				c <- reply
 			}
 
-			num := len(gVars.ctldReplyChannelMapByTaskId)
+			num := len(gVars.ctldReplyChannelMapByStep)
 			count := 0
 
 			if num > 0 {
@@ -272,26 +277,27 @@ CtldClientStateMachineLoop:
 						log.Fatal("[Cfored<->Ctld] Expect type TASK_COMPLETION_REQUEST")
 					}
 
-					taskId := request.GetPayloadTaskCompleteReq().TaskId
+					jobId := request.GetPayloadTaskCompleteReq().JobId
+					stepId := request.GetPayloadTaskCompleteReq().StepId
 
-					toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]
+					toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
 					if ok {
 						toCallocCtlReplyChannel <- &protos.StreamCtldReply{
 							Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
 							Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
 								PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
-									TaskId: taskId,
+									JobId:  jobId,
+									StepId: stepId,
 								},
 							},
 						}
 					} else {
-						log.Fatalf("[Cfored<->Ctld] Task Id %d shall exist in "+
-							"ctldReplyChannelMapByTaskId!", taskId)
+						log.Fatalf("[Cfored<->Ctld][Step #%d.%d] Step shall exist in ctldReplyChannelMapByStep!", jobId, stepId)
 					}
 
 					count += 1
-					log.Debugf("[Cfored<->Ctld] Receive task completion request of task id %d. "+
-						"%d/%d front ends is cancelled", request.GetPayloadTaskCompleteReq().TaskId, count, num)
+					log.Debugf("[Cfored<->Ctld][Step #%d.%d] Receive task completion request. %d/%d front ends is cancelled",
+						jobId, stepId, count, num)
 
 					if count >= num {
 						break
@@ -299,7 +305,7 @@ CtldClientStateMachineLoop:
 				}
 			}
 
-			gVars.ctldReplyChannelMapByTaskId = make(map[uint32]chan *protos.StreamCtldReply)
+			gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
 
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
