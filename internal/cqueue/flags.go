@@ -22,7 +22,7 @@ func (p *StatesFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
-	req.FilterTaskStates = stateList
+	req.FilterStates = stateList
 	return nil
 }
 
@@ -127,8 +127,44 @@ func (p *JobIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
 	}
-	req.FilterTaskIds = filterJobIdList
-	req.NumLimit = uint32(len(filterJobIdList))
+	idFilter := make(map[uint32]*protos.JobStepIds)
+	for _, jobId := range filterJobIdList {
+		idFilter[jobId] = nil
+	}
+	req.FilterIds = idFilter
+	if !FlagStep {
+		req.NumLimit = uint32(len(filterJobIdList))
+	} else {
+		req.NumLimit = 0
+	}
+	return nil
+}
+
+type StepIDsProcessor struct{}
+
+func (p *StepIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+	if FlagFilterStepIDs == "" {
+		return nil
+	}
+	filterStepList, err := util.ParseStepIdList(FlagFilterStepIDs, ",")
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid step list specified: %s.", err))
+	}
+	if len(filterStepList) == 0 {
+		req.FilterIds = filterStepList
+	} else {
+		if req.FilterIds == nil {
+			req.FilterIds = make(map[uint32]*protos.JobStepIds)
+		}
+		for jobId, steps := range filterStepList {
+			if _, exist := req.FilterIds[jobId]; exist {
+				steps.Steps = append(steps.Steps, req.FilterIds[jobId].Steps...)
+			} else {
+				req.FilterIds[jobId] = steps
+			}
+		}
+	}
+	req.NumLimit = 0
 	return nil
 }
 

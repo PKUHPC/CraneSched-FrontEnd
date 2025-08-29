@@ -24,8 +24,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -49,11 +47,11 @@ func CancelTask(args []string) error {
 	req.FilterTaskName = FlagJobName
 
 	if len(args) > 0 {
-		taskIds, err := util.ParseJobIdList(args[0], ",")
+		stepIds, err := util.ParseStepIdList(args[0], ",")
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %v.\n", err))
 		}
-		req.FilterTaskIds = taskIds
+		req.FilterIds = stepIds
 	}
 
 	if FlagState != "" {
@@ -76,21 +74,28 @@ func CancelTask(args []string) error {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.NotCancelledTasks) > 0 {
+		if len(reply.NotCancelledJobSteps) > 0 {
 			return util.NewCraneErr(util.ErrorBackend, "some tasks were not cancelled")
 		} else {
 			return nil
 		}
 	}
 
-	if len(reply.CancelledTasks) > 0 {
-		cancelledTasksString := util.ConvertSliceToString(reply.CancelledTasks, ", ")
-		fmt.Printf("Jobs %s cancelled successfully.\n", cancelledTasksString)
+	if len(reply.CancelledSteps) > 0 {
+		cancelledTasksString := util.JobStepListToString(reply.CancelledSteps)
+		fmt.Printf("%s cancelled successfully.\n", cancelledTasksString)
 	}
 
-	if len(reply.NotCancelledTasks) > 0 {
-		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
+	if len(reply.NotCancelledJobSteps) > 0 {
+		for jobId, stepErr := range reply.NotCancelledJobSteps {
+			if len(stepErr.Reason) != 0 {
+				fmt.Printf("Failed to cancel job: %d. Reason: %s.\n", jobId, stepErr.Reason)
+			} else {
+				for i := 0; i < len(stepErr.StepIds); i++ {
+					fmt.Printf("Failed to cancel job: %d-%d. Reason: %s.\n", jobId, stepErr.StepIds[i], stepErr.StepReasons[i])
+
+				}
+			}
 		}
 		return util.NewCraneErr(util.ErrorBackend, "some tasks were not cancelled")
 	}
