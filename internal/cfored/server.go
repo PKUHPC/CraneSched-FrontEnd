@@ -247,6 +247,7 @@ const (
 	SupervisorUnReg StateOfCranedServer = 2
 )
 
+// TODO:重新接上stream
 func (cforedServer *GrpcCforedServer) StepIOStream(toSupervisorStream protos.CraneForeD_StepIOStreamServer) error {
 	var cranedId string
 	var jobId uint32
