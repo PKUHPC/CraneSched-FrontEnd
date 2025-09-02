@@ -185,7 +185,6 @@ CtldClientStateMachineLoop:
 						frontPid := ctldReply.GetPayloadTaskIdReply().Pid
 
 						gVars.ctldReplyChannelMapMtx.Lock()
-						// TODO:  保存任务的frontPid
 						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[frontPid]
 						if ok {
 							toFrontCtlReplyChannel <- ctldReply
@@ -213,7 +212,6 @@ CtldClientStateMachineLoop:
 						log.Tracef("[Cfored<->Ctld] %s message received. Task Id %d", ctldReply.Type, taskId)
 
 						gVars.ctldReplyChannelMapMtx.Lock()
-						// TODO： 保存task_id
 						toFeCtlReplyChannel, ok := gVars.ctldReplyChannelMapByTaskId[taskId]
 						if ok {
 							toFeCtlReplyChannel <- ctldReply
