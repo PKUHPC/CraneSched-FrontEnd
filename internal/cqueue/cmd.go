@@ -20,16 +20,15 @@ package cqueue
 
 import (
 	"CraneFrontEnd/internal/util"
-
 	"github.com/spf13/cobra"
 )
 
 var (
-	FlagConfigFilePath string
-	FlagFull           bool
-	FlagNoHeader       bool
-	FlagStartTime      bool
-	FlagSelf           bool
+	FlagConfigFilePath   string
+	FlagFull             bool
+	FlagNoHeader         bool
+	FlagStartTime        bool
+	FlagSelf             bool
 	FlagFilterPartitions string
 	FlagFilterJobIDs     string
 	FlagFilterJobNames   string
@@ -37,10 +36,10 @@ var (
 	FlagFilterStates     string
 	FlagFilterUsers      string
 	FlagFilterAccounts   string
-	FlagFormat string
-	FlagIterate uint64
-	FlagNumLimit uint32
-	FlagJson bool
+	FlagFormat           string
+	FlagIterate          uint64
+	FlagNumLimit         uint32
+	FlagJson             bool
 
 	RootCmd = &cobra.Command{
 		Use:     "cqueue [flags]",
@@ -49,7 +48,7 @@ var (
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.ConfigDeal(cmd)
+			util.VerifyConfigPath(cmd)
 			util.DetectNetworkProxy()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -72,7 +71,7 @@ func ParseCmdArgs() {
 	util.RunAndHandleExit(RootCmd)
 }
 
-func HelpTemplate() string {
+func HelpTemplateString() string {
 	return `{{.Short}}
 Usage: {{.CommandPath}}[flags]
   -A, --account=account(s)         comma separated list of accounts
@@ -135,21 +134,10 @@ Help options:
 `
 }
 
-func register() {
-	RegisterFlag("FlagFilterJobNames", &StringHandler{})
-	RegisterFlag("FlagFilterUsers", &StringHandler{})
-	RegisterFlag("FlagFilterQos", &StringHandler{})
-	RegisterFlag("FlagFilterAccounts", &StringHandler{})
-	RegisterFlag("FlagFilterPartitions", &StringHandler{})
-	RegisterFlag("FlagFilterJobIDs", &JobIDHandler{})
-	RegisterFlag("FlagFilterStates", &StatesHandler{})
-}
-
 func init() {
 
-	register()
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.SetHelpTemplate(HelpTemplate())
+	RootCmd.SetHelpTemplate(HelpTemplateString())
 	RootCmd.SetUsageTemplate(`Usage: cqueue [-A account] [-C config] [-F full] 
               [-i seconds] [-j job(ID)] [--json] [-m --max-lines] 
               [-n name] [-N noheader] [-o format] [-p partitions] 

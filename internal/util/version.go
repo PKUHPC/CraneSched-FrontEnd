@@ -22,8 +22,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	log "github.com/sirupsen/logrus"
-
 )
 
 var VERSION = "Unknown"
@@ -37,13 +35,8 @@ func Version() string {
 	return fmt.Sprintf("CraneSched %s\nBuild Time: %s", VERSION, BUILD_TIME)
 }
 
-//  -------------- extra deal config ---------------------
-func ConfigDeal(cmd *cobra.Command) {
+func VerifyConfigPath(cmd *cobra.Command) {
 	if cmd.PersistentFlags().Changed("config") {
-		currentPath, _ := cmd.PersistentFlags().GetString("config")
-		defaultPath := DefaultConfigPath
-
-		log.Infof("The Config's default path is: %s", defaultPath)
-		log.Infof("The Config designated path is: %s", currentPath)
+		cmd.PersistentFlags().GetString("config")
 	}
 }

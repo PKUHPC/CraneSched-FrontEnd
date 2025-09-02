@@ -19,21 +19,11 @@
 package cqueue
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"fmt"
 	"strconv"
 	"time"
 )
-
-func JsonOutput(reply *protos.QueryTasksInfoReply) error {
-	fmt.Println(util.FmtJson.FormatReply(reply))
-	if reply.GetOk() {
-		return nil
-	} else {
-		return util.GetCraneError(util.ErrorBackend, "Josn output failed")
-	}
-}
 
 func Query() error {
 	reply, err := QueryTasksInfo()

@@ -20,6 +20,7 @@ package cinfo
 
 import (
 	"CraneFrontEnd/internal/util"
+
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +45,7 @@ var (
 		Version: util.Version(),
 		Args:    cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.ConfigDeal(cmd)
+			util.VerifyConfigPath(cmd)
 			util.DetectNetworkProxy()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -62,7 +63,7 @@ func ParseCmdArgs() {
 	util.RunAndHandleExit(RootCmd)
 }
 
-func HelpTemplate() string {
+func HelpTemplateString() string {
 	return `{{.Short}}
 Usage: {{.CommandPath}}[flags]
   -C, --config string              Path to configuration file, default 
@@ -100,7 +101,7 @@ Help options:
 }
 
 func initCustomHelpTemplate(cmd *cobra.Command) {
-	cmd.SetHelpTemplate(HelpTemplate())
+	cmd.SetHelpTemplate(HelpTemplateString())
 }
 
 func init() {
