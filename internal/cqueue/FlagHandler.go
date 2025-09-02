@@ -1,45 +1,125 @@
 package cqueue
 
 import (
+    "CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"fmt"
-	"sync"
+    "os/user"
 )
 
-var flagRegistry = new(sync.Map)
-
-func RegisterFlag(name string, handler FlagHandler) {
-	flagRegistry.Store(name, handler)
-}
-
-type FlagHandler interface {
-	Parse(value string) (interface{}, error)
-	Error(msg string, err error) error
-}
-
-// FlagFilterJobNames, FlagFilterUsers, FlagFilterQos  FlagFilterAccounts, FlagFilterPartitions
-type StringHandler struct{}
-func (h *StringHandler) Parse(value string) (interface{}, error) {
-	return util.ParseStringParamList(value, ",")
-}
-func (h *StringHandler) Error(msg string, err error) error {
-	return util.GetCraneError(util.ErrorCmdArg, fmt.Sprintf("msg: %s", err))
-}
-
-// FlagFilterJobIDs
-type JobIDHandler struct{}
-func (h *JobIDHandler) Parse(value string) (interface{}, error) {
-	return util.ParseJobIdList(value, ",")
-}
-func (h *JobIDHandler) Error(msg string, err error) error {
-	return util.GetCraneError(util.ErrorCmdArg, fmt.Sprintf("%s %s",msg,err))
+type FilterProcessor interface {
+    Process(req *protos.QueryTasksInfoRequest) error
 }
 
 // FlagFilterStates
-type StatesHandler struct{}
-func (h *StatesHandler) Parse(value string) (interface{}, error) {
-	return util.ParseInRamTaskStatusList(value)
+type StatesFilterProcessor struct{} 
+func (p *StatesFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if FlagFilterStates == "" {
+        return nil 
+    }
+	stateList, err := util.ParseInRamTaskStatusList(FlagFilterStates)
+    if err != nil {
+		return util.GetCraneError(util.ErrorCmdArg,err.Error()) 
+    }
+	req.FilterTaskStates = stateList
+    return nil
 }
-func (h *StatesHandler) Error(msg string, err error) error {
-	return util.GetCraneError(util.ErrorCmdArg, err.Error())
+
+// FlagSelf 
+type SelfProcessor struct {}
+func (p *SelfProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if !FlagSelf {
+        return nil
+    }
+    cu, err := user.Current()
+    if err != nil {
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Failed to get current username: %s.", err)) 
+    }
+    req.FilterUsers = []string{cu.Username}
+    return nil
+}
+
+// FlagFilterJobNames 
+type JobNamesProcessor struct{}
+func (p *JobNamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if FlagFilterJobNames == "" {
+        return nil
+    }
+    filterJobNameList, err := util.ParseStringParamList(FlagFilterJobNames, ",")
+    if err != nil {
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid job name list specified: %s.", err)) 
+    }
+    req.FilterTaskNames = filterJobNameList
+    return nil
+}
+
+// FlagFilterUsers 
+type UserFilterProcessor struct{}
+func (p *UserFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if FlagFilterUsers == "" {
+        return nil
+    }
+    filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
+    if err != nil {
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid user list specified: %s.", err))
+    }
+    req.FilterUsers = filterUserList
+    return nil
+}
+
+// FlagFilterQos  
+type QosProcessor struct {}
+func (p *QosProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if FlagFilterQos == "" {
+        return nil
+    }
+    filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
+    if err != nil {
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid job name list specified: %s.", err)) 
+    }
+    req.FilterQos = filterJobQosList
+    return nil
+}
+
+// FlagFilterAccounts 
+type AccountProcessor struct {}
+func (p *AccountProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if FlagFilterAccounts == "" {
+        return nil
+    }
+    filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
+    if err != nil {
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid job name list specified: %s.", err)) 
+    }
+    req.FilterAccounts = filterAccountList
+    return nil
+}
+
+// FlagFilterPartitions 
+type PartitionsProcessor struct {}
+func (p *PartitionsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if FlagFilterPartitions == "" {
+        return nil
+    }
+	filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
+    if err != nil {
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid partition list specified: %s.", err))  
+    }
+	req.FilterPartitions = filterPartitionList
+    return nil
+}
+
+// FlagFilterJobIDs
+type JobIDsProcessor struct {}
+func (p *JobIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+    if FlagFilterAccounts == "" {
+        return nil
+    }
+    filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
+    if err != nil {
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid job list specified: %s.", err)) 
+    }
+	req.FilterTaskIds = filterJobIdList
+	req.NumLimit = uint32(len(filterJobIdList))
+    return nil
 }
