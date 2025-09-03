@@ -218,6 +218,20 @@ CtldClientStateMachineLoop:
 						} else {
 							log.Warningf("[Cfored<->Ctld] Task Id %d shall exist in "+
 								"ctldReplyChannelMapByTaskId!", taskId)
+							if ctldReply.Type == protos.StreamCtldReply_TASK_CANCEL_REQUEST {
+								log.Debugf("[Cfored<->Ctld] sending TASK_COMPLETION_REQUEST directly. Task Id #%d ", taskId)
+								toCtldRequest := &protos.StreamCforedRequest{
+									Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
+									Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
+										PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+											CforedName:      gVars.hostName,
+											TaskId:          taskId,
+											InteractiveType: protos.InteractiveTaskType_Crun,
+										},
+									},
+								}
+								gVars.cforedRequestCtldChannel <- toCtldRequest
+							}
 						}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
