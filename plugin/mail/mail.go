@@ -198,7 +198,8 @@ func (p *MailPlugin) EndHook(ctx *api.PluginContext) {
 
 		if mailtype == "ALL" || mailtype == "END" ||
 			(mailtype == "FAIL" && task.Status == protos.TaskStatus_Failed) ||
-			(mailtype == "TIMELIMIT" && task.Status == protos.TaskStatus_ExceedTimeLimit) {
+			(mailtype == "TIMELIMIT" && task.Status == protos.TaskStatus_ExceedTimeLimit) ||
+			(mailtype == "OOM" && task.Status == protos.TaskStatus_OutOfMemory) {
 			subject = p.subject(task)
 			if !p.SubjectOnly {
 				body = p.body(task)
