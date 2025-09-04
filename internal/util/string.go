@@ -251,6 +251,7 @@ var allowedMailTypes = map[string]struct{}{
 	"END":       {},
 	"FAIL":      {},
 	"TIMELIMIT": {},
+	"OOM":       {},
 	"ALL":       {},
 }
 
