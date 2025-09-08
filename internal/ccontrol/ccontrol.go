@@ -995,6 +995,12 @@ func CreateReservation() error {
 				Message: "You can only specify either allowed or disallowed accounts.",
 			}
 		}
+		if len(req.AllowedAccounts) == 0 && len(req.DeniedAccounts) == 0 {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Account can not be empty.",
+			}
+		}
 	}
 
 	if FlagUser != "" {
