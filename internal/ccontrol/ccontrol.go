@@ -977,6 +977,10 @@ func CreateReservation() error {
 		req.Partition = FlagPartitionName
 	}
 
+	if FlagNodeNum != 0 {
+		req.NodeNum = &FlagNodeNum
+	}
+
 	if FlagAccount != "" {
 		req.AllowedAccounts, req.DeniedAccounts, err = util.ParsePosNegList(FlagAccount)
 		if err != nil {

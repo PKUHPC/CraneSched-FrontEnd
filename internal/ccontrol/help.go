@@ -95,6 +95,7 @@ COMMANDS:
     nodes: List of nodes to reserve
     account: Account to associate with the reservation
     user: User to associate with the reservation
+    nodeCnt: Number of nodes to reserve (valid when nodes is not specified)
 
   delete reservation <name>
     Delete an existing reservation.
