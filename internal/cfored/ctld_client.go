@@ -22,9 +22,10 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"google.golang.org/grpc"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -194,6 +195,19 @@ CtldClientStateMachineLoop:
 								"in ctldReplyChannelMapByPid!", frontPid)
 						}
 
+						gVars.ctldReplyChannelMapMtx.Unlock()
+
+					case protos.StreamCtldReply_TASK_META_REPLY:
+						frontPid := ctldReply.GetPayloadTaskMetaReply().CattachPid
+
+						gVars.ctldReplyChannelMapMtx.Lock()
+						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[frontPid]
+						if ok {
+							toFrontCtlReplyChannel <- ctldReply
+						} else {
+							log.Fatalf("[Cfored<->Ctld] Front pid %d shall exist "+
+								"in ctldReplyChannelMapByPid!", frontPid)
+						}
 						gVars.ctldReplyChannelMapMtx.Unlock()
 
 					case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
