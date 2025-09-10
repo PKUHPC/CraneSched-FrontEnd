@@ -196,6 +196,19 @@ CtldClientStateMachineLoop:
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
 
+					case protos.StreamCtldReply_TASK_META_REPLY:
+						frontPid := ctldReply.GetPayloadTaskMetaReply().CattachPid
+
+						gVars.ctldReplyChannelMapMtx.Lock()
+						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[frontPid]
+						if ok {
+							toFrontCtlReplyChannel <- ctldReply
+						} else {
+							log.Fatalf("[Cfored<->Ctld] Front pid %d shall exist "+
+								"in ctldReplyChannelMapByPid!", frontPid)
+						}
+						gVars.ctldReplyChannelMapMtx.Unlock()
+
 					case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
 						fallthrough
 					case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
