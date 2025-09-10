@@ -5,14 +5,18 @@ import (
 	"CraneFrontEnd/internal/util"
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/pkg/term/termios"
 	log "github.com/sirupsen/logrus"
@@ -27,9 +31,12 @@ const (
 	ConnectCfored StateOfCattach = 0
 	WaitForward   StateOfCattach = 1
 	Forwarding    StateOfCattach = 2
-	TaskKilling   StateOfCattach = 3
-	WaitAck       StateOfCattach = 4
-	End           StateOfCattach = 5
+	WaitAck       StateOfCattach = 3
+	End           StateOfCattach = 4
+)
+
+const (
+	FlagInputALL string = "all"
 )
 
 type GlobalVariables struct {
@@ -236,9 +243,8 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 				return
 			}
 		case protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY:
-			// Task completion !
+			// Task launch failed !
 			m.state = End
-			m.err = util.ErrorBackend
 			return
 		default:
 			log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
@@ -431,22 +437,22 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	m.chanX11InputFromLocal = make(chan []byte, 100)
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
-	//go m.forwardingSigHandlerRoutine()
-	//if strings.ToLower(FlagInput) == FlagInputALL {
-	//	go m.StdinReaderRoutine()
-	//} else {
-	//	num, err := strconv.Atoi(FlagInput)
-	//	if err != nil {
-	//		go m.FileReaderRoutine(FlagInput)
-	//	} else {
-	//		if uint32(num) > m.task.NtasksPerNode*m.task.NodeNum {
-	//			go m.FileReaderRoutine(FlagInput)
-	//		} else {
-	//			//TODO: should fwd io to the task with relative id equal to task id instead of file
-	//			go m.FileReaderRoutine(FlagInput)
-	//		}
-	//	}
-	//}
+	go m.forwardingSigHandlerRoutine()
+	if strings.ToLower(FlagInput) == FlagInputALL {
+		go m.StdinReaderRoutine()
+	} else {
+		num, err := strconv.Atoi(FlagInput)
+		if err != nil {
+			go m.FileReaderRoutine(FlagInput)
+		} else {
+			if uint32(num) > m.task.NtasksPerNode*m.task.NodeNum {
+				go m.FileReaderRoutine(FlagInput)
+			} else {
+				//TODO: should fwd io to the task with relative id equal to task id instead of file
+				go m.FileReaderRoutine(FlagInput)
+			}
+		}
+	}
 
 	go m.StdoutWriterRoutine()
 
@@ -454,6 +460,241 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
 		go m.StartX11ReaderWriterRoutine()
 	}
+}
+
+func (m *StateMachineOfCattach) StdinReaderRoutine() {
+
+	err := syscall.SetNonblock(int(os.Stdin.Fd()), true)
+	if err != nil {
+		return
+	}
+
+	epfd, err := syscall.EpollCreate1(0)
+	if err != nil {
+		log.Tracef("EpollCreate1: %v", err)
+		return
+	}
+
+	event := &syscall.EpollEvent{
+		Events: syscall.EPOLLIN,
+		Fd:     int32(int(os.Stdin.Fd())),
+	}
+
+	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, int(os.Stdin.Fd()), event); err != nil {
+		log.Tracef("EpollCtl: %v", err)
+		return
+	}
+
+	defer syscall.Close(epfd)
+	defer close(m.chanInputFromTerm)
+	events := make([]syscall.EpollEvent, 10)
+	buf := make([]byte, 4096)
+reading:
+	for {
+		if FlagPty {
+			ptyAttr := unix.Termios{}
+			err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
+			if err != nil {
+				log.Errorf("Failed to get stdin attr")
+			}
+			termios.Cfmakeraw(&ptyAttr)
+			err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
+			if err != nil {
+				log.Errorf("Failed to set stdin attr")
+			}
+		}
+
+		select {
+		case <-m.taskFinishCtx.Done():
+			break reading
+		default:
+		}
+
+		n, err := syscall.EpollWait(epfd, events, 100) //100MS timeout
+		if err != nil {
+			if errors.Is(err, syscall.EINTR) {
+				log.Trace("EpollWait interrupted by signal, retrying")
+				continue
+			}
+			log.Tracef("EpollWait: %v", err)
+			return
+		}
+		for i := 0; i < n; i++ {
+			if events[i].Fd == int32(os.Stdin.Fd()) && events[i].Events&syscall.EPOLLIN != 0 {
+				nr, err := syscall.Read(int(os.Stdin.Fd()), buf)
+				if err != nil {
+					if errors.Is(err, syscall.EAGAIN) {
+						log.Trace("Read EAGAIN, no data available now")
+						continue
+					}
+					if errors.Is(err, syscall.EINTR) {
+						log.Trace("Read interrupted by signal, retrying")
+						continue
+					}
+					if errors.Is(err, syscall.EIO) {
+						log.Trace("Read EIO.")
+						continue
+					}
+					return
+				}
+				if nr == 0 {
+					log.Trace("Read 0 bytes (EOF), closing channel and exiting goroutine")
+					return
+				}
+				m.chanInputFromTerm <- buf[:nr]
+				log.Tracef("Sent %d bytes to channel", nr)
+			}
+		}
+	}
+
+}
+
+func (m *StateMachineOfCattach) ParseFilePattern(pattern string) (string, error) {
+	log.Tracef("Parsefile pattern: %s", pattern)
+	if pattern == "" {
+		return pattern, nil
+	}
+	// User input two backslash , but we will only get one.
+	if strings.Contains(pattern, "\\") {
+		return strings.ReplaceAll(pattern, "\\", ""), nil
+	}
+	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
+	if err != nil {
+		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", m.task.Uid, err)
+	}
+	replacements := map[string]string{
+		"%%": "%",
+		//Job array's master job allocation number.
+		//"%A": "",
+		//Job array ID (index) number.
+		//"%a": "",
+		//jobid.stepid of the running job (e.g. "128.0")
+		//"%J": "111.0",
+		// job id
+		"%j": fmt.Sprintf("%d", m.taskId),
+		// step id
+		"%s": "0",
+		//short hostname
+		//"%N": "node1",
+		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
+		//"%n": "0",
+		//task identifier (rank) relative to current job.
+		//"%t": "0",
+		//User name
+		"%u": currentUser.Username,
+		// Job name
+		"%x": m.task.Name,
+	}
+
+	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
+
+	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		if parts[0] == "%%" {
+			return "%"
+		}
+		if len(parts) < 3 {
+			return match // fallback
+		}
+
+		padding := parts[1]   // '5' in '%5j'
+		specifier := parts[2] // 'j' in '%5j'
+
+		value, found := replacements["%"+specifier]
+		if !found {
+			return match // fallback
+		}
+
+		if specifier == "j" || specifier == "s" {
+			if padding == "" {
+				return value
+			}
+			_, err := strconv.Atoi(padding)
+			if err != nil {
+				return value
+			}
+			paddedFormat := "%0" + padding + "v"
+			return fmt.Sprintf(paddedFormat, value)
+		}
+
+		return value
+	})
+
+	return result, nil
+}
+
+func (m *StateMachineOfCattach) FileReaderRoutine(filePattern string) {
+	parsedFilePath, err := m.ParseFilePattern(filePattern)
+	if err != nil {
+		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
+		return
+	}
+	file, err := os.Open(parsedFilePath)
+	if err != nil {
+		log.Errorf("Failed to open file %s: %s", parsedFilePath, err)
+		m.chanInputFromTerm <- nil
+		m.taskErrCb()
+		return
+	}
+	log.Debugf("Reading from file %s", parsedFilePath)
+	reader := bufio.NewReader(file)
+	buffer := make([]byte, 4096)
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("Failed to close stdin file: %s.", err)
+		}
+	}(file)
+reading:
+	for {
+		select {
+		case <-m.taskFinishCtx.Done():
+			break reading
+		default:
+			n, err := reader.Read(buffer)
+			if err != nil {
+				if err == io.EOF {
+					m.chanInputFromTerm <- buffer[:n]
+					m.chanInputFromTerm <- nil
+					break reading
+				}
+				log.Errorf("Failed to read from fd: %v", err)
+				break reading
+			}
+			m.chanInputFromTerm <- buffer[:n]
+		}
+	}
+}
+
+func (m *StateMachineOfCattach) forwardingSigHandlerRoutine() {
+	signal.Ignore(syscall.SIGTTOU, syscall.SIGTTIN)
+
+	lastSigint := time.Now().Add(-2 * time.Second)
+loop:
+	for {
+		select {
+		case sig := <-m.sigs:
+			switch sig {
+			/*
+				multiple sigint will cancel this job
+			*/
+			case syscall.SIGINT:
+				log.Tracef("Recv signal: %v", sig)
+				now := time.Now()
+				if lastSigint.Add(time.Second).After(now) {
+					m.taskFinishCb()
+					break loop
+				} else {
+					lastSigint = now
+					fmt.Println("Send interrupt once more in 1s to abort.")
+				}
+
+			default:
+				log.Tracef("Ignored signal: %v", sig)
+			}
+		}
+	}
+	log.Tracef("Signal processing goroutine exit.")
 }
 
 func (m *StateMachineOfCattach) StartX11ReaderWriterRoutine() {

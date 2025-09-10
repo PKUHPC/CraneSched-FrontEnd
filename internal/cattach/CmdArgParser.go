@@ -10,7 +10,6 @@ var (
 	FlagConfigFilePath string
 	FlagPty            bool
 	FlagInput          string
-	FlagInputALL       bool
 	RootCmd            = &cobra.Command{
 		Use:     "cattach [flags] jobid.stepid",
 		Short:   "Attach to a crane job step",
@@ -31,4 +30,5 @@ func ParseCmdArgs() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.Flags().StringVarP(&FlagInput, "input", "i", "all", "Source and destination of stdin redirection")
 }
