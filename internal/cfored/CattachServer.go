@@ -215,14 +215,13 @@ CforedCattachStateMachineLoop:
 			go gSupervisorChanKeeper.waitSupervisorChannelsReady(execCranedIds, readyChannel, &stopWaiting, taskId, stepId)
 
 			select {
-			// TODO: is ok ?
 			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_TASK_CANCEL_REQUEST {
+				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
 					log.Fatalf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type TASK_CANCEL_REQUEST but got %s, ignored",
 						taskId, stepId, ctldReply.Type)
 				} else {
 					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive TaskCancelRequest", taskId, stepId)
-					state = CattachWaitTaskCancel
+					state = End
 				}
 				stopWaiting.Store(true)
 
@@ -245,17 +244,17 @@ CforedCattachStateMachineLoop:
 				}
 
 				log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", taskId, stepId)
-				//toCtldRequest := &protos.StreamCforedRequest{
-				//	Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
-				//	Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
-				//		PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
-				//			CforedName:      gVars.hostName,
-				//			TaskId:          taskId,
-				//			//InteractiveType: protos.InteractiveTaskType_Cattach,
-				//		},
-				//	},
-				//}
-				//gVars.cforedRequestCtldChannel <- toCtldRequest
+				toCtldRequest := &protos.StreamCforedRequest{
+					Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
+					Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
+						PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+							CforedName:      gVars.hostName,
+							TaskId:          taskId,
+							InteractiveType: protos.InteractiveTaskType_Crun,
+						},
+					},
+				}
+				gVars.cforedRequestCtldChannel <- toCtldRequest
 				stopWaiting.Store(true)
 				state = End
 			case <-readyChannel:
@@ -282,7 +281,6 @@ CforedCattachStateMachineLoop:
 		forwarding:
 			for {
 				select {
-				// is ok ?
 				case ctldReply := <-ctldReplyChannel:
 					if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
 						log.Warningf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type TASK_CANCEL_REQUEST but got %s, ignored",
