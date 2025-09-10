@@ -198,7 +198,7 @@ CforedCrunStateMachineLoop:
 					gVars.pidTaskIdMapMtx.Lock()
 					gVars.pidTaskIdMap[crunPid] = taskId
 					gVars.pidTaskIdMapMtx.Unlock()
-					gSupervisorChanKeeper.setRemoteIoToCrunChannel(taskId, stepId, TaskIoRequestChannel)
+					gSupervisorChanKeeper.setRemoteIoToCrunChannel(crunPid, taskId, stepId, TaskIoRequestChannel)
 				}
 
 				gVars.ctldReplyChannelMapMtx.Unlock()
