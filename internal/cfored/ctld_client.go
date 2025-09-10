@@ -252,6 +252,15 @@ CtldClientStateMachineLoop:
 								gVars.cforedRequestCtldChannel <- toCtldRequest
 							}
 						}
+						// cattach only focus on TASK_COMPLETION_ACK_REPLY
+						if ctldReply.Type == protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
+							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByTaskId[taskId]
+							if ok {
+								for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
+									toCattachCtlReplyChannel <- ctldReply
+								}
+							}
+						}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
 					}
@@ -308,7 +317,6 @@ CtldClientStateMachineLoop:
 
 			num := len(gVars.ctldReplyChannelMapByStep)
 			count := 0
-
 			if num > 0 {
 				log.Debugf("[Cfored<->Ctld] Sending cancel request to %d front ends "+
 					"with task id allocated.", num)
@@ -347,6 +355,22 @@ CtldClientStateMachineLoop:
 			}
 
 			gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
+
+			// cancel all cattach term
+			for taskId, toCattachCtlReplyChannelMap := range gVars.ctldReplyChannelMapForCattachByTaskId {
+				for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
+					toCattachCtlReplyChannel <- &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
+						Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
+							PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
+								TaskId: taskId,
+							},
+						},
+					}
+				}
+			}
+
+			gVars.ctldReplyChannelMapForCattachByTaskId = make(map[uint32]map[int32]chan *protos.StreamCtldReply)
 
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
