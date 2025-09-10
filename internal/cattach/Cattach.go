@@ -263,7 +263,7 @@ func (m *StateMachineOfCattach) StateForwarding() {
 		err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
 		if err != nil {
 			log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
-			m.state = TaskKilling
+			m.state = End
 			m.err = util.ErrorSystem
 			return
 		}
@@ -274,7 +274,7 @@ func (m *StateMachineOfCattach) StateForwarding() {
 		err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
 		if err != nil {
 			log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
-			m.state = TaskKilling
+			m.state = End
 			m.err = util.ErrorSystem
 			return
 		}
@@ -329,51 +329,12 @@ func (m *StateMachineOfCattach) StateForwarding() {
 
 	for m.state == Forwarding {
 		select {
-		// TODO: isok ?
 		case <-m.taskFinishCtx.Done():
-			request = &protos.StreamCattachRequest{
-				Type: protos.StreamCattachRequest_TASK_COMPLETION_REQUEST,
-				Payload: &protos.StreamCattachRequest_PayloadTaskCompleteReq{
-					PayloadTaskCompleteReq: &protos.StreamCattachRequest_TaskCompleteReq{
-						TaskId: m.taskId,
-						Status: protos.TaskStatus_Completed,
-					},
-				},
-			}
-
-			log.Debug("Sending TASK_COMPLETION_REQUEST with COMPLETED state...")
-			if err := m.stream.Send(request); err != nil {
-				log.Errorf("The connection to Cfored was broken: %s. "+
-					"Exiting...", err)
-				gVars.connectionBroken = true
-				m.state = End
-				m.err = util.ErrorNetwork
-			} else {
-				m.state = WaitAck
-			}
-
+			m.state = End
+			return
 		case <-m.taskErrCtx.Done():
-			request = &protos.StreamCattachRequest{
-				Type: protos.StreamCattachRequest_TASK_COMPLETION_REQUEST,
-				Payload: &protos.StreamCattachRequest_PayloadTaskCompleteReq{
-					PayloadTaskCompleteReq: &protos.StreamCattachRequest_TaskCompleteReq{
-						TaskId: m.taskId,
-						Status: protos.TaskStatus_Cancelled,
-					},
-				},
-			}
-
-			log.Debug("Sending TASK_COMPLETION_REQUEST with Cancelled state...")
-			if err := m.stream.Send(request); err != nil {
-				log.Errorf("The connection to Cfored was broken: %s. "+
-					"Exiting...", err)
-				gVars.connectionBroken = true
-				m.state = End
-				m.err = util.ErrorNetwork
-			} else {
-				m.state = WaitAck
-			}
-
+			m.state = End
+			return
 		case item := <-m.cforedReplyReceiver.replyChannel:
 			cforedReply, err := item.reply, item.err
 			if err != nil {
@@ -393,48 +354,13 @@ func (m *StateMachineOfCattach) StateForwarding() {
 
 				case protos.StreamCattachReply_TASK_X11_FORWARD:
 					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
-
-				case protos.StreamCattachReply_TASK_CANCEL_REQUEST:
-					m.taskFinishCtx.Done()
-					log.Trace("Received TASK_CANCEL_REQUEST")
-					m.state = TaskKilling
-
 				case protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY:
 					log.Debug("Task completed.")
 					m.state = End
+					return
 				}
 			}
 		}
-	}
-}
-
-func (m *StateMachineOfCattach) StateTaskKilling() {
-	request := &protos.StreamCattachRequest{
-		Type: protos.StreamCattachRequest_TASK_COMPLETION_REQUEST,
-		Payload: &protos.StreamCattachRequest_PayloadTaskCompleteReq{
-			PayloadTaskCompleteReq: &protos.StreamCattachRequest_TaskCompleteReq{
-				TaskId: m.taskId,
-				Status: protos.TaskStatus_Cancelled,
-			},
-		},
-	}
-
-	if gVars.connectionBroken {
-		log.Errorf("The connection to Cfored was broken. Exiting...")
-		m.err = util.ErrorNetwork
-		m.state = End
-		return
-	}
-
-	log.Debug("Sending TASK_COMPLETION_REQUEST with CANCELLED state...")
-	if err := m.stream.Send(request); err != nil {
-		log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
-		gVars.connectionBroken = true
-		m.err = util.ErrorNetwork
-		m.state = End
-		return
-	} else {
-		m.state = WaitAck
 	}
 }
 
@@ -486,9 +412,6 @@ CrunStateMachineLoop:
 
 		case Forwarding:
 			m.StateForwarding()
-
-		case TaskKilling:
-			m.StateTaskKilling()
 
 		case WaitAck:
 			m.StateWaitAck()
