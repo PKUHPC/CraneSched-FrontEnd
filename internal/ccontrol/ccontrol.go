@@ -971,6 +971,13 @@ func CreateReservation() error {
 
 	if FlagNodes != "" {
 		req.CranedRegex = FlagNodes
+	} else {
+		if FlagPartitionName == "" {
+			return &util.CraneError{
+				Code: util.ErrorCmdArg,
+				Message: "Partition name must be specified when no node regex is given.",
+			}
+		}
 	}
 
 	if FlagPartitionName != "" {

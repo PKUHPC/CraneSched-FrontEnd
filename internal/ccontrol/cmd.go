@@ -445,7 +445,7 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 
 	kvParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(kvParams, []string{"starttime", "partition", "duration", "account"})
+	err := checkEmptyKVParams(kvParams, []string{"starttime", "duration", "account"})
 	if err != util.ErrorSuccess {
 		return err
 	}
