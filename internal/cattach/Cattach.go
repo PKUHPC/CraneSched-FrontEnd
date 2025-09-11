@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/pkg/term/termios"
 	log "github.com/sirupsen/logrus"
@@ -28,15 +27,11 @@ import (
 type StateOfCattach int
 
 const (
-	ConnectCfored StateOfCattach = 0
-	WaitForward   StateOfCattach = 1
-	Forwarding    StateOfCattach = 2
-	WaitAck       StateOfCattach = 3
-	End           StateOfCattach = 4
-)
-
-const (
-	FlagInputALL string = "all"
+	ConnectCfored          StateOfCattach = 0
+	WaitForward            StateOfCattach = 1
+	Forwarding             StateOfCattach = 2
+	WaitCompletionAckReply StateOfCattach = 3
+	End                    StateOfCattach = 4
 )
 
 type GlobalVariables struct {
@@ -89,10 +84,9 @@ func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 }
 
 type StateMachineOfCattach struct {
-	taskId    uint32 // This field will be set after ReqTaskId state
-	stepId    uint32
-	task      *protos.TaskToCtld
-	inputFlag string // Crun --input flag, used to determine how to read input from stdin
+	taskId uint32 // This field will be set after ReqTaskId state
+	stepId uint32
+	task   *protos.TaskToCtld
 
 	state StateOfCattach
 	err   util.CraneCmdError // Hold the final error of the state machine if any
@@ -357,7 +351,6 @@ func (m *StateMachineOfCattach) StateForwarding() {
 				switch cforedReply.Type {
 				case protos.StreamCattachReply_TASK_IO_FORWARD:
 					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
-
 				case protos.StreamCattachReply_TASK_X11_FORWARD:
 					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
 				case protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY:
@@ -370,7 +363,7 @@ func (m *StateMachineOfCattach) StateForwarding() {
 	}
 }
 
-func (m *StateMachineOfCattach) StateWaitAck() {
+func (m *StateMachineOfCattach) StateWaitCompletionAckReply() {
 	log.Debug("Waiting Ctld TASK_COMPLETION_ACK_REPLY")
 	item := <-m.cforedReplyReceiver.replyChannel
 	cforedReply, err := item.reply, item.err
@@ -419,8 +412,9 @@ CrunStateMachineLoop:
 		case Forwarding:
 			m.StateForwarding()
 
-		case WaitAck:
-			m.StateWaitAck()
+		case WaitCompletionAckReply:
+			m.StateWaitCompletionAckReply()
+
 		case End:
 			break CrunStateMachineLoop
 		}
@@ -438,26 +432,11 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigHandlerRoutine()
-	if strings.ToLower(FlagInput) == FlagInputALL {
-		go m.StdinReaderRoutine()
-	} else {
-		num, err := strconv.Atoi(FlagInput)
-		if err != nil {
-			go m.FileReaderRoutine(FlagInput)
-		} else {
-			if uint32(num) > m.task.NtasksPerNode*m.task.NodeNum {
-				go m.FileReaderRoutine(FlagInput)
-			} else {
-				//TODO: should fwd io to the task with relative id equal to task id instead of file
-				go m.FileReaderRoutine(FlagInput)
-			}
-		}
-	}
-
+	go m.StdinReaderRoutine()
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()
-	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
+	if iaMeta != nil && iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
 		go m.StartX11ReaderWriterRoutine()
 	}
 }
@@ -669,32 +648,20 @@ reading:
 func (m *StateMachineOfCattach) forwardingSigHandlerRoutine() {
 	signal.Ignore(syscall.SIGTTOU, syscall.SIGTTIN)
 
-	lastSigint := time.Now().Add(-2 * time.Second)
-loop:
 	for {
 		select {
 		case sig := <-m.sigs:
 			switch sig {
-			/*
-				multiple sigint will cancel this job
-			*/
 			case syscall.SIGINT:
 				log.Tracef("Recv signal: %v", sig)
-				now := time.Now()
-				if lastSigint.Add(time.Second).After(now) {
-					m.taskFinishCb()
-					break loop
-				} else {
-					lastSigint = now
-					fmt.Println("Send interrupt once more in 1s to abort.")
-				}
-
+				m.taskFinishCb()
+				log.Tracef("Signal processing goroutine exit.")
+				return
 			default:
 				log.Tracef("Ignored signal: %v", sig)
 			}
 		}
 	}
-	log.Tracef("Signal processing goroutine exit.")
 }
 
 func (m *StateMachineOfCattach) StartX11ReaderWriterRoutine() {
@@ -819,14 +786,6 @@ func MainCattach(args []string) error {
 
 	m := new(StateMachineOfCattach)
 
-	//m.inputFlag = FlagInput
-
-	//if FlagPty && strings.ToLower(FlagInput) != FlagInputALL {
-	//	return &util.CraneError{
-	//		Code:    util.ErrorCmdArg,
-	//		Message: fmt.Sprintf("--input is incompatible with --pty."),
-	//	}
-	//}
 	parts := strings.Split(args[0], ".")
 	if len(parts) != 2 {
 		return fmt.Errorf("Failed to parse stepid from command line options: %s", args[0])
