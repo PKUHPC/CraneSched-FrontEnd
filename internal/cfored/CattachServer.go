@@ -3,6 +3,7 @@ package cfored
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"errors"
 	"io"
 	"math"
 	"strings"
@@ -229,39 +230,6 @@ CforedCattachStateMachineLoop:
 					state = DeadCattach
 				}
 				stopWaiting.Store(true)
-
-			case item := <-RequestChannel:
-				cattachRequest, err := item.message, item.err
-				if err != nil {
-					switch err {
-					case io.EOF:
-						fallthrough
-					default:
-						log.Debugf("[Cattach->Cfored][Step #%d.%d] Connection to cattach was broken.", taskId, stepId)
-						stopWaiting.Store(true)
-						state = End
-					}
-					break
-				}
-
-				if cattachRequest.Type != protos.StreamCattachRequest_TASK_COMPLETION_REQUEST {
-					log.Fatalf("[Cattach->Cfored][Step #%d.%d] Expect TASK_COMPLETION_REQUEST.", taskId, stepId)
-				}
-
-				log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", taskId, stepId)
-				toCtldRequest := &protos.StreamCforedRequest{
-					Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
-					Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
-						PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
-							CforedName:      gVars.hostName,
-							TaskId:          taskId,
-							InteractiveType: protos.InteractiveTaskType_Crun,
-						},
-					},
-				}
-				gVars.cforedRequestCtldChannel <- toCtldRequest
-				stopWaiting.Store(true)
-				state = End
 			case <-readyChannel:
 				reply = &protos.StreamCattachReply{
 					Type: protos.StreamCattachReply_TASK_IO_FORWARD_READY,
@@ -283,6 +251,21 @@ CforedCattachStateMachineLoop:
 			}
 		case CattachWaitTaskComplete:
 			log.Debugf("[Cfored<->Cattach][Job #%d] Enter State Cattach_Wait_Task_Complete", taskId)
+			history := gSupervisorChanKeeper.getRemoteHistory(taskId, stepId)
+			for _, taskMsg := range history {
+				if taskMsg == nil {
+					log.Errorf("[Supervisor->Cfored->Cattach][Step #%d.%d] One of Craneds [%v] down. Exit....",
+						taskId, stepId, execCranedIds)
+					// IO Channel from Craned was shut down unexpectedly.
+					state = DeadCattach
+					break
+				}
+
+				if err := forwardTaskMsgToCattach(taskId, stepId, taskMsg, toCattachStream); err != nil {
+					state = End
+					break
+				}
+			}
 		forwarding:
 			for {
 				select {
@@ -341,43 +324,8 @@ CforedCattachStateMachineLoop:
 						break forwarding
 					}
 
-					if taskMsg.Type == protos.StreamTaskIORequest_TASK_OUTPUT {
-						reply = &protos.StreamCattachReply{
-							Type: protos.StreamCattachReply_TASK_IO_FORWARD,
-							Payload: &protos.StreamCattachReply_PayloadTaskIoForwardReply{
-								PayloadTaskIoForwardReply: &protos.StreamCattachReply_TaskIOForwardReply{
-									Msg: taskMsg.GetPayloadTaskOutputReq().Msg,
-								},
-							},
-						}
-						log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] fowarding msg size[%d]",
-							taskId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
-						if err := toCattachStream.Send(reply); err != nil {
-							log.Debugf("[Cfored->Cattach][Step #%d.%d] Failed to send TASK_IO_FORWARD to cattach: %s. "+
-								"The connection to cattach was broken.", taskId, stepId, err.Error())
-							state = End
-							break forwarding
-						}
-					} else if taskMsg.Type == protos.StreamTaskIORequest_TASK_X11_OUTPUT {
-						reply = &protos.StreamCattachReply{
-							Type: protos.StreamCattachReply_TASK_X11_FORWARD,
-							Payload: &protos.StreamCattachReply_PayloadTaskX11ForwardReply{
-								PayloadTaskX11ForwardReply: &protos.StreamCattachReply_TaskX11ForwardReply{
-									Msg: taskMsg.GetPayloadTaskX11OutputReq().Msg,
-								},
-							},
-						}
-						log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d]  fowarding x11 msg size[%d]",
-							taskId, stepId, len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
-						if err := toCattachStream.Send(reply); err != nil {
-							log.Debugf("[Cfored<->Cattach] Failed to send TASK_X11_FORWARD to cattach: %s. "+
-								"The connection to cattach was broken.", err.Error())
-							state = End
-							break forwarding
-						}
-					} else {
-						log.Fatalf("[Supervisor->Cfored->Cattach][Step #%d.%d]  Expect Type TASK_OUTPUT or TASK_X11_OUTPUT.",
-							taskId, stepId)
+					if err := forwardTaskMsgToCattach(taskId, stepId, taskMsg, toCattachStream); err != nil {
+						state = End
 						break forwarding
 					}
 				}
@@ -425,5 +373,49 @@ CforedCattachStateMachineLoop:
 		}
 	}
 
+	return nil
+}
+
+func forwardTaskMsgToCattach(
+	taskId, stepId uint32,
+	taskMsg *protos.StreamTaskIORequest,
+	toCattachStream protos.CraneForeD_CattachStreamServer,
+) error {
+	var reply *protos.StreamCattachReply
+
+	switch taskMsg.Type {
+	case protos.StreamTaskIORequest_TASK_OUTPUT:
+		reply = &protos.StreamCattachReply{
+			Type: protos.StreamCattachReply_TASK_IO_FORWARD,
+			Payload: &protos.StreamCattachReply_PayloadTaskIoForwardReply{
+				PayloadTaskIoForwardReply: &protos.StreamCattachReply_TaskIOForwardReply{
+					Msg: taskMsg.GetPayloadTaskOutputReq().Msg,
+				},
+			},
+		}
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding msg size[%d]",
+			taskId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
+	case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
+		reply = &protos.StreamCattachReply{
+			Type: protos.StreamCattachReply_TASK_X11_FORWARD,
+			Payload: &protos.StreamCattachReply_PayloadTaskX11ForwardReply{
+				PayloadTaskX11ForwardReply: &protos.StreamCattachReply_TaskX11ForwardReply{
+					Msg: taskMsg.GetPayloadTaskX11OutputReq().Msg,
+				},
+			},
+		}
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding x11 msg size[%d]",
+			taskId, stepId, len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
+	default:
+		log.Fatalf("[Supervisor->Cfored->Cattach][Step #%d.%d] Expect Type TASK_OUTPUT or TASK_X11_OUTPUT.",
+			taskId, stepId)
+		return errors.New("unexpected taskMsg.Type")
+	}
+
+	if err := toCattachStream.Send(reply); err != nil {
+		log.Debugf("[Supervisor->Cfored->Cattach][Step #%d.%d] Failed to send reply to cattach: %s. "+
+			"The connection to cattach was broken.", taskId, stepId, err.Error())
+		return err
+	}
 	return nil
 }
