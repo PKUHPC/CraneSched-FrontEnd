@@ -499,10 +499,11 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				case io.EOF:
 					fallthrough
 				default:
-					log.Errorf("The connection to Cfored was broken: %s.", err)
+					log.Errorf("The connection to Cfored was broken: %s. "+
+						"Killing task...", err)
 					gVars.connectionBroken = true
 					m.err = util.ErrorNetwork
-					m.state = End
+					m.state = TaskKilling
 				}
 			} else {
 				switch cforedReply.Type {
