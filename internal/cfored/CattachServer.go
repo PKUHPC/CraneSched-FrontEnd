@@ -53,7 +53,6 @@ CforedCattachStateMachineLoop:
 			log.Infof("[Cfored<->Cattach] Enter State WAIT_CONNECT_REQ")
 			item := <-RequestChannel
 			cattachRequest, err := item.message, item.err
-			// If cattach down before req task id, do nothing
 			if err != nil { // Failure Edge
 				switch err {
 				case io.EOF:
