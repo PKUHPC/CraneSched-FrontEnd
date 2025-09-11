@@ -27,11 +27,10 @@ import (
 type StateOfCattach int
 
 const (
-	ConnectCfored          StateOfCattach = 0
-	WaitForward            StateOfCattach = 1
-	Forwarding             StateOfCattach = 2
-	WaitCompletionAckReply StateOfCattach = 3
-	End                    StateOfCattach = 4
+	ConnectCfored StateOfCattach = 0
+	WaitForward   StateOfCattach = 1
+	Forwarding    StateOfCattach = 2
+	End           StateOfCattach = 3
 )
 
 type GlobalVariables struct {
@@ -237,7 +236,7 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 				return
 			}
 		case protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY:
-			// Task launch failed !
+			// Task launch COMPLETION
 			m.state = End
 			return
 		default:
@@ -363,42 +362,6 @@ func (m *StateMachineOfCattach) StateForwarding() {
 	}
 }
 
-func (m *StateMachineOfCattach) StateWaitCompletionAckReply() {
-	log.Debug("Waiting Ctld TASK_COMPLETION_ACK_REPLY")
-	item := <-m.cforedReplyReceiver.replyChannel
-	cforedReply, err := item.reply, item.err
-
-	if err != nil {
-		switch err {
-		case io.EOF:
-			fallthrough
-		default:
-			log.Errorf("The connection to Cfored was broken: %s. "+
-				"Exiting...", err)
-			gVars.connectionBroken = true
-			m.err = util.ErrorNetwork
-			m.state = End
-			return
-		}
-	}
-
-	if cforedReply.Type != protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY {
-		log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
-		m.err = util.ErrorBackend
-		m.state = End
-		return
-	}
-
-	if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
-		log.Debug("Task completed.")
-	} else {
-		log.Errorln("Failed to notify server of task completion")
-		m.err = util.ErrorBackend
-	}
-
-	m.state = End
-}
-
 func (m *StateMachineOfCattach) Run() {
 CrunStateMachineLoop:
 	for {
@@ -411,9 +374,6 @@ CrunStateMachineLoop:
 
 		case Forwarding:
 			m.StateForwarding()
-
-		case WaitCompletionAckReply:
-			m.StateWaitCompletionAckReply()
 
 		case End:
 			break CrunStateMachineLoop
