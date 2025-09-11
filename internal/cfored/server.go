@@ -45,6 +45,30 @@ type StepIdentifier struct {
 	StepId uint32
 }
 
+type TaskIOBuffer struct {
+	data     []*protos.StreamTaskIORequest
+	head     int
+	size     int
+	capacity int
+}
+
+func (t *TaskIOBuffer) Push(item *protos.StreamTaskIORequest) {
+	t.data[t.head] = item
+	t.head = (t.head + 1) % t.capacity
+	if t.size < t.capacity {
+		t.size++
+	}
+}
+
+func (t *TaskIOBuffer) GetHistory() []*protos.StreamTaskIORequest {
+	history := make([]*protos.StreamTaskIORequest, t.size)
+	for i := 0; i < t.size; i++ {
+		idx := (t.head + t.capacity - t.size + i) % t.capacity
+		history[i] = t.data[idx]
+	}
+	return history
+}
+
 type SupervisorChannelKeeper struct {
 	toSupervisorChannelMtx sync.Mutex
 	toSupervisorChannelCV  *sync.Cond
@@ -55,6 +79,8 @@ type SupervisorChannelKeeper struct {
 	taskIORequestChannelMtx sync.Mutex
 	// I/O message from Supervisor to Crun/Cattach
 	taskIORequestChannelMap map[StepIdentifier]map[int32]chan *protos.StreamTaskIORequest
+
+	taskIOBufferMap map[StepIdentifier]*TaskIOBuffer
 }
 
 var gSupervisorChanKeeper *SupervisorChannelKeeper
@@ -64,6 +90,7 @@ func NewCranedChannelKeeper() *SupervisorChannelKeeper {
 	keeper.toSupervisorChannelCV = sync.NewCond(&keeper.toSupervisorChannelMtx)
 	keeper.toSupervisorChannels = make(map[StepIdentifier]map[string]*RequestSupervisorChannel)
 	keeper.taskIORequestChannelMap = make(map[StepIdentifier]map[int32]chan *protos.StreamTaskIORequest)
+	keeper.taskIOBufferMap = make(map[StepIdentifier]*TaskIOBuffer)
 	return keeper
 }
 
@@ -197,7 +224,28 @@ func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(frontId int32, t
 		keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] = make(map[int32]chan *protos.StreamTaskIORequest)
 	}
 	keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}][frontId] = ioToCrunChannel
+	if keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}] == nil {
+		keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}] = &TaskIOBuffer{
+			data:     make([]*protos.StreamTaskIORequest, 10),
+			head:     0,
+			size:     0,
+			capacity: 10,
+		}
+	}
+
 	keeper.taskIORequestChannelMtx.Unlock()
+}
+
+func (keeper *SupervisorChannelKeeper) getRemoteHistory(taskId uint32, stepId uint32) []*protos.StreamTaskIORequest {
+	keeper.taskIORequestChannelMtx.Lock()
+	defer keeper.taskIORequestChannelMtx.Unlock()
+
+	taskIOBuffer, exist := keeper.taskIOBufferMap[StepIdentifier{taskId: taskId, StepId: stepId}]
+	if exist {
+		return taskIOBuffer.GetHistory()
+	}
+
+	return []*protos.StreamTaskIORequest{}
 }
 
 func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, stepId uint32, ioToCrun *protos.StreamTaskIORequest) {
@@ -208,6 +256,7 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, step
 		for _, channel := range channelMap {
 			channel <- ioToCrun
 		}
+		keeper.taskIOBufferMap[StepIdentifier{taskId: taskId, StepId: stepId}].Push(ioToCrun)
 	} else {
 		log.Warningf("[Supervisor->Cfored->FrontEnd][Job #%d.%d]Trying forward to I/O to an unknown crun/cattach.", taskId, stepId)
 	}
@@ -217,13 +266,14 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, step
 func (keeper *SupervisorChannelKeeper) crunTaskStopAndRemoveChannel(taskId uint32, stepId uint32) {
 	keeper.taskIORequestChannelMtx.Lock()
 	delete(keeper.taskIORequestChannelMap, StepIdentifier{JobId: taskId, StepId: stepId})
+	delete(keeper.taskIOBufferMap, StepIdentifier{JobId: taskId, StepId: stepId})
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
 func (keeper *SupervisorChannelKeeper) cattachStopAndRemoveChannel(taskId uint32, stepId uint32, cattachPid int32) {
 	keeper.taskIORequestChannelMtx.Lock()
-	if (keeper.taskIORequestChannelMap[StepIdentifier{taskId: taskId, StepId: stepId}] != nil) {
-		delete(keeper.taskIORequestChannelMap[StepIdentifier{taskId: taskId, StepId: stepId}], cattachPid)
+	if (keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] != nil) {
+		delete(keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}], cattachPid)
 	}
 	keeper.taskIORequestChannelMtx.Unlock()
 }
