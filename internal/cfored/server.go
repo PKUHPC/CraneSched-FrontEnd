@@ -298,6 +298,14 @@ func (keeper *SupervisorChannelKeeper) crunJobStopAndRemoveChannel(jobId uint32,
 	keeper.stepIORequestChannelMtx.Unlock()
 }
 
+func (keeper *SupervisorChannelKeeper) cattachStopAndRemoveChannel(taskId uint32, stepId uint32, cattachPid int32) {
+	keeper.taskIORequestChannelMtx.Lock()
+	if (keeper.taskIORequestChannelMap[StepIdentifier{taskId: taskId, StepId: stepId}] != nil) {
+		delete(keeper.taskIORequestChannelMap[StepIdentifier{taskId: taskId, StepId: stepId}], cattachPid)
+	}
+	keeper.taskIORequestChannelMtx.Unlock()
+}
+
 type GrpcCforedServer struct {
 	protos.CraneForeDServer
 }
