@@ -9,7 +9,12 @@ import (
 var (
 	FlagConfigFilePath string
 	FlagPty            bool
-	FlagInput          string
+	FlagErrorFilter    uint32
+	FlagInputFilter    uint32
+	FlagOutputFilter   uint32
+	FlagLabel          bool
+	FlagLayout         bool
+	FlagQuiet          bool
 	RootCmd            = &cobra.Command{
 		Use:     "cattach [flags] jobid.stepid",
 		Short:   "Attach to a crane job step",
@@ -30,5 +35,10 @@ func ParseCmdArgs() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.Flags().StringVarP(&FlagInput, "input", "i", "all", "Source and destination of stdin redirection")
+	RootCmd.PersistentFlags().Uint32Var(&FlagErrorFilter, "error-filter", 0, "only print stderr from the specified task")
+	RootCmd.PersistentFlags().Uint32Var(&FlagOutputFilter, "output-filter", 0, "only print stdout from the specified task")
+	RootCmd.PersistentFlags().Uint32Var(&FlagInputFilter, "input-filter", 0, "send stdin to only the specified task")
+	RootCmd.PersistentFlags().BoolVar(&FlagLabel, "label", false, "prepend task number to lines of stdout & stderr")
+	RootCmd.PersistentFlags().BoolVar(&FlagLayout, "layout", false, "print task layout info and exit (does not attach to tasks)")
+	RootCmd.PersistentFlags().BoolVar(&FlagQuiet, "quiet", false, "quiet mode (suppress informational messages)")
 }
