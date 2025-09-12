@@ -1,6 +1,7 @@
 # IDE generated files
 .idea/
 .vscode/
+CLAUDE.md
 
 # Protobuf generated files
 generated
