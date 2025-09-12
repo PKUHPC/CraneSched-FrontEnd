@@ -985,7 +985,7 @@ func CreateReservation() error {
 	}
 
 	if FlagNodeNum != 0 {
-		req.NodeNum = &FlagNodeNum
+		req.NodeNum = FlagNodeNum
 	}
 
 	if FlagAccount != "" {
