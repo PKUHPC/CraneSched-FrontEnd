@@ -1,6 +1,8 @@
 module CraneFrontEnd
 
-go 1.22
+go 1.24.0
+
+toolchain go1.24.5
 
 require (
 	github.com/alecthomas/participle/v2 v2.1.4
@@ -16,7 +18,7 @@ require (
 	github.com/tidwall/sjson v1.2.5
 	github.com/u-root/u-root v0.14.0
 	github.com/xlab/treeprint v1.2.0
-	golang.org/x/sys v0.26.0
+	golang.org/x/sys v0.36.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.35.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -51,6 +53,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
+	golang.org/x/term v0.35.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
