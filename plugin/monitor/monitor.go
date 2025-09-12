@@ -71,6 +71,8 @@ type config struct {
 
 type ResourceUsage struct {
 	TaskID      int64
+	Username    string
+	Account     string
 	CPUUsage    uint64
 	MemoryUsage uint64
 	ProcCount   uint64
@@ -143,8 +145,9 @@ func getRealCgroupPath(pattern string, task_name string) string {
 	return strings.ReplaceAll(pattern, "%j", task_name)
 }
 
-func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string) {
-	log.Infof("Monitoring goroutine for job #%v started.", id)
+func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string, username string, account string, cpus_alloc float64) {
+
+	log.Infof("Monitoring goroutine for job #%v started, task_name %v %v %v", id, task_name, username, account)
 
 	if (p.buffer == nil) || (p.client == nil) {
 		log.Errorf("Buffer channel or InfluxDB client not initialized.")
@@ -154,9 +157,9 @@ func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string
 	// As Cgroup may be created without any process inside, we need to mark
 	// if the first process is launched.
 	migrated := false
-	cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, task_name)
-	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, task_name)
-	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, task_name)
+	// cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, task_name)
+	// cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, task_name)
+	// cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, task_name)
 
 	for {
 		select {
@@ -165,34 +168,39 @@ func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string
 			return
 		default:
 			// If none pid found, the cgroup is empty, continue
-			procCount, err := getProcCount(cgroupProcListPath)
-			if err != nil {
-				log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
-				continue
-			}
+			//procCount, err := getProcCount(cgroupProcListPath)
+			procCount := 1000
+			//if err != nil {
+			//log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
+			//continue
+			//}
 			if !migrated && procCount == 0 {
 				time.Sleep(time.Duration(p.Interval) * time.Millisecond)
 				continue
 			}
 			migrated = true
 
-			cpuUsage, err := getCpuUsage(cgroupCpuPath)
-			if err != nil {
-				log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
-				continue
-			}
+			//cpuUsage, err := getCpuUsage(cgroupCpuPath)
+			cpuUsage := 10000
+			//if err != nil {
+			//log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
+			//continue
+			//}
 
-			memoryUsage, err := getMemoryUsage(cgroupMemPath)
-			if err != nil {
-				log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
-				continue
-			}
+			//memoryUsage, err := getMemoryUsage(cgroupMemPath)
+			memoryUsage := 20000
+			//if err != nil {
+			//log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
+			//continue
+			//}
 
 			p.buffer <- ResourceUsage{
 				TaskID:      id,
-				ProcCount:   procCount,
-				CPUUsage:    cpuUsage,
-				MemoryUsage: memoryUsage,
+				Username:    username,
+				Account:     account,
+				ProcCount:   uint64(procCount),
+				CPUUsage:    uint64(cpuUsage),
+				MemoryUsage: uint64(memoryUsage),
 				Hostname:    p.hostname,
 				Timestamp:   time.Now(),
 			}
@@ -204,6 +212,7 @@ func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string
 }
 
 func (p *MonitorPlugin) consumer() {
+	log.Infof("consumer enter.")
 	dbConfig := p.Database
 	p.client = influxdb2.NewClientWithOptions(dbConfig.Url, dbConfig.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
 	defer p.client.Close()
@@ -222,8 +231,10 @@ func (p *MonitorPlugin) consumer() {
 	p.cond = sync.NewCond(&sync.Mutex{})
 	for stat := range p.buffer {
 		tags := map[string]string{
-			"job_id":   strconv.FormatInt(stat.TaskID, 10),
-			"hostname": stat.Hostname,
+			"job_id":     strconv.FormatInt(stat.TaskID, 10),
+			"hostname":   stat.Hostname,
+			"user_name":  stat.Username,
+			"account":    stat.Account,
 		}
 		fields := map[string]interface{}{
 			"proc_count":   stat.ProcCount,
@@ -237,8 +248,8 @@ func (p *MonitorPlugin) consumer() {
 			break
 		}
 
-		log.Tracef("Recorded Job ID: %v, Hostname: %s, Proc Count: %d, CPU Usage: %d, Memory Usage: %.2f KB at %v",
-			stat.TaskID, stat.Hostname, stat.ProcCount, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
+		log.Tracef("Recorded Job ID: %v, Hostname: %s, Usermame: %s, Account: %s, Proc Count: %d, CPU Usage: %d, Memory Usage: %.2f KB at %v",
+			stat.TaskID, stat.Hostname, stat.Username, stat.Account, stat.ProcCount, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
 	}
 
 	// consumer is done, signal to exit
@@ -340,7 +351,7 @@ func (p *MonitorPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 	p.jobCtx[int64(req.TaskId)] = cancel
 	p.jobMutex.Unlock()
 
-	go p.producer(monitorCtx, int64(req.TaskId), req.Cgroup)
+	go p.producer(monitorCtx, int64(req.TaskId), req.Cgroup, req.Username, req.Account, req.Resource.AllocatableResInNode.CpuCoreLimit)
 }
 
 func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {

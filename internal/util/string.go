@@ -40,6 +40,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type TimeRange struct {
+	Start time.Time
+	End   time.Time
+	Type  string // "month", "day", "hour"
+}
+
 // TODO: Refactor this to return ErrCodes instead of exiting.
 func ParseConfig(configFilePath string) *Config {
 	confFile, err := os.ReadFile(configFilePath)
@@ -975,5 +981,146 @@ func FormatMemToMB(data uint64) string {
 		return "0"
 	} else {
 		return fmt.Sprintf("%vM", data/B2MBRatio)
+	}
+}
+
+func FormatTime(t time.Time) string {
+	return t.Format("2006-01-02 15:04:05")
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+// Check if end is in the first day window (1st day, 0 <= hour < 9)
+func IsEndInFirstDayWindow(end time.Time) bool {
+	return end.Day() == 1 && end.Hour() >= 0 && end.Hour() <= 9
+}
+
+// Try to push a month range if possible
+func TryPushMonths(result *[]TimeRange, cur *time.Time, end time.Time) bool {
+	if cur.Day() == 1 && cur.Hour() == 0 {
+		monthStart := *cur
+		for {
+			nextMonth := time.Date(
+				cur.Year(), cur.Month(), 1, 0, 0, 0, 0, cur.Location(),
+			).AddDate(0, 1, 0)
+			// Stop if nextMonth would overlap or reach the end boundary.
+			if IsEndInFirstDayWindow(end) && nextMonth.Year() == end.Year() && nextMonth.Month() == end.Month() {
+				break
+			}
+			if !nextMonth.Before(end) {
+				break
+			}
+			*cur = nextMonth
+		}
+		// Only append if at least one month was merged.
+		if monthStart.Before(*cur) {
+			*result = append(*result, TimeRange{monthStart, *cur, "month"})
+			return true
+		}
+	}
+	return false
+}
+
+// Try to push a day range if current time is at the start of the day
+func TryPushDays(result *[]TimeRange, cur *time.Time, end time.Time) bool {
+	if cur.Hour() == 0 {
+		// Calculate the start of the next month
+		nextMonthFirst := time.Date(
+			cur.Year(), cur.Month(), 1, 0, 0, 0, 0, cur.Location(),
+		).AddDate(0, 1, 0)
+		// Truncate end to the start of its day
+		endTruncToDay := time.Date(
+			end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location(),
+		)
+		// The end of this day range is either the next month's first day or end's day start, whichever is earlier
+		dayEnd := minTime(nextMonthFirst, endTruncToDay)
+		if dayEnd.After(*cur) {
+			*result = append(*result, TimeRange{*cur, dayEnd, "day"})
+			*cur = dayEnd
+			return true
+		}
+	}
+	return false
+}
+
+func TryPushHours(result *[]TimeRange, cur *time.Time, end time.Time) bool {
+	if cur.Hour() != 0 {
+		// Calculate the start of the next day
+		nextDay := time.Date(
+			cur.Year(), cur.Month(), cur.Day(), 0, 0, 0, 0, cur.Location(),
+		).AddDate(0, 0, 1)
+		// The end of this hour range is either nextDay or end, whichever is earlier
+		hourEnd := minTime(nextDay, end)
+		*result = append(*result, TimeRange{*cur, hourEnd, "hour"})
+		*cur = hourEnd
+		return true
+	}
+	return false
+}
+
+func EfficientSplitTimeRange(start, end time.Time) []TimeRange {
+	var result []TimeRange
+	if !start.Before(end) {
+		return result
+	}
+	// Truncate start and end to the hour (set minute, second, nanosecond to zero)
+	start = time.Date(
+		start.Year(), start.Month(), start.Day(), start.Hour(), 0, 0, 0, start.Location(),
+	)
+	end = time.Date(
+		end.Year(), end.Month(), end.Day(), end.Hour(), 0, 0, 0, end.Location(),
+	)
+
+	cur := start
+	for cur.Before(end) {
+		if TryPushMonths(&result, &cur, end) {
+			continue
+		}
+		if TryPushDays(&result, &cur, end) {
+			continue
+		}
+		if TryPushHours(&result, &cur, end) {
+			continue
+		}
+		// Handle the last partial hour interval.
+		if cur.Before(end) {
+			result = append(result, TimeRange{cur, end, "hour"})
+			cur = end
+		}
+	}
+
+	fmt.Println("Split result (merged):")
+	for _, r := range result {
+		fmt.Printf(" [%s] %s ~ %s (%s ~ %s)\n", r.Type, r.Start, r.End, FormatTime(r.Start), FormatTime(r.End))
+	}
+	return result
+}
+
+
+var validCreportTypes = map[string]string{
+	"SecPer":  "Seconds/Percentage of Total",
+	"MinPer":  "Minutes/Percentage of Total",
+	"HourPer": "Hours/Percentage of Total",
+	"Seconds": "Seconds",
+	"Minutes": "Minutes",
+	"Hours":   "Hours",
+	"Percent": "Percentage of Total",
+}
+
+func CheckCreportOutType(outType string) bool {
+	if _, ok := validCreportTypes[outType]; ok {
+		return true
+	}
+	return false
+}
+
+func ReportUsageType(outType string) {
+	if suffix, ok := validCreportTypes[outType]; ok {
+		log.Printf("Usage reported in CPU %s", suffix)
 	}
 }

@@ -245,6 +245,7 @@ message TaskToD {
 
   // Not used now.
   string extra_attr = 29;
+  string username = 30;
 }
 
 message BatchTaskAdditionalMeta {
@@ -609,4 +610,12 @@ message CranedRemoteMeta {
   repeated uint32 lost_jobs = 7;
   repeated NetworkInterface network_interfaces = 8;
   uint32 config_crc= 9;
+}
+
+message AccountUserSummaryItem {
+  string account = 1;
+  string username = 2;
+  int64 total_cpu_time = 3;
+  int64 total_cpu_alloc = 4;
+  int32 total_count = 5;
 }
