@@ -971,10 +971,21 @@ func CreateReservation() error {
 
 	if FlagNodes != "" {
 		req.CranedRegex = FlagNodes
+	} else {
+		if FlagPartitionName == "" {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Partition name must be specified when no node regex is given.",
+			}
+		}
 	}
 
 	if FlagPartitionName != "" {
 		req.Partition = FlagPartitionName
+	}
+
+	if FlagNodeNum != 0 {
+		req.NodeNum = FlagNodeNum
 	}
 
 	if FlagAccount != "" {
@@ -989,6 +1000,12 @@ func CreateReservation() error {
 			return &util.CraneError{
 				Code:    util.ErrorCmdArg,
 				Message: "You can only specify either allowed or disallowed accounts.",
+			}
+		}
+		if len(req.AllowedAccounts) == 0 && len(req.DeniedAccounts) == 0 {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Account can not be empty.",
 			}
 		}
 	}

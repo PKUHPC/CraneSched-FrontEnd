@@ -49,6 +49,7 @@ var (
 	FlagNodes           string
 	FlagAccount         string
 	FlagUser            string
+	FlagNodeNum         uint32
 )
 
 func ParseCmdArgs(args []string) {
@@ -463,6 +464,13 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 			FlagAccount = value
 		case "user":
 			FlagUser = value
+		case "nodecnt":
+			nodeNum, err := strconv.ParseUint(value, 10, 32)
+			if err != nil {
+				log.Errorf("invalid nodenum value: %s", value)
+				return util.ErrorCmdArg
+			}
+			FlagNodeNum = uint32(nodeNum)
 		default:
 			log.Errorf("unknown attribute to modify: %s", key)
 			return util.ErrorCmdArg
