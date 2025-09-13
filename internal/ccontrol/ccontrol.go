@@ -974,7 +974,7 @@ func CreateReservation() error {
 	} else {
 		if FlagPartitionName == "" {
 			return &util.CraneError{
-				Code: util.ErrorCmdArg,
+				Code:    util.ErrorCmdArg,
 				Message: "Partition name must be specified when no node regex is given.",
 			}
 		}
