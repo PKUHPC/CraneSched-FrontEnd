@@ -139,8 +139,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		case "--interpreter":
 			task.GetBatchMeta().Interpreter = arg.val
-		case "--container":
-			task.Container = arg.val
 		case "--extra-attr":
 			structExtraFromScript.ExtraAttr = arg.val
 		case "--mail-type":
@@ -251,9 +249,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagInterpreter != "" {
 		task.GetBatchMeta().Interpreter = FlagInterpreter
 	}
-	if FlagContainer != "" {
-		task.Container = FlagContainer
-	}
 
 	if FlagExtraAttr != "" {
 		structExtraFromCli.ExtraAttr = FlagExtraAttr
@@ -271,11 +266,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.Exclusive = true
 	}
 	if FlagOpenMode != "" {
-		if FlagOpenMode == util.OpenModeAppend {
+		switch FlagOpenMode {
+		case util.OpenModeAppend:
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
-		} else if FlagOpenMode == util.OpenModeTruncate {
+		case util.OpenModeTruncate:
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
-		} else {
+		default:
 			log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			return false, nil
 		}
