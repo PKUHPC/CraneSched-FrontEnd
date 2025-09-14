@@ -42,11 +42,8 @@ message InitSupervisorRequest {
 
   message ContainerConfig {
     string temp_dir = 1;
-    string runtime_bin = 2;
-    string state_cmd = 3;
-    string run_cmd = 4;
-    string kill_cmd = 5;
-    string delete_cmd = 6;
+    string runtime_endpoint = 2;
+    string image_endpoint = 3;
   }
   ContainerConfig container_config = 7;
 
@@ -82,8 +79,7 @@ message SupervisorReady {
 message TaskExecutionRequest {}
 
 message TaskExecutionReply {
-  bool ok = 1;
-  int32 pid = 2;
+  ErrCode code = 1;
 }
 
 message QueryStepEnvRequest {}
@@ -119,10 +115,15 @@ message TerminateTaskReply {
   string reason = 2;
 }
 
+message ShutdownSupervisorRequest {}
+
+message ShutdownSupervisorReply {}
+
 service Supervisor {
   rpc ExecuteTask(TaskExecutionRequest) returns (TaskExecutionReply);
   rpc QueryEnvMap(QueryStepEnvRequest) returns (QueryStepEnvReply);
   rpc CheckStatus(CheckStatusRequest) returns (CheckStatusReply);
   rpc ChangeTaskTimeLimit(ChangeTaskTimeLimitRequest) returns (ChangeTaskTimeLimitReply);
   rpc TerminateTask(TerminateTaskRequest) returns (TerminateTaskReply);
+  rpc ShutdownSupervisor(ShutdownSupervisorRequest) returns (ShutdownSupervisorReply);
 }
