@@ -161,8 +161,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			task.GetBatchMeta().ErrorFilePattern = arg.val
 		case "--interpreter":
 			task.GetBatchMeta().Interpreter = arg.val
-		case "--container":
-			task.Container = arg.val
 		case "--extra-attr":
 			structExtraFromScript.ExtraAttr = arg.val
 		case "--mail-type":
@@ -266,9 +264,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if FlagInterpreter != "" {
 		task.GetBatchMeta().Interpreter = FlagInterpreter
-	}
-	if FlagContainer != "" {
-		task.Container = FlagContainer
 	}
 
 	if FlagExtraAttr != "" {
