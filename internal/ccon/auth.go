@@ -200,6 +200,63 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// parseImageRef extracts registry, repository and tag from image reference
+// e.g., "registry.example.com/myapp:latest" -> ("registry.example.com", "myapp", "latest")
+// e.g., "nginx:latest" -> ("", "nginx", "latest")
+// e.g., "nginx" -> ("", "nginx", "latest")
+func parseImageRef(image string) (registry, repository, tag string) {
+	// Split by first slash to separate registry from repository
+	parts := strings.SplitN(image, "/", 2)
+
+	var imagePart string
+	if len(parts) == 2 {
+		// Check if first part contains dot or port (likely a registry)
+		if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") {
+			registry = parts[0]
+			imagePart = parts[1]
+		} else {
+			// First part is likely a namespace, not a registry
+			imagePart = image
+		}
+	} else {
+		imagePart = image
+	}
+
+	// Split image part by colon to separate repository from tag
+	repoParts := strings.SplitN(imagePart, ":", 2)
+	repository = repoParts[0]
+
+	if len(repoParts) == 2 {
+		tag = repoParts[1]
+	} else {
+		tag = "latest"
+	}
+
+	return registry, repository, tag
+}
+
+// getAuthForRegistry retrieves saved authentication info for a registry
+func getAuthForRegistry(registry string) (username, password string, err error) {
+	if registry == "" {
+		// Default to docker.io for images without registry
+		registry = "docker.io"
+	}
+
+	registry = normalizeServerAddress(registry)
+
+	config, err := loadRegistryConfig()
+	if err != nil {
+		return "", "", err
+	}
+
+	authConfig, exists := config.Auths[registry]
+	if !exists {
+		return "", "", nil // No auth info available
+	}
+
+	return decodeAuth(authConfig.Auth)
+}
+
 func logoutExecute(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return errors.New("registry server is required")
