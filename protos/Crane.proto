@@ -59,6 +59,14 @@ message CranedRegisterReply {
   bool ok = 1;
 }
 
+message CranedPingRequest {
+  string craned_id = 1;
+}
+
+message CranedPingReply {
+  bool ok = 1;
+}
+
 message QueryCranedListFromTaskIdRequest {
   uint32 task_id = 1;
 }
@@ -103,6 +111,12 @@ message CreateCgroupForJobsRequest {
 }
 
 message CreateCgroupForJobsReply {}
+
+message FreeStepsRequest {
+  repeated uint32 job_id_list = 1;
+}
+
+message FreeStepsReply {}
 
 message ReleaseCgroupForJobsRequest {
   repeated uint32 task_id_list = 1;
@@ -866,7 +880,7 @@ message EnableAutoPowerControlReply {
 message SignUserCertificateRequest {
   uint32 uid = 1;
   string csr_content = 2;
-  string alt_names = 3;   // "localhost, *.domainSuffix"
+  string alt_names = 3;  // "localhost, *.domainSuffix"
 }
 
 message SignUserCertificateResponse {
@@ -971,6 +985,7 @@ service CraneCtldForInternal {
   rpc StepStatusChange(StepStatusChangeRequest) returns (StepStatusChangeReply);
   rpc CranedTriggerReverseConn(CranedTriggerReverseConnRequest) returns (google.protobuf.Empty);
   rpc CranedRegister(CranedRegisterRequest) returns (CranedRegisterReply);
+  rpc CranedPing(CranedPingRequest) returns (CranedPingReply);
 
   /* RPCs called from Cfored */
   rpc CforedStream(stream StreamCforedRequest) returns (stream StreamCtldReply);
@@ -982,6 +997,7 @@ service Craned {
   rpc ExecuteSteps(ExecuteStepsRequest) returns (ExecuteStepsReply);
 
   rpc CreateCgroupForJobs(CreateCgroupForJobsRequest) returns (CreateCgroupForJobsReply);
+  rpc FreeSteps(FreeStepsRequest) returns (FreeStepsReply);
   rpc ReleaseCgroupForJobs(ReleaseCgroupForJobsRequest) returns (ReleaseCgroupForJobsReply);
 
   /*
