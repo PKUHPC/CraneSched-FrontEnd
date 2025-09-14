@@ -68,9 +68,31 @@ var (
 	}
 
 	RmCmd = &cobra.Command{
-		Use:   "rm [flags] CONTAINER",
-		Short: "Remove one or more containers",
-		RunE:  rmExecute,
+		Use:    "rm [flags] CONTAINER",
+		Short:  "Not supported - containers are auto-cleaned",
+		RunE:   rmExecute,
+		Hidden: true,
+	}
+
+	CreateCmd = &cobra.Command{
+		Use:    "create [flags] IMAGE [COMMAND] [ARG...]",
+		Short:  "Not supported - use 'ccon run' instead",
+		RunE:   createExecute,
+		Hidden: true,
+	}
+
+	StartCmd = &cobra.Command{
+		Use:    "start [flags] CONTAINER",
+		Short:  "Not supported - use 'ccon run' instead",
+		RunE:   startExecute,
+		Hidden: true,
+	}
+
+	RestartCmd = &cobra.Command{
+		Use:    "restart [flags] CONTAINER",
+		Short:  "Not supported - use 'ccon run' instead",
+		RunE:   restartExecute,
+		Hidden: true,
 	}
 
 	PsCmd = &cobra.Command{
@@ -162,5 +184,5 @@ func init() {
 	LoginCmd.Flags().BoolVar(&FlagPasswordStdin, "password-stdin", false, "Read password from stdin")
 
 	// Add subcommands to root
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, CreateCmd, StartCmd, RestartCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd)
 }
