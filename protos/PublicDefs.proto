@@ -124,6 +124,7 @@ enum TaskStatus {
 enum TaskType {
   Interactive = 0;
   Batch = 1;
+  Container = 2;
 }
 
 enum InteractiveTaskType {
@@ -375,17 +376,33 @@ message InteractiveTaskAdditionalMeta {
 }
 
 message ContainerTaskAdditionalMeta {
-  string image = 1;
 
+  message ImageInfo {
+    string image = 1;
+    string username = 2;
+    string password = 3;
+    string server_address = 4;
+  }
+
+  string name = 1;
   map<string, string> labels = 2;
   map<string, string> annotations = 3;
 
-  string entrypoint = 6;
-  repeated string args = 7;
-  string workdir = 8;
+  ImageInfo image = 6;
+
+  string entrypoint = 11;
+  string command = 12;
+  repeated string args = 13;
+  string workdir = 14;
+  map<string, string> env = 15; // env in container
+  bool detached = 16;
+
+  bool userns = 21;
+  uint32 run_as_user = 22;
+  uint32 run_as_group = 23;
   
-  map<string, string> mounts = 9;
-  map<int32, int32> ports = 10;
+  map<string, string> mounts = 24;
+  map<int32, int32> ports = 25;
 }
 
 message TaskInfo {
@@ -416,7 +433,6 @@ message TaskInfo {
   string extra_attr = 21;
   string reservation = 22;
 
-  string container = 23;
   /* 24-29 Reserved */
 
   // Dynamic task information
