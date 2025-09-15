@@ -310,10 +310,13 @@ func AddTextColumn(builder *tableBuilder, text string) {
 	}
 }
 func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply, seg formatSegment) error {
-	field := strings.ToLower(seg.content)
-	processor, found := fieldMap[field]
+	key := seg.content  
+	if len(key) > 1 {  
+		key = strings.ToLower(key)  
+	}  
+	processor, found := fieldMap[key]
 	if !found {
-		return fmt.Errorf("invalid format specifier: %s", field)
+		return fmt.Errorf("invalid format specifier: %s", key)
 	}
 
 	builder.widths = append(builder.widths, seg.width)
