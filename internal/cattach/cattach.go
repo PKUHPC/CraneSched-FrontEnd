@@ -217,6 +217,11 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 			if Ok {
 				m.task = cforedReply.Task
 				FlagPty = m.task.GetInteractiveMeta().Pty
+				if FlagLayout {
+					m.PrintStepLayout()
+					m.state = End
+					return
+				}
 			} else {
 				log.Errorf("Failed to wait for task connect reply, reason: %s. Exiting...", cforedReply.FailureReason)
 				m.state = End
@@ -735,6 +740,16 @@ writing:
 			break writing
 		}
 	}
+}
+
+func (m *StateMachineOfCattach) PrintStepLayout() {
+	fmt.Printf("Job step layout:\n")
+	fmt.Printf("        %d tasks, %d nodes (%s)\n\n", 1, m.task.NodeNum, m.task.Nodelist)
+	//fmt.Printf("        Node %d (%s), %d task(s):", m.task.Node, layout.NodeName, len(layout.TaskIDs))
+	//for _, tid := range layout.TaskIDs {
+	//	fmt.Printf(" %d", tid)
+	//}
+	fmt.Println()
 }
 
 func MainCattach(args []string) error {
