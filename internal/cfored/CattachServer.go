@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"math"
-	"strings"
 	"sync/atomic"
 
 	log "github.com/sirupsen/logrus"
@@ -165,7 +164,12 @@ CforedCattachStateMachineLoop:
 					delete(gVars.ctldReplyChannelMapByPid, cattachPid)
 					var task *protos.TaskToCtld
 					if Ok {
-						execCranedIds = strings.Split(ctldReply.GetPayloadTaskMetaReply().Task.GetNodelist(), ";")
+						// node[03-04]
+						execCranedIds, ok := util.ParseHostList(ctldReply.GetPayloadTaskMetaReply().Task.GetNodelist())
+						if !ok {
+							state = End
+							break
+						}
 						task = ctldReply.GetPayloadTaskMetaReply().Task
 						cattachPty = ctldReply.GetPayloadTaskMetaReply().Task.GetInteractiveMeta().Pty
 						if cattachPty {
