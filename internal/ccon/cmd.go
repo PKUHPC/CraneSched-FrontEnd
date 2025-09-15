@@ -109,7 +109,7 @@ var (
 )
 
 var (
-	// Run flags
+	// Container runtime flags (Docker-compatible)
 	FlagName       string
 	FlagPorts      []string
 	FlagEnv        []string
@@ -119,6 +119,32 @@ var (
 	FlagUser       string
 	FlagUserNS     bool
 	FlagWorkdir    string
+
+	// Resource control flags (Docker-style, mapped to cbatch semantics)
+	FlagCpus   float64
+	FlagMemory string // Docker-style, deprecated in favor of --mem
+	FlagGpus   string // Docker-style, deprecated in favor of --gres
+
+	// cbatch-compatible resource flags (preferred)
+	FlagMem  string
+	FlagGres string
+
+	// Cluster scheduling flags (full names, avoid Docker shortcuts)
+	FlagPartition     string
+	FlagNodelist      string
+	FlagTime          string
+	FlagAccount       string
+	FlagQos           string
+	FlagNodes         uint32
+	FlagNtasksPerNode uint32
+	FlagExclusive     bool
+	FlagHold          bool
+	FlagReservation   string
+	FlagExcludes      string
+	FlagExtraAttr     string
+	FlagMailType      string
+	FlagMailUser      string
+	FlagComment       string
 
 	// Stop flags
 	FlagTimeout int
@@ -152,7 +178,7 @@ func init() {
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 
-	// Run command flags
+	// Container runtime flags (Docker-compatible)
 	RunCmd.Flags().StringVar(&FlagName, "name", "", "Assign a name to the container")
 	RunCmd.Flags().StringSliceVarP(&FlagPorts, "ports", "p", []string{}, "Publish a container's port(s) to the host")
 	RunCmd.Flags().StringSliceVarP(&FlagEnv, "env", "e", []string{}, "Set environment variables")
@@ -162,6 +188,37 @@ func init() {
 	RunCmd.Flags().StringVarP(&FlagUser, "user", "u", "", "Username or UID (format: <name|uid>[:<group|gid>]). With --userns=false, only current user and accessible groups are allowed")
 	RunCmd.Flags().BoolVar(&FlagUserNS, "userns", true, "Enable user namespace (default user becomes the faked root, enabled by default)")
 	RunCmd.Flags().StringVarP(&FlagWorkdir, "workdir", "w", "", "Working directory inside the container")
+
+	// Resource control flags (Docker-style, compatibility)
+	RunCmd.Flags().Float64Var(&FlagCpus, "cpus", 0, "Number of CPUs (maps to cpus-per-task)")
+	RunCmd.Flags().StringVar(&FlagMemory, "memory", "", "Memory limit (e.g., 2g, 512m) - deprecated, use --mem")
+	RunCmd.Flags().StringVar(&FlagGpus, "gpus", "", "GPU devices - deprecated, use --gres instead")
+
+	// cbatch-compatible resource options (preferred)
+	RunCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
+	RunCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task, format: \"gpu:a100:1\" or \"gpu:1\"")
+
+	// Cluster scheduling flags (full names, avoid Docker shortcuts)
+	RunCmd.Flags().StringVar(&FlagPartition, "partition", "", "Partition for job scheduling")
+	RunCmd.Flags().StringVar(&FlagNodelist, "nodelist", "", "Nodes to be allocated to the job (commas separated list)")
+	RunCmd.Flags().StringVar(&FlagTime, "time", "", "Time limit, format: \"day-hours:minutes:seconds\" or \"hours:minutes:seconds\"")
+	RunCmd.Flags().StringVar(&FlagAccount, "account", "", "Account used for the job")
+	RunCmd.Flags().StringVar(&FlagQos, "qos", "", "QoS used for the job")
+	RunCmd.Flags().Uint32Var(&FlagNodes, "nodes", 1, "Number of nodes on which to run")
+	RunCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	RunCmd.Flags().StringVar(&FlagExcludes, "exclude", "", "Exclude specific nodes from allocating (commas separated list)")
+	RunCmd.Flags().StringVar(&FlagReservation, "reservation", "", "Use reserved resources")
+	RunCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	RunCmd.Flags().BoolVar(&FlagHold, "hold", false, "Hold the job until it is released")
+
+	// Other task flags
+	RunCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
+	RunCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL")
+	RunCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
+	RunCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
+
+	// Configure RunCmd to not allow flags after positional arguments
+	RunCmd.Flags().SetInterspersed(false)
 
 	// Stop command flags
 	StopCmd.Flags().IntVarP(&FlagTimeout, "timeout", "t", 10, "Seconds to wait for stop before killing it")
