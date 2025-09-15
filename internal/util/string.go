@@ -1707,3 +1707,49 @@ func CheckIpv4Format(ip string) error {
 	}
 	return nil
 }
+
+func MergeAndDedup[T comparable](listA, listB []T) []T {
+	unique := make(map[T]struct{})
+	for _, item := range listA {
+		unique[item] = struct{}{}
+	}
+	for _, item := range listB {
+		unique[item] = struct{}{}
+	}
+	result := make([]T, 0, len(unique))
+	for item := range unique {
+		result = append(result, item)
+	}
+	return result
+}
+
+func ParseAndSortUintList(input string) ([]uint32, error) {
+	segments := strings.Split(input, ",")
+	uniqueNumbers := make(map[uint32]struct{})
+	for index, segment := range segments {
+		trimmed := strings.TrimSpace(segment)
+		if trimmed == "" {
+			return nil, fmt.Errorf("empty value detected at position %d", index+1)
+		}
+		number, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("invalid number '%s' at position %d", trimmed, index+1)
+		}
+		if number < 0 {
+			return nil, fmt.Errorf("negative number '%s' at position %d", trimmed, index+1)
+		}
+		uniqueNumbers[uint32(number)] = struct{}{}
+	}
+
+	resultList := make([]uint32, 0, len(uniqueNumbers))
+	for number := range uniqueNumbers {
+		resultList = append(resultList, number)
+	}
+	sort.Slice(resultList, func(i, j int) bool { return resultList[i] < resultList[j] })
+
+	if len(resultList) == 0 || resultList[0] != 0 {
+		resultList = append([]uint32{0}, resultList...)
+	}
+
+	return resultList, nil
+}
