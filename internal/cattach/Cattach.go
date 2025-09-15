@@ -216,6 +216,7 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 			Ok := cforedReply.Ok
 			if Ok {
 				m.task = cforedReply.Task
+				FlagPty = m.task.GetInteractiveMeta().Pty
 			} else {
 				log.Errorf("Failed to wait for task connect reply, reason: %s. Exiting...", cforedReply.FailureReason)
 				m.state = End
@@ -480,6 +481,17 @@ reading:
 					log.Trace("Read 0 bytes (EOF), closing channel and exiting goroutine")
 					return
 				}
+
+				if FlagPty {
+					for i := 0; i < nr; i++ {
+						if buf[i] == 0x03 { // Ctrl+C
+							log.Trace("Local Ctrl+C detected, exiting cattach")
+							m.taskFinishCb()
+							return
+						}
+					}
+				}
+
 				m.chanInputFromTerm <- buf[:nr]
 				log.Tracef("Sent %d bytes to channel", nr)
 			}
