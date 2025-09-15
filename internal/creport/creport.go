@@ -91,6 +91,7 @@ func QueryAccountUserSummaryItem() error {
 
 func PrintAccountUserList(accountUserList []*protos.AccountUserSummaryItem, cluster string, startTime, endTime time.Time, outType string) {
 	if len(accountUserList) == 0 {
+		fmt.Printf("accountUserList empty\n")
 		return
 	}
 
