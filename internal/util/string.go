@@ -977,3 +977,26 @@ func FormatMemToMB(data uint64) string {
 		return fmt.Sprintf("%vM", data/B2MBRatio)
 	}
 }
+
+var validCreportTypes = map[string]string{
+	"SecPer":  "Seconds/Percentage of Total",
+	"MinPer":  "Minutes/Percentage of Total",
+	"HourPer": "Hours/Percentage of Total",
+	"Seconds": "Seconds",
+	"Minutes": "Minutes",
+	"Hours":   "Hours",
+	"Percent": "Percentage of Total",
+}
+
+func CheckCreportOutType(outType string) bool {
+	if _, ok := validCreportTypes[outType]; ok {
+		return true
+	}
+	return false
+}
+
+func ReportUsageType(outType string) {
+	if suffix, ok := validCreportTypes[outType]; ok {
+		log.Printf("Usage reported in CPU %s", suffix)
+	}
+}
