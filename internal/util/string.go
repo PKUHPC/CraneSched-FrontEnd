@@ -1237,6 +1237,7 @@ func FormatMemToMB(data uint64) string {
 	}
 }
 
+
 var TxnActionMap = map[string]protos.TxnAction{
 	"addaccount":    protos.TxnAction_AddAccount,
 	"modifyaccount": protos.TxnAction_ModifyAccount,
@@ -1255,4 +1256,27 @@ func StringToTxnAction(str string) (protos.TxnAction, bool) {
 	}
 
 	return 0, false
+}
+
+var validCreportTypes = map[string]string{
+	"SecPer":  "Seconds/Percentage of Total",
+	"MinPer":  "Minutes/Percentage of Total",
+	"HourPer": "Hours/Percentage of Total",
+	"Seconds": "Seconds",
+	"Minutes": "Minutes",
+	"Hours":   "Hours",
+	"Percent": "Percentage of Total",
+}
+
+func CheckCreportOutType(outType string) bool {
+	if _, ok := validCreportTypes[outType]; ok {
+		return true
+	}
+	return false
+}
+
+func ReportUsageType(outType string) {
+	if suffix, ok := validCreportTypes[outType]; ok {
+		log.Printf("Usage reported in CPU %s", suffix)
+	}
 }

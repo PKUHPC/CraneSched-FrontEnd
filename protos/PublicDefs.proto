@@ -809,4 +809,17 @@ enum TxnAction {
   AddQos = 6;
   ModifyQos = 7;
   DeleteQos = 8;
+<<<<<<< HEAD
 }
+=======
+  uint32 config_crc= 9;
+}
+
+message AccountUserSummaryItem {
+  string account = 1;
+  string username = 2;
+  int64 total_cpu_time = 3;
+  int64 total_cpu_alloc = 4;
+  int32 total_count = 5;
+}
+>>>>>>> 01b49f2 (add creport)
