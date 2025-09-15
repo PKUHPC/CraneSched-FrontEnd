@@ -431,7 +431,11 @@ message TaskInfo {
   string extra_attr = 21;
   string reservation = 22;
 
-  /* 24-29 Reserved */
+  // This is only used when querying Container tasks.
+  // For other types of tasks, this field is ignored.
+  optional ContainerTaskAdditionalMeta container_meta = 23;
+
+  /* 26-29 Reserved */
 
   // Dynamic task information
   bool held = 30;
