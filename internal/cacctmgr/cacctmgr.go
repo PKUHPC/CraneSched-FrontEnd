@@ -561,16 +561,20 @@ func DeleteAccount(value string) util.CraneCmdError {
 
 func DeleteUser(value string, account string) util.CraneCmdError {
 
-	if FlagForce {
-		log.Warning("--force flag is ignored for delete operations")
-	}
-
-	userList, err := util.ParseStringParamList(value, ",")
-	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
+	var userList []string
+	if value != "all" {
+		var err error
+		userList, err = util.ParseStringParamList(value, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	} else if !FlagForce {
+		log.Errorf("To delete all users in the account, you must set --force.")
 		return util.ErrorCmdArg
 	}
-	req := protos.DeleteUserRequest{Uid: userUid, UserList: userList, Account: account}
+
+	req := protos.DeleteUserRequest{Uid: userUid, UserList: userList, Account: account, Force: FlagForce}
 
 	reply, err := stub.DeleteUser(context.Background(), &req)
 	if err != nil {
