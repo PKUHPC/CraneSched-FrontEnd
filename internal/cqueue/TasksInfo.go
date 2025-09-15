@@ -4,6 +4,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"time"
 )
 
 var (
@@ -45,11 +46,15 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 	if (err != nil) {
 		return  &protos.QueryTasksInfoReply{}, err
 	}
-	reply, err := stub.QueryTasksInfo(context.Background(), req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query job queue")
-		return reply, &util.CraneError{Code: util.ErrorNetwork}
-	}
+    // Use a 10-second timeout for the RPC  
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)  
+    defer cancel()  
+
+    reply, err := stub.QueryTasksInfo(ctx, req)  
+    if err != nil {  
+        util.GrpcErrorPrintf(err, "Failed to query task queue")  
+        return nil, &util.CraneError{Code: util.ErrorNetwork}  
+    } 
 
 	return reply, nil
 }

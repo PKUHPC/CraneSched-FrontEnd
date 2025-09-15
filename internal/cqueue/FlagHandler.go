@@ -75,7 +75,7 @@ func (p *QosProcessor) Process(req *protos.QueryTasksInfoRequest) error {
     }
     filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
     if err != nil {
-        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid job name list specified: %s.", err)) 
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid Qos list specified: %s.", err)) 
     }
     req.FilterQos = filterJobQosList
     return nil
@@ -89,7 +89,7 @@ func (p *AccountProcessor) Process(req *protos.QueryTasksInfoRequest) error {
     }
     filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
     if err != nil {
-        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid job name list specified: %s.", err)) 
+        return util.GetCraneError(util.ErrorCmdArg,fmt.Sprintf("Invalid account list specified: %s.", err)) 
     }
     req.FilterAccounts = filterAccountList
     return nil
@@ -112,7 +112,7 @@ func (p *PartitionsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 // FlagFilterJobIDs
 type JobIDsProcessor struct {}
 func (p *JobIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
-    if FlagFilterAccounts == "" {
+    if FlagFilterJobIDs == "" {
         return nil
     }
     filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
