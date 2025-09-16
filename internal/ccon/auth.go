@@ -143,7 +143,10 @@ func normalizeServerAddress(server string) string {
 
 func loginExecute(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
-		return errors.New("registry server is required")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "registry server is required",
+		}
 	}
 
 	server := normalizeServerAddress(args[0])
@@ -155,7 +158,10 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 		fmt.Print("Username: ")
 		fmt.Scanln(&username)
 		if username == "" {
-			return errors.New("username is required")
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "username is required",
+			}
 		}
 	}
 
@@ -163,16 +169,25 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 		var err error
 		password, err = readPassword(FlagPasswordStdin)
 		if err != nil {
-			return fmt.Errorf("failed to read password: %v", err)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("failed to read password: %v", err),
+			}
 		}
 		if password == "" {
-			return errors.New("password is required")
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "password is required",
+			}
 		}
 	}
 
 	config, err := loadRegistryConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load registry config: %v", err)
+		return &util.CraneError{
+			Code:    util.ErrorSystem,
+			Message: fmt.Sprintf("failed to load registry config: %v", err),
+		}
 	}
 
 	authConfig := AuthConfig{
@@ -182,16 +197,14 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 	config.Auths[server] = authConfig
 
 	if err := saveRegistryConfig(config); err != nil {
-		return fmt.Errorf("failed to save registry config: %v", err)
+		return &util.CraneError{
+			Code:    util.ErrorSystem,
+			Message: fmt.Sprintf("failed to save registry config: %v", err),
+		}
 	}
 
 	if FlagJson {
-		result := map[string]interface{}{
-			"action": "login",
-			"server": server,
-			"status": "success",
-		}
-		jsonData, _ := json.Marshal(result)
+		jsonData, _ := json.Marshal(config)
 		fmt.Println(string(jsonData))
 	} else {
 		fmt.Printf("Login Succeeded: %s\n", server)
@@ -259,44 +272,40 @@ func getAuthForRegistry(registry string) (username, password string, err error) 
 
 func logoutExecute(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
-		return errors.New("registry server is required")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "registry server is required",
+		}
 	}
 
 	server := normalizeServerAddress(args[0])
 
 	config, err := loadRegistryConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load registry config: %v", err)
+		return &util.CraneError{
+			Code:    util.ErrorSystem,
+			Message: fmt.Sprintf("failed to load registry config: %v", err),
+		}
 	}
 
 	if _, exists := config.Auths[server]; !exists {
-		if FlagJson {
-			result := map[string]interface{}{
-				"action": "logout",
-				"server": server,
-				"status": "not_logged_in",
-			}
-			jsonData, _ := json.Marshal(result)
-			fmt.Println(string(jsonData))
-		} else {
-			fmt.Printf("Not logged in to %s\n", server)
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("no existing login for %s", server),
 		}
-		return nil
 	}
 
 	delete(config.Auths, server)
 
 	if err := saveRegistryConfig(config); err != nil {
-		return fmt.Errorf("failed to save registry config: %v", err)
+		return &util.CraneError{
+			Code:    util.ErrorSystem,
+			Message: fmt.Sprintf("failed to save registry config: %v", err),
+		}
 	}
 
 	if FlagJson {
-		result := map[string]interface{}{
-			"action": "logout",
-			"server": server,
-			"status": "success",
-		}
-		jsonData, _ := json.Marshal(result)
+		jsonData, _ := json.Marshal(config)
 		fmt.Println(string(jsonData))
 	} else {
 		fmt.Printf("Logout Succeeded: %s\n", server)

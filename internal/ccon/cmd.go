@@ -74,27 +74,6 @@ var (
 		Hidden: true,
 	}
 
-	CreateCmd = &cobra.Command{
-		Use:    "create [flags] IMAGE [COMMAND] [ARG...]",
-		Short:  "Not supported - use 'ccon run' instead",
-		RunE:   createExecute,
-		Hidden: true,
-	}
-
-	StartCmd = &cobra.Command{
-		Use:    "start [flags] CONTAINER",
-		Short:  "Not supported - use 'ccon run' instead",
-		RunE:   startExecute,
-		Hidden: true,
-	}
-
-	RestartCmd = &cobra.Command{
-		Use:    "restart [flags] CONTAINER",
-		Short:  "Not supported - use 'ccon run' instead",
-		RunE:   restartExecute,
-		Hidden: true,
-	}
-
 	PsCmd = &cobra.Command{
 		Use:   "ps [flags]",
 		Short: "List containers",
@@ -105,6 +84,27 @@ var (
 		Use:   "inspect CONTAINER",
 		Short: "Display detailed information on one or more containers",
 		RunE:  inspectExecute,
+	}
+
+	CreateCmd = &cobra.Command{
+		Use:    "create is not supported",
+		Short:  "Not supported - use 'ccon run' instead",
+		RunE:   createExecute,
+		Hidden: true,
+	}
+
+	StartCmd = &cobra.Command{
+		Use:    "start is not supported",
+		Short:  "Not supported - use 'ccon run' instead",
+		RunE:   startExecute,
+		Hidden: true,
+	}
+
+	RestartCmd = &cobra.Command{
+		Use:    "restart is not supported",
+		Short:  "Not supported - use 'ccon run' instead",
+		RunE:   restartExecute,
+		Hidden: true,
 	}
 )
 
@@ -148,9 +148,6 @@ var (
 
 	// Stop flags
 	FlagTimeout int
-
-	// Rm flags
-	FlagForce bool
 
 	// Ps flags
 	FlagAll   bool
@@ -223,9 +220,6 @@ func init() {
 	// Stop command flags
 	StopCmd.Flags().IntVarP(&FlagTimeout, "timeout", "t", 10, "Seconds to wait for stop before killing it")
 
-	// Rm command flags
-	RmCmd.Flags().BoolVarP(&FlagForce, "force", "f", false, "Force the removal of a running container (uses SIGKILL)")
-
 	// Ps command flags
 	PsCmd.Flags().BoolVarP(&FlagAll, "all", "a", false, "Show all containers (default shows just running)")
 	PsCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "q", false, "Only display container IDs")
@@ -241,5 +235,6 @@ func init() {
 	LoginCmd.Flags().BoolVar(&FlagPasswordStdin, "password-stdin", false, "Read password from stdin")
 
 	// Add subcommands to root
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, CreateCmd, StartCmd, RestartCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd)
+	RootCmd.AddCommand(CreateCmd, StartCmd, RestartCmd) // Hidden commands for compatibility
 }

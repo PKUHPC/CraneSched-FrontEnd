@@ -22,8 +22,6 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -70,7 +68,10 @@ func parseEnvVar(envVar string, envMap map[string]string) error {
 		// KEY=VALUE format
 		envMap[parts[0]] = parts[1]
 	} else {
-		return errors.New("environment variable must be in KEY=VALUE or KEY format")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "environment variable must be in KEY=VALUE or KEY format",
+		}
 	}
 	return nil
 }
@@ -107,7 +108,10 @@ func parseVolumeMount(volumeSpec string, mountMap map[string]string) error {
 	parts := strings.SplitN(volumeSpec, ":", 2)
 
 	if len(parts) != 2 {
-		return errors.New("volume mount must be in HOST:CONTAINER format")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "volume mount must be in HOST:CONTAINER format",
+		}
 	}
 
 	hostPath := parts[0]
@@ -115,7 +119,10 @@ func parseVolumeMount(volumeSpec string, mountMap map[string]string) error {
 
 	// Basic validation
 	if hostPath == "" || containerPath == "" {
-		return errors.New("host path and container path cannot be empty")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "host path and container path cannot be empty",
+		}
 	}
 
 	mountMap[hostPath] = containerPath
@@ -125,7 +132,10 @@ func parseVolumeMount(volumeSpec string, mountMap map[string]string) error {
 // runExecute handles the run command execution
 func runExecute(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
-		return errors.New("run requires at least one argument: IMAGE [COMMAND] [ARG...]")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "run requires at least one argument: IMAGE [COMMAND] [ARG...]",
+		}
 	}
 
 	image := args[0]
@@ -138,13 +148,6 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	task, err := buildContainerTask(image, command)
 	if err != nil {
 		return fmt.Errorf("failed to build container task: %v", err)
-	}
-
-	// For debugging: print task details if JSON flag is set
-	if FlagJson {
-		if taskJSON, err := json.MarshalIndent(task, "", "  "); err == nil {
-			fmt.Printf("DEBUG: Task structure:\n%s\n", string(taskJSON))
-		}
 	}
 
 	// Validate container-specific parameters
@@ -189,7 +192,10 @@ func applyResourceOptions(task *protos.TaskToCtld) error {
 	if FlagGres != "" {
 		gresSpec = FlagGres
 	} else if FlagGpus != "" {
-		return errors.New("--gpus is not supported due to format complexity. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "--gpus is not supported due to format complexity. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'",
+		}
 	}
 
 	if gresSpec != "" {
@@ -367,6 +373,8 @@ func buildContainerTask(image string, command []string) (*protos.TaskToCtld, err
 	}
 
 	// Set container name
+	// Currently, we set both names in Job and ContainerMeta, however,
+	// name in ContainerMeta may be ignored.
 	if FlagName != "" {
 		containerMeta.Name = FlagName
 		task.Name = FlagName
@@ -431,12 +439,18 @@ func buildContainerTask(image string, command []string) (*protos.TaskToCtld, err
 func validateContainerTask(task *protos.TaskToCtld) error {
 	containerMeta := task.GetContainerMeta()
 	if containerMeta == nil {
-		return errors.New("container metadata is missing")
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: "container metadata is missing",
+		}
 	}
 
 	// Validate image specification
 	if containerMeta.Image == nil || containerMeta.Image.Image == "" {
-		return errors.New("container image is required")
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: "container image is required",
+		}
 	}
 
 	// Validate port mappings
@@ -452,7 +466,10 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 	// Validate volume mounts
 	for hostPath, containerPath := range containerMeta.Mounts {
 		if hostPath == "" || containerPath == "" {
-			return errors.New("host path and container path cannot be empty")
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: "host path and container path cannot be empty",
+			}
 		}
 		// Note: Skip file existence check for now as it may not be accessible from frontend
 	}

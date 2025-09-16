@@ -19,90 +19,112 @@
 package ccon
 
 import (
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
-type Container struct {
-	ID      string            `json:"id"`
-	Name    string            `json:"name"`
-	Image   string            `json:"image"`
-	Status  string            `json:"status"`
-	Created time.Time         `json:"created"`
-	Ports   []string          `json:"ports"`
-	Env     map[string]string `json:"env"`
-	Volumes []string          `json:"volumes"`
-}
-
 func psExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 0 {
-		return errors.New("ps command does not accept any arguments")
-	}
-
-	mockContainers := []Container{
-		{
-			ID:      "abc123def456",
-			Name:    "web-server",
-			Image:   "nginx:latest",
-			Status:  "running",
-			Created: time.Now().Add(-2 * time.Hour),
-			Ports:   []string{"80:8080", "443:8443"},
-		},
-		{
-			ID:      "def456ghi789",
-			Name:    "database",
-			Image:   "postgres:13",
-			Status:  "running",
-			Created: time.Now().Add(-24 * time.Hour),
-			Ports:   []string{"5432:5432"},
-		},
-		{
-			ID:      "ghi789jkl012",
-			Name:    "worker",
-			Image:   "redis:alpine",
-			Status:  "stopped",
-			Created: time.Now().Add(-72 * time.Hour),
-			Ports:   []string{},
-		},
-	}
-
-	var containers []Container
-	if FlagAll {
-		containers = mockContainers
-	} else {
-		for _, c := range mockContainers {
-			if c.Status == "running" {
-				containers = append(containers, c)
-			}
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "ps command does not accept any arguments",
 		}
+	}
+
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub := util.GetStubToCtldByConfig(config)
+
+	request := protos.QueryTasksInfoRequest{
+		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
+		OptionIncludeCompletedTasks: FlagAll,
+	}
+
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query container tasks")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if !reply.GetOk() {
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
 
 	if FlagJson {
-		jsonData, _ := json.Marshal(containers)
+		jsonData, _ := json.Marshal(reply.TaskInfoList)
 		fmt.Println(string(jsonData))
-	} else {
-		if FlagQuiet {
-			for _, c := range containers {
-				fmt.Println(c.ID[:12])
-			}
-		} else {
-			fmt.Printf("%-12s %-15s %-20s %-10s %-15s %-20s\n",
-				"CONTAINER ID", "IMAGE", "NAME", "STATUS", "PORTS", "CREATED")
-			for _, c := range containers {
-				portsStr := strings.Join(c.Ports, ",")
-				if portsStr == "" {
-					portsStr = "-"
-				}
-				createdStr := formatDuration(time.Since(c.Created)) + " ago"
-				fmt.Printf("%-12s %-15s %-20s %-10s %-15s %-20s\n",
-					c.ID[:12], c.Image, c.Name, c.Status, portsStr, createdStr)
-			}
+		return nil
+	}
+
+	if FlagQuiet {
+		for _, task := range reply.TaskInfoList {
+			fmt.Println(strconv.FormatUint(uint64(task.TaskId), 10))
 		}
+	} else {
+		table := tablewriter.NewWriter(os.Stdout)
+		util.SetBorderlessTable(table)
+		table.SetHeader([]string{"JOBID", "IMAGE", "COMMAND", "CREATED", "STATUS", "PORTS", "NAMES"})
+
+		for _, task := range reply.TaskInfoList {
+			jobID := strconv.FormatUint(uint64(task.TaskId), 10)
+
+			var image string
+			if task.ContainerMeta != nil && task.ContainerMeta.Image != nil {
+				image = task.ContainerMeta.Image.Image
+			} else {
+				image = "-"
+			}
+
+			var command string
+			if task.ContainerMeta != nil {
+				// Build command from container metadata
+				var cmdParts []string
+				if task.ContainerMeta.Command != "" {
+					cmdParts = append(cmdParts, task.ContainerMeta.Command)
+				}
+				if len(task.ContainerMeta.Args) > 0 {
+					cmdParts = append(cmdParts, task.ContainerMeta.Args...)
+				}
+				if len(cmdParts) > 0 {
+					command = strings.Join(cmdParts, " ")
+				}
+			}
+			command = truncateCommand(command, 40)
+
+			status := strings.ToUpper(task.Status.String())
+			createdStr := formatDuration(time.Since(task.SubmitTime.AsTime())) + " ago"
+
+			var ports string
+			if task.ContainerMeta != nil && len(task.ContainerMeta.Ports) > 0 {
+				var portStrs []string
+				for hostPort, containerPort := range task.ContainerMeta.Ports {
+					portStrs = append(portStrs, fmt.Sprintf("%d:%d", hostPort, containerPort))
+				}
+				ports = strings.Join(portStrs, ", ")
+			} else {
+				ports = "-"
+			}
+
+			table.Append([]string{
+				jobID,
+				image,
+				command,
+				createdStr,
+				status,
+				ports,
+				task.Name,
+			})
+		}
+		table.Render()
 	}
 
 	return nil
@@ -110,49 +132,81 @@ func psExecute(cmd *cobra.Command, args []string) error {
 
 func inspectExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return errors.New("inspect requires exactly one argument: CONTAINER")
-	}
-
-	container := args[0]
-
-	mockContainer := Container{
-		ID:      "abc123def456789",
-		Name:    container,
-		Image:   "nginx:latest",
-		Status:  "running",
-		Created: time.Now().Add(-2 * time.Hour),
-		Ports:   []string{"80:8080", "443:8443"},
-		Env: map[string]string{
-			"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-			"HOME": "/root",
-		},
-		Volumes: []string{"/app:/usr/share/nginx/html", "/config:/etc/nginx/conf.d"},
-	}
-
-	if FlagJson {
-		jsonData, _ := json.Marshal(mockContainer)
-		fmt.Println(string(jsonData))
-	} else {
-		fmt.Printf("Container: %s\n", mockContainer.Name)
-		fmt.Printf("  ID: %s\n", mockContainer.ID)
-		fmt.Printf("  Image: %s\n", mockContainer.Image)
-		fmt.Printf("  Status: %s\n", mockContainer.Status)
-		fmt.Printf("  Created: %s\n", mockContainer.Created.Format(time.RFC3339))
-		fmt.Printf("  Ports:\n")
-		for _, port := range mockContainer.Ports {
-			fmt.Printf("    %s\n", port)
-		}
-		fmt.Printf("  Environment:\n")
-		for key, value := range mockContainer.Env {
-			fmt.Printf("    %s=%s\n", key, value)
-		}
-		fmt.Printf("  Volumes:\n")
-		for _, volume := range mockContainer.Volumes {
-			fmt.Printf("    %s\n", volume)
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "inspect requires exactly one argument: CONTAINER",
 		}
 	}
 
+	jobIDStr := args[0]
+	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("invalid job ID: %s", jobIDStr),
+		}
+	}
+
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub := util.GetStubToCtldByConfig(config)
+
+	request := protos.QueryTasksInfoRequest{
+		FilterTaskIds:               []uint32{uint32(jobID)},
+		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
+		OptionIncludeCompletedTasks: true,
+	}
+
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query container task")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if !reply.GetOk() {
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+
+	if len(reply.TaskInfoList) == 0 {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("container with job ID %s not found", jobIDStr),
+		}
+	}
+
+	task := reply.TaskInfoList[0]
+
+	jsonData, err := json.MarshalIndent(task, "", "  ")
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("failed to format data from backend: %v", err),
+		}
+	}
+
+	fmt.Println(string(jsonData))
 	return nil
+}
+
+func truncateCommand(command string, maxLen int) string {
+	if command == "" {
+		return "-"
+	}
+
+	// Remove extra whitespace and newlines
+	command = strings.ReplaceAll(command, "\n", " ")
+	command = strings.ReplaceAll(command, "\t", " ")
+
+	// Replace multiple spaces with single space
+	for strings.Contains(command, "  ") {
+		command = strings.ReplaceAll(command, "  ", " ")
+	}
+	command = strings.TrimSpace(command)
+
+	if len(command) <= maxLen {
+		return command
+	}
+
+	return command[:maxLen-3] + "..."
 }
 
 func formatDuration(d time.Duration) string {
