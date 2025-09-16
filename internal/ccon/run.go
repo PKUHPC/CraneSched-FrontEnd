@@ -490,11 +490,6 @@ func submitContainerTask(task *protos.TaskToCtld) error {
 
 	if reply.GetOk() {
 		fmt.Printf("Container task submitted successfully. Task ID: %d\n", reply.GetTaskId())
-		if task.GetContainerMeta().Detached {
-			fmt.Printf("Container '%s' is running in detached mode.\n", task.GetContainerMeta().Name)
-		} else {
-			fmt.Printf("Container '%s' is starting in foreground mode.\n", task.GetContainerMeta().Name)
-		}
 		return nil
 	} else {
 		return &util.CraneError{

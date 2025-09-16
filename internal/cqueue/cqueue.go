@@ -117,6 +117,17 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 		req.FilterPartitions = filterPartitionList
 	}
 
+	if FlagFilterTaskTypes != "" {
+		filterTaskTypeList, err := util.ParseTaskTypeList(FlagFilterTaskTypes)
+		if err != nil {
+			return reply, &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid task type list specified: %s.", err),
+			}
+		}
+		req.FilterTaskTypes = filterTaskTypeList
+	}
+
 	if FlagFilterJobIDs != "" {
 		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
 		if err != nil {
