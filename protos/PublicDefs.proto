@@ -114,6 +114,8 @@ enum TaskStatus {
   ExceedTimeLimit = 4;
   Cancelled = 5;
   OutOfMemory = 6;
+  Configuring = 7;
+  Completing = 8;
 
   Invalid = 15;
 }
@@ -195,6 +197,9 @@ message RuntimeAttrOfTask {
   bool held = 18;
   ResourceV2 allocated_res = 19;
   double cached_priority = 20;
+
+  TaskStatus primary_step_status = 21;
+  uint32 primary_step_exit_code = 22;
 }
 
 message StepToCtld {
@@ -327,6 +332,7 @@ message StepToD {
 message JobStepsToD {
   JobToD job = 1;
   map<uint32, StepToD> steps = 2;
+  map<uint32, TaskStatus> step_status = 3;
 }
 
 message JobStepIds {

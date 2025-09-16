@@ -387,7 +387,7 @@ CforedCrunStateMachineLoop:
 			}
 
 		case CrunWaitTaskComplete:
-			log.Debugf("[Cfored<->Crun][Job #%d] Enter State Crun_Wait_Task_Complete", jobId)
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State Crun_Wait_Task_Complete", jobId, stepId)
 		forwarding:
 			for {
 				select {
@@ -545,7 +545,7 @@ CforedCrunStateMachineLoop:
 			if crunErr {
 				break
 			}
-			log.Debugf("[Crun->Cfored][Job #%d] Receive TaskCompletionRequest", jobId)
+			log.Debugf("[Crun->Cfored][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
 
 			toCtldRequest := &protos.StreamCforedRequest{
 				Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
@@ -595,12 +595,12 @@ CforedCrunStateMachineLoop:
 			} else {
 				log.Debug("[Cfored->Crun] TASK_COMPLETION_ACK_REPLY sent to Crun")
 			}
-			log.Infof("[Cfored<->Crun][Job #%d] Job completed successfully", jobId)
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
 
 			break CforedCrunStateMachineLoop
 
 		case CancelTaskOfDeadCrun:
-			log.Infof("[Cfored<->Crun][Job #%d] Enter State CANCEL_TASK_OF_DEAD_CRUN", jobId)
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State CANCEL_TASK_OF_DEAD_CRUN", jobId, stepId)
 
 			toCtldRequest := &protos.StreamCforedRequest{
 				Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
@@ -639,7 +639,7 @@ CforedCrunStateMachineLoop:
 			}
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
-			log.Infof("[Cfored<->Crun][Job #%d] Job cancelled due to Crun down", jobId)
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Job cancelled due to Crun down", jobId, stepId)
 
 			break CforedCrunStateMachineLoop
 		}
