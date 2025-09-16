@@ -132,6 +132,7 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "WHERE", Pattern: `where`},
 	{Name: "AssignOp", Pattern: `(\+=|\-=|=)`},
 	{Name: "String", Pattern: `("[^"]*"|'[^']*'|""|'')`},
+	{Name: "Time", Pattern: `(?:~)?[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:~)?`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
 	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\.,:\[\]T]*`},
 	{Name: "Punct", Pattern: `[-,:]`},
