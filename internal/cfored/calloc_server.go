@@ -25,15 +25,18 @@ const (
 
 func (cforedServer *GrpcCforedServer) CallocStream(toCallocStream protos.CraneForeD_CallocStreamServer) error {
 	var callocPid int32
-	var taskId uint32
+	var jobId uint32
+	var stepId uint32
 	var reply *protos.StreamCallocReply
+	var step StepIdentifier
 
 	requestChannel := make(chan grpcMessage[protos.StreamCallocRequest], 8)
 	go grpcStreamReceiver[protos.StreamCallocRequest](toCallocStream, requestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
 
-	taskId = math.MaxUint32
+	jobId = math.MaxUint32
+	stepId = math.MaxUint32
 	callocPid = -1
 
 	state := WaitTaskIdAllocReq
@@ -151,14 +154,18 @@ CforedStateMachineLoop:
 				}
 
 				Ok := ctldReply.GetPayloadTaskIdReply().Ok
-				taskId = ctldReply.GetPayloadTaskIdReply().TaskId
+				jobId = ctldReply.GetPayloadTaskIdReply().JobId
+				stepId = ctldReply.GetPayloadTaskIdReply().StepId
+				log.Tracef("[Cfored<->Calloc][Pid #%d] TASK_ID_REPLY of received, Ok:%v, JobId:#%d, StepId:#%d",
+					callocPid, Ok, jobId, stepId)
 
 				reply = &protos.StreamCallocReply{
 					Type: protos.StreamCallocReply_TASK_ID_REPLY,
 					Payload: &protos.StreamCallocReply_PayloadTaskIdReply{
 						PayloadTaskIdReply: &protos.StreamCallocReply_TaskIdReply{
 							Ok:            Ok,
-							TaskId:        taskId,
+							JobId:         jobId,
+							StepId:        stepId,
 							FailureReason: ctldReply.GetPayloadTaskIdReply().FailureReason,
 						},
 					},
@@ -167,11 +174,12 @@ CforedStateMachineLoop:
 				gVars.ctldReplyChannelMapMtx.Lock()
 				delete(gVars.ctldReplyChannelMapByPid, callocPid)
 				if Ok {
-					gVars.ctldReplyChannelMapByTaskId[taskId] = ctldReplyChannel
+					step = StepIdentifier{JobId: jobId, StepId: stepId}
+					gVars.ctldReplyChannelMapByStep[step] = ctldReplyChannel
 
-					gVars.pidTaskIdMapMtx.Lock()
-					gVars.pidTaskIdMap[callocPid] = taskId
-					gVars.pidTaskIdMapMtx.Unlock()
+					gVars.pidStepMapMtx.Lock()
+					gVars.pidStepMap[callocPid] = step
+					gVars.pidStepMapMtx.Unlock()
 				}
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
@@ -267,7 +275,8 @@ CforedStateMachineLoop:
 						Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
 							PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
 								CforedName:      gVars.hostName,
-								TaskId:          taskId,
+								JobId:           jobId,
+								StepId:          stepId,
 								InteractiveType: protos.InteractiveTaskType_Calloc,
 							},
 						},
@@ -285,9 +294,7 @@ CforedStateMachineLoop:
 			reply = &protos.StreamCallocReply{
 				Type: protos.StreamCallocReply_TASK_CANCEL_REQUEST,
 				Payload: &protos.StreamCallocReply_PayloadTaskCancelRequest{
-					PayloadTaskCancelRequest: &protos.StreamCallocReply_TaskCancelRequest{
-						TaskId: taskId,
-					},
+					PayloadTaskCancelRequest: &protos.StreamCallocReply_TaskCancelRequest{},
 				},
 			}
 
@@ -318,7 +325,8 @@ CforedStateMachineLoop:
 						Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
 							PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
 								CforedName:      gVars.hostName,
-								TaskId:          taskId,
+								JobId:           jobId,
+								StepId:          stepId,
 								InteractiveType: protos.InteractiveTaskType_Calloc,
 							},
 						},
@@ -338,7 +346,7 @@ CforedStateMachineLoop:
 					"but %s received.", ctldReply.Type)
 			} else {
 				log.Tracef("[Cfored<->Calloc] TASK_COMPLETION_ACK_REPLY of task #%d received",
-					ctldReply.GetPayloadTaskCompletionAck().GetTaskId())
+					jobId)
 			}
 
 			reply = &protos.StreamCallocReply{
@@ -351,12 +359,12 @@ CforedStateMachineLoop:
 			}
 
 			gVars.ctldReplyChannelMapMtx.Lock()
-			delete(gVars.ctldReplyChannelMapByTaskId, taskId)
+			delete(gVars.ctldReplyChannelMapByStep, step)
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
 			if err := toCallocStream.Send(reply); err != nil {
 				log.Errorf("[Cfored<->Calloc] The stream to calloc executing "+
-					"task #%d is broken", taskId)
+					"task #%d is broken", jobId)
 			}
 
 			break CforedStateMachineLoop
@@ -369,7 +377,8 @@ CforedStateMachineLoop:
 				Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
 					PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
 						CforedName:      gVars.hostName,
-						TaskId:          taskId,
+						JobId:           jobId,
+						StepId:          stepId,
 						InteractiveType: protos.InteractiveTaskType_Calloc,
 					},
 				},
@@ -387,12 +396,12 @@ CforedStateMachineLoop:
 			}
 
 			gVars.ctldReplyChannelMapMtx.Lock()
-			if taskId != math.MaxUint32 {
-				delete(gVars.ctldReplyChannelMapByTaskId, taskId)
+			if jobId != math.MaxUint32 {
+				delete(gVars.ctldReplyChannelMapByStep, step)
 
-				gVars.pidTaskIdMapMtx.Lock()
-				delete(gVars.pidTaskIdMap, callocPid)
-				gVars.pidTaskIdMapMtx.Unlock()
+				gVars.pidStepMapMtx.Lock()
+				delete(gVars.pidStepMap, callocPid)
+				gVars.pidStepMapMtx.Unlock()
 			} else {
 				delete(gVars.ctldReplyChannelMapByPid, callocPid)
 			}
