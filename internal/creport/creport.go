@@ -79,10 +79,10 @@ func QueryAccountUserSummaryItem() error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	for _, item := range reply.Items {
-		fmt.Printf("Account: %s, Username: %s, CPU Time: %d, CPU Alloc: %d, job_count: %d\n",
-			item.Account, item.Username, item.TotalCpuTime, item.TotalCpuAlloc, item.TotalCount)
-	}
+	// for _, item := range reply.Items {
+	// 	fmt.Printf("Account: %s, Username: %s, CPU Time: %d, CPU Alloc: %d, job_count: %d\n",
+	// 		item.Account, item.Username, item.TotalCpuTime, item.TotalCpuAlloc, item.TotalCount)
+	// }
 
 	PrintAccountUserList(reply.Items, reply.GetCluster(), start_time, end_time, FlagOutType)
 
