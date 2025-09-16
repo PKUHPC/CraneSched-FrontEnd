@@ -1121,7 +1121,7 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 			if mode == "" {
 				mode = "digit"
 			} else if mode != "digit" {
-				return nil, fmt.Errorf("mixed type: number and number format is not allowed")
+				return nil, fmt.Errorf("cannot mix simple number format with type:count format")
 			}
 			if index != 0 {
 				return nil, fmt.Errorf("multiple number parts are not allowed")
@@ -1135,7 +1135,7 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 			if mode == "" {
 				mode = "type"
 			} else if mode != "type" {
-				return nil, fmt.Errorf("mixed type: number and number format is not allowed")
+				return nil, fmt.Errorf("cannot mix simple number format with type:count format")
 			}
 			gpuType := parts[0]
 			numStr := parts[1]
