@@ -76,6 +76,7 @@ type ShowCommand struct {
 	Action      string           `parser:"@'show'"`
 	Entity      *EntityType      `parser:"@@?"`
 	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	Where       *WhereClause     `parser:"@@?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -91,6 +92,7 @@ type EntityType struct {
 	Account bool `parser:"@'account'"`
 	User    bool `parser:"| @'user'"`
 	Qos     bool `parser:"| @'qos'"`
+	Txn     bool `parser:"| @'transaction'"`
 }
 
 type Flag struct {
@@ -105,7 +107,7 @@ type KeyValueParam struct {
 
 type WhereParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @Number) | @String | @Ident | @Number )"`
+	Value string `parser:"( '=' ( @String | @Ident | @Number) | @String | @Ident | @Number )"`
 }
 
 type WhereClause struct {
@@ -130,8 +132,8 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "WHERE", Pattern: `where`},
 	{Name: "AssignOp", Pattern: `(\+=|\-=|=)`},
 	{Name: "String", Pattern: `("[^"]*"|'[^']*'|""|'')`},
+	{Name: "Ident", Pattern: `[+\-~]?[a-zA-Z0-9][a-zA-Z0-9_\+\-\.,@:\[\]T~]*`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
-	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\.,:\[\]T]*`},
 	{Name: "Punct", Pattern: `[-,:]`},
 })
 
@@ -153,6 +155,8 @@ func (r EntityType) String() string {
 		return "user"
 	case r.Qos:
 		return "qos"
+	case r.Txn:
+		return "transaction"
 	default:
 		return ""
 	}
@@ -288,6 +292,12 @@ func (c *CAcctMgrCommand) GetWhereParams() map[string]string {
 
 	switch cmd := c.Command.(type) {
 	case ModifyCommand:
+		if cmd.Where != nil {
+			for _, param := range cmd.Where.WhereParams {
+				whereMap[param.Key] = unquoteIfQuoted(param.Value)
+			}
+		}
+	case ShowCommand:
 		if cmd.Where != nil {
 			for _, param := range cmd.Where.WhereParams {
 				whereMap[param.Key] = unquoteIfQuoted(param.Value)

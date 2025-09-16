@@ -142,6 +142,43 @@ func PrintUserList(userList []*protos.UserInfo) {
 	table.Render()
 }
 
+func PrintTxnLogList(txnLogList []*protos.QueryTxnLogReply_Txn) {
+	if len(txnLogList) == 0 {
+		return
+	}
+
+	var TxnActionToString = []string{
+		"Add Account", "Modify Account", "Delete Account",
+		"Add User", "Modify User", "Delete User",
+		"Add QoS", "Modify QoS", "Delete QoS",
+	}
+
+	sort.Slice(txnLogList, func(i, j int) bool { return txnLogList[i].CreationTime < txnLogList[j].CreationTime })
+
+	// Table format control
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"CreationTime", "Actor", "Action", "Target", "Info"})
+	tableData := make([][]string, 0, len(txnLogList))
+	for _, txnLog := range txnLogList {
+
+		CreationTime := time.Unix(txnLog.CreationTime, 0)
+
+		tableData = append(tableData, []string{
+			CreationTime.Format("2006-01-02 15:04:05"),
+			txnLog.Actor,
+			TxnActionToString[txnLog.Action],
+			txnLog.Target,
+			txnLog.Info})
+	}
+
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
+}
+
 func PrintQosList(qosList []*protos.QosInfo) {
 	if len(qosList) == 0 {
 		return
@@ -1022,6 +1059,63 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 		}
 		return util.ErrorBackend
 	}
+}
+
+func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string) util.CraneCmdError {
+	if FlagForce {
+		log.Warning("--force flag is ignored for unblock operations")
+	}
+
+	var action string
+	if actionValue != "" {
+		value, ok := util.StringToTxnAction(actionValue)
+		if !ok {
+			log.Errorf("Invalid action specified: %v.\n", actionValue)
+			return util.ErrorCmdArg
+		}
+
+		action = strconv.Itoa(int(value))
+	}
+
+	req := protos.QueryTxnLogRequest{
+		Uid:    userUid,
+		Actor:  actor,
+		Target: target,
+		Action: action,
+		Info:   info,
+	}
+
+	if startTimeValue != "" {
+		req.TimeInterval = &protos.TimeInterval{}
+		err := util.ParseInterval(startTimeValue, req.TimeInterval)
+		if err != nil {
+			log.Error(err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	reply, err := stub.QueryTxnLog(context.Background(), &req)
+	if err != nil {
+		log.Errorf("Failed to show txn: %v", err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		}
+		return util.ErrorBackend
+	}
+
+	if !reply.GetOk() {
+		fmt.Println(util.ErrMsg(reply.GetCode()))
+		return util.ErrorBackend
+	}
+
+	PrintTxnLogList(reply.TxnLogList)
+
+	return util.ErrorSuccess
 }
 
 // Extracts the EventPlugin InfluxDB configuration from the specified YAML configuration files

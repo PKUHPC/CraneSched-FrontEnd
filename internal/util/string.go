@@ -977,3 +977,23 @@ func FormatMemToMB(data uint64) string {
 		return fmt.Sprintf("%vM", data/B2MBRatio)
 	}
 }
+
+var TxnActionMap = map[string]protos.TxnAction{
+	"addaccount":    protos.TxnAction_AddAccount,
+	"modifyaccount": protos.TxnAction_ModifyAccount,
+	"deleteaccount": protos.TxnAction_DeleteAccount,
+	"adduser":       protos.TxnAction_AddUser,
+	"modifyuser":    protos.TxnAction_ModifyUser,
+	"deleteuser":    protos.TxnAction_DeleteUser,
+	"addqos":        protos.TxnAction_AddQos,
+	"modifyqos":     protos.TxnAction_ModifyQos,
+	"deleteqos":     protos.TxnAction_DeleteQos,
+}
+
+func StringToTxnAction(str string) (protos.TxnAction, bool) {
+	if action, exists := TxnActionMap[str]; exists {
+		return action, true
+	}
+
+	return 0, false
+}
