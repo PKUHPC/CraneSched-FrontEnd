@@ -22,8 +22,9 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"errors"
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 type CraneCmdError = int
@@ -48,6 +49,13 @@ type CraneError struct {
 
 func (e *CraneError) Error() string {
 	return e.Message
+}
+
+func GetCraneError(code CraneCmdError, message string) *CraneError {
+	return &CraneError{
+		Code:    code,
+		Message: message,
+	}
 }
 
 var errMsgMap = map[protos.ErrCode]string{

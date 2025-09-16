@@ -154,7 +154,9 @@ func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 
-	FillTable(reply,table)
+	if err := FillTable(reply, table); err != nil {  
+        return err  
+    } 
 
 	if len(FlagFilterNodes) != 0 {
 		ExtraDealNodeList(reply)
