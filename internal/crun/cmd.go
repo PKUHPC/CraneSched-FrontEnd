@@ -40,9 +40,9 @@ var (
 	FlagExport        string
 	FlagGres          string
 
-	FlagInput     string
-	FlagPty       bool
-	FlagExclusive bool
+	FlagInput       string
+	FlagPty         bool
+	FlagExclusive   bool
 	FlagGpusPerNode string
 
 	FlagX11    bool
