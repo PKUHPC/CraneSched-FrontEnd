@@ -103,7 +103,7 @@ func ProcessNodes(flattened []FlattenedData, tableOutputCell [][]string) {
 func ProcessState(flattened []FlattenedData, tableOutputCell [][]string) {
 	for idx, data := range flattened {
 		stateStr := data.ResourceState
-		if data.ControlState != "none" {
+		if data.ControlState != "" && data.ControlState != "none" {
 			stateStr += "(" + data.ControlState + ")"
 		}
 
