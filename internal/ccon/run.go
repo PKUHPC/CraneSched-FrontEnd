@@ -385,12 +385,14 @@ func buildContainerTask(image string, command []string) (*protos.TaskToCtld, err
 
 	// Set entrypoint and command
 	if FlagEntrypoint != "" {
-		containerMeta.Entrypoint = FlagEntrypoint
-	}
-	if len(command) > 0 {
-		containerMeta.Command = command[0]
-		if len(command) > 1 {
-			containerMeta.Args = command[1:]
+		containerMeta.Command = FlagEntrypoint
+		containerMeta.Args = command
+	} else {
+		if len(command) > 0 {
+			containerMeta.Command = command[0]
+			if len(command) > 1 {
+				containerMeta.Args = command[1:]
+			}
 		}
 	}
 
@@ -443,6 +445,18 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 			Code:    util.ErrorBackend,
 			Message: "container metadata is missing",
 		}
+	}
+
+	// Validate user and group IDs
+	if task.Uid != 0 {
+		if !containerMeta.Userns && (task.Uid != containerMeta.RunAsUser || task.Gid != containerMeta.RunAsGroup) {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "with --userns=false, only current user and accessible groups are allowed",
+			}
+		}
+	} else if containerMeta.Userns {
+		log.Warnf("--userns is ignored when running as root")
 	}
 
 	// Validate image specification
