@@ -156,6 +156,17 @@ func QueryJob() error {
 		request.FilterPartitions = filterPartitionList
 	}
 
+	if FlagFilterTaskTypes != "" {
+		filterTaskTypeList, err := util.ParseTaskTypeList(FlagFilterTaskTypes)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid task type list specified: %s.", err),
+			}
+		}
+		request.FilterTaskTypes = filterTaskTypeList
+	}
+
 	if FlagNumLimit != 0 {
 		request.NumLimit = FlagNumLimit
 	}
