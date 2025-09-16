@@ -131,3 +131,18 @@ func (p *JobIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	req.NumLimit = uint32(len(filterJobIdList))
 	return nil
 }
+
+// FlagFilterTaskTypes
+type TaskTypesProcessor struct{}
+
+func (p *TaskTypesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+	if FlagFilterTaskTypes == "" {
+		return nil
+	}
+	filterTaskTypeList, err := util.ParseTaskTypeList(FlagFilterTaskTypes)
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task type list specified: %s.", err))
+	}
+	req.FilterTaskTypes = filterTaskTypeList
+	return nil
+}

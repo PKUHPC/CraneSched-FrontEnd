@@ -1007,6 +1007,38 @@ func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 	}
 }
 
+func ParseTaskTypeName(taskType string) (protos.TaskType, error) {
+	taskType = strings.ToLower(taskType)
+	switch taskType {
+	case "interactive", "i":
+		return protos.TaskType_Interactive, nil
+	case "batch", "b":
+		return protos.TaskType_Batch, nil
+	case "container", "c":
+		return protos.TaskType_Container, nil
+	default:
+		return protos.TaskType_Interactive, fmt.Errorf("unknown task type: %s", taskType)
+	}
+}
+
+func ParseTaskTypeList(taskTypesStr string) ([]protos.TaskType, error) {
+	var taskTypeSet = make(map[protos.TaskType]bool)
+	filterTaskTypeList := strings.Split(taskTypesStr, ",")
+	for i := 0; i < len(filterTaskTypeList); i++ {
+		taskType, err := ParseTaskTypeName(filterTaskTypeList[i])
+		if err != nil {
+			return nil, err
+		}
+		taskTypeSet[taskType] = true
+	}
+
+	var taskTypeList []protos.TaskType
+	for taskType := range taskTypeSet {
+		taskTypeList = append(taskTypeList, taskType)
+	}
+	return taskTypeList, nil
+}
+
 func ParseTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
 	var stateSet = make(map[protos.TaskStatus]bool)
 	filterStateList := strings.Split(statesStr, ",")

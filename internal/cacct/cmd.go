@@ -37,6 +37,7 @@ var (
 	FlagFilterStates     string
 	FlagFilterPartitions string
 	FlagFilterQos        string
+	FlagFilterTaskTypes  string
 	FlagNumLimit         uint32
 	FlagNoHeader         bool
 	FlagFull             bool
@@ -106,6 +107,8 @@ func init() {
 			"pending(p), running(r), completed(c), failed(f), cancelled(x), time-limit-exceeded(t), all.")
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"Specify partitions to view (comma separated list), default is all")
+	RootCmd.Flags().StringVar(&FlagFilterTaskTypes, "type", "",
+		"Specify task types to view (comma separated list), \nvalid values are 'Interactive', 'Batch', 'Container', default is all types")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format.
