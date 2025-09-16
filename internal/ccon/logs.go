@@ -19,8 +19,8 @@
 package ccon
 
 import (
+	"CraneFrontEnd/internal/util"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -28,7 +28,10 @@ import (
 
 func logExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return errors.New("log requires exactly one argument: CONTAINER")
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "log requires exactly one argument: CONTAINER",
+		}
 	}
 
 	container := args[0]
