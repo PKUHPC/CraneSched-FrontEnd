@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,14 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	if !reply.GetOk() {
 		return &util.CraneError{Code: util.ErrorBackend}
 	}
+
+	// Sort tasks by Task ID descending
+	sort.Slice(reply.TaskInfoList, func(i, j int) bool {
+		taskI := reply.TaskInfoList[i]
+		taskJ := reply.TaskInfoList[j]
+
+		return taskI.TaskId > taskJ.TaskId
+	})
 
 	if FlagJson {
 		jsonData, _ := json.Marshal(reply.TaskInfoList)
