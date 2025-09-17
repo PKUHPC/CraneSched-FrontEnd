@@ -45,9 +45,8 @@ type TLSConfig struct {
 	Enabled              bool   `yaml:"Enabled"`
 	InternalCertFilePath string `yaml:"InternalCertFilePath"`
 	InternalKeyFilePath  string `yaml:"InternalKeyFilePath"`
-	InternalCaFilePath   string `yaml:"InternalCaFilePath"`
-	ExternalCaFilePath   string `yaml:"ExternalCaFilePath"`
 	ExternalCertFilePath string `yaml:"ExternalCertFilePath"`
+	CaFilePath           string `yaml:"CaFilePath"`
 	DomainSuffix         string `yaml:"DomainSuffix"`
 	UserTlsCertPath      string `yaml:"UserTlsCertPath"`
 }
