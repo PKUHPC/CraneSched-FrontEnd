@@ -20,22 +20,70 @@ package ccon
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var (
 	FlagConfigFilePath string
 	FlagJson           bool
+	FlagSetCrane       *pflag.FlagSet
 
-	RootCmd = &cobra.Command{
-		Use:     "ccon",
-		Short:   "Container management tool",
-		Version: util.Version(),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			util.DetectNetworkProxy()
-		},
-	}
+	// Crane resource flags (preferred)
+	FlagMem  string
+	FlagGres string
+
+	// Crane scheduling flags
+	FlagPartition     string
+	FlagNodelist      string
+	FlagTime          string
+	FlagAccount       string
+	FlagQos           string
+	FlagNodes         uint32
+	FlagNtasksPerNode uint32
+	FlagExclusive     bool
+	FlagHold          bool
+	FlagReservation   string
+	FlagExcludes      string
+	FlagExtraAttr     string
+	FlagMailType      string
+	FlagMailUser      string
+	FlagComment       string
+
+	// Run flags
+	FlagName       string
+	FlagPorts      []string
+	FlagEnv        []string
+	FlagVolume     []string
+	FlagDetach     bool
+	FlagEntrypoint string
+	FlagUser       string
+	FlagUserNS     bool
+	FlagWorkdir    string
+
+	// Resource control flags
+	FlagCpus   float64
+	FlagMemory string // Docker-style, deprecated in favor of --mem
+	FlagGpus   string // Docker-style, deprecated in favor of --gres
+
+	// Stop flags
+	FlagTimeout int
+
+	// Ps flags
+	FlagAll   bool
+	FlagQuiet bool
+
+	// Log flags
+	FlagFollow     bool
+	FlagTail       int
+	FlagTimestamps bool
+
+	// Login flags
+	FlagUsername      string
+	FlagPassword      string
+	FlagPasswordStdin bool
 
 	RunCmd = &cobra.Command{
 		Use:   "run [flags] IMAGE [COMMAND] [ARG...]",
@@ -106,62 +154,29 @@ var (
 		RunE:   restartExecute,
 		Hidden: true,
 	}
-)
 
-var (
-	// Container runtime flags (Docker-compatible)
-	FlagName       string
-	FlagPorts      []string
-	FlagEnv        []string
-	FlagVolume     []string
-	FlagDetach     bool
-	FlagEntrypoint string
-	FlagUser       string
-	FlagUserNS     bool
-	FlagWorkdir    string
+	RootCmd = &cobra.Command{
+		Use:     "ccon",
+		Short:   "Container job management tool",
+		Version: util.Version(),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			util.DetectNetworkProxy()
 
-	// Resource control flags (Docker-style, mapped to cbatch semantics)
-	FlagCpus   float64
-	FlagMemory string // Docker-style, deprecated in favor of --mem
-	FlagGpus   string // Docker-style, deprecated in favor of --gres
+			var err error
+			if cmd != RunCmd {
+				cmd.Root().Flags().Visit(func(f *pflag.Flag) {
+					if err == nil && f.Changed && isCraneFlag(f) {
+						err = &util.CraneError{
+							Code:    util.ErrorCmdArg,
+							Message: fmt.Sprintf("flag '%s' is only valid for the 'run' command", f.Name),
+						}
+					}
+				})
+			}
 
-	// cbatch-compatible resource flags (preferred)
-	FlagMem  string
-	FlagGres string
-
-	// Cluster scheduling flags (full names, avoid Docker shortcuts)
-	FlagPartition     string
-	FlagNodelist      string
-	FlagTime          string
-	FlagAccount       string
-	FlagQos           string
-	FlagNodes         uint32
-	FlagNtasksPerNode uint32
-	FlagExclusive     bool
-	FlagHold          bool
-	FlagReservation   string
-	FlagExcludes      string
-	FlagExtraAttr     string
-	FlagMailType      string
-	FlagMailUser      string
-	FlagComment       string
-
-	// Stop flags
-	FlagTimeout int
-
-	// Ps flags
-	FlagAll   bool
-	FlagQuiet bool
-
-	// Log flags
-	FlagFollow     bool
-	FlagTail       int
-	FlagTimestamps bool
-
-	// Login flags
-	FlagUsername      string
-	FlagPassword      string
-	FlagPasswordStdin bool
+			return err
+		},
+	}
 )
 
 func ParseCmdArgs() {
@@ -169,11 +184,82 @@ func ParseCmdArgs() {
 	util.RunAndHandleExit(RootCmd)
 }
 
+func isCraneFlag(f *pflag.Flag) bool {
+	if f == nil {
+		return false
+	}
+	category, ok := f.Annotations["category"]
+	return ok && len(category) > 0 && category[0] == "crane"
+}
+
+func initCraneFlags() {
+	FlagSetCrane = pflag.NewFlagSet("crane", pflag.ExitOnError)
+
+	// Crane Resource flags (preferred)
+	FlagSetCrane.StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
+	FlagSetCrane.StringVar(&FlagGres, "gres", "", "Gres required per task, format: \"gpu:a100:1\" or \"gpu:1\"")
+	FlagSetCrane.Float64VarP(&FlagCpus, "cpus-per-task", "c", 1, "Number of cpus required per job")
+
+	// Crane scheduling flags (full names, avoid Docker shortcuts)
+	FlagSetCrane.StringVarP(&FlagPartition, "partition", "p", "", "Partition for job scheduling")
+	FlagSetCrane.StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
+	FlagSetCrane.StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" or \"hours:minutes:seconds\"")
+	FlagSetCrane.StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
+	FlagSetCrane.StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
+	FlagSetCrane.Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run")
+	FlagSetCrane.Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	FlagSetCrane.StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
+	FlagSetCrane.StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
+	FlagSetCrane.BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
+	FlagSetCrane.BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
+
+	// Other Crane task flags
+	FlagSetCrane.StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
+	FlagSetCrane.StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL")
+	FlagSetCrane.StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
+	FlagSetCrane.StringVar(&FlagComment, "comment", "", "Comment of the job")
+
+	// Tag all Crane flags
+	FlagSetCrane.VisitAll(func(f *pflag.Flag) {
+		f.Annotations = map[string][]string{
+			"category": {"crane"},
+		}
+	})
+}
+
 func init() {
-	RootCmd.SetVersionTemplate(util.VersionTemplate())
+	// Init FlagSet for Crane flags
+	initCraneFlags()
+
+	// Setup RootCmd
+	RootCmd.Flags().AddFlagSet(FlagSetCrane)
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+
+	// Enable traverse for duplicated flags in subcommands
+	RootCmd.TraverseChildren = true
+
+	// Customize RootCmd display style
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
+	RootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		// Temporarily hide all crane category flags
+		var hiddenFlags []*pflag.Flag
+		cmd.Flags().VisitAll(func(f *pflag.Flag) {
+			if isCraneFlag(f) && !f.Hidden {
+				f.Hidden = true
+				hiddenFlags = append(hiddenFlags, f)
+			}
+		})
+
+		// Execute the default help template
+		cmd.Println(cmd.UsageString())
+
+		// Restore visibility of hidden flags
+		for _, f := range hiddenFlags {
+			f.Hidden = false
+		}
+	})
 
 	// Container runtime flags (Docker-compatible)
 	RunCmd.Flags().StringVar(&FlagName, "name", "", "Assign a name to the container")
@@ -186,36 +272,21 @@ func init() {
 	RunCmd.Flags().BoolVar(&FlagUserNS, "userns", true, "Enable user namespace (default user becomes the faked root, enabled by default)")
 	RunCmd.Flags().StringVarP(&FlagWorkdir, "workdir", "w", "", "Working directory inside the container")
 
-	// Resource control flags (Docker-style, compatibility)
+	// Resource flags (Docker-style, compatibility)
 	RunCmd.Flags().Float64Var(&FlagCpus, "cpus", 0, "Number of CPUs (maps to cpus-per-task)")
 	RunCmd.Flags().StringVar(&FlagMemory, "memory", "", "Memory limit (e.g., 2g, 512m) - deprecated, use --mem")
 	RunCmd.Flags().StringVar(&FlagGpus, "gpus", "", "GPU devices - deprecated, use --gres instead")
 
-	// cbatch-compatible resource options (preferred)
-	RunCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
-	RunCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task, format: \"gpu:a100:1\" or \"gpu:1\"")
-
-	// Cluster scheduling flags (full names, avoid Docker shortcuts)
-	RunCmd.Flags().StringVar(&FlagPartition, "partition", "", "Partition for job scheduling")
-	RunCmd.Flags().StringVar(&FlagNodelist, "nodelist", "", "Nodes to be allocated to the job (commas separated list)")
-	RunCmd.Flags().StringVar(&FlagTime, "time", "", "Time limit, format: \"day-hours:minutes:seconds\" or \"hours:minutes:seconds\"")
-	RunCmd.Flags().StringVar(&FlagAccount, "account", "", "Account used for the job")
-	RunCmd.Flags().StringVar(&FlagQos, "qos", "", "QoS used for the job")
-	RunCmd.Flags().Uint32Var(&FlagNodes, "nodes", 1, "Number of nodes on which to run")
-	RunCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
-	RunCmd.Flags().StringVar(&FlagExcludes, "exclude", "", "Exclude specific nodes from allocating (commas separated list)")
-	RunCmd.Flags().StringVar(&FlagReservation, "reservation", "", "Use reserved resources")
-	RunCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
-	RunCmd.Flags().BoolVar(&FlagHold, "hold", false, "Hold the job until it is released")
-
-	// Other task flags
-	RunCmd.Flags().StringVar(&FlagExtraAttr, "extra-attr", "", "Extra attributes of the job (in JSON format)")
-	RunCmd.Flags().StringVar(&FlagMailType, "mail-type", "", "Notify user by mail when certain events occur, supported values: NONE, BEGIN, END, FAIL, TIMELIMIT, ALL")
-	RunCmd.Flags().StringVar(&FlagMailUser, "mail-user", "", "Mail address of the notification receiver")
-	RunCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
-
 	// Configure RunCmd to not allow flags after positional arguments
 	RunCmd.Flags().SetInterspersed(false)
+	// Display special help message for crane flags
+	RunCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		cmd.Println(cmd.UsageString())
+		cmd.Println("Crane Flags:")
+		cmd.Println(
+			FlagSetCrane.FlagUsages())
+		cmd.Println("To use crane flags, place them between 'ccon' and 'run', e.g.,\n  ccon -P CPU run ...")
+	})
 
 	// Stop command flags
 	StopCmd.Flags().IntVarP(&FlagTimeout, "timeout", "t", 10, "Seconds to wait for stop before killing it")
