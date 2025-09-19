@@ -151,8 +151,9 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 
 	server := normalizeServerAddress(args[0])
 
-	username := FlagUsername
-	password := FlagPassword
+	f := GetFlags()
+	username := f.Login.Username
+	password := f.Login.Password
 
 	if username == "" {
 		fmt.Print("Username: ")
@@ -167,7 +168,7 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 
 	if password == "" {
 		var err error
-		password, err = readPassword(FlagPasswordStdin)
+		password, err = readPassword(f.Login.PasswordStdin)
 		if err != nil {
 			return &util.CraneError{
 				Code:    util.ErrorCmdArg,
@@ -203,7 +204,7 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if FlagJson {
+	if f.Global.Json {
 		jsonData, _ := json.Marshal(config)
 		fmt.Println(string(jsonData))
 	} else {
@@ -304,7 +305,8 @@ func logoutExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if FlagJson {
+	f := GetFlags()
+	if f.Global.Json {
 		jsonData, _ := json.Marshal(config)
 		fmt.Println(string(jsonData))
 	} else {

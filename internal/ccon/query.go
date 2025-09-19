@@ -42,12 +42,13 @@ func psExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	config := util.ParseConfig(FlagConfigFilePath)
+	f := GetFlags()
+	config := util.ParseConfig(f.Global.ConfigPath)
 	stub := util.GetStubToCtldByConfig(config)
 
 	request := protos.QueryTasksInfoRequest{
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: FlagAll,
+		OptionIncludeCompletedTasks: f.Ps.All,
 	}
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
@@ -68,13 +69,13 @@ func psExecute(cmd *cobra.Command, args []string) error {
 		return taskI.TaskId > taskJ.TaskId
 	})
 
-	if FlagJson {
+	if f.Global.Json {
 		jsonData, _ := json.Marshal(reply.TaskInfoList)
 		fmt.Println(string(jsonData))
 		return nil
 	}
 
-	if FlagQuiet {
+	if f.Ps.Quiet {
 		for _, task := range reply.TaskInfoList {
 			fmt.Println(strconv.FormatUint(uint64(task.TaskId), 10))
 		}
@@ -156,7 +157,8 @@ func inspectExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	config := util.ParseConfig(FlagConfigFilePath)
+	f := GetFlags()
+	config := util.ParseConfig(f.Global.ConfigPath)
 	stub := util.GetStubToCtldByConfig(config)
 
 	request := protos.QueryTasksInfoRequest{
