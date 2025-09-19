@@ -117,7 +117,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	if f.Log.Follow {
-		return followLogFile(logPath, f.Log.Tail, sinceTime, untilTime, f.Log.Timestamps, f.Global.Json, jobIDStr)
+		return followLogFile(logPath, f.Log.Tail, sinceTime, untilTime, f.Log.Timestamps)
 	} else {
 		logLines, err := readLogFileWithTimeFilter(logPath, f.Log.Tail, sinceTime, untilTime)
 		if err != nil {
@@ -126,7 +126,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 		if f.Global.Json {
 			result := map[string]interface{}{
-				"container":  jobIDStr,
+				"id":         jobIDStr,
 				"logs":       logLines,
 				"follow":     f.Log.Follow,
 				"tail":       f.Log.Tail,
@@ -164,13 +164,22 @@ func buildLogPath(task *protos.TaskInfo, taskID uint32) (string, error) {
 	return logPath, nil
 }
 
-func followLogFile(logPath string, tailLines int, sinceTime, untilTime *time.Time, timestamps, jsonOutput bool, containerID string) error {
+func followLogFile(logPath string, tailLines int, sinceTime, untilTime *time.Time, timestamps bool) error {
+	printLogLine := func(line string, timestamps bool) {
+		if timestamps {
+			fmt.Println(line)
+		} else {
+			cleanLine := removeTimestamp(line)
+			fmt.Println(cleanLine)
+		}
+	}
+
 	// First, read existing content if needed
 	if tailLines > 0 {
 		existingLines, err := readLogFileWithTimeFilter(logPath, tailLines, sinceTime, untilTime)
 		if err == nil {
 			for _, line := range existingLines {
-				printLogLine(line, timestamps, jsonOutput, containerID)
+				printLogLine(line, timestamps)
 			}
 		}
 	}
@@ -223,7 +232,7 @@ func followLogFile(logPath string, tailLines int, sinceTime, untilTime *time.Tim
 				continue
 			}
 
-			printLogLine(line.Text, timestamps, jsonOutput, containerID)
+			printLogLine(line.Text, timestamps)
 
 		case <-sigChan:
 			return nil // graceful shutdown
@@ -249,26 +258,6 @@ func shouldFilterLogLine(line string, sinceTime, untilTime *time.Time) bool {
 	}
 
 	return false // don't filter
-}
-
-func printLogLine(line string, timestamps, jsonOutput bool, containerID string) {
-	if jsonOutput {
-		// For follow mode with JSON, print each line as separate JSON object
-		result := map[string]interface{}{
-			"container": containerID,
-			"log":       line,
-			"timestamp": time.Now().Format(time.RFC3339Nano),
-		}
-		jsonData, _ := json.Marshal(result)
-		fmt.Println(string(jsonData))
-	} else {
-		if timestamps {
-			fmt.Println(line)
-		} else {
-			cleanLine := removeTimestamp(line)
-			fmt.Println(cleanLine)
-		}
-	}
 }
 
 func parseCliTimeString(timeStr string) (time.Time, error) {
