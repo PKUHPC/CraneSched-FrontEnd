@@ -162,6 +162,8 @@ func InitializeCommandFlags() {
 	LogCmd.Flags().BoolVarP(&f.Log.Follow, "follow", "f", false, "Follow log output")
 	LogCmd.Flags().IntVar(&f.Log.Tail, "tail", -1, "Number of lines to show from the end of the logs")
 	LogCmd.Flags().BoolVarP(&f.Log.Timestamps, "timestamps", "t", false, "Show timestamps")
+	LogCmd.Flags().StringVar(&f.Log.Since, "since", "", "Show logs since timestamp (e.g. 2025-01-15T10:30:00Z) or relative (e.g. 42m for 42 minutes)")
+	LogCmd.Flags().StringVar(&f.Log.Until, "until", "", "Show logs before a timestamp (e.g. 2025-01-15T10:30:00Z) or relative (e.g. 42m for 42 minutes)")
 
 	LoginCmd.Flags().StringVarP(&f.Login.Username, "username", "u", "", "Username for registry authentication")
 	LoginCmd.Flags().StringVarP(&f.Login.Password, "password", "p", "", "Password for registry authentication")
