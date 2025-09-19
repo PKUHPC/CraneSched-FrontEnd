@@ -138,6 +138,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	f := GetFlags()
 	image := args[0]
 	var command []string
 	if len(args) > 1 {
@@ -145,7 +146,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build the container task
-	task, err := buildContainerTask(image, command)
+	task, err := buildContainerTask(f, image, command)
 	if err != nil {
 		return fmt.Errorf("failed to build container task: %v", err)
 	}
@@ -160,10 +161,35 @@ func runExecute(cmd *cobra.Command, args []string) error {
 }
 
 // applyResourceOptions applies resource options to the task
-func applyResourceOptions(task *protos.TaskToCtld) error {
+func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
+	// Check mutally exclusive flags
+	if f.Run.Cpus > 0 && f.Crane.CpusPerTask > 0 {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "--cpus and --cpus-per-task are mutually exclusive",
+		}
+	}
+
+	if f.Run.Memory != "" && f.Crane.Mem != "" {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "--memory and --mem are mutually exclusive",
+		}
+	}
+
+	if f.Run.Gpus != "" && f.Crane.Gres != "" {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "--gpus and --gres are mutually exclusive",
+		}
+	}
+
 	// CPU allocation
-	if FlagCpus > 0 {
-		task.CpusPerTask = FlagCpus
+	if f.Crane.CpusPerTask > 0 {
+		task.CpusPerTask = f.Crane.CpusPerTask
+	} else if f.Run.Cpus > 0 {
+		log.Warn("--cpus is deprecated, please use --cpus-per-task instead")
+		task.CpusPerTask = f.Run.Cpus
 	} else {
 		// Default to 1 CPU if not specified
 		task.CpusPerTask = 1
@@ -171,11 +197,11 @@ func applyResourceOptions(task *protos.TaskToCtld) error {
 
 	// Memory allocation - prefer --mem over --memory
 	memorySpec := ""
-	if FlagMem != "" {
-		memorySpec = FlagMem
-	} else if FlagMemory != "" {
+	if f.Crane.Mem != "" {
+		memorySpec = f.Crane.Mem
+	} else if f.Run.Memory != "" {
 		log.Warn("--memory is deprecated, please use --mem instead")
-		memorySpec = FlagMemory
+		memorySpec = f.Run.Memory
 	}
 
 	if memorySpec != "" {
@@ -189,12 +215,12 @@ func applyResourceOptions(task *protos.TaskToCtld) error {
 
 	// GPU allocation - prefer --gres over --gpus
 	gresSpec := ""
-	if FlagGres != "" {
-		gresSpec = FlagGres
-	} else if FlagGpus != "" {
+	if f.Crane.Gres != "" {
+		gresSpec = f.Crane.Gres
+	} else if f.Run.Gpus != "" {
 		return &util.CraneError{
 			Code:    util.ErrorCmdArg,
-			Message: "--gpus is not supported due to format complexity. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'",
+			Message: "--gpus is not supported. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'",
 		}
 	}
 
@@ -207,73 +233,73 @@ func applyResourceOptions(task *protos.TaskToCtld) error {
 }
 
 // applySchedulingOptions applies cluster scheduling options to the task
-func applySchedulingOptions(task *protos.TaskToCtld) error {
+func applySchedulingOptions(f *Flags, task *protos.TaskToCtld) error {
 	// Partition/queue assignment
-	if FlagPartition != "" {
-		task.PartitionName = FlagPartition
+	if f.Crane.Partition != "" {
+		task.PartitionName = f.Crane.Partition
 	}
 
 	// Time limit
-	if FlagTime != "" {
-		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
+	if f.Crane.Time != "" {
+		seconds, err := util.ParseDurationStrToSeconds(f.Crane.Time)
 		if err != nil {
-			return fmt.Errorf("invalid time specification '%s': %v", FlagTime, err)
+			return fmt.Errorf("invalid time specification '%s': %v", f.Crane.Time, err)
 		}
 		task.TimeLimit.Seconds = seconds
 	}
 
 	// Account
-	if FlagAccount != "" {
-		task.Account = FlagAccount
+	if f.Crane.Account != "" {
+		task.Account = f.Crane.Account
 	}
 
 	// QoS
-	if FlagQos != "" {
-		task.Qos = FlagQos
+	if f.Crane.Qos != "" {
+		task.Qos = f.Crane.Qos
 	}
 
 	// Node allocation - validate parameters
-	if FlagNodes > 0 {
-		task.NodeNum = FlagNodes
+	if f.Crane.Nodes > 0 {
+		task.NodeNum = f.Crane.Nodes
 	} else {
 		task.NodeNum = 1
 	}
 
-	if FlagNtasksPerNode > 0 {
-		task.NtasksPerNode = FlagNtasksPerNode
+	if f.Crane.NtasksPerNode > 0 {
+		task.NtasksPerNode = f.Crane.NtasksPerNode
 	} else {
 		task.NtasksPerNode = 1
 	}
 
 	// Node list (specific nodes)
-	if FlagNodelist != "" {
-		task.Nodelist = FlagNodelist
+	if f.Crane.Nodelist != "" {
+		task.Nodelist = f.Crane.Nodelist
 	}
 
 	// Exclude nodes
-	if FlagExcludes != "" {
-		task.Excludes = FlagExcludes
+	if f.Crane.Excludes != "" {
+		task.Excludes = f.Crane.Excludes
 	}
 
 	// Reservation
-	if FlagReservation != "" {
-		task.Reservation = FlagReservation
+	if f.Crane.Reservation != "" {
+		task.Reservation = f.Crane.Reservation
 	}
 
 	// Extra attributes - handle both individual flags and JSON like cbatch
 	structExtraFromCli := util.JobExtraAttrs{}
 
-	if FlagExtraAttr != "" {
-		structExtraFromCli.ExtraAttr = FlagExtraAttr
+	if f.Crane.ExtraAttr != "" {
+		structExtraFromCli.ExtraAttr = f.Crane.ExtraAttr
 	}
-	if FlagMailType != "" {
-		structExtraFromCli.MailType = FlagMailType
+	if f.Crane.MailType != "" {
+		structExtraFromCli.MailType = f.Crane.MailType
 	}
-	if FlagMailUser != "" {
-		structExtraFromCli.MailUser = FlagMailUser
+	if f.Crane.MailUser != "" {
+		structExtraFromCli.MailUser = f.Crane.MailUser
 	}
-	if FlagComment != "" {
-		structExtraFromCli.Comment = FlagComment
+	if f.Crane.Comment != "" {
+		structExtraFromCli.Comment = f.Crane.Comment
 	}
 
 	// Marshal extra attributes
@@ -284,16 +310,16 @@ func applySchedulingOptions(task *protos.TaskToCtld) error {
 	task.ExtraAttr = extraFromCli
 
 	// Exclusive node allocation
-	task.Exclusive = FlagExclusive
+	task.Exclusive = f.Crane.Exclusive
 
 	// Hold job submission
-	task.Hold = FlagHold
+	task.Hold = f.Crane.Hold
 
 	return nil
 }
 
 // applyEnvironmentOptions applies environment-related options to the task
-func applyEnvironmentOptions(task *protos.TaskToCtld) error {
+func applyEnvironmentOptions(f *Flags, task *protos.TaskToCtld) error {
 	// Set CWD if not already set
 	if task.Cwd == "" {
 		task.Cwd, _ = os.Getwd()
@@ -310,7 +336,7 @@ func applyEnvironmentOptions(task *protos.TaskToCtld) error {
 }
 
 // buildContainerTask creates a TaskToCtld with container metadata from command line arguments
-func buildContainerTask(image string, command []string) (*protos.TaskToCtld, error) {
+func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskToCtld, error) {
 	task := &protos.TaskToCtld{
 		Type:      protos.TaskType_Container,
 		TimeLimit: util.InvalidDuration(),
@@ -329,17 +355,17 @@ func buildContainerTask(image string, command []string) (*protos.TaskToCtld, err
 	}
 
 	// Apply resource control options (Docker-style, mapped to cbatch semantics)
-	if err := applyResourceOptions(task); err != nil {
+	if err := applyResourceOptions(f, task); err != nil {
 		return nil, fmt.Errorf("failed to apply resource options: %v", err)
 	}
 
 	// Apply cluster scheduling options
-	if err := applySchedulingOptions(task); err != nil {
+	if err := applySchedulingOptions(f, task); err != nil {
 		return nil, fmt.Errorf("failed to apply scheduling options: %v", err)
 	}
 
 	// Apply environment options
-	if err := applyEnvironmentOptions(task); err != nil {
+	if err := applyEnvironmentOptions(f, task); err != nil {
 		return nil, fmt.Errorf("failed to apply environment options: %v", err)
 	}
 
@@ -365,8 +391,8 @@ func buildContainerTask(image string, command []string) (*protos.TaskToCtld, err
 			Password:      password,
 			ServerAddress: registry,
 		},
-		Userns:   FlagUserNS,
-		Detached: FlagDetach,
+		Userns:   f.Run.UserNS,
+		Detached: f.Run.Detach,
 		Env:      make(map[string]string),
 		Mounts:   make(map[string]string),
 		Ports:    make(map[int32]int32),
@@ -375,17 +401,17 @@ func buildContainerTask(image string, command []string) (*protos.TaskToCtld, err
 	// Set container name
 	// Currently, we set both names in Job and ContainerMeta, however,
 	// name in ContainerMeta may be ignored.
-	if FlagName != "" {
-		containerMeta.Name = FlagName
-		task.Name = FlagName
+	if f.Run.Name != "" {
+		containerMeta.Name = f.Run.Name
+		task.Name = f.Run.Name
 	} else {
 		containerMeta.Name = ""
 		task.Name = ""
 	}
 
 	// Set entrypoint and command
-	if FlagEntrypoint != "" {
-		containerMeta.Command = FlagEntrypoint
+	if f.Run.Entrypoint != "" {
+		containerMeta.Command = f.Run.Entrypoint
 		containerMeta.Args = command
 	} else {
 		if len(command) > 0 {
@@ -397,33 +423,33 @@ func buildContainerTask(image string, command []string) (*protos.TaskToCtld, err
 	}
 
 	// Set working directory
-	if FlagWorkdir != "" {
-		containerMeta.Workdir = FlagWorkdir
+	if f.Run.Workdir != "" {
+		containerMeta.Workdir = f.Run.Workdir
 	}
 
 	// Parse and set user information
-	if FlagUser != "" {
-		if err := parseUserSpec(FlagUser, containerMeta); err != nil {
-			return nil, fmt.Errorf("invalid user specification '%s': %v", FlagUser, err)
+	if f.Run.User != "" {
+		if err := parseUserSpec(f.Run.User, containerMeta); err != nil {
+			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
 		}
 	}
 
 	// Parse and set environment variables (container-specific)
-	for _, env := range FlagEnv {
+	for _, env := range f.Run.Env {
 		if err := parseEnvVar(env, containerMeta.Env); err != nil {
 			return nil, fmt.Errorf("invalid environment variable '%s': %v", env, err)
 		}
 	}
 
 	// Parse and set port mappings
-	for _, port := range FlagPorts {
+	for _, port := range f.Run.Ports {
 		if err := parsePortMapping(port, containerMeta.Ports); err != nil {
 			return nil, fmt.Errorf("invalid port mapping '%s': %v", port, err)
 		}
 	}
 
 	// Parse and set volume mounts
-	for _, volume := range FlagVolume {
+	for _, volume := range f.Run.Volume {
 		if err := parseVolumeMount(volume, containerMeta.Mounts); err != nil {
 			return nil, fmt.Errorf("invalid volume mount '%s': %v", volume, err)
 		}
@@ -500,7 +526,8 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 
 // submitContainerTask submits a container task via gRPC
 func submitContainerTask(task *protos.TaskToCtld) error {
-	config := util.ParseConfig(FlagConfigFilePath)
+	f := GetFlags()
+	config := util.ParseConfig(f.Global.ConfigPath)
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchTaskRequest{Task: task}
 
@@ -510,7 +537,7 @@ func submitContainerTask(task *protos.TaskToCtld) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	if FlagJson {
+	if f.Global.Json {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			return nil

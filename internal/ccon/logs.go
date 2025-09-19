@@ -51,26 +51,27 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	var logsToShow []string
-	if FlagTail > 0 && FlagTail < len(mockLogs) {
-		logsToShow = mockLogs[len(mockLogs)-FlagTail:]
+	f := GetFlags()
+	if f.Log.Tail > 0 && f.Log.Tail < len(mockLogs) {
+		logsToShow = mockLogs[len(mockLogs)-f.Log.Tail:]
 	} else {
 		logsToShow = mockLogs
 	}
 
-	if FlagJson {
+	if f.Global.Json {
 		result := map[string]interface{}{
 			"action":     "log",
 			"container":  container,
 			"logs":       logsToShow,
-			"follow":     FlagFollow,
-			"tail":       FlagTail,
-			"timestamps": FlagTimestamps,
+			"follow":     f.Log.Follow,
+			"tail":       f.Log.Tail,
+			"timestamps": f.Log.Timestamps,
 		}
 		jsonData, _ := json.Marshal(result)
 		fmt.Println(string(jsonData))
 	} else {
 		for _, log := range logsToShow {
-			if FlagTimestamps {
+			if f.Log.Timestamps {
 				fmt.Println(log)
 			} else {
 				// Remove timestamp prefix for cleaner output
@@ -81,7 +82,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-		if FlagFollow {
+		if f.Log.Follow {
 			fmt.Printf("[Following logs for container %s... Press Ctrl+C to stop]\n", container)
 		}
 	}
