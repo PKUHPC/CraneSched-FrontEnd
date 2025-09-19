@@ -78,6 +78,8 @@ type LogFlags struct {
 	Follow     bool
 	Tail       int
 	Timestamps bool
+	Since      string
+	Until      string
 }
 
 type LoginFlags struct {
