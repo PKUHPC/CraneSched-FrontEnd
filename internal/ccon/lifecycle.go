@@ -52,7 +52,8 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get configuration and create gRPC client
-	config := util.ParseConfig(FlagConfigFilePath)
+	f := GetFlags()
+	config := util.ParseConfig(f.Global.ConfigPath)
 	stub := util.GetStubToCtldByConfig(config)
 
 	// First, query the task to verify it's a container task
@@ -76,7 +77,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	// Check if the task exists and is a container task
 	if len(queryReply.TaskInfoList) == 0 {
-		if FlagJson {
+		if f.Global.Json {
 			result := map[string]any{
 				"action":  "stop",
 				"task_id": taskId,
@@ -112,7 +113,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	if FlagJson {
+	if f.Global.Json {
 		if len(reply.CancelledTasks) > 0 {
 			result := map[string]any{
 				"action":  "stop",
