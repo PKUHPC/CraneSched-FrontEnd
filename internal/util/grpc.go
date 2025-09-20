@@ -119,7 +119,7 @@ func (c *UnixPeerCredentials) OverrideServerName(s string) error       { return 
 
 func GetTCPSocket(bindAddr string, config *Config) (net.Listener, error) {
 	if config.TlsConfig.Enabled {
-		CaCertContent, err := os.ReadFile(config.TlsConfig.InternalCaFilePath)
+		CaCertContent, err := os.ReadFile(config.TlsConfig.CaFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -278,7 +278,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 			os.Exit(ErrorGeneric)
 		}
 
-		CaCertContent, err := os.ReadFile(config.TlsConfig.InternalCaFilePath)
+		CaCertContent, err := os.ReadFile(config.TlsConfig.CaFilePath)
 		if err != nil {
 			log.Errorln("Read CA certifacate error: " + err.Error())
 			os.Exit(ErrorGeneric)
@@ -338,7 +338,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 
 	if err := SignAndSaveUserCertificate(config); err != nil {
-		caCert, err := os.ReadFile(config.TlsConfig.ExternalCaFilePath)
+		caCert, err := os.ReadFile(config.TlsConfig.CaFilePath)
 		if err != nil {
 			return nil, err
 		}
