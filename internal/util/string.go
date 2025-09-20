@@ -171,7 +171,203 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	seconds := int64(24*60*60*dd + 60*60*hh + 60*mm + ss)
 	return seconds, nil
 }
+func ParseRelativeTime(ts string) (int64, error) {
+	// handle now+1hour now-2week etc.
+	re := regexp.MustCompile(`^(\d+)([a-zA-Z]*)$`)
+	if result := re.FindStringSubmatch(ts); result != nil {
+		value, err := strconv.ParseInt(result[1], 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration: %v", ts)
+		}
+		unit := strings.ToLower(result[2])
+		switch unit {
+		case "", "s", "sec", "second", "seconds":
+			return value, nil
+		case "m", "min", "minute", "minutes":
+			return value * 60, nil
+		case "h", "hour", "hours":
+			return value * 3600, nil
+		case "d", "day", "days":
+			return value * 24 * 3600, nil
+		case "w", "week", "weeks":
+			return value * 7 * 24 * 3600, nil
+		default:
+			return 0, fmt.Errorf("invalid duration: %v", ts)
+		}
+	}
+	// handle now+12:20:12
+	return ParseDurationStrToSeconds(ts)
+}
+func ParseDayTime(day string) (time.Time, error) {
+	now := time.Now()
+	// handle time of day (HH:MM[:SS] am pm also available)
+	// e.g. 09:00am 16:30
+	re := regexp.MustCompile(`(\d{2}):(\d{2})(?::(\d{2}))?(am|pm)?`)
+	if result := re.FindStringSubmatch(day); result != nil {
+		hh, err := strconv.ParseUint(result[1], 10, 64)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid hour format: %s", result[1])
+		}
+		if hh > 12 && result[4] == "am" {
+			return time.Time{}, fmt.Errorf("invalid time format: %v", day)
+		}
+		if hh == 12 && result[4] == "am" {
+			hh = 0
+		}
+		if hh != 12 && result[4] == "pm" {
+			hh += 12
+		}
+		if hh >= 24 {
+			return time.Time{}, fmt.Errorf("invalid hour format: %s", result[1])
+		}
+		mm, err := strconv.ParseUint(result[2], 10, 64)
+		if err != nil || mm >= 60 {
+			return time.Time{}, fmt.Errorf("invalid hour format: %s", result[1])
+		}
+		var ss uint64 = 0
+		var err1 error
+		if result[3] != "" {
+			ss, err1 = strconv.ParseUint(result[3], 10, 64)
+			if err1 != nil || ss >= 60 {
+				return time.Time{}, fmt.Errorf("invalid second format: %s", result[3])
+			}
+		}
+		t := time.Date(now.Year(), now.Month(), now.Day(), int(hh), int(mm), int(ss), 0, now.Location())
+		if t.Before(now) {
+			t = t.Add(24 * time.Hour)
+		}
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("invalid time format: %v", day)
+}
+func ParseDate(year string, month string, day string) (time.Time, error) {
+	// note: if the date is before now, the return date's year will plus one
+	now := time.Now()
+	var yy uint64
+	if year == "" {
+		yy = uint64(now.Year())
+	} else {
+		var err error
+		yy, err = strconv.ParseUint(year, 10, 64)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid year format: %s", year)
+		}
+	}
+	if len(year) == 2 {
+		yy += 2000
+	}
+	mm, err := strconv.ParseUint(month, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid month format: %s", month)
 
+	}
+	dd, err := strconv.ParseUint(day, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid day format: %s", day)
+	}
+	t := time.Date(int(yy), time.Month(mm), int(dd), 0, 0, 0, 0, now.Location())
+	if t.Month() != time.Month(mm) || t.Day() != int(dd) {
+		return time.Time{}, fmt.Errorf("invalid date format: %04d-%02d-%02d", yy, mm, dd)
+	}
+	if year == "" && t.Before(now) {
+		t = t.AddDate(1, 0, 0)
+	}
+	return t, nil
+}
+func ParseDateTime(date string) (time.Time, error) {
+	var re *regexp.Regexp
+	// handle YYYY-MM-DD
+	re = regexp.MustCompile(`(\d{4})-(\d{2})-(\d{2})`)
+	if result := re.FindStringSubmatch(date); result != nil {
+		t, err := ParseDate(result[1], result[2], result[3])
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid date format: %v", date)
+		}
+		return t, nil
+	}
+	// handle MM/DD[/YY]
+	re = regexp.MustCompile(`(\d{2})/(\d{2})(?:/(\d{2}))?`)
+	if result := re.FindStringSubmatch(date); result != nil {
+		t, err := ParseDate(result[3], result[1], result[2])
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid date format: %v", date)
+		}
+		return t, nil
+	}
+	// handle MMDD[YY]
+	re = regexp.MustCompile(`(\d{2})(\d{2})(\d{2})?`)
+	if result := re.FindStringSubmatch(date); result != nil {
+		t, err := ParseDate(result[3], result[1], result[2])
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid date format: %v", date)
+		}
+		return t, nil
+	}
+	// handle YYYY-MM-DD[THH:MM[:SS]]
+	re = regexp.MustCompile(`(\d{4})-(\d{2})-(\d{2})(?:T(.+))?`)
+	if result := re.FindStringSubmatch(date); result != nil {
+		t, err := ParseDate(result[1], result[2], result[3])
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid date format: %v", date)
+		}
+		if result[4] != "" {
+			dayTime, err := ParseDayTime(result[4])
+			if err != nil {
+				return time.Time{}, fmt.Errorf("invalid date format: %v", date)
+			}
+			hh, mm, ss := dayTime.Clock()
+			t = t.Add(time.Duration(hh)*time.Hour +
+				time.Duration(mm)*time.Minute +
+				time.Duration(ss)*time.Second)
+		}
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("invalid date format: %v", date)
+}
+func ParseKeywordTime(keyword string) (time.Time, error) {
+	// note: donot support tomorrowTnoon
+	// only handle single keyword
+	now := time.Now()
+	t := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	parseWeekday := func(offset int) (time.Time, error) {
+		offset = (offset - int(now.Weekday()) + 7) % 7
+		if offset == 0 {
+			offset = 7
+		}
+		return t.AddDate(0, 0, offset), nil
+	}
+	switch keyword {
+	case "noon":
+		return t, nil
+	case "elevenses":
+		return t.Add(11 * time.Hour), nil
+	case "midnight":
+		return t.Add(12 * time.Hour), nil
+	case "fika":
+		return t.Add(15 * time.Hour), nil
+	case "teatime":
+		return t.Add(16 * time.Hour), nil
+	case "today":
+		return t, nil
+	case "tomorrow":
+		return t.AddDate(0, 0, 1), nil
+	case "sunday":
+		return parseWeekday(int(time.Sunday))
+	case "monday":
+		return parseWeekday(int(time.Monday))
+	case "tuesday":
+		return parseWeekday(int(time.Tuesday))
+	case "wednesday":
+		return parseWeekday(int(time.Wednesday))
+	case "thursday":
+		return parseWeekday(int(time.Thursday))
+	case "friday":
+		return parseWeekday(int(time.Friday))
+	case "saturday":
+		return parseWeekday(int(time.Saturday))
+	}
+	return time.Time{}, fmt.Errorf("invalid keyword time: %s", keyword)
+}
 func ParseTime(ts string) (time.Time, error) {
 	if strings.HasPrefix(ts, "now") {
 		t := time.Time{}
@@ -179,14 +375,14 @@ func ParseTime(ts string) (time.Time, error) {
 			t = time.Now()
 		} else if ts[3] == '+' {
 			// '+' adds offset to Now()
-			seconds, err := ParseDurationStrToSeconds(ts[4:])
+			seconds, err := ParseRelativeTime(ts[4:])
 			if err != nil {
 				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
 			t = time.Now().Add(time.Duration(seconds) * time.Second)
 		} else if ts[3] == '-' {
 			// '-' subtracts offset from Now()
-			seconds, err := ParseDurationStrToSeconds(ts[4:])
+			seconds, err := ParseRelativeTime(ts[4:])
 			if err != nil {
 				return t, fmt.Errorf("invalid duration '%v'", ts[4:])
 			}
@@ -195,6 +391,21 @@ func ParseTime(ts string) (time.Time, error) {
 			return t, fmt.Errorf("invalid time format")
 		}
 		return t.Round(0), nil
+	}
+
+	dayTime, err := ParseDayTime(ts)
+	if err == nil {
+		return dayTime, nil
+	}
+
+	dateTime, err := ParseDateTime(ts)
+	if err == nil {
+		return dateTime, nil
+	}
+
+	keywordTime, err := ParseKeywordTime(ts)
+	if err == nil {
+		return keywordTime, nil
 	}
 
 	// Use regex to check if HH:MM:SS exists
