@@ -327,13 +327,26 @@ func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply
 	}
 	return nil
 }
+
+// `%(\.\d+)?([a-zA-Z]+)`  
+// This regular expression starts with a percent sign (%), which may be followed 
+// by a decimal point and a number, and finally followed by a string of one or more letters.
+// for example "-o=ID:%.5j | Status:%t"   
+// return specifier is a int[][] arr
+//  ID:%.5j | Status:%t
+//  0123456789
+// The part corresponding to the ID, specifier[0]=[3,7,4,6,6,7]
+// %.5j --> [3,7)  .5 --> [4,6)    j --> [6,7)  左闭右开匹配
+// Parse into    [start,end)   [.start,num_end)   [spec_start,spec_end)
+//				   0      1       2      3           4          5
 func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, error) {
-	specifiers := re.FindAllStringSubmatchIndex(format, -1)
+ 	specifiers := re.FindAllStringSubmatchIndex(format, -1)
 	if specifiers == nil {
 		return nil, fmt.Errorf("invalid format specifier")
 	}
 
 	var segments []formatSegment
+	// ID:%.5j because specifiers[0][0] == 3 , so content ；format[0:start]
 	if start := specifiers[0][0]; start != 0 {
 		segments = append(segments, formatSegment{
 			segmentType: textSegment,
@@ -342,8 +355,13 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 	}
 
 	for i, spec := range specifiers {
+		// i > 0 , i = 0 the situation has been handled separately above
 		if i > 0 {
+			// get the ending position of the previous one
 			prevEnd := specifiers[i-1][1]
+			// If gap < 0, this is incorrect. The starting position index of 
+			// the second item must be greater than the ending position of the last item
+			// content : format[prevEnd:spec[0]]
 			if gap := spec[0] - prevEnd; gap > 0 {
 				segments = append(segments, formatSegment{
 					segmentType: textSegment,
@@ -352,6 +370,7 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 			}
 		}
 		width := -1
+		// spec[2] != -1 Get the width
 		if spec[2] != -1 {
 			widthVal, err := strconv.ParseUint(format[spec[2]+1:spec[3]], 10, 32)
 			if err != nil {
@@ -359,6 +378,7 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 			}
 			width = int(widthVal)
 		}
+		//get the field specifier
 		field := format[spec[4]:spec[5]]
 		segments = append(segments, formatSegment{
 			segmentType: specifierSegment,
@@ -366,7 +386,9 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 			width:       width,
 		})
 	}
-
+	
+	// The last spec needs to be processed separately, 
+	// as it may still contain some characters after the spec ends
 	if lastSpec := specifiers[len(specifiers)-1]; len(format) > lastSpec[1] {
 		segments = append(segments, formatSegment{
 			segmentType: textSegment,

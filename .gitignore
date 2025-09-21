@@ -13,3 +13,4 @@ bin
 # Testing
 testcase
 *.out
+test/
