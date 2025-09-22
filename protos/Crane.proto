@@ -890,11 +890,9 @@ message QueryAccountUserSummaryItemRequest {
   google.protobuf.Timestamp end_time = 4;
 }
 
-message QueryAccountUserSummaryItemReply {
-  bool ok = 1;
-  string cluster = 2;
-  repeated AccountUserSummaryItem items = 3;
-}
+  message QueryAccountUserSummaryItemReply {
+    repeated AccountUserSummaryItem items = 1;
+  }
 
 // Todo: Divide service into two parts: one for Craned and one for Crun
 //  We need to distinguish the message sender
@@ -952,7 +950,7 @@ service CraneCtld {
   /* RPCS called from PKI request */
   rpc SignUserCertificate(SignUserCertificateRequest) returns (SignUserCertificateResponse);
 
-  rpc QueryAccountUserSummaryItem(QueryAccountUserSummaryItemRequest) returns (QueryAccountUserSummaryItemReply);
+  rpc QueryAccountUserSummaryItemStream(QueryAccountUserSummaryItemRequest) returns (stream AccountUserSummaryItem);
 }
 
 service CraneCtldForInternal {

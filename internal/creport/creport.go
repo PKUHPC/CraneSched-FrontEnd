@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	//"os/user"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -71,25 +72,38 @@ func QueryAccountUserSummaryItem() error {
 	req.EndTime = timestamppb.New(end_time)
 
 	rpcStart := time.Now()
-	reply, err := stub.QueryAccountUserSummaryItem(context.Background(), req)
-	rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryAccountUserSummaryItem] QueryAccountUserSummaryItem RPC used %d ms\n", rpcElapsed.Milliseconds())
+	stream, err := stub.QueryAccountUserSummaryItemStream(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query job info")
+		util.GrpcErrorPrintf(err, "Failed to query AccountUserSummary info")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
+
+	var accountUserList []*protos.AccountUserSummaryItem
+
+	for {
+		item, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			util.GrpcErrorPrintf(err, "Failed to receive item")
+			return &util.CraneError{Code: util.ErrorNetwork}
+		}
+		accountUserList = append(accountUserList, item)
+	}
+		rpcElapsed := time.Since(rpcStart)
+	fmt.Printf("[QueryAccountUserSummaryItemStream] QueryAccountUserSummaryItemStream RPC used %d ms\n", rpcElapsed.Milliseconds())
 
 	// for _, item := range reply.Items {
 	// 	fmt.Printf("Account: %s, Username: %s, CPU Time: %d, CPU Alloc: %d, job_count: %d\n",
 	// 		item.Account, item.Username, item.TotalCpuTime, item.TotalCpuAlloc, item.TotalCount)
 	// }
-
-	PrintAccountUserList(reply.Items, reply.GetCluster(), start_time, end_time, FlagOutType)
+	PrintAccountUserList(accountUserList, start_time, end_time, FlagOutType)
 
 	return nil
 }
 
-func PrintAccountUserList(accountUserList []*protos.AccountUserSummaryItem, cluster string, startTime, endTime time.Time, outType string) {
+func PrintAccountUserList(accountUserList []*protos.AccountUserSummaryItem, startTime, endTime time.Time, outType string) {
 	if len(accountUserList) == 0 {
 		fmt.Printf("accountUserList empty\n")
 		return
@@ -140,10 +154,10 @@ func PrintAccountUserList(accountUserList []*protos.AccountUserSummaryItem, clus
 		// 	continue
 		// }
 		tableData = append(tableData, []string{
-			cluster,
+			item.Cluster,
 			item.Account,
 			item.Username,
-			item.Username,//usr.Name,
+			item.Username, //usr.Name,
 			strconv.FormatInt(item.TotalCpuTime/divisor, 10),
 			"0",
 		})
