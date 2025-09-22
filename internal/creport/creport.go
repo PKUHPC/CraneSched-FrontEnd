@@ -81,7 +81,7 @@ func QueryAccountUserSummaryItem() error {
 	var accountUserList []*protos.AccountUserSummaryItem
 
 	for {
-		item, err := stream.Recv()
+		batch, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
@@ -89,10 +89,12 @@ func QueryAccountUserSummaryItem() error {
 			util.GrpcErrorPrintf(err, "Failed to receive item")
 			return &util.CraneError{Code: util.ErrorNetwork}
 		}
-		accountUserList = append(accountUserList, item)
+		for _, item := range batch.Items {
+			accountUserList = append(accountUserList, item)
+		}
 	}
-		rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryAccountUserSummaryItemStream] QueryAccountUserSummaryItemStream RPC used %d ms\n", rpcElapsed.Milliseconds())
+	rpcElapsed := time.Since(rpcStart)
+	fmt.Printf("[QueryAccountUserSummaryItemStream] QueryAccountUserSummaryItemStream RPC used %d ms, accountUserList size %v\n", rpcElapsed.Milliseconds(), len(accountUserList))
 
 	// for _, item := range reply.Items {
 	// 	fmt.Printf("Account: %s, Username: %s, CPU Time: %d, CPU Alloc: %d, job_count: %d\n",
