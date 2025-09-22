@@ -108,7 +108,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 					command = strings.Join(cmdParts, " ")
 				}
 			}
-			command = truncateCommand(command, 40)
+			command = truncateCommand(command, 20)
 
 			status := strings.ToUpper(task.Status.String())
 			createdStr := formatDuration(time.Since(task.SubmitTime.AsTime())) + " ago"
@@ -179,7 +179,7 @@ func inspectExecute(cmd *cobra.Command, args []string) error {
 
 	if len(reply.TaskInfoList) == 0 {
 		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
+			Code:    util.ErrorBackend,
 			Message: fmt.Sprintf("container with job ID %s not found", jobIDStr),
 		}
 	}
