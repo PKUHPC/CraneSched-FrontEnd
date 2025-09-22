@@ -81,7 +81,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 	if len(reply.TaskInfoList) == 0 {
 		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
+			Code:    util.ErrorBackend,
 			Message: fmt.Sprintf("container with job ID %s not found", jobIDStr),
 		}
 	}
@@ -294,7 +294,7 @@ func readLogFileWithTimeFilter(logPath string, tail int, sinceTime, untilTime *t
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, &util.CraneError{
-				Code:    util.ErrorCmdArg,
+				Code:    util.ErrorBackend,
 				Message: fmt.Sprintf("log file not found: %s", logPath),
 			}
 		}

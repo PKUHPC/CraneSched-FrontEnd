@@ -199,7 +199,7 @@ func init() {
 		cmd.Println(runCmdOriginUsageStr)
 		cmd.Println("Crane Flags:")
 		cmd.Println(craneFlagsUsage)
-		cmd.Println("To use crane flags, place them between 'ccon' and 'run', e.g.,\n  ccon -P CPU run ...")
+		cmd.Println("To use crane flags, place them between 'ccon' and 'run', e.g.,\n  ccon -p CPU run ...")
 		return nil
 	})
 }

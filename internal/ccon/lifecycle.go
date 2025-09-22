@@ -86,7 +86,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 			}
 			jsonData, _ := json.Marshal(result)
 			fmt.Println(string(jsonData))
-			return &util.CraneError{Code: util.ErrorCmdArg}
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 		return &util.CraneError{
 			Code:    util.ErrorCmdArg,
