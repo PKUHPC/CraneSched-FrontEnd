@@ -202,7 +202,7 @@ func ParseDayTime(day string) (time.Time, error) {
 	now := time.Now()
 	// handle time of day (HH:MM[:SS] am pm also available)
 	// e.g. 09:00am 16:30
-	re := regexp.MustCompile(`(\d{2}):(\d{2})(?::(\d{2}))?(am|pm)?`)
+	re := regexp.MustCompile(`^(\d{2}):(\d{2})(?::(\d{2}))?(am|pm)?$`)
 	if result := re.FindStringSubmatch(day); result != nil {
 		hh, err := strconv.ParseUint(result[1], 10, 64)
 		if err != nil {
@@ -277,7 +277,7 @@ func ParseDate(year string, month string, day string) (time.Time, error) {
 func ParseDateTime(date string) (time.Time, error) {
 	var re *regexp.Regexp
 	// handle YYYY-MM-DD
-	re = regexp.MustCompile(`(\d{4})-(\d{2})-(\d{2})`)
+	re = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})$`)
 	if result := re.FindStringSubmatch(date); result != nil {
 		t, err := ParseDate(result[1], result[2], result[3])
 		if err != nil {
@@ -286,7 +286,7 @@ func ParseDateTime(date string) (time.Time, error) {
 		return t, nil
 	}
 	// handle MM/DD[/YY]
-	re = regexp.MustCompile(`(\d{2})/(\d{2})(?:/(\d{2}))?`)
+	re = regexp.MustCompile(`^(\d{2})/(\d{2})(?:/(\d{2}))?$`)
 	if result := re.FindStringSubmatch(date); result != nil {
 		t, err := ParseDate(result[3], result[1], result[2])
 		if err != nil {
@@ -295,7 +295,7 @@ func ParseDateTime(date string) (time.Time, error) {
 		return t, nil
 	}
 	// handle MMDD[YY]
-	re = regexp.MustCompile(`(\d{2})(\d{2})(\d{2})?`)
+	re = regexp.MustCompile(`^(\d{2})(\d{2})(\d{2})?$`)
 	if result := re.FindStringSubmatch(date); result != nil {
 		t, err := ParseDate(result[3], result[1], result[2])
 		if err != nil {
@@ -304,7 +304,7 @@ func ParseDateTime(date string) (time.Time, error) {
 		return t, nil
 	}
 	// handle YYYY-MM-DD[THH:MM[:SS]]
-	re = regexp.MustCompile(`(\d{4})-(\d{2})-(\d{2})(?:T(.+))?`)
+	re = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})(?:T(.+))?$`)
 	if result := re.FindStringSubmatch(date); result != nil {
 		t, err := ParseDate(result[1], result[2], result[3])
 		if err != nil {
