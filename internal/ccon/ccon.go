@@ -17,3 +17,32 @@
  */
 
 package ccon
+
+import (
+	"CraneFrontEnd/internal/util"
+	"encoding/json"
+	"fmt"
+
+	"google.golang.org/protobuf/reflect/protoreflect"
+)
+
+type CconJsonSchema struct {
+	Action  string `json:"action"`
+	Message string `json:"message,omitempty"`
+	Flags   any    `json:"flags,omitempty"`
+	Data    any    `json:"data,omitempty"`
+}
+
+func outputJson(action string, message string, flags any, data any) {
+	if msg, ok := data.(protoreflect.ProtoMessage); ok {
+		json.Unmarshal([]byte(util.FmtJson.FormatReply(msg)), &data)
+	}
+	output := CconJsonSchema{
+		Action:  action,
+		Message: message,
+		Flags:   flags,
+		Data:    data,
+	}
+	jsonData, _ := json.Marshal(output)
+	fmt.Println(string(jsonData))
+}

@@ -70,8 +70,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	})
 
 	if f.Global.Json {
-		jsonData, _ := json.Marshal(reply.TaskInfoList)
-		fmt.Println(string(jsonData))
+		outputJson("ps", "", f.Ps, reply)
 		return nil
 	}
 

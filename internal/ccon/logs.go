@@ -23,7 +23,6 @@ import (
 	"CraneFrontEnd/internal/util"
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -125,24 +124,16 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		}
 
 		if f.Global.Json {
-			result := map[string]interface{}{
-				"id":         jobIDStr,
-				"logs":       logLines,
-				"follow":     f.Log.Follow,
-				"tail":       f.Log.Tail,
-				"timestamps": f.Log.Timestamps,
-				"path":       logPath,
-			}
-			jsonData, _ := json.Marshal(result)
-			fmt.Println(string(jsonData))
-		} else {
-			for _, line := range logLines {
-				if f.Log.Timestamps {
-					fmt.Println(line)
-				} else {
-					cleanLine := removeTimestamp(line)
-					fmt.Println(cleanLine)
-				}
+			outputJson("log", "", f.Log, logLines)
+			return nil
+		}
+
+		for _, line := range logLines {
+			if f.Log.Timestamps {
+				fmt.Println(line)
+			} else {
+				cleanLine := removeTimestamp(line)
+				fmt.Println(cleanLine)
 			}
 		}
 	}
