@@ -136,7 +136,7 @@ func readPassword(fromStdin bool) (string, error) {
 
 func normalizeServerAddress(server string) string {
 	if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-		server = "https://" + server
+		server = "http://" + server
 	}
 	return server
 }
@@ -205,8 +205,7 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	if f.Global.Json {
-		jsonData, _ := json.Marshal(config)
-		fmt.Println(string(jsonData))
+		outputJson("login", "", f.Login, config)
 	} else {
 		fmt.Printf("Login Succeeded: %s\n", server)
 	}
@@ -307,8 +306,7 @@ func logoutExecute(cmd *cobra.Command, args []string) error {
 
 	f := GetFlags()
 	if f.Global.Json {
-		jsonData, _ := json.Marshal(config)
-		fmt.Println(string(jsonData))
+		outputJson("logout", "", nil, config)
 	} else {
 		fmt.Printf("Logout Succeeded: %s\n", server)
 	}

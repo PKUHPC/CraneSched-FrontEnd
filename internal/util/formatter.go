@@ -27,7 +27,7 @@ import (
 )
 
 type Formatter interface {
-	FormatReply(reply interface{}) string
+	FormatReply(reply any) string
 }
 
 // JSON
@@ -39,7 +39,7 @@ var mo = protojson.MarshalOptions{
 	UseProtoNames:     true,
 }
 
-func (f FormatterJson) FormatReply(reply interface{}) string {
+func (f FormatterJson) FormatReply(reply any) string {
 	if msg, ok := reply.(protoreflect.ProtoMessage); ok {
 		output, err := mo.Marshal(msg)
 		if err != nil {

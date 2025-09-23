@@ -22,7 +22,6 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -90,17 +89,6 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 
 	// Check if the task exists and is a container task
 	if len(queryReply.TaskInfoList) == 0 {
-		if f.Global.Json {
-			result := map[string]any{
-				"action":  "attach",
-				"task_id": taskId,
-				"status":  "failed",
-				"message": "Task not found or is not a container task",
-			}
-			jsonData, _ := json.Marshal(result)
-			fmt.Println(string(jsonData))
-			return &util.CraneError{Code: util.ErrorBackend}
-		}
 		return &util.CraneError{
 			Code:    util.ErrorBackend,
 			Message: fmt.Sprintf("Container task %d not found or is not a container task", taskId),
@@ -111,17 +99,6 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 
 	// Check if the task is in a state that allows attaching
 	if task.Status != protos.TaskStatus_Running {
-		if f.Global.Json {
-			result := map[string]any{
-				"action":  "attach",
-				"task_id": taskId,
-				"status":  "failed",
-				"message": fmt.Sprintf("Cannot attach to task in state: %s", task.Status.String()),
-			}
-			jsonData, _ := json.Marshal(result)
-			fmt.Println(string(jsonData))
-			return &util.CraneError{Code: util.ErrorBackend}
-		}
 		return &util.CraneError{
 			Code:    util.ErrorCmdArg,
 			Message: fmt.Sprintf("Cannot attach to task %d in state: %s", taskId, task.Status.String()),
@@ -147,42 +124,24 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	// Handle RPC response
-	if f.Global.Json {
-		result := map[string]any{
-			"action":  "attach",
-			"task_id": taskId,
-			"ok":      attachReply.Ok,
-			"reason":  attachReply.Reason,
-			"url":     attachReply.Url,
-			"flags": map[string]any{
-				"stdin":     attachReq.Stdin,
-				"stdout":    attachReq.Stdout,
-				"stderr":    attachReq.Stderr,
-				"tty":       attachReq.Tty,
-				"sig_proxy": f.Attach.SigProxy,
-			},
-		}
-		jsonData, _ := json.Marshal(result)
-		fmt.Println(string(jsonData))
-	} else {
-		if attachReply.Ok {
-			fmt.Printf("Attach request successful for task %d\n", taskId)
-			if attachReply.Url != "" {
-				fmt.Printf("Attach URL: %s\n", attachReply.Url)
-			}
-			fmt.Printf("Flags: stdin=%t, stdout=%t, stderr=%t, tty=%t, sig-proxy=%t\n",
-				attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty, f.Attach.SigProxy)
-		} else {
-			fmt.Printf("Attach request failed for task %d: %s\n", taskId, attachReply.Reason)
-		}
-	}
-
 	if !attachReply.Ok {
-		return &util.CraneError{
+		err = &util.CraneError{
 			Code:    util.ErrorBackend,
 			Message: fmt.Sprintf("Attach failed: %s", attachReply.Reason),
 		}
+	}
+
+	if f.Global.Json {
+		outputJson("attach", "", f.Attach, attachReply)
+		return err
+	}
+
+	// Handle RPC response
+	if attachReply.Ok {
+		fmt.Printf("Attach request successful for task %d\n", taskId)
+		fmt.Printf("Attach URL: %s\n", attachReply.Url)
+	} else {
+		fmt.Printf("Attach request failed for task %d: %s\n", taskId, attachReply.Reason)
 	}
 
 	return nil

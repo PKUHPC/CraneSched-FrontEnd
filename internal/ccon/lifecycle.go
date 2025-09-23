@@ -22,7 +22,6 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -77,17 +76,6 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	// Check if the task exists and is a container task
 	if len(queryReply.TaskInfoList) == 0 {
-		if f.Global.Json {
-			result := map[string]any{
-				"action":  "stop",
-				"task_id": taskId,
-				"status":  "failed",
-				"message": "Task not found or is not a container task",
-			}
-			jsonData, _ := json.Marshal(result)
-			fmt.Println(string(jsonData))
-			return &util.CraneError{Code: util.ErrorBackend}
-		}
 		return &util.CraneError{
 			Code:    util.ErrorCmdArg,
 			Message: fmt.Sprintf("Task %d not found or is not a container task", taskId),
@@ -114,28 +102,10 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	if f.Global.Json {
+		outputJson("stop", "", f.Stop, reply)
 		if len(reply.CancelledTasks) > 0 {
-			result := map[string]any{
-				"action":  "stop",
-				"task_id": taskId,
-				"status":  "success",
-				"message": "Container task stopped successfully",
-			}
-			jsonData, _ := json.Marshal(result)
-			fmt.Println(string(jsonData))
 			return nil
 		} else {
-			result := map[string]any{
-				"action":  "stop",
-				"task_id": taskId,
-				"status":  "failed",
-				"message": "Failed to stop container task",
-			}
-			if len(reply.NotCancelledReasons) > 0 {
-				result["reason"] = reply.NotCancelledReasons[0]
-			}
-			jsonData, _ := json.Marshal(result)
-			fmt.Println(string(jsonData))
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
