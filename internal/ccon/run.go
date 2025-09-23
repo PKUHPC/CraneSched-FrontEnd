@@ -40,9 +40,8 @@ func parseUserSpec(userSpec string, containerMeta *protos.ContainerTaskAdditiona
 	if uid, err := strconv.ParseUint(user, 10, 32); err == nil {
 		containerMeta.RunAsUser = uint32(uid)
 	} else {
-		// For user names, we would need to resolve to UID
-		// For now, assume it's provided as UID
-		return fmt.Errorf("user name resolution not implemented, please provide UID")
+		// We currently not intend to support user name resolution
+		return fmt.Errorf("user name resolution not supported, please provide UID")
 	}
 
 	// Parse group if provided
@@ -51,7 +50,7 @@ func parseUserSpec(userSpec string, containerMeta *protos.ContainerTaskAdditiona
 		if gid, err := strconv.ParseUint(group, 10, 32); err == nil {
 			containerMeta.RunAsGroup = uint32(gid)
 		} else {
-			return fmt.Errorf("group name resolution not implemented, please provide GID")
+			return fmt.Errorf("group name resolution not supported, please provide GID")
 		}
 	}
 
