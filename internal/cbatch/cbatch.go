@@ -32,6 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type CbatchArg struct {
@@ -98,6 +99,13 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 				return false, nil
 			}
 			task.TimeLimit.Seconds = seconds
+		case "--begin", "-b":
+			beginTime, err := util.ParseTime(arg.val)
+			if err != nil {
+				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
+			}
+			task.BeginTime = timestamppb.New(beginTime)
 		case "--mem":
 			memInByte, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
@@ -279,6 +287,14 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			return false, nil
 		}
+	}
+	if FlagBeginTime != "" {
+		beginTime, err := util.ParseTime(FlagBeginTime)
+		if err != nil {
+			log.Errorf("Invalid argument: invalid --begin: %v", err)
+			return false, nil
+		}
+		task.BeginTime = timestamppb.New(beginTime)
 	}
 	if FlagExclusive {
 		task.Exclusive = true
