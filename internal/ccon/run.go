@@ -568,7 +568,7 @@ func submitContainerTask(task *protos.TaskToCtld) error {
 	}
 
 	if f.Global.Json {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		outputJson("run", "", f.Run, reply)
 		if reply.GetOk() {
 			return nil
 		} else {
