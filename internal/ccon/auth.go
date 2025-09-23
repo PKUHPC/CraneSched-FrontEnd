@@ -223,26 +223,43 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 // e.g., "registry.example.com/myapp:latest" -> ("registry.example.com", "myapp", "latest")
 // e.g., "nginx:latest" -> ("", "nginx", "latest")
 // e.g., "nginx" -> ("", "nginx", "latest")
+// e.g., "localhost:5000/myapp:latest" -> ("localhost:5000", "myapp", "latest")
+// e.g., "myapp@sha256:abcd1234..." -> ("", "myapp", "sha256:abcd1234...")
 func parseImageRef(image string) (registry, repository, tag string) {
-	// Split by first slash to separate registry from repository
-	parts := strings.SplitN(image, "/", 2)
-
+	// First, check for digest references (image@sha256:...)
 	var imagePart string
-	if len(parts) == 2 {
-		// Check if first part contains dot or port (likely a registry)
-		if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") {
-			registry = parts[0]
-			imagePart = parts[1]
-		} else {
-			// First part is likely a namespace, not a registry
-			imagePart = image
-		}
+	if digestIdx := strings.Index(image, "@"); digestIdx != -1 {
+		imagePart = image[:digestIdx]
+		tag = image[digestIdx+1:] // Include the @ prefix in tag for digest
 	} else {
 		imagePart = image
 	}
 
-	// Split image part by colon to separate repository from tag
-	repoParts := strings.SplitN(imagePart, ":", 2)
+	// Split by first slash to separate registry from repository
+	parts := strings.SplitN(imagePart, "/", 2)
+
+	var repoWithTag string
+	if len(parts) == 2 {
+		// Check if first part contains dot, port, or is localhost (likely a registry)
+		if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") || parts[0] == "localhost" {
+			registry = parts[0]
+			repoWithTag = parts[1]
+		} else {
+			// First part is likely a namespace, not a registry
+			repoWithTag = imagePart
+		}
+	} else {
+		repoWithTag = imagePart
+	}
+
+	// If we already have a digest, don't split on colon
+	if tag != "" {
+		repository = repoWithTag
+		return registry, repository, tag
+	}
+
+	// Split repository part by colon to separate repository from tag
+	repoParts := strings.SplitN(repoWithTag, ":", 2)
 	repository = repoParts[0]
 
 	if len(repoParts) == 2 {
