@@ -63,16 +63,19 @@ func decodeAuth(encodedAuth string) (username, password string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func getRegistryConfigPath() string {
+func getRegistryConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return filepath.Join(homeDir, util.DefaultUserConfigPrefix, "registry.json")
+	return filepath.Join(homeDir, util.DefaultUserConfigPrefix, "registry.json"), nil
 }
 
 func loadRegistryConfig() (*RegistryConfig, error) {
-	configPath := getRegistryConfigPath()
+	configPath, err := getRegistryConfigPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get registry config path: %v", err)
+	}
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return &RegistryConfig{Auths: make(map[string]AuthConfig)}, nil
@@ -96,7 +99,10 @@ func loadRegistryConfig() (*RegistryConfig, error) {
 }
 
 func saveRegistryConfig(config *RegistryConfig) error {
-	configPath := getRegistryConfigPath()
+	configPath, err := getRegistryConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get registry config path: %v", err)
+	}
 	configDir := filepath.Dir(configPath)
 
 	if err := os.MkdirAll(configDir, 0700); err != nil {
