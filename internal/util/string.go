@@ -342,11 +342,11 @@ func ParseKeywordTime(keyword string) (time.Time, error) {
 		return t.AddDate(0, 0, offset), nil
 	}
 	switch keyword {
-	case "noon":
+	case "midnight":
 		return t, nil
 	case "elevenses":
 		return t.Add(11 * time.Hour), nil
-	case "midnight":
+	case "noon":
 		return t.Add(12 * time.Hour), nil
 	case "fika":
 		return t.Add(15 * time.Hour), nil
