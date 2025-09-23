@@ -138,11 +138,32 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 
 	// Handle RPC response
 	if attachReply.Ok {
-		fmt.Printf("Attach request successful for task %d\n", taskId)
-		fmt.Printf("Attach URL: %s\n", attachReply.Url)
-	} else {
-		fmt.Printf("Attach request failed for task %d: %s\n", taskId, attachReply.Reason)
+		if !f.Global.Json {
+			log.Debugf("Attach request successful for task %d\n", taskId)
+			if f.Attach.Tty {
+				log.Debugf("Attaching to container task %d (TTY enabled)...\n", taskId)
+			} else {
+				log.Debugf("Attaching to container task %d...\n", taskId)
+			}
+		}
+
+		// Create stream options based on flags
+		streamOpts := StreamOptions{
+			Stdin:  f.Attach.Stdin,
+			Stdout: f.Attach.Stdout,
+			Stderr: f.Attach.Stderr,
+			Tty:    f.Attach.Tty,
+		}
+
+		// Start streaming
+		ctx := context.Background()
+		if err := StreamWithURL(ctx, attachReply.Url, streamOpts); err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: fmt.Sprintf("Failed to establish stream connection: %v", err),
+			}
+		}
 	}
 
-	return nil
+	return err
 }
