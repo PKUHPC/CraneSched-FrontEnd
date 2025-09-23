@@ -20,6 +20,30 @@ type FlattenedData struct {
 	CranedListCount uint64
 }
 
+func GetFlattenedData(partitionCraned *protos.TrimmedPartitionInfo ,
+					  commonCranedStateList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) FlattenedData {
+	return FlattenedData{
+		PartitionName:   partitionCraned.Name,
+		Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
+		CranedListRegex: commonCranedStateList.CranedListRegex,
+		ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
+		ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
+		PowerState:      strings.ToLower(commonCranedStateList.PowerState.String()[6:]),
+		CranedListCount: uint64(commonCranedStateList.Count),
+	}
+}
+func GetValidFlattendData(partitionCraned *protos.TrimmedPartitionInfo) FlattenedData {
+	return FlattenedData{
+		PartitionName:   partitionCraned.Name,
+		Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
+		CranedListRegex: "",
+		ResourceState:   "n/a",
+		ControlState:    "",
+		PowerState:      "",
+		CranedListCount: 0,
+	}
+}
+
 // Flatten the nested structure into a one-dimensional array
 func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 	var flattened []FlattenedData
@@ -31,28 +55,11 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {
 				partitionFilterValid = true
-				flattened = append(flattened, FlattenedData{
-					PartitionName:   partitionCraned.Name,
-					Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
-					CranedListRegex: commonCranedStateList.CranedListRegex,
-					ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
-					ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
-					PowerState:      strings.ToLower(commonCranedStateList.PowerState.String()[6:]),
-					CranedListCount: uint64(commonCranedStateList.Count),
-				})
+				flattened = append(flattened,GetFlattenedData(partitionCraned, commonCranedStateList))
 			}
 		}
-
 		if !partitionFilterValid {
-			partitionInValid = append(partitionInValid, FlattenedData{
-				PartitionName:   partitionCraned.Name,
-				Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
-				CranedListRegex: "",
-				ResourceState:   "n/a",
-				ControlState:    "",
-				PowerState:      "",
-				CranedListCount: 0,
-			})
+			partitionInValid = append(partitionInValid,GetValidFlattendData(partitionCraned))
 		}
 	}
 
@@ -123,37 +130,7 @@ func ProcessNodeList(flattened []FlattenedData, tableOutputCell [][]string) {
 	}
 }
 
-// type segmentType int 
-
-// const (
-// 	textSegment			segmentType = iota 
-// 	specifierSegment
-// )
-
-// type formatSegment struct {
-// 	segmentType segmentType 
-// 	content 	string 
-// 	width		int
-// }
-// type tableBuilder struct {
-// 	widths 	 []int
-// 	headers  []string 
-// 	cells	 [][]string 
-// }
-
-// func NewTableBuilder(rowCount int) *tableBuilder {
-// 	return &tableBuilder{
-// 		cells: make([][]string, rowCount),
-// 	}
-// }
-
-func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string, err error) {
-	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
-	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
-	if specifiers == nil {
-		return nil, nil, util.GetCraneError(util.ErrorInvalidFormat,"Invalid format specifier.") 
-	}
-
+func ParseBySpec(specifiers [][]int, reply *protos.QueryClusterInfoReply) ([]int, []string, [][]string,error) {
 	tableOutputWidth := make([]int, 0, len(specifiers))
 	tableOutputHeader := make([]string, 0, len(specifiers))
 	flattened := FlattenReplyData(reply)
@@ -188,7 +165,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			// with width specifier
 			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
 			if err != nil {
-				return nil, nil, &util.CraneError{
+				return nil, nil, nil, &util.CraneError{
 					Code:    util.ErrorInvalidFormat,
 					Message: "Invalid width specifier.",
 				}
@@ -206,7 +183,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
 			processor.process(flattened, tableOutputCell)
 		} else {
-			return nil, nil, &util.CraneError{
+			return nil, nil, nil, &util.CraneError{
 				Code: util.ErrorInvalidFormat,
 				Message: fmt.Sprintf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
 					"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field),
@@ -221,6 +198,21 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 		for j := 0; j < tableLen; j++ {
 			tableOutputCell[j] = append(tableOutputCell[j], suffix)
 		}
+	}
+
+	return tableOutputWidth, tableOutputHeader, tableOutputCell, nil
+}
+
+func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string, err error) {
+	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
+	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
+	if specifiers == nil {
+		return nil, nil, util.GetCraneError(util.ErrorInvalidFormat,"Invalid format specifier.") 
+	}
+
+	tableOutputWidth, tableOutputHeader, tableOutputCell, err:= ParseBySpec(specifiers, reply)
+	if  err != nil {
+		return nil,nil,err
 	}
 
 	formattedHeader, formattedData := util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
