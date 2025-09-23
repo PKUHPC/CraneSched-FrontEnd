@@ -154,8 +154,11 @@ func InitializeCommandFlags() {
 	RunCmd.Flags().StringVarP(&f.Run.Workdir, "workdir", "w", "", "Working directory inside the container")
 
 	RunCmd.Flags().Float64Var(&f.Run.Cpus, "cpus", 0, "Number of CPUs (maps to cpus-per-task)")
-	RunCmd.Flags().StringVar(&f.Run.Memory, "memory", "", "Memory limit (e.g., 2g, 512m) - deprecated, use --mem")
-	RunCmd.Flags().StringVar(&f.Run.Gpus, "gpus", "", "GPU devices - deprecated, use --gres instead")
+	RunCmd.Flags().StringVar(&f.Run.Memory, "memory", "", "Memory limit (e.g., 2g, 512m)")
+	RunCmd.Flags().StringVar(&f.Run.Gpus, "gpus", "", "GPU devices")
+	RunCmd.Flags().MarkDeprecated("cpus", "use --cpus-per-task instead")
+	RunCmd.Flags().MarkDeprecated("memory", "use --mem instead")
+	RunCmd.Flags().MarkDeprecated("gpus", "use --gres instead")
 
 	// Disable interspersed flags to avoid confusion with IMAGE and COMMAND
 	// e.g., ccon run ubuntu /bin/bash -c 'echo hello'
