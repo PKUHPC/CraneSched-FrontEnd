@@ -319,7 +319,7 @@ func applySchedulingOptions(f *Flags, task *protos.TaskToCtld) error {
 }
 
 // applyEnvironmentOptions applies environment-related options to the task
-func applyEnvironmentOptions(f *Flags, task *protos.TaskToCtld) error {
+func applyEnvironmentOptions(_ *Flags, task *protos.TaskToCtld) error {
 	// Set CWD if not already set
 	if task.Cwd == "" {
 		task.Cwd, _ = os.Getwd()
@@ -333,6 +333,33 @@ func applyEnvironmentOptions(f *Flags, task *protos.TaskToCtld) error {
 	task.CmdLine = strings.Join(os.Args, " ")
 
 	return nil
+}
+
+// applyIOOptions configures TTY and input stream options for the container
+// Based on docker/podman behavior matrix:
+//
+// | Flags     | fg/bg | tty   | stdin | stdin_once | description                                 |
+// | ------------------ | ---: | -----: | -----: | ---------: | ------------------------------------- |
+// | (none -i/-d/-t)    | foreground | false | false |      false | Run in foreground; no interactive input channel |
+// | -i                 | foreground | false |  true |       true | Has STDIN, one-time: input is closed when session ends |
+// | -t                 | foreground |  true | false |      false | TTY mode; merged output (stderr combined); no input channel |
+// | -it                | foreground |  true |  true |       true | Common interactive: TTY + one-time STDIN |
+// | -d                 | background | false | false |      false | Background only; no interactive input |
+// | -di                | background | false |  true |      false | Background but retains persistent input capability; can attach -i later |
+// | -dt                | background |  true | false |      false | Background + TTY; no input |
+// | -dit               | background |  true |  true |      false | Background + TTY + persistent input capability; can attach -it later |
+func applyIOOptions(f *Flags, containerMeta *protos.ContainerTaskAdditionalMeta) {
+	// TTY allocation: directly use -t flag
+	containerMeta.Tty = f.Run.Tty
+
+	// Stdin attachment: directly use -i flag
+	containerMeta.Stdin = f.Run.Interactive
+
+	// Stdin_once logic:
+	// - true for foreground containers with stdin
+	// - false for background containers
+	// - false when stdin is disabled
+	containerMeta.StdinOnce = containerMeta.Stdin && !f.Run.Detach
 }
 
 // buildContainerTask creates a TaskToCtld with container metadata from command line arguments
@@ -454,6 +481,9 @@ func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskT
 			return nil, fmt.Errorf("invalid volume mount '%s': %v", volume, err)
 		}
 	}
+
+	// Set TTY and stdin behavior based on container configuration
+	applyIOOptions(f, containerMeta)
 
 	// Set the container metadata as payload
 	task.Payload = &protos.TaskToCtld_ContainerMeta{

@@ -1,0 +1,189 @@
+/**
+ * Copyright (c) 2025 Peking University and Peking University
+ * Changsha Institute for Computing and Digital Economy
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package ccon
+
+import (
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+)
+
+// attachExecute handles the attach command execution
+func attachExecute(cmd *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "attach requires exactly one argument: CONTAINER_TASK_ID",
+		}
+	}
+
+	taskIdStr := args[0]
+
+	// Get flags and apply tty/stderr mutual exclusion logic
+	f := GetFlags()
+
+	// When --tty is set, --stderr should be disabled (TTY combines stdout and stderr)
+	if f.Attach.Tty {
+		if cmd.Flags().Changed("stderr") && f.Attach.Stderr {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Cannot use --stderr with --tty; stderr is combined into stdout in TTY mode",
+			}
+		}
+		f.Attach.Stderr = false
+	}
+
+	// Parse task ID
+	taskId, err := strconv.ParseUint(taskIdStr, 10, 32)
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr),
+		}
+	}
+
+	// Get configuration
+	config := util.ParseConfig(f.Global.ConfigPath)
+	stub := util.GetStubToCtldByConfig(config)
+
+	// First, query the task to verify it's a container task and is running
+	queryReq := &protos.QueryTasksInfoRequest{
+		FilterTaskIds:   []uint32{uint32(taskId)},
+		FilterTaskTypes: []protos.TaskType{protos.TaskType_Container},
+	}
+
+	queryReply, err := stub.QueryTasksInfo(context.Background(), queryReq)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query task information")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if !queryReply.GetOk() {
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: "Failed to query task information",
+		}
+	}
+
+	// Check if the task exists and is a container task
+	if len(queryReply.TaskInfoList) == 0 {
+		if f.Global.Json {
+			result := map[string]any{
+				"action":  "attach",
+				"task_id": taskId,
+				"status":  "failed",
+				"message": "Task not found or is not a container task",
+			}
+			jsonData, _ := json.Marshal(result)
+			fmt.Println(string(jsonData))
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Container task %d not found or is not a container task", taskId),
+		}
+	}
+
+	task := queryReply.TaskInfoList[0]
+
+	// Check if the task is in a state that allows attaching
+	if task.Status != protos.TaskStatus_Running {
+		if f.Global.Json {
+			result := map[string]any{
+				"action":  "attach",
+				"task_id": taskId,
+				"status":  "failed",
+				"message": fmt.Sprintf("Cannot attach to task in state: %s", task.Status.String()),
+			}
+			jsonData, _ := json.Marshal(result)
+			fmt.Println(string(jsonData))
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Cannot attach to task %d in state: %s", taskId, task.Status.String()),
+		}
+	}
+
+	// Call AttachContainerTask RPC
+	attachReq := &protos.AttachContainerTaskRequest{
+		Uid:    uint32(os.Getuid()),
+		TaskId: uint32(taskId),
+		Stdin:  f.Attach.Stdin,
+		Tty:    f.Attach.Tty,
+		Stdout: f.Attach.Stdout,
+		Stderr: f.Attach.Stderr,
+	}
+
+	log.Infof("Calling AttachContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t, sig-proxy=%t",
+		taskId, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty, f.Attach.SigProxy)
+
+	attachReply, err := stub.AttachContainerTask(context.Background(), attachReq)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to attach to container task")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	// Handle RPC response
+	if f.Global.Json {
+		result := map[string]any{
+			"action":  "attach",
+			"task_id": taskId,
+			"ok":      attachReply.Ok,
+			"reason":  attachReply.Reason,
+			"url":     attachReply.Url,
+			"flags": map[string]any{
+				"stdin":     attachReq.Stdin,
+				"stdout":    attachReq.Stdout,
+				"stderr":    attachReq.Stderr,
+				"tty":       attachReq.Tty,
+				"sig_proxy": f.Attach.SigProxy,
+			},
+		}
+		jsonData, _ := json.Marshal(result)
+		fmt.Println(string(jsonData))
+	} else {
+		if attachReply.Ok {
+			fmt.Printf("Attach request successful for task %d\n", taskId)
+			if attachReply.Url != "" {
+				fmt.Printf("Attach URL: %s\n", attachReply.Url)
+			}
+			fmt.Printf("Flags: stdin=%t, stdout=%t, stderr=%t, tty=%t, sig-proxy=%t\n",
+				attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty, f.Attach.SigProxy)
+		} else {
+			fmt.Printf("Attach request failed for task %d: %s\n", taskId, attachReply.Reason)
+		}
+	}
+
+	if !attachReply.Ok {
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Attach failed: %s", attachReply.Reason),
+		}
+	}
+
+	return nil
+}

@@ -277,7 +277,7 @@ message InteractiveTaskAdditionalMeta {
   bool x11 = 6;
   X11Meta x11_meta = 7;
 
-  //Crun input will forward to these tasks
+  // Crun input will forward to these tasks
   optional uint32 input_task_id = 8;
 }
 
@@ -300,7 +300,11 @@ message ContainerTaskAdditionalMeta {
   repeated string args = 12;
   string workdir = 13;
   map<string, string> env = 14; // env in container
+  
   bool detached = 15;
+  bool tty = 16;
+  bool stdin = 17;
+  bool stdin_once = 18;
 
   bool userns = 21;
   uint32 run_as_user = 22;
