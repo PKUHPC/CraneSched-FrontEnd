@@ -397,7 +397,17 @@ func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskT
 
 	// Parse image reference to extract registry, repository, and tag
 	registry, repository, tag := parseImageRef(image)
-	fullImageName := repository + ":" + tag
+
+	// Reconstruct full image name, handling both tags and digests
+	var fullImageName string
+	if strings.HasPrefix(tag, "sha256:") || strings.HasPrefix(tag, "sha1:") || strings.HasPrefix(tag, "sha512:") {
+		// This is a digest reference, use @ separator
+		fullImageName = repository + "@" + tag
+	} else {
+		// This is a tag reference, use : separator
+		fullImageName = repository + ":" + tag
+	}
+
 	if registry != "" {
 		fullImageName = registry + "/" + fullImageName
 	}
