@@ -51,18 +51,20 @@ type CraneFlags struct {
 }
 
 type RunFlags struct {
-	Name       string
-	Ports      []string
-	Env        []string
-	Volume     []string
-	Detach     bool
-	Entrypoint string
-	User       string
-	UserNS     bool
-	Workdir    string
-	Cpus       float64
-	Memory     string
-	Gpus       string
+	Name        string
+	Ports       []string
+	Env         []string
+	Volume      []string
+	Detach      bool
+	Interactive bool
+	Tty         bool
+	Entrypoint  string
+	User        string
+	UserNS      bool
+	Workdir     string
+	Cpus        float64
+	Memory      string
+	Gpus        string
 }
 
 type StopFlags struct {
@@ -88,6 +90,14 @@ type LoginFlags struct {
 	PasswordStdin bool
 }
 
+type AttachFlags struct {
+	Stdin    bool
+	Stdout   bool
+	Stderr   bool
+	Tty      bool
+	SigProxy bool
+}
+
 type Flags struct {
 	Global GlobalFlags
 	Crane  CraneFlags
@@ -96,6 +106,7 @@ type Flags struct {
 	Ps     PsFlags
 	Log    LogFlags
 	Login  LoginFlags
+	Attach AttachFlags
 
 	flagSetCrane *pflag.FlagSet
 }

@@ -124,6 +124,12 @@ var (
 		RunE:   rmExecute,
 		Hidden: true,
 	}
+
+	AttachCmd = &cobra.Command{
+		Use:   "attach [flags] CONTAINER",
+		Short: "Attach local standard input, output, and error streams to a running container",
+		RunE:  attachExecute,
+	}
 )
 
 func InitializeCommandFlags() {
@@ -140,6 +146,8 @@ func InitializeCommandFlags() {
 	RunCmd.Flags().StringSliceVarP(&f.Run.Env, "env", "e", []string{}, "Set environment variables")
 	RunCmd.Flags().StringSliceVarP(&f.Run.Volume, "volume", "v", []string{}, "Bind mount a volume")
 	RunCmd.Flags().BoolVarP(&f.Run.Detach, "detach", "d", false, "Run container in background and print container ID")
+	RunCmd.Flags().BoolVarP(&f.Run.Interactive, "interactive", "i", false, "Make STDIN available to the contained process")
+	RunCmd.Flags().BoolVarP(&f.Run.Tty, "tty", "t", false, "Allocate a pseudo-TTY for container")
 	RunCmd.Flags().StringVar(&f.Run.Entrypoint, "entrypoint", "", "Override the default entrypoint of the image")
 	RunCmd.Flags().StringVarP(&f.Run.User, "user", "u", "", "Username or UID (format: <name|uid>[:<group|gid>]). With --userns=false, only current user and accessible groups are allowed")
 	RunCmd.Flags().BoolVar(&f.Run.UserNS, "userns", true, "Enable user namespace (default user becomes the faked root, enabled by default)")
@@ -168,6 +176,12 @@ func InitializeCommandFlags() {
 	LoginCmd.Flags().StringVarP(&f.Login.Username, "username", "u", "", "Username for registry authentication")
 	LoginCmd.Flags().StringVarP(&f.Login.Password, "password", "p", "", "Password for registry authentication")
 	LoginCmd.Flags().BoolVar(&f.Login.PasswordStdin, "password-stdin", false, "Read password from stdin")
+
+	AttachCmd.Flags().BoolVar(&f.Attach.Stdin, "stdin", true, "Attach STDIN")
+	AttachCmd.Flags().BoolVar(&f.Attach.Stdout, "stdout", true, "Attach STDOUT")
+	AttachCmd.Flags().BoolVar(&f.Attach.Stderr, "stderr", true, "Attach STDERR")
+	AttachCmd.Flags().BoolVar(&f.Attach.Tty, "tty", false, "Allocate a pseudo-TTY")
+	AttachCmd.Flags().BoolVar(&f.Attach.SigProxy, "sig-proxy", true, "Proxy received signals to the process")
 }
 
 func init() {
@@ -181,7 +195,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	// Link all commands to the root command
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd)
 	RootCmd.AddCommand(CreateCmd, StartCmd, RestartCmd)
 
 	// Hide crane flags by default. Only display them when running 'ccon run'.
