@@ -103,6 +103,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			beginTime, err := util.ParseTime(arg.val)
 			if err != nil {
 				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
+				return false, nil
 			}
 			task.BeginTime = timestamppb.New(beginTime)
 		case "--mem":

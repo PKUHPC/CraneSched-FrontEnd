@@ -171,6 +171,7 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	seconds := int64(24*60*60*dd + 60*60*hh + 60*mm + ss)
 	return seconds, nil
 }
+
 func ParseRelativeTime(ts string) (int64, error) {
 	// handle now+1hour now-2week etc.
 	re := regexp.MustCompile(`^(\d+)([a-zA-Z]*)$`)
@@ -198,6 +199,7 @@ func ParseRelativeTime(ts string) (int64, error) {
 	// handle now+12:20:12
 	return ParseDurationStrToSeconds(ts)
 }
+
 func ParseDayTime(day string) (time.Time, error) {
 	now := time.Now()
 	// handle time of day (HH:MM[:SS] am pm also available)
@@ -240,6 +242,7 @@ func ParseDayTime(day string) (time.Time, error) {
 	}
 	return time.Time{}, fmt.Errorf("invalid time format: %v", day)
 }
+
 func ParseDate(year string, month string, day string) (time.Time, error) {
 	// note: if the date is before now, the return date's year will plus one
 	now := time.Now()
@@ -274,6 +277,7 @@ func ParseDate(year string, month string, day string) (time.Time, error) {
 	}
 	return t, nil
 }
+
 func ParseDateTime(date string) (time.Time, error) {
 	var re *regexp.Regexp
 	// handle YYYY-MM-DD
@@ -324,6 +328,7 @@ func ParseDateTime(date string) (time.Time, error) {
 	}
 	return time.Time{}, fmt.Errorf("invalid date format: %v", date)
 }
+
 func ParseKeywordTime(keyword string) (time.Time, error) {
 	// note: donot support tomorrowTnoon
 	// only handle single keyword
@@ -368,6 +373,7 @@ func ParseKeywordTime(keyword string) (time.Time, error) {
 	}
 	return time.Time{}, fmt.Errorf("invalid keyword time: %s", keyword)
 }
+
 func ParseTime(ts string) (time.Time, error) {
 	if strings.HasPrefix(ts, "now") {
 		t := time.Time{}
