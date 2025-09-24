@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Peking University and Peking University
+ * Copyright (c) 2025 Peking University and Peking University
  * Changsha Institute for Computing and Digital Economy
  *
  * This program is free software: you can redistribute it and/or modify
@@ -16,43 +16,39 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package util
+package ccon
 
 import (
-	"os"
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
+	"encoding/json"
+	"fmt"
 
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-type Formatter interface {
-	FormatReply(reply any) string
+var (
+	config *util.Config
+	stub   protos.CraneCtldClient
+)
+
+type CconJsonSchema struct {
+	Action  string `json:"action"`
+	Message string `json:"message,omitempty"`
+	Flags   any    `json:"flags,omitempty"`
+	Data    any    `json:"data,omitempty"`
 }
 
-// JSON
-type FormatterJson struct {
-}
-
-var mo = protojson.MarshalOptions{
-	EmitDefaultValues: true,
-	UseProtoNames:     true,
-}
-
-func (f FormatterJson) FormatReply(reply any) string {
-	if msg, ok := reply.(protoreflect.ProtoMessage); ok {
-		output, err := mo.Marshal(msg)
-		if err != nil {
-			log.Errorf("Failed to marshal proto message: %v\n", err)
-			os.Exit(ErrorInvalidFormat)
-		}
-		return string(output)
-	} else {
-		// This should never happen
-		log.Errorf("Type %T is not ProtoMessage.\n", reply)
-		os.Exit(ErrorInvalidFormat)
+func outputJson(action string, message string, flags any, data any) {
+	if msg, ok := data.(protoreflect.ProtoMessage); ok {
+		json.Unmarshal([]byte(util.FmtJson.FormatReply(msg)), &data)
 	}
-	return ""
+	output := CconJsonSchema{
+		Action:  action,
+		Message: message,
+		Flags:   flags,
+		Data:    data,
+	}
+	jsonData, _ := json.Marshal(output)
+	fmt.Println(string(jsonData))
 }
-
-var FmtJson = FormatterJson{}
