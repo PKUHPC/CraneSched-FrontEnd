@@ -91,11 +91,11 @@ type LoginFlags struct {
 }
 
 type AttachFlags struct {
-	Stdin    bool
-	Stdout   bool
-	Stderr   bool
-	Tty      bool
-	SigProxy bool
+	Stdin     bool
+	Stdout    bool
+	Stderr    bool
+	Tty       bool
+	Transport string
 }
 
 type Flags struct {

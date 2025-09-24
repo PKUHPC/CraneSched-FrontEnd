@@ -182,9 +182,9 @@ func InitializeCommandFlags() {
 
 	AttachCmd.Flags().BoolVar(&f.Attach.Stdin, "stdin", true, "Attach STDIN")
 	AttachCmd.Flags().BoolVar(&f.Attach.Stdout, "stdout", true, "Attach STDOUT")
-	AttachCmd.Flags().BoolVar(&f.Attach.Stderr, "stderr", true, "Attach STDERR")
-	AttachCmd.Flags().BoolVar(&f.Attach.Tty, "tty", false, "Allocate a pseudo-TTY")
-	AttachCmd.Flags().BoolVar(&f.Attach.SigProxy, "sig-proxy", true, "Proxy received signals to the process")
+	AttachCmd.Flags().BoolVar(&f.Attach.Stderr, "stderr", false, "Attach STDERR")
+	AttachCmd.Flags().BoolVar(&f.Attach.Tty, "tty", true, "Allocate a pseudo-TTY")
+	AttachCmd.Flags().StringVar(&f.Attach.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
 }
 
 func init() {
