@@ -115,8 +115,8 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		Stderr: f.Attach.Stderr,
 	}
 
-	log.Infof("Calling AttachContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t, sig-proxy=%t",
-		taskId, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty, f.Attach.SigProxy)
+	log.Infof("Calling AttachContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+		taskId, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
 
 	attachReply, err := stub.AttachContainerTask(context.Background(), attachReq)
 	if err != nil {
@@ -149,10 +149,11 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 
 		// Create stream options based on flags
 		streamOpts := StreamOptions{
-			Stdin:  f.Attach.Stdin,
-			Stdout: f.Attach.Stdout,
-			Stderr: f.Attach.Stderr,
-			Tty:    f.Attach.Tty,
+			Stdin:     f.Attach.Stdin,
+			Stdout:    f.Attach.Stdout,
+			Stderr:    f.Attach.Stderr,
+			Tty:       f.Attach.Tty,
+			Transport: f.Attach.Transport,
 		}
 
 		// Start streaming
