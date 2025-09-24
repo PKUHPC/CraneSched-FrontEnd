@@ -115,7 +115,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		Stderr: f.Attach.Stderr,
 	}
 
-	log.Infof("Calling AttachContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+	log.Debugf("Calling AttachContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
 		taskId, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
 
 	attachReply, err := stub.AttachContainerTask(context.Background(), attachReq)

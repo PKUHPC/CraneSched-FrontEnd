@@ -126,7 +126,7 @@ func streamWithRetry(ctx context.Context, streamURL string, opts StreamOptions, 
 	var lastErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		log.Infof("Stream attempt %d/%d for URL: %s", attempt, maxRetries, streamURL)
+		log.Debugf("Stream attempt %d/%d for URL: %s", attempt, maxRetries, streamURL)
 
 		err := doStream(ctx, streamURL, opts)
 		if err == nil {
@@ -209,7 +209,7 @@ func doStream(ctx context.Context, streamURL string, opts StreamOptions) error {
 		return fmt.Errorf("failed to create executor: %w", err)
 	}
 
-	log.Infof("Starting stream with URL: %s (stdin=%t, stdout=%t, stderr=%t, tty=%t)",
+	log.Debugf("Starting stream with URL: %s (stdin=%t, stdout=%t, stderr=%t, tty=%t)",
 		streamURL, opts.Stdin, opts.Stdout, opts.Stderr, opts.Tty)
 
 	return executor.StreamWithContext(ctx, streamOpts)
