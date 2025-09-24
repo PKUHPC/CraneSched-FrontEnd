@@ -19,11 +19,17 @@
 package ccon
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"encoding/json"
 	"fmt"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
+)
+
+var (
+	config *util.Config
+	stub   protos.CraneCtldClient
 )
 
 type CconJsonSchema struct {

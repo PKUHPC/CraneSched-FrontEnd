@@ -49,6 +49,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	f := GetFlags()
 	jobIDStr := args[0]
 	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
 	if err != nil {
@@ -57,10 +58,6 @@ func logExecute(cmd *cobra.Command, args []string) error {
 			Message: fmt.Sprintf("invalid job ID: %s", jobIDStr),
 		}
 	}
-
-	f := GetFlags()
-	config := util.ParseConfig(f.Global.ConfigPath)
-	stub := util.GetStubToCtldByConfig(config)
 
 	request := protos.QueryTasksInfoRequest{
 		FilterTaskIds:               []uint32{uint32(jobID)},
