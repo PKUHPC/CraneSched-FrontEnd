@@ -37,10 +37,11 @@ import (
 )
 
 type StreamOptions struct {
-	Stdin  bool
-	Stdout bool
-	Stderr bool
-	Tty    bool
+	Stdin     bool
+	Stdout    bool
+	Stderr    bool
+	Tty       bool
+	Transport string // "spdy" or "ws"
 }
 
 type TerminalSizeQueue struct {
@@ -203,7 +204,7 @@ func doStream(ctx context.Context, streamURL string, opts StreamOptions) error {
 		streamOpts.TerminalSizeQueue = sizeQueue
 	}
 
-	executor, err := createExecutor(config, parsedURL)
+	executor, err := createExecutor(config, parsedURL, opts.Transport)
 	if err != nil {
 		return fmt.Errorf("failed to create executor: %w", err)
 	}
@@ -214,33 +215,43 @@ func doStream(ctx context.Context, streamURL string, opts StreamOptions) error {
 	return executor.StreamWithContext(ctx, streamOpts)
 }
 
-func createExecutor(config *rest.Config, parsedURL *url.URL) (remotecommand.Executor, error) {
-	transport, err := rest.TransportFor(config)
+func createExecutor(config *rest.Config, parsedURL *url.URL, transport string) (remotecommand.Executor, error) {
+	tr, err := rest.TransportFor(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transport: %w", err)
 	}
 
-	if httpTransport, ok := transport.(*http.Transport); ok {
+	if httpTransport, ok := tr.(*http.Transport); ok {
 		if httpTransport.TLSClientConfig == nil {
 			httpTransport.TLSClientConfig = &tls.Config{}
 		}
 		httpTransport.TLSClientConfig.InsecureSkipVerify = true
 	}
 
-	// Prefer SPDY over WebSocket for CRI streaming due to better compatibility
+	switch transport {
+	case "spdy":
+		return createSPDYExecutor(config, parsedURL)
+	case "ws":
+		return createWebSocketExecutor(config, parsedURL)
+	default:
+		return nil, fmt.Errorf("unsupported transport: %s (supported: spdy, ws)", transport)
+	}
+}
+
+func createSPDYExecutor(config *rest.Config, parsedURL *url.URL) (remotecommand.Executor, error) {
 	spdyExecutor, err := remotecommand.NewSPDYExecutor(config, "POST", parsedURL)
-	if err == nil {
-		log.Debug("Using SPDY executor")
-		return spdyExecutor, nil
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SPDY executor: %w", err)
 	}
+	log.Debug("Using SPDY executor")
+	return spdyExecutor, nil
+}
 
-	log.Warnf("SPDY executor failed: %v, trying WebSocket", err)
-
-	upgrader, err := remotecommand.NewWebSocketExecutor(config, "GET", parsedURL.String())
-	if err == nil && upgrader != nil {
-		log.Debug("Using WebSocket executor as fallback")
-		return upgrader, nil
+func createWebSocketExecutor(config *rest.Config, parsedURL *url.URL) (remotecommand.Executor, error) {
+	wsExecutor, err := remotecommand.NewWebSocketExecutor(config, "GET", parsedURL.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create WebSocket executor: %w", err)
 	}
-
-	return nil, fmt.Errorf("failed to create both SPDY and WebSocket executors, last error: %w", err)
+	log.Debug("Using WebSocket executor")
+	return wsExecutor, nil
 }
