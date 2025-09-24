@@ -43,9 +43,6 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	f := GetFlags()
-	config := util.ParseConfig(f.Global.ConfigPath)
-	stub := util.GetStubToCtldByConfig(config)
-
 	request := protos.QueryTasksInfoRequest{
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
 		OptionIncludeCompletedTasks: f.Ps.All,
@@ -155,10 +152,6 @@ func inspectExecute(cmd *cobra.Command, args []string) error {
 			Message: fmt.Sprintf("invalid job ID: %s", jobIDStr),
 		}
 	}
-
-	f := GetFlags()
-	config := util.ParseConfig(f.Global.ConfigPath)
-	stub := util.GetStubToCtldByConfig(config)
 
 	request := protos.QueryTasksInfoRequest{
 		FilterTaskIds:               []uint32{uint32(jobID)},

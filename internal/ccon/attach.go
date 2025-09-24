@@ -64,10 +64,6 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Get configuration
-	config := util.ParseConfig(f.Global.ConfigPath)
-	stub := util.GetStubToCtldByConfig(config)
-
 	// First, query the task to verify it's a container task and is running
 	queryReq := &protos.QueryTasksInfoRequest{
 		FilterTaskIds:   []uint32{uint32(taskId)},
@@ -118,26 +114,26 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	log.Debugf("Calling AttachContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
 		taskId, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
 
-	attachReply, err := stub.AttachContainerTask(context.Background(), attachReq)
+	reply, err := stub.AttachContainerTask(context.Background(), attachReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to attach to container task")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	if !attachReply.Ok {
+	if !reply.Ok {
 		err = &util.CraneError{
 			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Attach failed: %s", attachReply.Reason),
+			Message: fmt.Sprintf("Attach failed: %s", reply.GetStatus().GetDescription()),
 		}
 	}
 
 	if f.Global.Json {
-		outputJson("attach", "", f.Attach, attachReply)
+		outputJson("attach", "", f.Attach, reply)
 		return err
 	}
 
 	// Handle RPC response
-	if attachReply.Ok {
+	if reply.Ok {
 		if !f.Global.Json {
 			log.Debugf("Attach request successful for task %d\n", taskId)
 			if f.Attach.Tty {
@@ -158,7 +154,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 
 		// Start streaming
 		ctx := context.Background()
-		if err := StreamWithURL(ctx, attachReply.Url, streamOpts); err != nil {
+		if err := StreamWithURL(ctx, reply.Url, streamOpts); err != nil {
 			return &util.CraneError{
 				Code:    util.ErrorBackend,
 				Message: fmt.Sprintf("Failed to establish stream connection: %v", err),

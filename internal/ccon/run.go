@@ -24,8 +24,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -156,7 +159,16 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Submit the task
-	return submitContainerTask(task)
+	reply, err := submitContainerTask(task)
+	if f.Global.Json {
+		outputJson("run", "", f.Run, reply)
+		return err
+	}
+	if err != nil {
+		return err
+	}
+
+	return attachAfterRun(f, reply)
 }
 
 // applyResourceOptions applies resource options to the task
@@ -564,34 +576,105 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 }
 
 // submitContainerTask submits a container task via gRPC
-func submitContainerTask(task *protos.TaskToCtld) error {
-	f := GetFlags()
-	config := util.ParseConfig(f.Global.ConfigPath)
-	stub := util.GetStubToCtldByConfig(config)
+func submitContainerTask(task *protos.TaskToCtld) (*protos.SubmitBatchTaskReply, error) {
 	req := &protos.SubmitBatchTaskRequest{Task: task}
 
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the container task")
-		return &util.CraneError{Code: util.ErrorNetwork}
-	}
-
-	if f.Global.Json {
-		outputJson("run", "", f.Run, reply)
-		if reply.GetOk() {
-			return nil
-		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
-		}
+		return reply, &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("Container task submitted successfully. Task ID: %d\n", reply.GetTaskId())
-		return nil
+		return reply, nil
 	} else {
-		return &util.CraneError{
+		return reply, &util.CraneError{
 			Code:    util.ErrorBackend,
 			Message: fmt.Sprintf("Container task submission failed: %s", util.ErrMsg(reply.GetCode())),
+		}
+	}
+}
+
+// Handle auto-attaching to container after run command
+// See applyIOOptions for explanation of the behavior matrix
+func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
+	if f.Run.Detach {
+		fmt.Printf("Container task submitted successfully. Task ID: %d\n", reply.GetTaskId())
+		return nil
+	}
+
+	streamOpt := StreamOptions{
+		Stdin:     f.Run.Interactive,
+		Stdout:    true,
+		Stderr:    !f.Run.Tty,
+		Tty:       f.Run.Tty,
+		Transport: "spdy",
+	}
+
+	attach := func(ctx context.Context) (*protos.AttachContainerTaskReply, error) {
+		req := protos.AttachContainerTaskRequest{
+			TaskId: uint32(reply.GetTaskId()),
+			Uid:    uint32(os.Getuid()),
+			Stdin:  streamOpt.Stdin,
+			Stdout: streamOpt.Stdout,
+			Stderr: streamOpt.Stderr,
+			Tty:    streamOpt.Tty,
+		}
+
+		grpcCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		reply, err := stub.AttachContainerTask(grpcCtx, &req)
+		if err != nil {
+			util.GrpcErrorPrintf(err, "Failed to get attach URL")
+			return nil, &util.CraneError{Code: util.ErrorNetwork}
+		}
+
+		return reply, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
+	go func() {
+		sig := <-sigchan
+		log.Infof("Received signal %s, exiting...\n(Note: Task is not cancelled.)", sig)
+		cancel()
+	}()
+
+	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+
+		reply, err := attach(ctx)
+		if err != nil {
+			// Network or other gRPC errors: exit immediately
+			return err
+		}
+
+		if reply.GetOk() {
+			// Case 1: Success - execute expected operation
+			return StreamWithURL(ctx, reply.GetUrl(), streamOpt)
+		}
+
+		if reply.GetStatus().GetCode() == protos.ErrCode_ERR_CRI_ATTACH_NOT_READY {
+			// Case 2: NOT_READY - retry until status changes
+			log.Debugf("Attach not ready yet: %s. Retrying in 10 seconds...", reply.GetStatus().GetDescription())
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(10 * time.Second):
+				continue
+			}
+		}
+
+		// Case 3: Any other backend error - exit immediately with error
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to get attach URL: %s", reply.GetStatus().GetDescription()),
 		}
 	}
 }

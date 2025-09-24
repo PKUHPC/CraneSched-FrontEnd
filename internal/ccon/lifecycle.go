@@ -39,6 +39,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	f := GetFlags()
 	taskIdStr := args[0]
 
 	// Parse task ID
@@ -49,11 +50,6 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 			Message: fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr),
 		}
 	}
-
-	// Get configuration and create gRPC client
-	f := GetFlags()
-	config := util.ParseConfig(f.Global.ConfigPath)
-	stub := util.GetStubToCtldByConfig(config)
 
 	// First, query the task to verify it's a container task
 	queryReq := &protos.QueryTasksInfoRequest{

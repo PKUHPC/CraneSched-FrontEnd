@@ -31,6 +31,12 @@ func ParseCmdArgs() {
 	util.RunAndHandleExit(RootCmd)
 }
 
+func initConfigAndStub(cmd *cobra.Command, args []string) {
+	f := GetFlags()
+	config = util.ParseConfig(f.Global.ConfigPath)
+	stub = util.GetStubToCtldByConfig(config)
+}
+
 var (
 	RootCmd = &cobra.Command{
 		Use:     "ccon",
@@ -57,17 +63,48 @@ var (
 	}
 
 	RunCmd = &cobra.Command{
-		Use:   "run [flags] IMAGE [COMMAND] [ARG...]",
-		Short: "Create and run a new container",
-		RunE:  runExecute,
+		Use:              "run [flags] IMAGE [COMMAND] [ARG...]",
+		Short:            "Create and run a new container",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             runExecute,
 	}
 
 	LogCmd = &cobra.Command{
-		Use:   "log [flags] CONTAINER",
-		Short: "Fetch the logs of a container",
-		RunE:  logExecute,
+		Use:              "log [flags] CONTAINER",
+		Short:            "Fetch the logs of a container",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             logExecute,
 	}
 
+	StopCmd = &cobra.Command{
+		Use:              "stop [flags] CONTAINER",
+		Short:            "Stop one or more running containers",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             stopExecute,
+	}
+
+	PsCmd = &cobra.Command{
+		Use:              "ps [flags]",
+		Short:            "List containers",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             psExecute,
+	}
+
+	InspectCmd = &cobra.Command{
+		Use:              "inspect CONTAINER",
+		Short:            "Display detailed information on one or more containers",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             inspectExecute,
+	}
+
+	AttachCmd = &cobra.Command{
+		Use:              "attach [flags] CONTAINER",
+		Short:            "Attach local standard input, output, and error streams to a running container",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             attachExecute,
+	}
+
+	// These two commands do not need config and stub
 	LoginCmd = &cobra.Command{
 		Use:   "login [flags] SERVER",
 		Short: "Log in to a container registry",
@@ -80,24 +117,7 @@ var (
 		RunE:  logoutExecute,
 	}
 
-	StopCmd = &cobra.Command{
-		Use:   "stop [flags] CONTAINER",
-		Short: "Stop one or more running containers",
-		RunE:  stopExecute,
-	}
-
-	PsCmd = &cobra.Command{
-		Use:   "ps [flags]",
-		Short: "List containers",
-		RunE:  psExecute,
-	}
-
-	InspectCmd = &cobra.Command{
-		Use:   "inspect CONTAINER",
-		Short: "Display detailed information on one or more containers",
-		RunE:  inspectExecute,
-	}
-
+	// Not supported commands
 	CreateCmd = &cobra.Command{
 		Use:    "create is not supported",
 		Short:  "Not supported - use 'ccon run' instead",
@@ -124,12 +144,6 @@ var (
 		Short:  "Not supported - containers are auto-cleaned",
 		RunE:   rmExecute,
 		Hidden: true,
-	}
-
-	AttachCmd = &cobra.Command{
-		Use:   "attach [flags] CONTAINER",
-		Short: "Attach local standard input, output, and error streams to a running container",
-		RunE:  attachExecute,
 	}
 )
 
