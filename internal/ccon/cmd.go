@@ -38,6 +38,7 @@ var (
 		Version: util.Version(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			util.DetectNetworkProxy()
+			util.InitLogger(GetFlags().Global.DebugLevel)
 
 			var err error
 			if cmd != RunCmd {
@@ -139,6 +140,8 @@ func InitializeCommandFlags() {
 	RootCmd.Flags().AddFlagSet(f.flagSetCrane)
 	RootCmd.PersistentFlags().StringVarP(&f.Global.ConfigPath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.PersistentFlags().StringVarP(&f.Global.DebugLevel, "debug-level", "",
+		"info", "Available debug level: trace, debug, info")
 	RootCmd.PersistentFlags().BoolVar(&f.Global.Json, "json", false, "Output in JSON format")
 
 	RunCmd.Flags().StringVar(&f.Run.Name, "name", "", "Assign a name to the container")

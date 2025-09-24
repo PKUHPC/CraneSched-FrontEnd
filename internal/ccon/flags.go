@@ -25,6 +25,7 @@ import (
 type GlobalFlags struct {
 	ConfigPath string
 	Json       bool
+	DebugLevel string
 }
 
 // CraneFlags is a special group of flags that are only valid for the 'run' command
