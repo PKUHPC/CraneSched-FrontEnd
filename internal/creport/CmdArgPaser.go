@@ -96,6 +96,11 @@ var (
 		Use:   "utilization",
 		Short: "Display relevant cluster parameters such as cluster nodes",
 		Long:  "",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := QueryClusterummaryItem(); err != nil {
+				os.Exit(util.ErrorCmdArg)
+			}
+		},
 	}
 	sizesbyaccount = &cobra.Command{
 		Use:   "sizesbyaccount",
@@ -139,7 +144,7 @@ func init() {
 				"Select accounts to view (comma separated list)")
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
-			accountUtilizationByUserCmd.Flags().StringVarP(&FlagOutType, "time", "t", "Minutes",
+			accountUtilizationByUserCmd.Flags().StringVarP(&FlagOutType, "time", "t", "Seconds",
 				"Select users to view (comma separated list)")
 		}
 		clusterCmd.AddCommand(userutilizationbyaccount)
@@ -196,6 +201,8 @@ func init() {
 				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
 					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
 			)
+			utilization.Flags().StringVarP(&FlagOutType, "time", "t", "Seconds",
+				"Select users to view (comma separated list)")
 		}
 
 	}

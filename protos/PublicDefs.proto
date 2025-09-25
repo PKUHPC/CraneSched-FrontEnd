@@ -809,10 +809,6 @@ enum TxnAction {
   AddQos = 6;
   ModifyQos = 7;
   DeleteQos = 8;
-<<<<<<< HEAD
-}
-=======
-  uint32 config_crc= 9;
 }
 
 message AccountUserSummaryItem {
@@ -823,4 +819,4 @@ message AccountUserSummaryItem {
   int64 total_cpu_alloc = 5;
   int32 total_count = 6;
 }
->>>>>>> 01b49f2 (add creport)
+
