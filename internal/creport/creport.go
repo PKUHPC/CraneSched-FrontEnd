@@ -105,6 +105,128 @@ func QueryAccountUserSummaryItem() error {
 	return nil
 }
 
+
+func QueryClusterummaryItem() error {
+	req := &protos.QueryAccountUserSummaryItemRequest{
+		Account:  FlagFilterAccounts,
+		Username: FlagFilterUsers,
+	}
+	var start_time, end_time time.Time
+	var err error
+	start_time, err = util.ParseTime(FlagFilterStartTime)
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to parse the StartTime filter: %s.", err),
+		}
+	}
+	end_time, err = util.ParseTime(FlagFilterEndTime)
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to parse the EndTime filter: %s.", err),
+		}
+	}
+	if !util.CheckCreportOutType(FlagOutType) {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid argument: invalid: --time/-t"),
+		}
+	}
+	req.StartTime = timestamppb.New(start_time)
+	req.EndTime = timestamppb.New(end_time)
+
+	rpcStart := time.Now()
+	stream, err := stub.QueryAccountUserSummaryItemStream(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query AccountUserSummary info")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	var accountUserList []*protos.AccountUserSummaryItem
+
+	for {
+		batch, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			util.GrpcErrorPrintf(err, "Failed to receive item")
+			return &util.CraneError{Code: util.ErrorNetwork}
+		}
+		for _, item := range batch.Items {
+			accountUserList = append(accountUserList, item)
+		}
+	}
+
+	type ClusterSummary struct {
+		TotalCpuTime  int64
+	}
+	clusterMap := make(map[string]*ClusterSummary)
+	for _, item := range accountUserList {
+		summary, ok := clusterMap[item.Cluster]
+		if !ok {
+			summary = &ClusterSummary{}
+			clusterMap[item.Cluster] = summary
+		}
+		summary.TotalCpuTime += item.TotalCpuTime
+	}
+	rpcElapsed := time.Since(rpcStart)
+	fmt.Printf("[QueryClusterummaryItem] QueryClusterummaryItem RPC used %d ms, accountUserList size %v\n", rpcElapsed.Milliseconds(), len(accountUserList))
+	totalSecs := int64(end_time.Sub(start_time).Seconds())
+	fmt.Println(strings.Repeat("-", 100))
+	if totalSecs > 0 {
+		fmt.Printf("Cluster/Account/User Utilization %s - %s (%d secs)\n",
+			start_time.Format("2006-01-02T15:04:05"), end_time.Format("2006-01-02T15:04:05"), totalSecs)
+	}
+
+
+	util.ReportUsageType(FlagOutType)
+	var divisor int64
+	switch FlagOutType {
+	case "Seconds":
+		divisor = 1
+	case "Minutes":
+		divisor = 60
+	case "Hours":
+		divisor = 3600
+	default:
+		divisor = 1
+	}
+
+	header := []string{"Cluster", "Allocate", "Down", "Planned", "Reported"}
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	table.SetHeader(header)
+	tableData := make([][]string, len(accountUserList))
+	for cluster, summary := range clusterMap {
+		tableData = append(tableData, []string{
+			cluster,
+			strconv.FormatInt(summary.TotalCpuTime/divisor, 10),
+			"-",
+			"-",
+			"-",
+		})
+	}
+	table.AppendBulk(tableData)
+	table.Render()
+
+
+	// table := tablewriter.NewWriter(os.Stdout)
+	// table.SetHeader([]string{"Cluster", "Login", "TotalCpuAlloc"})
+	// for cluster, summary := range clusterMap {
+	// 	table.Append([]string{
+	// 		cluster,
+	// 		strconv.FormatInt(summary.TotalCpuTime, 10),
+	// 		strconv.FormatInt(summary.TotalCpuAlloc, 10),
+	// 	})
+	// }
+	// table.Render()
+
+	return nil
+}
+
+
 func PrintAccountUserList(accountUserList []*protos.AccountUserSummaryItem, startTime, endTime time.Time, outType string) {
 	if len(accountUserList) == 0 {
 		fmt.Printf("accountUserList empty\n")
