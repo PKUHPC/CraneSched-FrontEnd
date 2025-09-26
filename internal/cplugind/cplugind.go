@@ -94,6 +94,13 @@ var RootCmd = &cobra.Command{
 			}
 		}
 
+		// Initialize task query service
+		log.Info("Initializing task query service...")
+		if err := InitTaskQueryService(); err != nil {
+			log.Warnf("Failed to initialize task query service: %v", err)
+			// Continue without task query service rather than failing completely
+		}
+
 		// Create and launch PluginDaemon
 		pd := NewPluginD(nil)
 

@@ -110,6 +110,26 @@ message RegisterCranedHookReply {
   bool ok = 1;
 }
 
+message QueryTaskEfficiencyRequest {
+  repeated uint32 task_ids = 1;
+  uint32 uid = 2;  // User ID for authorization
+}
+
+message TaskEfficiencyInfo {
+  uint32 task_id = 1;
+  string hostname = 2;
+  uint64 cpu_usage = 3;      // CPU usage in nanoseconds
+  uint64 memory_usage = 4;   // Memory usage in bytes
+  uint64 proc_count = 5;     // Process count
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+message QueryTaskEfficiencyReply {
+  bool ok = 1;
+  string error_message = 2;
+  repeated TaskEfficiencyInfo efficiency_data = 3;
+}
+
 service CranePluginD {
   /* ----------------------------------- Called from CraneCtld ---------------------------------------------------- */
   rpc StartHook(StartHookRequest) returns (StartHookReply);
@@ -121,4 +141,7 @@ service CranePluginD {
   /* ----------------------------------- Called from Craned ---------------------------------------------------- */
   rpc CreateCgroupHook(CreateCgroupHookRequest) returns (CreateCgroupHookReply);
   rpc DestroyCgroupHook(DestroyCgroupHookRequest) returns (DestroyCgroupHookReply);
+  
+  /* ----------------------------------- Called from Frontend Commands ----------------------------------------- */
+  rpc QueryTaskEfficiency(QueryTaskEfficiencyRequest) returns (QueryTaskEfficiencyReply);
 }

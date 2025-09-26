@@ -25,20 +25,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
 )
 
 var (
-	stub     protos.CraneCtldClient
-	dbConfig *util.InfluxDbConfig
+	stub         protos.CraneCtldClient
+	pluginClient protos.CranePluginDClient
 )
 
 type ResourceUsageRecord struct {
@@ -72,8 +69,8 @@ type CeffTaskInfo struct {
 
 var isFirstCall = true //Used for multi-job print
 
-// Extracts the InfluxDB configuration from the specified YAML configuration files
-func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, error) {
+// Connect to cplugind for querying efficiency data
+func GetPluginClient(config *util.Config) (protos.CranePluginDClient, error) {
 	if !config.Plugin.Enabled {
 		return nil, &util.CraneError{
 			Code:    util.ErrorCmdArg,
@@ -81,152 +78,73 @@ func GetInfluxDbConfig(config *util.Config) (*util.InfluxDbConfig, error) {
 		}
 	}
 
-	var monitorConfigPath string
-	for _, plugin := range config.Plugin.Plugins {
-		if plugin.Name == "monitor" {
-			monitorConfigPath = plugin.Config
-			break
-		}
+	// Get plugin socket path
+	pluginSockPath := config.Plugin.SockPath
+	if pluginSockPath == "" {
+		pluginSockPath = filepath.Join(config.CraneBaseDir, util.DefaultPlugindSocketPath)
+	} else {
+		pluginSockPath = filepath.Join(config.CraneBaseDir, pluginSockPath)
 	}
 
-	if monitorConfigPath == "" {
-		return nil, &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "Monitor plugin not found",
-		}
-	}
-
-	confFile, err := os.ReadFile(monitorConfigPath)
+	// Connect to cplugind via Unix socket
+	conn, err := util.GetUnixSockClientConn(pluginSockPath)
 	if err != nil {
 		return nil, &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Failed to read config file %s: %s.", monitorConfigPath, err),
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", pluginSockPath, err),
 		}
 	}
 
-	dbConf := &struct {
-		Database *util.InfluxDbConfig `yaml:"Database"`
-	}{}
-	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
-		return nil, &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Failed to parse YAML config file: %s", err),
-		}
-	}
-	if dbConf.Database == nil {
-		return nil, &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "Database section not found in YAML",
-		}
-	}
-
-	return dbConf.Database, nil
+	return protos.NewCranePluginDClient(conn), nil
 }
 
-func QueryInfluxDbDataByTags(moniterConfig *util.InfluxDbConfig, jobIDs []uint32, hostNames []string) ([]*ResourceUsageRecord, error) {
-	if len(hostNames) == 0 {
-		return nil, fmt.Errorf("job not found")
-	}
-	client := influxdb2.NewClient(moniterConfig.Url, moniterConfig.Token)
-	defer client.Close()
-
-	ctx := context.Background()
-	if pong, err := client.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
-	} else if !pong {
-		return nil, fmt.Errorf("failed to ping InfluxDB: not pong")
+// Query efficiency data through cplugind
+func QueryEfficiencyDataViaPlugin(taskIds []uint32) ([]*ResourceUsageRecord, error) {
+	if pluginClient == nil {
+		return nil, fmt.Errorf("plugin client not initialized")
 	}
 
-	jobIDFilters := make([]string, len(jobIDs))
-	for i, id := range jobIDs {
-		jobIDFilters[i] = fmt.Sprintf(`r["job_id"] == "%d"`, id) //Convert to Flux query string
+	// Get current user for authorization
+	currentUser, err := user.Current()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current user: %v", err)
 	}
-	jobIDCondition := strings.Join(jobIDFilters, " or ")
 
-	// Build hostname filter conditions
-	hostnameFilters := make([]string, len(hostNames))
-	for i, hostname := range hostNames {
-		hostnameFilters[i] = fmt.Sprintf(`r["hostname"] == "%s"`, hostname)
+	uid, err := strconv.ParseUint(currentUser.Uid, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse user ID: %v", err)
 	}
-	hostnameCondition := strings.Join(hostnameFilters, " or ")
 
-	// Construct the Flux query
-	fluxQuery := fmt.Sprintf(`
-	from(bucket: "%s")
-	|> range(start: 0)
-	|> filter(fn: (r) => 
-	    r["_measurement"] == "%s" and 
-		(r["_field"] == "cpu_usage" or r["_field"] == "memory_usage") and
-		(%s) and (%s))
-	|> group(columns: ["job_id", "hostname", "_field"])
-	|> max(column: "_value")`, moniterConfig.Bucket,
-		moniterConfig.Measurement, jobIDCondition, hostnameCondition)
+	// Request efficiency data from cplugind
+	req := &protos.QueryTaskEfficiencyRequest{
+		TaskIds: taskIds,
+		Uid:     uint32(uid),
+	}
 
-	// Execute the query
-	queryAPI := client.QueryAPI(moniterConfig.Org)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	result, err := queryAPI.Query(ctx, fluxQuery)
+	reply, err := pluginClient.QueryTaskEfficiency(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("execute query failed: %w", err)
+		return nil, fmt.Errorf("failed to query efficiency data: %v", err)
 	}
 
-	// Parse and aggregate the query results
-	dataMap := make(map[string]*ResourceUsageRecord)
-	for result.Next() {
-		record := result.Record()
-
-		// Extract job_id and hostname
-		jobIDStr, ok := record.ValueByKey("job_id").(string)
-		if !ok {
-			log.Printf("Invalid type for job_id")
-			continue
-		}
-		jobID, err := strconv.ParseInt(jobIDStr, 10, 64)
-		if err != nil {
-			log.Printf("Failed to parse job_id: %v", err)
-			continue
-		}
-		hostname, ok := record.ValueByKey("hostname").(string)
-		if !ok {
-			log.Printf("Invalid type for hostname")
-			continue
-		}
-
-		// Construct a unique key for aggregation
-		key := fmt.Sprintf("%d:%s", jobID, hostname)
-		if _, exists := dataMap[key]; !exists {
-			dataMap[key] = &ResourceUsageRecord{
-				TaskID:   jobID,
-				Hostname: hostname,
-			}
-		}
-
-		// Extract _field and _value
-		field := record.ValueByKey("_field").(string)
-		value := uint64(record.Value().(uint64))
-
-		// Update the corresponding field in the record
-		if field == "cpu_usage" {
-			dataMap[key].CPUUsage = value
-		} else if field == "memory_usage" {
-			dataMap[key].MemoryUsage = value
-		}
+	if !reply.Ok {
+		return nil, fmt.Errorf("efficiency query failed: %s", reply.ErrorMessage)
 	}
 
-	if result.Err() != nil {
-		return nil, fmt.Errorf("query parsing error: %w", result.Err())
-	}
-
-	// Convert the aggregated data into a slice
+	// Convert protobuf data to ResourceUsageRecord format
 	var records []*ResourceUsageRecord
-	for _, record := range dataMap {
+	for _, effData := range reply.EfficiencyData {
+		record := &ResourceUsageRecord{
+			TaskID:      int64(effData.TaskId),
+			CPUUsage:    effData.CpuUsage,
+			MemoryUsage: effData.MemoryUsage,
+			ProcCount:   effData.ProcCount,
+			Hostname:    effData.Hostname,
+			Timestamp:   effData.Timestamp.AsTime(),
+		}
 		records = append(records, record)
-	}
-
-	if len(records) == 0 {
-		return nil, fmt.Errorf("no matching data available")
 	}
 
 	return records, nil
@@ -283,18 +201,6 @@ func FormatDuration(duration time.Duration) string {
 		return fmt.Sprintf("%d-%02d:%02d:%02d", days, hours, minutes, seconds)
 	}
 	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
-}
-
-func ExtractNodeNames(taskInfos []*protos.TaskInfo) ([]string, error) {
-	var nodeNames []string
-	for _, taskInfo := range taskInfos {
-		nodes, ok := util.ParseHostList(taskInfo.GetCranedList())
-		if !ok {
-			return nil, fmt.Errorf("%s", taskInfo.GetCranedList())
-		}
-		nodeNames = append(nodeNames, nodes...)
-	}
-	return nodeNames, nil
 }
 
 func findNotFoundJobs(jobIdList []uint32, printed map[uint32]bool) []uint32 {
@@ -485,20 +391,12 @@ func QueryTasksInfoByIds(jobIds string) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	nodeNames, err := ExtractNodeNames(reply.TaskInfoList)
+	// Query Resource Usage Records via cplugind (secure approach)
+	result, err := QueryEfficiencyDataViaPlugin(jobIdList)
 	if err != nil {
 		return &util.CraneError{
 			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to extract node names: %s", err),
-		}
-	}
-
-	// Query Resource Usage Records in InfluxDB
-	result, err := QueryInfluxDbDataByTags(dbConfig, jobIdList, nodeNames)
-	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to query job info from InfluxDB: %s", err),
+			Message: fmt.Sprintf("Failed to query efficiency data via plugin: %s", err),
 		}
 	}
 

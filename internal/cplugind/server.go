@@ -161,3 +161,39 @@ func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.Regi
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) QueryTaskEfficiency(ctx context.Context, req *protos.QueryTaskEfficiencyRequest) (*protos.QueryTaskEfficiencyReply, error) {
+	log.Infof("Received QueryTaskEfficiency request from UID %d for tasks: %v", req.Uid, req.TaskIds)
+	
+	// Validate request
+	if len(req.TaskIds) == 0 {
+		return &protos.QueryTaskEfficiencyReply{
+			Ok:           false,
+			ErrorMessage: "No task IDs provided",
+		}, nil
+	}
+
+	// Check if task query service is initialized
+	if gTaskQueryService == nil {
+		return &protos.QueryTaskEfficiencyReply{
+			Ok:           false,
+			ErrorMessage: "Task query service not initialized",
+		}, nil
+	}
+
+	// Query efficiency data through the service
+	efficiencyData, err := gTaskQueryService.QueryTaskEfficiencyData(req.TaskIds, req.Uid)
+	if err != nil {
+		log.Errorf("Failed to query efficiency data: %v", err)
+		return &protos.QueryTaskEfficiencyReply{
+			Ok:           false,
+			ErrorMessage: fmt.Sprintf("Failed to query efficiency data: %v", err),
+		}, nil
+	}
+
+	log.Infof("Successfully returned %d efficiency records for user %d", len(efficiencyData), req.Uid)
+	return &protos.QueryTaskEfficiencyReply{
+		Ok:             true,
+		EfficiencyData: efficiencyData,
+	}, nil
+}
