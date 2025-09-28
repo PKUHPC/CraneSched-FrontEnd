@@ -20,9 +20,6 @@ package util
 
 import (
 	"fmt"
-	"os"
-
-	"github.com/spf13/cobra"
 )
 
 var VERSION = "Unknown"
@@ -34,23 +31,4 @@ func VersionTemplate() string {
 
 func Version() string {
 	return fmt.Sprintf("CraneSched %s\nBuild Time: %s", VERSION, BUILD_TIME)
-}
-
-func VerifyConfigPath(cmd *cobra.Command) {  
-    if !cmd.PersistentFlags().Changed("config") {  
-        return  
-    }  
-    path, err := cmd.PersistentFlags().GetString("config")  
-    if err != nil {  
-        fmt.Fprintf(os.Stderr, "Invalid --config flag: %v\n", err)  
-        os.Exit(ErrorCmdArg)  
-    }  
-	if path == "" {  
-        fmt.Fprintln(os.Stderr, "Empty --config path.")  
-        os.Exit(ErrorCmdArg)  
-    }  
-    if _, err := os.Stat(path); err != nil {  
-        fmt.Fprintf(os.Stderr, "Config file not found: %s\n", path)  
-        os.Exit(ErrorCmdArg)  
-    }  
 }
