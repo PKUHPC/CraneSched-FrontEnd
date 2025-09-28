@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/sjson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -45,6 +46,7 @@ const (
 	MailTypeTypeFlag
 	PriorityTypeFlag
 	TimelimitTypeFlag
+	DeadlineTypeFlag
 )
 
 type StepIdentifier struct {
@@ -124,6 +126,50 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to change job time limit")
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.NotModifiedJobs) == 0 {
+			return nil
+		} else {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+	}
+
+	return SummarizeReply(reply)
+}
+
+func ChangeDeadlineTime(jobStr string, deadline string) error {
+	time, err := util.ParseTime(deadline)
+
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: err.Error(),
+		}
+	}
+	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	if err != nil {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid job list specified: %s.\n", err),
+		}
+	}
+
+	req := &protos.ModifyJobRequest{
+		Uid:       uint32(os.Getuid()),
+		JobIds:   jobIds,
+		Attribute: protos.ModifyJobRequest_Deadline,
+		Value: &protos.ModifyJobRequest_DeadlineTime{
+			DeadlineTime: timestamppb.New(time),
+		},
+	}
+
+	reply, err := stub.ModifyJob(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to change task deadline")
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {

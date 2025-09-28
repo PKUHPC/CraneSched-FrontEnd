@@ -20,6 +20,7 @@ package util
 
 import (
 	"CraneFrontEnd/api"
+	"time"
 )
 
 type Config struct {
@@ -137,3 +138,7 @@ var QoSFlagNameMap = map[string]uint32{
 	"none":        QosFlagNone,
 	"denyonlimit": QOSFlagDenyOnLimit,
 }
+
+var (
+	InfiniteFuture = time.Unix(1<<63-1, 0)
+)
