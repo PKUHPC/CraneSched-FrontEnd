@@ -807,7 +807,6 @@ func srun() *cobra.Command {
 	cmd.Flags().StringVar(&crun.FlagMultiProg, "multi-prog", "", "")
 	cmd.Flags().StringVarP(&crun.FlagOversubscribe, "oversubscribe", "s", "", "")
 	cmd.Flags().StringVar(&crun.FlagCpuBind, "cpu-bind", "", "")
-	cmd.Flags().StringVar(&crun.FlagDeadline, "deadline", "", "")
 	cmd.Flags().StringVarP(&crun.FlagWait, "wait", "w", "", "")
 	cmd.Flags().StringVar(&crun.FlagMpi, "mpi", "", "")
 	cmd.Flags().StringVarP(&crun.FlagDependency, "dependency", "d", "", "")
@@ -845,9 +844,6 @@ func PrintSrunIgnoreDummyArgsMessage() {
 	}
 	if crun.FlagCpuBind != "" {
 		fmt.Fprintln(os.Stderr, "The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
-	}
-	if crun.FlagDeadline != "" {
-		fmt.Fprintln(os.Stderr, "The feature --deadline is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagWait != "" {
 		fmt.Fprintln(os.Stderr, "The feature --wait/-w is not yet supported by Crane, the use is ignored.")
