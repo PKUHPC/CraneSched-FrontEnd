@@ -25,7 +25,7 @@ func FormatTime(t *timestamppb.Timestamp, fallback string) string {
 }
 
 func GetElapsedTime(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Running {
+	if task.Status == protos.TaskStatus_Running  && task.ElapsedTime != nil {
 		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
 	}
 	return "-"
