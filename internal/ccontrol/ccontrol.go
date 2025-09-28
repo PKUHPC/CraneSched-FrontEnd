@@ -577,9 +577,9 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	return nil
 }
 
-func ShowLicenses(licenseName string, queryAll bool) util.CraneCmdError {
+func ShowLicenses(licenseName string, queryAll bool) error {
 	var licenseNameList []string
-
+	// TODO: parse or
 	if licenseName != "" {
 		licenseNameList = strings.Split(licenseName, ",")
 	}
@@ -588,7 +588,7 @@ func ShowLicenses(licenseName string, queryAll bool) util.CraneCmdError {
 	reply, err := stub.QueryLicensesInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show license")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if len(reply.LicenseInfoList) == 0 {
@@ -605,5 +605,5 @@ func ShowLicenses(licenseName string, queryAll bool) util.CraneCmdError {
 			licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free)
 	}
 
-	return util.ErrorSuccess
+	return nil
 }
