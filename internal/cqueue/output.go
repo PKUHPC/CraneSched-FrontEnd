@@ -55,6 +55,10 @@ func GenerateTableConfig() TableConfig {
 				"Type", "Qos", "Exclusive", "Held", "Priority", "NodeList/Reason",
 			},
 			RowMapper: func(task *protos.TaskInfo) []string {
+				timeLimit := "-"  
+    			if task.TimeLimit != nil {  
+        			timeLimit = FormatTimeLimit(task.TimeLimit.Seconds)  
+    			} 
 				return []string{
 					strconv.FormatUint(uint64(task.TaskId), 10),
 					task.Name,
@@ -68,7 +72,7 @@ func GenerateTableConfig() TableConfig {
 					ProcessAllocMemPerNode(task),
 					task.Status.String(),
 					GetElapsedTime(task),
-					FormatTimeLimit(task.TimeLimit.Seconds),
+					timeLimit,
 					FormatTime(task.StartTime, "unknown"),
 					FormatTime(task.SubmitTime, "unknown"),
 					task.Type.String(),
