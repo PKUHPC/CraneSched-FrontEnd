@@ -118,6 +118,7 @@ enum TaskStatus {
   Configured = 8;
   Completing = 9;
 
+  Deadline = 7;
   Invalid = 15;
 }
 
@@ -173,7 +174,8 @@ message TaskToCtld {
   bool exclusive = 37;
 
   bool hold = 38;
-  google.protobuf.Timestamp begin_time = 39;
+  google.protobuf.Timestamp begin_time = 39; 
+  google.protobuf.Timestamp deadline_time = 40;
 }
 
 message TaskInEmbeddedDb {
