@@ -65,8 +65,9 @@ var (
 
 	FlagReservation string
 
-	FlagHold      bool
-	FlagBeginTime string
+	FlagHold         bool
+	FlagBeginTime    string
+	FlagDeadlineTime string
 
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
@@ -173,4 +174,5 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagBeginTime, "begin", "b", "", "Defer job until specified time.")
+	RootCmd.Flags().StringVar(&FlagDeadlineTime, "deadline", "", "Remove the job if not started by time.")
 }
