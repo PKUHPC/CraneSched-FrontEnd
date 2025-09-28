@@ -88,6 +88,7 @@ var (
 	FlagCoresPerSocket  string
 	FlagRequeue         string
 	FlagWait            string
+	FlagDeadlineTime    string
 
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
@@ -189,4 +190,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
 
 	initPodFlags(RootCmd)
+	RootCmd.Flags().StringVar(&FlagDeadlineTime, "deadline", "", "Remove the job if not started by time.")
 }

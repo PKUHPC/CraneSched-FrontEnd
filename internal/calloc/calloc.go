@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GlobalVariables struct {
@@ -488,6 +489,16 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 	if FlagHold {
 		job.Hold = true
+	}
+	if FlagDeadlineTime != "" {
+		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: --deadline: %s", err),
+			}
+		}
+		task.DeadlineTime = timestamppb.New(deadlineTime)
 	}
 	if cmd.Flags().Changed("wckey") {
 		job.Wckey = &FlagWckey

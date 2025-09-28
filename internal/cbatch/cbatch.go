@@ -248,6 +248,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 		}
 		job.BeginTime = timestamppb.New(beginTime)
 	}
+	if FlagDeadlineTime != "" {
+		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: invalid --deadline value '%s': %w", FlagDeadlineTime, err)
+		}
+		task.DeadlineTime = timestamppb.New(deadlineTime)
+	}
 	if FlagExclusive {
 		job.Exclusive = true
 	}

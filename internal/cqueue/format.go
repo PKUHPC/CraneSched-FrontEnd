@@ -33,6 +33,15 @@ func ProcessReqCpuPerTask(job *protos.JobInfo) string {
 	return strconv.FormatFloat(totalCpu, 'f', 2, 64)
 }
 
+// 'd' group
+func ProcessDeadline(task *protos.TaskInfo) string {
+	deadlineTime := task.DeadlineTime.AsTime()
+	if !deadlineTime.Equal(util.InfiniteFuture) {
+		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
+}
+
 // 'e' group
 func ProcessElapsedTime(job *protos.JobInfo) string {
 	if job.Status == protos.JobStatus_Running {
@@ -200,6 +209,9 @@ var fieldMap = map[string]FieldProcessor{
 	"alloccpus": {"AllocCpus", ProcessAllocCpus},
 	"C":         {"ReqCpus", ProcessReqCPUs},
 	"reqcpus":   {"ReqCpus", ProcessReqCPUs},
+
+	// 'd' group
+	"deadline": {"Deadline", ProcessDeadline},
 
 	// 'e' group
 	"e":           {"ElapsedTime", ProcessElapsedTime},
