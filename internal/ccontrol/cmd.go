@@ -57,6 +57,8 @@ var actionToExecute = map[string]func(command *CControlCommand) int{
 	"update":  executeUpdateCommand,
 	"hold":    executeHoldCommand,
 	"release": executeReleaseCommand,
+	"suspend": executeSuspendCommand,
+	"resume":  executeResumeCommand,
 	"create":  executeCreateCommand,
 	"delete":  executeDeleteCommand,
 }
@@ -374,6 +376,36 @@ func executeReleaseCommand(command *CControlCommand) int {
 	err := HoldReleaseJobs(jobIds, false)
 	if err != nil {
 		log.Errorf("release jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeSuspendCommand(command *CControlCommand) int {
+	jobIds := command.GetID()
+	if jobIds == "" {
+		log.Debug("no job id specified")
+		return util.ErrorCmdArg
+	}
+
+	err := SuspendJobs(jobIds)
+	if err != nil {
+		log.Errorf("suspend jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeResumeCommand(command *CControlCommand) int {
+	jobIds := command.GetID()
+	if jobIds == "" {
+		log.Debug("no job id specified")
+		return util.ErrorCmdArg
+	}
+
+	err := ResumeJobs(jobIds)
+	if err != nil {
+		log.Errorf("resume jobs failed: %s", err)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess

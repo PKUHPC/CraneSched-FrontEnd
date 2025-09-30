@@ -177,6 +177,60 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 	return SummarizeReply(reply)
 }
 
+func SuspendJobs(jobs string) error {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		log.Errorf("invalid job list: %s", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
+	}
+
+	req := &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskIds:   jobList,
+		Attribute: protos.ModifyTaskRequest_Suspend,
+	}
+
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to suspend jobs")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+
+	return SummarizeReply(reply)
+}
+
+func ResumeJobs(jobs string) error {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		log.Errorf("invalid job list: %s", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
+	}
+
+	req := &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskIds:   jobList,
+		Attribute: protos.ModifyTaskRequest_Resume,
+	}
+
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to resume jobs")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+
+	return SummarizeReply(reply)
+}
+
 func ChangeTaskPriority(taskStr string, priority float64) error {
 	if priority < 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, "Priority must be greater than or equal to 0.")
