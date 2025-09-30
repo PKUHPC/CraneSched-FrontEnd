@@ -58,14 +58,14 @@ func (step *StepIdentifier) String() string {
 
 func SummarizeReply(proto interface{}) error {
 	switch reply := proto.(type) {
-	case *protos.ModifyJobReply:
-		if len(reply.ModifiedJobs) > 0 {
-			modifiedJobsString := util.ConvertSliceToString(reply.ModifiedJobs, ", ")
-			fmt.Printf("Jobs %s modified successfully.\n", modifiedJobsString)
+	case *protos.ModifyTaskReply:
+		if len(reply.ModifiedTasks) > 0 {
+			modifiedTasksString := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
+			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
 		}
-		if len(reply.NotModifiedJobs) > 0 {
-			for i := 0; i < len(reply.NotModifiedJobs); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedJobs[i], reply.NotModifiedReasons[i])
+		if len(reply.NotModifiedTasks) > 0 {
+			for i := 0; i < len(reply.NotModifiedTasks); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
@@ -82,14 +82,14 @@ func SummarizeReply(proto interface{}) error {
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
 		return nil
-	case *protos.ModifyJobsExtraAttrsReply:
-		if len(reply.ModifiedJobs) > 0 {
-			modifiedJobsString := util.ConvertSliceToString(reply.ModifiedJobs, ", ")
-			fmt.Printf("Jobs %s modified successfully.\n", modifiedJobsString)
+	case *protos.ModifyTasksExtraAttrsReply:
+		if len(reply.ModifiedTasks) > 0 {
+			modifiedTasksString := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
+			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
 		}
-		if len(reply.NotModifiedJobs) > 0 {
-			for i := 0; i < len(reply.NotModifiedJobs); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedJobs[i], reply.NotModifiedReasons[i])
+		if len(reply.NotModifiedTasks) > 0 {
+			for i := 0; i < len(reply.NotModifiedTasks); i++ {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
@@ -99,34 +99,34 @@ func SummarizeReply(proto interface{}) error {
 	}
 }
 
-func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
+func ChangeTaskTimeLimit(jobStr string, timeLimit string) error {
 	seconds, err := util.ParseDurationStrToSeconds(timeLimit)
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	taskIds, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
 	}
 
-	req := &protos.ModifyJobRequest{
+	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:    jobIds,
-		Attribute: protos.ModifyJobRequest_TimeLimit,
-		Value: &protos.ModifyJobRequest_TimeLimitSeconds{
+		TaskIds:   taskIds,
+		Attribute: protos.ModifyTaskRequest_TimeLimit,
+		Value: &protos.ModifyTaskRequest_TimeLimitSeconds{
 			TimeLimitSeconds: seconds,
 		},
 	}
-	reply, err := stub.ModifyJob(context.Background(), req)
+	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change job time limit")
+		util.GrpcErrorPrintf(err, "Failed to change task time limit")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.NotModifiedJobs) == 0 {
+		if len(reply.NotModifiedTasks) == 0 {
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
@@ -142,14 +142,14 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
 	}
 
-	req := &protos.ModifyJobRequest{
+	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:    jobList,
-		Attribute: protos.ModifyJobRequest_Hold,
+		TaskIds:   jobList,
+		Attribute: protos.ModifyTaskRequest_Hold,
 	}
 	if hold {
 		// The default timer value for hold is unlimited.
-		req.Value = &protos.ModifyJobRequest_HoldSeconds{HoldSeconds: math.MaxInt64}
+		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: math.MaxInt64}
 
 		// If a time limit for hold constraint is specified, parse it.
 		if FlagHoldTime != "" {
@@ -162,13 +162,13 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 				return util.NewCraneErr(util.ErrorCmdArg, "Hold time must be greater than 0.")
 			}
 
-			req.Value = &protos.ModifyJobRequest_HoldSeconds{HoldSeconds: seconds}
+			req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: seconds}
 		}
 	} else {
-		req.Value = &protos.ModifyJobRequest_HoldSeconds{HoldSeconds: 0}
+		req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: 0}
 	}
 
-	reply, err := stub.ModifyJob(context.Background(), req)
+	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify the job")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -176,11 +176,65 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.NotModifiedJobs) == 0 {
+		if len(reply.NotModifiedTasks) == 0 {
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
+	}
+
+	return SummarizeReply(reply)
+}
+
+func SuspendJobs(jobs string) error {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		log.Errorf("invalid job list: %s", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
+	}
+
+	req := &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskIds:   jobList,
+		Attribute: protos.ModifyTaskRequest_Suspend,
+	}
+
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to suspend jobs")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+
+	return SummarizeReply(reply)
+}
+
+func ResumeJobs(jobs string) error {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		log.Errorf("invalid job list: %s", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
+	}
+
+	req := &protos.ModifyTaskRequest{
+		Uid:       uint32(os.Getuid()),
+		TaskIds:   jobList,
+		Attribute: protos.ModifyTaskRequest_Resume,
+	}
+
+	reply, err := stub.ModifyTask(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to resume jobs")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
 	}
 
 	return SummarizeReply(reply)
@@ -191,7 +245,7 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "Priority must be greater than or equal to 0.")
 	}
 
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	taskIds, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
@@ -204,24 +258,24 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 		log.Warnf("Mandated priority equals 0 means the scheduling priority will be calculated.")
 	}
 
-	req := &protos.ModifyJobRequest{
+	req := &protos.ModifyTaskRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:    jobIds,
-		Attribute: protos.ModifyJobRequest_Priority,
-		Value: &protos.ModifyJobRequest_MandatedPriority{
+		TaskIds:   taskIds,
+		Attribute: protos.ModifyTaskRequest_Priority,
+		Value: &protos.ModifyTaskRequest_MandatedPriority{
 			MandatedPriority: rounded,
 		},
 	}
 
-	reply, err := stub.ModifyJob(context.Background(), req)
+	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change job priority")
+		util.GrpcErrorPrintf(err, "Failed to change task priority")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.NotModifiedJobs) == 0 {
+		if len(reply.NotModifiedTasks) == 0 {
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
@@ -231,26 +285,26 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 	return SummarizeReply(reply)
 }
 
-func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string) error {
-	stepIdList, err := util.ParseStepIdList(jobStr, ",")
+func ChangeTaskExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string) error {
+	stepIdList, err := util.ParseStepIdList(taskStr, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
-	req := &protos.QueryJobsInfoRequest{
-		FilterIds:                  stepIdList,
-		OptionIncludeCompletedJobs: false,
+	req := &protos.QueryTasksInfoRequest{
+		FilterIds:                   stepIdList,
+		OptionIncludeCompletedTasks: false,
 	}
-	reply, err := stub.QueryJobsInfo(context.Background(), req)
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to query job information: %s", err))
 	}
 
 	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %s", jobStr))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %s", taskStr))
 	}
 
-	if len(reply.JobInfoList) == 0 {
+	if len(reply.TaskInfoList) == 0 {
 		jobIdListString := util.JobStepListToString(stepIdList)
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("%s is completed or does not exist", jobIdListString))
 	}
@@ -276,13 +330,13 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 
 	pdOrRJobMap := make(map[uint32]string)
 	validJobList := map[uint32]bool{}
-	for _, jobInfo := range reply.JobInfoList {
-		newJsonStr, err := updateJobExtraAttr(jobInfo.ExtraAttr, valueMap)
+	for _, taskInfo := range reply.TaskInfoList {
+		newJsonStr, err := updateJobExtraAttr(taskInfo.ExtraAttr, valueMap)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to set extra attributes JSON: %s", err))
 		}
-		pdOrRJobMap[jobInfo.JobId] = newJsonStr
-		validJobList[jobInfo.JobId] = true
+		pdOrRJobMap[taskInfo.TaskId] = newJsonStr
+		validJobList[taskInfo.TaskId] = true
 	}
 
 	notGetInfoJobs := []uint32{}
@@ -296,20 +350,20 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 		log.Warnf("Job %s is completed or does not exist.\n", notGetInfoJobsString)
 	}
 
-	request := &protos.ModifyJobsExtraAttrsRequest{
+	request := &protos.ModifyTasksExtraAttrsRequest{
 		Uid:            uint32(os.Getuid()),
 		ExtraAttrsList: pdOrRJobMap,
 	}
 
-	rep, err := stub.ModifyJobsExtraAttrs(context.Background(), request)
+	rep, err := stub.ModifyTasksExtraAttrs(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change job extra attrs")
+		util.GrpcErrorPrintf(err, "Failed to change task extra attrs")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(rep))
-		if len(rep.NotModifiedJobs) == 0 {
+		if len(rep.NotModifiedTasks) == 0 {
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
@@ -524,16 +578,16 @@ func DeleteReservation(ReservationName string) error {
 	return nil
 }
 
-func ResetNextJobId(nextJobId uint32, nextJobDbId int64) error {
-	req := &protos.ResetNextJobIdRequest{
-		Uid:         uint32(os.Getuid()),
-		NextJobId:   nextJobId,
-		NextJobDbId: nextJobDbId,
+func ResetNextTaskId(nextTaskId uint32, nextTaskDbId int64) error {
+	req := &protos.ResetNextTaskIdRequest{
+		Uid:          uint32(os.Getuid()),
+		NextTaskId:   nextTaskId,
+		NextTaskDbId: nextTaskDbId,
 	}
 
-	reply, err := stub.ResetNextJobId(context.Background(), req)
+	reply, err := stub.ResetNextTaskId(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to reset next job ID")
+		util.GrpcErrorPrintf(err, "Failed to reset next task ID")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
@@ -546,9 +600,9 @@ func ResetNextJobId(nextJobId uint32, nextJobDbId int64) error {
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("Next job ID reset to %d (db_id=%d) successfully.\n", nextJobId, nextJobDbId)
+		fmt.Printf("Next task ID reset to %d (db_id=%d) successfully.\n", nextTaskId, nextTaskDbId)
 	} else {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to reset next job ID: %s.", reply.GetReason()))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to reset next task ID: %s.", reply.GetReason()))
 	}
 	return nil
 }
@@ -572,21 +626,21 @@ func ResetNextStepDbId() error {
 	return nil
 }
 
-func PurgeJobHistory() error {
-	req := &protos.PurgeJobHistoryRequest{
+func PurgeTaskHistory() error {
+	req := &protos.PurgeTaskHistoryRequest{
 		Uid: uint32(os.Getuid()),
 	}
 
-	reply, err := stub.PurgeJobHistory(context.Background(), req)
+	reply, err := stub.PurgeTaskHistory(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to purge job history")
+		util.GrpcErrorPrintf(err, "Failed to purge task history")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if reply.GetOk() {
-		fmt.Println("Job history purged successfully.")
+		fmt.Println("Task history purged successfully.")
 	} else {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to purge job history: %s.", reply.GetReason()))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to purge task history: %s.", reply.GetReason()))
 	}
 	return nil
 }
