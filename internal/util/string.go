@@ -1000,6 +1000,8 @@ func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 		return protos.TaskStatus_Cancelled, nil
 	case "oom", "out-of-memory", "outofmemory", "o":
 		return protos.TaskStatus_OutOfMemory, nil
+	case "suspended", "suspend", "s":
+		return protos.TaskStatus_Suspended, nil
 	case "all":
 		return protos.TaskStatus_Invalid, nil
 	default:
