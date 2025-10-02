@@ -1438,6 +1438,8 @@ func ParseJobStatusName(state string) (protos.JobStatus, error) {
 		return protos.JobStatus_Cancelled, nil
 	case "oom", "out-of-memory", "outofmemory", "o":
 		return protos.JobStatus_OutOfMemory, nil
+	case "suspended", "suspend", "s":
+		return protos.JobStatus_Suspended, nil
 	case "all":
 		return protos.JobStatus_Invalid, nil
 	default:
