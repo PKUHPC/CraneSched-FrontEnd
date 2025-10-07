@@ -52,12 +52,12 @@ type TLSConfig struct {
 }
 
 type PluginConfig struct {
-	Enabled  bool             `yaml:"Enabled"`
-	SockPath string           `yaml:"PlugindSockPath"`
-	ListenAddress string      `yaml:"PlugindListenAddress"`
-	ListenPort     string           `yaml:"PlugindListenPort"`
-	LogLevel string           `yaml:"PlugindDebugLevel"`
-	Plugins  []api.PluginMeta `yaml:"Plugins"`
+	Enabled       bool             `yaml:"Enabled"`
+	SockPath      string           `yaml:"PlugindSockPath"`
+	ListenAddress string           `yaml:"PlugindListenAddress"`
+	ListenPort    string           `yaml:"PlugindListenPort"`
+	LogLevel      string           `yaml:"PlugindDebugLevel"`
+	Plugins       []api.PluginMeta `yaml:"Plugins"`
 }
 
 // InfluxDB Config represents the structure of the database configuration

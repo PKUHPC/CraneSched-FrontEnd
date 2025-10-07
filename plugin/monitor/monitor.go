@@ -80,12 +80,12 @@ type ResourceUsage struct {
 
 type MonitorPlugin struct {
 	config
-	client   influxdb2.Client
-	cond     *sync.Cond         // Sync consumer
-	once     sync.Once          // Ensure the Singleton of InfluxDB client
-	buffer   chan ResourceUsage // Buffer channel for processing usage data
-	jobCtx   map[int64]context.CancelFunc
-	jobMutex sync.RWMutex
+	client         influxdb2.Client
+	cond           *sync.Cond         // Sync consumer
+	once           sync.Once          // Ensure the Singleton of InfluxDB client
+	buffer         chan ResourceUsage // Buffer channel for processing usage data
+	jobCtx         map[int64]context.CancelFunc
+	jobMutex       sync.RWMutex
 	hostConfigPath string
 	queryService   *MonitorQueryService
 }
