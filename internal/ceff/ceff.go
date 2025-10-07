@@ -27,7 +27,6 @@ import (
 	"math"
 	"net"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -81,47 +80,26 @@ func GetPluginClient(config *util.Config) (protos.MonitorQueryServiceClient, err
 		}
 	}
 
-	var (
-		conn *grpc.ClientConn
-		err  error
+	addr := config.Plugin.ListenAddress
+	port := config.Plugin.ListenPort
+	if addr == "" || port == "" {
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: "PlugindListenAddress and PlugindListenPort must be configured for ceff",
+		}
+	}
+
+	endpoint := net.JoinHostPort(addr, port)
+	conn, err := grpc.NewClient(endpoint,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(util.ClientKeepAliveParams),
+		grpc.WithConnectParams(util.ClientConnectParams),
+		grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
 	)
-
-	if addr := config.Plugin.ListenAddress; addr != "" {
-		port := config.Plugin.ListenPort
-		if port == "" {
-			return nil, &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "PlugindListenPort must be specified when PlugindListenAddress is set",
-			}
-		}
-
-		endpoint := net.JoinHostPort(addr, port)
-		conn, err = grpc.NewClient(endpoint,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithKeepaliveParams(util.ClientKeepAliveParams),
-			grpc.WithConnectParams(util.ClientConnectParams),
-			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
-		)
-		if err != nil {
-			return nil, &util.CraneError{
-				Code:    util.ErrorNetwork,
-				Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err),
-			}
-		}
-	} else {
-		pluginSockPath := config.Plugin.SockPath
-		if pluginSockPath == "" {
-			pluginSockPath = filepath.Join(config.CraneBaseDir, util.DefaultPlugindSocketPath)
-		} else {
-			pluginSockPath = filepath.Join(config.CraneBaseDir, pluginSockPath)
-		}
-
-		conn, err = util.GetUnixSockClientConn(pluginSockPath)
-		if err != nil {
-			return nil, &util.CraneError{
-				Code:    util.ErrorNetwork,
-				Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", pluginSockPath, err),
-			}
+	if err != nil {
+		return nil, &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err),
 		}
 	}
 
