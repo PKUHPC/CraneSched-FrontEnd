@@ -385,6 +385,24 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// GetUnixSockClientConn establishes a gRPC client connection over a UNIX domain socket.
+func GetUnixSockClientConn(sockPath string) (*grpc.ClientConn, error) {
+	target := fmt.Sprintf("unix://%s", sockPath)
+
+	dialOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			d := &net.Dialer{}
+			return d.DialContext(ctx, "unix", sockPath)
+		}),
+		grpc.WithKeepaliveParams(ClientKeepAliveParams),
+		grpc.WithConnectParams(ClientConnectParams),
+		grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
+	}
+
+	return grpc.NewClient(target, dialOpts...)
+}
+
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {

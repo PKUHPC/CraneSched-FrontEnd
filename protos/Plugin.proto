@@ -142,6 +142,9 @@ service CranePluginD {
   rpc CreateCgroupHook(CreateCgroupHookRequest) returns (CreateCgroupHookReply);
   rpc DestroyCgroupHook(DestroyCgroupHookRequest) returns (DestroyCgroupHookReply);
   
-  /* ----------------------------------- Called from Frontend Commands ----------------------------------------- */
+}
+
+/* ----------------------------------- Monitor plugin gRPC service ----------------------------------------- */
+service MonitorQueryService {
   rpc QueryTaskEfficiency(QueryTaskEfficiencyRequest) returns (QueryTaskEfficiencyReply);
 }

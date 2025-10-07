@@ -54,6 +54,8 @@ type TLSConfig struct {
 type PluginConfig struct {
 	Enabled  bool             `yaml:"Enabled"`
 	SockPath string           `yaml:"PlugindSockPath"`
+	ListenAddress string      `yaml:"PlugindListenAddress"`
+	ListenPort     string           `yaml:"PlugindListenPort"`
 	LogLevel string           `yaml:"PlugindDebugLevel"`
 	Plugins  []api.PluginMeta `yaml:"Plugins"`
 }

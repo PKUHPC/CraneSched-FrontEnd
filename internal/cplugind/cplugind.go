@@ -19,8 +19,10 @@
 package cplugind
 
 import (
+	"CraneFrontEnd/api"
 	"CraneFrontEnd/internal/util"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -83,10 +85,16 @@ var RootCmd = &cobra.Command{
 			}
 		}
 
-		// Init plugins
+		// Provide config path to plugins that require it and initialize them
 		log.Info("Initializing plugins...")
-		for _, p := range gPluginMap {
-			if err := (*p).Load(p.Meta); err != nil {
+		for _, loaded := range gPluginMap {
+			pluginImpl := loaded.Plugin
+
+			if aware, ok := pluginImpl.(api.HostConfigAware); ok {
+				aware.SetHostConfigPath(FlagCraneConfig)
+			}
+
+			if err := pluginImpl.Load(loaded.Meta); err != nil {
 				return &util.CraneError{
 					Code:    util.ErrorGeneric,
 					Message: fmt.Sprintf("Failed to init plugin: %s", err),
@@ -94,17 +102,26 @@ var RootCmd = &cobra.Command{
 			}
 		}
 
-		// Initialize task query service
-		log.Info("Initializing task query service...")
-		if err := InitTaskQueryService(); err != nil {
-			log.Warnf("Failed to initialize task query service: %v", err)
-			// Continue without task query service rather than failing completely
-		}
-
 		// Create and launch PluginDaemon
 		pd := NewPluginD(nil)
 
-		// Start server on UNIX socket
+		// Allow plugins to register additional gRPC services before serving
+		for _, loaded := range gPluginMap {
+			pluginImpl := loaded.Plugin
+
+			if registrar, ok := pluginImpl.(api.GRPCServiceRegistrar); ok {
+				if err := registrar.RegisterGRPCServices(pd.Server); err != nil {
+					return &util.CraneError{
+						Code:    util.ErrorGeneric,
+						Message: fmt.Sprintf("Failed to register gRPC services for plugin %s: %v", loaded.Meta.Name, err),
+					}
+				}
+			}
+		}
+
+		// Prepare listeners based on configuration
+		listeners := make([]net.Listener, 0, 2)
+
 		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath, 0600)
 		if err != nil {
 			return &util.CraneError{
@@ -112,9 +129,31 @@ var RootCmd = &cobra.Command{
 				Message: fmt.Sprintf("Failed to get UNIX socket: %s", err),
 			}
 		}
+		listeners = append(listeners, unixSocket)
+		log.Infof("gRPC server listening on UNIX socket %s.", gPluginConfig.SockPath)
 
-		log.Infof("gRPC server listening on %s.", gPluginConfig.SockPath)
-		if err := pd.Launch(unixSocket); err != nil {
+		if addr := gPluginConfig.ListenAddress; addr != "" {
+			port := gPluginConfig.ListenPort
+			if port == "" {
+				return &util.CraneError{
+					Code:    util.ErrorCmdArg,
+					Message: "PlugindListenPort must be specified when PlugindListenAddress is set",
+				}
+			}
+
+			bindTarget := net.JoinHostPort(addr, port)
+			tcpListener, err := util.GetTCPSocket(bindTarget, config)
+			if err != nil {
+				return &util.CraneError{
+					Code:    util.ErrorGeneric,
+					Message: fmt.Sprintf("Failed to listen on %s: %v", bindTarget, err),
+				}
+			}
+			listeners = append(listeners, tcpListener)
+			log.Infof("gRPC server also listening on %s.", bindTarget)
+		}
+
+		if err := pd.Launch(listeners...); err != nil {
 			return &util.CraneError{
 				Code:    util.ErrorGeneric,
 				Message: fmt.Sprintf("Failed to launch plugin daemon: %s", err),

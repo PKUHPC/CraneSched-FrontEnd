@@ -25,17 +25,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
 	stub         protos.CraneCtldClient
-	pluginClient protos.CranePluginDClient
+	pluginClient protos.MonitorQueryServiceClient
 )
 
 type ResourceUsageRecord struct {
@@ -70,7 +73,7 @@ type CeffTaskInfo struct {
 var isFirstCall = true //Used for multi-job print
 
 // Connect to cplugind for querying efficiency data
-func GetPluginClient(config *util.Config) (protos.CranePluginDClient, error) {
+func GetPluginClient(config *util.Config) (protos.MonitorQueryServiceClient, error) {
 	if !config.Plugin.Enabled {
 		return nil, &util.CraneError{
 			Code:    util.ErrorCmdArg,
@@ -78,24 +81,51 @@ func GetPluginClient(config *util.Config) (protos.CranePluginDClient, error) {
 		}
 	}
 
-	// Get plugin socket path
-	pluginSockPath := config.Plugin.SockPath
-	if pluginSockPath == "" {
-		pluginSockPath = filepath.Join(config.CraneBaseDir, util.DefaultPlugindSocketPath)
-	} else {
-		pluginSockPath = filepath.Join(config.CraneBaseDir, pluginSockPath)
-	}
+	var (
+		conn *grpc.ClientConn
+		err  error
+	)
 
-	// Connect to cplugind via Unix socket
-	conn, err := util.GetUnixSockClientConn(pluginSockPath)
-	if err != nil {
-		return nil, &util.CraneError{
-			Code:    util.ErrorNetwork,
-			Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", pluginSockPath, err),
+	if addr := config.Plugin.ListenAddress; addr != "" {
+		port := config.Plugin.ListenPort
+		if port == "" {
+			return nil, &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "PlugindListenPort must be specified when PlugindListenAddress is set",
+			}
+		}
+
+		endpoint := net.JoinHostPort(addr, port)
+		conn, err = grpc.NewClient(endpoint,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithKeepaliveParams(util.ClientKeepAliveParams),
+			grpc.WithConnectParams(util.ClientConnectParams),
+			grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
+		)
+		if err != nil {
+			return nil, &util.CraneError{
+				Code:    util.ErrorNetwork,
+				Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err),
+			}
+		}
+	} else {
+		pluginSockPath := config.Plugin.SockPath
+		if pluginSockPath == "" {
+			pluginSockPath = filepath.Join(config.CraneBaseDir, util.DefaultPlugindSocketPath)
+		} else {
+			pluginSockPath = filepath.Join(config.CraneBaseDir, pluginSockPath)
+		}
+
+		conn, err = util.GetUnixSockClientConn(pluginSockPath)
+		if err != nil {
+			return nil, &util.CraneError{
+				Code:    util.ErrorNetwork,
+				Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", pluginSockPath, err),
+			}
 		}
 	}
 
-	return protos.NewCranePluginDClient(conn), nil
+	return protos.NewMonitorQueryServiceClient(conn), nil
 }
 
 // Query efficiency data through cplugind

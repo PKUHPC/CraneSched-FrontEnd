@@ -21,19 +21,19 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
-	"os"
-	"time"
-
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"gopkg.in/yaml.v3"
-
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"gopkg.in/yaml.v3"
 )
 
 // Compile-time check to ensure MonitorPlugin implements api.Plugin
@@ -86,6 +86,8 @@ type MonitorPlugin struct {
 	buffer   chan ResourceUsage // Buffer channel for processing usage data
 	jobCtx   map[int64]context.CancelFunc
 	jobMutex sync.RWMutex
+	hostConfigPath string
+	queryService   *MonitorQueryService
 }
 
 // Dummy implementations
@@ -255,6 +257,10 @@ func (p *MonitorPlugin) Version() string {
 	return "v0.0.1"
 }
 
+func (p *MonitorPlugin) SetHostConfigPath(path string) {
+	p.hostConfigPath = path
+}
+
 func (p *MonitorPlugin) Load(meta api.PluginMeta) error {
 	if meta.Config == "" {
 		return errors.New("config file is not specified")
@@ -297,6 +303,10 @@ func (p *MonitorPlugin) Load(meta api.PluginMeta) error {
 
 	log.Infoln("Monitor plugin is initialized.")
 	log.Tracef("Monitor plugin config: %v", p.config)
+
+	if err := p.initQueryService(); err != nil {
+		return fmt.Errorf("failed to initialize monitor query service: %w", err)
+	}
 
 	return nil
 }
@@ -363,6 +373,26 @@ func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 func (p *MonitorPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
 func (p *MonitorPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
+
+func (p *MonitorPlugin) RegisterGRPCServices(server grpc.ServiceRegistrar) error {
+	if p.queryService == nil {
+		return fmt.Errorf("monitor query service is not initialized")
+	}
+
+	protos.RegisterMonitorQueryServiceServer(server, p.queryService)
+	log.Info("Monitor plugin registered MonitorQueryService gRPC endpoints")
+	return nil
+}
+
+func (p *MonitorPlugin) initQueryService() error {
+	service, err := NewMonitorQueryService(p, p.hostConfigPath)
+	if err != nil {
+		return err
+	}
+
+	p.queryService = service
+	return nil
+}
 
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +

@@ -18,6 +18,8 @@
 
 package api
 
+import "google.golang.org/grpc"
+
 type HookType uint8
 
 const (
@@ -68,4 +70,16 @@ type Plugin interface {
 
 	UpdatePowerStateHook(ctx *PluginContext)
 	RegisterCranedHook(ctx *PluginContext)
+}
+
+// GRPCServiceRegistrar allows a plugin to register its own gRPC services
+// onto the shared plugin daemon server instance.
+type GRPCServiceRegistrar interface {
+	RegisterGRPCServices(server grpc.ServiceRegistrar) error
+}
+
+// HostConfigAware allows a plugin to receive the absolute path to the
+// CraneSched host configuration file before initialization.
+type HostConfigAware interface {
+	SetHostConfigPath(path string)
 }
