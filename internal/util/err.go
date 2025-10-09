@@ -127,6 +127,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_REVOKE_CERTIFICATE:     "Revocation of the certificate failed, Please check the logs",
 	protos.ErrCode_ERR_IDENTITY_MISMATCH:      "User information does not match, unable to submit the task.",
 	protos.ErrCode_ERR_NOT_FORCE:              "You need to set --force for this operation.",
+	protos.ErrCode_ERR_INVALID_USERNAME:       "Invalid username",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
