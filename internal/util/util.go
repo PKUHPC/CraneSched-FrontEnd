@@ -57,6 +57,8 @@ type PluginConfig struct {
 	ListenAddress string           `yaml:"PlugindListenAddress"`
 	ListenPort    string           `yaml:"PlugindListenPort"`
 	LogLevel      string           `yaml:"PlugindDebugLevel"`
+	UseTLS        bool             `yaml:"UseTLS"`
+	CertFile      string           `yaml:"CertFile"`
 	Plugins       []api.PluginMeta `yaml:"Plugins"`
 }
 

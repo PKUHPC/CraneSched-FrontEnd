@@ -32,6 +32,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -91,8 +92,32 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc
 	}
 
 	endpoint := net.JoinHostPort(addr, port)
+	var creds credentials.TransportCredentials
+	if config.Plugin.UseTLS {
+		certPath := config.Plugin.CertFile
+		if certPath == "" {
+			certPath = config.TlsConfig.CaFilePath
+		}
+		if certPath == "" {
+			return nil, nil, &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "TLS is enabled for plugin client but no certificate file is configured",
+			}
+		}
+		var err error
+		creds, err = credentials.NewClientTLSFromFile(certPath, "")
+		if err != nil {
+			return nil, nil, &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Failed to load TLS credentials: %v", err),
+			}
+		}
+	} else {
+		creds = insecure.NewCredentials()
+	}
+
 	conn, err := grpc.NewClient(endpoint,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithKeepaliveParams(util.ClientKeepAliveParams),
 		grpc.WithConnectParams(util.ClientConnectParams),
 		grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
