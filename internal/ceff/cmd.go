@@ -34,12 +34,19 @@ var (
 		Version: util.Version(),
 		Args:    cobra.MaximumNArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			var err error
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-			pluginClient, err = GetPlugindClient(config)
-			return err
+			client, conn, err := GetPlugindClient(config)
+			if err != nil {
+				return err
+			}
+			pluginClient = client
+			pluginConn = conn
+			return nil
+		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			CleanupPlugindClient()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			jobIds := ""

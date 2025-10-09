@@ -38,6 +38,7 @@ import (
 var (
 	stub         protos.CraneCtldClient
 	pluginClient protos.CeffQueryServiceClient
+	pluginConn   *grpc.ClientConn
 )
 
 type ResourceUsageRecord struct {
@@ -72,9 +73,9 @@ type CeffTaskInfo struct {
 var isFirstCall = true //Used for multi-job print
 
 // Connect to cplugind for querying efficiency data
-func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, error) {
+func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc.ClientConn, error) {
 	if !config.Plugin.Enabled {
-		return nil, &util.CraneError{
+		return nil, nil, &util.CraneError{
 			Code:    util.ErrorCmdArg,
 			Message: "Plugin is not enabled",
 		}
@@ -83,7 +84,7 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, error
 	addr := config.Plugin.ListenAddress
 	port := config.Plugin.ListenPort
 	if addr == "" || port == "" {
-		return nil, &util.CraneError{
+		return nil, nil, &util.CraneError{
 			Code:    util.ErrorCmdArg,
 			Message: "PlugindListenAddress and PlugindListenPort must be configured for ceff",
 		}
@@ -97,13 +98,23 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, error
 		grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
 	)
 	if err != nil {
-		return nil, &util.CraneError{
+		return nil, nil, &util.CraneError{
 			Code:    util.ErrorNetwork,
 			Message: fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err),
 		}
 	}
 
-	return protos.NewCeffQueryServiceClient(conn), nil
+	return protos.NewCeffQueryServiceClient(conn), conn, nil
+}
+
+func CleanupPlugindClient() {
+	if pluginConn != nil {
+		if err := pluginConn.Close(); err != nil {
+			log.WithError(err).Warn("Failed to close plugind connection")
+		}
+		pluginConn = nil
+	}
+	pluginClient = nil
 }
 
 // Query efficiency data through cplugind
