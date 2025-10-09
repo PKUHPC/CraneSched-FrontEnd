@@ -25,7 +25,7 @@ func FormatTime(t *timestamppb.Timestamp, fallback string) string {
 }
 
 func GetElapsedTime(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Running  && task.ElapsedTime != nil {
+	if task.Status == protos.TaskStatus_Running && task.ElapsedTime != nil {
 		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
 	}
 	return "-"
@@ -55,10 +55,10 @@ func GenerateTableConfig() TableConfig {
 				"Type", "Qos", "Exclusive", "Held", "Priority", "NodeList/Reason",
 			},
 			RowMapper: func(task *protos.TaskInfo) []string {
-				timeLimit := "-"  
-    			if task.TimeLimit != nil {  
-        			timeLimit = FormatTimeLimit(task.TimeLimit.Seconds)  
-    			} 
+				timeLimit := "-"
+				if task.TimeLimit != nil {
+					timeLimit = FormatTimeLimit(task.TimeLimit.Seconds)
+				}
 				return []string{
 					strconv.FormatUint(uint64(task.TaskId), 10),
 					task.Name,
@@ -169,6 +169,6 @@ func JsonOutput(reply *protos.QueryTasksInfoReply) error {
 	if reply.GetOk() {
 		return nil
 	} else {
-		return util.GetCraneError(util.ErrorBackend, "Josn output failed")
+		return util.NewCraneErr(util.ErrorBackend, "Josn output failed")
 	}
 }

@@ -54,7 +54,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					return util.GetCraneError(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
+					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
 				}
 			}
 			if FlagIterate != 0 {
