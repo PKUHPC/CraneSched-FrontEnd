@@ -94,11 +94,8 @@ func StartCallocStream(task *protos.TaskToCtld) error {
 	unixSocketPath := "unix:///" + config.CranedCforedSockPath
 	conn, err := grpc.NewClient(unixSocketPath, opts...)
 	if err != nil {
-		return &util.CraneError{
-			Code: util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to connect to local unix socket %s: %s.",
-				unixSocketPath, err),
-		}
+		return util.NewCraneErr(util.ErrorBackend,
+			fmt.Sprintf("Failed to connect to local unix socket %s: %s.", unixSocketPath, err))
 	}
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
@@ -171,10 +168,7 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCallocReply_TASK_ID_REPLY {
-				return &util.CraneError{
-					Code:    util.ErrorBackend,
-					Message: "Expect type TASK_ID_REPLY.",
-				}
+				return util.NewCraneErr(util.ErrorBackend, "Expect type TASK_ID_REPLY.")
 			}
 			payload := cforedReply.GetPayloadTaskIdReply()
 
@@ -322,19 +316,14 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
-				return &util.CraneError{
-					Code:    util.ErrorBackend,
-					Message: fmt.Sprintf("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String()),
-				}
+				return util.NewCraneErr(util.ErrorBackend,
+					fmt.Sprintf("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String()))
 			}
 
 			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
 				println("Task completed.")
 			} else {
-				return &util.CraneError{
-					Code:    util.ErrorBackend,
-					Message: "Failed to notify server of task completion",
-				}
+				return util.NewCraneErr(util.ErrorBackend, "Failed to notify server of task completion")
 			}
 
 			break CallocStateMachineLoop
@@ -355,17 +344,11 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to get working directory: %s", err),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get working directory: %s", err))
 	}
 
 	if gVars.user, err = user.Current(); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to get current user: %s", err),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get current user: %s", err))
 	}
 
 	// Get egid using os.Getgid() instead of using user.Current()
@@ -373,10 +356,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 
 	uid, err := strconv.Atoi(gVars.user.Uid)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorInvalidFormat,
-			Message: fmt.Sprintf("Failed to convert uid to int: %s", err),
-		}
+		return util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Failed to convert uid to int: %s", err))
 	}
 
 	if gVars.shellPath, err = util.NixShell(gVars.user.Uid); err != nil {
