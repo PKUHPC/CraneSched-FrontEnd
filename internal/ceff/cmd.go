@@ -38,7 +38,7 @@ var (
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-			pluginClient, err = GetPluginClient(config)
+			pluginClient, err = GetPlugindClient(config)
 			return err
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {

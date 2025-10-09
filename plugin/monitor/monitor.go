@@ -87,7 +87,7 @@ type MonitorPlugin struct {
 	jobCtx         map[int64]context.CancelFunc
 	jobMutex       sync.RWMutex
 	hostConfigPath string
-	queryService   *MonitorQueryService
+	queryService   *CeffQueryService
 }
 
 // Dummy implementations
@@ -379,13 +379,13 @@ func (p *MonitorPlugin) RegisterGRPCServices(server grpc.ServiceRegistrar) error
 		return fmt.Errorf("monitor query service is not initialized")
 	}
 
-	protos.RegisterMonitorQueryServiceServer(server, p.queryService)
-	log.Info("Monitor plugin registered MonitorQueryService gRPC endpoints")
+	protos.RegisterCeffQueryServiceServer(server, p.queryService)
+	log.Info("Monitor plugin registered CeffQueryService gRPC endpoints")
 	return nil
 }
 
 func (p *MonitorPlugin) initQueryService() error {
-	service, err := NewMonitorQueryService(p, p.hostConfigPath)
+	service, err := NewCeffQueryService(p, p.hostConfigPath)
 	if err != nil {
 		return err
 	}

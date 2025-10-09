@@ -33,14 +33,14 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type MonitorQueryService struct {
-	protos.UnimplementedMonitorQueryServiceServer
+type CeffQueryService struct {
+	protos.UnimplementedCeffQueryServiceServer
 
 	influxConfig *util.InfluxDbConfig
 	craneConfig  *util.Config
 }
 
-func NewMonitorQueryService(plugin *MonitorPlugin, hostConfigPath string) (*MonitorQueryService, error) {
+func NewCeffQueryService(plugin *MonitorPlugin, hostConfigPath string) (*CeffQueryService, error) {
 	if plugin == nil {
 		return nil, fmt.Errorf("monitor plugin reference is nil")
 	}
@@ -64,14 +64,14 @@ func NewMonitorQueryService(plugin *MonitorPlugin, hostConfigPath string) (*Moni
 		return nil, fmt.Errorf("failed to parse crane config from %s", configPath)
 	}
 
-	return &MonitorQueryService{
+	return &CeffQueryService{
 		influxConfig: influxCfg,
 		craneConfig:  craneCfg,
 	}, nil
 }
 
-func (s *MonitorQueryService) QueryTaskEfficiency(ctx context.Context, req *protos.QueryTaskEfficiencyRequest) (*protos.QueryTaskEfficiencyReply, error) {
-	log.Infof("MonitorQueryService received QueryTaskEfficiency request from UID %d for tasks: %v", req.Uid, req.TaskIds)
+func (s *CeffQueryService) QueryTaskEfficiency(ctx context.Context, req *protos.QueryTaskEfficiencyRequest) (*protos.QueryTaskEfficiencyReply, error) {
+	log.Infof("CeffQueryService received QueryTaskEfficiency request from UID %d for tasks: %v", req.Uid, req.TaskIds)
 
 	if len(req.TaskIds) == 0 {
 		return &protos.QueryTaskEfficiencyReply{
@@ -82,21 +82,21 @@ func (s *MonitorQueryService) QueryTaskEfficiency(ctx context.Context, req *prot
 
 	efficiencyData, err := s.queryTaskEfficiencyData(ctx, req.TaskIds, req.Uid)
 	if err != nil {
-		log.Errorf("MonitorQueryService failed to query efficiency data: %v", err)
+		log.Errorf("CeffQueryService failed to query efficiency data: %v", err)
 		return &protos.QueryTaskEfficiencyReply{
 			Ok:           false,
 			ErrorMessage: fmt.Sprintf("Failed to query efficiency data: %v", err),
 		}, nil
 	}
 
-	log.Infof("MonitorQueryService successfully returned %d efficiency records for user %d", len(efficiencyData), req.Uid)
+	log.Infof("CeffQueryService successfully returned %d efficiency records for user %d", len(efficiencyData), req.Uid)
 	return &protos.QueryTaskEfficiencyReply{
 		Ok:             true,
 		EfficiencyData: efficiencyData,
 	}, nil
 }
 
-func (s *MonitorQueryService) queryTaskEfficiencyData(ctx context.Context, taskIds []uint32, userID uint32) ([]*protos.TaskEfficiencyInfo, error) {
+func (s *CeffQueryService) queryTaskEfficiencyData(ctx context.Context, taskIds []uint32, userID uint32) ([]*protos.TaskEfficiencyInfo, error) {
 	if s.influxConfig == nil {
 		return nil, fmt.Errorf("InfluxDB configuration not initialized")
 	}
@@ -131,7 +131,7 @@ func (s *MonitorQueryService) queryTaskEfficiencyData(ctx context.Context, taskI
 	return efficiencyData, nil
 }
 
-func (s *MonitorQueryService) authorizeEfficiencyQuery(taskInfos []*protos.TaskInfo, taskIds []uint32, userID uint32) error {
+func (s *CeffQueryService) authorizeEfficiencyQuery(taskInfos []*protos.TaskInfo, taskIds []uint32, userID uint32) error {
 	for _, taskInfo := range taskInfos {
 		if taskInfo == nil {
 			continue
@@ -146,7 +146,7 @@ func (s *MonitorQueryService) authorizeEfficiencyQuery(taskInfos []*protos.TaskI
 	return nil
 }
 
-func (s *MonitorQueryService) getTaskInformation(ctx context.Context, taskIds []uint32) ([]*protos.TaskInfo, error) {
+func (s *CeffQueryService) getTaskInformation(ctx context.Context, taskIds []uint32) ([]*protos.TaskInfo, error) {
 	if s.craneConfig == nil {
 		return nil, fmt.Errorf("crane config not initialized")
 	}
@@ -169,7 +169,7 @@ func (s *MonitorQueryService) getTaskInformation(ctx context.Context, taskIds []
 	return reply.TaskInfoList, nil
 }
 
-func (s *MonitorQueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []string {
+func (s *CeffQueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []string {
 	var nodeNames []string
 	for _, taskInfo := range taskInfos {
 		if taskInfo == nil {
@@ -186,7 +186,7 @@ func (s *MonitorQueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []s
 	return nodeNames
 }
 
-func (s *MonitorQueryService) queryInfluxDbDataByTags(taskIds []uint32, hostNames []string) ([]*protos.TaskEfficiencyInfo, error) {
+func (s *CeffQueryService) queryInfluxDbDataByTags(taskIds []uint32, hostNames []string) ([]*protos.TaskEfficiencyInfo, error) {
 	client := influxdb2.NewClient(s.influxConfig.Url, s.influxConfig.Token)
 	defer client.Close()
 

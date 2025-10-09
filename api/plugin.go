@@ -72,9 +72,9 @@ type Plugin interface {
 	RegisterCranedHook(ctx *PluginContext)
 }
 
-// GRPCServiceRegistrar allows a plugin to register its own gRPC services
+// GrpcServiceRegistrar allows a plugin to register its own gRPC services
 // onto the shared plugin daemon server instance.
-type GRPCServiceRegistrar interface {
+type GrpcServiceRegistrar interface {
 	RegisterGRPCServices(server grpc.ServiceRegistrar) error
 }
 

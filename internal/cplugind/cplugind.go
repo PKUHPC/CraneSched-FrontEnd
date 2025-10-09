@@ -109,7 +109,7 @@ var RootCmd = &cobra.Command{
 		for _, loaded := range gPluginMap {
 			pluginImpl := loaded.Plugin
 
-			if registrar, ok := pluginImpl.(api.GRPCServiceRegistrar); ok {
+			if registrar, ok := pluginImpl.(api.GrpcServiceRegistrar); ok {
 				if err := registrar.RegisterGRPCServices(pd.Server); err != nil {
 					return &util.CraneError{
 						Code:    util.ErrorGeneric,

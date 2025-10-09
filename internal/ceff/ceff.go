@@ -37,7 +37,7 @@ import (
 
 var (
 	stub         protos.CraneCtldClient
-	pluginClient protos.MonitorQueryServiceClient
+	pluginClient protos.CeffQueryServiceClient
 )
 
 type ResourceUsageRecord struct {
@@ -72,7 +72,7 @@ type CeffTaskInfo struct {
 var isFirstCall = true //Used for multi-job print
 
 // Connect to cplugind for querying efficiency data
-func GetPluginClient(config *util.Config) (protos.MonitorQueryServiceClient, error) {
+func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, error) {
 	if !config.Plugin.Enabled {
 		return nil, &util.CraneError{
 			Code:    util.ErrorCmdArg,
@@ -103,13 +103,13 @@ func GetPluginClient(config *util.Config) (protos.MonitorQueryServiceClient, err
 		}
 	}
 
-	return protos.NewMonitorQueryServiceClient(conn), nil
+	return protos.NewCeffQueryServiceClient(conn), nil
 }
 
 // Query efficiency data through cplugind
-func QueryEfficiencyDataViaPlugin(taskIds []uint32) ([]*ResourceUsageRecord, error) {
+func QueryEfficiencyDataViaPlugind(taskIds []uint32) ([]*ResourceUsageRecord, error) {
 	if pluginClient == nil {
-		return nil, fmt.Errorf("plugin client not initialized")
+		return nil, fmt.Errorf("plugind client not initialized")
 	}
 
 	// Get current user for authorization
@@ -400,7 +400,7 @@ func QueryTasksInfoByIds(jobIds string) error {
 	}
 
 	// Query Resource Usage Records via cplugind (secure approach)
-	result, err := QueryEfficiencyDataViaPlugin(jobIdList)
+	result, err := QueryEfficiencyDataViaPlugind(jobIdList)
 	if err != nil {
 		return &util.CraneError{
 			Code:    util.ErrorBackend,
