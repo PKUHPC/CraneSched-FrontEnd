@@ -566,8 +566,8 @@ func CheckEntityName(name string) error {
 		return fmt.Errorf("name empty")
 	}
 
-	if name == "all" {
-		return fmt.Errorf("The name cannot be \"all\".")
+	if name == "ALL" {
+		return fmt.Errorf("The name cannot be \"ALL\".")
 	}
 
 	if len(name) > MaxEntityNameLength {

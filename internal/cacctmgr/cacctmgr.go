@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -561,17 +562,18 @@ func DeleteAccount(value string) util.CraneCmdError {
 
 func DeleteUser(value string, account string) util.CraneCmdError {
 
-	var userList []string
-	if value != "all" {
-		var err error
-		userList, err = util.ParseStringParamList(value, ",")
-		if err != nil {
-			log.Errorf("Invalid user list specified: %v.\n", err)
+	userList, err := util.ParseStringParamList(value, ",")
+	if err != nil {
+		log.Errorf("Invalid user list specified: %v.\n", err)
+		return util.ErrorCmdArg
+	}
+
+	if slices.Contains(userList, "ALL") {
+		if !FlagForce {
+			log.Errorf("To delete all users in the account, you must set --force.")
 			return util.ErrorCmdArg
 		}
-	} else if !FlagForce {
-		log.Errorf("To delete all users in the account, you must set --force.")
-		return util.ErrorCmdArg
+		userList = []string{"ALL"}
 	}
 
 	req := protos.DeleteUserRequest{Uid: userUid, UserList: userList, Account: account, Force: FlagForce}

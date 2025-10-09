@@ -80,7 +80,7 @@ func showHelp() {
     Parameter details:
       Account=<account>          Specify the account (optional)
       Name=<name1,name2,...>    Name of users to delete (comma-separated)
-    (if name is 'all' and set --force, all users from a specific account will be delete.)
+    (if name is 'ALL' and set --force, all users from a specific account will be delete.)
   
 	show user [Accounts=<account>] [Name=<name1,name2,...>]
     Display information about users.
