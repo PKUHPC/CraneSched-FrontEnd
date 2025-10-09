@@ -374,7 +374,7 @@ func (p *MonitorPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
 func (p *MonitorPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
-func (p *MonitorPlugin) RegisterGRPCServices(server grpc.ServiceRegistrar) error {
+func (p *MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error {
 	if p.queryService == nil {
 		return fmt.Errorf("monitor query service is not initialized")
 	}

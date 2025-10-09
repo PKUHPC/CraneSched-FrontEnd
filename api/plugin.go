@@ -75,7 +75,7 @@ type Plugin interface {
 // GrpcServiceRegistrar allows a plugin to register its own gRPC services
 // onto the shared plugin daemon server instance.
 type GrpcServiceRegistrar interface {
-	RegisterGRPCServices(server grpc.ServiceRegistrar) error
+	RegisterGrpcServices(server grpc.ServiceRegistrar) error
 }
 
 // HostConfigAware allows a plugin to receive the absolute path to the

@@ -110,7 +110,7 @@ var RootCmd = &cobra.Command{
 			pluginImpl := loaded.Plugin
 
 			if registrar, ok := pluginImpl.(api.GrpcServiceRegistrar); ok {
-				if err := registrar.RegisterGRPCServices(pd.Server); err != nil {
+				if err := registrar.RegisterGrpcServices(pd.Server); err != nil {
 					return &util.CraneError{
 						Code:    util.ErrorGeneric,
 						Message: fmt.Sprintf("Failed to register gRPC services for plugin %s: %v", loaded.Meta.Name, err),
