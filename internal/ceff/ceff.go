@@ -93,11 +93,8 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc
 
 	endpoint := net.JoinHostPort(addr, port)
 	var creds credentials.TransportCredentials
-	if config.Plugin.UseTLS {
-		certPath := config.Plugin.CertFile
-		if certPath == "" {
-			certPath = config.TlsConfig.CaFilePath
-		}
+	if config.TlsConfig.Enabled {
+		certPath := config.TlsConfig.CaFilePath
 		if certPath == "" {
 			return nil, nil, &util.CraneError{
 				Code:    util.ErrorCmdArg,
