@@ -20,6 +20,7 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"bufio"
 	"fmt"
 	"math"
 	"os"
@@ -1262,10 +1263,10 @@ var validCreportTypes = map[string]string{
 	"SecPer":  "Seconds/Percentage of Total",
 	"MinPer":  "Minutes/Percentage of Total",
 	"HourPer": "Hours/Percentage of Total",
-	"Seconds": "Seconds",
-	"Minutes": "Minutes",
-	"Hours":   "Hours",
-	"Percent": "Percentage of Total",
+	"seconds": "Seconds",
+	"minutes": "Minutes",
+	"hours":   "Hours",
+	"percent": "Percentage of Total",
 }
 
 func CheckCreportOutType(outType string) bool {
@@ -1275,8 +1276,114 @@ func CheckCreportOutType(outType string) bool {
 	return false
 }
 
-func ReportUsageType(outType string) {
+func ReportUsageType(outType string) float64 {
 	if suffix, ok := validCreportTypes[outType]; ok {
-		log.Printf("Usage reported in CPU %s", suffix)
+		fmt.Printf("Usage reported in CPU %s\n", suffix)
 	}
+	var divisor float64
+	switch outType {
+	case "seconds":
+		divisor = 1
+	case "minutes":
+		divisor = 60
+	case "hours":
+		divisor = 3600
+	default:
+		divisor = 1
+	}
+	return divisor
+}
+
+func GetAllGroupUsers(groupListStr string) ([]string, error) {
+	groupNames, err := ParseStringParamList(groupListStr, ",")
+	if err != nil {
+		return nil, err
+	}
+	groupNameToGID := make(map[string]string)
+	gidToGroupName := make(map[string]string)
+	groupSet := make(map[string]struct{})
+	for _, g := range groupNames {
+		groupSet[g] = struct{}{}
+	}
+
+	groupFile, err := os.Open("/etc/group")
+	if err != nil {
+		return nil, err
+	}
+	defer groupFile.Close()
+
+	userSet := make(map[string]struct{})
+	scanner := bufio.NewScanner(groupFile)
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), ":")
+		if len(fields) < 4 {
+			continue
+		}
+		groupName := fields[0]
+		gid := fields[2]
+		groupNameToGID[groupName] = gid
+		gidToGroupName[gid] = groupName
+		if _, ok := groupSet[groupName]; ok {
+			users := strings.Split(fields[3], ",")
+			for _, user := range users {
+				user = strings.TrimSpace(user)
+				if user != "" {
+					userSet[user] = struct{}{}
+				}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	targetGIDs := make(map[string]struct{})
+	for _, g := range groupNames {
+		if gid, ok := groupNameToGID[g]; ok {
+			targetGIDs[gid] = struct{}{}
+		}
+	}
+
+	passwdFile, err := os.Open("/etc/passwd")
+	if err != nil {
+		return nil, err
+	}
+	defer passwdFile.Close()
+
+	scanner = bufio.NewScanner(passwdFile)
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), ":")
+		if len(fields) < 4 {
+			continue
+		}
+		user := fields[0]
+		gid := fields[3]
+		if _, ok := targetGIDs[gid]; ok {
+			userSet[user] = struct{}{}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0, len(userSet))
+	for user := range userSet {
+		result = append(result, user)
+	}
+	return result, nil
+}
+
+func MergeAndDedupStrings(listA, listB []string) []string {
+	uniqueStrings := make(map[string]struct{})
+	for _, str := range listA {
+		uniqueStrings[str] = struct{}{}
+	}
+	for _, str := range listB {
+		uniqueStrings[str] = struct{}{}
+	}
+	result := make([]string, 0, len(uniqueStrings))
+	for str := range uniqueStrings {
+		result = append(result, str)
+	}
+	return result
 }
