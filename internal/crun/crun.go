@@ -21,8 +21,10 @@ package crun
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"bytes"
 	"errors"
 	"net"
+	"os/exec"
 	"os/user"
 	"regexp"
 	"strconv"
@@ -112,10 +114,27 @@ type StateMachineOfCrun struct {
 	chanOutputFromRemote    chan []byte
 	chanX11InputFromLocal   chan []byte
 	chanX11OutputFromRemote chan []byte
+
+	CrunProlog string
+	CrunEpilog string
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
 	replyChannel chan ReplyReceiveItem
+}
+
+type RunCommandArgs struct {
+	Program    string
+	Args       []string
+	Envs       map[string]string
+	TimeoutSec int
+}
+
+type RunCommandResult struct {
+	ExitCode   int
+	Output     string
+	TimeOut    bool
+	TermSignal int
 }
 
 func (r *CforedReplyReceiver) GetReplyChannel() chan ReplyReceiveItem {
@@ -189,6 +208,46 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		m.err = util.ErrorBackend
 		m.state = End
 		return
+	}
+	m.CrunProlog = config.CrunProlog
+	m.CrunEpilog = config.CrunEpilog
+
+	if FlagProlog != "" {
+		m.CrunProlog = FlagProlog
+	}
+	if FlagEpilog != "" {
+		m.CrunEpilog = FlagEpilog
+	}
+
+	if len(m.CrunProlog) > 0 {
+		result := RunCommand(RunCommandArgs{
+			Program:    m.CrunProlog,
+			Args:       nil,
+			Envs:       m.task.Env,
+			TimeoutSec: 60,
+		})
+		if result.TimeOut {
+			log.Errorf("Prolog '%s' timed out after %ds. Output: %s",
+				m.CrunProlog, 60, result.Output)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		} else if result.TermSignal != 0 {
+			log.Errorf("Prolog '%s' killed by signal %d. Output: %s",
+				m.CrunProlog, result.TermSignal, result.Output)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		} else if result.ExitCode != 0 {
+			log.Errorf("Prolog '%s' failed (exit code %d). Output: %s",
+				m.CrunProlog, result.ExitCode, result.Output)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		}
+		log.Tracef("Prolog '%s' finished successfully. Output: %s",
+			m.CrunProlog, result.Output)
+
 	}
 
 	m.client = protos.NewCraneForeDClient(m.conn)
@@ -613,6 +672,36 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 	} else {
 		log.Errorln("Failed to notify server of job completion")
 		m.err = util.ErrorBackend
+	}
+
+	if len(m.CrunEpilog) > 0 {
+		result := RunCommand(RunCommandArgs{
+			Program:    m.CrunEpilog,
+			Args:       nil,
+			Envs:       m.task.Env,
+			TimeoutSec: 60,
+		})
+		if result.TimeOut {
+			log.Errorf("Epilog '%s' timed out after %ds. Output: %s",
+				m.CrunEpilog, 60, result.Output)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		} else if result.TermSignal != 0 {
+			log.Errorf("Epilog '%s' killed by signal %d. Output: %s",
+				m.CrunEpilog, result.TermSignal, result.Output)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		} else if result.ExitCode != 0 {
+			log.Errorf("Epilog '%s' failed (exit code %d). Output: %s",
+				m.CrunEpilog, result.ExitCode, result.Output)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		}
+		log.Tracef("Epilog '%s' finished successfully. Output: %s",
+			m.CrunEpilog, result.Output)
 	}
 
 	m.state = End
@@ -1471,4 +1560,81 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	return &util.CraneError{Code: m.err}
+}
+
+func RunCommand(runCommandArgs RunCommandArgs) RunCommandResult {
+	result := RunCommandResult{
+		ExitCode:   127,
+		Output:     "",
+		TimeOut:    false,
+		TermSignal: 0,
+	}
+
+	ctx := context.Background()
+	if runCommandArgs.TimeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(runCommandArgs.TimeoutSec)*time.Second)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(ctx, runCommandArgs.Program, runCommandArgs.Args...)
+
+	if len(runCommandArgs.Envs) > 0 {
+		envs := os.Environ()
+		for k, v := range runCommandArgs.Envs {
+			envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmd.Env = envs
+	}
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+
+	var outBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &outBuf
+
+	err := cmd.Start()
+	if err != nil {
+		result.Output = err.Error()
+		return result
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		result.TimeOut = true
+		if cmd.Process != nil {
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		_ = <-done // 不再声明 waitErr
+		result.Output = outBuf.String() + "\nCommand timed out."
+	case <-done:
+		result.Output = outBuf.String()
+	}
+
+	if cmd.ProcessState != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if status.Exited() {
+				result.ExitCode = status.ExitStatus()
+				result.TermSignal = 0
+			} else if status.Signaled() {
+				result.ExitCode = 127
+				result.TermSignal = int(status.Signal())
+			} else {
+				result.ExitCode = 127
+				result.TermSignal = 0
+			}
+		}
+	} else {
+		result.ExitCode = 127
+		result.TermSignal = 0
+	}
+
+	return result
 }

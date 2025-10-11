@@ -84,6 +84,9 @@ var (
 	FlagNTasksPerCore string
 	FlagConstraint    string
 
+	FlagProlog string
+	FlagEpilog string
+
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
 		Short:   "Allocate resource and run executable interactive",
@@ -145,4 +148,7 @@ func init() {
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
+
+	RootCmd.Flags().StringVarP(&FlagProlog, "prolog", "", "", "Prolog of the job")
+	RootCmd.Flags().StringVarP(&FlagEpilog, "epilog", "", "", "Epilog of the job")
 }
