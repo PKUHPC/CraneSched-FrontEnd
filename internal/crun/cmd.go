@@ -66,6 +66,9 @@ var (
 
 	FlagLicenses string
 
+	FlagProlog string
+	FlagEpilog string
+
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
 		Short:   "Allocate resource and run executable interactive",
@@ -122,4 +125,7 @@ func init() {
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
 	RootCmd.Flags().StringVar(&FlagWckey, "wckey", "", "Wckey of the job")
+
+	RootCmd.Flags().StringVarP(&FlagProlog, "prolog", "", "", "Prolog of the job")
+	RootCmd.Flags().StringVarP(&FlagEpilog, "epilog", "", "", "Epilog of the job")
 }
