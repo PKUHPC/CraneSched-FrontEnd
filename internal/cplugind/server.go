@@ -23,6 +23,8 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"os"
 
@@ -45,13 +47,19 @@ func NewPluginD(opts []grpc.ServerOption) *PluginDaemon {
 	return p
 }
 
-func (pd *PluginDaemon) Launch(socket net.Listener) error {
-	go func() {
-		if err := pd.Server.Serve(socket); err != nil {
-			log.Errorf("Failed to serve: %v", err)
-			os.Exit(util.ErrorGeneric)
-		}
-	}()
+func (pd *PluginDaemon) Launch(listeners ...net.Listener) error {
+	if len(listeners) == 0 {
+		return fmt.Errorf("no listeners provided")
+	}
+
+	for _, listener := range listeners {
+		go func(l net.Listener) {
+			if err := pd.Server.Serve(l); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+				log.Errorf("Failed to serve on %s: %v", l.Addr(), err)
+				os.Exit(util.ErrorGeneric)
+			}
+		}(listener)
+	}
 
 	return nil
 }
