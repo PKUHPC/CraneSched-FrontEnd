@@ -22,8 +22,9 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"errors"
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 type CraneCmdError = int
@@ -125,6 +126,8 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_DUPLICATE_CERTIFICATE:  "The certificate has already been issued to the user. If the certificate is lost and needs to be reissued, please contact the administrator for assistance",
 	protos.ErrCode_ERR_REVOKE_CERTIFICATE:     "Revocation of the certificate failed, Please check the logs",
 	protos.ErrCode_ERR_IDENTITY_MISMATCH:      "User information does not match, unable to submit the task.",
+	protos.ErrCode_ERR_NOT_FORCE:              "You need to set --force for this operation.",
+	protos.ErrCode_ERR_INVALID_USERNAME:       "Invalid username",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
