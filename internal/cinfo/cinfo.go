@@ -59,15 +59,26 @@ var (
 func ConvertStates[T comparable](stateMap map[string]T, stateType string) ([]T, error) {
 	var states []T
 	for _, stateStr := range FlagFilterCranedStates {
-		if state, exists := stateMap[strings.ToLower(stateStr)]; exists {
-			states = append(states, state)
-		} else {
-			return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid %s state given: %s", stateType, stateStr))
-		}
-	}
+		lowered := strings.ToLower(stateStr)  
+		if state, exists := stateMap[lowered]; exists {  
+			states = append(states, state)  
+			continue  
+		}  
+		if _, ok := resourceStateMap[lowered]; ok && stateType != "resource" {  
+			continue  
+		}  
+		if _, ok := controlStateMap[lowered]; ok && stateType != "control" {  
+			continue  
+		}  
+		if _, ok := powerStateMap[lowered]; ok && stateType != "power" {  
+			continue  
+		}  
+		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid %s state given: %s", stateType, stateStr))  
+    }  
 
-	return states, nil
-}
+    return states, nil  
+ }  
+
 
 func ConvertToResourceStates() ([]protos.CranedResourceState, error) {
 	return ConvertStates(resourceStateMap, "resource")
