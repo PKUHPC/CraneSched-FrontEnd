@@ -79,8 +79,8 @@ func execExecute(cmd *cobra.Command, args []string) error {
 	// Determine stdin, stdout, stderr based on flags
 	stdin := f.Exec.Interactive
 	tty := f.Exec.Tty
-	stdout := true  // Always enable stdout for exec
-	stderr := !tty  // Enable stderr only in non-TTY mode
+	stdout := true // Always enable stdout for exec
+	stderr := !tty // Enable stderr only in non-TTY mode
 
 	// Call ExecContainerTask RPC
 	execReq := &protos.ExecContainerTaskRequest{
