@@ -360,11 +360,8 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 
 	if gVars.shellPath, err = util.NixShell(gVars.user.Uid); err != nil {
-		return &util.CraneError{
-			Code: util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to get default shell of user %s: %s",
-				gVars.user.Name, err),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get default shell of user %s: %s",
+			gVars.user.Name, err))
 	}
 
 	task := &protos.TaskToCtld{
@@ -405,20 +402,14 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: invalid --time: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid argument: invalid --time: %s", err))
 		}
 		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 		}
 		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -475,10 +466,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid argument: %s", err),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid argument: %s", err))
 	}
 
 	// Set total limit of cpu cores
@@ -486,10 +474,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid argument: %s", err),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid argument: %s", err))
 	}
 	util.SetPropagatedEnviron(task)
 
