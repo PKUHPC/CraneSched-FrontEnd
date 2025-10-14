@@ -50,10 +50,7 @@ var (
 			if cmd != RunCmd {
 				cmd.Root().Flags().Visit(func(flag *pflag.Flag) {
 					if err == nil && flag.Changed && IsCraneFlag(flag) {
-						err = &util.CraneError{
-							Code:    util.ErrorCmdArg,
-							Message: fmt.Sprintf("flag '%s' is only valid for the 'run' command", flag.Name),
-						}
+						err = util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("flag '%s' is only valid for the 'run' command", flag.Name))
 					}
 				})
 			}
