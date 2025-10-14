@@ -62,7 +62,6 @@ func ParseCmdArgs() {
 	util.RunAndHandleExit(RootCmd)
 }
 
-
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",

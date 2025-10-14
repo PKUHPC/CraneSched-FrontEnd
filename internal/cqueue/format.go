@@ -278,6 +278,7 @@ type formatSegment struct {
 	content     string
 	width       int
 }
+
 type tableBuilder struct {
 	widths  []int
 	headers []string
@@ -289,6 +290,7 @@ func NewTableBuilder(rowCount int) *tableBuilder {
 		cells: make([][]string, rowCount),
 	}
 }
+
 func BuildColumns(builder *tableBuilder, reply *protos.QueryTasksInfoReply, segments []formatSegment) error {
 	for _, seg := range segments {
 		switch seg.segmentType {
@@ -302,6 +304,7 @@ func BuildColumns(builder *tableBuilder, reply *protos.QueryTasksInfoReply, segm
 	}
 	return nil
 }
+
 func AddTextColumn(builder *tableBuilder, text string) {
 	builder.widths = append(builder.widths, -1)
 	builder.headers = append(builder.headers, text)
@@ -309,11 +312,12 @@ func AddTextColumn(builder *tableBuilder, text string) {
 		builder.cells[j] = append(builder.cells[j], text)
 	}
 }
+
 func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply, seg formatSegment) error {
-	key := seg.content  
-	if len(key) > 1 {  
-		key = strings.ToLower(key)  
-	}  
+	key := seg.content
+	if len(key) > 1 {
+		key = strings.ToLower(key)
+	}
 	processor, found := fieldMap[key]
 	if !found {
 		return fmt.Errorf("invalid format specifier: %s", key)
@@ -328,19 +332,22 @@ func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply
 	return nil
 }
 
-// `%(\.\d+)?([a-zA-Z]+)`  
-// This regular expression starts with a percent sign (%), which may be followed 
+// `%(\.\d+)?([a-zA-Z]+)`
+// This regular expression starts with a percent sign (%), which may be followed
 // by a decimal point and a number, and finally followed by a string of one or more letters.
-// for example "-o=ID:%.5j | Status:%t"   
+// for example "-o=ID:%.5j | Status:%t"
 // return specifier is a int[][] arr
-//  ID:%.5j | Status:%t
-//  0123456789
+//
+//	ID:%.5j | Status:%t
+//	0123456789
+//
 // The part corresponding to the ID, specifier[0]=[3,7,4,6,6,7]
-// %.5j --> [3,7)  .5 --> [4,6)    j --> [6,7)  左闭右开匹配
+// %.5j --> [3,7)  .5 --> [4,6)    j --> [6,7)
 // Parse into    [start,end)   [.start,num_end)   [spec_start,spec_end)
-//				   0      1       2      3           4          5
+//
+//	0      1       2      3           4          5
 func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, error) {
- 	specifiers := re.FindAllStringSubmatchIndex(format, -1)
+	specifiers := re.FindAllStringSubmatchIndex(format, -1)
 	if specifiers == nil {
 		return nil, fmt.Errorf("invalid format specifier")
 	}
@@ -359,7 +366,7 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 		if i > 0 {
 			// get the ending position of the previous one
 			prevEnd := specifiers[i-1][1]
-			// If gap < 0, this is incorrect. The starting position index of 
+			// If gap < 0, this is incorrect. The starting position index of
 			// the second item must be greater than the ending position of the last item
 			// content : format[prevEnd:spec[0]]
 			if gap := spec[0] - prevEnd; gap > 0 {
@@ -386,8 +393,8 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 			width:       width,
 		})
 	}
-	
-	// The last spec needs to be processed separately, 
+
+	// The last spec needs to be processed separately,
 	// as it may still contain some characters after the spec ends
 	if lastSpec := specifiers[len(specifiers)-1]; len(format) > lastSpec[1] {
 		segments = append(segments, formatSegment{
@@ -400,7 +407,7 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 }
 
 // FormatData formats the output data according to the format string
-// format : "%j" or "%.5j" or  "ID:%j"  or "ID:%5j"    
+// format : "%j" or "%.5j" or  "ID:%j"  or "ID:%5j"
 // cqueue -o="ID:%.4j | Status:%t | user:%u
 // ID:JOBID | Status:STATE   | user:USER
 // ID:44    | Status:Running | user:internthree

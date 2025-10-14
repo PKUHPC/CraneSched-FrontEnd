@@ -87,7 +87,7 @@ type StateMachineOfCrun struct {
 	inputFlag string // Crun --input flag, used to determine how to read input from stdin
 
 	state StateOfCrun
-	err   util.CraneCmdError // Hold the final error of the state machine if any
+	err   util.ExitCode // Hold the final error of the state machine if any
 
 	// Hold grpc resources and will be freed in Close.
 	conn   *grpc.ClientConn
