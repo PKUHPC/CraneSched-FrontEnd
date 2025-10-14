@@ -169,6 +169,6 @@ func JsonOutput(reply *protos.QueryTasksInfoReply) error {
 	if reply.GetOk() {
 		return nil
 	} else {
-		return util.NewCraneErr(util.ErrorBackend, "Josn output failed")
+		return util.NewCraneErr(util.ErrorBackend, "JSON output failed")
 	}
 }
