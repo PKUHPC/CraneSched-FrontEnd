@@ -137,7 +137,8 @@ install:
 	@echo "  - Done."
 
 format:
-	@echo "- Running go mod tidy and gofmt..."
+	@echo "- Running go mod tidy, go vet and gofmt..."
 	@$(COMMON_ENV) $(GO) mod tidy
+	@$(COMMON_ENV) $(GO) vet ./...
 	@$(COMMON_ENV) gofmt -w .
 	@echo "  - Done."
