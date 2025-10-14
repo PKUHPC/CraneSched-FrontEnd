@@ -83,8 +83,8 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot attach to task %d in state: %s", taskId, task.Status.String()))
 	}
 
-	// Call AttachContainerTask RPC
-	attachReq := &protos.AttachContainerTaskRequest{
+	// Call AttachInContainerTask RPC
+	attachReq := &protos.AttachInContainerTaskRequest{
 		Uid:    uint32(os.Getuid()),
 		TaskId: uint32(taskId),
 		Stdin:  f.Attach.Stdin,
@@ -93,10 +93,10 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		Stderr: f.Attach.Stderr,
 	}
 
-	log.Debugf("Calling AttachContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+	log.Debugf("Calling AttachInContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
 		taskId, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
 
-	reply, err := stub.AttachContainerTask(context.Background(), attachReq)
+	reply, err := stub.AttachInContainerTask(context.Background(), attachReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to attach to container task")
 		return util.NewCraneErr(util.ErrorNetwork, "")
