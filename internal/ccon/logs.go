@@ -43,20 +43,14 @@ const kLogFilename = "container.log"
 
 func logExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "log requires exactly one argument: CONTAINER",
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, "log requires exactly one argument: CONTAINER")
 	}
 
 	f := GetFlags()
 	jobIDStr := args[0]
 	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("invalid job ID: %s", jobIDStr),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid job ID: %s", jobIDStr))
 	}
 
 	request := protos.QueryTasksInfoRequest{
@@ -68,35 +62,29 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container task")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if !reply.GetOk() {
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
 	if len(reply.TaskInfoList) == 0 {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("container with job ID %s not found", jobIDStr),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container with job ID %s not found", jobIDStr))
 	}
 
 	task := reply.TaskInfoList[0]
 
 	logPath, err := buildLogPath(task, uint32(jobID))
 	if err != nil {
-		return err
+		return util.WrapCraneErr(util.ErrorBackend, "%v", err)
 	}
 
 	var sinceTime, untilTime *time.Time
 	if f.Log.Since != "" {
 		t, err := parseCliTimeString(f.Log.Since)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("invalid --since format: %v", err),
-			}
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid --since format: %v", err)
 		}
 		sinceTime = &t
 	}
@@ -104,10 +92,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	if f.Log.Until != "" {
 		t, err := parseCliTimeString(f.Log.Until)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("invalid --until format: %v", err),
-			}
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid --until format: %v", err)
 		}
 		untilTime = &t
 	}
@@ -140,10 +125,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 func buildLogPath(task *protos.TaskInfo, taskID uint32) (string, error) {
 	if task.Cwd == "" {
-		return "", &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: "task working directory not available",
-		}
+		return "", fmt.Errorf("task working directory not available")
 	}
 
 	logDir := fmt.Sprintf(kLogDirPattern, taskID)
@@ -191,10 +173,7 @@ func followLogFile(logPath string, tailLines int, sinceTime, untilTime *time.Tim
 
 	t, err := tail.TailFile(logPath, config)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("failed to tail log file: %v", err),
-		}
+		return util.WrapCraneErr(util.ErrorBackend, "failed to tail log file: %v", err)
 	}
 	defer t.Cleanup()
 
@@ -209,10 +188,7 @@ func followLogFile(logPath string, tailLines int, sinceTime, untilTime *time.Tim
 				return nil // tail finished
 			}
 			if line.Err != nil {
-				return &util.CraneError{
-					Code:    util.ErrorBackend,
-					Message: fmt.Sprintf("tail error: %v", line.Err),
-				}
+				return util.WrapCraneErr(util.ErrorBackend, "tail error: %v", line.Err)
 			}
 
 			// Apply time filtering
@@ -281,15 +257,9 @@ func readLogFileWithTimeFilter(logPath string, tail int, sinceTime, untilTime *t
 	file, err := os.Open(logPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, &util.CraneError{
-				Code:    util.ErrorBackend,
-				Message: fmt.Sprintf("log file not found: %s", logPath),
-			}
+			return nil, fmt.Errorf("log file not found: %s", logPath)
 		}
-		return nil, &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("failed to open log file: %v", err),
-		}
+		return nil, fmt.Errorf("failed to open log file: %v", err)
 	}
 	defer file.Close()
 
@@ -315,10 +285,7 @@ func readLogFileWithTimeFilter(logPath string, tail int, sinceTime, untilTime *t
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("failed to read log file: %v", err),
-		}
+		return nil, fmt.Errorf("failed to read log file: %v", err)
 	}
 
 	if tail > 0 && tail < len(lines) {

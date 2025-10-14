@@ -36,10 +36,7 @@ import (
 
 func psExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 0 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "ps command does not accept any arguments",
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, "ps command does not accept any arguments")
 	}
 
 	f := GetFlags()
@@ -51,11 +48,11 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container tasks")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if !reply.GetOk() {
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
 	// Sort tasks by Task ID descending
@@ -138,19 +135,13 @@ func psExecute(cmd *cobra.Command, args []string) error {
 
 func inspectExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "inspect requires exactly one argument: CONTAINER",
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, "inspect requires exactly one argument: CONTAINER")
 	}
 
 	jobIDStr := args[0]
 	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("invalid job ID: %s", jobIDStr),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid job ID: %s", jobIDStr))
 	}
 
 	request := protos.QueryTasksInfoRequest{
@@ -162,28 +153,22 @@ func inspectExecute(cmd *cobra.Command, args []string) error {
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container task")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if !reply.GetOk() {
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
 	if len(reply.TaskInfoList) == 0 {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("container with job ID %s not found", jobIDStr),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container with job ID %s not found", jobIDStr))
 	}
 
 	task := reply.TaskInfoList[0]
 
 	jsonData, err := json.MarshalIndent(task, "", "  ")
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("failed to format data from backend: %v", err),
-		}
+		return util.WrapCraneErr(util.ErrorBackend, "failed to format data from backend: %v", err)
 	}
 
 	fmt.Println(string(jsonData))
