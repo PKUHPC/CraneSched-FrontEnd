@@ -211,7 +211,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
-		return nil, nil, util.GetCraneError(util.ErrorInvalidFormat,"Invalid format specifier.") 
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat,"Invalid format specifier.") 
 	}
 
 	tableOutputWidth, tableOutputHeader, tableOutputCell, err:= ParseBySpec(specifiers, reply)

@@ -62,7 +62,7 @@ func ConvertStates[T comparable](stateMap map[string]T, stateType string) ([]T, 
 		if state, exists := stateMap[strings.ToLower(stateStr)]; exists {
 			states = append(states, state)
 		} else {
-			return nil, util.GetCraneError(util.ErrorCmdArg, fmt.Sprintf("Invalid %s state given: %s", stateType, stateStr))
+			return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid %s state given: %s", stateType, stateStr))
 		}
 	}
 
@@ -200,7 +200,7 @@ func Query() error {
 func loopedQuery(iterate uint64) error {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-		return util.GetCraneError(util.ErrorCmdArg, err.Error())
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	return loopedSubQuery(interval)
