@@ -288,7 +288,7 @@ func FindtableDataByReply(reply *protos.QueryClusterInfoReply) ([][]string) {
 	return tableData
 }
 
-func FillTable(reply *protos.QueryClusterInfoReply ,table *tablewriter.Table) error{
+func FillTable(reply *protos.QueryClusterInfoReply ,table *tablewriter.Table) error {
 	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var err error
 	tableData := FindtableDataByReply(reply)
@@ -375,7 +375,7 @@ func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
 	return nil
 }
 
-func JsonOutput(reply * protos.QueryClusterInfoReply) error{
+func JsonOutput(reply * protos.QueryClusterInfoReply) error {
 	fmt.Println(util.FmtJson.FormatReply(reply))
 	if reply.GetOk() {
 		return nil
