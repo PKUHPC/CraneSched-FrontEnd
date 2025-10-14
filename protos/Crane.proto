@@ -957,6 +957,24 @@ message AttachContainerTaskReply {
   string url = 3;
 }
 
+message ExecContainerTaskRequest {
+  uint32 uid = 1;
+  uint32 task_id = 2;
+
+  repeated string command = 3;
+
+  bool stdin = 6;
+  bool tty = 7;
+  bool stdout = 8;
+  bool stderr = 9;
+}
+
+message ExecContainerTaskReply {
+  bool ok = 1;
+  RichError status = 2;
+  string url = 3;
+}
+
 // Todo: Divide service into two parts: one for Craned and one for Crun
 //  We need to distinguish the message sender
 //  and have some kind of authentication
@@ -1017,6 +1035,7 @@ service CraneCtld {
 
   /* RPCS called from ccon */
   rpc AttachContainerTask(AttachContainerTaskRequest) returns (AttachContainerTaskReply);
+  rpc ExecContainerTask(ExecContainerTaskRequest) returns (ExecContainerTaskReply);
 }
 
 service CeffQueryService {
@@ -1057,6 +1076,7 @@ service Craned {
   Craned will proxy the following container-related RPCs to CRI Service.
   */
   rpc AttachContainerTask(AttachContainerTaskRequest) returns (AttachContainerTaskReply);
+  rpc ExecContainerTask(ExecContainerTaskRequest) returns (ExecContainerTaskReply);
 
   /* ----------------------------------- Called from Craned  ------------------------------------------------------ */
   rpc QueryStepFromPort(QueryStepFromPortRequest) returns (QueryStepFromPortReply);

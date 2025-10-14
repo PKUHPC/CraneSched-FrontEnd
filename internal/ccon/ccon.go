@@ -40,6 +40,7 @@ type CconJsonSchema struct {
 }
 
 func outputJson(action string, message string, flags any, data any) {
+	// Workaround: convert protobuf message to map[string]any
 	if msg, ok := data.(protoreflect.ProtoMessage); ok {
 		json.Unmarshal([]byte(util.FmtJson.FormatReply(msg)), &data)
 	}
