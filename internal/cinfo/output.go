@@ -24,22 +24,23 @@ type FlattenedData struct {
 	CranedListCount uint64
 }
 
-func GetFlattenedData(partitionCraned *protos.TrimmedPartitionInfo ,
-					  commonCranedStateList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) FlattenedData {
+func GetFlattenedData(
+	partitionCraned *protos.TrimmedPartitionInfo,
+	commonCranedStateList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) FlattenedData {
 	return FlattenedData{
 		PartitionName:   partitionCraned.Name,
-		Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
+		Avail:           strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
 		CranedListRegex: commonCranedStateList.CranedListRegex,
-		ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
-		ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
-		PowerState:      strings.ToLower(commonCranedStateList.PowerState.String()[6:]),
+		ResourceState:   strings.ToLower(strings.TrimPrefix(commonCranedStateList.ResourceState.String(), "CRANE_")),
+		ControlState:    strings.ToLower(strings.TrimPrefix(commonCranedStateList.ControlState.String(), "CRANE_")),
+		PowerState:      strings.ToLower(strings.TrimPrefix(commonCranedStateList.PowerState.String(), "CRANE_")),
 		CranedListCount: uint64(commonCranedStateList.Count),
 	}
 }
-func GetValidFlattendData(partitionCraned *protos.TrimmedPartitionInfo) FlattenedData {
+func GetValidFlattenedData(partitionCraned *protos.TrimmedPartitionInfo) FlattenedData {
 	return FlattenedData{
 		PartitionName:   partitionCraned.Name,
-		Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
+		Avail:           strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
 		CranedListRegex: "",
 		ResourceState:   "n/a",
 		ControlState:    "",
@@ -59,11 +60,11 @@ func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
 		for _, commonCranedStateList := range partitionCraned.CranedLists {
 			if commonCranedStateList.Count > 0 {
 				partitionFilterValid = true
-				flattened = append(flattened,GetFlattenedData(partitionCraned, commonCranedStateList))
+				flattened = append(flattened, GetFlattenedData(partitionCraned, commonCranedStateList))
 			}
 		}
 		if !partitionFilterValid {
-			partitionInValid = append(partitionInValid,GetValidFlattendData(partitionCraned))
+			partitionInValid = append(partitionInValid, GetValidFlattenedData(partitionCraned))
 		}
 	}
 
@@ -134,7 +135,7 @@ func ProcessNodeList(flattened []FlattenedData, tableOutputCell [][]string) {
 	}
 }
 
-func ParseBySpec(specifiers [][]int, reply *protos.QueryClusterInfoReply) ([]int, []string, [][]string,error) {
+func ParseBySpec(specifiers [][]int, reply *protos.QueryClusterInfoReply) ([]int, []string, [][]string, error) {
 	tableOutputWidth := make([]int, 0, len(specifiers))
 	tableOutputHeader := make([]string, 0, len(specifiers))
 	flattened := FlattenReplyData(reply)
@@ -211,22 +212,22 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
-		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat,"Invalid format specifier.") 
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid format specifier.")
 	}
 
-	tableOutputWidth, tableOutputHeader, tableOutputCell, err:= ParseBySpec(specifiers, reply)
-	if  err != nil {
-		return nil,nil,err
+	tableOutputWidth, tableOutputHeader, tableOutputCell, err := ParseBySpec(specifiers, reply)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	formattedHeader, formattedData := util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
 	return formattedHeader, formattedData, nil
 }
 
-func GetInvalidMeg(partitionCraned *protos.TrimmedPartitionInfo) ([]string) {
-	return []string {
+func GetInvalidMsg(partitionCraned *protos.TrimmedPartitionInfo) []string {
+	return []string{
 		partitionCraned.Name,
-		strings.ToLower(partitionCraned.State.String()[10:]),
+		strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
 		"0",
 		"n/a",
 		"",
@@ -234,53 +235,53 @@ func GetInvalidMeg(partitionCraned *protos.TrimmedPartitionInfo) ([]string) {
 }
 
 func BuildStateString(cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) string {
-    stateStr := strings.ToLower(cranedList.ResourceState.String()[6:])
+	stateStr := strings.ToLower(strings.TrimPrefix(cranedList.ResourceState.String(), "CRANE_"))
 
-    if cranedList.ControlState != protos.CranedControlState_CRANE_NONE {
-        controlState := strings.ToLower(cranedList.ControlState.String()[6:])
-        stateStr += "(" + controlState + ")"
-    }
+	if cranedList.ControlState != protos.CranedControlState_CRANE_NONE {
+		controlState := strings.ToLower(strings.TrimPrefix(cranedList.ControlState.String(), "CRANE_"))
+		stateStr += "(" + controlState + ")"
+	}
 
-    powerStateSuffix := "[" + strings.ToLower(cranedList.PowerState.String()[6:]) + "]"
-    if cranedList.ResourceState == protos.CranedResourceState_CRANE_DOWN &&
-         (cranedList.PowerState == protos.CranedPowerState_CRANE_POWER_IDLE ||
-          cranedList.PowerState == protos.CranedPowerState_CRANE_POWER_ACTIVE) {
-        powerStateSuffix = "[failed]"
-    }
-    stateStr += powerStateSuffix
+	powerStateSuffix := "[" + strings.ToLower(strings.TrimPrefix(cranedList.PowerState.String(), "CRANE_")) + "]"
+	if cranedList.ResourceState == protos.CranedResourceState_CRANE_DOWN &&
+		(cranedList.PowerState == protos.CranedPowerState_CRANE_POWER_IDLE ||
+			cranedList.PowerState == protos.CranedPowerState_CRANE_POWER_ACTIVE) {
+		powerStateSuffix = "[failed]"
+	}
+	stateStr += powerStateSuffix
 
-    return stateStr
+	return stateStr
 }
 
 func CreateValidPartitionRow(partition *protos.TrimmedPartitionInfo, cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) []string {
-    stateStr := BuildStateString(cranedList)
-    return []string{
-        partition.Name,
-        strings.ToLower(partition.State.String()[10:]),
-        strconv.FormatUint(uint64(cranedList.Count), 10),
-        stateStr,
-        cranedList.CranedListRegex,
-    }
+	stateStr := BuildStateString(cranedList)
+	return []string{
+		partition.Name,
+		strings.ToLower(strings.TrimPrefix(partition.State.String(), "PARTITION_")),
+		strconv.FormatUint(uint64(cranedList.Count), 10),
+		stateStr,
+		cranedList.CranedListRegex,
+	}
 }
 
-func PartitionDeal(partitionCraned *protos.TrimmedPartitionInfo,tableData *[][]string) bool {
+func PartitionDeal(partitionCraned *protos.TrimmedPartitionInfo, tableData *[][]string) bool {
 	hasValidCraned := false
-    for _, cranedList := range partitionCraned.CranedLists {
-        if cranedList.Count > 0 {
-            hasValidCraned = true
-            *tableData = append(*tableData, CreateValidPartitionRow(partitionCraned, cranedList))
-        }
-    }
-    return hasValidCraned
+	for _, cranedList := range partitionCraned.CranedLists {
+		if cranedList.Count > 0 {
+			hasValidCraned = true
+			*tableData = append(*tableData, CreateValidPartitionRow(partitionCraned, cranedList))
+		}
+	}
+	return hasValidCraned
 }
 
-func FindtableDataByReply(reply *protos.QueryClusterInfoReply) ([][]string) {
+func FindTableDataByReply(reply *protos.QueryClusterInfoReply) [][]string {
 	var partitionInValid [][]string
 	var tableData [][]string
 
-	for _,partitionCraned := range reply.Partitions {
-		if hasValid := PartitionDeal(partitionCraned,&tableData); !hasValid {
-			partitionInValid = append(partitionInValid,GetInvalidMeg(partitionCraned))
+	for _, partitionCraned := range reply.Partitions {
+		if hasValid := PartitionDeal(partitionCraned, &tableData); !hasValid {
+			partitionInValid = append(partitionInValid, GetInvalidMsg(partitionCraned))
 		}
 	}
 
@@ -288,10 +289,10 @@ func FindtableDataByReply(reply *protos.QueryClusterInfoReply) ([][]string) {
 	return tableData
 }
 
-func FillTable(reply *protos.QueryClusterInfoReply ,table *tablewriter.Table) error {
+func FillTable(reply *protos.QueryClusterInfoReply, table *tablewriter.Table) error {
 	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var err error
-	tableData := FindtableDataByReply(reply)
+	tableData := FindTableDataByReply(reply)
 	if FlagFormat != "" {
 		header, tableData, err = FormatData(reply)
 		if err != nil {
@@ -365,9 +366,9 @@ func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 
-	if err := FillTable(reply, table); err != nil {  
-        return err  
-    } 
+	if err := FillTable(reply, table); err != nil {
+		return err
+	}
 
 	if len(FlagFilterNodes) != 0 {
 		ExtraDealNodeList(reply)
@@ -375,11 +376,11 @@ func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
 	return nil
 }
 
-func JsonOutput(reply * protos.QueryClusterInfoReply) error {
+func JsonOutput(reply *protos.QueryClusterInfoReply) error {
 	fmt.Println(util.FmtJson.FormatReply(reply))
 	if reply.GetOk() {
 		return nil
 	} else {
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, "Backend returned non-ok status")
 	}
 }

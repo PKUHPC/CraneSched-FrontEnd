@@ -13,8 +13,4 @@ bin
 # Testing
 testcase
 *.out
-<<<<<<< HEAD
 test/
-=======
-test
->>>>>>> 7c58218 (Abstract some functions from FormatOutput)
