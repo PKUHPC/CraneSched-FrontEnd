@@ -99,6 +99,12 @@ type AttachFlags struct {
 	Transport string
 }
 
+type ExecFlags struct {
+	Interactive bool
+	Tty         bool
+	Transport   string
+}
+
 type Flags struct {
 	Global GlobalFlags
 	Crane  CraneFlags
@@ -108,6 +114,7 @@ type Flags struct {
 	Log    LogFlags
 	Login  LoginFlags
 	Attach AttachFlags
+	Exec   ExecFlags
 
 	flagSetCrane *pflag.FlagSet
 }
