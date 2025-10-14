@@ -456,6 +456,14 @@ func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskT
 		if err := parseUserSpec(f.Run.User, containerMeta); err != nil {
 			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
 		}
+	} else {
+		// When --user is not specified, default behavior:
+		// - userns=true → run as container root (UID 0), which maps to current user
+		// - userns=false → run as current user (must match task.Uid/Gid)
+		if !containerMeta.Userns {
+			containerMeta.RunAsUser = task.Uid
+			containerMeta.RunAsGroup = task.Gid
+		}
 	}
 
 	// Parse and set environment variables (container-specific)
@@ -498,6 +506,8 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 	}
 
 	// Validate user and group IDs
+	// NOTE: If UserNS is enabled, we allow running as root (UID 0)
+	// because it will be mapped to the actual user outside the container.
 	if task.Uid != 0 {
 		if !containerMeta.Userns && (task.Uid != containerMeta.RunAsUser || task.Gid != containerMeta.RunAsGroup) {
 			return fmt.Errorf("with --userns=false, only current user and accessible groups are allowed")
