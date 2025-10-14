@@ -55,13 +55,9 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					return &util.CraneError{
-						Code:    util.ErrorCmdArg,
-						Message: "Output line number limit must be greater than 0.",
-					}
+					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
 				}
 			}
-
 			if FlagIterate != 0 {
 				return loopedQuery(FlagIterate)
 			} else {
@@ -77,10 +73,10 @@ func ParseCmdArgs() {
 }
 
 func init() {
-	RootCmd.SetVersionTemplate(util.VersionTemplate())
-	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
-		util.DefaultConfigPath, "Path to configuration file")
 
+	RootCmd.SetVersionTemplate(util.VersionTemplate())
+	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
+		"Path to configuration file")
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
 		"Specify job ids to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
@@ -96,7 +92,6 @@ func init() {
 		"Specify accounts to view (comma separated list), \ndefault is all accounts")
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"Specify partitions to view (comma separated list), \ndefault is all partitions")
-
 	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,
 		"Display at specified intervals (seconds), default is 0 (no iteration)")
 	RootCmd.Flags().BoolVarP(&FlagStartTime, "start", "S", false,
@@ -104,13 +99,16 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagDeadlineTime, "deadline", false, "Display the deadline time of jobs")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
 		"Do not print header line in the output")
-	RootCmd.Flags().BoolVar(&FlagSelf, "self", false, "Display only the jobs submitted by current user")
-
+	RootCmd.Flags().BoolVar(&FlagSelf, "self", false,
+		"Display only the jobs submitted by current user")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format.
-	Fields are identified by a percent sign (%) followed by a character or string. 
-	Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field.
-	
+	Fields are identified by a percent sign (%) followed by a character or string.
+	Format specification: %[[.]size]type
+	  - Without size: field uses natural width
+	  - With size only (%5j): field uses minimum width, left-aligned (padding on right)
+	  - With dot and size (%.5j): field uses minimum width, right-aligned (padding on left)
+
 Supported format identifiers or string, string case insensitive:
 	%a/%Account            - Display the account associated with the job.
 	%C/%ReqCpus            - Display the cpus requested to the job.
@@ -141,15 +139,19 @@ Supported format identifiers or string, string case insensitive:
 	%u/%User               - Display the user who submitted the job.
 	%X/%Exclusive          - Display the exclusive status of the job.
 	%x/%ExcludeNodes       - Display the exclude nodes of the job.
-Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
-If the width is specified, the field will be formatted to at least that width. 
-If the format is invalid or unrecognized, the program will terminate with an error message.
 
-Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum width of 5,
-         Name with a minimum width of 20, and the State.
+Examples:
+  --format "%j %n %t"              # Natural width for all fields
+  --format "%5j %20n %t"           # Left-aligned: JobID (min 5), Name (min 20), State
+  --format "%.5j %.20n %t"         # Right-aligned: JobID (min 5), Name (min 20), State
+  --format "ID:%8j | Name:%.15n"   # Mixed: left-aligned JobID, right-aligned Name with prefix
+
+Note: If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
-	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
+	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false,
+		"Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,
 		"Limit the number of lines in the output, default is 0 (no limit)")
-	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
+		"Output in JSON format")
 }

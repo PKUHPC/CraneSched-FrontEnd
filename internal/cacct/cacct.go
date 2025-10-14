@@ -666,20 +666,30 @@ var fieldProcessors = map[string]FieldProcessor{
 	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
 }
 
+// FormatData formats task information according to a format string.
+// Format: %[[.]size]type[suffix]
+// Examples:
+//   - %j      : JobID without width constraint, left-aligned
+//   - %5j     : JobID with minimum width 5, left-aligned (pad right)
+//   - %.5j    : JobID with minimum width 5, right-aligned (pad left)
+//   - %10t    : State with minimum width 10, left-aligned
+//   - %.10t   : State with minimum width 10, right-aligned
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
-	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
+	re := regexp.MustCompile(`%(\.)?(\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
 		log.Errorln("Invalid format specifier.")
 		os.Exit(util.ErrorInvalidFormat)
 	}
 	tableOutputWidth := make([]int, 0, len(specifiers))
+	tableOutputRightAlign := make([]bool, 0, len(specifiers))
 	tableOutputHeader := make([]string, 0, len(specifiers))
 	tableOutputCell := make([][]string, len(reply.TaskInfoList))
 	// Get the prefix of the format string
 	if specifiers[0][0] != 0 {
 		prefix := FlagFormat[0:specifiers[0][0]]
 		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputRightAlign = append(tableOutputRightAlign, false)
 		tableOutputHeader = append(tableOutputHeader, prefix)
 		for j := 0; j < len(reply.TaskInfoList); j++ {
 			tableOutputCell[j] = append(tableOutputCell[j], prefix)
@@ -690,18 +700,27 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
 			padding := FlagFormat[specifiers[i-1][1]:spec[0]]
 			tableOutputWidth = append(tableOutputWidth, -1)
+			tableOutputRightAlign = append(tableOutputRightAlign, false)
 			tableOutputHeader = append(tableOutputHeader, padding)
 			for j := 0; j < len(reply.TaskInfoList); j++ {
 				tableOutputCell[j] = append(tableOutputCell[j], padding)
 			}
 		}
+
+		// Check for right alignment (dot present)
+		rightAlign := false
+		if spec[2] != -1 {
+			rightAlign = true
+		}
+		tableOutputRightAlign = append(tableOutputRightAlign, rightAlign)
+
 		// Parse width specifier
-		if spec[2] == -1 {
+		if spec[4] == -1 {
 			// w/o width specifier
 			tableOutputWidth = append(tableOutputWidth, -1)
 		} else {
 			// with width specifier
-			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
+			width, err := strconv.ParseUint(FlagFormat[spec[4]:spec[5]], 10, 32)
 			if err != nil {
 				log.Errorln("Invalid width specifier.")
 				os.Exit(util.ErrorInvalidFormat)
@@ -710,7 +729,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		}
 
 		// Parse format specifier
-		field := FlagFormat[spec[4]:spec[5]]
+		field := FlagFormat[spec[6]:spec[7]]
 		if len(field) > 1 {
 			field = strings.ToLower(field)
 		}
@@ -735,10 +754,11 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
 		suffix := FlagFormat[specifiers[len(specifiers)-1][1]:]
 		tableOutputWidth = append(tableOutputWidth, -1)
+		tableOutputRightAlign = append(tableOutputRightAlign, false)
 		tableOutputHeader = append(tableOutputHeader, suffix)
 		for j := 0; j < len(reply.TaskInfoList); j++ {
 			tableOutputCell[j] = append(tableOutputCell[j], suffix)
 		}
 	}
-	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell, tableOutputRightAlign)
 }

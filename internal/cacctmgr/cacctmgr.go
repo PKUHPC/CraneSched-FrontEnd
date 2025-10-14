@@ -371,7 +371,7 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 	}
 }
 
-func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
+func AddAccount(account *protos.AccountInfo) util.ExitCode {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
@@ -423,7 +423,7 @@ func AddAccount(account *protos.AccountInfo) util.CraneCmdError {
 	}
 }
 
-func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.CraneCmdError {
+func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.ExitCode {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
@@ -484,7 +484,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	}
 }
 
-func AddQos(qos *protos.QosInfo) util.CraneCmdError {
+func AddQos(qos *protos.QosInfo) util.ExitCode {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
@@ -520,7 +520,7 @@ func AddQos(qos *protos.QosInfo) util.CraneCmdError {
 	}
 }
 
-func DeleteAccount(value string) util.CraneCmdError {
+func DeleteAccount(value string) util.ExitCode {
 
 	if FlagForce {
 		log.Warning("--force flag is ignored for delete operations")
@@ -560,7 +560,7 @@ func DeleteAccount(value string) util.CraneCmdError {
 	}
 }
 
-func DeleteUser(value string, account string) util.CraneCmdError {
+func DeleteUser(value string, account string) util.ExitCode {
 
 	userList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
@@ -604,7 +604,7 @@ func DeleteUser(value string, account string) util.CraneCmdError {
 	}
 }
 
-func DeleteQos(value string) util.CraneCmdError {
+func DeleteQos(value string) util.ExitCode {
 
 	if FlagForce {
 		log.Warning("--force flag is ignored for delete operations")
@@ -643,7 +643,7 @@ func DeleteQos(value string) util.CraneCmdError {
 	}
 }
 
-func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.CraneCmdError {
+func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.ExitCode {
 	var valueList []string
 	var err error
 
@@ -705,7 +705,7 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 	}
 }
 
-func ModifyUser(modifyField protos.ModifyField, newValue string, name string, account string, partition string, requestType protos.OperationType) util.CraneCmdError {
+func ModifyUser(modifyField protos.ModifyField, newValue string, name string, account string, partition string, requestType protos.OperationType) util.ExitCode {
 	if modifyField == protos.ModifyField_AdminLevel {
 		if newValue != "none" && newValue != "operator" && newValue != "admin" {
 			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
@@ -770,7 +770,7 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 	}
 }
 
-func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.CraneCmdError {
+func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for QoS modify operations")
 	}
@@ -804,7 +804,7 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 	}
 }
 
-func ShowAccounts() util.CraneCmdError {
+func ShowAccounts() util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
@@ -839,7 +839,7 @@ func ShowAccounts() util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func ShowUser(value string, account string) util.CraneCmdError {
+func ShowUser(value string, account string) util.ExitCode {
 
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
@@ -886,7 +886,7 @@ func ShowUser(value string, account string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func ShowQos(value string) util.CraneCmdError {
+func ShowQos(value string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
@@ -930,7 +930,7 @@ func ShowQos(value string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func FindAccount(value string) util.CraneCmdError {
+func FindAccount(value string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
@@ -975,7 +975,7 @@ func FindAccount(value string) util.CraneCmdError {
 	return util.ErrorSuccess
 }
 
-func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
+func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.ExitCode {
 
 	if FlagForce {
 		log.Warning("--force flag is ignored for block operations")
@@ -1021,7 +1021,7 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 	}
 }
 
-func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.CraneCmdError {
+func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.ExitCode {
 
 	if FlagForce {
 		log.Warning("--force flag is ignored for unblock operations")
@@ -1067,7 +1067,7 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 }
 
-func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string) util.CraneCmdError {
+func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for unblock operations")
 	}
@@ -1125,7 +1125,7 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 }
 
 // Extracts the EventPlugin InfluxDB configuration from the specified YAML configuration files
-func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, util.CraneCmdError) {
+func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, util.ExitCode) {
 	if !config.Plugin.Enabled {
 		log.Errorf("Plugin is not enabled")
 		return nil, util.ErrorCmdArg
@@ -1284,7 +1284,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	return records, nil
 }
 
-func QueryEventInfoByNodes(nodeRegex string) util.CraneCmdError {
+func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for query operations")
 	}
@@ -1425,7 +1425,7 @@ func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error)
 	return filteredRecords, nil
 }
 
-func ResetUserCredential(value string) util.CraneCmdError {
+func ResetUserCredential(value string) util.ExitCode {
 	var userList []string
 
 	if value == "" {
