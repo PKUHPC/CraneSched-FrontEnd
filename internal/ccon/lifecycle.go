@@ -33,10 +33,7 @@ import (
 // stopExecute handles the stop command execution
 func stopExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "stop requires exactly one argument: TASK_ID",
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, "stop requires exactly one argument: TASK_ID")
 	}
 
 	f := GetFlags()
@@ -45,10 +42,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	// Parse task ID
 	taskId, err := strconv.ParseUint(taskIdStr, 10, 32)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr))
 	}
 
 	// First, query the task to verify it's a container task
@@ -60,22 +54,16 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	queryReply, err := stub.QueryTasksInfo(context.Background(), queryReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query task information")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if !queryReply.GetOk() {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: "Failed to query task information",
-		}
+		return util.NewCraneErr(util.ErrorBackend, "Failed to query task information")
 	}
 
 	// Check if the task exists and is a container task
 	if len(queryReply.TaskInfoList) == 0 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Task %d not found or is not a container task", taskId),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Task %d not found or is not a container task", taskId))
 	}
 
 	// Create cancel request
@@ -94,7 +82,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	reply, err := stub.CancelTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to stop container task")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if f.Global.Json {
@@ -102,7 +90,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 		if len(reply.CancelledTasks) > 0 {
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, "")
 		}
 	}
 
@@ -118,7 +106,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 			reason = reply.NotCancelledReasons[0]
 		}
 		log.Errorf("Failed to stop container task %d: %s", taskId, reason)
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
 	return nil
@@ -129,26 +117,26 @@ func rmExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Container tasks are automatically cleaned up when they complete.\n")
 	fmt.Printf("Use 'ccon stop <task_id>' to cancel a running task.\n")
 
-	return &util.CraneError{Code: util.ErrorGeneric}
+	return util.NewCraneErr(util.ErrorGeneric, "")
 }
 
 func createExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Error: 'create' command is not supported in CraneSched.\n")
 	fmt.Printf("Use 'ccon run <image>' to submit a container task.\n")
 
-	return &util.CraneError{Code: util.ErrorGeneric}
+	return util.NewCraneErr(util.ErrorGeneric, "")
 }
 
 func startExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Error: 'start' command is not supported in CraneSched.\n")
 	fmt.Printf("Use 'ccon run <image>' to submit a new container task.\n")
 
-	return &util.CraneError{Code: util.ErrorGeneric}
+	return util.NewCraneErr(util.ErrorGeneric, "")
 }
 
 func restartExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Error: 'restart' command is not supported in CraneSched.\n")
 	fmt.Printf("Use 'ccon run <image>' to submit a new container task.\n")
 
-	return &util.CraneError{Code: util.ErrorGeneric}
+	return util.NewCraneErr(util.ErrorGeneric, "")
 }

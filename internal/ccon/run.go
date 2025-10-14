@@ -70,10 +70,7 @@ func parseEnvVar(envVar string, envMap map[string]string) error {
 		// KEY=VALUE format
 		envMap[parts[0]] = parts[1]
 	} else {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "environment variable must be in KEY=VALUE or KEY format",
-		}
+		return fmt.Errorf("environment variable must be in KEY=VALUE or KEY format")
 	}
 	return nil
 }
@@ -110,10 +107,7 @@ func parseVolumeMount(volumeSpec string, mountMap map[string]string) error {
 	parts := strings.SplitN(volumeSpec, ":", 2)
 
 	if len(parts) != 2 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "volume mount must be in HOST:CONTAINER format",
-		}
+		return fmt.Errorf("volume mount must be in HOST:CONTAINER format")
 	}
 
 	hostPath := parts[0]
@@ -121,10 +115,7 @@ func parseVolumeMount(volumeSpec string, mountMap map[string]string) error {
 
 	// Basic validation
 	if hostPath == "" || containerPath == "" {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "host path and container path cannot be empty",
-		}
+		return fmt.Errorf("host path and container path cannot be empty")
 	}
 
 	mountMap[hostPath] = containerPath
@@ -134,10 +125,7 @@ func parseVolumeMount(volumeSpec string, mountMap map[string]string) error {
 // runExecute handles the run command execution
 func runExecute(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "run requires at least one argument: IMAGE [COMMAND] [ARG...]",
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, "run requires at least one argument: IMAGE [COMMAND] [ARG...]")
 	}
 
 	f := GetFlags()
@@ -150,12 +138,12 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	// Build the container task
 	task, err := buildContainerTask(f, image, command)
 	if err != nil {
-		return fmt.Errorf("failed to build container task: %v", err)
+		return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container task: %v", err)
 	}
 
 	// Validate container-specific parameters
 	if err := validateContainerTask(task); err != nil {
-		return fmt.Errorf("container validation failed: %v", err)
+		return util.WrapCraneErr(util.ErrorCmdArg, "validation failed: %v", err)
 	}
 
 	// Submit the task
@@ -175,24 +163,15 @@ func runExecute(cmd *cobra.Command, args []string) error {
 func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	// Check mutally exclusive flags
 	if f.Run.Cpus > 0 && f.Crane.CpusPerTask > 0 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "--cpus and --cpus-per-task are mutually exclusive",
-		}
+		return fmt.Errorf("--cpus and --cpus-per-task are mutually exclusive")
 	}
 
 	if f.Run.Memory != "" && f.Crane.Mem != "" {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "--memory and --mem are mutually exclusive",
-		}
+		return fmt.Errorf("--memory and --mem are mutually exclusive")
 	}
 
 	if f.Run.Gpus != "" && f.Crane.Gres != "" {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "--gpus and --gres are mutually exclusive",
-		}
+		return fmt.Errorf("--gpus and --gres are mutually exclusive")
 	}
 
 	// CPU allocation
@@ -229,10 +208,7 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	if f.Crane.Gres != "" {
 		gresSpec = f.Crane.Gres
 	} else if f.Run.Gpus != "" {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "--gpus is not supported. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'",
-		}
+		return fmt.Errorf("--gpus is not supported. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'")
 	}
 
 	if gresSpec != "" {
@@ -518,19 +494,13 @@ func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskT
 func validateContainerTask(task *protos.TaskToCtld) error {
 	containerMeta := task.GetContainerMeta()
 	if containerMeta == nil {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: "container metadata is missing",
-		}
+		return fmt.Errorf("container metadata is missing")
 	}
 
 	// Validate user and group IDs
 	if task.Uid != 0 {
 		if !containerMeta.Userns && (task.Uid != containerMeta.RunAsUser || task.Gid != containerMeta.RunAsGroup) {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "with --userns=false, only current user and accessible groups are allowed",
-			}
+			return fmt.Errorf("with --userns=false, only current user and accessible groups are allowed")
 		}
 	} else if containerMeta.Userns {
 		log.Warnf("--userns is ignored when running as root")
@@ -538,10 +508,7 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 
 	// Validate image specification
 	if containerMeta.Image == nil || containerMeta.Image.Image == "" {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: "container image is required",
-		}
+		return fmt.Errorf("container image is required")
 	}
 
 	// Validate port mappings
@@ -557,10 +524,7 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 	// Validate volume mounts
 	for hostPath, containerPath := range containerMeta.Mounts {
 		if hostPath == "" || containerPath == "" {
-			return &util.CraneError{
-				Code:    util.ErrorBackend,
-				Message: "host path and container path cannot be empty",
-			}
+			return fmt.Errorf("host path and container path cannot be empty")
 		}
 		// Note: Skip file existence check for now as it may not be accessible from frontend
 	}
@@ -582,16 +546,13 @@ func submitContainerTask(task *protos.TaskToCtld) (*protos.SubmitBatchTaskReply,
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the container task")
-		return reply, &util.CraneError{Code: util.ErrorNetwork}
+		return reply, util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if reply.GetOk() {
 		return reply, nil
 	} else {
-		return reply, &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Container task submission failed: %s", util.ErrMsg(reply.GetCode())),
-		}
+		return reply, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container task submission failed: %s", util.ErrMsg(reply.GetCode())))
 	}
 }
 
@@ -627,7 +588,7 @@ func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
 		reply, err := stub.AttachContainerTask(grpcCtx, &req)
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to get attach URL")
-			return nil, &util.CraneError{Code: util.ErrorNetwork}
+			return nil, util.NewCraneErr(util.ErrorNetwork, "")
 		}
 
 		return reply, nil
@@ -672,9 +633,6 @@ func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
 		}
 
 		// Case 3: Any other backend error - exit immediately with error
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to get attach URL: %s", reply.GetStatus().GetDescription()),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get attach URL: %s", reply.GetStatus().GetDescription()))
 	}
 }

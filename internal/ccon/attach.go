@@ -33,10 +33,7 @@ import (
 // attachExecute handles the attach command execution
 func attachExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "attach requires exactly one argument: CONTAINER_TASK_ID",
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, "attach requires exactly one argument: CONTAINER_TASK_ID")
 	}
 
 	taskIdStr := args[0]
@@ -47,10 +44,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	// When --tty is set, --stderr should be disabled (TTY combines stdout and stderr)
 	if f.Attach.Tty {
 		if cmd.Flags().Changed("stderr") && f.Attach.Stderr {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "Cannot use --stderr with --tty; stderr is combined into stdout in TTY mode",
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, "Cannot use --stderr with --tty; stderr is combined into stdout in TTY mode")
 		}
 		f.Attach.Stderr = false
 	}
@@ -58,10 +52,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	// Parse task ID
 	taskId, err := strconv.ParseUint(taskIdStr, 10, 32)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr))
 	}
 
 	// First, query the task to verify it's a container task and is running
@@ -73,32 +64,23 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	queryReply, err := stub.QueryTasksInfo(context.Background(), queryReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query task information")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if !queryReply.GetOk() {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: "Failed to query task information",
-		}
+		return util.NewCraneErr(util.ErrorBackend, "Failed to query task information")
 	}
 
 	// Check if the task exists and is a container task
 	if len(queryReply.TaskInfoList) == 0 {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Container task %d not found or is not a container task", taskId),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container task %d not found or is not a container task", taskId))
 	}
 
 	task := queryReply.TaskInfoList[0]
 
 	// Check if the task is in a state that allows attaching
 	if task.Status != protos.TaskStatus_Running {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Cannot attach to task %d in state: %s", taskId, task.Status.String()),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot attach to task %d in state: %s", taskId, task.Status.String()))
 	}
 
 	// Call AttachContainerTask RPC
@@ -117,14 +99,11 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	reply, err := stub.AttachContainerTask(context.Background(), attachReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to attach to container task")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if !reply.Ok {
-		err = &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Attach failed: %s", reply.GetStatus().GetDescription()),
-		}
+		err = util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Attach failed: %s", reply.GetStatus().GetDescription()))
 	}
 
 	if f.Global.Json {
@@ -155,10 +134,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		// Start streaming
 		ctx := context.Background()
 		if err := StreamWithURL(ctx, reply.Url, streamOpts); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorBackend,
-				Message: fmt.Sprintf("Failed to establish stream connection: %v", err),
-			}
+			return util.WrapCraneErr(util.ErrorBackend, "Failed to establish stream connection: %v", err)
 		}
 	}
 
