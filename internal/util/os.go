@@ -19,6 +19,7 @@
 package util
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"fmt"
 	"os"
 	"os/user"
@@ -178,4 +179,67 @@ func GetUidByUserName(userName string) (uint32, error) {
 	uid := uint32(i64)
 
 	return uid, nil
+}
+
+func SplitEnvironEntry(env *string) (string, string, bool) {
+	eq := strings.IndexByte(*env, '=')
+	if eq == -1 {
+		return *env, "", false
+	} else {
+		return (*env)[:eq], (*env)[eq+1:], true
+	}
+}
+
+func SetPropagatedEnviron(task *protos.TaskToCtld) {
+	systemEnv := make(map[string]string)
+	for _, str := range os.Environ() {
+		name, value, _ := SplitEnvironEntry(&str)
+		systemEnv[name] = value
+
+		// The CRANE_* environment variables are loaded anyway.
+		if strings.HasPrefix(name, "CRANE_") {
+			task.Env[name] = value
+		}
+	}
+
+	// This value is used only to carry the value of --export flag.
+	// Delete it once we get it.
+	valueOfExportFlag, haveExportFlag := task.Env["CRANE_EXPORT_ENV"]
+	if haveExportFlag {
+		delete(task.Env, "CRANE_EXPORT_ENV")
+	} else {
+		// Default mode is ALL
+		valueOfExportFlag = "ALL"
+	}
+
+	switch valueOfExportFlag {
+	case "NIL":
+	case "NONE":
+		task.GetUserEnv = true
+	case "ALL":
+		task.Env = systemEnv
+
+	default:
+		// The case like "ALL,A=a,B=b", "NIL,C=c"
+		task.GetUserEnv = true
+		splitValueOfExportFlag := strings.Split(valueOfExportFlag, ",")
+		for _, exportValue := range splitValueOfExportFlag {
+			if exportValue == "ALL" {
+				for k, v := range systemEnv {
+					task.Env[k] = v
+				}
+			} else {
+				k, v, ok := SplitEnvironEntry(&exportValue)
+				// If user-specified value is empty, use system value instead.
+				if ok {
+					task.Env[k] = v
+				} else {
+					systemEnvValue, envExist := systemEnv[k]
+					if envExist {
+						task.Env[k] = systemEnvValue
+					}
+				}
+			}
+		}
+	}
 }

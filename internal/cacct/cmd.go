@@ -20,6 +20,7 @@ package cacct
 
 import (
 	"CraneFrontEnd/internal/util"
+
 	"github.com/spf13/cobra"
 )
 
@@ -110,7 +111,11 @@ func init() {
 		`Specify the output format.
 
 Fields are identified by a percent sign (%) followed by a character or string.
-Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field. 
+Format specification: %[[.]size]type
+  - Without size: field uses natural width
+  - With size only (%5j): field uses minimum width, left-aligned (padding on right)
+  - With dot and size (%.5j): field uses minimum width, right-aligned (padding on left)
+
 Supported format identifiers or string, string case insensitive:
 	%a/%Account           - Display the account associated with the job.
 	%C/%ReqCpus           - Display the number of requested CPUs, formatted to two decimal places
@@ -143,12 +148,13 @@ Supported format identifiers or string, string case insensitive:
 	%x/%ExcludeNodes      - Display the excludenodes of the job.
 	%X/%Exclusive         - Display the exclusive status of the job.
 
-Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
-If the width is specified, the field will be formatted to at least that width. 
-If the format is invalid or unrecognized, the program will terminate with an error message.
+Examples:
+  --format "%j %n %t"              # Natural width for all fields
+  --format "%5j %20n %t"           # Left-aligned: JobID (min 5), JobName (min 20), State
+  --format "%.5j %.20n %t"         # Right-aligned: JobID (min 5), JobName (min 20), State
+  --format "ID:%8j | Name:%.15n"   # Mixed: left-aligned JobID, right-aligned JobName with prefix
 
-Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum width of 5,
-         Name with a minimum width of 20, and the State.
+Note: If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", 0,

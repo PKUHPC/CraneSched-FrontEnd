@@ -49,12 +49,26 @@ func SetBorderTable(table *tablewriter.Table) {
 }
 
 func FormatTable(tableOutputWidth []int, tableHeader []string,
-	tableData [][]string) (formatTableHeader []string, formatTableData [][]string) {
+	tableData [][]string, rightAlign ...[]bool) (formatTableHeader []string, formatTableData [][]string) {
+	// If rightAlign is not provided, default to all left-aligned
+	var alignments []bool
+	if len(rightAlign) > 0 && rightAlign[0] != nil {
+		alignments = rightAlign[0]
+	} else {
+		alignments = make([]bool, len(tableHeader))
+	}
+
 	for i, h := range tableHeader {
 		if tableOutputWidth[i] != -1 {
 			padLength := tableOutputWidth[i] - len(h)
 			if padLength >= 0 {
-				tableHeader[i] = h + strings.Repeat(" ", padLength)
+				if i < len(alignments) && alignments[i] {
+					// Right align: pad on the left
+					tableHeader[i] = strings.Repeat(" ", padLength) + h
+				} else {
+					// Left align: pad on the right
+					tableHeader[i] = h + strings.Repeat(" ", padLength)
+				}
 			} else {
 				tableHeader[i] = h[:tableOutputWidth[i]]
 			}
@@ -65,7 +79,13 @@ func FormatTable(tableOutputWidth []int, tableHeader []string,
 			if tableOutputWidth[j] != -1 {
 				padLength := tableOutputWidth[j] - len(cell)
 				if padLength >= 0 {
-					tableData[i][j] = cell + strings.Repeat(" ", padLength)
+					if j < len(alignments) && alignments[j] {
+						// Right align: pad on the left
+						tableData[i][j] = strings.Repeat(" ", padLength) + cell
+					} else {
+						// Left align: pad on the right
+						tableData[i][j] = cell + strings.Repeat(" ", padLength)
+					}
 				} else {
 					tableData[i][j] = cell[:tableOutputWidth[j]]
 				}
