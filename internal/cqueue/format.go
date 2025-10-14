@@ -277,12 +277,14 @@ type formatSegment struct {
 	segmentType segmentType
 	content     string
 	width       int
+	rightAlign  bool
 }
 
 type tableBuilder struct {
-	widths  []int
-	headers []string
-	cells   [][]string
+	widths     []int
+	rightAlign []bool
+	headers    []string
+	cells      [][]string
 }
 
 func NewTableBuilder(rowCount int) *tableBuilder {
@@ -307,6 +309,7 @@ func BuildColumns(builder *tableBuilder, reply *protos.QueryTasksInfoReply, segm
 
 func AddTextColumn(builder *tableBuilder, text string) {
 	builder.widths = append(builder.widths, -1)
+	builder.rightAlign = append(builder.rightAlign, false)
 	builder.headers = append(builder.headers, text)
 	for j := range builder.cells {
 		builder.cells[j] = append(builder.cells[j], text)
@@ -324,6 +327,7 @@ func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply
 	}
 
 	builder.widths = append(builder.widths, seg.width)
+	builder.rightAlign = append(builder.rightAlign, seg.rightAlign)
 	builder.headers = append(builder.headers, strings.ToUpper(processor.header))
 
 	for j, task := range reply.TaskInfoList {
@@ -332,20 +336,22 @@ func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply
 	return nil
 }
 
-// `%(\.\d+)?([a-zA-Z]+)`
+// `%(\.)?(\d+)?([a-zA-Z]+)`
 // This regular expression starts with a percent sign (%), which may be followed
-// by a decimal point and a number, and finally followed by a string of one or more letters.
-// for example "-o=ID:%.5j | Status:%t"
+// by an optional dot (.) for right alignment, an optional number for width,
+// and finally followed by a string of one or more letters.
+// Examples: "%5j" (left align, width 5), "%.5j" (right align, width 5), "%j" (no width)
+// For example "-o=ID:%.5j | Status:%5t"
 // return specifier is a int[][] arr
 //
-//	ID:%.5j | Status:%t
-//	0123456789
+//	ID:%.5j | Status:%5t
+//	012345678901234567
 //
-// The part corresponding to the ID, specifier[0]=[3,7,4,6,6,7]
-// %.5j --> [3,7)  .5 --> [4,6)    j --> [6,7)
-// Parse into    [start,end)   [.start,num_end)   [spec_start,spec_end)
+// The part corresponding to the ID, specifier[0]=[3,8,4,5,5,6,7,8]
+// %.5j --> [3,8)  . --> [4,5)  5 --> [5,6)  j --> [7,8)
+// Parse into    [start,end)   [dot_start,dot_end)   [num_start,num_end)   [spec_start,spec_end)
 //
-//	0      1       2      3           4          5
+//	0      1       2          3              4          5              6          7
 func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, error) {
 	specifiers := re.FindAllStringSubmatchIndex(format, -1)
 	if specifiers == nil {
@@ -377,20 +383,29 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 			}
 		}
 		width := -1
-		// spec[2] != -1 Get the width
+		rightAlign := false
+
+		// spec[2] != -1 means dot (.) is present -> right alignment
 		if spec[2] != -1 {
-			widthVal, err := strconv.ParseUint(format[spec[2]+1:spec[3]], 10, 32)
+			rightAlign = true
+		}
+
+		// spec[4] != -1 means width is specified
+		if spec[4] != -1 {
+			widthVal, err := strconv.ParseUint(format[spec[4]:spec[5]], 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("invalid width specifier")
 			}
 			width = int(widthVal)
 		}
+
 		//get the field specifier
-		field := format[spec[4]:spec[5]]
+		field := format[spec[6]:spec[7]]
 		segments = append(segments, formatSegment{
 			segmentType: specifierSegment,
 			content:     field,
 			width:       width,
+			rightAlign:  rightAlign,
 		})
 	}
 
@@ -407,13 +422,13 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 }
 
 // FormatData formats the output data according to the format string
-// format : "%j" or "%.5j" or  "ID:%j"  or "ID:%5j"
+// format : "%j" or "%5j" or "%.5j" or  "ID:%j"  or "ID:%5j"
 // cqueue -o="ID:%.4j | Status:%t | user:%u
 // ID:JOBID | Status:STATE   | user:USER
 // ID:44    | Status:Running | user:internthree
 // ID:45    | Status:Running | user:internthree
 func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
-	var formatSpecRegex = regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
+	var formatSpecRegex = regexp.MustCompile(`%(\.)?(\d+)?([a-zA-Z]+)`)
 
 	segments, err := ParseFormatSegments(FlagFormat, formatSpecRegex)
 	if err != nil {
@@ -427,5 +442,5 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		os.Exit(util.ErrorInvalidFormat)
 	}
 
-	return util.FormatTable(builder.widths, builder.headers, builder.cells)
+	return util.FormatTable(builder.widths, builder.headers, builder.cells, builder.rightAlign)
 }
