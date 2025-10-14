@@ -631,7 +631,7 @@ func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
 			return StreamWithURL(ctx, reply.GetUrl(), streamOpt)
 		}
 
-		if reply.GetStatus().GetCode() == protos.ErrCode_ERR_CRI_ATTACH_NOT_READY {
+		if reply.GetStatus().GetCode() == protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY {
 			// Case 2: NOT_READY - retry until status changes
 			log.Debugf("Attach not ready yet: %s. Retrying in 10 seconds...", reply.GetStatus().GetDescription())
 			select {

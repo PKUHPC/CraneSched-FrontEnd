@@ -101,6 +101,13 @@ var (
 		RunE:             attachExecute,
 	}
 
+	ExecCmd = &cobra.Command{
+		Use:              "exec [flags] CONTAINER COMMAND [ARG...]",
+		Short:            "Execute a command in a running container",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             execExecute,
+	}
+
 	// These two commands do not need config and stub
 	LoginCmd = &cobra.Command{
 		Use:   "login [flags] SERVER",
@@ -199,6 +206,10 @@ func InitializeCommandFlags() {
 	AttachCmd.Flags().BoolVar(&f.Attach.Stderr, "stderr", false, "Attach STDERR")
 	AttachCmd.Flags().BoolVar(&f.Attach.Tty, "tty", true, "Allocate a pseudo-TTY")
 	AttachCmd.Flags().StringVar(&f.Attach.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
+
+	ExecCmd.Flags().BoolVarP(&f.Exec.Interactive, "interactive", "i", false, "Keep STDIN open")
+	ExecCmd.Flags().BoolVarP(&f.Exec.Tty, "tty", "t", false, "Allocate a pseudo-TTY")
+	ExecCmd.Flags().StringVar(&f.Exec.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
 }
 
 func init() {
@@ -212,7 +223,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	// Link all commands to the root command
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
 	RootCmd.AddCommand(CreateCmd, StartCmd, RestartCmd)
 
 	// Hide crane flags by default. Only display them when running 'ccon run'.
