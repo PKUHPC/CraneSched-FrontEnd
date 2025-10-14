@@ -567,7 +567,7 @@ func CheckEntityName(name string) error {
 	}
 
 	if name == "ALL" {
-		return fmt.Errorf("The name cannot be \"ALL\".")
+		return fmt.Errorf("name cannot be \"ALL\"")
 	}
 
 	if len(name) > MaxEntityNameLength {
@@ -592,14 +592,15 @@ func ParseHostList(hostStr string) ([]string, bool) {
 	var charQueue string
 
 	for _, c := range nameStr {
-		if c == '[' {
+		switch c {
+		case '[':
 			if charQueue == "" {
 				charQueue = string(c)
 			} else {
 				log.Errorln("Illegal node name string format: duplicate brackets")
 				return nil, false
 			}
-		} else if c == ']' {
+		case ']':
 			if charQueue == "" {
 				log.Errorln("Illegal node name string format: isolated bracket")
 				return nil, false
@@ -608,14 +609,14 @@ func ParseHostList(hostStr string) ([]string, bool) {
 				nameMeta += string(c)
 				charQueue = ""
 			}
-		} else if c == ',' {
+		case ',':
 			if charQueue == "" {
 				strList = append(strList, nameMeta)
 				nameMeta = ""
 			} else {
 				charQueue += string(c)
 			}
-		} else {
+		default:
 			if charQueue == "" {
 				nameMeta += string(c)
 			} else {
@@ -722,11 +723,12 @@ func ParsePosNegList(posNegStr string) ([]string, []string, error) {
 		if host == "" {
 			return nil, nil, fmt.Errorf("empty field")
 		}
-		if host[0] == '-' {
+		switch host[0] {
+		case '-':
 			negSet[host[1:]] = true
-		} else if host[0] == '+' {
+		case '+':
 			posSet[host[1:]] = true
-		} else {
+		default:
 			posSet[host] = true
 		}
 	}
@@ -781,9 +783,10 @@ func HostNameListToStr_(hostList []string) ([]string, bool) {
 	res := true
 
 	sz := len(hostList)
-	if sz == 0 {
+	switch sz {
+	case 0:
 		return resList, true
-	} else if sz == 1 {
+	case 1:
 		resList = append(resList, hostList[0])
 		return resList, true
 	}

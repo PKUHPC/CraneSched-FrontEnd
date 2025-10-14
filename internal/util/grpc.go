@@ -38,7 +38,6 @@ import (
 
 	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -407,18 +406,16 @@ func RefreshCertInterceptor(refreshCertificateFunc func() error, updateConnFunc 
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
-		var err error
-
-		err = invoker(ctx, method, req, reply, cc, opts...)
+		err := invoker(ctx, method, req, reply, cc, opts...)
 		if err == nil {
 			return nil
 		}
 
-		rpcErr, _ := status.FromError(err)
+		rpcErr, _ := grpcstatus.FromError(err)
 		if (rpcErr.Code() == grpccodes.Unavailable && strings.Contains(rpcErr.Message(), "certificate")) ||
 			rpcErr.Code() == grpccodes.Unauthenticated {
 			if refreshErr := refreshCertificateFunc(); refreshErr != nil {
-				log.Errorf(refreshErr.Error())
+				log.Errorf("%s", refreshErr.Error())
 				return refreshErr
 			}
 
