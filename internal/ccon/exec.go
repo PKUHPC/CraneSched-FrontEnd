@@ -82,8 +82,8 @@ func execExecute(cmd *cobra.Command, args []string) error {
 	stdout := true // Always enable stdout for exec
 	stderr := !tty // Enable stderr only in non-TTY mode
 
-	// Call ExecContainerTask RPC
-	execReq := &protos.ExecContainerTaskRequest{
+	// Call ExecInContainerTask RPC
+	execReq := &protos.ExecInContainerTaskRequest{
 		Uid:     uint32(os.Getuid()),
 		TaskId:  uint32(taskId),
 		Command: command,
@@ -93,10 +93,10 @@ func execExecute(cmd *cobra.Command, args []string) error {
 		Stderr:  stderr,
 	}
 
-	log.Debugf("Calling ExecContainerTask RPC for task %d with command %v, flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+	log.Debugf("Calling ExecInContainerTask RPC for task %d with command %v, flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
 		taskId, command, execReq.Stdin, execReq.Stdout, execReq.Stderr, execReq.Tty)
 
-	reply, err := stub.ExecContainerTask(context.Background(), execReq)
+	reply, err := stub.ExecInContainerTask(context.Background(), execReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to exec into container task")
 		return util.NewCraneErr(util.ErrorNetwork, "")

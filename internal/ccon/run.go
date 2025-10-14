@@ -582,8 +582,8 @@ func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
 		Transport: "spdy",
 	}
 
-	attach := func(ctx context.Context) (*protos.AttachContainerTaskReply, error) {
-		req := protos.AttachContainerTaskRequest{
+	attach := func(ctx context.Context) (*protos.AttachInContainerTaskReply, error) {
+		req := protos.AttachInContainerTaskRequest{
 			TaskId: uint32(reply.GetTaskId()),
 			Uid:    uint32(os.Getuid()),
 			Stdin:  streamOpt.Stdin,
@@ -595,7 +595,7 @@ func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
 		grpcCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
-		reply, err := stub.AttachContainerTask(grpcCtx, &req)
+		reply, err := stub.AttachInContainerTask(grpcCtx, &req)
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to get attach URL")
 			return nil, util.NewCraneErr(util.ErrorNetwork, "")
