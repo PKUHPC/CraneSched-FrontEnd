@@ -99,7 +99,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 	}
 
 	if !response.Ok {
-		return fmt.Errorf(ErrMsg(response.Reason))
+		return fmt.Errorf("%s", ErrMsg(response.Reason))
 	}
 
 	if err := SaveFileWithPermissions(fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath), []byte(response.Certificate), 0644); err != nil {
