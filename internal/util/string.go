@@ -1373,17 +1373,76 @@ func GetAllGroupUsers(groupListStr string) ([]string, error) {
 	return result, nil
 }
 
-func MergeAndDedupStrings(listA, listB []string) []string {
-	uniqueStrings := make(map[string]struct{})
-	for _, str := range listA {
-		uniqueStrings[str] = struct{}{}
+func MergeAndDedup[T comparable](listA, listB []T) []T {
+	unique := make(map[T]struct{})
+	for _, item := range listA {
+		unique[item] = struct{}{}
 	}
-	for _, str := range listB {
-		uniqueStrings[str] = struct{}{}
+	for _, item := range listB {
+		unique[item] = struct{}{}
 	}
-	result := make([]string, 0, len(uniqueStrings))
-	for str := range uniqueStrings {
-		result = append(result, str)
+	result := make([]T, 0, len(unique))
+	for item := range unique {
+		result = append(result, item)
 	}
 	return result
+}
+
+func GetUsersByGIDs(groupIds string) ([]string, error) {
+	groupIdStrList := strings.Split(groupIds, ",")
+	var groupIdList []uint32
+	for i := 0; i < len(groupIdStrList); i++ {
+		groupId, err := strconv.ParseUint(groupIdStrList[i], 10, 32)
+		if err != nil || groupId == 0 {
+			return nil, fmt.Errorf("invalid group id \"%s\"", groupIdStrList[i])
+		}
+		groupIdList = append(groupIdList, uint32(groupId))
+	}
+
+	gidSet := make(map[uint32]struct{})
+	for _, gid := range groupIdList {
+		gidSet[gid] = struct{}{}
+	}
+
+	userSet := make(map[string]struct{})
+
+	file, err := os.Open("/etc/group")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.Split(line, ":")
+		if len(parts) < 4 {
+			continue
+		}
+		gidInt, err := strconv.Atoi(parts[2])
+		if err != nil {
+			continue
+		}
+		gid := uint32(gidInt)
+		if _, ok := gidSet[gid]; !ok {
+			continue
+		}
+		users := strings.Split(parts[3], ",")
+		for _, user := range users {
+			user = strings.TrimSpace(user)
+			if user != "" {
+				userSet[user] = struct{}{}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0, len(userSet))
+	for user := range userSet {
+		result = append(result, user)
+	}
+	return result, nil
 }

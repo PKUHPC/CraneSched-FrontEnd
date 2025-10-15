@@ -36,6 +36,7 @@ var (
 	FlagTopCount        uint32
 	FlagGroups          string
 	FlagFilterWckeys    string
+	FlagFilterGids      string
 
 	RootCmd = &cobra.Command{
 		Use:     "creport",
@@ -100,7 +101,7 @@ var (
 		Short: "Display the statistical information of all job wckeys under the specified user that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserWckeySummaryItem(CheckUserWckeyStatus)
+			return QueryAccountUserSummaryItem(CheckUserWckeyStatus)
 		},
 	}
 	wckeyUtilizationByUserCmd = &cobra.Command{
@@ -108,7 +109,7 @@ var (
 		Short: "Display the statistical information of all job users under the specified user that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserWckeySummaryItem(CheckWckeyUserStatus)
+			return QueryAccountUserSummaryItem(CheckWckeyUserStatus)
 		},
 	}
 	accountUtilizationByQosCmd = &cobra.Command{
@@ -132,7 +133,7 @@ var (
 		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserWckeySummaryItem(CheckAccountCpusStatus)
+			return QueryAccountUserSummaryItem(CheckAccountCpusStatus)
 		},
 	}
 	sizesByWckeyCmd = &cobra.Command{
@@ -140,7 +141,7 @@ var (
 		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserWckeySummaryItem(CheckWckeyCpusStatus)
+			return QueryAccountUserSummaryItem(CheckWckeyCpusStatus)
 		},
 	}
 	sizesByAccountAndWcKey = &cobra.Command{
@@ -148,7 +149,7 @@ var (
 		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserWckeySummaryItem(CheckAccountWckeyCpusStatus)
+			return QueryAccountUserSummaryItem(CheckAccountWckeyCpusStatus)
 		},
 	}
 )
@@ -297,6 +298,8 @@ func init() {
 			)
 			sizesByAccountCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
 				"Select users to view (comma separated list)")
+			sizesByAccountCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
+				"Select group id to view (comma separated list)")
 		}
 		jobCmd.AddCommand(sizesByWckeyCmd)
 		{
@@ -310,6 +313,8 @@ func init() {
 			)
 			sizesByWckeyCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
 				"Select users to view (comma separated list)")
+			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
+				"Select group id to view (comma separated list)")
 		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
 		{
@@ -323,6 +328,8 @@ func init() {
 			)
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
 				"Select users to view (comma separated list)")
+			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
+				"Select group id to view (comma separated list)")
 		}
 	}
 
