@@ -36,8 +36,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const DefaultWrapJobName = "Wrap"
-
 type CbatchArg struct {
 	name string
 	val  string
@@ -59,11 +57,23 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (bool, *protos.TaskToCtld
 		task.Name = filepath.Base(args[0])
 		shScript = strings.Join(shLines, "\n")
 	} else {
-		task.Name = DefaultWrapJobName
+		task.Name = util.DefaultWrappedJobName
 		shScript = FlagWrappedScript
 	}
 
+	// Set the payload
+	task.Payload = &protos.TaskToCtld_BatchMeta{
+		BatchMeta: &protos.BatchTaskAdditionalMeta{
+			ShScript: shScript,
+		},
+	}
+
 	// Set default values
+	task.CpusPerTask = 1
+	task.NtasksPerNode = 1
+	task.NodeNum = 1
+	task.GetUserEnv = false
+	task.Env = make(map[string]string)
 	task.TimeLimit = util.InvalidDuration()
 	task.ReqResources = &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
@@ -72,18 +82,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (bool, *protos.TaskToCtld
 			MemorySwLimitBytes: 0,
 		},
 	}
-
-	task.Payload = &protos.TaskToCtld_BatchMeta{
-		BatchMeta: &protos.BatchTaskAdditionalMeta{
-			ShScript: shScript,
-		},
-	}
-
-	task.CpusPerTask = 1
-	task.NtasksPerNode = 1
-	task.NodeNum = 1
-	task.GetUserEnv = false
-	task.Env = make(map[string]string)
 
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
