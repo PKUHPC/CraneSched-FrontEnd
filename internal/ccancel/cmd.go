@@ -53,20 +53,14 @@ var (
 				FlagAccount == "" &&
 				FlagUserName == "" &&
 				FlagNodes == nil {
-				return &util.CraneError{
-					Code:    util.ErrorCmdArg,
-					Message: "at least one condition should be given.",
-				}
+				return util.NewCraneErr(util.ErrorCmdArg,"at least one condition should be given.")
 			}
 
 			if len(args) > 0 {
 				matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
 				if !matched {
-					return &util.CraneError{
-						Code: util.ErrorCmdArg,
-						Message: "job id list must follow the format " +
-							"<job_id> or '<job_id>,<job_id>,<job_id>...'",
-					}
+					return util.NewCraneErr(util.ErrorCmdArg, "job id list must follow the format "+
+						"<job_id> or '<job_id>,<job_id>,<job_id>...'")
 				}
 			}
 

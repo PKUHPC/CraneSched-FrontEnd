@@ -44,20 +44,14 @@ func CancelTask(args []string) error {
 
 	err := util.CheckJobNameLength(FlagJobName)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid job name: %v.", err),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid job name: %v.", err))
 	}
 	req.FilterTaskName = FlagJobName
 
 	if len(args) > 0 {
 		taskIds, err := util.ParseJobIdList(args[0], ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid job list specified: %v.\n", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid job list specified: %v.\n", err))
 		}
 		req.FilterTaskIds = taskIds
 	}
@@ -65,10 +59,7 @@ func CancelTask(args []string) error {
 	if FlagState != "" {
 		stateList, err := util.ParseInRamTaskStatusList(FlagState)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: err.Error(),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,err.Error())
 		}
 		if len(stateList) == 1 {
 			req.FilterState = stateList[0]
@@ -86,7 +77,7 @@ func CancelTask(args []string) error {
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledTasks) > 0 {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return &util.CraneError{Code: util.ErrorNetwork}
 		} else {
 			return nil
 		}
@@ -101,7 +92,7 @@ func CancelTask(args []string) error {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
 			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		return &util.CraneError{Code: util.ErrorBackend}
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 	return nil
 }
