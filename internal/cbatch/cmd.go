@@ -93,25 +93,10 @@ var (
 				}
 			}
 
-			cbatchArgs := make([]CbatchArg, 0)
-			shScript := ""
-
-			if FlagWrappedScript == "" {
-				shLines := make([]string, 0)
-				if err := ParseCbatchScript(args[0], &cbatchArgs, &shLines); err != nil {
-					return err
-				}
-				shScript = strings.Join(shLines, "\n")
-			} else {
-				shScript = FlagWrappedScript
-			}
-
-			ok, task := ProcessCbatchArgs(cmd, cbatchArgs)
+			ok, task := ProcessCbatchArgs(cmd, args)
 			if !ok {
 				return &util.CraneError{Code: util.ErrorCmdArg}
 			}
-
-			task.GetBatchMeta().ShScript = shScript
 			task.Uid = uint32(os.Getuid())
 			task.Gid = uint32(os.Getgid())
 			task.CmdLine = strings.Join(os.Args, " ")

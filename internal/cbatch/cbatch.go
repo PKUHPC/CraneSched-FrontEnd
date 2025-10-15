@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,6 +36,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const DefaultWrapJobName = "Wrap"
+
 type CbatchArg struct {
 	name string
 	val  string
@@ -42,7 +45,20 @@ type CbatchArg struct {
 
 // ProcessCbatchArgs Merge and validate arguments from the file and the command line,
 // then return the constructed TaskToCtld.
-func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
+func ProcessCbatchArgs(cmd *cobra.Command, cmdArgs []string) (bool, *protos.TaskToCtld) {
+	cbatchArgs := make([]CbatchArg, 0)
+	shScript := ""
+
+	if FlagWrappedScript == "" {
+		shLines := make([]string, 0)
+		if err := ParseCbatchScript(cmdArgs[0], &cbatchArgs, &shLines); err != nil {
+			return false, nil
+		}
+		shScript = strings.Join(shLines, "\n")
+	} else {
+		shScript = FlagWrappedScript
+	}
+
 	task := new(protos.TaskToCtld)
 	task.TimeLimit = util.InvalidDuration()
 	task.ReqResources = &protos.ResourceView{
@@ -52,8 +68,16 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			MemorySwLimitBytes: 0,
 		},
 	}
+	if FlagWrappedScript != "" {
+		task.Name = DefaultWrapJobName
+	} else {
+		task.Name = filepath.Base(cmdArgs[0])
+	}
+
 	task.Payload = &protos.TaskToCtld_BatchMeta{
-		BatchMeta: &protos.BatchTaskAdditionalMeta{},
+		BatchMeta: &protos.BatchTaskAdditionalMeta{
+			ShScript: shScript,
+		},
 	}
 
 	task.CpusPerTask = 1
@@ -66,7 +90,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	structExtraFromCli := util.JobExtraAttrs{}
 
 	///*************set parameter values based on the file*******************************///
-	for _, arg := range args {
+	for _, arg := range cbatchArgs {
 		switch arg.name {
 		case "--nodes", "-N":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
