@@ -44,14 +44,14 @@ func CancelTask(args []string) error {
 
 	err := util.CheckJobNameLength(FlagJobName)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid job name: %v.", err))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job name: %v.", err))
 	}
 	req.FilterTaskName = FlagJobName
 
 	if len(args) > 0 {
 		taskIds, err := util.ParseJobIdList(args[0], ",")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid job list specified: %v.\n", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %v.\n", err))
 		}
 		req.FilterTaskIds = taskIds
 	}
@@ -59,7 +59,7 @@ func CancelTask(args []string) error {
 	if FlagState != "" {
 		stateList, err := util.ParseInRamTaskStatusList(FlagState)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg,err.Error())
+			return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 		}
 		if len(stateList) == 1 {
 			req.FilterState = stateList[0]

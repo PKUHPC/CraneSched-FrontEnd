@@ -53,7 +53,7 @@ var (
 				FlagAccount == "" &&
 				FlagUserName == "" &&
 				FlagNodes == nil {
-				return util.NewCraneErr(util.ErrorCmdArg,"at least one condition should be given.")
+				return util.NewCraneErr(util.ErrorCmdArg, "at least one condition should be given.")
 			}
 
 			if len(args) > 0 {

@@ -87,7 +87,7 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagRepeat == 0 {
-				return util.NewCraneErr(util.ErrorCmdArg,"Invalid argument: --repeat must > 0.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --repeat must > 0.")
 			}
 
 			cbatchArgs := make([]CbatchArg, 0)
