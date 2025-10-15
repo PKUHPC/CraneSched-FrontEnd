@@ -347,7 +347,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 		}
 	}
 
-	if jobParamFlags&DeadlineTypeFlag != 0{
+	if jobParamFlags&DeadlineTypeFlag != 0 {
 		FlagDeadlineTime = jobParamValuesMap[DeadlineTypeFlag]
 		err := ChangeDeadlineTime(FlagTaskIds, FlagDeadlineTime)
 		if err != nil {
