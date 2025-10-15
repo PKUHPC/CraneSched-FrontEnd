@@ -570,7 +570,6 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 
 func ShowLicenses(licenseName string, queryAll bool) error {
 	var licenseNameList []string
-	// TODO: parse or
 	if licenseName != "" {
 		licenseNameList = strings.Split(licenseName, ",")
 	}

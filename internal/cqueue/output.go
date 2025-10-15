@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
@@ -123,6 +124,17 @@ func AppendDynamicColumns(config *TableConfig, reply *protos.QueryTasksInfoReply
 		header = append(header, "QoS")
 		for i, task := range reply.TaskInfoList {
 			tableData[i] = append(tableData[i], task.Qos)
+		}
+	}
+	if FlagFilterLicenses != "" {
+		header = append(header, "Licenses")
+		for i, task := range reply.TaskInfoList {
+			var parts []string
+			for name, count := range task.LicensesCount {
+				parts = append(parts, fmt.Sprintf("%s:%d", name, count))
+			}
+			licStr := strings.Join(parts, ",")
+			tableData[i] = append(tableData[i], licStr)
 		}
 	}
 	return tableData, header
