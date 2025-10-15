@@ -87,16 +87,14 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagRepeat == 0 {
-				return &util.CraneError{
-					Code:    util.ErrorCmdArg,
-					Message: "Invalid argument: --repeat must > 0.",
-				}
+				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
 			}
 
-			ok, task := BuildCbatchJob(cmd, args)
-			if !ok {
-				return &util.CraneError{Code: util.ErrorCmdArg}
+			task, err := BuildCbatchJob(cmd, args)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
 			}
+
 			task.Uid = uint32(os.Getuid())
 			task.Gid = uint32(os.Getgid())
 			task.CmdLine = strings.Join(os.Args, " ")
