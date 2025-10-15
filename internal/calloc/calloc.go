@@ -402,7 +402,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid argument: invalid --time: %s", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s", err))
 		}
 		task.TimeLimit.Seconds = seconds
 	}
@@ -466,7 +466,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid argument: %s", err))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 	}
 
 	// Set total limit of cpu cores
@@ -474,7 +474,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid argument: %s", err))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 	}
 	util.SetPropagatedEnviron(task)
 

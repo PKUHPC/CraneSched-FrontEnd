@@ -76,14 +76,14 @@ var isFirstCall = true //Used for multi-job print
 // Connect to cplugind for querying efficiency data
 func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc.ClientConn, error) {
 	if !config.Plugin.Enabled {
-		return nil, nil, util.NewCraneErr(util.ErrorCmdArg,"Plugin is not enabled")
+		return nil, nil, util.NewCraneErr(util.ErrorCmdArg, "Plugin is not enabled")
 	}
 
 	addr := config.Plugin.ListenAddress
 	port := config.Plugin.ListenPort
 	if addr == "" || port == "" {
 		return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
-										 "PlugindListenAddress and PlugindListenPort must be configured for ceff")
+			"PlugindListenAddress and PlugindListenPort must be configured for ceff")
 	}
 
 	endpoint := net.JoinHostPort(addr, port)
@@ -92,13 +92,13 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc
 		certPath := config.TlsConfig.CaFilePath
 		if certPath == "" {
 			return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
-											 "TLS is enabled for plugin client but no certificate file is configured")
+				"TLS is enabled for plugin client but no certificate file is configured")
 		}
 		var err error
 		creds, err = credentials.NewClientTLSFromFile(certPath, "")
 		if err != nil {
 			return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
-											  fmt.Sprintf("Failed to load TLS credentials: %v", err))
+				fmt.Sprintf("Failed to load TLS credentials: %v", err))
 		}
 	} else {
 		creds = insecure.NewCredentials()
@@ -112,7 +112,7 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc
 	)
 	if err != nil {
 		return nil, nil, util.NewCraneErr(util.ErrorNetwork,
-										  fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err))
+			fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err))
 	}
 
 	return protos.NewCeffQueryServiceClient(conn), conn, nil
@@ -404,7 +404,7 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 func QueryTasksInfoByIds(jobIds string) error {
 	jobIdList, err := util.ParseJobIdList(jobIds, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid job list specified: %s", err))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s", err))
 	}
 
 	req := &protos.QueryTasksInfoRequest{
@@ -421,7 +421,7 @@ func QueryTasksInfoByIds(jobIds string) error {
 	// Query Resource Usage Records via cplugind (secure approach)
 	result, err := QueryEfficiencyDataViaPlugind(jobIdList)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorBackend,fmt.Sprintf("Failed to query efficiency data via plugin: %s", err))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to query efficiency data via plugin: %s", err))
 	}
 
 	printed := map[uint32]bool{}
@@ -438,7 +438,7 @@ func QueryTasksInfoByIds(jobIds string) error {
 
 		jsonData, err := json.MarshalIndent(taskInfoList, "", "  ")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorBackend,fmt.Sprintf("Error marshalling to JSON: %s", err))
+			return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Error marshalling to JSON: %s", err))
 		}
 
 		fmt.Println(string(jsonData))

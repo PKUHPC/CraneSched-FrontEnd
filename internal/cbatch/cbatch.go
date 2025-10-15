@@ -355,7 +355,7 @@ func SendRequest(task *protos.TaskToCtld) error {
 		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
 		return nil
 	} else {
-		return util.NewCraneErr(util.ErrorBackend,fmt.Sprintf("Job allocation failed: %s.", util.ErrMsg(reply.GetCode())))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Job allocation failed: %s.", util.ErrMsg(reply.GetCode())))
 	}
 }
 
@@ -398,7 +398,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) error {
 func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg,err.Error())
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -440,12 +440,12 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 		}
 		err := processor.Process(scanner.Text(), sh, args)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Parsing error at line %d: %s", num, err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Parsing error at line %d: %s", num, err))
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg,err.Error())
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	return nil

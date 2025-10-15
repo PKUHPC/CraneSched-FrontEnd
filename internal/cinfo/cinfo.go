@@ -202,16 +202,7 @@ func Query() error {
 		return err
 	}
 	if FlagJson {
-<<<<<<< HEAD
 		return JsonOutput(reply)
-=======
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
-			return nil
-		} else {
-			return &util.CraneError{Code: util.ErrorNetwork}
-		}
->>>>>>> 230e4a1 (newCraneErr apply)
 	}
 	return QueryTableOutput(reply)
 }
@@ -219,11 +210,7 @@ func Query() error {
 func loopedQuery(iterate uint64) error {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-<<<<<<< HEAD
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
-=======
-		return util.NewCraneErr(util.ErrorCmdArg,err.Error())
->>>>>>> 230e4a1 (newCraneErr apply)
 	}
 
 	return loopedSubQuery(interval)
