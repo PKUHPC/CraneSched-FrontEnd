@@ -77,7 +77,7 @@ func CancelTask(args []string) error {
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledTasks) > 0 {
-			return util.NewCraneErr(util.ErrorNetwork, "some tasks were not cancelled") 
+			return util.NewCraneErr(util.ErrorNetwork, "some tasks were not cancelled")
 		} else {
 			return nil
 		}
