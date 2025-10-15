@@ -87,6 +87,7 @@ const (
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
 
+	DefaultWrappedJobName          = "Wrap"
 	MaxJobNameLength               = 60
 	MaxJobFileNameLength           = 127
 	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength

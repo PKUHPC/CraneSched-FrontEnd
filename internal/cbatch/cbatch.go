@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -40,10 +41,39 @@ type CbatchArg struct {
 	val  string
 }
 
-// ProcessCbatchArgs Merge and validate arguments from the file and the command line,
-// then return the constructed TaskToCtld.
-func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.TaskToCtld) {
+// BuildCbatchJob reads flags and script file to build a job
+func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, error) {
 	task := new(protos.TaskToCtld)
+
+	// Parse the script file or use wrapped script
+	cbatchArgs := make([]CbatchArg, 0)
+	shScript := ""
+
+	if FlagWrappedScript == "" {
+		shLines := make([]string, 0)
+		if err := ParseCbatchScript(args[0], &cbatchArgs, &shLines); err != nil {
+			return nil, fmt.Errorf("invalid argument: failed to parse script: %w", err)
+		}
+		task.Name = filepath.Base(args[0])
+		shScript = strings.Join(shLines, "\n")
+	} else {
+		task.Name = util.DefaultWrappedJobName
+		shScript = FlagWrappedScript
+	}
+
+	// Set the payload
+	task.Payload = &protos.TaskToCtld_BatchMeta{
+		BatchMeta: &protos.BatchTaskAdditionalMeta{
+			ShScript: shScript,
+		},
+	}
+
+	// Set default values
+	task.CpusPerTask = 1
+	task.NtasksPerNode = 1
+	task.NodeNum = 1
+	task.GetUserEnv = false
+	task.Env = make(map[string]string)
 	task.TimeLimit = util.InvalidDuration()
 	task.ReqResources = &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
@@ -52,34 +82,23 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			MemorySwLimitBytes: 0,
 		},
 	}
-	task.Payload = &protos.TaskToCtld_BatchMeta{
-		BatchMeta: &protos.BatchTaskAdditionalMeta{},
-	}
-
-	task.CpusPerTask = 1
-	task.NtasksPerNode = 1
-	task.NodeNum = 1
-	task.GetUserEnv = false
-	task.Env = make(map[string]string)
 
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
 
 	///*************set parameter values based on the file*******************************///
-	for _, arg := range args {
+	for _, arg := range cbatchArgs {
 		switch arg.name {
 		case "--nodes", "-N":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
 			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.CpusPerTask = num
 		case "--gres":
@@ -88,22 +107,19 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.NtasksPerNode = uint32(num)
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.TimeLimit.Seconds = seconds
 		case "--begin", "-b":
 			beginTime, err := util.ParseTime(arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.BeginTime = timestamppb.New(beginTime)
 		case "--deadline":
@@ -116,8 +132,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		case "--mem":
 			memInByte, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -141,8 +156,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			} else {
 				val, err := strconv.ParseBool(arg.val)
 				if err != nil {
-					log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-					return false, nil
+					return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 				}
 				task.GetUserEnv = val
 			}
@@ -171,28 +185,24 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 			case util.OpenModeTruncate:
 				task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
 			default:
-				log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			}
 		case "-r", "--reservation":
 			task.Reservation = arg.val
 		case "--exclusive":
 			val, err := strconv.ParseBool(arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
-				return false, nil
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.Exclusive = val
 		default:
-			log.Errorf("Invalid argument: unrecognized '%s' is given in the script", arg.name)
-			return false, nil
+			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}
 	}
 
 	var extraFromScript string
 	if err := structExtraFromScript.Marshal(&extraFromScript); err != nil {
-		log.Errorf("Invalid argument: %v", err)
-		return false, nil
+		return nil, fmt.Errorf("invalid argument: failed to marshal extra attributes from script: %w", err)
 	}
 
 	// ************* set parameter values based on the command line *********************
@@ -215,16 +225,14 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			log.Errorf("Invalid argument: invalid --time: %v", err)
-			return false, nil
+			return nil, fmt.Errorf("invalid argument: invalid --time value '%s': %w", FlagTime, err)
 		}
 		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			log.Errorf("Invalid argument: %v", err)
-			return false, nil
+			return nil, fmt.Errorf("invalid argument: invalid --mem value '%s': %w", FlagMem, err)
 		}
 		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -286,20 +294,19 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 		task.Exclusive = true
 	}
 	if FlagOpenMode != "" {
-		if FlagOpenMode == util.OpenModeAppend {
+		switch FlagOpenMode {
+		case util.OpenModeAppend:
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
-		} else if FlagOpenMode == util.OpenModeTruncate {
+		case util.OpenModeTruncate:
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
-		} else {
-			log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
-			return false, nil
+		default:
+			return nil, fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 		}
 	}
 	if FlagBeginTime != "" {
 		beginTime, err := util.ParseTime(FlagBeginTime)
 		if err != nil {
-			log.Errorf("Invalid argument: invalid --begin: %v", err)
-			return false, nil
+			return nil, fmt.Errorf("invalid argument: invalid --begin value '%s': %w", FlagBeginTime, err)
 		}
 		task.BeginTime = timestamppb.New(beginTime)
 	}
@@ -321,8 +328,7 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 	// Set and check the extra attributes
 	var extraFromCli string
 	if err := structExtraFromCli.Marshal(&extraFromCli); err != nil {
-		log.Errorf("Invalid argument: %v", err)
-		return false, nil
+		return nil, fmt.Errorf("invalid argument: failed to marshal extra attributes from CLI: %w", err)
 	}
 	task.ExtraAttr = util.AmendJobExtraAttrs(extraFromScript, extraFromCli)
 	if FlagReservation != "" {
@@ -334,19 +340,16 @@ func ProcessCbatchArgs(cmd *cobra.Command, args []CbatchArg) (bool, *protos.Task
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
-		log.Errorf("Invalid argument: invalid output file path: %v", err)
-		return false, nil
+		return nil, fmt.Errorf("invalid argument: invalid output file path: %w", err)
 	}
 	if err := util.CheckFileLength(task.GetBatchMeta().ErrorFilePattern); err != nil {
-		log.Errorf("Invalid argument: invalid error file path: %v", err)
-		return false, nil
+		return nil, fmt.Errorf("invalid argument: invalid error file path: %w", err)
 	}
 	if err := util.CheckTaskArgs(task); err != nil {
-		log.Errorf("Invalid argument: %v", err)
-		return false, nil
+		return nil, fmt.Errorf("invalid argument: %w", err)
 	}
 
-	return true, task
+	return task, nil
 }
 
 func SendRequest(task *protos.TaskToCtld) error {
@@ -418,10 +421,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) error {
 func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: err.Error(),
-		}
+		return err
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -463,19 +463,9 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 		}
 		err := processor.Process(scanner.Text(), sh, args)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Parsing error at line %d: %s", num, err),
-			}
+			return fmt.Errorf("failed to process line %d: %w", num, err)
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: err.Error(),
-		}
-	}
-
-	return nil
+	return scanner.Err()
 }
