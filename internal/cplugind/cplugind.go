@@ -48,25 +48,16 @@ var RootCmd = &cobra.Command{
 		// Parse config
 		config := util.ParseConfig(FlagCraneConfig)
 		if config == nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "Failed to parse CraneSched config",
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,"Failed to parse CraneSched config")
 		}
 
 		// Parse plugin part in the config
 		if err := ParsePluginConfig(config.CraneBaseDir, FlagCraneConfig); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the plugin part in config: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Failed to parse the plugin part in config: %s", err))
 		}
 
 		if !gPluginConfig.Enabled {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "Plugind is disabled in config.",
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,"Plugind is disabled in config.")
 		}
 
 		// Set log level
@@ -79,10 +70,7 @@ var RootCmd = &cobra.Command{
 		// Load plugins
 		log.Info("Loading plugins...")
 		if err := LoadPluginsByConfig(gPluginConfig.Plugins); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to load plugins: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Failed to load plugins: %s", err))
 		}
 
 		// Provide config path to plugins that require it and initialize them
@@ -95,10 +83,7 @@ var RootCmd = &cobra.Command{
 			}
 
 			if err := pluginImpl.Load(loaded.Meta); err != nil {
-				return &util.CraneError{
-					Code:    util.ErrorGeneric,
-					Message: fmt.Sprintf("Failed to init plugin: %s", err),
-				}
+				return util.NewCraneErr(util.ErrorGeneric,fmt.Sprintf("Failed to init plugin: %s", err))
 			}
 		}
 
@@ -111,10 +96,8 @@ var RootCmd = &cobra.Command{
 
 			if registrar, ok := pluginImpl.(api.GrpcServiceRegistrar); ok {
 				if err := registrar.RegisterGrpcServices(pd.Server); err != nil {
-					return &util.CraneError{
-						Code:    util.ErrorGeneric,
-						Message: fmt.Sprintf("Failed to register gRPC services for plugin %s: %v", loaded.Meta.Name, err),
-					}
+					return util.NewCraneErr(util.ErrorGeneric,
+											fmt.Sprintf("Failed to register gRPC services for plugin %s: %v", loaded.Meta.Name, err))
 				}
 			}
 		}
@@ -124,10 +107,7 @@ var RootCmd = &cobra.Command{
 
 		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath, 0600)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorGeneric,
-				Message: fmt.Sprintf("Failed to get UNIX socket: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorGeneric,fmt.Sprintf("Failed to get UNIX socket: %s", err))
 		}
 		listeners = append(listeners, unixSocket)
 		log.Infof("gRPC server listening on UNIX socket %s.", gPluginConfig.SockPath)
@@ -135,29 +115,20 @@ var RootCmd = &cobra.Command{
 		if addr := gPluginConfig.ListenAddress; addr != "" {
 			port := gPluginConfig.ListenPort
 			if port == "" {
-				return &util.CraneError{
-					Code:    util.ErrorCmdArg,
-					Message: "PlugindListenPort must be specified when PlugindListenAddress is set",
-				}
+				return util.NewCraneErr(util.ErrorCmdArg,"PlugindListenPort must be specified when PlugindListenAddress is set")
 			}
 
 			bindTarget := net.JoinHostPort(addr, port)
 			tcpListener, err := util.GetTCPSocket(bindTarget, config)
 			if err != nil {
-				return &util.CraneError{
-					Code:    util.ErrorGeneric,
-					Message: fmt.Sprintf("Failed to listen on %s: %v", bindTarget, err),
-				}
+				return util.NewCraneErr(util.ErrorGeneric,fmt.Sprintf("Failed to listen on %s: %v", bindTarget, err))
 			}
 			listeners = append(listeners, tcpListener)
 			log.Infof("gRPC server also listening on %s.", bindTarget)
 		}
 
 		if err := pd.Launch(listeners...); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorGeneric,
-				Message: fmt.Sprintf("Failed to launch plugin daemon: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorGeneric,fmt.Sprintf("Failed to launch plugin daemon: %s", err))
 		}
 
 		// Signal handling
@@ -177,10 +148,7 @@ var RootCmd = &cobra.Command{
 
 		// After stopping gRPC server, unload plugins
 		if err := UnloadPlugins(); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorGeneric,
-				Message: fmt.Sprintf("Failed to unload plugins: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorGeneric,fmt.Sprintf("Failed to unload plugins: %s", err))
 		}
 		return nil
 	},
