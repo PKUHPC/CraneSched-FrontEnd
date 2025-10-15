@@ -108,7 +108,7 @@ func executeShowCommand(command *CControlCommand) int {
 		return executeShowJobCommand(command)
 	case "reservation":
 		return executeShowReservationCommand(command)
-	case "licenses":
+	case "lic":
 		return executeShowLicenseCommand(command)
 	default:
 		log.Debugf("unknown entity type: %s", entity)

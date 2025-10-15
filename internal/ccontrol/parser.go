@@ -63,6 +63,7 @@ type EntityType struct {
 	Partition   bool `parser:"| @'partition'"`
 	Job         bool `parser:"| @'job'"`
 	Reservation bool `parser:"| @'reservation'"`
+	Lic         bool `parser:"| @'lic'"`
 }
 
 type ShowCommand struct {
@@ -138,6 +139,8 @@ func (e EntityType) String() string {
 		return "job"
 	case e.Reservation:
 		return "reservation"
+	case e.Lic:
+		return "lic"
 	default:
 		return ""
 	}
