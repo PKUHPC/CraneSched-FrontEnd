@@ -59,6 +59,7 @@ message InitSupervisorRequest {
   map<string, string> env = 10;
 
   string log_dir = 11;
+  string cgroup_path = 12;  // resolved cgroup path for OOM monitoring
 
   message CforedListenConf {
     message TlsCertificates {
@@ -82,8 +83,7 @@ message SupervisorReady {
 message TaskExecutionRequest {}
 
 message TaskExecutionReply {
-  bool ok = 1;
-  int32 pid = 2;
+  ErrCode code = 1;
 }
 
 message QueryStepEnvRequest {}
@@ -120,10 +120,15 @@ message TerminateTaskReply {
   string reason = 2;
 }
 
+message ShutdownSupervisorRequest {}
+
+message ShutdownSupervisorReply {}
+
 service Supervisor {
   rpc ExecuteTask(TaskExecutionRequest) returns (TaskExecutionReply);
   rpc QueryEnvMap(QueryStepEnvRequest) returns (QueryStepEnvReply);
   rpc CheckStatus(CheckStatusRequest) returns (CheckStatusReply);
   rpc ChangeTaskTimeConstraint(ChangeTaskTimeConstraintRequest) returns (ChangeTaskTimeConstraintReply);
   rpc TerminateTask(TerminateTaskRequest) returns (TerminateTaskReply);
+  rpc ShutdownSupervisor(ShutdownSupervisorRequest) returns (ShutdownSupervisorReply);
 }
