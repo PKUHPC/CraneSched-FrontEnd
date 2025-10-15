@@ -151,10 +151,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
-		return nil, nil, &util.CraneError{
-			Code:    util.ErrorInvalidFormat,
-			Message: "Invalid format specifier.",
-		}
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid format specifier.")
 	}
 
 	tableOutputWidth := make([]int, 0, len(specifiers))
@@ -191,10 +188,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			// with width specifier
 			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
 			if err != nil {
-				return nil, nil, &util.CraneError{
-					Code:    util.ErrorInvalidFormat,
-					Message: "Invalid width specifier.",
-				}
+				return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid width specifier.")
 			}
 			tableOutputWidth = append(tableOutputWidth, int(width))
 		}
@@ -209,11 +203,9 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
 			processor.process(flattened, tableOutputCell)
 		} else {
-			return nil, nil, &util.CraneError{
-				Code: util.ErrorInvalidFormat,
-				Message: fmt.Sprintf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
-					"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field),
-			}
+			return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat,
+				fmt.Sprintf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
+					"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field))
 		}
 	}
 	// Get the suffix of the format string
@@ -271,10 +263,8 @@ func Query() error {
 		case "offing":
 			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
 		default:
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid state given: %s.", FlagFilterCranedStates[i]),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("Invalid state given: %s.", FlagFilterCranedStates[i]))
 		}
 	}
 	if len(resourceStateList) == 0 {
@@ -341,7 +331,7 @@ func Query() error {
 		if reply.GetOk() {
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return &util.CraneError{Code: util.ErrorNetwork}
 		}
 	}
 
@@ -448,10 +438,7 @@ func Query() error {
 func loopedQuery(iterate uint64) error {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: err.Error(),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 	for {
 		fmt.Println(time.Now().String()[0:19])
