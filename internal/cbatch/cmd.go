@@ -93,7 +93,7 @@ var (
 				}
 			}
 
-			ok, task := ProcessCbatchArgs(cmd, args)
+			ok, task := BuildCbatchJob(cmd, args)
 			if !ok {
 				return &util.CraneError{Code: util.ErrorCmdArg}
 			}

@@ -43,23 +43,27 @@ type CbatchArg struct {
 	val  string
 }
 
-// ProcessCbatchArgs Merge and validate arguments from the file and the command line,
-// then return the constructed TaskToCtld.
-func ProcessCbatchArgs(cmd *cobra.Command, cmdArgs []string) (bool, *protos.TaskToCtld) {
+// BuildCbatchJob reads flags and script file to build a job
+func BuildCbatchJob(cmd *cobra.Command, args []string) (bool, *protos.TaskToCtld) {
+	task := new(protos.TaskToCtld)
+
+	// Parse the script file or use wrapped script
 	cbatchArgs := make([]CbatchArg, 0)
 	shScript := ""
 
 	if FlagWrappedScript == "" {
 		shLines := make([]string, 0)
-		if err := ParseCbatchScript(cmdArgs[0], &cbatchArgs, &shLines); err != nil {
+		if err := ParseCbatchScript(args[0], &cbatchArgs, &shLines); err != nil {
 			return false, nil
 		}
+		task.Name = filepath.Base(args[0])
 		shScript = strings.Join(shLines, "\n")
 	} else {
+		task.Name = DefaultWrapJobName
 		shScript = FlagWrappedScript
 	}
 
-	task := new(protos.TaskToCtld)
+	// Set default values
 	task.TimeLimit = util.InvalidDuration()
 	task.ReqResources = &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
@@ -67,11 +71,6 @@ func ProcessCbatchArgs(cmd *cobra.Command, cmdArgs []string) (bool, *protos.Task
 			MemoryLimitBytes:   0,
 			MemorySwLimitBytes: 0,
 		},
-	}
-	if FlagWrappedScript != "" {
-		task.Name = DefaultWrapJobName
-	} else {
-		task.Name = filepath.Base(cmdArgs[0])
 	}
 
 	task.Payload = &protos.TaskToCtld_BatchMeta{
@@ -303,11 +302,12 @@ func ProcessCbatchArgs(cmd *cobra.Command, cmdArgs []string) (bool, *protos.Task
 		task.Exclusive = true
 	}
 	if FlagOpenMode != "" {
-		if FlagOpenMode == util.OpenModeAppend {
+		switch FlagOpenMode {
+		case util.OpenModeAppend:
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
-		} else if FlagOpenMode == util.OpenModeTruncate {
+		case util.OpenModeTruncate:
 			task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
-		} else {
+		default:
 			log.Errorf("--open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			return false, nil
 		}
