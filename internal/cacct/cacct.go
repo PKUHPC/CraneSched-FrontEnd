@@ -183,6 +183,7 @@ func QueryJob() error {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
 			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "Deadline"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "Deadline"}
 
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
