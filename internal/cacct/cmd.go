@@ -20,6 +20,7 @@ package cacct
 
 import (
 	"CraneFrontEnd/internal/util"
+
 	"github.com/spf13/cobra"
 )
 
@@ -40,6 +41,7 @@ var (
 	FlagNoHeader         bool
 	FlagFull             bool
 	FlagJson             bool
+	FlagDeadlineTime     bool
 
 	RootCmd = &cobra.Command{
 		Use:     "cacct [flags]",
@@ -106,6 +108,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"Specify partitions to view (comma separated list), default is all")
 
+	RootCmd.Flags().BoolVar(&FlagDeadlineTime, "deadline", false, "Specify the deadline to view")
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format.
 
@@ -116,6 +119,7 @@ Supported format identifiers or string, string case insensitive:
 	%C/%ReqCpus           - Display the number of requested CPUs, formatted to two decimal places
 	%c/%AllocCpus         - Display the number of allocated CPUs, formatted to two decimal places.
 	%D/%ElapsedTime       - Display the elapsed time from the start of the job.
+	%deadline/%Deadline   - Display the deadline time of the job.
 	%E/%EndTime           - Display the end time of the job.
 	%e/%ExitCode          - Display the exit code of the job. 
                              If the exit code is based on a specific base (e.g., kCraneExitCodeBase),

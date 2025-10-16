@@ -390,6 +390,7 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	for _, taskInfo := range reply.TaskInfoList {
 		timeSubmitStr := "unknown"
 		timeStartStr := "unknown"
+		timeDeadlineStr := "unknown"
 		timeEndStr := "unknown"
 		runTimeStr := "unknown"
 
@@ -420,6 +421,11 @@ func ShowJobs(jobIds string, queryAll bool) error {
 			timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
 		}
 
+		timeDeadline := taskInfo.DeadlineTime.AsTime()
+		if !timeDeadline.Before(timeStart) {
+			timeDeadlineStr = timeDeadline.In(time.Local).Format("2006-01-02 15:04:05")
+		}
+
 		// uid and gid (egid)
 		craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
 		if err != nil {
@@ -441,13 +447,14 @@ func ShowJobs(jobIds string, queryAll bool) error {
 		fmt.Printf("JobId=%v JobName=%v\n"+
 			"\tUser=%s(%d) GroupId=%s(%d) Account=%v\n"+
 			"\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
-			"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
+			"\tStartTime=%v EndTime=%v Deadline=%v\n"+
+			"\tPartition=%v NodeList=%v ExecutionHost=%v\n"+
 			"\tCmdLine=\"%v\" Workdir=%v\n"+
 			"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
 			"\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n",
 			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
 			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
-			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
+			timeStartStr, timeEndStr, timeDeadlineStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
 			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExecutionNode())),
 			taskInfo.CmdLine, taskInfo.Cwd,
 			taskInfo.Priority, taskInfo.Qos, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit,
