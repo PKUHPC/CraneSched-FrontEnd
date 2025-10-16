@@ -193,7 +193,7 @@ func QueryJob() error {
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "Deadline"}
 
 		for i := 0; i < len(reply.TaskInfoList); i++ {
 			taskInfo := reply.TaskInfoList[i]
@@ -234,6 +234,12 @@ func QueryJob() error {
 				submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
 			}
 
+			deadlineTimeStr := "unknown"
+			deadlineTime := taskInfo.DeadlineTime.AsTime()
+			if !deadlineTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+				deadlineTimeStr = deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
+			}
+
 			tableData[i] = []string{
 				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
 				taskInfo.Name,
@@ -255,7 +261,8 @@ func QueryJob() error {
 				strconv.FormatBool(taskInfo.Held),
 				strconv.FormatUint(uint64(taskInfo.Priority), 10),
 				taskInfo.GetCranedList(),
-				exitCode}
+				exitCode,
+				deadlineTimeStr}
 		}
 	} else {
 		header = []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
@@ -306,6 +313,18 @@ func QueryJob() error {
 			for i := 0; i < len(tableData); i++ {
 				tableData[i] = append(tableData[i],
 					reply.TaskInfoList[i].SubmitTime.AsTime().In(time.Local).String())
+			}
+		}
+	}
+
+	if FlagDeadlineTime {
+		header = append(header, "Deadline")
+		for i := 0; i < len(tableData); i++ {
+			deadlineTime := reply.TaskInfoList[i].DeadlineTime
+			if deadlineTime.Seconds != 0 {
+				tableData[i] = append(tableData[i], deadlineTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"))
+			} else {
+				tableData[i] = append(tableData[i], "")
 			}
 		}
 	}
@@ -379,6 +398,15 @@ func ProcessElapsedTime(task *protos.TaskInfo) string {
 	}
 
 	return "-"
+}
+
+// Deadline (D)
+func ProcessDeadline(task *protos.TaskInfo) string {
+	deadlineTime := task.DeadlineTime.AsTime()
+	if !deadlineTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
 }
 
 // EndTime (E)
@@ -555,6 +583,7 @@ var fieldProcessors = map[string]FieldProcessor{
 	// Group D
 	"D":           {"ElapsedTime", ProcessElapsedTime},
 	"elapsedtime": {"ElapsedTime", ProcessElapsedTime},
+	"deadline":    {"Deadline", ProcessDeadline},
 
 	// Group E
 	"E":       {"EndTime", ProcessEndTime},
@@ -724,7 +753,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, C/ReqCpus, c/AllocCPUs, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, L/NodeList, l/TimeLimit,\n" +
+				"a/Account, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, L/NodeList, l/TimeLimit,\n" +
 				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
 				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
 			os.Exit(util.ErrorInvalidFormat)
