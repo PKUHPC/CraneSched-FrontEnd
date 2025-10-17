@@ -234,11 +234,7 @@ func QueryJob() error {
 				submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
 			}
 
-			deadlineTimeStr := "unknown"
-			deadlineTime := taskInfo.DeadlineTime.AsTime()
-			if !deadlineTime.Equal(time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)) {
-				deadlineTimeStr = deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
-			}
+			deadlineTimeStr := ProcessDeadline(taskInfo)
 
 			tableData[i] = []string{
 				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
@@ -398,10 +394,11 @@ func ProcessElapsedTime(task *protos.TaskInfo) string {
 // Deadline (D)
 func ProcessDeadline(task *protos.TaskInfo) string {
 	deadlineTime := task.DeadlineTime.AsTime()
-	if !deadlineTime.Equal(time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)) {
+	var InfiniteFuture = time.Unix(1<<63-1, 0)
+	if !deadlineTime.Equal(InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
 	}
-	return "unknown"
+	return "InfiniteFuture"
 }
 
 // EndTime (E)

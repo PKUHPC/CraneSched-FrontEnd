@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GlobalVariables struct {
@@ -491,6 +492,11 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 	if FlagHold {
 		task.Hold = true
+	}
+	if FlagDeadlineTime != "" {
+		if deadlineTime, err := util.ParseTime(FlagDeadlineTime); err == nil {
+			task.DeadlineTime = timestamppb.New(deadlineTime)
+		}
 	}
 
 	// Marshal extra attributes

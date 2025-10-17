@@ -43,6 +43,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type StateOfCrun int
@@ -1117,7 +1118,11 @@ func MainCrun(args []string) error {
 	if FlagHold {
 		task.Hold = true
 	}
-
+	if FlagDeadlineTime != "" {
+		if deadlineTime, err := util.ParseTime(FlagDeadlineTime); err == nil {
+			task.DeadlineTime = timestamppb.New(deadlineTime)
+		}
+	}
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return &util.CraneError{
