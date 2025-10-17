@@ -51,7 +51,6 @@ var (
 	FlagUser            string
 	FlagNodeNum         uint32
 	FlagDeadlineTime    string
-	FlagDeadlineTime    string
 )
 
 func ParseCmdArgs(args []string) {
@@ -306,9 +305,6 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 			}
 			jobParamFlags |= MailTypeTypeFlag
 			jobParamValuesMap[MailTypeTypeFlag] = value
-		case "deadline":
-			jobParamFlags |= DeadlineTypeFlag
-			jobParamValuesMap[DeadlineTypeFlag] = value
 		case "deadline":
 			jobParamFlags |= DeadlineTypeFlag
 			jobParamValuesMap[DeadlineTypeFlag] = value
