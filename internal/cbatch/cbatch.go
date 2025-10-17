@@ -125,7 +125,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		case "--deadline":
 			deadlineTime, err := util.ParseTime(arg.val)
 			if err != nil {
-				log.Errorf("Invalid argument: %v in script: %v", arg.name, err)
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.DeadlineTime = timestamppb.New(deadlineTime)
@@ -308,7 +307,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagDeadlineTime != "" {
 		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
 		if err != nil {
-			log.Errorf("Invalid argument: invalid --deadline: %v", err)
 			return nil, fmt.Errorf("invalid argument: invalid --deadline value '%s': %w", FlagDeadlineTime, err)
 		}
 		task.DeadlineTime = timestamppb.New(deadlineTime)
