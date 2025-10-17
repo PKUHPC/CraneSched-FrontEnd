@@ -32,11 +32,10 @@ func ProcessReqCpuPerNode(task *protos.TaskInfo) string {
 // 'd' group
 func ProcessDeadline(task *protos.TaskInfo) string {
 	deadlineTime := task.DeadlineTime.AsTime()
-	var InfiniteFuture = time.Unix(1<<63-1, 0)
-	if !deadlineTime.Equal(InfiniteFuture) {
+	if !deadlineTime.Equal(util.InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
 	}
-	return "InfiniteFuture"
+	return "unknown"
 }
 
 // 'e' group
