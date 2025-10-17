@@ -182,7 +182,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) error {
 
 			deadlineTimeStr := "unknown"
 			deadlineTime := taskInfo.DeadlineTime.AsTime()
-			if !deadlineTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+			if !deadlineTime.Equal(time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)) {
 				deadlineTimeStr = deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
 			}
 
@@ -281,12 +281,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) error {
 		if FlagDeadlineTime {
 			header = append(header, "Deadline")
 			for i := 0; i < len(tableData); i++ {
-				deadlineTime := reply.TaskInfoList[i].DeadlineTime
-				if deadlineTime.Seconds != 0 {
-					tableData[i] = append(tableData[i], deadlineTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"))
-				} else {
-					tableData[i] = append(tableData[i], "")
-				}
+				tableData[i] = append(tableData[i], ProcessDeadline(reply.TaskInfoList[i]))
 			}
 		}
 
@@ -347,7 +342,7 @@ func ProcessReqCpuPerNode(task *protos.TaskInfo) string {
 // 'd' group
 func ProcessDeadline(task *protos.TaskInfo) string {
 	deadlineTime := task.DeadlineTime.AsTime()
-	if !deadlineTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+	if !deadlineTime.Equal(time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
 	}
 	return "unknown"
