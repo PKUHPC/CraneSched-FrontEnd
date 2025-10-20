@@ -131,10 +131,8 @@ type RunCommandArgs struct {
 }
 
 type RunCommandResult struct {
-	ExitCode   int
-	Output     string
-	TimeOut    bool
-	TermSignal int
+	ExitCode int
+	Output   string
 }
 
 func (r *CforedReplyReceiver) GetReplyChannel() chan ReplyReceiveItem {
@@ -220,32 +218,20 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 	}
 
 	if len(m.CrunProlog) > 0 {
-		result := RunCommand(RunCommandArgs{
+		result := m.RunCommand(RunCommandArgs{
 			Program:    m.CrunProlog,
 			Args:       nil,
 			Envs:       m.task.Env,
-			TimeoutSec: 60,
+			TimeoutSec: 300,
 		})
-		if result.TimeOut {
-			log.Errorf("Prolog '%s' timed out after %ds. Output: %s",
-				m.CrunProlog, 60, result.Output)
-			m.err = util.ErrorBackend
-			m.state = End
-			return
-		} else if result.TermSignal != 0 {
-			log.Errorf("Prolog '%s' killed by signal %d. Output: %s",
-				m.CrunProlog, result.TermSignal, result.Output)
-			m.err = util.ErrorBackend
-			m.state = End
-			return
-		} else if result.ExitCode != 0 {
+		if result.ExitCode != 0 {
 			log.Errorf("Prolog '%s' failed (exit code %d). Output: %s",
 				m.CrunProlog, result.ExitCode, result.Output)
 			m.err = util.ErrorBackend
 			m.state = End
 			return
 		}
-		log.Tracef("Prolog '%s' finished successfully. Output: %s",
+		log.Infof("Prolog '%s' finished successfully. Output: %s",
 			m.CrunProlog, result.Output)
 
 	}
@@ -675,32 +661,20 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 	}
 
 	if len(m.CrunEpilog) > 0 {
-		result := RunCommand(RunCommandArgs{
+		result := m.RunCommand(RunCommandArgs{
 			Program:    m.CrunEpilog,
 			Args:       nil,
 			Envs:       m.task.Env,
-			TimeoutSec: 60,
+			TimeoutSec: 300,
 		})
-		if result.TimeOut {
-			log.Errorf("Epilog '%s' timed out after %ds. Output: %s",
-				m.CrunEpilog, 60, result.Output)
-			m.err = util.ErrorBackend
-			m.state = End
-			return
-		} else if result.TermSignal != 0 {
-			log.Errorf("Epilog '%s' killed by signal %d. Output: %s",
-				m.CrunEpilog, result.TermSignal, result.Output)
-			m.err = util.ErrorBackend
-			m.state = End
-			return
-		} else if result.ExitCode != 0 {
+		if result.ExitCode != 0 {
 			log.Errorf("Epilog '%s' failed (exit code %d). Output: %s",
 				m.CrunEpilog, result.ExitCode, result.Output)
 			m.err = util.ErrorBackend
 			m.state = End
 			return
 		}
-		log.Tracef("Epilog '%s' finished successfully. Output: %s",
+		log.Infof("Epilog '%s' finished successfully. Output: %s",
 			m.CrunEpilog, result.Output)
 	}
 
@@ -1126,7 +1100,72 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	}
 }
 
-func MainCrun(cmd *cobra.Command, args []string) error {
+func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) RunCommandResult {
+	result := RunCommandResult{ExitCode: 127}
+
+	ctx := context.Background()
+	if runCommandArgs.TimeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(runCommandArgs.TimeoutSec)*time.Second)
+		defer cancel()
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	cmd := exec.CommandContext(ctx, runCommandArgs.Program, runCommandArgs.Args...)
+
+	if len(runCommandArgs.Envs) > 0 {
+		envs := os.Environ()
+		for k, v := range runCommandArgs.Envs {
+			envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmd.Env = envs
+	}
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	var outBuf bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &outBuf, &outBuf
+
+	if err := cmd.Start(); err != nil {
+		result.Output = err.Error()
+		return result
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-ctx.Done():
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		result.Output = outBuf.String() + "\nCommand timed out."
+
+	case sig := <-sigCh:
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		result.Output = outBuf.String() + fmt.Sprintf("\nReceived signal: %v, process killed.", sig)
+
+	case err := <-done:
+		if err != nil {
+			result.Output = outBuf.String() + "\n" + err.Error()
+		} else {
+			result.Output = outBuf.String()
+		}
+	}
+
+	if cmd.ProcessState != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if status.Exited() {
+				result.ExitCode = status.ExitStatus()
+			}
+		}
+	}
+
+	return result
+}
+
+func MainCrun(args []string) error {
 	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -1560,81 +1599,4 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	return &util.CraneError{Code: m.err}
-}
-
-func RunCommand(runCommandArgs RunCommandArgs) RunCommandResult {
-	result := RunCommandResult{
-		ExitCode:   127,
-		Output:     "",
-		TimeOut:    false,
-		TermSignal: 0,
-	}
-
-	ctx := context.Background()
-	if runCommandArgs.TimeoutSec > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(runCommandArgs.TimeoutSec)*time.Second)
-		defer cancel()
-	}
-
-	cmd := exec.CommandContext(ctx, runCommandArgs.Program, runCommandArgs.Args...)
-
-	if len(runCommandArgs.Envs) > 0 {
-		envs := os.Environ()
-		for k, v := range runCommandArgs.Envs {
-			envs = append(envs, fmt.Sprintf("%s=%s", k, v))
-		}
-		cmd.Env = envs
-	}
-
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-
-	var outBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &outBuf
-
-	err := cmd.Start()
-	if err != nil {
-		result.Output = err.Error()
-		return result
-	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	select {
-	case <-ctx.Done():
-		result.TimeOut = true
-		if cmd.Process != nil {
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		}
-		_ = <-done // 不再声明 waitErr
-		result.Output = outBuf.String() + "\nCommand timed out."
-	case <-done:
-		result.Output = outBuf.String()
-	}
-
-	if cmd.ProcessState != nil {
-		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
-			if status.Exited() {
-				result.ExitCode = status.ExitStatus()
-				result.TermSignal = 0
-			} else if status.Signaled() {
-				result.ExitCode = 127
-				result.TermSignal = int(status.Signal())
-			} else {
-				result.ExitCode = 127
-				result.TermSignal = 0
-			}
-		}
-	} else {
-		result.ExitCode = 127
-		result.TermSignal = 0
-	}
-
-	return result
 }
