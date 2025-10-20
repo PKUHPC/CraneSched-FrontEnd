@@ -25,18 +25,21 @@ import (
 )
 
 var (
-	FlagConfigFilePath  string
-	FlagJson            bool
-	FlagFilterStartTime string
-	FlagFilterEndTime   string
-	FlagFilterAccounts  string
-	FlagFilterUsers     string
-	FlagFilterQoss      string
-	FlagOutType         string
-	FlagTopCount        uint32
-	FlagGroups          string
-	FlagFilterWckeys    string
-	FlagFilterGids      string
+	FlagConfigFilePath   string
+	FlagJson             bool
+	FlagFilterStartTime  string
+	FlagFilterEndTime    string
+	FlagFilterAccounts   string
+	FlagFilterUsers      string
+	FlagFilterQoss       string
+	FlagOutType          string
+	FlagTopCount         uint32
+	FlagGroups           string
+	FlagFilterWckeys     string
+	FlagFilterGids       string
+	FlagFilterGrouping   string
+	FlagFilterJobIDs     string
+	FlagFilterPartitions string
 
 	RootCmd = &cobra.Command{
 		Use:     "creport",
@@ -133,7 +136,7 @@ var (
 		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckAccountCpusStatus)
+			return QueryJobSizeSummaryItem(CheckAccountCpusStatus)
 		},
 	}
 	sizesByWckeyCmd = &cobra.Command{
@@ -141,7 +144,7 @@ var (
 		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckWckeyCpusStatus)
+			return QueryJobSizeSummaryItem(CheckWckeyCpusStatus)
 		},
 	}
 	sizesByAccountAndWcKey = &cobra.Command{
@@ -149,7 +152,7 @@ var (
 		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckAccountWckeyCpusStatus)
+			return QueryJobSizeSummaryItem(CheckAccountWckeyCpusStatus)
 		},
 	}
 )
@@ -300,6 +303,12 @@ func init() {
 				"Select users to view (comma separated list)")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
+			sizesByAccountCmd.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
+				"Select grouping  to view (comma separated list)")
+			sizesByAccountCmd.Flags().StringVarP(&FlagFilterJobIDs, "jobs", "j", "",
+				"Select job ids to view (comma separated list), default is all")
+			sizesByAccountCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
+				"Specify partitions to view (comma separated list), default is all")
 		}
 		jobCmd.AddCommand(sizesByWckeyCmd)
 		{
@@ -315,6 +324,10 @@ func init() {
 				"Select users to view (comma separated list)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
+			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
+				"Select grouping  to view (comma separated list)")
+			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
+				"Specify partitions to view (comma separated list), default is all")
 		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
 		{
@@ -330,6 +343,10 @@ func init() {
 				"Select users to view (comma separated list)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
+			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
+				"Select grouping  to view (comma separated list)")
+			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
+				"Specify partitions to view (comma separated list), default is all")
 		}
 	}
 

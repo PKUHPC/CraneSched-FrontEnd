@@ -1446,3 +1446,37 @@ func GetUsersByGIDs(groupIds string) ([]string, error) {
 	}
 	return result, nil
 }
+
+func ParseAndSortUintList(input string) ([]uint32, error) {
+	if input == "individual" {
+		return []uint32{}, nil
+	}
+	parts := strings.Split(input, ",")
+	unique := make(map[uint32]struct{})
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		num, err := strconv.Atoi(part)
+		if err != nil {
+			continue
+		}
+		if num < 0 {
+			continue
+		}
+		unique[uint32(num)] = struct{}{}
+	}
+
+	result := make([]uint32, 0, len(unique))
+	for num := range unique {
+		result = append(result, num)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+
+	if len(result) == 0 || result[0] != 0 {
+		result = append([]uint32{0}, result...)
+	}
+
+	return result, nil
+}
