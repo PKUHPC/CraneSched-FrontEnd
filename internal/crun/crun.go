@@ -130,11 +130,6 @@ type RunCommandArgs struct {
 	TimeoutSec int
 }
 
-type RunCommandResult struct {
-	ExitCode int
-	Output   string
-}
-
 func (r *CforedReplyReceiver) GetReplyChannel() chan ReplyReceiveItem {
 	return r.replyChannel
 }
@@ -218,21 +213,19 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 	}
 
 	if len(m.CrunProlog) > 0 {
-		result := m.RunCommand(RunCommandArgs{
+		ExitCode := m.RunCommand(RunCommandArgs{
 			Program:    m.CrunProlog,
 			Args:       nil,
 			Envs:       m.task.Env,
 			TimeoutSec: 300,
 		})
-		if result.ExitCode != 0 {
-			log.Errorf("Prolog '%s' failed (exit code %d). Output: %s",
-				m.CrunProlog, result.ExitCode, result.Output)
+		if ExitCode != 0 {
+			log.Errorf("Prolog '%s' failed (exit code %d).", m.CrunProlog, ExitCode)
 			m.err = util.ErrorBackend
 			m.state = End
 			return
 		}
-		log.Infof("Prolog '%s' finished successfully. Output: %s",
-			m.CrunProlog, result.Output)
+		log.Tracef("Prolog '%s' finished successfully.", m.CrunProlog)
 
 	}
 
@@ -661,21 +654,19 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 	}
 
 	if len(m.CrunEpilog) > 0 {
-		result := m.RunCommand(RunCommandArgs{
+		ExitCode := m.RunCommand(RunCommandArgs{
 			Program:    m.CrunEpilog,
 			Args:       nil,
 			Envs:       m.task.Env,
 			TimeoutSec: 300,
 		})
-		if result.ExitCode != 0 {
-			log.Errorf("Epilog '%s' failed (exit code %d). Output: %s",
-				m.CrunEpilog, result.ExitCode, result.Output)
+		if ExitCode != 0 {
+			log.Errorf("Epilog '%s' failed (exit code %d).", m.CrunEpilog, ExitCode)
 			m.err = util.ErrorBackend
 			m.state = End
 			return
 		}
-		log.Infof("Epilog '%s' finished successfully. Output: %s",
-			m.CrunEpilog, result.Output)
+		log.Tracef("Epilog '%s' finished successfully.", m.CrunEpilog)
 	}
 
 	m.state = End
@@ -1100,8 +1091,8 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	}
 }
 
-func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) RunCommandResult {
-	result := RunCommandResult{ExitCode: 127}
+func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
+	ExitCode := 127
 
 	ctx := context.Background()
 	if runCommandArgs.TimeoutSec > 0 {
@@ -1130,8 +1121,8 @@ func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) RunComman
 	cmd.Stdout, cmd.Stderr = &outBuf, &outBuf
 
 	if err := cmd.Start(); err != nil {
-		result.Output = err.Error()
-		return result
+		log.Errorf("Failed to start command: %v", err.Error())
+		return -1
 	}
 
 	done := make(chan error, 1)
@@ -1140,29 +1131,25 @@ func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) RunComman
 	select {
 	case <-ctx.Done():
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		result.Output = outBuf.String() + "\nCommand timed out."
 
-	case sig := <-sigCh:
+	case <-sigCh:
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
-		result.Output = outBuf.String() + fmt.Sprintf("\nReceived signal: %v, process killed.", sig)
 
 	case err := <-done:
 		if err != nil {
-			result.Output = outBuf.String() + "\n" + err.Error()
-		} else {
-			result.Output = outBuf.String()
+			log.Errorf("Failed to execute command: %v", err.Error())
 		}
 	}
 
 	if cmd.ProcessState != nil {
 		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
 			if status.Exited() {
-				result.ExitCode = status.ExitStatus()
+				ExitCode = status.ExitStatus()
 			}
 		}
 	}
 
-	return result
+	return ExitCode
 }
 
 func MainCrun(args []string) error {
