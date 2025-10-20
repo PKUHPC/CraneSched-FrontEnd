@@ -414,6 +414,7 @@ func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskT
 			Username:      username,
 			Password:      password,
 			ServerAddress: registry,
+			PullPolicy:    f.Run.PullPolicy,
 		},
 		Userns:   f.Run.UserNS,
 		Detached: f.Run.Detach,
@@ -543,6 +544,13 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 	for envName := range containerMeta.Env {
 		if strings.HasPrefix(envName, "CRANE_") {
 			log.Warnf("Environment variable %s uses reserved CRANE_ prefix", envName)
+		}
+	}
+
+	// Validate pull policy if specified
+	if policy := containerMeta.Image.PullPolicy; policy != "" {
+		if policy != "Always" && policy != "IfNotPresent" && policy != "Never" {
+			return fmt.Errorf("invalid pull policy '%s': must be Always, IfNotPresent, or Never", policy)
 		}
 	}
 

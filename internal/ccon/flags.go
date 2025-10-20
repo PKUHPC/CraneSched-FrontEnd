@@ -66,6 +66,7 @@ type RunFlags struct {
 	Cpus        float64
 	Memory      string
 	Gpus        string
+	PullPolicy  string
 }
 
 type StopFlags struct {
