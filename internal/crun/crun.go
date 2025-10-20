@@ -21,7 +21,6 @@ package crun
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
-	"bytes"
 	"errors"
 	"net"
 	"os/exec"
@@ -1116,9 +1115,6 @@ func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
 	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	var outBuf bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &outBuf, &outBuf
 
 	if err := cmd.Start(); err != nil {
 		log.Errorf("Failed to start command: %v", err.Error())
