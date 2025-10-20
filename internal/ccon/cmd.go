@@ -173,6 +173,7 @@ func InitializeCommandFlags() {
 	RunCmd.Flags().StringVarP(&f.Run.User, "user", "u", "", "Username or UID (format: <name|uid>[:<group|gid>]). With --userns=false, only current user and accessible groups are allowed")
 	RunCmd.Flags().BoolVar(&f.Run.UserNS, "userns", true, "Enable user namespace (default user becomes the faked root, enabled by default)")
 	RunCmd.Flags().StringVarP(&f.Run.Workdir, "workdir", "w", "", "Working directory inside the container")
+	RunCmd.Flags().StringVar(&f.Run.PullPolicy, "pull-policy", "", "Image pull policy: Always, IfNotPresent, or Never")
 
 	RunCmd.Flags().Float64Var(&f.Run.Cpus, "cpus", 0, "Number of CPUs (maps to cpus-per-task)")
 	RunCmd.Flags().StringVar(&f.Run.Memory, "memory", "", "Memory limit (e.g., 2g, 512m)")
