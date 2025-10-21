@@ -40,19 +40,21 @@ type BaseAction struct {
 type CommandAction interface {
 	GetAction() string
 }
+
 func (b BaseAction) GetAction() string {
 	return b.Action
 }
 
 type BaseID struct {
-	ID     string      `parser:"( @String | @Ident | @Number )?"`
+	ID string `parser:"( @String | @Ident | @Number )?"`
 }
 type CommandID interface {
 	GetID() string
 }
+
 func (b BaseID) GetID() string {
 	return b.ID
-} 
+}
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
@@ -66,34 +68,34 @@ type EntityType struct {
 }
 
 type ShowCommand struct {
-	BaseAction        `parser:"@@"`
-	Entity *EntityType `parser:"@@"`
-	BaseID				`parser:"@@"`
+	BaseAction `parser:"@@"`
+	Entity     *EntityType `parser:"@@"`
+	BaseID     `parser:"@@"`
 }
 type UpdateCommand struct {
-	BaseAction                    `parser:"@@"`
+	BaseAction    `parser:"@@"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 type HoldCommand struct {
-	BaseAction                     `parser:"@@"`
-	BaseID				           `parser:"@@"`
+	BaseAction    `parser:"@@"`
+	BaseID        `parser:"@@"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 type ReleaseCommand struct {
-	BaseAction                    `parser:"@@"`
-	BaseID				`parser:"@@"`
+	BaseAction    `parser:"@@"`
+	BaseID        `parser:"@@"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 type CreateCommand struct {
-	BaseAction                    `parser:"@@"`
-	Entity        *EntityType      `parser:"@@"`
-	BaseID				`parser:"@@"`
+	BaseAction    `parser:"@@"`
+	Entity        *EntityType `parser:"@@"`
+	BaseID        `parser:"@@"`
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 type DeleteCommand struct {
-	BaseAction        `parser:"@@"`
-	Entity *EntityType `parser:"@@"`
-	BaseID				`parser:"@@"`
+	BaseAction `parser:"@@"`
+	Entity     *EntityType `parser:"@@"`
+	BaseID     `parser:"@@"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -108,17 +110,17 @@ var CControlParser = participle.MustBuild[CControlCommand](
 	participle.Lexer(CControlLexer),
 	participle.Elide("whitespace"),
 	participle.Union[any](
-		ShowCommand{}, 
-		UpdateCommand{}, 
-		HoldCommand{}, 
-		ReleaseCommand{}, 
-		CreateCommand{}, 
+		ShowCommand{},
+		UpdateCommand{},
+		HoldCommand{},
+		ReleaseCommand{},
+		CreateCommand{},
 		DeleteCommand{},
 	),
 )
 
 func (c *CControlCommand) GetAction() string {
-	if cmd,ok := c.Command.(CommandAction); ok {
+	if cmd, ok := c.Command.(CommandAction); ok {
 		return cmd.GetAction()
 	}
 	return ""
@@ -157,7 +159,7 @@ func (c *CControlCommand) GetEntity() string {
 }
 
 func (c *CControlCommand) GetID() string {
-	if cmd,ok := c.Command.(CommandID); ok {
+	if cmd, ok := c.Command.(CommandID); ok {
 		return cmd.GetID()
 	}
 	return ""
@@ -291,10 +293,9 @@ func getCmdStringByArgs(commandArgs []string) string {
 		}
 	}
 	cmdStr := strings.Join(processedArgs, " ")
-	return cmdStr 
+	return cmdStr
 }
 
 func ParseCControlCommand(input string) (*CControlCommand, error) {
 	return CControlParser.ParseString("", input)
 }
-

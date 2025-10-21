@@ -304,7 +304,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 
 func executeUpdatePartitionCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
-	
+
 	err := checkEmptyKVParams(kvParams, nil)
 	if err != util.ErrorSuccess {
 		return err
