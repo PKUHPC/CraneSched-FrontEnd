@@ -53,9 +53,6 @@ type BaseID struct {
 func (b BaseID) GetID() string {
 	return b.ID
 }
-func (b BaseID) GetID() string {
-	return b.ID
-} 
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
@@ -304,8 +301,3 @@ func getCmdStringByArgs(commandArgs []string) string {
 func ParseCControlCommand(input string) (*CControlCommand, error) {
 	return CControlParser.ParseString("", input)
 }
-
-func ParseCControlCommand(input string) (*CControlCommand, error) {
-	return CControlParser.ParseString("", input)
-}
-
