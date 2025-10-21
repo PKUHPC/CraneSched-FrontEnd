@@ -70,7 +70,7 @@ func ShowReservations(reservationName string, queryAll bool) error {
 	}
 
 	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrive the information of reservation %s: %s", reservationName, reply.GetReason()))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for reservation %s: %s", reservationName, reply.GetReason())) 
 	}
 
 	if len(reply.ReservationInfoList) == 0 {
@@ -118,7 +118,7 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	if !queryAll {
 		jobIdList, err = util.ParseJobIdList(jobIds, ",")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Invalid job list specified: %s.", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err)) 
 		}
 	}
 
@@ -130,7 +130,7 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	}
 
 	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrive the information of job %s", jobIds))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %s", jobIds))
 	}
 
 	if FlagJson {
@@ -422,9 +422,10 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 	}
 
 	reply, err := stub.ModifyTask(context.Background(), req)
-	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to modify the job: %s", err))
-	}
+    if err != nil {  
+        util.GrpcErrorPrintf(err, "Failed to modify the job")  
+        return &util.CraneError{Code: util.ErrorNetwork}  
+    }  
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
@@ -495,11 +496,11 @@ func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]strin
 	}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to modify the job: %s", err))
+		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to query job information: %s", err)) 
 	}
 
 	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrive the information of job %s", taskStr))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %s", taskStr)) 
 	}
 
 	if len(reply.TaskInfoList) == 0 {
@@ -788,8 +789,8 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	case "false", "no", "0", "off", "disable":
 		enable = false
 	default:
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid power-control value: %s.Valid values are: true/false, yes/no, 1/0, on/off, enable/disable", enableStr))
-	}
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid power-control value: %s. Valid values are: true/false, yes/no, 1/0, on/off, enable/disable", enableStr))  
+    }  
 
 	req := &protos.EnableAutoPowerControlRequest{
 		Uid:       uint32(os.Getuid()),

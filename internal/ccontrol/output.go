@@ -142,7 +142,7 @@ func printNodeDetails(node *protos.CranedInfo) error {
 		"NodeName=%v State=%v %s\n"+
 			"\t%s\n"+
 			"\t%s\n"+
-			"\tPatition=%s RunningJob=%d Version=%s\n"+
+			"\tPartition=%s RunningJob=%d Version=%s\n"+
 			"\tOs=%s\n"+
 			"\tBootTime=%s CranedStartTime=%s\n"+
 			"\tLastBusyTime=%s\n",
