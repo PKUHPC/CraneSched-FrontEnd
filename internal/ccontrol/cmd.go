@@ -303,7 +303,6 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 
 func executeUpdatePartitionCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
-
 	err := checkEmptyKVParams(kvParams, nil)
 	if err != util.ErrorSuccess {
 		return err
@@ -313,7 +312,6 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		log.Debug("partition name not specified")
 		return util.ErrorCmdArg
 	}
-
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
@@ -348,12 +346,10 @@ func executeHoldCommand(command *CControlCommand) int {
 	if len(timeLimit) == 0 {
 		log.Debug("no time limit specified")
 	}
-
 	if jobIds == "" {
 		log.Debug("no job id specified")
 		return util.ErrorCmdArg
 	}
-
 	FlagHoldTime = timeLimit
 
 	err := HoldReleaseJobs(jobIds, true)
@@ -370,7 +366,6 @@ func executeReleaseCommand(command *CControlCommand) int {
 		log.Debug("no job id specified")
 		return util.ErrorCmdArg
 	}
-
 	err := HoldReleaseJobs(jobIds, false)
 	if err != nil {
 		log.Errorf("release jobs failed: %s", err)
@@ -398,7 +393,6 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 	}
 
 	kvParams := command.GetKVMaps()
-
 	err := checkEmptyKVParams(kvParams, []string{"starttime", "duration", "account"})
 	if err != util.ErrorSuccess {
 		return err
