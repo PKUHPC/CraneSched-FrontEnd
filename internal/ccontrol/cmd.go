@@ -52,48 +52,31 @@ var (
 	FlagNodeNum         uint32
 )
 
+var actionToExecute = map[string]func(command *CControlCommand) int{
+	"show":    executeShowCommand,
+	"update":  executeUpdateCommand,
+	"hold":    executeHoldCommand,
+	"release": executeReleaseCommand,
+	"create":  executeCreateCommand,
+	"delete":  executeDeleteCommand,
+}
+
+var entityToExecut = map[string]func(command *CControlCommand) int{
+	"node":        executeShowNodeCommand,
+	"partition":   executeShowPartitionCommand,
+	"job":         executeShowJobCommand,
+	"reservation": executeShowReservationCommand,
+}
+
 func ParseCmdArgs(args []string) {
 	commandArgs := preParseGlobalFlags(args[1:])
-
 	if len(commandArgs) == 0 {
 		showHelp()
 		os.Exit(0)
 	}
 
-	var processedArgs []string
-	for _, arg := range commandArgs {
-		if arg == "" {
-			processedArgs = append(processedArgs, "\"\"")
-			continue
-		}
-
-		if strings.Contains(arg, "=") {
-			parts := strings.SplitN(arg, "=", 2)
-			key := parts[0]
-			value := parts[1]
-
-			if value == "" {
-				processedArgs = append(processedArgs, key+"=\"\"")
-				continue
-			}
-
-			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
-				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
-				processedArgs = append(processedArgs, arg)
-			} else if strings.Contains(value, " ") {
-				processedArgs = append(processedArgs, key+"="+strconv.Quote(value))
-			} else {
-				processedArgs = append(processedArgs, arg)
-			}
-		} else if strings.Contains(arg, " ") && !strings.HasPrefix(arg, "'") && !strings.HasPrefix(arg, "\"") {
-			processedArgs = append(processedArgs, strconv.Quote(arg))
-		} else {
-			processedArgs = append(processedArgs, arg)
-		}
-	}
-	cmdStr := strings.Join(processedArgs, " ")
+	cmdStr := getCmdStringByArgs(commandArgs)
 	command, err := ParseCControlCommand(cmdStr)
-
 	if err != nil {
 		log.Errorf("Error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
@@ -112,21 +95,10 @@ func executeCommand(command *CControlCommand) int {
 	userUid = uint32(os.Getuid())
 
 	action := command.GetAction()
-
-	switch action {
-	case "show":
-		return executeShowCommand(command)
-	case "update":
-		return executeUpdateCommand(command)
-	case "hold":
-		return executeHoldCommand(command)
-	case "release":
-		return executeReleaseCommand(command)
-	case "create":
-		return executeCreateCommand(command)
-	case "delete":
-		return executeDeleteCommand(command)
-	default:
+	executeAction, exists := actionToExecute[action]
+	if exists {
+		return executeAction(command)
+	} else {
 		log.Debugf("unknown operation type: %s", action)
 		return util.ErrorCmdArg
 	}
@@ -134,20 +106,12 @@ func executeCommand(command *CControlCommand) int {
 
 func executeShowCommand(command *CControlCommand) int {
 	entity := command.GetEntity()
-
-	switch entity {
-	case "node":
-		return executeShowNodeCommand(command)
-	case "partition":
-		return executeShowPartitionCommand(command)
-	case "job":
-		return executeShowJobCommand(command)
-	case "reservation":
-		return executeShowReservationCommand(command)
-	default:
-		log.Debugf("unknown entity type: %s", entity)
+	Execute, exists := entityToExecut[entity]
+	if exists {
+		return Execute(command)
+	} else {
+		log.Debugf("unknown operation type: %s", entity)
 		return util.ErrorCmdArg
-
 	}
 }
 
@@ -157,7 +121,6 @@ func executeShowNodeCommand(command *CControlCommand) int {
 		FlagQueryAll = true
 		name = ""
 	}
-
 	err := ShowNodes(name, FlagQueryAll)
 	if err != nil {
 		log.Errorf("show nodes failed: %s", err)
@@ -170,9 +133,7 @@ func executeShowPartitionCommand(command *CControlCommand) int {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
-
 	}
-
 	err := ShowPartitions(name, FlagQueryAll)
 	if err != nil {
 		log.Errorf("show partitions failed: %s", err)
@@ -183,10 +144,8 @@ func executeShowPartitionCommand(command *CControlCommand) int {
 
 func executeShowJobCommand(command *CControlCommand) int {
 	name := command.GetID()
-
 	if len(name) == 0 {
 		FlagQueryAll = true
-
 	}
 
 	err := ShowJobs(name, FlagQueryAll)
@@ -203,7 +162,6 @@ func executeShowReservationCommand(command *CControlCommand) int {
 		FlagQueryAll = true
 		name = ""
 	}
-
 	err := ShowReservations(name, FlagQueryAll)
 	if err != nil {
 		log.Errorf("show reservations failed: %s", err)
@@ -222,7 +180,6 @@ func executeUpdateCommand(command *CControlCommand) int {
 			return executeUpdateNodeCommand(command)
 		}
 	}
-
 	for key := range kvParams {
 		lowerKey := strings.ToLower(key)
 		if lowerKey == "job" || lowerKey == "jobid" {
@@ -230,7 +187,6 @@ func executeUpdateCommand(command *CControlCommand) int {
 			return executeUpdateJobCommand(command)
 		}
 	}
-
 	for key := range kvParams {
 		lowerKey := strings.ToLower(key)
 		if lowerKey == "partition" || lowerKey == "partitionname" {
@@ -348,7 +304,6 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 
 func executeUpdatePartitionCommand(command *CControlCommand) int {
 	kvParams := command.GetKVMaps()
-
 	err := checkEmptyKVParams(kvParams, nil)
 	if err != util.ErrorSuccess {
 		return err
@@ -358,7 +313,6 @@ func executeUpdatePartitionCommand(command *CControlCommand) int {
 		log.Debug("partition name not specified")
 		return util.ErrorCmdArg
 	}
-
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
@@ -393,12 +347,10 @@ func executeHoldCommand(command *CControlCommand) int {
 	if len(timeLimit) == 0 {
 		log.Debug("no time limit specified")
 	}
-
 	if jobIds == "" {
 		log.Debug("no job id specified")
 		return util.ErrorCmdArg
 	}
-
 	FlagHoldTime = timeLimit
 
 	err := HoldReleaseJobs(jobIds, true)
@@ -415,7 +367,6 @@ func executeReleaseCommand(command *CControlCommand) int {
 		log.Debug("no job id specified")
 		return util.ErrorCmdArg
 	}
-
 	err := HoldReleaseJobs(jobIds, false)
 	if err != nil {
 		log.Errorf("release jobs failed: %s", err)
@@ -426,7 +377,6 @@ func executeReleaseCommand(command *CControlCommand) int {
 
 func executeCreateCommand(command *CControlCommand) int {
 	entity := command.GetEntity()
-
 	switch entity {
 	case "reservation":
 		return executeCreateReservationCommand(command)
@@ -444,7 +394,6 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 	}
 
 	kvParams := command.GetKVMaps()
-
 	err := checkEmptyKVParams(kvParams, []string{"starttime", "duration", "account"})
 	if err != util.ErrorSuccess {
 		return err
@@ -487,7 +436,6 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 
 func executeDeleteCommand(command *CControlCommand) int {
 	entity := command.GetEntity()
-
 	switch entity {
 	case "reservation":
 		return executeDeleteReservationCommand(command)
@@ -499,7 +447,6 @@ func executeDeleteCommand(command *CControlCommand) int {
 
 func executeDeleteReservationCommand(command *CControlCommand) int {
 	name := command.GetID()
-
 	if len(name) == 0 {
 		log.Debug("no reservation name specified")
 		return util.ErrorCmdArg
