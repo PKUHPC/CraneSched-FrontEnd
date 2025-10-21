@@ -40,6 +40,7 @@ var (
 	FlagFilterGrouping   string
 	FlagFilterJobIDs     string
 	FlagFilterPartitions string
+	FlagPrintJobCount    bool
 
 	RootCmd = &cobra.Command{
 		Use:     "creport",
@@ -84,11 +85,11 @@ var (
 	}
 
 	accountUtilizationByUserCmd = &cobra.Command{
-		Use:   "accountutilizationbyusercmd",
+		Use:   "accountutilizationbyuser",
 		Short: "Display statistical information for all job users under the specified account, as of the end of the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckAccountUserStatus)
+			return QueryJobSummary(CheckAccountUserStatus)
 		},
 	}
 	userUtilizationByAccountCmd = &cobra.Command{
@@ -96,7 +97,7 @@ var (
 		Short: "Display statistical information for all job account under the specified user, as of the end of the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckUserAccountStatus)
+			return QueryJobSummary(CheckUserAccountStatus)
 		},
 	}
 	userUtilizationByWckeyCmd = &cobra.Command{
@@ -104,7 +105,7 @@ var (
 		Short: "Display the statistical information of all job wckeys under the specified user that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckUserWckeyStatus)
+			return QueryJobSummary(CheckUserWckeyStatus)
 		},
 	}
 	wckeyUtilizationByUserCmd = &cobra.Command{
@@ -112,7 +113,7 @@ var (
 		Short: "Display the statistical information of all job users under the specified user that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckWckeyUserStatus)
+			return QueryJobSummary(CheckWckeyUserStatus)
 		},
 	}
 	accountUtilizationByQosCmd = &cobra.Command{
@@ -120,7 +121,7 @@ var (
 		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckAccountQosStatus)
+			return QueryJobSummary(CheckAccountQosStatus)
 		},
 	}
 	utilizationCmd = &cobra.Command{
@@ -128,12 +129,12 @@ var (
 		Short: "Display relevant cluster parameters such as cluster nodes",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryAccountUserSummaryItem(CheckClusterStatus)
+			return QueryJobSummary(CheckClusterStatus)
 		},
 	}
 	sizesByAccountCmd = &cobra.Command{
 		Use:   "sizesbyaccount",
-		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
+		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified account",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSizeSummaryItem(CheckAccountCpusStatus)
@@ -141,7 +142,7 @@ var (
 	}
 	sizesByWckeyCmd = &cobra.Command{
 		Use:   "sizesbywckey",
-		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
+		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified wckey",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSizeSummaryItem(CheckWckeyCpusStatus)
@@ -149,7 +150,7 @@ var (
 	}
 	sizesByAccountAndWcKey = &cobra.Command{
 		Use:   "sizesbyaccountandwckey",
-		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
+		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified wckey and account",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSizeSummaryItem(CheckAccountWckeyCpusStatus)
@@ -171,19 +172,15 @@ func init() {
 		userCmd.AddCommand(userTopUsageCmd)
 		{
 			userTopUsageCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-01-02T15:04:05)")
 			userTopUsageCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			userTopUsageCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
 			userTopUsageCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			userTopUsageCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 			userTopUsageCmd.Flags().Uint32VarP(&FlagTopCount, "topcount", "", 10, "Change the number of users displayed, default is 10 ")
 			userTopUsageCmd.Flags().StringVarP(&FlagGroups, "group", "", "",
 				"Group all accounts together for each user")
@@ -195,95 +192,71 @@ func init() {
 		clusterCmd.AddCommand(accountUtilizationByUserCmd)
 		{
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 		}
 		clusterCmd.AddCommand(userUtilizationByAccountCmd)
 		{
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 		}
 		clusterCmd.AddCommand(userUtilizationByWckeyCmd)
 		{
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
 				"Select wckeys to view (comma separated list)")
 		}
 		clusterCmd.AddCommand(wckeyUtilizationByUserCmd)
 		{
 			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 		}
 		clusterCmd.AddCommand(accountUtilizationByQosCmd)
 		{
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterQoss, "qos", "",
-				"", "Filter jobs with Qos",
+				"", "Select qoss to view (comma separated list)",
 			)
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 		}
 		clusterCmd.AddCommand(utilizationCmd)
 		{
 			utilizationCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			utilizationCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			utilizationCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 		}
 
 	}
@@ -292,15 +265,11 @@ func init() {
 		jobCmd.AddCommand(sizesByAccountCmd)
 		{
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			sizesByAccountCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
@@ -309,44 +278,42 @@ func init() {
 				"Select job ids to view (comma separated list), default is all")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 				"Specify partitions to view (comma separated list), default is all")
+			sizesByAccountCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
+				" The report will print number of jobs range instead of time used")
 		}
 		jobCmd.AddCommand(sizesByWckeyCmd)
 		{
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
 				"Select grouping  to view (comma separated list)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 				"Specify partitions to view (comma separated list), default is all")
+			sizesByWckeyCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
+				" The report will print number of jobs range instead of time used")
 		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
 		{
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				"", "Filter jobs with an end time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				"", "Filter jobs with a start time within a certain time period, which can use closed intervals"+
-					"(timeFormat: 2024-01-02T15:04:05~2024-01-11T11:12:41)",
-			)
+				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
-				"Select users to view (comma separated list)")
+				"Set the job output time unit")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
 				"Select grouping  to view (comma separated list)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 				"Specify partitions to view (comma separated list), default is all")
+			sizesByAccountAndWcKey.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
+				" The report will print number of jobs range instead of time used")
 		}
 	}
 

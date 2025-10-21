@@ -1276,9 +1276,19 @@ func CheckCreportOutType(outType string) bool {
 	return false
 }
 
-func ReportUsageType(outType string) float64 {
-	if suffix, ok := validCreportTypes[outType]; ok {
-		fmt.Printf("Usage reported in CPU %s\n", suffix)
+func ReportUsageType(outType string, IsJobSize, IsPrintCount bool) float64 {
+	if IsJobSize {
+		if IsPrintCount {
+			fmt.Printf("Units are in number of jobs range\n")
+		} else {
+			if suffix, ok := validCreportTypes[outType]; ok {
+				fmt.Printf("Time reported in %s\n", suffix)
+			}
+		}
+	} else {
+		if suffix, ok := validCreportTypes[outType]; ok {
+			fmt.Printf("Usage reported in CPU %s\n", suffix)
+		}
 	}
 	var divisor float64
 	switch outType {
