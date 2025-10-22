@@ -23,305 +23,150 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 )
 
-// Define the flattened data structure
-type FlattenedData struct {
-	PartitionName   string
-	Avail           string
-	CranedListRegex string
-	ResourceState   string
-	ControlState    string
-	PowerState      string
-	CranedListCount uint64
-}
+var (
+	resourceStateMap = map[string]protos.CranedResourceState{
+		"idle":  protos.CranedResourceState_CRANE_IDLE,
+		"mix":   protos.CranedResourceState_CRANE_MIX,
+		"alloc": protos.CranedResourceState_CRANE_ALLOC,
+		"down":  protos.CranedResourceState_CRANE_DOWN,
+	}
 
-// Flatten the nested structure into a one-dimensional array
-func FlattenReplyData(reply *protos.QueryClusterInfoReply) []FlattenedData {
-	var flattened []FlattenedData
-	var partitionInValid []FlattenedData
-	var partitionFilterValid bool
+	controlStateMap = map[string]protos.CranedControlState{
+		"none":  protos.CranedControlState_CRANE_NONE,
+		"drain": protos.CranedControlState_CRANE_DRAIN,
+	}
 
-	for _, partitionCraned := range reply.Partitions {
-		partitionFilterValid = false
-		for _, commonCranedStateList := range partitionCraned.CranedLists {
-			if commonCranedStateList.Count > 0 {
-				partitionFilterValid = true
-				flattened = append(flattened, FlattenedData{
-					PartitionName:   partitionCraned.Name,
-					Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
-					CranedListRegex: commonCranedStateList.CranedListRegex,
-					ResourceState:   strings.ToLower(commonCranedStateList.ResourceState.String()[6:]),
-					ControlState:    strings.ToLower(commonCranedStateList.ControlState.String()[6:]),
-					PowerState:      strings.ToLower(commonCranedStateList.PowerState.String()[6:]),
-					CranedListCount: uint64(commonCranedStateList.Count),
-				})
-			}
+	powerStateMap = map[string]protos.CranedPowerState{
+		"active":     protos.CranedPowerState_CRANE_POWER_ACTIVE,
+		"power-idle": protos.CranedPowerState_CRANE_POWER_IDLE,
+		"sleeping":   protos.CranedPowerState_CRANE_POWER_SLEEPING,
+		"poweredoff": protos.CranedPowerState_CRANE_POWER_POWEREDOFF,
+		"off":        protos.CranedPowerState_CRANE_POWER_POWEREDOFF,
+		"to-sleep":   protos.CranedPowerState_CRANE_POWER_TO_SLEEPING,
+		"waking":     protos.CranedPowerState_CRANE_POWER_WAKING_UP,
+		"oning":      protos.CranedPowerState_CRANE_POWER_POWERING_ON,
+		"offing":     protos.CranedPowerState_CRANE_POWER_POWERING_OFF,
+	}
+)
+
+func ConvertStates[T comparable](stateMap map[string]T, stateType string) ([]T, error) {
+	var states []T
+	for _, stateStr := range FlagFilterCranedStates {
+		lowered := strings.ToLower(stateStr)
+		if state, exists := stateMap[lowered]; exists {
+			states = append(states, state)
+			continue
 		}
-
-		if !partitionFilterValid {
-			partitionInValid = append(partitionInValid, FlattenedData{
-				PartitionName:   partitionCraned.Name,
-				Avail:           strings.ToLower(partitionCraned.State.String()[10:]),
-				CranedListRegex: "",
-				ResourceState:   "n/a",
-				ControlState:    "",
-				PowerState:      "",
-				CranedListCount: 0,
-			})
+		if _, ok := resourceStateMap[lowered]; ok && stateType != "resource" {
+			continue
 		}
-	}
-
-	flattened = append(flattened, partitionInValid...)
-	return flattened
-}
-
-type FieldProcessor struct {
-	header  string
-	process func(flattened []FlattenedData, tableOutputCell [][]string)
-}
-
-var fieldMap = map[string]FieldProcessor{
-	"p":         {"Partition", ProcessPartition},
-	"partition": {"Partition", ProcessPartition},
-	"a":         {"Avail", ProcessAvail},
-	"avail":     {"Avail", ProcessAvail},
-	"n":         {"Nodes", ProcessNodes},
-	"nodes":     {"Nodes", ProcessNodes},
-	"s":         {"State", ProcessState},
-	"state":     {"State", ProcessState},
-	"l":         {"NodeList", ProcessNodeList},
-	"nodelist":  {"NodeList", ProcessNodeList},
-}
-
-// / Partition
-func ProcessPartition(flattened []FlattenedData, tableOutputCell [][]string) {
-	for idx, data := range flattened {
-		tableOutputCell[idx] = append(tableOutputCell[idx], data.PartitionName)
-	}
-}
-
-// Avail
-func ProcessAvail(flattened []FlattenedData, tableOutputCell [][]string) {
-	for idx, data := range flattened {
-		tableOutputCell[idx] = append(tableOutputCell[idx], data.Avail)
-	}
-}
-
-// Nodes
-func ProcessNodes(flattened []FlattenedData, tableOutputCell [][]string) {
-	for idx, data := range flattened {
-		tableOutputCell[idx] = append(tableOutputCell[idx], strconv.FormatUint(data.CranedListCount, 10))
-	}
-}
-
-// State
-func ProcessState(flattened []FlattenedData, tableOutputCell [][]string) {
-	for idx, data := range flattened {
-		stateStr := data.ResourceState
-		if data.ControlState != "none" {
-			stateStr += "(" + data.ControlState + ")"
+		if _, ok := controlStateMap[lowered]; ok && stateType != "control" {
+			continue
 		}
-
-		if data.ResourceState == "down" && (data.PowerState == "power_idle" || data.PowerState == "power_active") {
-			stateStr += "[failed]"
-		} else if data.PowerState != "" {
-			stateStr += "[" + data.PowerState + "]"
+		if _, ok := powerStateMap[lowered]; ok && stateType != "power" {
+			continue
 		}
-		tableOutputCell[idx] = append(tableOutputCell[idx], stateStr)
+		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid %s state given: %s", stateType, stateStr))
 	}
+
+	return states, nil
 }
 
-// NodeList
-func ProcessNodeList(flattened []FlattenedData, tableOutputCell [][]string) {
-	for idx, data := range flattened {
-		tableOutputCell[idx] = append(tableOutputCell[idx], data.CranedListRegex)
-	}
+func ConvertToResourceStates() ([]protos.CranedResourceState, error) {
+	return ConvertStates(resourceStateMap, "resource")
+}
+func ConvertToControlStates() ([]protos.CranedControlState, error) {
+	return ConvertStates(controlStateMap, "control")
+}
+func ConvertToPowerStates() ([]protos.CranedPowerState, error) {
+	return ConvertStates(powerStateMap, "power")
 }
 
-func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData [][]string, err error) {
-	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
-	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
-	if specifiers == nil {
-		return nil, nil, &util.CraneError{
-			Code:    util.ErrorInvalidFormat,
-			Message: "Invalid format specifier.",
+func ApplyResourceStateDefaults(states []protos.CranedResourceState) []protos.CranedResourceState {
+	if len(states) > 0 {
+		return states
+	}
+	if FlagFilterRespondingOnly {
+		return []protos.CranedResourceState{
+			protos.CranedResourceState_CRANE_IDLE,
+			protos.CranedResourceState_CRANE_MIX,
+			protos.CranedResourceState_CRANE_ALLOC,
 		}
 	}
-
-	tableOutputWidth := make([]int, 0, len(specifiers))
-	tableOutputHeader := make([]string, 0, len(specifiers))
-	flattened := FlattenReplyData(reply)
-	tableLen := len(flattened)
-	tableOutputCell := make([][]string, tableLen)
-
-	// Get the prefix of the format string
-	if specifiers[0][0] != 0 {
-		prefix := FlagFormat[0:specifiers[0][0]]
-		tableOutputWidth = append(tableOutputWidth, -1)
-		tableOutputHeader = append(tableOutputHeader, prefix)
-		for j := 0; j < tableLen; j++ {
-			tableOutputCell[j] = append(tableOutputCell[j], prefix)
-		}
+	if FlagFilterDownOnly {
+		return []protos.CranedResourceState{protos.CranedResourceState_CRANE_DOWN}
 	}
+	return []protos.CranedResourceState{
+		protos.CranedResourceState_CRANE_IDLE,
+		protos.CranedResourceState_CRANE_MIX,
+		protos.CranedResourceState_CRANE_ALLOC,
+		protos.CranedResourceState_CRANE_DOWN,
+	}
+}
+func ApplyControlStateDefaults(states []protos.CranedControlState) []protos.CranedControlState {
+	if len(states) > 0 {
+		return states
+	}
+	return []protos.CranedControlState{
+		protos.CranedControlState_CRANE_NONE,
+		protos.CranedControlState_CRANE_DRAIN,
+	}
+}
+func ApplyPowerStateDefaults(states []protos.CranedPowerState) []protos.CranedPowerState {
+	if len(states) > 0 {
+		return states
+	}
+	return []protos.CranedPowerState{
+		protos.CranedPowerState_CRANE_POWER_ACTIVE,
+		protos.CranedPowerState_CRANE_POWER_IDLE,
+		protos.CranedPowerState_CRANE_POWER_SLEEPING,
+		protos.CranedPowerState_CRANE_POWER_POWEREDOFF,
+		protos.CranedPowerState_CRANE_POWER_TO_SLEEPING,
+		protos.CranedPowerState_CRANE_POWER_WAKING_UP,
+		protos.CranedPowerState_CRANE_POWER_POWERING_ON,
+		protos.CranedPowerState_CRANE_POWER_POWERING_OFF,
+	}
+}
 
-	for i, spec := range specifiers {
-		// Get the padding string between specifiers
-		if i > 0 && spec[0]-specifiers[i-1][1] > 0 {
-			padding := FlagFormat[specifiers[i-1][1]:spec[0]]
-			tableOutputWidth = append(tableOutputWidth, -1)
-			tableOutputHeader = append(tableOutputHeader, padding)
-			for j := 0; j < tableLen; j++ {
-				tableOutputCell[j] = append(tableOutputCell[j], padding)
-			}
-		}
-		// Parse width specifier
-		if spec[2] == -1 {
-			// w/o width specifier
-			tableOutputWidth = append(tableOutputWidth, -1)
+func BuildFilteredStringList(items []string, warnMsg string) []string {
+	var list []string
+	for _, item := range items {
+		if item != "" {
+			list = append(list, item)
 		} else {
-			// with width specifier
-			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
-			if err != nil {
-				return nil, nil, &util.CraneError{
-					Code:    util.ErrorInvalidFormat,
-					Message: "Invalid width specifier.",
-				}
-			}
-			tableOutputWidth = append(tableOutputWidth, int(width))
-		}
-
-		// Parse format specifier
-		field := FlagFormat[spec[4]:spec[5]]
-		if len(field) > 1 {
-			field = strings.ToLower(field)
-		}
-
-		if processor, exists := fieldMap[field]; exists {
-			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
-			processor.process(flattened, tableOutputCell)
-		} else {
-			return nil, nil, &util.CraneError{
-				Code: util.ErrorInvalidFormat,
-				Message: fmt.Sprintf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
-					"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field),
-			}
+			log.Warn(warnMsg)
 		}
 	}
-	// Get the suffix of the format string
-	if len(FlagFormat)-specifiers[len(specifiers)-1][1] > 0 {
-		suffix := FlagFormat[specifiers[len(specifiers)-1][1]:]
-		tableOutputWidth = append(tableOutputWidth, -1)
-		tableOutputHeader = append(tableOutputHeader, suffix)
-		for j := 0; j < tableLen; j++ {
-			tableOutputCell[j] = append(tableOutputCell[j], suffix)
-		}
-	}
-
-	formattedHeader, formattedData := util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
-	return formattedHeader, formattedData, nil
+	return list
 }
 
-func Query() error {
-	config := util.ParseConfig(FlagConfigFilePath)
-	stub := util.GetStubToCtldByConfig(config)
-
-	var resourceStateList []protos.CranedResourceState
-	var controlStateList []protos.CranedControlState
-	var powerStateList []protos.CranedPowerState
-
-	for i := 0; i < len(FlagFilterCranedStates); i++ {
-		switch strings.ToLower(FlagFilterCranedStates[i]) {
-		case "idle":
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE)
-		case "mix":
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_MIX)
-		case "alloc":
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_ALLOC)
-		case "down":
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_DOWN)
-		case "none":
-			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_NONE)
-		case "drain":
-			controlStateList = append(controlStateList, protos.CranedControlState_CRANE_DRAIN)
-		case "active":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_ACTIVE)
-		case "power-idle":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_IDLE)
-		case "sleeping":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_SLEEPING)
-		case "poweredoff":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWEREDOFF)
-		case "off":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWEREDOFF)
-		case "to-sleep":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_TO_SLEEPING)
-		case "waking":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_WAKING_UP)
-		case "oning":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_ON)
-		case "offing":
-			powerStateList = append(powerStateList, protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
-		default:
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid state given: %s.", FlagFilterCranedStates[i]),
-			}
-		}
+func FillReqByFilterFlag() (*protos.QueryClusterInfoRequest, error) {
+	resourceStateList, err := ConvertToResourceStates()
+	if err != nil {
+		return nil, err
 	}
-	if len(resourceStateList) == 0 {
-		if FlagFilterRespondingOnly {
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE, protos.CranedResourceState_CRANE_MIX, protos.CranedResourceState_CRANE_ALLOC)
-		} else if FlagFilterDownOnly {
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_DOWN)
-		} else {
-			resourceStateList = append(resourceStateList, protos.CranedResourceState_CRANE_IDLE, protos.CranedResourceState_CRANE_MIX, protos.CranedResourceState_CRANE_ALLOC, protos.CranedResourceState_CRANE_DOWN)
-		}
+	controlStateList, err := ConvertToControlStates()
+	if err != nil {
+		return nil, err
 	}
-	if len(controlStateList) == 0 {
-		controlStateList = append(controlStateList, protos.CranedControlState_CRANE_NONE, protos.CranedControlState_CRANE_DRAIN)
-	}
-	if len(powerStateList) == 0 {
-		powerStateList = append(powerStateList,
-			protos.CranedPowerState_CRANE_POWER_ACTIVE,
-			protos.CranedPowerState_CRANE_POWER_IDLE,
-			protos.CranedPowerState_CRANE_POWER_SLEEPING,
-			protos.CranedPowerState_CRANE_POWER_POWEREDOFF,
-			protos.CranedPowerState_CRANE_POWER_TO_SLEEPING,
-			protos.CranedPowerState_CRANE_POWER_WAKING_UP,
-			protos.CranedPowerState_CRANE_POWER_POWERING_ON,
-			protos.CranedPowerState_CRANE_POWER_POWERING_OFF)
+	powerStateList, err := ConvertToPowerStates()
+	if err != nil {
+		return nil, err
 	}
 
-	var nodeList []string
-	if len(FlagFilterNodes) != 0 {
-		for _, node := range FlagFilterNodes {
-			if node == "" {
-				log.Warn("Empty node name is ignored.")
-				continue
-			}
-			nodeList = append(nodeList, node)
-		}
-	}
+	resourceStateList = ApplyResourceStateDefaults(resourceStateList)
+	controlStateList = ApplyControlStateDefaults(controlStateList)
+	powerStateList = ApplyPowerStateDefaults(powerStateList)
 
-	var partList []string
-	if len(FlagFilterPartitions) != 0 {
-		for _, part := range FlagFilterPartitions {
-			if part == "" {
-				log.Warn("Empty partition name is ignored.")
-				continue
-			}
-			partList = append(partList, part)
-		}
-	}
+	nodeList := BuildFilteredStringList(FlagFilterNodes, "Empty node name is ignored.")
+	partList := BuildFilteredStringList(FlagFilterPartitions, "Empty partition name is ignored.")
 
 	req := &protos.QueryClusterInfoRequest{
 		FilterPartitions:           partList,
@@ -331,128 +176,47 @@ func Query() error {
 		FilterCranedPowerStates:    powerStateList,
 	}
 
+	return req, nil
+}
+
+func QueryClusterInfo() (*protos.QueryClusterInfoReply, error) {
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub := util.GetStubToCtldByConfig(config)
+
+	req, err := FillReqByFilterFlag()
+	if err != nil {
+		return &protos.QueryClusterInfoReply{}, err
+	}
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return nil, &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	return reply, nil
+}
+
+func Query() error {
+	reply, err := QueryClusterInfo()
+	if err != nil {
+		return err
 	}
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
-			return nil
-		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
-		}
+		return JsonOutput(reply)
 	}
-
-	table := tablewriter.NewWriter(os.Stdout)
-	util.SetBorderlessTable(table)
-	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
-	var tableData [][]string
-	var partitionInValid [][]string
-	var partitionFilterValid bool
-	for _, partitionCraned := range reply.Partitions {
-		partitionFilterValid = false
-		for _, commonCranedStateList := range partitionCraned.CranedLists {
-			if commonCranedStateList.Count > 0 {
-				partitionFilterValid = true
-				stateStr := strings.ToLower(commonCranedStateList.ResourceState.String()[6:])
-				if commonCranedStateList.ControlState != protos.CranedControlState_CRANE_NONE {
-					stateStr += "(" + strings.ToLower(commonCranedStateList.ControlState.String()[6:]) + ")"
-				}
-
-				if commonCranedStateList.ResourceState == protos.CranedResourceState_CRANE_DOWN &&
-					(commonCranedStateList.PowerState == protos.CranedPowerState_CRANE_POWER_IDLE ||
-						commonCranedStateList.PowerState == protos.CranedPowerState_CRANE_POWER_ACTIVE) {
-					stateStr += "[failed]"
-				} else {
-					stateStr += "[" + strings.ToLower(commonCranedStateList.PowerState.String()[6:]) + "]"
-				}
-
-				tableData = append(tableData, []string{
-					partitionCraned.Name,
-					strings.ToLower(partitionCraned.State.String()[10:]),
-					strconv.FormatUint(uint64(commonCranedStateList.Count), 10),
-					stateStr,
-					commonCranedStateList.CranedListRegex,
-				})
-			}
-		}
-		if !partitionFilterValid {
-			partitionInValid = append(partitionInValid, []string{
-				partitionCraned.Name,
-				strings.ToLower(partitionCraned.State.String()[10:]),
-				"0",
-				"n/a",
-				"",
-			})
-		}
-	}
-
-	tableData = append(tableData, partitionInValid...)
-
-	if FlagFormat != "" {
-		header, tableData, err = FormatData(reply)
-		if err != nil {
-			return err
-		}
-		table.SetTablePadding("")
-		table.SetAutoFormatHeaders(false)
-	}
-
-	table.AppendBulk(tableData)
-	if !FlagNoHeader {
-		table.SetHeader(header)
-	}
-	if len(tableData) == 0 {
-		log.Info("No matching partitions were found for the given filter.")
-	} else {
-		table.Render()
-	}
-
-	if len(nodeList) != 0 {
-		replyNodes := ""
-		for _, partitionCraned := range reply.Partitions {
-			for _, commonCranedStateList := range partitionCraned.CranedLists {
-				if commonCranedStateList.Count > 0 {
-					if replyNodes != "" {
-						replyNodes += ","
-					}
-					replyNodes += commonCranedStateList.CranedListRegex
-				}
-			}
-		}
-		replyNodes_, _ := util.ParseHostList(replyNodes)
-		requestedNodes_, _ := util.ParseHostList(strings.Join(nodeList, ","))
-
-		foundedNodes := make(map[string]bool)
-		for _, node := range replyNodes_ {
-			foundedNodes[node] = true
-		}
-
-		var redList []string
-		for _, node := range requestedNodes_ {
-			if _, exist := foundedNodes[node]; !exist {
-				redList = append(redList, node)
-			}
-		}
-
-		if len(redList) > 0 {
-			log.Infof("Requested nodes do not exist or do not meet the given filter condition: %s.",
-				util.HostNameListToStr(redList))
-		}
-	}
-	return nil
+	return QueryTableOutput(reply)
 }
 
 func loopedQuery(iterate uint64) error {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: err.Error(),
-		}
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
+
+	return loopedSubQuery(interval)
+}
+
+func loopedSubQuery(interval time.Duration) error {
 	for {
 		fmt.Println(time.Now().String()[0:19])
 		err := Query()
