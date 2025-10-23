@@ -861,7 +861,7 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 				}
 			} else {
 				for _, cpu := range summary.CpuTime {
-					row = append(row, fmt.Sprintf("%.0f", cpu/divisor))
+					row = append(row, fmt.Sprintf("%.1f", cpu/divisor))
 					accountTotal += cpu
 				}
 				accountTotal /= divisor
@@ -871,7 +871,7 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 				percent = accountTotal / clusterTotal[cluster] * 100
 			}
 			row = append(row,
-				fmt.Sprintf("%.0f", accountTotal),
+				fmt.Sprintf("%.1f", accountTotal),
 				fmt.Sprintf("%.2f%%", percent),
 			)
 			table.Append(row)
@@ -947,7 +947,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 				}
 			} else {
 				for _, cpu := range summary.CpuTime {
-					row = append(row, fmt.Sprintf("%.0f", cpu/divisor))
+					row = append(row, fmt.Sprintf("%.1f", cpu/divisor))
 					wckeyTotal += cpu
 				}
 				wckeyTotal /= divisor
@@ -957,7 +957,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 				percent = wckeyTotal / clusterTotal[cluster] * 100
 			}
 			row = append(row,
-				fmt.Sprintf("%.0f", wckeyTotal),
+				fmt.Sprintf("%.1f", wckeyTotal),
 				fmt.Sprintf("%.2f%%", percent),
 			)
 			table.Append(row)
@@ -1034,7 +1034,7 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 				}
 			} else {
 				for _, cpu := range summary.CpuTime {
-					row = append(row, fmt.Sprintf("%.0f", cpu/divisor))
+					row = append(row, fmt.Sprintf("%.1f", cpu/divisor))
 					accountWckeyTotal += cpu
 				}
 				accountWckeyTotal /= divisor
@@ -1044,7 +1044,7 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 				percent = accountWckeyTotal / clusterTotal[cluster] * 100
 			}
 			row = append(row,
-				fmt.Sprintf("%.0f", accountWckeyTotal),
+				fmt.Sprintf("%.1f", accountWckeyTotal),
 				fmt.Sprintf("%.2f%%", percent),
 			)
 			table.Append(row)
