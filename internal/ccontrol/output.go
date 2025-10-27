@@ -208,6 +208,7 @@ type nodeTimes struct {
 	startTime    string
 	lastBusyTime string
 }
+
 func formatNodeTimes(node *protos.CranedInfo) nodeTimes {
 	formatTime := func(t *timestamppb.Timestamp) string {
 		if t == nil || t.AsTime().Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
@@ -230,6 +231,7 @@ func formatNodeState(node *protos.CranedInfo) string {
 	stateStr += "[" + strings.ToLower(node.PowerState.String()[6:]) + "]"
 	return stateStr
 }
+
 // Cpu
 func formatCpuInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f",
@@ -238,6 +240,7 @@ func formatCpuInfo(node *protos.CranedInfo) string {
 		math.Abs(node.ResAvail.AllocatableResInNode.CpuCoreLimit),
 	)
 }
+
 // Mem
 func formatMemInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("RealMemory=%s AllocMem=%s FreeMem=%s",
@@ -246,6 +249,7 @@ func formatMemInfo(node *protos.CranedInfo) string {
 		util.FormatMemToMB(node.ResAvail.AllocatableResInNode.MemoryLimitBytes),
 	)
 }
+
 // Gres
 func formatGresInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("Gres=%s AllocGres=%s FreeGres=%s",
@@ -753,6 +757,7 @@ func outputReservations(reservations []*protos.ReservationInfo) error {
 	}
 	return nil
 }
+
 // strings.Builder
 func formatReservationDetails(res *protos.ReservationInfo) string {
 	var buf strings.Builder
@@ -831,238 +836,240 @@ func ShowReservations(reservationName string, queryAll bool) error {
 	return outputReservations(reservations)
 }
 
-
 // show Jobs
 func parseJobIds(jobIds string, queryAll bool) ([]uint32, error) {
-    if queryAll {
-        return nil, nil
-    }
-    jobIdList, err := util.ParseJobIdList(jobIds, ",")
-    if err != nil {
-        return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
-    }
-    return jobIdList, nil
+	if queryAll {
+		return nil, nil
+	}
+	jobIdList, err := util.ParseJobIdList(jobIds, ",")
+	if err != nil {
+		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
+	}
+	return jobIdList, nil
 }
 
 func getTaskInfo(jobIdList []uint32) ([]*protos.TaskInfo, error) {
-    req := &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
-    reply, err := stub.QueryTasksInfo(context.Background(), req)
-    if err != nil {
-        util.GrpcErrorPrintf(err, "Failed to show jobs")
-        return nil, &util.CraneError{Code: util.ErrorNetwork}
-    }
-    
-    if !reply.GetOk() {
-        return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %v", jobIdList))
-    }
-    return reply.TaskInfoList, nil
+	req := &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show jobs")
+		return nil, &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if !reply.GetOk() {
+		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %v", jobIdList))
+	}
+	return reply.TaskInfoList, nil
 }
 
 func handleEmptyJobResult(jobIdList []uint32, queryAll bool) error {
-    if queryAll {
-        fmt.Println("No job is running.")
-        return nil
-    }
-    
-    jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
-    fmt.Printf("Job %s is not running.\n", jobIdListString)
-    return nil
+	if queryAll {
+		fmt.Println("No job is running.")
+		return nil
+	}
+
+	jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
+	fmt.Printf("Job %s is not running.\n", jobIdListString)
+	return nil
 }
 
 func outputJobJson(tasks []*protos.TaskInfo) error {
-    fmt.Println(util.FmtJson.FormatReply(&protos.QueryTasksInfoReply{
-        TaskInfoList: tasks,
-    }))
-    return nil
+	fmt.Println(util.FmtJson.FormatReply(&protos.QueryTasksInfoReply{
+		TaskInfoList: tasks,
+	}))
+	return nil
 }
 
 func outputJobs(tasks []*protos.TaskInfo, requestedIds []uint32) error {
-    // Track if any job requested is not returned
+	// Track if any job requested is not returned
 	printed := make(map[uint32]bool)
-    for _, task := range tasks {
-        if err := printJobDetails(task); err != nil {
-            return err
-        }
-        printed[task.TaskId] = true
-    }
-    return checkMissingJobs(requestedIds, printed)
+	for _, task := range tasks {
+		if err := printJobDetails(task); err != nil {
+			return err
+		}
+		printed[task.TaskId] = true
+	}
+	return checkMissingJobs(requestedIds, printed)
 }
 
 func printJobDetails(task *protos.TaskInfo) error {
 	// id/name
 	fmt.Printf("JobId=%v JobName=%v\n", task.TaskId, task.Name)
-    // user / group
-    userInfo, err := getUserGroupInfo(task)
-    if err != nil {
-        return err
-    }
-    fmt.Printf("\tUser=%s(%d) GroupId=%s(%d) Account=%v\n",userInfo.username, task.Uid, userInfo.groupname, task.Gid, task.Account)
-    
-    // time
-    timeInfo := formatJobTimes(task)
-    fmt.Printf("\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
-        "\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n",
-        task.Status.String(), timeInfo.runTime, timeInfo.timeLimit, timeInfo.submitTime,
-        timeInfo.startTime, timeInfo.endTime, task.Partition, 
-        formatHostNameStr(task.GetCranedList()),
-        formatHostNameStr(util.HostNameListToStr(task.GetExecutionNode())))
-    
-    // cmd / work
-    fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n", task.CmdLine, task.Cwd)
-    // resource
-    printResourceRequests(task)
-    
-    fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
-        "\tExclusive=%v Comment=%v\n",
-        formatHostNameStr(util.HostNameListToStr(task.GetReqNodes())),
-        formatHostNameStr(util.HostNameListToStr(task.GetExcludeNodes())),
-        strconv.FormatBool(task.Exclusive),getJobExtraAttr(task.ExtraAttr, "comment"))
-    
-    //  mail
-    printMailNotification(task.ExtraAttr)
-    
-    return nil
+	// user / group
+	userInfo, err := getUserGroupInfo(task)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\tUser=%s(%d) GroupId=%s(%d) Account=%v\n", userInfo.username, task.Uid, userInfo.groupname, task.Gid, task.Account)
+
+	// time
+	timeInfo := formatJobTimes(task)
+	fmt.Printf("\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
+		"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n",
+		task.Status.String(), timeInfo.runTime, timeInfo.timeLimit, timeInfo.submitTime,
+		timeInfo.startTime, timeInfo.endTime, task.Partition,
+		formatHostNameStr(task.GetCranedList()),
+		formatHostNameStr(util.HostNameListToStr(task.GetExecutionNode())))
+
+	// cmd / work
+	fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n", task.CmdLine, task.Cwd)
+	// resource
+	printResourceRequests(task)
+
+	fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+		"\tExclusive=%v Comment=%v\n",
+		formatHostNameStr(util.HostNameListToStr(task.GetReqNodes())),
+		formatHostNameStr(util.HostNameListToStr(task.GetExcludeNodes())),
+		strconv.FormatBool(task.Exclusive), getJobExtraAttr(task.ExtraAttr, "comment"))
+
+	//  mail
+	printMailNotification(task.ExtraAttr)
+
+	return nil
 }
 
 type userGroupInfo struct {
-    username  string
-    groupname string
+	username  string
+	groupname string
 }
+
 func getUserGroupInfo(task *protos.TaskInfo) (userGroupInfo, error) {
-    craneUser, err := user.LookupId(strconv.Itoa(int(task.Uid)))
-    if err != nil {
-        return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric, 
-            fmt.Sprintf("Failed to get username for UID %d: %s", task.Uid, err))
-    }
-    
-    group, err := user.LookupGroupId(strconv.Itoa(int(task.Gid)))
-    if err != nil {
-        return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric, 
-            fmt.Sprintf("Failed to get groupname for GID %d: %s", task.Gid, err))
-    }
-    
-    return userGroupInfo{
-        username:  craneUser.Username,
-        groupname: group.Name,
-    }, nil
+	craneUser, err := user.LookupId(strconv.Itoa(int(task.Uid)))
+	if err != nil {
+		return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric,
+			fmt.Sprintf("Failed to get username for UID %d: %s", task.Uid, err))
+	}
+
+	group, err := user.LookupGroupId(strconv.Itoa(int(task.Gid)))
+	if err != nil {
+		return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric,
+			fmt.Sprintf("Failed to get groupname for GID %d: %s", task.Gid, err))
+	}
+
+	return userGroupInfo{
+		username:  craneUser.Username,
+		groupname: group.Name,
+	}, nil
 }
 
 type jobTimeInfo struct {
-    submitTime string
-    startTime  string
-    endTime    string
-    runTime    string
-    timeLimit  string
+	submitTime string
+	startTime  string
+	endTime    string
+	runTime    string
+	timeLimit  string
 }
+
 func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 	// formatTime for submit and start
-    formatTime := func(t time.Time) string {
-        if t.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-            return "unknown"
-        }
-        return t.In(time.Local).Format("2006-01-02 15:04:05")
-    }
-    // submit time
-    submitTime := formatTime(task.SubmitTime.AsTime())
-    // start time
-    startTime := formatTime(task.StartTime.AsTime())
-    // end time
-    endTime := "unknown"
-    timeEnd := task.EndTime.AsTime()
-    if !timeEnd.Before(task.StartTime.AsTime()) && timeEnd.Second() < util.MaxJobTimeStamp {
-        endTime = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
-    }
-    // time limit 
-    timeLimitStr := "unlimited"
-    if task.TimeLimit.Seconds < util.MaxJobTimeLimit {
-        timeLimitStr = util.SecondTimeFormat(task.TimeLimit.Seconds)
-    }
-    runTimeStr := "unknown"
-    return jobTimeInfo{
-        submitTime: submitTime,
-        startTime:  startTime,
-        endTime:    endTime,
-        runTime:    runTimeStr,
-        timeLimit:  timeLimitStr,
-    }
+	formatTime := func(t time.Time) string {
+		if t.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+			return "unknown"
+		}
+		return t.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	// submit time
+	submitTime := formatTime(task.SubmitTime.AsTime())
+	// start time
+	startTime := formatTime(task.StartTime.AsTime())
+	// end time
+	endTime := "unknown"
+	timeEnd := task.EndTime.AsTime()
+	if !timeEnd.Before(task.StartTime.AsTime()) && timeEnd.Second() < util.MaxJobTimeStamp {
+		endTime = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	// time limit
+	timeLimitStr := "unlimited"
+	if task.TimeLimit.Seconds < util.MaxJobTimeLimit {
+		timeLimitStr = util.SecondTimeFormat(task.TimeLimit.Seconds)
+	}
+	runTimeStr := "unknown"
+	return jobTimeInfo{
+		submitTime: submitTime,
+		startTime:  startTime,
+		endTime:    endTime,
+		runTime:    runTimeStr,
+		timeLimit:  timeLimitStr,
+	}
 }
 
 func printResourceRequests(task *protos.TaskInfo) {
-    // Priority / QoS
-    fmt.Printf("\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n",
-        task.Priority, task.Qos, 
-        task.ReqResView.AllocatableRes.CpuCoreLimit,
-        util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes))
-    // ReqRes
-    fmt.Printf("\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n",
-        task.NodeNum,
-        task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum),
-        util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(task.NodeNum)),
-        formatDeviceMap(task.ReqResView.DeviceMap))
-    // AllocRes
-    if task.Status == protos.TaskStatus_Running {
-        fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
-            task.NodeNum,
-            task.AllocatedResView.AllocatableRes.CpuCoreLimit,
-            util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-            formatDeviceMap(task.AllocatedResView.DeviceMap))
-    }
+	// Priority / QoS
+	fmt.Printf("\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n",
+		task.Priority, task.Qos,
+		task.ReqResView.AllocatableRes.CpuCoreLimit,
+		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes))
+	// ReqRes
+	fmt.Printf("\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n",
+		task.NodeNum,
+		task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum),
+		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(task.NodeNum)),
+		formatDeviceMap(task.ReqResView.DeviceMap))
+	// AllocRes
+	if task.Status == protos.TaskStatus_Running {
+		fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
+			task.NodeNum,
+			task.AllocatedResView.AllocatableRes.CpuCoreLimit,
+			util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes),
+			formatDeviceMap(task.AllocatedResView.DeviceMap))
+	}
 }
 
 func getJobExtraAttr(extraAttr, key string) string {
-    if !gjson.Valid(extraAttr) {
-        return ""
-    }
-    return gjson.Get(extraAttr, key).String()
+	if !gjson.Valid(extraAttr) {
+		return ""
+	}
+	return gjson.Get(extraAttr, key).String()
 }
 
 func printMailNotification(extraAttr string) {
-    mailUser := getJobExtraAttr(extraAttr, "mail.user")
-    mailType := getJobExtraAttr(extraAttr, "mail.type")
-    
-    if mailUser != "" || mailType != "" {
-        fmt.Printf("\tMailUser=%v MailType=%v\n", mailUser, mailType)
-    }
+	mailUser := getJobExtraAttr(extraAttr, "mail.user")
+	mailType := getJobExtraAttr(extraAttr, "mail.type")
+
+	if mailUser != "" || mailType != "" {
+		fmt.Printf("\tMailUser=%v MailType=%v\n", mailUser, mailType)
+	}
 }
 
 func formatHostNameStr(hosts string) string {
-    if hosts == "" {
-        return "None"
-    }
-    return hosts
+	if hosts == "" {
+		return "None"
+	}
+	return hosts
 }
+
 // If any job is requested but not returned, remind the user
 func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) error {
-    if len(requestedIds) == 0 {
-        return nil
-    }
-    missingJobs := []uint32{}
-    for _, id := range requestedIds {
-        if !printed[id] {
-            missingJobs = append(missingJobs, id)
-        }
-    }
-    if len(missingJobs) > 0 {
-        missingList := util.ConvertSliceToString(missingJobs, ", ")
-        fmt.Printf("Job %s is not running.\n", missingList)
-    }
-    
-    return nil
+	if len(requestedIds) == 0 {
+		return nil
+	}
+	missingJobs := []uint32{}
+	for _, id := range requestedIds {
+		if !printed[id] {
+			missingJobs = append(missingJobs, id)
+		}
+	}
+	if len(missingJobs) > 0 {
+		missingList := util.ConvertSliceToString(missingJobs, ", ")
+		fmt.Printf("Job %s is not running.\n", missingList)
+	}
+
+	return nil
 }
 func ShowJobs(jobIds string, queryAll bool) error {
-    jobIdList, err := parseJobIds(jobIds, queryAll)
-    if err != nil {
-        return err
-    }
-    tasks, err := getTaskInfo(jobIdList)
-    if err != nil {
-        return err
-    }
-    if len(tasks) == 0 {
-        return handleEmptyJobResult(jobIdList, queryAll)
-    }
-    if FlagJson {
-        return outputJobJson(tasks)
-    }
-    return outputJobs(tasks, jobIdList)
+	jobIdList, err := parseJobIds(jobIds, queryAll)
+	if err != nil {
+		return err
+	}
+	tasks, err := getTaskInfo(jobIdList)
+	if err != nil {
+		return err
+	}
+	if len(tasks) == 0 {
+		return handleEmptyJobResult(jobIdList, queryAll)
+	}
+	if FlagJson {
+		return outputJobJson(tasks)
+	}
+	return outputJobs(tasks, jobIdList)
 }
