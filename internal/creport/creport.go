@@ -453,7 +453,9 @@ func QueryJobSizeSummaryItem(CheckType CheckStatus) error {
 
 	rpcElapsed := time.Since(rpcStart)
 	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSumItemList size %v\n", rpcElapsed.Milliseconds(), len(JobSumItemList))
-
+	for _, item := range JobSumItemList {
+		fmt.Printf("%+v\n", item)
+	}
 	if CheckType == CheckAccountCpusStatus {
 		PrintAccountCpusList(JobSumItemList, start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
 	} else if CheckType == CheckWckeyCpusStatus {
@@ -794,9 +796,32 @@ type CpuLevelSummary struct {
 }
 
 func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, startTime, endTime time.Time, groupList []uint32, isPrintCount bool) {
-	// cluster -> account -> summary
 	clusterAccountMap := make(map[string]map[string]*CpuLevelSummary)
 	clusterTotal := make(map[string]float64) // float64 for cpu, int64 for count
+
+	var actualGroupList []uint32
+	var cpuAllocIndexMap map[uint32]int
+
+	if len(groupList) == 0 {
+		// Dynamically collect all actual CpuAlloc values
+		cpuAllocSet := make(map[uint32]struct{})
+		for _, item := range accountUserWckeyList {
+			cpuAllocSet[item.CpuAlloc] = struct{}{}
+		}
+		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
+		for k := range cpuAllocSet {
+			actualGroupList = append(actualGroupList, k)
+		}
+		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
+		// Build a mapping for fast group lookup
+		cpuAllocIndexMap = make(map[uint32]int)
+		for i, v := range actualGroupList {
+			cpuAllocIndexMap[v] = i
+		}
+	} else {
+		// Use the original grouping logic
+		actualGroupList = groupList
+	}
 
 	for _, item := range accountUserWckeyList {
 		if _, ok := clusterAccountMap[item.Cluster]; !ok {
@@ -804,12 +829,21 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 		}
 		if _, ok := clusterAccountMap[item.Cluster][item.Account]; !ok {
 			clusterAccountMap[item.Cluster][item.Account] = &CpuLevelSummary{
-				CpuTime:  make([]float64, len(groupList)),
-				JobCount: make([]int64, len(groupList)),
+				CpuTime:  make([]float64, len(actualGroupList)),
+				JobCount: make([]int64, len(actualGroupList)),
 			}
 		}
 		summary := clusterAccountMap[item.Cluster][item.Account]
-		groupIdx := FindCpuGroupIndex(item.CpuAlloc, groupList)
+
+		var groupIdx int
+		if len(groupList) == 0 {
+			// Group by actual cpuAlloc value
+			groupIdx = cpuAllocIndexMap[item.CpuAlloc]
+		} else {
+			// Use original bucketing/grouping logic
+			groupIdx = FindCpuGroupIndex(item.CpuAlloc, groupList)
+		}
+
 		if isPrintCount {
 			summary.JobCount[groupIdx] += item.TotalCount
 			clusterTotal[item.Cluster] += float64(item.TotalCount)
@@ -827,8 +861,15 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 	}
 	divisor := util.ReportUsageType(FlagOutType, true, isPrintCount)
 
+	// Generate table header dynamically
 	header := []string{"Cluster", "Account"}
-	header = append(header, GetCpusGroupHeaders(groupList)...)
+	if len(groupList) == 0 {
+		for _, cpu := range actualGroupList {
+			header = append(header, fmt.Sprintf("%d CPUs", cpu))
+		}
+	} else {
+		header = append(header, GetCpusGroupHeaders(groupList)...)
+	}
 	if isPrintCount {
 		header = append(header, "Total Job Count", "% of cluster")
 	} else {
@@ -880,23 +921,63 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 	table.Render()
 }
 
-func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, startTime, endTime time.Time, groupList []uint32, isPrintCount bool) {
+func PrintWckeyCpusList(
+	accountUserWckeyList []*protos.JobSizeSummaryItem,
+	startTime, endTime time.Time,
+	groupList []uint32,
+	isPrintCount bool,
+) {
 	// cluster -> wckey -> summary
 	clusterWckeyMap := make(map[string]map[string]*CpuLevelSummary)
 	clusterTotal := make(map[string]float64) // float64 for cpu, int64 for count
 
+	var actualGroupList []uint32
+	var cpuAllocIndexMap map[uint32]int
+
+	if len(groupList) == 0 {
+		// Dynamically collect all actual CpuAlloc values
+		cpuAllocSet := make(map[uint32]struct{})
+		for _, item := range accountUserWckeyList {
+			cpuAllocSet[item.CpuAlloc] = struct{}{}
+		}
+		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
+		for k := range cpuAllocSet {
+			actualGroupList = append(actualGroupList, k)
+		}
+		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
+		// Build a mapping for fast group lookup
+		cpuAllocIndexMap = make(map[uint32]int)
+		for i, v := range actualGroupList {
+			cpuAllocIndexMap[v] = i
+		}
+	} else {
+		// Use the original grouping logic
+		actualGroupList = groupList
+	}
+
 	for _, item := range accountUserWckeyList {
+		// Initialize cluster map if not exists
 		if _, ok := clusterWckeyMap[item.Cluster]; !ok {
 			clusterWckeyMap[item.Cluster] = make(map[string]*CpuLevelSummary)
 		}
+		// Initialize wckey summary if not exists
 		if _, ok := clusterWckeyMap[item.Cluster][item.Wckey]; !ok {
 			clusterWckeyMap[item.Cluster][item.Wckey] = &CpuLevelSummary{
-				CpuTime:  make([]float64, len(groupList)),
-				JobCount: make([]int64, len(groupList)),
+				CpuTime:  make([]float64, len(actualGroupList)),
+				JobCount: make([]int64, len(actualGroupList)),
 			}
 		}
 		summary := clusterWckeyMap[item.Cluster][item.Wckey]
-		groupIdx := FindCpuGroupIndex(item.CpuAlloc, groupList)
+
+		var groupIdx int
+		if len(groupList) == 0 {
+			// Group by actual cpuAlloc value
+			groupIdx = cpuAllocIndexMap[item.CpuAlloc]
+		} else {
+			// Use original bucketing/grouping logic
+			groupIdx = FindCpuGroupIndex(item.CpuAlloc, groupList)
+		}
+
 		if isPrintCount {
 			summary.JobCount[groupIdx] += item.TotalCount
 			clusterTotal[item.Cluster] += float64(item.TotalCount)
@@ -913,8 +994,16 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
 	divisor := util.ReportUsageType(FlagOutType, true, isPrintCount)
+
+	// Generate table header dynamically
 	header := []string{"Cluster", "Wckey"}
-	header = append(header, GetCpusGroupHeaders(groupList)...)
+	if len(groupList) == 0 {
+		for _, cpu := range actualGroupList {
+			header = append(header, fmt.Sprintf("%d CPUs", cpu))
+		}
+	} else {
+		header = append(header, GetCpusGroupHeaders(groupList)...)
+	}
 	if isPrintCount {
 		header = append(header, "Total Job Count", "% of cluster")
 	} else {
@@ -923,6 +1012,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader(header)
 
+	// Collect and sort cluster names
 	clusters := make([]string, 0, len(clusterWckeyMap))
 	for cluster := range clusterWckeyMap {
 		clusters = append(clusters, cluster)
@@ -931,6 +1021,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 
 	for _, cluster := range clusters {
 		wckeyMap := clusterWckeyMap[cluster]
+		// Collect and sort wckey names
 		wckeyNames := make([]string, 0, len(wckeyMap))
 		for wckey := range wckeyMap {
 			wckeyNames = append(wckeyNames, wckey)
@@ -971,19 +1062,54 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 	clusterAccountWckeyMap := make(map[string]map[string]*CpuLevelSummary)
 	clusterTotal := make(map[string]float64) // float64 for cpu, int64 for count
 
+	var actualGroupList []uint32
+	var cpuAllocIndexMap map[uint32]int
+
+	if len(groupList) == 0 {
+		// Dynamically collect all actual CpuAlloc values
+		cpuAllocSet := make(map[uint32]struct{})
+		for _, item := range accountUserWckeyList {
+			cpuAllocSet[item.CpuAlloc] = struct{}{}
+		}
+		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
+		for k := range cpuAllocSet {
+			actualGroupList = append(actualGroupList, k)
+		}
+		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
+		// Build a mapping for fast group lookup
+		cpuAllocIndexMap = make(map[uint32]int)
+		for i, v := range actualGroupList {
+			cpuAllocIndexMap[v] = i
+		}
+	} else {
+		// Use the original grouping logic
+		actualGroupList = groupList
+	}
+
 	for _, item := range accountUserWckeyList {
+		// Initialize cluster map if not exists
 		if _, ok := clusterAccountWckeyMap[item.Cluster]; !ok {
 			clusterAccountWckeyMap[item.Cluster] = make(map[string]*CpuLevelSummary)
 		}
 		accountWckey := fmt.Sprintf("%s:%s", item.Account, item.Wckey)
+		// Initialize account:wckey summary if not exists
 		if _, ok := clusterAccountWckeyMap[item.Cluster][accountWckey]; !ok {
 			clusterAccountWckeyMap[item.Cluster][accountWckey] = &CpuLevelSummary{
-				CpuTime:  make([]float64, len(groupList)),
-				JobCount: make([]int64, len(groupList)),
+				CpuTime:  make([]float64, len(actualGroupList)),
+				JobCount: make([]int64, len(actualGroupList)),
 			}
 		}
 		summary := clusterAccountWckeyMap[item.Cluster][accountWckey]
-		groupIdx := FindCpuGroupIndex(item.CpuAlloc, groupList)
+
+		var groupIdx int
+		if len(groupList) == 0 {
+			// Group by actual cpuAlloc value
+			groupIdx = cpuAllocIndexMap[item.CpuAlloc]
+		} else {
+			// Use original bucketing/grouping logic
+			groupIdx = FindCpuGroupIndex(item.CpuAlloc, groupList)
+		}
+
 		if isPrintCount {
 			summary.JobCount[groupIdx] += item.TotalCount
 			clusterTotal[item.Cluster] += float64(item.TotalCount)
@@ -1000,8 +1126,16 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
 	divisor := util.ReportUsageType(FlagOutType, true, isPrintCount)
+
+	// Generate table header dynamically
 	header := []string{"Cluster", "Account:Wckey"}
-	header = append(header, GetCpusGroupHeaders(groupList)...)
+	if len(groupList) == 0 {
+		for _, cpu := range actualGroupList {
+			header = append(header, fmt.Sprintf("%d CPUs", cpu))
+		}
+	} else {
+		header = append(header, GetCpusGroupHeaders(groupList)...)
+	}
 	if isPrintCount {
 		header = append(header, "Total Job Count", "% of cluster")
 	} else {
@@ -1010,6 +1144,7 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader(header)
 
+	// Collect and sort cluster names
 	clusters := make([]string, 0, len(clusterAccountWckeyMap))
 	for cluster := range clusterAccountWckeyMap {
 		clusters = append(clusters, cluster)
@@ -1018,6 +1153,7 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 
 	for _, cluster := range clusters {
 		accountWckeyMap := clusterAccountWckeyMap[cluster]
+		// Collect and sort account:wckey names
 		accountWckeyNames := make([]string, 0, len(accountWckeyMap))
 		for accountWckey := range accountWckeyMap {
 			accountWckeyNames = append(accountWckeyNames, accountWckey)
