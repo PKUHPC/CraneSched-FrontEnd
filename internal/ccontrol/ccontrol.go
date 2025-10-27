@@ -22,19 +22,13 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"os"
-	"os/user"
 	"strconv"
 	"strings"
-	"time"
-
-	"gopkg.in/yaml.v3"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -52,262 +46,6 @@ const (
 	PriorityTypeFlag
 	TimelimitTypeFlag
 )
-
-func ShowReservations(reservationName string, queryAll bool) error {
-	req := &protos.QueryReservationInfoRequest{
-		Uid:             uint32(os.Getuid()),
-		ReservationName: reservationName,
-	}
-	reply, err := stub.QueryReservationInfo(context.Background(), req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show reservations")
-		return &util.CraneError{Code: util.ErrorNetwork}
-	}
-
-	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		return nil
-	}
-
-	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for reservation %s: %s", reservationName, reply.GetReason()))
-	}
-
-	if len(reply.ReservationInfoList) == 0 {
-		if queryAll {
-			fmt.Println("No reservation is available.")
-		} else {
-			return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Reservation %s not found.", reservationName))
-		}
-	} else {
-		for _, reservationInfo := range reply.ReservationInfoList {
-			str := fmt.Sprintf("ReservationName=%v StartTime=%v Duration=%v\n", reservationInfo.ReservationName, reservationInfo.StartTime.AsTime().In(time.Local).Format("2006-01-02 15:04:05"), reservationInfo.Duration.AsDuration().String())
-			if reservationInfo.Partition != "" && reservationInfo.CranedRegex != "" {
-				str += fmt.Sprintf("Partition=%v CranedRegex=%v\n", reservationInfo.Partition, reservationInfo.CranedRegex)
-			} else if reservationInfo.Partition != "" {
-				str += fmt.Sprintf("Partition=%v\n", reservationInfo.Partition)
-			} else if reservationInfo.CranedRegex != "" {
-				str += fmt.Sprintf("CranedRegex=%v\n", reservationInfo.CranedRegex)
-			}
-			if len(reservationInfo.AllowedAccounts) > 0 {
-				str += fmt.Sprintf("AllowedAccounts=%s\n", strings.Join(reservationInfo.AllowedAccounts, ","))
-			}
-			if len(reservationInfo.DeniedAccounts) > 0 {
-				str += fmt.Sprintf("DeniedAccounts=%s\n", strings.Join(reservationInfo.DeniedAccounts, ","))
-			}
-			if len(reservationInfo.AllowedUsers) > 0 {
-				str += fmt.Sprintf("AllowedUsers=%s\n", strings.Join(reservationInfo.AllowedUsers, ","))
-			}
-			if len(reservationInfo.DeniedUsers) > 0 {
-				str += fmt.Sprintf("DeniedUsers=%s\n", strings.Join(reservationInfo.DeniedUsers, ","))
-			}
-			str += fmt.Sprintf("TotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n", math.Abs(reservationInfo.ResTotal.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAvail.AllocatableRes.CpuCoreLimit), math.Abs(reservationInfo.ResAlloc.AllocatableRes.CpuCoreLimit))
-			str += fmt.Sprintf("TotalMem=%s AvailMem=%s AllocMem=%s\n", util.FormatMemToMB(reservationInfo.ResTotal.AllocatableRes.MemoryLimitBytes), util.FormatMemToMB(reservationInfo.ResAvail.AllocatableRes.MemoryLimitBytes), util.FormatMemToMB(reservationInfo.ResAlloc.AllocatableRes.MemoryLimitBytes))
-			str += fmt.Sprintf("TotalGres=%s AvailGres=%s AllocGres=%s\n", formatDeviceMap(reservationInfo.ResTotal.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAvail.GetDeviceMap()), formatDeviceMap(reservationInfo.ResAlloc.GetDeviceMap()))
-			fmt.Println(str)
-		}
-	}
-	return nil
-}
-
-func ShowJobs(jobIds string, queryAll bool) error {
-	var req *protos.QueryTasksInfoRequest
-	var jobIdList []uint32
-	var err error
-
-	if !queryAll {
-		jobIdList, err = util.ParseJobIdList(jobIds, ",")
-		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
-		}
-	}
-
-	req = &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
-	reply, err := stub.QueryTasksInfo(context.Background(), req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show jobs")
-		return &util.CraneError{Code: util.ErrorNetwork}
-	}
-
-	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %s", jobIds))
-	}
-
-	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		return nil
-	}
-
-	if len(reply.TaskInfoList) == 0 {
-		if queryAll {
-			fmt.Println("No job is running.")
-		} else {
-			jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
-			fmt.Printf("Job %s is not running.\n", jobIdListString)
-		}
-		return nil
-	}
-
-	formatHostNameStr := func(s string) string {
-		if len(s) == 0 {
-			return "None"
-		} else {
-			return s
-		}
-	}
-
-	formatJobExTraAttrsField := func(s, key string) string {
-		if gjson.Valid(s) {
-			return gjson.Get(s, key).String()
-		}
-		return ""
-	}
-
-	// Track if any job requested is not returned
-	printed := map[uint32]bool{}
-
-	for _, taskInfo := range reply.TaskInfoList {
-		timeSubmitStr := "unknown"
-		timeStartStr := "unknown"
-		timeEndStr := "unknown"
-		runTimeStr := "unknown"
-
-		var timeLimitStr string
-
-		// submit_time
-		timeSubmit := taskInfo.SubmitTime.AsTime()
-		if !timeSubmit.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-			timeSubmitStr = timeSubmit.In(time.Local).Format("2006-01-02 15:04:05")
-		}
-
-		// start_time
-		timeStart := taskInfo.StartTime.AsTime()
-		if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-			timeStartStr = timeStart.In(time.Local).Format("2006-01-02 15:04:05")
-		}
-
-		// end_time
-		timeEnd := taskInfo.EndTime.AsTime()
-		if !timeEnd.Before(timeStart) && timeEnd.Second() < util.MaxJobTimeStamp {
-			timeEndStr = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
-		}
-
-		// time_limit
-		if taskInfo.TimeLimit.Seconds >= util.MaxJobTimeLimit {
-			timeLimitStr = "unlimited"
-		} else {
-			timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
-		}
-
-		// uid and gid (egid)
-		craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
-		if err != nil {
-			return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get username for UID %d: %s", taskInfo.Uid, err))
-		}
-		group, err := user.LookupGroupId(strconv.Itoa(int(taskInfo.Gid)))
-		if err != nil {
-			return util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("Failed to get groupname for GID %d: %s", taskInfo.Gid, err))
-		}
-
-		printed[taskInfo.TaskId] = true
-
-		fmt.Printf("JobId=%v JobName=%v\n"+
-			"\tUser=%s(%d) GroupId=%s(%d) Account=%v\n"+
-			"\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
-			"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n"+
-			"\tCmdLine=\"%v\" Workdir=%v\n"+
-			"\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n"+
-			"\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n",
-			taskInfo.TaskId, taskInfo.Name, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
-			taskInfo.Account, taskInfo.Status.String(), runTimeStr, timeLimitStr, timeSubmitStr,
-			timeStartStr, timeEndStr, taskInfo.Partition, formatHostNameStr(taskInfo.GetCranedList()),
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExecutionNode())),
-			taskInfo.CmdLine, taskInfo.Cwd,
-			taskInfo.Priority, taskInfo.Qos, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit,
-			util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes),
-			taskInfo.NodeNum, taskInfo.ReqResView.AllocatableRes.CpuCoreLimit*float64(taskInfo.NodeNum),
-			util.FormatMemToMB(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(taskInfo.NodeNum)),
-			formatDeviceMap(taskInfo.ReqResView.DeviceMap),
-		)
-
-		if taskInfo.Status == protos.TaskStatus_Running {
-			fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
-				taskInfo.NodeNum,
-				taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit,
-				util.FormatMemToMB(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-				formatDeviceMap(taskInfo.AllocatedResView.DeviceMap),
-			)
-		}
-
-		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
-			"\tExclusive=%v Comment=%v\n",
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetReqNodes())),
-			formatHostNameStr(util.HostNameListToStr(taskInfo.GetExcludeNodes())),
-			strconv.FormatBool(taskInfo.Exclusive), formatJobExTraAttrsField(taskInfo.ExtraAttr, "comment"))
-
-		mailUserStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.user")
-		mailTypeStr := formatJobExTraAttrsField(taskInfo.ExtraAttr, "mail.type")
-		if mailUserStr != "" || mailTypeStr != "" {
-			fmt.Printf("\tMailUser=%v MailType=%v\n", mailUserStr, mailTypeStr)
-		}
-	}
-
-	// If any job is requested but not returned, remind the user
-	if !queryAll {
-		notRunningJobs := []uint32{}
-		for _, jobId := range jobIdList {
-			if !printed[jobId] {
-				notRunningJobs = append(notRunningJobs, jobId)
-			}
-		}
-		if len(notRunningJobs) > 0 {
-			notRunningJobsString := util.ConvertSliceToString(notRunningJobs, ", ")
-			fmt.Printf("Job %s is not running.\n", notRunningJobsString)
-		}
-	}
-
-	return nil
-}
-
-func PrintFlattenYAML(prefix string, m interface{}) {
-	switch v := m.(type) {
-	case map[string]interface{}:
-		for key, value := range v {
-			newPrefix := key
-			if prefix != "" {
-				newPrefix = prefix + "." + key
-			}
-			PrintFlattenYAML(newPrefix, value)
-		}
-	case []interface{}:
-		for i, value := range v {
-			PrintFlattenYAML(fmt.Sprintf("%s.%d", prefix, i), value)
-		}
-	default:
-		fmt.Printf("%s = %v\n", prefix, v)
-	}
-}
-
-func ShowConfig(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to read configuration file: %s", err))
-	}
-
-	var config map[string]interface{}
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to unmarshal yaml configuration file: %s", err))
-	}
-	if FlagJson {
-		output, _ := json.Marshal(config)
-		fmt.Println(string(output))
-	} else {
-		PrintFlattenYAML("", config)
-	}
-
-	return nil
-}
 
 func SummarizeReply(proto interface{}) error {
 	switch reply := proto.(type) {
@@ -583,7 +321,6 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 	}
 
 	var req = &protos.ModifyCranedStateRequest{}
-
 	req.Uid = uint32(os.Getuid())
 	req.CranedIds = nodeNames
 	state = strings.ToLower(state)
@@ -629,7 +366,6 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 
 func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) error {
 	var accountList []string
-
 	accountList, _ = util.ParseStringParamList(accounts, ",")
 
 	req := protos.ModifyPartitionAclRequest{
