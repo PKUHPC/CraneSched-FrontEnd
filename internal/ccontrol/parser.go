@@ -30,26 +30,24 @@ import (
 	"github.com/alecthomas/participle/v2/lexer"
 )
 
-type CControlCommand struct {
-	Command any `parser:"@@"`
+type CommandAction interface {
+	GetAction() string
 }
 
 type BaseAction struct {
 	Action string `parser:"@('show'|'update'|'hold'|'release'|'create'|'delete')"`
-}
-type CommandAction interface {
-	GetAction() string
 }
 
 func (b BaseAction) GetAction() string {
 	return b.Action
 }
 
-type BaseID struct {
-	ID string `parser:"( @String | @Ident | @Number )?"`
-}
 type CommandID interface {
 	GetID() string
+}
+
+type BaseID struct {
+	ID string `parser:"( @String | @Ident | @Number )?"`
 }
 
 func (b BaseID) GetID() string {
@@ -96,6 +94,10 @@ type DeleteCommand struct {
 	BaseAction `parser:"@@"`
 	Entity     *EntityType `parser:"@@"`
 	BaseID     `parser:"@@"`
+}
+
+type CControlCommand struct {
+	Command any `parser:"@@"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
