@@ -39,7 +39,7 @@ import (
 )
 
 const kLogDirPattern = "%d.out"
-const kLogFilename = "container.log"
+const kLogFilename = "%d.%d.log"
 
 func logExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
@@ -75,7 +75,8 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 	task := reply.TaskInfoList[0]
 
-	logPath, err := buildLogPath(task, uint32(jobID))
+	// FIXME: Currently only support single-step container logs
+	logPath, err := buildLogPath(task, uint32(jobID), 1)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorBackend, "%v", err)
 	}
@@ -123,13 +124,13 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func buildLogPath(task *protos.TaskInfo, taskID uint32) (string, error) {
+func buildLogPath(task *protos.TaskInfo, jobId, stepId uint32) (string, error) {
 	if task.Cwd == "" {
 		return "", fmt.Errorf("task working directory not available")
 	}
 
-	logDir := fmt.Sprintf(kLogDirPattern, taskID)
-	logPath := filepath.Join(task.Cwd, logDir, kLogFilename)
+	logDir := fmt.Sprintf(kLogDirPattern, jobId)
+	logPath := filepath.Join(task.Cwd, logDir, fmt.Sprintf(kLogFilename, jobId, stepId))
 
 	return logPath, nil
 }
