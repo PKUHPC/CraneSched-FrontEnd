@@ -66,11 +66,8 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 	if err != nil {
 		return &protos.QueryTasksInfoReply{}, err
 	}
-	// Use a 10-second timeout for the RPC
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
-	reply, err := stub.QueryTasksInfo(ctx, req)
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query task queue")
 		return nil, &util.CraneError{Code: util.ErrorNetwork}
