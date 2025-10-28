@@ -186,13 +186,13 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 	var validInterfaces []NetworkInterface
 
 	for _, networkInterface := range req.NetworkInterfaces {
-		log.Infof("Checking interface: name=%s, MAC=%s, IPs=%v",
+		log.Debugf("Checking interface: name=%s, MAC=%s, IPs=%v",
 			networkInterface.Name,
 			networkInterface.MacAddress,
 			networkInterface.Ipv4Addresses)
 
 		if networkInterface.MacAddress == "" || len(networkInterface.Ipv4Addresses) == 0 {
-			log.Infof("Skipping interface %s: empty MAC or no IP addresses", networkInterface.Name)
+			log.Debugf("Skipping interface %s: empty MAC or no IP addresses", networkInterface.Name)
 			continue
 		}
 
@@ -202,20 +202,20 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 
 		// Skip loopback interfaces
 		if strings.HasPrefix(name, "lo") || ip == "127.0.0.1" {
-			log.Infof("Skipping loopback interface %s", name)
+			log.Debugf("Skipping loopback interface %s", name)
 			continue
 		}
 
 		// Skip virtual network interfaces
 		if strings.HasPrefix(name, "veth") || strings.HasPrefix(name, "virbr") ||
 			strings.HasPrefix(name, "docker") || strings.HasPrefix(name, "br-") {
-			log.Infof("Skipping virtual interface %s", name)
+			log.Debugf("Skipping virtual interface %s", name)
 			continue
 		}
 
 		// Skip Docker network
 		if strings.HasPrefix(ip, "172.17.") {
-			log.Infof("Skipping Docker network interface %s", name)
+			log.Debugf("Skipping Docker network interface %s", name)
 			continue
 		}
 
@@ -225,7 +225,7 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 			strings.HasPrefix(macUpper, "00:16:3E:") || // Xen
 			strings.HasPrefix(macUpper, "00:50:56:") || // VMware
 			strings.HasPrefix(macUpper, "00:0C:29:") { // VMware
-			log.Infof("Skipping virtual MAC address %s", mac)
+			log.Debugf("Skipping virtual MAC address %s", mac)
 			continue
 		}
 
@@ -234,7 +234,7 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 			IP:  ip,
 		})
 
-		log.Infof("Added valid interface for node %s: MAC=%s, IP=%s",
+		log.Debugf("Added valid interface for node %s: MAC=%s, IP=%s",
 			req.CranedId, mac, ip)
 	}
 
@@ -262,8 +262,8 @@ func (p PowerControlPlugin) StartHook(ctx *api.PluginContext) {
 
 	for _, task := range req.TaskInfoList {
 		taskID := strconv.FormatUint(uint64(task.TaskId), 10)
-		log.Infof("Start hook for task %v", taskID)
-		log.Infof("task.GetExecutionNode(): %v", task.GetExecutionNode())
+		log.Debugf("Start hook for task %v", taskID)
+		log.Debugf("task.GetExecutionNode(): %v", task.GetExecutionNode())
 		nodes := task.GetExecutionNode()
 
 		for _, node := range nodes {
@@ -280,8 +280,8 @@ func (p PowerControlPlugin) EndHook(ctx *api.PluginContext) {
 
 	for _, task := range req.TaskInfoList {
 		taskID := strconv.FormatUint(uint64(task.TaskId), 10)
-		log.Infof("End hook for task %v", taskID)
-		log.Infof("task.GetExecutionNode(): %v", task.GetExecutionNode())
+		log.Debugf("End hook for task %v", taskID)
+		log.Debugf("task.GetExecutionNode(): %v", task.GetExecutionNode())
 		nodes := task.GetExecutionNode()
 
 		for _, node := range nodes {
