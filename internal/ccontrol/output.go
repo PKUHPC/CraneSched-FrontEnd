@@ -731,7 +731,7 @@ func getReservationInfo(reservationName string) ([]*protos.ReservationInfo, erro
 	reply, err := stub.QueryReservationInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show reservations")
-		return nil, &util.CraneError{Code: util.ErrorNetwork}
+		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show reservations")
 	}
 	if !reply.GetOk() {
 		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve reservation info: %s", reply.GetReason()))
@@ -853,7 +853,7 @@ func getTaskInfo(jobIdList []uint32) ([]*protos.TaskInfo, error) {
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show jobs")
-		return nil, &util.CraneError{Code: util.ErrorNetwork}
+		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show jobs")
 	}
 
 	if !reply.GetOk() {
@@ -975,7 +975,7 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 	// end time
 	endTime := "unknown"
 	timeEnd := task.EndTime.AsTime()
-	if !timeEnd.Before(task.StartTime.AsTime()) && timeEnd.Second() < util.MaxJobTimeStamp {
+	if !timeEnd.Before(task.StartTime.AsTime()) && timeEnd.Unix() < util.MaxJobTimeStamp {
 		endTime = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
 	}
 	// time limit
