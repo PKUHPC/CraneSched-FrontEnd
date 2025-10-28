@@ -138,9 +138,6 @@ func validateConfig(config *Config) error {
 	if config.PowerControl.PowerControlLogFile == "" {
 		return fmt.Errorf("PowerControl.PowerControlLogFile cannot be empty")
 	}
-	if config.PowerControl.NodeStateChangeFile == "" {
-		return fmt.Errorf("PowerControl.NodeStateChangeFile cannot be empty")
-	}
 	if config.PowerControl.ClusterStateFile == "" {
 		return fmt.Errorf("PowerControl.ClusterStateFile cannot be empty")
 	}

@@ -59,14 +59,8 @@ func (i *IPMITool) RegisterNode(nodeID string, interfaces []NetworkInterface) er
 	info.Interfaces = interfaces
 	i.hostInfos[nodeID] = info
 
-	var interfaceDetails []string
-	for _, iface := range interfaces {
-		interfaceDetails = append(interfaceDetails,
-			fmt.Sprintf("(MAC: %s, IP: %s)", iface.MAC, iface.IP))
-	}
-
-	log.Infof("Node registered: %s (BMC: %s) with %d interfaces: %s",
-		nodeID, info.BMCHost, len(interfaces), strings.Join(interfaceDetails, ", "))
+	log.Infof("Node registered: %s (BMC: %s) with %d valid interfaces",
+		nodeID, info.BMCHost, len(interfaces))
 	return nil
 }
 

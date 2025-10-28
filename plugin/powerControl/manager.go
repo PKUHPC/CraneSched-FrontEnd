@@ -44,20 +44,6 @@ type PredictionRequest struct {
 }
 
 func NewPowerManager(config *Config) *PowerManager {
-	files := []string{
-		config.PowerControl.NodeStateChangeFile,
-		config.PowerControl.ClusterStateFile,
-	}
-	for _, file := range files {
-		if _, err := os.Stat(file); err == nil {
-			if err := os.Remove(file); err != nil {
-				log.Warnf("Failed to remove file %s: %v", file, err)
-			} else {
-				log.Infof("Removed existing file: %s", file)
-			}
-		}
-	}
-
 	manager := &PowerManager{
 		config:    config,
 		powerTool: NewIPMITool(config),
@@ -68,12 +54,19 @@ func NewPowerManager(config *Config) *PowerManager {
 
 	manager.startPowerStateMonitor()
 
+	// Log NodeStateChangeFile configuration status
+	if config.PowerControl.NodeStateChangeFile == "" {
+		log.Info("NodeStateChangeFile is not configured - node state change recording is disabled")
+	} else {
+		log.Infof("NodeStateChangeFile is configured - node state changes will be recorded to: %s", config.PowerControl.NodeStateChangeFile)
+	}
+
 	return manager
 }
 
 func (c *PowerManager) RegisterNode(nodeID string) {
 	if _, exists := c.nodesInfo.Load(nodeID); exists {
-		log.Warnf("Node %s already registered, skip registration", nodeID)
+		log.Debugf("Node %s already registered, skip registration", nodeID)
 		return
 	}
 
@@ -275,7 +268,12 @@ func (c *PowerManager) updateNodeState(nodeID string, newState NodeState) {
 
 	info := value.(*NodeInfo)
 	if info.State != newState {
-		log.Infof("Node %s state changed from %s to %s", nodeID, info.State, newState)
+		// Log at Debug level for routine Idle <-> Active transitions, Info for power state changes
+		if (info.State == Idle && newState == Active) || (info.State == Active && newState == Idle) {
+			log.Debugf("Node %s state changed from %s to %s", nodeID, info.State, newState)
+		} else {
+			log.Infof("Node %s state changed from %s to %s", nodeID, info.State, newState)
+		}
 		oldState := info.State
 		newInfo := &NodeInfo{
 			State:               newState,
@@ -350,7 +348,12 @@ func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState
 		if !reply.Ok {
 			log.Errorf("Failed to update node %s power state in CraneCtld", nodeID)
 		} else {
-			log.Infof("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
+			// Log at Debug level for routine Idle <-> Active transitions, Info for power state changes
+			if state == Idle || state == Active {
+				log.Debugf("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
+			} else {
+				log.Infof("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
+			}
 		}
 
 		return
@@ -485,6 +488,12 @@ func (c *PowerManager) makeDecision() ([]string, []string, []string, []string) {
 		len(nodesToSleep),
 		len(nodesToPowerOff),
 	)
+
+	// Log decision summary
+	log.Infof("Power decision: predicted=%d nodes, current: active=%d idle=%d sleep=%d off=%d | actions: wake=%d on=%d sleep=%d off=%d",
+		predictedActiveNodeCount,
+		len(activeNodes), len(idleNodes), len(sleepNodes), len(poweredOffNodes),
+		len(nodesToWake), len(nodesToPowerOn), len(nodesToSleep), len(nodesToPowerOff))
 
 	return nodesToWake, nodesToPowerOn, nodesToSleep, nodesToPowerOff
 }
@@ -636,9 +645,9 @@ func (c *PowerManager) getNodesForSleepOrPowerOff(
 		}
 		info := value.(*NodeInfo)
 
-		log.Infof("node %s last state change time: %s", node, info.LastStateChangeTime)
+		log.Debugf("node %s last state change time: %s", node, info.LastStateChangeTime)
 		sleepTime := currentTime.Sub(info.LastStateChangeTime)
-		log.Infof("node %s sleep time: %s", node, sleepTime)
+		log.Debugf("node %s sleep time: %s", node, sleepTime)
 
 		if sleepTime >= time.Duration(c.config.PowerControl.SleepTimeThresholdSeconds)*time.Second {
 			nodesToPowerOff = append(nodesToPowerOff, node)
@@ -880,6 +889,11 @@ func (c *PowerManager) recordClusterState(
 }
 
 func (c *PowerManager) recordStateChange(time time.Time, nodeID string, oldState, newState NodeState) {
+	// If NodeStateChangeFile is not configured, skip recording
+	if c.config.PowerControl.NodeStateChangeFile == "" {
+		return
+	}
+
 	dir := filepath.Dir(c.config.PowerControl.NodeStateChangeFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Errorf("Failed to create directory %s: %v", dir, err)
