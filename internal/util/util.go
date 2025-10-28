@@ -88,6 +88,7 @@ const (
 	DefaultCforedServerListenPort    = "10012"
 
 	DefaultWrappedJobName          = "Wrap"
+	MaxRepliedJobs                 = 1000 // See kDefaultQueryTaskNumLimit for details
 	MaxJobNameLength               = 60
 	MaxJobFileNameLength           = 127
 	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength
