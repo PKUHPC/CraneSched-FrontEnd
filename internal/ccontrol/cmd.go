@@ -61,13 +61,6 @@ var actionToExecute = map[string]func(command *CControlCommand) int{
 	"delete":  executeDeleteCommand,
 }
 
-var entityToExecut = map[string]func(command *CControlCommand) int{
-	"node":        executeShowNodeCommand,
-	"partition":   executeShowPartitionCommand,
-	"job":         executeShowJobCommand,
-	"reservation": executeShowReservationCommand,
-}
-
 func ParseCmdArgs(args []string) {
 	commandArgs := preParseGlobalFlags(args[1:])
 	if len(commandArgs) == 0 {
@@ -106,11 +99,17 @@ func executeCommand(command *CControlCommand) int {
 
 func executeShowCommand(command *CControlCommand) int {
 	entity := command.GetEntity()
-	Execute, exists := entityToExecut[entity]
-	if exists {
-		return Execute(command)
-	} else {
-		log.Debugf("unknown operation type: %s", entity)
+	switch entity {
+	case "node":
+		return executeShowNodeCommand(command)
+	case "partition":
+		return executeShowPartitionCommand(command)
+	case "job":
+		return executeShowJobCommand(command)
+	case "reservation":
+		return executeShowReservationCommand(command)
+	default:
+		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
 	}
 }
