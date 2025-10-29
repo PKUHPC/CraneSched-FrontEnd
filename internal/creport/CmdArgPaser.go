@@ -41,6 +41,8 @@ var (
 	FlagFilterJobIDs     string
 	FlagFilterPartitions string
 	FlagPrintJobCount    bool
+	FlagFilterNodesName string
+
 
 	RootCmd = &cobra.Command{
 		Use:     "creport",
@@ -137,7 +139,7 @@ var (
 		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified account",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSizeSummaryItem(CheckAccountCpusStatus)
+			return QueryJobSizeSummary(CheckAccountCpusStatus)
 		},
 	}
 	sizesByWckeyCmd = &cobra.Command{
@@ -145,7 +147,7 @@ var (
 		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified wckey",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSizeSummaryItem(CheckWckeyCpusStatus)
+			return QueryJobSizeSummary(CheckWckeyCpusStatus)
 		},
 	}
 	sizesByAccountAndWcKey = &cobra.Command{
@@ -153,7 +155,7 @@ var (
 		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified wckey and account",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSizeSummaryItem(CheckAccountWckeyCpusStatus)
+			return QueryJobSizeSummary(CheckAccountWckeyCpusStatus)
 		},
 	}
 )
@@ -280,6 +282,8 @@ func init() {
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByAccountCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
 				" The report will print number of jobs range instead of time used")
+			sizesByAccountCmd.Flags().StringVarP(&FlagFilterNodesName, "nodes", "n", "",
+				"Specify nodes name to view (comma separated list), default is all")
 		}
 		jobCmd.AddCommand(sizesByWckeyCmd)
 		{
@@ -297,6 +301,8 @@ func init() {
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByWckeyCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
 				" The report will print number of jobs range instead of time used")
+			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterNodesName, "nodes", "n", "",
+				"Specify nodes name to view (comma separated list), default is all")
 		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
 		{
@@ -314,6 +320,8 @@ func init() {
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByAccountAndWcKey.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
 				" The report will print number of jobs range instead of time used")
+			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterNodesName, "nodes", "n", "",
+				"Specify nodes name to view (comma separated list), default is all")
 		}
 	}
 

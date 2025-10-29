@@ -309,9 +309,9 @@ func QueryJobSummary(CheckType CheckStatus) error {
 	return nil
 }
 
-func QueryJobSizeSummaryItem(CheckType CheckStatus) error {
+func QueryJobSizeSummary(CheckType CheckStatus) error {
 
-	request := &protos.QueryJobSizeSummaryItemRequest{}
+	request := &protos.QueryJobSizeSummaryRequest{}
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
@@ -430,8 +430,19 @@ func QueryJobSizeSummaryItem(CheckType CheckStatus) error {
 		request.FilterPartitions = filterPartitionList
 	}
 
+	if FlagFilterNodesName != "" {
+		filterNodeNameList, ok := util.ParseHostList(FlagFilterNodesName)
+	if !ok {
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList),
+		}
+	}
+		request.FilterNodesname = filterNodeNameList
+	}
+
 	rpcStart := time.Now()
-	stream, err := stub.QueryJobSizeSummaryItem(context.Background(), request)
+	stream, err := stub.QueryJobSizeSummary(context.Background(), request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query JobSizeSummary info")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -453,9 +464,6 @@ func QueryJobSizeSummaryItem(CheckType CheckStatus) error {
 
 	rpcElapsed := time.Since(rpcStart)
 	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSumItemList size %v\n", rpcElapsed.Milliseconds(), len(JobSumItemList))
-	for _, item := range JobSumItemList {
-		fmt.Printf("%+v\n", item)
-	}
 	if CheckType == CheckAccountCpusStatus {
 		PrintAccountCpusList(JobSumItemList, start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
 	} else if CheckType == CheckWckeyCpusStatus {
