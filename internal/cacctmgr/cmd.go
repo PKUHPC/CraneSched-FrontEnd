@@ -85,6 +85,8 @@ var (
 	FlagMaxJob              string
 	FlagMaxTimeLimit        string
 	FlagPriority            string
+	FlagPreempt             string
+	FlagPreemptMode         string
 	FlagAdminLevel          string
 	FlagDescription         string
 )
@@ -296,6 +298,23 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			}
 			maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
 			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
+		case "preempt":
+			preemptList, err := util.ParseStringParamList(value, ",")
+			if err != nil {
+				log.Errorf("Invalid preempt list specified: %v", err)
+				return util.ErrorCmdArg
+			}
+			FlagQos.Preempt = preemptList
+		case "preemptmode":
+			switch strings.ToUpper(value) {
+			case "OFF":
+				FlagQos.PreemptMode = protos.PreemptMode_OFF
+			case "CANCEL":
+				FlagQos.PreemptMode = protos.PreemptMode_CANCEL
+			default:
+				log.Errorf("Invalid preempt mode: %s. Valid values: OFF, CANCEL", value)
+				return util.ErrorCmdArg
+			}
 		default:
 			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
@@ -737,6 +756,8 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	FlagMaxJob = ""
 	FlagMaxTimeLimit = ""
 	FlagPriority = ""
+	FlagPreempt = ""
+	FlagPreemptMode = ""
 	FlagDescription = ""
 
 	WhereParams := command.GetWhereParams()
@@ -793,6 +814,25 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 			}
 			FlagPriority = value
 			ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName)
+		case "preempt":
+			preemptList, err := util.ParseStringParamList(value, ",")
+			if err != nil {
+				log.Errorf("Invalid preempt list specified: %v", err)
+				return util.ErrorCmdArg
+			}
+			FlagPreempt = strings.Join(preemptList, ",")
+			ModifyQos(protos.ModifyField_Preempt, FlagPreempt, FlagEntityName)
+		case "preemptmode":
+			switch strings.ToUpper(value) {
+			case "NONE":
+				FlagPreemptMode = "NONE"
+			case "CANCEL":
+				FlagPreemptMode = "CANCEL"
+			default:
+				log.Errorf("Invalid preempt mode: %s. Valid values: NONE, CANCEL", value)
+				return util.ErrorCmdArg
+			}
+			ModifyQos(protos.ModifyField_ModifyPreemptMode, FlagPreemptMode, FlagEntityName)
 		case "description":
 			FlagDescription = value
 			ModifyQos(protos.ModifyField_Description, FlagDescription, FlagEntityName)

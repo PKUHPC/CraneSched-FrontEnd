@@ -192,7 +192,7 @@ func PrintQosList(qosList []*protos.QosInfo) {
 	// Table format control
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
-	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"})
+	table.SetHeader([]string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask", "Preempt", "PreemptMode"})
 	tableData := make([][]string, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -213,13 +213,29 @@ func PrintQosList(qosList []*protos.QosInfo) {
 		} else {
 			cpusPerUserStr = strconv.FormatUint(uint64(info.MaxCpusPerUser), 10)
 		}
+		preemptStr := "-"
+		if len(info.Preempt) > 0 {
+			preemptStr = strings.Join(info.Preempt, ", ")
+		}
+		preemptModeStr := "OFF"
+		switch info.PreemptMode {
+		case protos.PreemptMode_OFF:
+			preemptModeStr = "OFF"
+		case protos.PreemptMode_CANCEL:
+			preemptModeStr = "CANCEL"
+		default:
+			preemptModeStr = "OFF"
+		}
 		tableData = append(tableData, []string{
 			info.Name,
 			info.Description,
 			fmt.Sprint(info.Priority),
 			fmt.Sprint(jobsPerUserStr),
 			fmt.Sprint(cpusPerUserStr),
-			fmt.Sprint(timeLimitStr)})
+			fmt.Sprint(timeLimitStr),
+			preemptStr,
+			preemptModeStr,
+		})
 	}
 
 	if !FlagFull && FlagFormat == "" {
