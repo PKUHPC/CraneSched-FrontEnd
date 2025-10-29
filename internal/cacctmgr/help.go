@@ -119,8 +119,9 @@ func showHelp() {
       name 					    Name of the user to reset
       (if name is 'all', all users will be reset.)
   
-	add qos <name> [Description=<desc>] [Priority=<priority>] 
+	add qos <name> [Description=<desc>] [Priority=<priority>]
 		[MaxJobsPerUser=<num>] [MaxCpusPerUser=<num>] [MaxTimeLimitPerTask=<seconds>]
+		[Preempt=<qos1,qos2,...>] [PreemptMode=<mode>]
     Create a new QoS with the specified attributes.
     Parameter details:
       Description=<desc>         Description of the QoS
@@ -128,6 +129,8 @@ func showHelp() {
       MaxJobsPerUser=<num>       Maximum number of jobs per user
       MaxCpusPerUser=<num>       Maximum number of CPUs per user
       MaxTimeLimitPerTask=<seconds>  Maximum run time per task in seconds
+      Preempt=<qos1,qos2,...>    QoS names that this QoS can preempt (comma-separated)
+      PreemptMode=<mode>         Preemption mode (valid values: OFF, CANCEL; default: OFF)
       Name=<name1,name2,...>    List of QoS name for batch creation
   
 	delete qos <name> [Name=<name1,name2,...>]
@@ -171,6 +174,8 @@ func showHelp() {
       set MaxJobsPerUser=<num> Set max jobs per user
       set MaxTimeLimitPerTask=<sec>  Set max time per task (seconds)
       set Priority=<priority>        Set priority
+      set Preempt=<qos1,qos2,...>    Set preemptible QoS list (comma-separated)
+      set PreemptMode=<mode>         Set preemption mode (valid values: NONE, CANCEL)
 
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
