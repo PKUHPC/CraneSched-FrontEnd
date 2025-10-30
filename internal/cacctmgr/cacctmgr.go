@@ -790,10 +790,23 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 	if FlagForce {
 		log.Warning("--force flag is ignored for QoS modify operations")
 	}
+
+	var valueList []string
+	if modifyField == protos.ModifyField_Preempt {
+		var err error
+		valueList, err = util.ParseStringParamList(newValue, ",")
+		if err != nil {
+			log.Errorf("Invalid value list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	} else {
+		valueList = []string{newValue}
+	}
+
 	req := protos.ModifyQosRequest{
 		Uid:         userUid,
 		ModifyField: modifyField,
-		Value:       newValue,
+		ValueList:   valueList,
 		Name:        name,
 	}
 

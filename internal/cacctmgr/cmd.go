@@ -815,12 +815,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 			FlagPriority = value
 			ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName)
 		case "preempt":
-			preemptList, err := util.ParseStringParamList(value, ",")
-			if err != nil {
-				log.Errorf("Invalid preempt list specified: %v", err)
-				return util.ErrorCmdArg
-			}
-			FlagPreempt = strings.Join(preemptList, ",")
+			FlagPreempt = value
 			ModifyQos(protos.ModifyField_Preempt, FlagPreempt, FlagEntityName)
 		case "preemptmode":
 			switch strings.ToUpper(value) {
