@@ -51,7 +51,8 @@ var (
 
 	FlagReservation string
 
-	FlagHold bool
+	FlagHold  bool
+	FlagQuiet bool
 
 	RootCmd = &cobra.Command{
 		Use:     "calloc",
@@ -99,4 +100,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
+	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 }
