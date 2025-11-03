@@ -18,7 +18,6 @@
 
 package calloc
 
-import "C"
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
