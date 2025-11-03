@@ -399,7 +399,7 @@ func GrpcErrorPrintf(err error, format string, a ...any) {
 		default:
 			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
 		}
-	} 
+	}
 }
 
 func RefreshCertInterceptor(refreshCertificateFunc func() error, updateConnFunc func() (*grpc.ClientConn, error)) grpc.UnaryClientInterceptor {
