@@ -82,7 +82,8 @@ type ReplyReceiveItem struct {
 
 type StateMachineOfCrun struct {
 	task   *protos.TaskToCtld
-	taskId uint32 // This field will be set after ReqTaskId state
+	jobId  uint32 // This field will be set after ReqTaskId state
+	stepId uint32 // This field will be set after ReqTaskId state
 
 	inputFlag string // Crun --input flag, used to determine how to read input from stdin
 
@@ -252,8 +253,9 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 		payload := cforedReply.GetPayloadTaskIdReply()
 
 		if payload.Ok {
-			m.taskId = payload.TaskId
-			fmt.Printf("Task id allocated: %d, waiting resources.\n", m.taskId)
+			m.jobId = payload.JobId
+			m.stepId = payload.StepId
+			fmt.Printf("Task id allocated: %d, waiting resources.\n", m.jobId)
 			m.state = WaitRes
 		} else {
 			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
@@ -410,9 +412,8 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					Type: protos.StreamCrunRequest_TASK_IO_FORWARD,
 					Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
 						PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
-							TaskId: m.taskId,
-							Msg:    msg,
-							Eof:    msg == nil,
+							Msg: msg,
+							Eof: msg == nil,
 						},
 					},
 				}
@@ -428,8 +429,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
 					Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
 						PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
-							TaskId: m.taskId,
-							Msg:    msg,
+							Msg: msg,
 						},
 					},
 				}
@@ -453,7 +453,6 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
 					PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
-						TaskId: m.taskId,
 						Status: protos.TaskStatus_Completed,
 					},
 				},
@@ -475,7 +474,6 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
 					PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
-						TaskId: m.taskId,
 						Status: protos.TaskStatus_Cancelled,
 					},
 				},
@@ -533,7 +531,6 @@ func (m *StateMachineOfCrun) StateTaskKilling() {
 		Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
 		Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
 			PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
-				TaskId: m.taskId,
 				Status: protos.TaskStatus_Cancelled,
 			},
 		},
@@ -799,7 +796,7 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 		//jobid.stepid of the running job (e.g. "128.0")
 		//"%J": "111.0",
 		// job id
-		"%j": fmt.Sprintf("%d", m.taskId),
+		"%j": fmt.Sprintf("%d", m.jobId),
 		// step id
 		"%s": "0",
 		//short hostname
