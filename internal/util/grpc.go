@@ -387,14 +387,19 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 func GrpcErrorPrintf(err error, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	if rpcErr, ok := grpcstatus.FromError(err); ok {
-		if rpcErr.Code() == grpccodes.Unavailable {
+		switch rpcErr.Code() {
+		case grpccodes.Unavailable:
 			log.Errorf("%s: Connection to CraneCtld is broken.", s)
-		} else if rpcErr.Code() == grpccodes.Unauthenticated {
+		case grpccodes.Unauthenticated:
 			log.Errorf("%s: Access denied.", s)
-		} else {
+		case grpccodes.DeadlineExceeded: // 新增：处理超时错误
+			log.Errorf("%s: Request timeout, please try again or reduce the query scope.", s)
+		case grpccodes.ResourceExhausted: // 新增：处理资源耗尽/响应体过大
+			log.Errorf("%s: Response too large, please reduce the query scope.", s)
+		default:
 			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
 		}
-	}
+	} 
 }
 
 func RefreshCertInterceptor(refreshCertificateFunc func() error, updateConnFunc func() (*grpc.ClientConn, error)) grpc.UnaryClientInterceptor {

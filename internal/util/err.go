@@ -38,6 +38,8 @@ const (
 	ErrorBackend
 	ErrorInvalidFormat
 	ErrorSystem
+	ErrorTimeOut
+	ErrorResponseTooLarge
 )
 
 type CraneError struct {
