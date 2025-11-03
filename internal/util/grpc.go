@@ -392,9 +392,9 @@ func GrpcErrorPrintf(err error, format string, a ...any) {
 			log.Errorf("%s: Connection to CraneCtld is broken.", s)
 		case grpccodes.Unauthenticated:
 			log.Errorf("%s: Access denied.", s)
-		case grpccodes.DeadlineExceeded: // 新增：处理超时错误
+		case grpccodes.DeadlineExceeded: // timeout errors
 			log.Errorf("%s: Request timeout, please try again or reduce the query scope.", s)
-		case grpccodes.ResourceExhausted: // 新增：处理资源耗尽/响应体过大
+		case grpccodes.ResourceExhausted: // resource exhaustion/oversized responses
 			log.Errorf("%s: Response too large, please reduce the query scope.", s)
 		default:
 			log.Errorf("%s: gRPC error code %s.", s, rpcErr.String())
