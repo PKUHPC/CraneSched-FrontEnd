@@ -193,7 +193,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_IDENTITY_MISMATCH:       "User information does not match, unable to submit the task.",
 	protos.ErrCode_ERR_NOT_FORCE:               "You need to set --force for this operation.",
 	protos.ErrCode_ERR_INVALID_USERNAME:        "Invalid username",
-	protos.ErrCode_ERR_LICENSE_LEGAL_FAILED:   "License request format is illegal or invalid",
+	protos.ErrCode_ERR_LICENSE_LEGAL_FAILED:    "License request format is illegal or invalid",
 	protos.ErrCode_ERR_CRI_GENERIC:             "CRI runtime returns error. Check logs for details.",
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
