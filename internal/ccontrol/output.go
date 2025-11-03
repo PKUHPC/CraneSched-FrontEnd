@@ -616,6 +616,13 @@ type jobTimeInfo struct {
 	timeLimit  string
 }
 
+func GetElapsedTime(task *protos.TaskInfo) string {
+	if task.Status == protos.TaskStatus_Running && task.ElapsedTime != nil {
+		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
+	}
+	return "-"
+}
+
 func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 	// formatTime for submit and start
 	formatTime := func(t time.Time) string {
@@ -639,7 +646,9 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 	if task.TimeLimit.Seconds < util.MaxJobTimeLimit {
 		timeLimitStr = util.SecondTimeFormat(task.TimeLimit.Seconds)
 	}
-	runTimeStr := "unknown"
+	// runTime
+	runTimeStr := GetElapsedTime(task)
+
 	return jobTimeInfo{
 		submitTime: submitTime,
 		startTime:  startTime,
@@ -656,14 +665,14 @@ func printResourceRequests(task *protos.TaskInfo) {
 		task.ReqResView.AllocatableRes.CpuCoreLimit,
 		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes))
 	// ReqRes
-	fmt.Printf("\tReqRes=node=%d cpu=%.2f mem=%v gres=%s\n",
+	fmt.Printf("\tReqRes:node=%d cpu=%.2f mem=%v gres=%s\n",
 		task.NodeNum,
 		task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum),
 		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(task.NodeNum)),
 		formatDeviceMap(task.ReqResView.DeviceMap))
 	// AllocRes
 	if task.Status == protos.TaskStatus_Running {
-		fmt.Printf("\tAllocRes=node=%d cpu=%.2f mem=%v gres=%s\n",
+		fmt.Printf("\tAllocRes:node=%d cpu=%.2f mem=%v gres=%s\n",
 			task.NodeNum,
 			task.AllocatedResView.AllocatableRes.CpuCoreLimit,
 			util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes),
