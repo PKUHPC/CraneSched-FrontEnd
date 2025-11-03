@@ -18,8 +18,6 @@
 
 package crun
 
-import "C"
-
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
