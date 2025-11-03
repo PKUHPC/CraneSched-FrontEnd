@@ -210,7 +210,7 @@ func QueryJobSummary(CheckType CheckStatus) error {
 				Message: fmt.Sprintf("Invalid qos list specified: %s.", err),
 			}
 		}
-		request.FilterUsers = FlagFilterQosList
+		request.FilterQoss = FlagFilterQosList
 	}
 
 	if FlagFilterGids != "" {
@@ -342,7 +342,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 				Message: fmt.Sprintf("Invalid qos list specified: %s.", err),
 			}
 		}
-		request.FilterUsers = FlagFilterQosList
+		request.FilterQoss = FlagFilterQosList
 	}
 
 	if FlagFilterGids != "" {
@@ -432,12 +432,12 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 
 	if FlagFilterNodesName != "" {
 		filterNodeNameList, ok := util.ParseHostList(FlagFilterNodesName)
-	if !ok {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList),
+		if !ok {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList),
+			}
 		}
-	}
 		request.FilterNodesname = filterNodeNameList
 	}
 
