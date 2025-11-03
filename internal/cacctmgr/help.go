@@ -38,9 +38,10 @@ func showHelp() {
 	reset     - Reset user certificate
   
   ENTITIES:
-	account   - User account in the system
-	user      - Individual user
-	qos       - Quality of Service settings
+	account     - User account in the system
+	user        - Individual user
+	qos         - Quality of Service settings
+    transaction - Log of account-related operations
   
   COMMANDS:
 	add account <name> [Description=<desc>] [Parent=<parent>] [DefaultQos=<qos>] 
@@ -140,6 +141,16 @@ func showHelp() {
     Parameter details:
       Name=<name1,name2,...>    Show only these QoS (comma-separated)
       (If not specified, all QoS will be displayed)
+
+    show transaction [Actor=<actor>] [Target=<target>] [Action=<action>] [Info=<info>] [StartTime=<start_time>]
+    Display transaction log records.
+    Parameter details:
+      Actor=<actor>           Filter by actor (who performed the action)
+      Target=<target>         Filter by target (object of the action)
+      Action=<action>         Filter by action type (e.g. adduser, deleteaccount)
+      Info=<info>             Filter by additional info (fuzzy query)
+      StartTime=<start_time>  Filter by start time (format: ~YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS~)
+      (If not specified, all transactions will be displayed, limit 1000)
 
   modify <entity> where [OPTIONS] set [OPTIONS]
     Modify attributes of an existing account, user, or QoS.
