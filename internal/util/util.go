@@ -75,9 +75,10 @@ type ConfigNodesList struct {
 
 // Path = BaseDir + Dir + Name
 const (
-	DefaultConfigPath   = "/etc/crane/config.yaml"
-	DefaultCraneBaseDir = "/var/crane/"
-	DefaultCforedLogDir = "cfored/"
+	DefaultConfigPath       = "/etc/crane/config.yaml"
+	DefaultPluginConfigPath = "/etc/crane/plugin.yaml"
+	DefaultCraneBaseDir     = "/var/crane/"
+	DefaultCforedLogDir     = "cfored/"
 
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
