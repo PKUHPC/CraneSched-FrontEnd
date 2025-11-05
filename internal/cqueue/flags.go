@@ -144,6 +144,20 @@ func (p *TaskTypesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task type list specified: %s.", err))
 	}
 	req.FilterTaskTypes = filterTaskTypeList
+}
+
+// FlagFilterNodesName
+type NodesNameProcessor struct{}
+
+func (p *NodesNameProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+	if FlagFilterNodesName == "" {
+		return nil
+	}
+	filterNodeNameList, ok := util.ParseHostList(FlagFilterNodesName)
+	if !ok {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList))
+	}
+	req.FilterNodesName = filterNodeNameList
 	return nil
 }
 

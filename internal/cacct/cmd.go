@@ -38,6 +38,7 @@ var (
 	FlagFilterPartitions string
 	FlagFilterQos        string
 	FlagFilterTaskTypes  string
+	FlagFilterNodesName  string
 	FlagNumLimit         uint32
 	FlagNoHeader         bool
 	FlagFull             bool
@@ -160,4 +161,6 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", util.MaxRepliedJobs,
 		"Limit the number of lines in the output, 0 means no limit") // See kDefaultQueryTaskNumLimit
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	RootCmd.Flags().StringVarP(&FlagFilterNodesName, "nodelist", "w", "",
+		"Specify nodesname to view (comma separated list), default is all")
 }
