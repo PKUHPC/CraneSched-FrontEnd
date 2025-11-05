@@ -31,6 +31,7 @@ const (
 
 	UpdatePowerStateHook
 	RegisterCranedHook
+	UpdateLicensesHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -91,6 +92,7 @@ type PowerManagementHooks interface {
 // CranedLifecycleHooks handles craned daemon lifecycle events
 type CranedLifecycleHooks interface {
 	RegisterCranedHook(ctx *PluginContext)
+	UpdateLicensesHook(ctx *PluginContext)
 }
 
 // GrpcServiceRegistrar allows a plugin to register its own gRPC services

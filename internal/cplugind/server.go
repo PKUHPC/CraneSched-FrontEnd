@@ -197,3 +197,17 @@ func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.Regi
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) UpdateLicensesHook(ctx context.Context, req *protos.UpdateLicensesHookRequest) (*protos.UpdateLicensesHookReply, error) {
+	log.Tracef("UpdateLicensesHook request received")
+	reply := &protos.UpdateLicensesHookReply{}
+	hs := make([]api.PluginHandler, 0)
+	for _, p := range gPluginMap {
+		hs = append(hs, (*p).UpdateLicensesHook)
+	}
+
+	c := api.NewContext(ctx, req, api.UpdateLicensesHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
