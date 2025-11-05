@@ -296,6 +296,8 @@ func (p PowerControlPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
 
 func (p PowerControlPlugin) NodeEventHook(ctx *api.PluginContext) {}
 
+func (p PowerControlPlugin) UpdateLicensesHook(ctx *api.PluginContext) {}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")

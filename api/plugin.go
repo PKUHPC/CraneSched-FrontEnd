@@ -31,6 +31,7 @@ const (
 
 	UpdatePowerStateHook
 	RegisterCranedHook
+	UpdateLicensesHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -70,6 +71,7 @@ type Plugin interface {
 
 	UpdatePowerStateHook(ctx *PluginContext)
 	RegisterCranedHook(ctx *PluginContext)
+	UpdateLicensesHook(ctx *PluginContext)
 }
 
 // GrpcServiceRegistrar allows a plugin to register its own gRPC services

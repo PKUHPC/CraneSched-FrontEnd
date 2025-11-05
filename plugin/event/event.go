@@ -98,6 +98,8 @@ func (p *EventPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
 func (p *EventPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
+func (p *EventPlugin) UpdateLicensesHook(ctx *api.PluginContext) {}
+
 func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
 	if !ok {

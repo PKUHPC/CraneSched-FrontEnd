@@ -234,6 +234,8 @@ func (p EnergyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
 func (p EnergyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
+func (p EnergyPlugin) UpdateLicensesHook(ctx *api.PluginContext) {}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")

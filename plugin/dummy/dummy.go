@@ -118,6 +118,8 @@ func (dp DummyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
 
 func (dp DummyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
+func (dp DummyPlugin) UpdateLicensesHook(ctx *api.PluginContext) {}
+
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +
 		"Please build it as a shared object (.so) and load it with the plugin daemon.")
