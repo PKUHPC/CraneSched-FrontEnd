@@ -470,18 +470,18 @@ func ShowReservations(reservationName string, queryAll bool) error {
 	if err != nil {
 		return err
 	}
-	if len(reply.ReservationInfoList) == 0 {
-		return handleEmptyReservationResult(reservationName, queryAll)
-	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		return nil
+	}
+	if len(reply.ReservationInfoList) == 0 {
+		return handleEmptyReservationResult(reservationName, queryAll)
 	}
 	return outputReservations(reply.ReservationInfoList)
 }
 
 // show Jobs
-func parseJobIdsReply(jobIds string, queryAll bool) ([]uint32, error) {
+func parseJobIds(jobIds string, queryAll bool) ([]uint32, error) {
 	if queryAll {
 		return nil, nil
 	}
@@ -492,7 +492,7 @@ func parseJobIdsReply(jobIds string, queryAll bool) ([]uint32, error) {
 	return jobIdList, nil
 }
 
-func getTaskInfo(jobIdList []uint32) (*protos.QueryTasksInfoReply, error) {
+func getTaskInfoReply(jobIdList []uint32) (*protos.QueryTasksInfoReply, error) {
 	req := &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
@@ -704,11 +704,11 @@ func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) error {
 	return nil
 }
 func ShowJobs(jobIds string, queryAll bool) error {
-	jobIdList, err := parseJobIdsReply(jobIds, queryAll)
+	jobIdList, err := parseJobIds(jobIds, queryAll)
 	if err != nil {
 		return err
 	}
-	reply, err := getTaskInfo(jobIdList)
+	reply, err := getTaskInfoReply(jobIdList)
 	if err != nil {
 		return err
 	}
