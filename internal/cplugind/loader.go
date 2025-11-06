@@ -48,14 +48,10 @@ func ParsePluginConfig(basedir string, path string) error {
 		return err
 	}
 
-	temp := struct {
-		Plugin util.PluginConfig `yaml:"Plugin"`
-	}{}
-	if err = yaml.Unmarshal(config, &temp); err != nil {
+	// Parse plugin config directly from standalone plugin.yaml file
+	if err = yaml.Unmarshal(config, &gPluginConfig); err != nil {
 		return err
 	}
-
-	gPluginConfig = temp.Plugin
 	if gPluginConfig.LogLevel == "" {
 		gPluginConfig.LogLevel = "info"
 	}

@@ -32,8 +32,9 @@ import (
 )
 
 var (
-	FlagCraneConfig string
-	FlagDebugLevel  string
+	FlagCraneConfig  string
+	FlagPluginConfig string
+	FlagDebugLevel   string
 )
 
 var RootCmd = &cobra.Command{
@@ -54,11 +55,11 @@ var RootCmd = &cobra.Command{
 			}
 		}
 
-		// Parse plugin part in the config
-		if err := ParsePluginConfig(config.CraneBaseDir, FlagCraneConfig); err != nil {
+		// Parse plugin configuration from separate plugin.yaml file
+		if err := ParsePluginConfig(config.CraneBaseDir, FlagPluginConfig); err != nil {
 			return &util.CraneError{
 				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the plugin part in config: %s", err),
+				Message: fmt.Sprintf("Failed to parse plugin config from %s: %s", FlagPluginConfig, err),
 			}
 		}
 
@@ -189,6 +190,7 @@ var RootCmd = &cobra.Command{
 func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.Flags().StringVarP(&FlagCraneConfig, "config", "c", util.DefaultConfigPath, "Path to config file")
+	RootCmd.Flags().StringVarP(&FlagPluginConfig, "plugin-config", "p", util.DefaultPluginConfigPath, "Path to plugin config file")
 	RootCmd.Flags().StringVarP(&FlagDebugLevel, "debug-level", "", "", "Available debug level (trace, debug, info)")
 }
 
