@@ -371,7 +371,6 @@ func ShowPartitions(partitionName string, queryAll bool) error {
 	return outputPartitions(reply.PartitionInfoList)
 }
 
-
 // show Reservation
 func getReservationInfoReply(reservationName string) (*protos.QueryReservationInfoReply, error) {
 	req := &protos.QueryReservationInfoRequest{
