@@ -146,18 +146,18 @@ func (p *TaskTypesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	req.FilterTaskTypes = filterTaskTypeList
 }
 
-// FlagFilterNodesName
-type NodesNameProcessor struct{}
+// FlagFilterNodenames
+type NodenamesProcessor struct{}
 
-func (p *NodesNameProcessor) Process(req *protos.QueryTasksInfoRequest) error {
-	if FlagFilterNodesName == "" {
+func (p *NodenamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+	if FlagFilterNodenames == "" {
 		return nil
 	}
-	filterNodeNameList, ok := util.ParseHostList(FlagFilterNodesName)
+	filterNodenameList, ok := util.ParseHostList(FlagFilterNodenames)
 	if !ok {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodenames))
 	}
-	req.FilterNodenameList = filterNodeNameList
+	req.FilterNodenameList = filterNodenameList
 	return nil
 }
 

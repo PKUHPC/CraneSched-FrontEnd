@@ -40,7 +40,7 @@ var (
 	FlagFilterTaskTypes  string
 	FlagFilterLicenses   string
 	FlagFormat           string
-	FlagFilterNodesName  string
+	FlagFilterNodenames  string
 	FlagIterate          uint64
 	FlagNumLimit         uint32
 	FlagJson             bool
@@ -158,7 +158,7 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 		"Limit the number of lines in the output, 0 means no limit")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
-	RootCmd.Flags().StringVarP(&FlagFilterNodesName, "nodelist", "w", "",
+	RootCmd.Flags().StringVarP(&FlagFilterNodenames, "nodelist", "w", "",
 		"Specify nodesname to view (comma separated list), default is all")
 
 }
