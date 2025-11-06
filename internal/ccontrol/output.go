@@ -874,13 +874,6 @@ func handleEmptyJobResult(jobIdList []uint32, queryAll bool) error {
 	return nil
 }
 
-func outputJobJson(tasks []*protos.TaskInfo) error {
-	fmt.Println(util.FmtJson.FormatReply(&protos.QueryTasksInfoReply{
-		TaskInfoList: tasks,
-	}))
-	return nil
-}
-
 func outputJobs(tasks []*protos.TaskInfo, requestedIds []uint32) error {
 	// Track if any job requested is not returned
 	printed := make(map[uint32]bool)
