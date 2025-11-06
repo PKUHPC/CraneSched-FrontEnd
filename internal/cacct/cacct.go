@@ -142,7 +142,7 @@ func QueryJob() error {
 				Message: fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList),
 			}
 		}
-		request.FilterNodesName = filterNodeNameList
+		request.FilterNodenameList = filterNodeNameList
 	}
 
 	if FlagNumLimit != 0 {

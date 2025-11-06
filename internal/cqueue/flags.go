@@ -157,7 +157,7 @@ func (p *NodesNameProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	if !ok {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList))
 	}
-	req.FilterNodesName = filterNodeNameList
+	req.FilterNodenameList = filterNodeNameList
 	return nil
 }
 
