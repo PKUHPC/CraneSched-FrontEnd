@@ -1238,7 +1238,6 @@ func FormatMemToMB(data uint64) string {
 	}
 }
 
-
 var TxnActionMap = map[string]protos.TxnAction{
 	"addaccount":    protos.TxnAction_AddAccount,
 	"modifyaccount": protos.TxnAction_ModifyAccount,

@@ -58,6 +58,11 @@ const (
 	StatusFailed
 )
 
+type CpuLevelSummary struct {
+	CpuTime  []float64
+	JobCount []int64
+}
+
 func GetDefaultStartTime() string {
 	now := time.Now()
 	yesterday := now.AddDate(0, 0, -1)
@@ -157,7 +162,7 @@ func QueryUsersTopSummaryItem() error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	var JobSummaryItemList  []*protos.JobSummaryItem
+	var JobSummaryItemList []*protos.JobSummaryItem
 
 	for {
 		batch, err := stream.Recv()
@@ -168,12 +173,12 @@ func QueryUsersTopSummaryItem() error {
 			util.GrpcErrorPrintf(err, "Failed to receive item")
 			return &util.CraneError{Code: util.ErrorNetwork}
 		}
-		JobSummaryItemList  = append(JobSummaryItemList , batch.ItemList...)
+		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
 	rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList ))
+	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList))
 
-	PrintUsersTopSumList(JobSummaryItemList , start_time, end_time)
+	PrintUsersTopSumList(JobSummaryItemList, start_time, end_time)
 
 	return nil
 }
@@ -272,7 +277,7 @@ func QueryJobSummary(CheckType CheckStatus) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	var JobSummaryItemList  []*protos.JobSummaryItem
+	var JobSummaryItemList []*protos.JobSummaryItem
 
 	for {
 		batch, err := stream.Recv()
@@ -283,25 +288,25 @@ func QueryJobSummary(CheckType CheckStatus) error {
 			util.GrpcErrorPrintf(err, "Failed to receive item")
 			return &util.CraneError{Code: util.ErrorNetwork}
 		}
-		JobSummaryItemList  = append(JobSummaryItemList , batch.ItemList...)
+		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
 
 	rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList ))
+	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList))
 
 	switch CheckType {
 	case CheckAccountUserStatus:
-		PrintAccountUserList(JobSummaryItemList , start_time, end_time)
+		PrintAccountUserList(JobSummaryItemList, start_time, end_time)
 	case CheckUserAccountStatus:
-		PrintUserAccountList(JobSummaryItemList , start_time, end_time)
+		PrintUserAccountList(JobSummaryItemList, start_time, end_time)
 	case CheckClusterStatus:
-		PrintClusterList(JobSummaryItemList , start_time, end_time)
+		PrintClusterList(JobSummaryItemList, start_time, end_time)
 	case CheckAccountQosStatus:
-		PrintAccountQosList(JobSummaryItemList , start_time, end_time)
+		PrintAccountQosList(JobSummaryItemList, start_time, end_time)
 	case CheckUserWckeyStatus:
-		PrintUserWckeyList(JobSummaryItemList , start_time, end_time)
+		PrintUserWckeyList(JobSummaryItemList, start_time, end_time)
 	case CheckWckeyUserStatus:
-		PrintWckeyUserList(JobSummaryItemList , start_time, end_time)
+		PrintWckeyUserList(JobSummaryItemList, start_time, end_time)
 	default:
 		return fmt.Errorf("unsupported cmd")
 	}
@@ -430,15 +435,15 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 		request.FilterPartitions = filterPartitionList
 	}
 
-	if FlagFilterNodesName != "" {
-		filterNodeNameList, ok := util.ParseHostList(FlagFilterNodesName)
+	if FlagFilterNodenames != "" {
+		filterNodenameList, ok := util.ParseHostList(FlagFilterNodenames)
 		if !ok {
 			return &util.CraneError{
 				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid node pattern: %s.", filterNodeNameList),
+				Message: fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodenames),
 			}
 		}
-		request.FilterNodesname = filterNodeNameList
+		request.FilterNodenameList = filterNodenameList
 	}
 
 	rpcStart := time.Now()
@@ -448,7 +453,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
-	var JobSummaryItemList  []*protos.JobSizeSummaryItem
+	var JobSummaryItemList []*protos.JobSizeSummaryItem
 
 	for {
 		batch, err := stream.Recv()
@@ -459,25 +464,25 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 			util.GrpcErrorPrintf(err, "Failed to receive item")
 			return &util.CraneError{Code: util.ErrorNetwork}
 		}
-		JobSummaryItemList  = append(JobSummaryItemList , batch.ItemList...)
+		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
 
 	rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList ))
+	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList))
 	if CheckType == CheckAccountCpusStatus {
-		PrintAccountCpusList(JobSummaryItemList , start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
+		PrintAccountCpusList(JobSummaryItemList, start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
 	} else if CheckType == CheckWckeyCpusStatus {
-		PrintWckeyCpusList(JobSummaryItemList , start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
+		PrintWckeyCpusList(JobSummaryItemList, start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
 	} else if CheckType == CheckAccountWckeyCpusStatus {
-		PrintAccountWckeyCpusList(JobSummaryItemList , start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
+		PrintAccountWckeyCpusList(JobSummaryItemList, start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
 	}
 
 	return nil
 }
 
-func PrintUsersTopSumList(JobSummaryItemList  []*protos.JobSummaryItem, startTime, endTime time.Time) {
-	sort.Slice(JobSummaryItemList , func(i, j int) bool {
-		return JobSummaryItemList [i].TotalCpuTime > JobSummaryItemList [j].TotalCpuTime
+func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
+	sort.Slice(JobSummaryItemList, func(i, j int) bool {
+		return JobSummaryItemList[i].TotalCpuTime > JobSummaryItemList[j].TotalCpuTime
 	})
 
 	countMax := FlagTopCount
@@ -492,10 +497,10 @@ func PrintUsersTopSumList(JobSummaryItemList  []*protos.JobSummaryItem, startTim
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList ))
+	tableData := make([][]string, len(JobSummaryItemList))
 
 	var notFoundUsers []string
-	for count, item := range JobSummaryItemList  {
+	for count, item := range JobSummaryItemList {
 		// usr, err := user.Lookup(item.Username)
 		// if err != nil {
 		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
@@ -521,15 +526,15 @@ func PrintUsersTopSumList(JobSummaryItemList  []*protos.JobSummaryItem, startTim
 	}
 }
 
-func PrintAccountUserList(JobSummaryItemList  []*protos.JobSummaryItem, startTime, endTime time.Time) {
-	sort.Slice(JobSummaryItemList , func(i, j int) bool {
-		if JobSummaryItemList [i].Account < JobSummaryItemList [j].Account {
+func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
+	sort.Slice(JobSummaryItemList, func(i, j int) bool {
+		if JobSummaryItemList[i].Account < JobSummaryItemList[j].Account {
 			return true
 		}
-		if JobSummaryItemList [i].Account > JobSummaryItemList [j].Account {
+		if JobSummaryItemList[i].Account > JobSummaryItemList[j].Account {
 			return false
 		}
-		return JobSummaryItemList [i].Username < JobSummaryItemList [j].Username
+		return JobSummaryItemList[i].Username < JobSummaryItemList[j].Username
 	})
 
 	totalSecs := int64(endTime.Sub(startTime).Seconds())
@@ -544,10 +549,10 @@ func PrintAccountUserList(JobSummaryItemList  []*protos.JobSummaryItem, startTim
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList ))
+	tableData := make([][]string, len(JobSummaryItemList))
 
 	var notFoundUsers []string
-	for _, item := range JobSummaryItemList  {
+	for _, item := range JobSummaryItemList {
 		// usr, err := user.Lookup(item.Username)
 		// if err != nil {
 		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
@@ -570,15 +575,15 @@ func PrintAccountUserList(JobSummaryItemList  []*protos.JobSummaryItem, startTim
 	}
 }
 
-func PrintUserAccountList(JobSummaryItemList  []*protos.JobSummaryItem, startTime, endTime time.Time) {
-	sort.Slice(JobSummaryItemList , func(i, j int) bool {
-		if JobSummaryItemList [i].Username < JobSummaryItemList [j].Username {
+func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
+	sort.Slice(JobSummaryItemList, func(i, j int) bool {
+		if JobSummaryItemList[i].Username < JobSummaryItemList[j].Username {
 			return true
 		}
-		if JobSummaryItemList [i].Username > JobSummaryItemList [j].Username {
+		if JobSummaryItemList[i].Username > JobSummaryItemList[j].Username {
 			return false
 		}
-		return JobSummaryItemList [i].Account < JobSummaryItemList [j].Account
+		return JobSummaryItemList[i].Account < JobSummaryItemList[j].Account
 	})
 
 	totalSecs := int64(endTime.Sub(startTime).Seconds())
@@ -593,10 +598,10 @@ func PrintUserAccountList(JobSummaryItemList  []*protos.JobSummaryItem, startTim
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList ))
+	tableData := make([][]string, len(JobSummaryItemList))
 
 	var notFoundUsers []string
-	for _, item := range JobSummaryItemList  {
+	for _, item := range JobSummaryItemList {
 		// usr, err := user.Lookup(item.Username)
 		// if err != nil {
 		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
@@ -703,15 +708,15 @@ func PrintWckeyUserList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 	}
 }
 
-func PrintAccountQosList(JobSummaryItemList  []*protos.JobSummaryItem, startTime, endTime time.Time) {
-	sort.Slice(JobSummaryItemList , func(i, j int) bool {
-		if JobSummaryItemList [i].Account < JobSummaryItemList [j].Account {
+func PrintAccountQosList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
+	sort.Slice(JobSummaryItemList, func(i, j int) bool {
+		if JobSummaryItemList[i].Account < JobSummaryItemList[j].Account {
 			return true
 		}
-		if JobSummaryItemList [i].Account > JobSummaryItemList [j].Account {
+		if JobSummaryItemList[i].Account > JobSummaryItemList[j].Account {
 			return false
 		}
-		return JobSummaryItemList [i].Qos < JobSummaryItemList [j].Qos
+		return JobSummaryItemList[i].Qos < JobSummaryItemList[j].Qos
 	})
 
 	totalSecs := int64(endTime.Sub(startTime).Seconds())
@@ -726,9 +731,9 @@ func PrintAccountQosList(JobSummaryItemList  []*protos.JobSummaryItem, startTime
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList ))
+	tableData := make([][]string, len(JobSummaryItemList))
 
-	for _, item := range JobSummaryItemList  {
+	for _, item := range JobSummaryItemList {
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Account,
@@ -741,9 +746,9 @@ func PrintAccountQosList(JobSummaryItemList  []*protos.JobSummaryItem, startTime
 	table.Render()
 }
 
-func PrintClusterList(JobSummaryItemList  []*protos.JobSummaryItem, startTime, endTime time.Time) {
+func PrintClusterList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
 	clusterMap := make(map[string]float64)
-	for _, item := range JobSummaryItemList  {
+	for _, item := range JobSummaryItemList {
 		clusterMap[item.Cluster] += item.TotalCpuTime
 	}
 
@@ -759,7 +764,7 @@ func PrintClusterList(JobSummaryItemList  []*protos.JobSummaryItem, startTime, e
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList ))
+	tableData := make([][]string, len(JobSummaryItemList))
 	for cluster, TotalCpuTime := range clusterMap {
 		tableData = append(tableData, []string{
 			cluster,
@@ -798,11 +803,6 @@ func FindCpuGroupIndex(cpuAlloc uint32, groupList []uint32) int {
 	return len(groupList) - 1
 }
 
-type CpuLevelSummary struct {
-	CpuTime  []float64
-	JobCount []int64
-}
-
 func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, startTime, endTime time.Time, groupList []uint32, isPrintCount bool) {
 	clusterAccountMap := make(map[string]map[string]*CpuLevelSummary)
 	clusterTotal := make(map[string]float64) // float64 for cpu, int64 for count
@@ -817,8 +817,8 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 			cpuAllocSet[item.CpuAlloc] = struct{}{}
 		}
 		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
-		for k := range cpuAllocSet {
-			actualGroupList = append(actualGroupList, k)
+		for cpus := range cpuAllocSet {
+			actualGroupList = append(actualGroupList, cpus)
 		}
 		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
 		// Build a mapping for fast group lookup
@@ -949,8 +949,8 @@ func PrintWckeyCpusList(
 			cpuAllocSet[item.CpuAlloc] = struct{}{}
 		}
 		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
-		for k := range cpuAllocSet {
-			actualGroupList = append(actualGroupList, k)
+		for cpus := range cpuAllocSet {
+			actualGroupList = append(actualGroupList, cpus)
 		}
 		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
 		// Build a mapping for fast group lookup
@@ -1080,8 +1080,8 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 			cpuAllocSet[item.CpuAlloc] = struct{}{}
 		}
 		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
-		for k := range cpuAllocSet {
-			actualGroupList = append(actualGroupList, k)
+		for cpus := range cpuAllocSet {
+			actualGroupList = append(actualGroupList, cpus)
 		}
 		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
 		// Build a mapping for fast group lookup

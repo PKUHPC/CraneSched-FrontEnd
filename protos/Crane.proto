@@ -996,7 +996,7 @@ message QueryJobSizeSummaryRequest {
   google.protobuf.Timestamp filter_end_time = 7;
   repeated uint32 filter_job_ids = 8;
   repeated string filter_partitions = 9;
-  repeated string filter_nodesname = 10;
+  repeated string filter_nodename_list = 10;
 }
 
 message QueryJobSizeSummaryReply {
