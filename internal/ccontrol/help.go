@@ -85,6 +85,12 @@ COMMANDS:
   release <jobid>
     Release a previously held job.
 
+  suspend <jobid>
+    Suspend specified running job(s) to free their allocated resources while keeping progress.
+
+  resume <jobid>
+    Resume previously suspended job(s).
+
   create reservation <name> [startTime=<time>] [duration=<duration>] [partition=<partition>]
                     [nodes=<nodelist>] [account=<account>] [user=<username>]
     Create a new reservation.

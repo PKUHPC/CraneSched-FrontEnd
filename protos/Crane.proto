@@ -230,6 +230,8 @@ message ModifyTaskRequest {
     TimeLimit = 0;
     Priority = 1;
     Hold = 2;
+    Suspend = 3;
+    Resume = 4;
   }
 
   uint32 uid = 1;
