@@ -142,14 +142,14 @@ func formatDeniedAccounts(deniedAccounts []string) string {
 	return strings.Join(deniedAccounts, ",")
 }
 
-func getCranedNodes(nodeName string) ([]*protos.CranedInfo, error) {
+func getCranedNodesReply(nodeName string) (*protos.QueryCranedInfoReply, error) {
 	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show nodes")
 		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show nodes")
 	}
-	return reply.CranedInfoList, nil
+	return reply, nil
 }
 func handleNodesEmptyResult(nodeName string, queryAll bool) error {
 	if queryAll {
@@ -260,31 +260,29 @@ func formatGresInfo(node *protos.CranedInfo) string {
 }
 
 func ShowNodes(nodeName string, queryAll bool) error {
-	nodes, err := getCranedNodes(nodeName)
+	reply, err := getCranedNodesReply(nodeName)
 	if err != nil {
 		return err
 	}
-	if len(nodes) == 0 {
-		return handleNodesEmptyResult(nodeName, queryAll)
-	}
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(&protos.QueryCranedInfoReply{
-			CranedInfoList: nodes,
-		}))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		return nil
 	}
-	return outputNodes(nodes)
+	if len(reply.CranedInfoList) == 0 {
+		return handleNodesEmptyResult(nodeName, queryAll)
+	}
+	return outputNodes(reply.CranedInfoList)
 }
 
 // show Partitions
-func getPartitionInfo(partitionName string) ([]*protos.PartitionInfo, error) {
+func getPartitionInfoReply(partitionName string) (*protos.QueryPartitionInfoReply, error) {
 	req := &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show partitions")
 		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show partitions")
 	}
-	return reply.PartitionInfoList, nil
+	return reply, nil
 }
 func handleEmptyPartitionResult(partitionName string, queryAll bool) error {
 	if queryAll {
@@ -294,12 +292,6 @@ func handleEmptyPartitionResult(partitionName string, queryAll bool) error {
 	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Partition %s not found.", partitionName))
 }
 
-func outputPartitionJson(partitions []*protos.PartitionInfo) error {
-	fmt.Println(util.FmtJson.FormatReply(&protos.QueryPartitionInfoReply{
-		PartitionInfoList: partitions,
-	}))
-	return nil
-}
 func outputPartitions(partitions []*protos.PartitionInfo) error {
 	for _, partition := range partitions {
 		if err := printPartitionDetails(partition); err != nil {
@@ -365,21 +357,22 @@ func formatGresResources(partition *protos.PartitionInfo) string {
 }
 
 func ShowPartitions(partitionName string, queryAll bool) error {
-	partitions, err := getPartitionInfo(partitionName)
+	reply, err := getPartitionInfoReply(partitionName)
 	if err != nil {
 		return err
 	}
-	if len(partitions) == 0 {
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+	if len(reply.PartitionInfoList) == 0 {
 		return handleEmptyPartitionResult(partitionName, queryAll)
 	}
-	if FlagJson {
-		return outputPartitionJson(partitions)
-	}
-	return outputPartitions(partitions)
+	return outputPartitions(reply.PartitionInfoList)
 }
 
 // show Reservation
-func getReservationInfo(reservationName string) ([]*protos.ReservationInfo, error) {
+func getReservationInfoReply(reservationName string) (*protos.QueryReservationInfoReply, error) {
 	req := &protos.QueryReservationInfoRequest{
 		Uid:             uint32(os.Getuid()),
 		ReservationName: reservationName,
@@ -392,7 +385,7 @@ func getReservationInfo(reservationName string) ([]*protos.ReservationInfo, erro
 	if !reply.GetOk() {
 		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve reservation info: %s", reply.GetReason()))
 	}
-	return reply.ReservationInfoList, nil
+	return reply, nil
 }
 func handleEmptyReservationResult(reservationName string, queryAll bool) error {
 	if queryAll {
@@ -400,12 +393,6 @@ func handleEmptyReservationResult(reservationName string, queryAll bool) error {
 		return nil
 	}
 	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Reservation %s not found.", reservationName))
-}
-func outputReservationJson(reservations []*protos.ReservationInfo) error {
-	fmt.Println(util.FmtJson.FormatReply(&protos.QueryReservationInfoReply{
-		ReservationInfoList: reservations,
-	}))
-	return nil
 }
 func outputReservations(reservations []*protos.ReservationInfo) error {
 	for _, res := range reservations {
@@ -479,17 +466,18 @@ func formatReservationResources(res *protos.ReservationInfo) string {
 }
 
 func ShowReservations(reservationName string, queryAll bool) error {
-	reservations, err := getReservationInfo(reservationName)
+	reply, err := getReservationInfoReply(reservationName)
 	if err != nil {
 		return err
 	}
-	if len(reservations) == 0 {
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+	if len(reply.ReservationInfoList) == 0 {
 		return handleEmptyReservationResult(reservationName, queryAll)
 	}
-	if FlagJson {
-		return outputReservationJson(reservations)
-	}
-	return outputReservations(reservations)
+	return outputReservations(reply.ReservationInfoList)
 }
 
 // show Jobs
@@ -504,7 +492,7 @@ func parseJobIds(jobIds string, queryAll bool) ([]uint32, error) {
 	return jobIdList, nil
 }
 
-func getTaskInfo(jobIdList []uint32) ([]*protos.TaskInfo, error) {
+func getTaskInfoReply(jobIdList []uint32) (*protos.QueryTasksInfoReply, error) {
 	req := &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
@@ -515,7 +503,7 @@ func getTaskInfo(jobIdList []uint32) ([]*protos.TaskInfo, error) {
 	if !reply.GetOk() {
 		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %v", jobIdList))
 	}
-	return reply.TaskInfoList, nil
+	return reply, nil
 }
 
 func handleEmptyJobResult(jobIdList []uint32, queryAll bool) error {
@@ -526,13 +514,6 @@ func handleEmptyJobResult(jobIdList []uint32, queryAll bool) error {
 
 	jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
 	fmt.Printf("Job %s is not running.\n", jobIdListString)
-	return nil
-}
-
-func outputJobJson(tasks []*protos.TaskInfo) error {
-	fmt.Println(util.FmtJson.FormatReply(&protos.QueryTasksInfoReply{
-		TaskInfoList: tasks,
-	}))
 	return nil
 }
 
@@ -620,7 +601,7 @@ func GetElapsedTime(task *protos.TaskInfo) string {
 	if task.Status == protos.TaskStatus_Running && task.ElapsedTime != nil {
 		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
 	}
-	return "-"
+	return "unknown"
 }
 
 func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
@@ -647,6 +628,7 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 		timeLimitStr = util.SecondTimeFormat(task.TimeLimit.Seconds)
 	}
 	// runTime
+	// runTimeStr := "unknown"
 	runTimeStr := GetElapsedTime(task)
 
 	return jobTimeInfo{
@@ -726,15 +708,16 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	if err != nil {
 		return err
 	}
-	tasks, err := getTaskInfo(jobIdList)
+	reply, err := getTaskInfoReply(jobIdList)
 	if err != nil {
 		return err
 	}
-	if len(tasks) == 0 {
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+	if len(reply.TaskInfoList) == 0 {
 		return handleEmptyJobResult(jobIdList, queryAll)
 	}
-	if FlagJson {
-		return outputJobJson(tasks)
-	}
-	return outputJobs(tasks, jobIdList)
+	return outputJobs(reply.TaskInfoList, jobIdList)
 }

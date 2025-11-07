@@ -30,34 +30,51 @@ import (
 	"github.com/alecthomas/participle/v2/lexer"
 )
 
-type CommandAction interface {
-	GetAction() string
+type CControlCommand struct {
+	Command any `parser:"@@"`
 }
 
-type BaseAction struct {
-	Action string `parser:"@('show'|'update'|'hold'|'release'|'create'|'delete')"`
+type ShowCommand struct {
+	Action string      `parser:"@'show'"`
+	Entity *EntityType `parser:"@@"`
+	ID     string      `parser:"( @String | @Ident | @Number )?"`
 }
 
-func (b BaseAction) GetAction() string {
-	return b.Action
+type UpdateCommand struct {
+	Action        string           `parser:"@'update'"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
-type CommandID interface {
-	GetID() string
+type HoldCommand struct {
+	Action        string           `parser:"@'hold'"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
-type BaseID struct {
-	ID string `parser:"( @String | @Ident | @Number )?"`
+type ReleaseCommand struct {
+	Action        string           `parser:"@'release'"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
-func (b BaseID) GetID() string {
-	return b.ID
+type CreateCommand struct {
+	Action        string           `parser:"@'create'"`
+	Entity        *EntityType      `parser:"@@"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+}
+
+type DeleteCommand struct {
+	Action string      `parser:"@'delete'"`
+	Entity *EntityType `parser:"@@"`
+	ID     string      `parser:"( @String | @Ident | @Number )?"`
 }
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
 	Value string `parser:"( '=' ( @String | @Ident | @Number ) | ( @String | @Ident | @Number ) )"`
 }
+
 type EntityType struct {
 	Node        bool `parser:"@'node'"`
 	Partition   bool `parser:"| @'partition'"`
@@ -65,45 +82,10 @@ type EntityType struct {
 	Reservation bool `parser:"| @'reservation'"`
 }
 
-type ShowCommand struct {
-	BaseAction `parser:"@@"`
-	Entity     *EntityType `parser:"@@"`
-	BaseID     `parser:"@@"`
-}
-type UpdateCommand struct {
-	BaseAction    `parser:"@@"`
-	KeyValueParam []*KeyValueParam `parser:"@@*"`
-}
-type HoldCommand struct {
-	BaseAction    `parser:"@@"`
-	BaseID        `parser:"@@"`
-	KeyValueParam []*KeyValueParam `parser:"@@*"`
-}
-type ReleaseCommand struct {
-	BaseAction    `parser:"@@"`
-	BaseID        `parser:"@@"`
-	KeyValueParam []*KeyValueParam `parser:"@@*"`
-}
-type CreateCommand struct {
-	BaseAction    `parser:"@@"`
-	Entity        *EntityType `parser:"@@"`
-	BaseID        `parser:"@@"`
-	KeyValueParam []*KeyValueParam `parser:"@@*"`
-}
-type DeleteCommand struct {
-	BaseAction `parser:"@@"`
-	Entity     *EntityType `parser:"@@"`
-	BaseID     `parser:"@@"`
-}
-
-type CControlCommand struct {
-	Command any `parser:"@@"`
-}
-
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "whitespace", Pattern: `\s+`},
 	{Name: "String", Pattern: `[-+]?("[^"]*"|'[^']*'|""|'')`},
-	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\-\.,@:\[\]T]*`},
+	{Name: "Ident", Pattern: `[\+\-]?[a-zA-Z0-9][a-zA-Z0-9_\+\-\.,:\[\]T]*`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
 	{Name: "Punct", Pattern: `[-=,:]`},
 })
@@ -111,21 +93,11 @@ var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CControlParser = participle.MustBuild[CControlCommand](
 	participle.Lexer(CControlLexer),
 	participle.Elide("whitespace"),
-	participle.Union[any](
-		ShowCommand{},
-		UpdateCommand{},
-		HoldCommand{},
-		ReleaseCommand{},
-		CreateCommand{},
-		DeleteCommand{},
-	),
+	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{}, CreateCommand{}, DeleteCommand{}),
 )
 
-func (c *CControlCommand) GetAction() string {
-	if cmd, ok := c.Command.(CommandAction); ok {
-		return cmd.GetAction()
-	}
-	return ""
+func ParseCControlCommand(input string) (*CControlCommand, error) {
+	return CControlParser.ParseString("", input)
 }
 
 func (e EntityType) String() string {
@@ -142,6 +114,26 @@ func (e EntityType) String() string {
 		return ""
 	}
 }
+
+func (c *CControlCommand) GetAction() string {
+	switch cmd := c.Command.(type) {
+	case ShowCommand:
+		return cmd.Action
+	case UpdateCommand:
+		return cmd.Action
+	case HoldCommand:
+		return cmd.Action
+	case ReleaseCommand:
+		return cmd.Action
+	case CreateCommand:
+		return cmd.Action
+	case DeleteCommand:
+		return cmd.Action
+	default:
+		return ""
+	}
+}
+
 func (c *CControlCommand) GetEntity() string {
 	switch cmd := c.Command.(type) {
 	case ShowCommand:
@@ -161,8 +153,17 @@ func (c *CControlCommand) GetEntity() string {
 }
 
 func (c *CControlCommand) GetID() string {
-	if cmd, ok := c.Command.(CommandID); ok {
-		return cmd.GetID()
+	switch cmd := c.Command.(type) {
+	case ShowCommand:
+		return cmd.ID
+	case HoldCommand:
+		return cmd.ID
+	case ReleaseCommand:
+		return cmd.ID
+	case DeleteCommand:
+		return cmd.ID
+	case CreateCommand:
+		return cmd.ID
 	}
 	return ""
 }
@@ -188,14 +189,6 @@ func (c *CControlCommand) GetKVParamValue(key string) string {
 	return ""
 }
 
-func unquoteIfQuoted(s string) string {
-	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-			return s[1 : len(s)-1]
-		}
-	}
-	return s
-}
 func (c *CControlCommand) GetKVMaps() map[string]string {
 	kvMap := make(map[string]string)
 	switch cmd := c.Command.(type) {
@@ -263,6 +256,15 @@ func preParseGlobalFlags(args []string) []string {
 	return remainingArgs
 }
 
+func unquoteIfQuoted(s string) string {
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
+}
+
 func getCmdStringByArgs(commandArgs []string) string {
 	var processedArgs []string
 	for _, arg := range commandArgs {
@@ -296,8 +298,4 @@ func getCmdStringByArgs(commandArgs []string) string {
 	}
 	cmdStr := strings.Join(processedArgs, " ")
 	return cmdStr
-}
-
-func ParseCControlCommand(input string) (*CControlCommand, error) {
-	return CControlParser.ParseString("", input)
 }
