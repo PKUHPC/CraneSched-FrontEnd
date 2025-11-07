@@ -139,7 +139,7 @@ func QueryJob() error {
 		if !ok {
 			return &util.CraneError{
 				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid node pattern: %s.", filterNodenameList),
+				Message: fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodenames),
 			}
 		}
 		request.FilterNodenameList = filterNodenameList
