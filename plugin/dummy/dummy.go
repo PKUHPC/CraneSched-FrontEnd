@@ -26,8 +26,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Compile-time check to ensure DummyPlugin implements api.Plugin
+// Compile-time check to ensure DummyPlugin implements required interfaces
 var _ api.Plugin = DummyPlugin{}
+var _ api.JobLifecycleHooks = DummyPlugin{}
+var _ api.CgroupLifecycleHooks = DummyPlugin{}
+var _ api.NodeEventHooks = DummyPlugin{}
 
 // PluginD will call plugin's method thru this variable
 var PluginInstance = DummyPlugin{}
@@ -113,10 +116,6 @@ func (dp DummyPlugin) NodeEventHook(ctx *api.PluginContext) {
 
 	log.Tracef("InsetEventHookReq: \n%v", req.String())
 }
-
-func (dp DummyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
-
-func (dp DummyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +

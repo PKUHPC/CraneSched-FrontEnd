@@ -43,6 +43,7 @@ func init() {
 }
 
 var _ api.Plugin = EnergyPlugin{}
+var _ api.CgroupLifecycleHooks = EnergyPlugin{}
 
 var PluginInstance = EnergyPlugin{}
 
@@ -116,12 +117,6 @@ func (p EnergyPlugin) Unload(meta api.PluginMeta) error {
 	log.Info("energy plugin gracefully unloaded")
 	return nil
 }
-
-func (p EnergyPlugin) StartHook(ctx *api.PluginContext) {}
-
-func (p EnergyPlugin) EndHook(ctx *api.PluginContext) {}
-
-func (p EnergyPlugin) NodeEventHook(ctx *api.PluginContext) {}
 
 func (p EnergyPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)
@@ -229,10 +224,6 @@ func getBoundGPUs(res *protos.DedicatedResourceInNode, gpuType string) []int {
 
 	return boundGPUs
 }
-
-func (p EnergyPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
-
-func (p EnergyPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +

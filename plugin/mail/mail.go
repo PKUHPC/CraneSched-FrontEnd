@@ -33,6 +33,7 @@ import (
 )
 
 var _ api.Plugin = &MailPlugin{}
+var _ api.JobLifecycleHooks = &MailPlugin{}
 
 var PluginInstance = MailPlugin{}
 
@@ -211,13 +212,3 @@ func (p *MailPlugin) EndHook(ctx *api.PluginContext) {
 		}
 	}
 }
-
-func (p *MailPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
-
-func (p *MailPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
-
-func (p *MailPlugin) NodeEventHook(ctx *api.PluginContext) {}
-
-func (p *MailPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
-
-func (p *MailPlugin) RegisterCranedHook(ctx *api.PluginContext) {}

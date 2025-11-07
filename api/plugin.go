@@ -54,7 +54,13 @@ type Plugin interface {
 
 	// Unload the plugin, e.g., close the file descriptor
 	Unload(meta PluginMeta) error
+}
 
+// Hook interfaces: plugins can optionally implement these interfaces
+// to subscribe to specific hook events.
+
+// JobLifecycleHooks handles job start and end events
+type JobLifecycleHooks interface {
 	/*
 		Hook processing functions:
 			@param ctx: The context of the plugin. Request and other data could
@@ -64,11 +70,26 @@ type Plugin interface {
 	*/
 	StartHook(ctx *PluginContext)
 	EndHook(ctx *PluginContext)
+}
+
+// CgroupLifecycleHooks handles cgroup creation and destruction events
+type CgroupLifecycleHooks interface {
 	CreateCgroupHook(ctx *PluginContext)
 	DestroyCgroupHook(ctx *PluginContext)
-	NodeEventHook(ctx *PluginContext)
+}
 
+// NodeEventHooks handles node-related events
+type NodeEventHooks interface {
+	NodeEventHook(ctx *PluginContext)
+}
+
+// PowerManagementHooks handles power state changes
+type PowerManagementHooks interface {
 	UpdatePowerStateHook(ctx *PluginContext)
+}
+
+// CranedLifecycleHooks handles craned daemon lifecycle events
+type CranedLifecycleHooks interface {
 	RegisterCranedHook(ctx *PluginContext)
 }
 
