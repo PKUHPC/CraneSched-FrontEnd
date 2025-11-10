@@ -29,7 +29,7 @@ nfpms:
     # Package metadata
     vendor: "Peking University"
     homepage: "https://github.com/PKUHPC/CraneSched-FrontEnd"
-    maintainer: "CraneSched Team <crane@pku.edu.cn>"
+    maintainer: "CraneSched <service@csjstt.com>"
     description: |
       CraneSched Frontend - Command-line tools for CraneSched cluster scheduler.
       This package contains all user-facing command-line tools for job submission,
@@ -43,7 +43,7 @@ nfpms:
 
     # Explicitly specify architectures since we're not using builds
     archlinux:
-      packager: "CraneSched Team <crane@pku.edu.cn>"
+      packager: "CraneSched <service@csjstt.com>"
 
     # File mappings
     contents:
@@ -134,7 +134,7 @@ nfpms:
     # Package metadata
     vendor: "Peking University"
     homepage: "https://github.com/PKUHPC/CraneSched-FrontEnd"
-    maintainer: "CraneSched Team <crane@pku.edu.cn>"
+    maintainer: "CraneSched <service@csjstt.com>"
     description: |
       CraneSched Plugins - Plugin daemon and shared objects for CraneSched.
       This package contains the plugin daemon (cplugind) and all plugin shared objects.
@@ -147,7 +147,7 @@ nfpms:
 
     # Explicitly specify architectures since we're not using builds
     archlinux:
-      packager: "CraneSched Team <crane@pku.edu.cn>"
+      packager: "CraneSched <service@csjstt.com>"
 
     # Plugin package contents
     contents:
