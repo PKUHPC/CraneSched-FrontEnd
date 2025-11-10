@@ -102,7 +102,7 @@ nfpms:
           mode: 0755
 
       # systemd service for cfored
-      - src: etc/cfored.service
+      - src: build/etc/cfored.service
         dst: /usr/lib/systemd/system/cfored.service
         file_info:
           mode: 0644
@@ -184,7 +184,7 @@ nfpms:
           mode: 0755
 
       # systemd service for cplugind
-      - src: etc/cplugind.service
+      - src: build/etc/cplugind.service
         dst: /usr/lib/systemd/system/cplugind.service
         file_info:
           mode: 0644

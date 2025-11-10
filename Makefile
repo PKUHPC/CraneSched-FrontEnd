@@ -31,7 +31,7 @@ VERSION_FILE := VERSION
 VERSION := $(shell if [ -f "$(VERSION_FILE)" ]; then cat "$(VERSION_FILE)"; else echo "unknown"; fi)
 VERSION_DISPLAY := $(VERSION)
 ifneq ($(strip $(GIT_COMMIT_HASH)),)
-VERSION_DISPLAY := $(VERSION) (git: $(GIT_COMMIT_HASH))
+	VERSION_DISPLAY := $(VERSION) (git: $(GIT_COMMIT_HASH))
 endif
 
 # Package version (replace + with - for packaging); allow override
@@ -46,9 +46,10 @@ ifeq ($(strip $(SOURCE_DATE_EPOCH)),)
 		SOURCE_DATE_EPOCH_FALLBACK := true
 	endif
 endif
+
 SOURCE_DATE_EPOCH := $(strip $(SOURCE_DATE_EPOCH))
 ifneq ($(strip $(SOURCE_DATE_EPOCH_FALLBACK)),)
-$(warning SOURCE_DATE_EPOCH not set; falling back to current time $(SOURCE_DATE_EPOCH))
+	$(warning SOURCE_DATE_EPOCH not set; falling back to current time $(SOURCE_DATE_EPOCH))
 endif
 
 # Debug info control
@@ -71,6 +72,9 @@ DESTDIR ?=
 
 BIN_DIR := build/bin
 PLUGIN_DIR := build/plugin
+SERVICE_TEMPLATES := $(wildcard etc/*.service.in)
+SERVICE_NAMES := $(patsubst etc/%.service.in,%,$(SERVICE_TEMPLATES))
+SERVICE_OUTPUT_DIR := build/etc
 
 GO ?= go
 GO_VERSION := $(shell $(GO) version 2>/dev/null || echo "go (unknown)")
@@ -83,9 +87,9 @@ PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_P
 CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 # Targets
-.PHONY: all protos build clean install plugin plugin-energy plugin-other format package check-goreleaser
+.PHONY: all protos build clean install plugin plugin-energy plugin-other service format package check-goreleaser
 
-all: build plugin
+all: build plugin service
 build: protos
 plugin: protos
 
@@ -142,11 +146,23 @@ plugin-other:
 	@echo "  - Summary:"
 	@echo "    - Plugins are in ./$(PLUGIN_DIR)/"
 
+service:
+	@echo "- Rendering systemd service files with PREFIX=$(PREFIX)..."
+	@mkdir -p $(SERVICE_OUTPUT_DIR)
+	@if [ -z "$(SERVICE_NAMES)" ]; then \
+		echo "  - No templates found under etc/*.service.in"; \
+	else \
+		for svc in $(SERVICE_NAMES); do \
+			echo "  - $$svc.service"; \
+			sed "s|@PREFIX@|$(PREFIX)|g" etc/$$svc.service.in > $(SERVICE_OUTPUT_DIR)/$$svc.service; \
+		done; \
+	fi
+
 clean:
 	@echo "Cleaning up..."
 	@rm -rf build generated
 
-install:
+install: service
 	@echo "- Installing executables, plugins and auxiliary files..."
 	@if [ ! -d "$(BIN_DIR)" ]; then \
 		echo "Error: $(BIN_DIR) does not exist. Please build first."; \
@@ -164,7 +180,7 @@ install:
 	@cp $(PLUGIN_DIR)/*.so $(DESTDIR)$(PREFIX)/lib/crane/plugin/
 	@echo "  - Installing systemd service files to $(DESTDIR)/usr/lib/systemd/system/"
 	@mkdir -p $(DESTDIR)/usr/lib/systemd/system
-	@cp etc/*.service $(DESTDIR)/usr/lib/systemd/system/
+	@cp $(SERVICE_OUTPUT_DIR)/*.service $(DESTDIR)/usr/lib/systemd/system/
 	@if [ -z "$(DESTDIR)" ]; then \
 		echo "  - You may need to reload systemd daemons: 'systemctl daemon-reload'"; \
 	fi
@@ -182,7 +198,7 @@ check-goreleaser:
 package: check-goreleaser
 ifneq ($(SKIP_REBUILD),true)
 	@echo "- Rebuilding binaries and plugins for packaging..."
-	@$(MAKE) STRIP=true all
+	@$(MAKE) STRIP=true protos build plugin
 else
 	@echo "- Skipping rebuild (SKIP_REBUILD=true). Using existing build artifacts."
 endif
@@ -194,6 +210,7 @@ endif
 		echo "Error: $(PLUGIN_DIR) is empty. Run 'make plugin' before packaging or remove SKIP_REBUILD."; \
 		exit 1; \
 	fi
+	@$(MAKE) PREFIX=/usr service
 	@echo "- Building packages with GoReleaser..."
 	@export GORELEASER_CURRENT_TAG=$(PKG_VERSION) && \
 	goreleaser release --snapshot --clean
