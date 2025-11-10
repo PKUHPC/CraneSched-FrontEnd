@@ -76,7 +76,7 @@ func (pd *PluginDaemon) StartHook(ctx context.Context, req *protos.StartHookRequ
 	log.Tracef("StartHook request received: %v", req)
 	reply := &protos.StartHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	
+
 	// Only call plugins that implement JobLifecycleHooks
 	for _, p := range gPluginMap {
 		if handler, ok := (*p).(api.JobLifecycleHooks); ok {
@@ -94,7 +94,7 @@ func (pd *PluginDaemon) EndHook(ctx context.Context, req *protos.EndHookRequest)
 	log.Tracef("EndHook request received: %v", req)
 	reply := &protos.EndHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	
+
 	// Only call plugins that implement JobLifecycleHooks
 	for _, p := range gPluginMap {
 		if handler, ok := (*p).(api.JobLifecycleHooks); ok {
@@ -112,7 +112,7 @@ func (pd *PluginDaemon) CreateCgroupHook(ctx context.Context, req *protos.Create
 	log.Tracef("CreateCgroupHook request received: %v", req)
 	reply := &protos.CreateCgroupHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	
+
 	// Only call plugins that implement CgroupLifecycleHooks
 	for _, p := range gPluginMap {
 		if handler, ok := (*p).(api.CgroupLifecycleHooks); ok {
@@ -130,7 +130,7 @@ func (pd *PluginDaemon) DestroyCgroupHook(ctx context.Context, req *protos.Destr
 	log.Tracef("DestroyCgroupHook request received: %v", req)
 	reply := &protos.DestroyCgroupHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	
+
 	// Only call plugins that implement CgroupLifecycleHooks
 	for _, p := range gPluginMap {
 		if handler, ok := (*p).(api.CgroupLifecycleHooks); ok {
@@ -148,7 +148,7 @@ func (pd *PluginDaemon) NodeEventHook(ctx context.Context, req *protos.NodeEvent
 	log.Tracef("NodeEventHook request received: %v", req)
 	reply := &protos.NodeEventHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	
+
 	// Only call plugins that implement NodeEventHooks
 	for _, p := range gPluginMap {
 		if handler, ok := (*p).(api.NodeEventHooks); ok {
@@ -166,7 +166,7 @@ func (pd *PluginDaemon) UpdatePowerStateHook(ctx context.Context, req *protos.Up
 	log.Info("Received UpdatePowerStateHook request for node: ", req.CranedId)
 	reply := &protos.UpdatePowerStateHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	
+
 	// Only call plugins that implement PowerManagementHooks
 	for _, p := range gPluginMap {
 		if handler, ok := (*p).(api.PowerManagementHooks); ok {
@@ -184,7 +184,7 @@ func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.Regi
 	log.Info("Received RegisterCranedHook request for node: ", req.CranedId)
 	reply := &protos.RegisterCranedHookReply{}
 	hs := make([]api.PluginHandler, 0)
-	
+
 	// Only call plugins that implement CranedLifecycleHooks
 	for _, p := range gPluginMap {
 		if handler, ok := (*p).(api.CranedLifecycleHooks); ok {
