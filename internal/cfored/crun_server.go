@@ -96,7 +96,13 @@ CforedCrunStateMachineLoop:
 			p, ok := peer.FromContext(ctx)
 			if ok {
 				if auth, ok := p.AuthInfo.(*util.UnixPeerAuthInfo); ok {
-					uid := crunRequest.GetPayloadTaskReq().Task.Uid
+
+					var uid uint32
+					if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
+						uid = crunRequest.GetPayloadTaskReq().Task.Uid
+					} else {
+						uid = crunRequest.GetPayloadStepReq().Step.Uid
+					}
 					if uid != auth.UID {
 						log.Warnf("Security: UID mismatch - peer UID %d does not match task UID %d", auth.UID, crunRequest.GetPayloadTaskReq().Task.Uid)
 						reply = &protos.StreamCrunReply{
