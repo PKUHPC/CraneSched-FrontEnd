@@ -39,7 +39,8 @@ var (
 			stub = util.GetStubToCtldByConfig(config)
 			client, conn, err := GetPlugindClient(config)
 			if err != nil {
-				return err
+				log.Errorf("Failed to connect to plugin: %s", err)
+				return &util.CraneError{Code: util.ErrorNetwork}
 			}
 			pluginClient = client
 			pluginConn = conn

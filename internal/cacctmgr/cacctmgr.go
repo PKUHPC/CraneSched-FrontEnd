@@ -418,7 +418,7 @@ func AddAccount(account *protos.AccountInfo) util.ExitCode {
 		fmt.Println("Account added successfully.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to add account: %s.\n", util.ErrMsg(reply.GetCode()))
+		log.Errorf("Failed to add account: %s.", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
@@ -479,7 +479,7 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 		fmt.Println("User added successfully.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to add user: %s.\n", util.ErrMsg(reply.GetCode()))
+		log.Errorf("Failed to add user: %s.", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
@@ -515,7 +515,7 @@ func AddQos(qos *protos.QosInfo) util.ExitCode {
 		fmt.Println("QoS added successfully.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to add QoS: %s.\n", util.ErrMsg(reply.GetCode()))
+		log.Errorf("Failed to add QoS: %s.", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
@@ -552,9 +552,9 @@ func DeleteAccount(value string) util.ExitCode {
 		fmt.Printf("Successfully deleted account '%s'.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to delete account: \n")
+		log.Errorf("Failed to delete account:")
 		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -596,9 +596,9 @@ func DeleteUser(value string, account string) util.ExitCode {
 		fmt.Printf("Successfully removed user '%s'.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to remove user: \n")
+		log.Errorf("Failed to remove user:")
 		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -635,9 +635,9 @@ func DeleteQos(value string) util.ExitCode {
 		fmt.Printf("Successfully deleted QoS '%s'.\n", value)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to delete QoS: \n")
+		log.Errorf("Failed to delete QoS:")
 		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -693,12 +693,12 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 		fmt.Println("Information was successfully modified.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to modify information:\n")
+		log.Errorf("Failed to modify information:")
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 			} else {
-				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+				log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 			}
 		}
 		return util.ErrorBackend
@@ -758,12 +758,12 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Modify information failed: \n")
+		log.Errorf("Modify information failed:")
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 			} else {
-				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+				log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 			}
 		}
 		return util.ErrorBackend
@@ -799,7 +799,7 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		log.Errorf("Modify information failed: %s.", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 }
@@ -827,10 +827,10 @@ func ShowAccounts() util.ExitCode {
 	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Println(util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 	}
 
@@ -874,10 +874,10 @@ func ShowUser(value string, account string) util.ExitCode {
 	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Println(util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 	}
 
@@ -918,10 +918,10 @@ func ShowQos(value string) util.ExitCode {
 	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Println(util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 	}
 
@@ -963,10 +963,10 @@ func FindAccount(value string) util.ExitCode {
 	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Println(util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 	}
 
@@ -1012,10 +1012,10 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 	} else {
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -1058,10 +1058,10 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	} else {
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				log.Errorf("%s", util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}
@@ -1115,7 +1115,7 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 	}
 
 	if !reply.GetOk() {
-		fmt.Println(util.ErrMsg(reply.GetCode()))
+		log.Errorf("%s", util.ErrMsg(reply.GetCode()))
 		return util.ErrorBackend
 	}
 
@@ -1459,7 +1459,7 @@ func ResetUserCredential(value string) util.ExitCode {
 
 	if !reply.GetOk() {
 		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			log.Errorf("%s: %s", richError.Description, util.ErrMsg(richError.Code))
 		}
 		return util.ErrorBackend
 	}

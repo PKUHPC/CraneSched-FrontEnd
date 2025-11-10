@@ -56,7 +56,7 @@ func SummarizeReply(proto interface{}) error {
 		}
 		if len(reply.NotModifiedTasks) > 0 {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+				log.Errorf("Failed to modify job: %d. Reason: %s.", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
@@ -68,7 +68,7 @@ func SummarizeReply(proto interface{}) error {
 		}
 		if len(reply.NotModifiedNodes) > 0 {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+				log.Errorf("Failed to modify node: %s. Reason: %s.", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 			}
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
@@ -80,7 +80,7 @@ func SummarizeReply(proto interface{}) error {
 		}
 		if len(reply.NotModifiedTasks) > 0 {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+				log.Errorf("Failed to modify job: %d. Reason: %s.", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
 			return &util.CraneError{Code: util.ErrorBackend}
 		}
@@ -501,7 +501,7 @@ func DeleteReservation(ReservationName string) error {
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
 	} else {
-		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
+		log.Errorf("Failed to delete reservation: %s.", reply.GetReason())
 		return &util.CraneError{Code: util.ErrorBackend}
 	}
 	return nil
@@ -559,7 +559,7 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 
 	if len(reply.NotModifiedNodes) > 0 {
 		for i := 0; i < len(reply.NotModifiedNodes); i++ {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+			log.Errorf("Failed to modify node: %s. Reason: %s.",
 				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 		}
 		return &util.CraneError{Code: util.ErrorBackend}

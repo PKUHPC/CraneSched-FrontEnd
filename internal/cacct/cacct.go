@@ -52,40 +52,32 @@ func QueryJob() error {
 		request.FilterStartTimeInterval = &protos.TimeInterval{}
 		err := util.ParseInterval(FlagFilterStartTime, request.FilterStartTimeInterval)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the StartTime filter: %s.", err),
-			}
+			log.Errorf("Failed to parse the StartTime filter: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 	}
 	if FlagFilterEndTime != "" {
 		request.FilterEndTimeInterval = &protos.TimeInterval{}
 		err := util.ParseInterval(FlagFilterEndTime, request.FilterEndTimeInterval)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the EndTime filter: %s.", err),
-			}
+			log.Errorf("Failed to parse the EndTime filter: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 	}
 	if FlagFilterSubmitTime != "" {
 		request.FilterSubmitTimeInterval = &protos.TimeInterval{}
 		err := util.ParseInterval(FlagFilterSubmitTime, request.FilterSubmitTimeInterval)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the SubmitTime filter: %s.", err),
-			}
+			log.Errorf("Failed to parse the SubmitTime filter: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 	}
 
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid account list specified: %s.", err),
-			}
+			log.Errorf("Invalid account list specified: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterAccounts = filterAccountList
 	}
@@ -93,10 +85,8 @@ func QueryJob() error {
 	if FlagFilterJobIDs != "" {
 		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid job list specified: %s.", err),
-			}
+			log.Errorf("Invalid job list specified: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterTaskIds = filterJobIdList
 	}
@@ -104,10 +94,8 @@ func QueryJob() error {
 	if FlagFilterUsers != "" {
 		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid user list specified: %s.", err),
-			}
+			log.Errorf("Invalid user list specified: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterUsers = filterUserList
 	}
@@ -115,10 +103,8 @@ func QueryJob() error {
 	if FlagFilterJobNames != "" {
 		filterJobNameList, err := util.ParseStringParamList(FlagFilterJobNames, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid job name list specified: %s.", err),
-			}
+			log.Errorf("Invalid job name list specified: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterTaskNames = filterJobNameList
 	}
@@ -126,10 +112,8 @@ func QueryJob() error {
 	if FlagFilterStates != "" {
 		stateList, err := util.ParseTaskStatusList(FlagFilterStates)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the state filter: %s.", err),
-			}
+			log.Errorf("Failed to parse the state filter: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterTaskStates = stateList
 	}
@@ -137,10 +121,8 @@ func QueryJob() error {
 	if FlagFilterQos != "" {
 		filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid Qos list specified: %s.", err),
-			}
+			log.Errorf("Invalid Qos list specified: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterQos = filterJobQosList
 	}
@@ -148,10 +130,8 @@ func QueryJob() error {
 	if FlagFilterPartitions != "" {
 		filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid partition list specified: %s.", err),
-			}
+			log.Errorf("Invalid partition list specified: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterPartitions = filterPartitionList
 	}
@@ -159,10 +139,8 @@ func QueryJob() error {
 	if FlagFilterTaskTypes != "" {
 		filterTaskTypeList, err := util.ParseTaskTypeList(FlagFilterTaskTypes)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid task type list specified: %s.", err),
-			}
+			log.Errorf("Invalid task type list specified: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		request.FilterTaskTypes = filterTaskTypeList
 	}
