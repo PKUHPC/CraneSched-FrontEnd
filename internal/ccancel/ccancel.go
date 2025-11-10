@@ -44,20 +44,16 @@ func CancelTask(args []string) error {
 
 	err := util.CheckJobNameLength(FlagJobName)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid job name: %v.", err),
-		}
+		log.Errorf("Invalid job name: %v.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterTaskName = FlagJobName
 
 	if len(args) > 0 {
 		taskIds, err := util.ParseJobIdList(args[0], ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid job list specified: %v.\n", err),
-			}
+			log.Errorf("Invalid job list specified: %v.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		req.FilterTaskIds = taskIds
 	}
@@ -65,10 +61,8 @@ func CancelTask(args []string) error {
 	if FlagState != "" {
 		stateList, err := util.ParseInRamTaskStatusList(FlagState)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: err.Error(),
-			}
+			log.Errorf("%v", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		if len(stateList) == 1 {
 			req.FilterState = stateList[0]
@@ -99,7 +93,7 @@ func CancelTask(args []string) error {
 
 	if len(reply.NotCancelledTasks) > 0 {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
-			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
+			log.Errorf("Failed to cancel job: %d. Reason: %s.", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
 		return &util.CraneError{Code: util.ErrorBackend}
 	}

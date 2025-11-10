@@ -168,10 +168,10 @@ func StartTerminal(shellPath string,
 	}
 
 	if procWaitErr != nil {
-		log.Tracef("Failed to call process.Run(): %v", procWaitErr)
+		log.Errorf("Failed to call process.Run(): %v", procWaitErr)
 		exitError, ok := procWaitErr.(*exec.ExitError)
 		if !ok {
-			log.Tracef("Failed to convert err returned by process.Run() to os.ExitError")
+			log.Errorf("Failed to convert err returned by process.Run() to os.ExitError")
 		}
 
 		if exitError.Success() {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -169,6 +170,7 @@ func JsonOutput(reply *protos.QueryTasksInfoReply) error {
 	if reply.GetOk() {
 		return nil
 	} else {
-		return util.NewCraneErr(util.ErrorBackend, "JSON output failed")
+		log.Errorf("JSON output failed")
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
 }

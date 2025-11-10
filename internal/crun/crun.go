@@ -256,7 +256,7 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 			fmt.Printf("Task id allocated: %d, waiting resources.\n", m.jobId)
 			m.state = WaitRes
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+			log.Errorf("Failed to allocate task id: %s", payload.FailureReason)
 			m.state = End
 			m.err = util.ErrorBackend
 			return
@@ -299,7 +299,7 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
 				m.state = WaitForward
 			} else {
-				log.Errorln("Failed to allocate task resource. Exiting...")
+				log.Errorf("Failed to allocate task resource. Exiting...")
 				m.state = End
 				m.err = util.ErrorBackend
 				return
@@ -996,17 +996,13 @@ func MainCrun(args []string) error {
 
 	var err error
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Failed to get working directory: %s.", err),
-		}
+		log.Errorf("Failed to get working directory: %s.", err)
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
 
 	if len(args) == 0 {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: "Please specify program to run",
-		}
+		log.Errorf("Please specify program to run.")
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	task := &protos.TaskToCtld{
@@ -1046,20 +1042,16 @@ func MainCrun(args []string) error {
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: invalid --time: %s.", err),
-			}
+			log.Errorf("Invalid argument: invalid --time: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: %s.", err),
-			}
+			log.Errorf("Invalid argument: %s.", err)
+			return &util.CraneError{Code: util.ErrorCmdArg}
 		}
 		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
@@ -1120,10 +1112,8 @@ func MainCrun(args []string) error {
 
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid argument: %s.", err),
-		}
+		log.Errorf("Invalid argument: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	// Set total limit of cpu cores
@@ -1131,10 +1121,8 @@ func MainCrun(args []string) error {
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid argument: %s.", err),
-		}
+		log.Errorf("Invalid argument: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	util.SetPropagatedEnviron(task)
@@ -1145,18 +1133,15 @@ func MainCrun(args []string) error {
 	if FlagX11 {
 		target, port, err := util.GetX11DisplayEx(!FlagX11Fwd)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorSystem,
-				Message: fmt.Sprintf("Error in reading X11 $DISPLAY: %s.", err),
-			}
+			log.Errorf("Error in reading X11 $DISPLAY: %s.", err)
+			return &util.CraneError{Code: util.ErrorSystem}
 		}
 
 		if !FlagX11Fwd && (target == "" || target == "localhost") {
 			if target, err = os.Hostname(); err != nil {
-				return &util.CraneError{
-					Code:    util.ErrorSystem,
-					Message: fmt.Sprintf("failed to get hostname: %s.", err),
-				}
+				log.Errorf("failed to get hostname: %s.", err)
+				return &util.CraneError{Code: util.ErrorSystem}
+
 			}
 			log.Debugf("Host in $DISPLAY (%v) is invalid, using hostname: %s",
 				port-util.X11TcpPortOffset, target)
@@ -1164,10 +1149,8 @@ func MainCrun(args []string) error {
 
 		cookie, err := util.GetX11AuthCookie()
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorSystem,
-				Message: fmt.Sprintf("Error in reading X11 xauth cookies: %s.", err),
-			}
+			log.Errorf("Error in reading X11 xauth cookies: %s.", err)
+			return &util.CraneError{Code: util.ErrorSystem}
 		}
 
 		iaMeta.X11 = true
@@ -1192,10 +1175,8 @@ func MainCrun(args []string) error {
 	m.inputFlag = FlagInput
 
 	if FlagPty && strings.ToLower(FlagInput) != FlagInputALL {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("--input is incompatible with --pty."),
-		}
+		log.Errorf("--input is incompatible with --pty.")
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	m.Init(task)

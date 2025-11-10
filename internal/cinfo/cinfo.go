@@ -73,7 +73,8 @@ func ConvertStates[T comparable](stateMap map[string]T, stateType string) ([]T, 
 		if _, ok := powerStateMap[lowered]; ok && stateType != "power" {
 			continue
 		}
-		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid %s state given: %s", stateType, stateStr))
+		log.Errorf("Invalid %s state given: %s", stateType, stateStr)
+		return nil, &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	return states, nil
@@ -185,7 +186,8 @@ func QueryClusterInfo() (*protos.QueryClusterInfoReply, error) {
 
 	req, err := FillReqByFilterFlag()
 	if err != nil {
-		return &protos.QueryClusterInfoReply{}, err
+		log.Errorf("%v", err)
+		return &protos.QueryClusterInfoReply{}, &util.CraneError{Code: util.ErrorNetwork}
 	}
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
@@ -210,7 +212,8 @@ func Query() error {
 func loopedQuery(iterate uint64) error {
 	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
+		log.Errorf("%v", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	return loopedSubQuery(interval)

@@ -3,8 +3,9 @@ package cqueue
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os/user"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type FilterProcessor interface {
@@ -20,7 +21,8 @@ func (p *StatesFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error
 	}
 	stateList, err := util.ParseInRamTaskStatusList(FlagFilterStates)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
+		log.Errorf("%s", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterTaskStates = stateList
 	return nil
@@ -35,7 +37,8 @@ func (p *SelfProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	cu, err := user.Current()
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to get current username: %s.", err))
+		log.Errorf("Failed to get current username: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterUsers = []string{cu.Username}
 	return nil
@@ -50,7 +53,8 @@ func (p *JobNamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	filterJobNameList, err := util.ParseStringParamList(FlagFilterJobNames, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job name list specified: %s.", err))
+		log.Errorf("Invalid job name list specified: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterTaskNames = filterJobNameList
 	return nil
@@ -65,7 +69,8 @@ func (p *UserFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %s.", err))
+		log.Errorf("Invalid user list specified: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterUsers = filterUserList
 	return nil
@@ -80,7 +85,8 @@ func (p *QosProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	filterJobQosList, err := util.ParseStringParamList(FlagFilterQos, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid Qos list specified: %s.", err))
+		log.Errorf("Invalid Qos list specified: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterQos = filterJobQosList
 	return nil
@@ -95,7 +101,8 @@ func (p *AccountProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid account list specified: %s.", err))
+		log.Errorf("Invalid account list specified: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterAccounts = filterAccountList
 	return nil
@@ -110,7 +117,8 @@ func (p *PartitionsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid partition list specified: %s.", err))
+		log.Errorf("Invalid partition list specified: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterPartitions = filterPartitionList
 	return nil
@@ -125,7 +133,8 @@ func (p *JobIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
+		log.Errorf("Invalid job list specified: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterTaskIds = filterJobIdList
 	req.NumLimit = uint32(len(filterJobIdList))
@@ -141,7 +150,8 @@ func (p *TaskTypesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	}
 	filterTaskTypeList, err := util.ParseTaskTypeList(FlagFilterTaskTypes)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task type list specified: %s.", err))
+		log.Errorf("Invalid task type list specified: %s.", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 	req.FilterTaskTypes = filterTaskTypeList
 	return nil

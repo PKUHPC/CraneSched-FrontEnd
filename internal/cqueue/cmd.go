@@ -21,6 +21,8 @@ package cqueue
 import (
 	"CraneFrontEnd/internal/util"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/spf13/cobra"
 )
 
@@ -55,7 +57,8 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
+					log.Errorf("Output line number limit must be greater than 0.")
+					return &util.CraneError{Code: util.ErrorCmdArg}
 				}
 			}
 			if FlagIterate != 0 {

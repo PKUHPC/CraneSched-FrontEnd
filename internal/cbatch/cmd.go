@@ -88,11 +88,10 @@ var (
 				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
 			}
 
-			task, err := BuildCbatchJob(cmd, args)
-			if err != nil {
-				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
+			task := BuildCbatchJob(cmd, args)
+			if task == nil {
+				return nil
 			}
-
 			task.Uid = uint32(os.Getuid())
 			task.Gid = uint32(os.Getgid())
 			task.CmdLine = strings.Join(os.Args, " ")
