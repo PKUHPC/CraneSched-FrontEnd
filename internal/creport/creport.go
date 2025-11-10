@@ -26,15 +26,14 @@ import (
 	"math"
 	"os"
 
-	//"os/user"
 	"io"
+	"os/user"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
-	//log "github.com/sirupsen/logrus"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -84,10 +83,7 @@ func QueryUsersTopSummaryItem() error {
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid account list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid account list specified: %s.", err))
 		}
 		request.FilterAccounts = filterAccountList
 	}
@@ -95,10 +91,7 @@ func QueryUsersTopSummaryItem() error {
 	if FlagFilterUsers != "" {
 		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid user list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %s.", err))
 		}
 		request.FilterUsers = filterUserList
 	}
@@ -106,10 +99,7 @@ func QueryUsersTopSummaryItem() error {
 	if FlagGroups != "" {
 		filterGroupUserList, err := util.GetAllGroupUsers(FlagGroups)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid user list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %s.", err))
 		}
 		request.FilterUsers = util.MergeAndDedup(request.FilterUsers, filterGroupUserList)
 	}
@@ -119,10 +109,7 @@ func QueryUsersTopSummaryItem() error {
 	if FlagFilterStartTime != "" {
 		start_time, err = util.ParseTime(FlagFilterStartTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the StartTime filter: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the StartTime filter: %s.", err))
 		}
 		request.FilterStartTime = timestamppb.New(start_time)
 	}
@@ -130,40 +117,29 @@ func QueryUsersTopSummaryItem() error {
 	if FlagFilterEndTime != "" {
 		end_time, err = util.ParseTime(FlagFilterEndTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the EndTime filter: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the EndTime filter: %s.", err))
 		}
 		request.FilterEndTime = timestamppb.New(end_time)
 		start := request.FilterStartTime.AsTime()
 		end := request.FilterEndTime.AsTime()
 		if !end.After(start) {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invaild end_time: end_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
 		}
 	}
 
 	if FlagOutType != "" {
 		if !util.CheckCreportOutType(FlagOutType) {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "Invalid argument: invalid: --time/-t, please input seconds/minutes/hours",
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --time/-t, please input seconds/minutes/hours"))
 		}
 	}
 
-	rpcStart := time.Now()
 	stream, err := stub.QueryJobSummary(context.Background(), request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query AccountUserSummary info")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	var JobSummaryItemList []*protos.JobSummaryItem
-
 	for {
 		batch, err := stream.Recv()
 		if err == io.EOF {
@@ -171,13 +147,10 @@ func QueryUsersTopSummaryItem() error {
 		}
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to receive item")
-			return &util.CraneError{Code: util.ErrorNetwork}
+			return util.NewCraneErr(util.ErrorNetwork, "")
 		}
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
-	rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList))
-
 	PrintUsersTopSumList(JobSummaryItemList, start_time, end_time)
 
 	return nil
@@ -188,10 +161,7 @@ func QueryJobSummary(CheckType CheckStatus) error {
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid account list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid account list specified: %s.", err))
 		}
 		request.FilterAccounts = filterAccountList
 	}
@@ -199,32 +169,23 @@ func QueryJobSummary(CheckType CheckStatus) error {
 	if FlagFilterUsers != "" {
 		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid user list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %s.", err))
 		}
 		request.FilterUsers = filterUserList
 	}
 
-	if FlagFilterQoss != "" {
-		FlagFilterQosList, err := util.ParseStringParamList(FlagFilterQoss, ",")
+	if FlagFilterQosList != "" {
+		filterQosList, err := util.ParseStringParamList(FlagFilterQosList, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid qos list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid qos list specified: %s.", err))
 		}
-		request.FilterQoss = FlagFilterQosList
+		request.FilterQoss = filterQosList
 	}
 
 	if FlagFilterGids != "" {
 		filterGidList, err := util.GetUsersByGIDs(FlagFilterGids)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid gid list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid gid list specified: %s.", err))
 		}
 		request.FilterUsers = util.MergeAndDedup(request.FilterUsers, filterGidList)
 	}
@@ -234,10 +195,7 @@ func QueryJobSummary(CheckType CheckStatus) error {
 	if FlagFilterStartTime != "" {
 		start_time, err = util.ParseTime(FlagFilterStartTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the StartTime filter: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the StartTime filter: %s.", err))
 		}
 		request.FilterStartTime = timestamppb.New(start_time)
 	}
@@ -245,40 +203,29 @@ func QueryJobSummary(CheckType CheckStatus) error {
 	if FlagFilterEndTime != "" {
 		end_time, err = util.ParseTime(FlagFilterEndTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the EndTime filter: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the EndTime filter: %s.", err))
 		}
 		request.FilterEndTime = timestamppb.New(end_time)
 		start := request.FilterStartTime.AsTime()
 		end := request.FilterEndTime.AsTime()
 		if !end.After(start) {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
 		}
 	}
 
 	if FlagOutType != "" {
 		if !util.CheckCreportOutType(FlagOutType) {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "Invalid argument: invalid: --time/-t, please input seconds/minutes/hours",
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --time/-t, please input seconds/minutes/hours"))
 		}
 	}
 
-	rpcStart := time.Now()
 	stream, err := stub.QueryJobSummary(context.Background(), request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query AccountUserSummary info")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	var JobSummaryItemList []*protos.JobSummaryItem
-
 	for {
 		batch, err := stream.Recv()
 		if err == io.EOF {
@@ -286,13 +233,10 @@ func QueryJobSummary(CheckType CheckStatus) error {
 		}
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to receive item")
-			return &util.CraneError{Code: util.ErrorNetwork}
+			return util.NewCraneErr(util.ErrorNetwork, "")
 		}
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
-
-	rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList))
 
 	switch CheckType {
 	case CheckAccountUserStatus:
@@ -320,10 +264,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid account list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid account list specified: %s.", err))
 		}
 		request.FilterAccounts = filterAccountList
 	}
@@ -331,32 +272,25 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	if FlagFilterUsers != "" {
 		filterUserList, err := util.ParseStringParamList(FlagFilterUsers, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid user list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %s.", err))
+
 		}
 		request.FilterUsers = filterUserList
 	}
 
-	if FlagFilterQoss != "" {
-		FlagFilterQosList, err := util.ParseStringParamList(FlagFilterQoss, ",")
+	if FlagFilterQosList != "" {
+		filterQosList, err := util.ParseStringParamList(FlagFilterQosList, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid qos list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid qos list specified: %s.", err))
 		}
-		request.FilterQoss = FlagFilterQosList
+		request.FilterQoss = filterQosList
 	}
 
 	if FlagFilterGids != "" {
 		filterGidList, err := util.GetUsersByGIDs(FlagFilterGids)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid gid list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid gid list specified: %s.", err))
+
 		}
 		request.FilterUsers = util.MergeAndDedup(request.FilterUsers, filterGidList)
 	}
@@ -366,10 +300,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	if FlagFilterStartTime != "" {
 		start_time, err = util.ParseTime(FlagFilterStartTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the StartTime filter: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the StartTime filter: %s.", err))
 		}
 		request.FilterStartTime = timestamppb.New(start_time)
 	}
@@ -377,38 +308,26 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	if FlagFilterEndTime != "" {
 		end_time, err = util.ParseTime(FlagFilterEndTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the EndTime filter: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the EndTime filter: %s.", err))
 		}
 		request.FilterEndTime = timestamppb.New(end_time)
 		start := request.FilterStartTime.AsTime()
 		end := request.FilterEndTime.AsTime()
 		if !end.After(start) {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
 		}
 	}
 
 	if FlagOutType != "" {
 		if !util.CheckCreportOutType(FlagOutType) {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: "Invalid argument: invalid: --time/-t, please input seconds/minutes/hours",
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid time/-t, please input seconds/minutes/hours"))
 		}
 	}
 
 	if FlagFilterGrouping != "" {
 		result, err := util.ParseAndSortUintList(FlagFilterGrouping)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: invalid: --grouping: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid grouping: %s", err))
 		}
 		request.FilterGroupingList = result
 	}
@@ -416,10 +335,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	if FlagFilterJobIDs != "" {
 		filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid job list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
 		}
 		request.FilterJobIds = filterJobIdList
 	}
@@ -427,34 +343,26 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	if FlagFilterPartitions != "" {
 		filterPartitionList, err := util.ParseStringParamList(FlagFilterPartitions, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid partition list specified: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid partition list specified: %s.", err))
 		}
 		request.FilterPartitions = filterPartitionList
 	}
 
-	if FlagFilterNodenames != "" {
-		filterNodenameList, ok := util.ParseHostList(FlagFilterNodenames)
+	if FlagFilterNodeNames != "" {
+		filterNodenameList, ok := util.ParseHostList(FlagFilterNodeNames)
 		if !ok {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodenames),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodeNames))
 		}
 		request.FilterNodenameList = filterNodenameList
 	}
 
-	rpcStart := time.Now()
 	stream, err := stub.QueryJobSizeSummary(context.Background(), request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query JobSizeSummary info")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	var JobSummaryItemList []*protos.JobSizeSummaryItem
-
 	for {
 		batch, err := stream.Recv()
 		if err == io.EOF {
@@ -462,13 +370,11 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 		}
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to receive item")
-			return &util.CraneError{Code: util.ErrorNetwork}
+			return util.NewCraneErr(util.ErrorNetwork, "")
 		}
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
 
-	rpcElapsed := time.Since(rpcStart)
-	fmt.Printf("[QueryJobSummary] QueryJobSummary RPC used %d ms, JobSummaryItemList  size %v\n", rpcElapsed.Milliseconds(), len(JobSummaryItemList))
 	if CheckType == CheckAccountCpusStatus {
 		PrintAccountCpusList(JobSummaryItemList, start_time, end_time, request.FilterGroupingList, FlagPrintJobCount)
 	} else if CheckType == CheckWckeyCpusStatus {
@@ -492,27 +398,27 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 		fmt.Printf("Top %v Users %s - %s (%d secs)\n",
 			countMax, startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, false, false)
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	divisor := util.ReportUsageDivisor(FlagOutType)
+
 	header := []string{"Cluster", "Login", "Proper_name", "Account", "Used", "Energy"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList))
+	tableData := make([][]string, 0, len(JobSummaryItemList))
 
-	var notFoundUsers []string
 	for count, item := range JobSummaryItemList {
-		// usr, err := user.Lookup(item.Username)
-		// if err != nil {
-		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
-		// 	continue
-		// }
+		usr, err := user.Lookup(item.Username)
+		if err != nil {
+			continue
+		}
 		if count >= int(countMax) {
 			break
 		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Username,
-			item.Username, //usr.Name,
+			usr.Name,
 			item.Account,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
 			"0",
@@ -521,9 +427,6 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	table.AppendBulk(tableData)
 	table.Render()
 
-	for _, msg := range notFoundUsers {
-		fmt.Println(msg)
-	}
 }
 
 func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
@@ -543,36 +446,31 @@ func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 		fmt.Printf("Cluster/Account/User Utilization %s - %s (%d secs)\n",
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, false, false)
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
 	header := []string{"Cluster", "Account", "User", "Proper_name", "Used", "Energy"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList))
+	tableData := make([][]string, 0, len(JobSummaryItemList))
 
-	var notFoundUsers []string
 	for _, item := range JobSummaryItemList {
-		// usr, err := user.Lookup(item.Username)
-		// if err != nil {
-		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
-		// 	continue
-		// }
+		usr, err := user.Lookup(item.Username)
+		if err != nil {
+			continue
+		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Account,
 			item.Username,
-			item.Username, //usr.Name,
+			usr.Name,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
 			"0",
 		})
 	}
 	table.AppendBulk(tableData)
 	table.Render()
-
-	for _, msg := range notFoundUsers {
-		fmt.Println(msg)
-	}
 }
 
 func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
@@ -592,25 +490,23 @@ func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 		fmt.Printf("Cluster/User/Account Utilization %s - %s (%d secs)\n",
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, false, false)
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
 	header := []string{"Cluster", "User", "Proper_name", "Account", "Used", "Energy"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList))
-
-	var notFoundUsers []string
+	tableData := make([][]string, 0, len(JobSummaryItemList))
 	for _, item := range JobSummaryItemList {
-		// usr, err := user.Lookup(item.Username)
-		// if err != nil {
-		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
-		// 	continue
-		// }
+		usr, err := user.Lookup(item.Username)
+		if err != nil {
+			continue
+		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Username,
-			item.Username, //usr.Name,
+			usr.Name,
 			item.Account,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
 			"0",
@@ -618,10 +514,6 @@ func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	}
 	table.AppendBulk(tableData)
 	table.Render()
-
-	for _, msg := range notFoundUsers {
-		fmt.Println(msg)
-	}
 }
 
 func PrintUserWckeyList(accountUserWckeyList []*protos.JobSummaryItem, startTime, endTime time.Time) {
@@ -635,35 +527,30 @@ func PrintUserWckeyList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 		fmt.Printf("Cluster/Account/User Utilization %s - %s (%d secs)\n",
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, false, false)
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
 	header := []string{"Cluster", "User", "Proper_name", "Wckey", "Used"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(accountUserWckeyList))
+	tableData := make([][]string, 0, len(accountUserWckeyList))
 
-	var notFoundUsers []string
 	for _, item := range accountUserWckeyList {
-		// usr, err := user.Lookup(item.Username)
-		// if err != nil {
-		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
-		// 	continue
-		// }
+		usr, err := user.Lookup(item.Username)
+		if err != nil {
+			continue
+		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Username,
-			item.Username, //usr.Name,
+			usr.Name,
 			item.Wckey,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
 		})
 	}
 	table.AppendBulk(tableData)
 	table.Render()
-
-	for _, msg := range notFoundUsers {
-		fmt.Println(msg)
-	}
 }
 
 func PrintWckeyUserList(accountUserWckeyList []*protos.JobSummaryItem, startTime, endTime time.Time) {
@@ -677,35 +564,31 @@ func PrintWckeyUserList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 		fmt.Printf("Cluster/WCKey/User Utilization %s - %s (%d secs)\n",
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, false, false)
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
 	header := []string{"Cluster", "Wckey", "User", "Proper_name", "Used"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(accountUserWckeyList))
+	tableData := make([][]string, 0, len(accountUserWckeyList))
 
-	var notFoundUsers []string
 	for _, item := range accountUserWckeyList {
-		// usr, err := user.Lookup(item.Username)
-		// if err != nil {
-		// 	notFoundUsers = append(notFoundUsers, fmt.Sprintf("User %s not found: %v", item.Username, err))
-		// 	continue
-		// }
+		usr, err := user.Lookup(item.Username)
+		if err != nil {
+			continue
+		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Wckey,
 			item.Username,
-			item.Username, //usr.Name,
+			usr.Name,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
 		})
 	}
 	table.AppendBulk(tableData)
 	table.Render()
 
-	for _, msg := range notFoundUsers {
-		fmt.Println(msg)
-	}
 }
 
 func PrintAccountQosList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
@@ -725,13 +608,14 @@ func PrintAccountQosList(JobSummaryItemList []*protos.JobSummaryItem, startTime,
 		fmt.Printf("Cluster/Account/Qos Utilization %s - %s (%d secs)\n",
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, false, false)
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
 	header := []string{"Cluster", "Account", "Qos", "Used", "Energy"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList))
+	tableData := make([][]string, 0, len(JobSummaryItemList))
 
 	for _, item := range JobSummaryItemList {
 		tableData = append(tableData, []string{
@@ -758,13 +642,14 @@ func PrintClusterList(JobSummaryItemList []*protos.JobSummaryItem, startTime, en
 		fmt.Printf("Cluster Utilization %s - %s (%d secs)\n",
 			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, false, false)
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
 	header := []string{"Cluster", "Allocate", "Down", "Planned", "Reported"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, len(JobSummaryItemList))
+	tableData := make([][]string, 0, len(JobSummaryItemList))
 	for cluster, TotalCpuTime := range clusterMap {
 		tableData = append(tableData, []string{
 			cluster,
@@ -791,12 +676,12 @@ func GetCpusGroupHeaders(groupList []uint32) []string {
 	return headers
 }
 
-func FindCpuGroupIndex(cpuAlloc uint32, groupList []uint32) int {
+func FindCpuGroupIndex(cpusAlloc uint32, groupList []uint32) int {
 	if len(groupList) == 1 {
 		return 0
 	}
 	for i := 0; i < len(groupList)-1; i++ {
-		if cpuAlloc < groupList[i+1] {
+		if cpusAlloc < groupList[i+1] {
 			return i
 		}
 	}
@@ -804,33 +689,32 @@ func FindCpuGroupIndex(cpuAlloc uint32, groupList []uint32) int {
 }
 
 func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, startTime, endTime time.Time, groupList []uint32, isPrintCount bool) {
+	// Mapping: cluster -> account -> summary
 	clusterAccountMap := make(map[string]map[string]*CpuLevelSummary)
-	clusterTotal := make(map[string]float64) // float64 for cpu, int64 for count
+	clusterTotal := make(map[string]float64) // Holds total per cluster
 
 	var actualGroupList []uint32
 	var cpuAllocIndexMap map[uint32]int
 
 	if len(groupList) == 0 {
-		// Dynamically collect all actual CpuAlloc values
 		cpuAllocSet := make(map[uint32]struct{})
 		for _, item := range accountUserWckeyList {
-			cpuAllocSet[item.CpuAlloc] = struct{}{}
+			cpuAllocSet[item.CpusAlloc] = struct{}{}
 		}
 		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
 		for cpus := range cpuAllocSet {
 			actualGroupList = append(actualGroupList, cpus)
 		}
 		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
-		// Build a mapping for fast group lookup
 		cpuAllocIndexMap = make(map[uint32]int)
 		for i, v := range actualGroupList {
 			cpuAllocIndexMap[v] = i
 		}
 	} else {
-		// Use the original grouping logic
 		actualGroupList = groupList
 	}
 
+	// Aggregate data into clusterAccountMap
 	for _, item := range accountUserWckeyList {
 		if _, ok := clusterAccountMap[item.Cluster]; !ok {
 			clusterAccountMap[item.Cluster] = make(map[string]*CpuLevelSummary)
@@ -846,10 +730,9 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 		var groupIdx int
 		if len(groupList) == 0 {
 			// Group by actual cpuAlloc value
-			groupIdx = cpuAllocIndexMap[item.CpuAlloc]
+			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
 		} else {
-			// Use original bucketing/grouping logic
-			groupIdx = FindCpuGroupIndex(item.CpuAlloc, groupList)
+			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
 		}
 
 		if isPrintCount {
@@ -865,11 +748,14 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 	fmt.Println(strings.Repeat("-", 100))
 	if totalSecs > 0 {
 		fmt.Printf("Job Sizes %s - %s (%d secs)\n",
-			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
+			startTime.Format("2006-01-02T15:04:05"),
+			endTime.Format("2006-01-02T15:04:05"),
+			totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, true, isPrintCount)
+	util.PrintUsageTypeInfo(FlagOutType, true, isPrintCount)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
-	// Generate table header dynamically
+	// Build table header
 	header := []string{"Cluster", "Account"}
 	if len(groupList) == 0 {
 		for _, cpu := range actualGroupList {
@@ -886,6 +772,7 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader(header)
 
+	// Sort and print each cluster/account row
 	clusters := make([]string, 0, len(clusterAccountMap))
 	for cluster := range clusterAccountMap {
 		clusters = append(clusters, cluster)
@@ -919,47 +806,45 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 			if clusterTotal[cluster] > 0 {
 				percent = accountTotal / clusterTotal[cluster] * 100
 			}
-			row = append(row,
-				fmt.Sprintf("%.1f", accountTotal),
-				fmt.Sprintf("%.2f%%", percent),
-			)
+			// Format total and percent columns properly
+			if isPrintCount {
+				row = append(row,
+					fmt.Sprintf("%d", int64(accountTotal)),
+					fmt.Sprintf("%.2f%%", percent))
+			} else {
+				row = append(row,
+					fmt.Sprintf("%.1f", accountTotal),
+					fmt.Sprintf("%.2f%%", percent))
+			}
 			table.Append(row)
 		}
 	}
 	table.Render()
 }
 
-func PrintWckeyCpusList(
-	accountUserWckeyList []*protos.JobSizeSummaryItem,
-	startTime, endTime time.Time,
-	groupList []uint32,
-	isPrintCount bool,
-) {
-	// cluster -> wckey -> summary
+func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, startTime, endTime time.Time, groupList []uint32, isPrintCount bool) {
+	// Mapping: cluster -> wckey -> summary
 	clusterWckeyMap := make(map[string]map[string]*CpuLevelSummary)
-	clusterTotal := make(map[string]float64) // float64 for cpu, int64 for count
+	clusterTotal := make(map[string]float64) // Holds total per cluster
 
 	var actualGroupList []uint32
 	var cpuAllocIndexMap map[uint32]int
 
 	if len(groupList) == 0 {
-		// Dynamically collect all actual CpuAlloc values
 		cpuAllocSet := make(map[uint32]struct{})
 		for _, item := range accountUserWckeyList {
-			cpuAllocSet[item.CpuAlloc] = struct{}{}
+			cpuAllocSet[item.CpusAlloc] = struct{}{}
 		}
 		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
 		for cpus := range cpuAllocSet {
 			actualGroupList = append(actualGroupList, cpus)
 		}
 		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
-		// Build a mapping for fast group lookup
 		cpuAllocIndexMap = make(map[uint32]int)
 		for i, v := range actualGroupList {
 			cpuAllocIndexMap[v] = i
 		}
 	} else {
-		// Use the original grouping logic
 		actualGroupList = groupList
 	}
 
@@ -980,10 +865,9 @@ func PrintWckeyCpusList(
 		var groupIdx int
 		if len(groupList) == 0 {
 			// Group by actual cpuAlloc value
-			groupIdx = cpuAllocIndexMap[item.CpuAlloc]
+			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
 		} else {
-			// Use original bucketing/grouping logic
-			groupIdx = FindCpuGroupIndex(item.CpuAlloc, groupList)
+			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
 		}
 
 		if isPrintCount {
@@ -995,15 +879,19 @@ func PrintWckeyCpusList(
 		}
 	}
 
+	// Print table header and info
 	totalSecs := int64(endTime.Sub(startTime).Seconds())
 	fmt.Println(strings.Repeat("-", 100))
 	if totalSecs > 0 {
 		fmt.Printf("Job Sizes by Wckey %s - %s (%d secs)\n",
-			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
+			startTime.Format("2006-01-02T15:04:05"),
+			endTime.Format("2006-01-02T15:04:05"),
+			totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, true, isPrintCount)
+	util.PrintUsageTypeInfo(FlagOutType, true, isPrintCount)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
-	// Generate table header dynamically
+	// Build table header
 	header := []string{"Cluster", "Wckey"}
 	if len(groupList) == 0 {
 		for _, cpu := range actualGroupList {
@@ -1055,10 +943,18 @@ func PrintWckeyCpusList(
 			if clusterTotal[cluster] > 0 {
 				percent = wckeyTotal / clusterTotal[cluster] * 100
 			}
-			row = append(row,
-				fmt.Sprintf("%.1f", wckeyTotal),
-				fmt.Sprintf("%.2f%%", percent),
-			)
+			// Format total and percent columns properly
+			if isPrintCount {
+				row = append(row,
+					fmt.Sprintf("%d", int64(wckeyTotal)),
+					fmt.Sprintf("%.2f%%", percent),
+				)
+			} else {
+				row = append(row,
+					fmt.Sprintf("%.1f", wckeyTotal),
+					fmt.Sprintf("%.2f%%", percent),
+				)
+			}
 			table.Append(row)
 		}
 	}
@@ -1066,31 +962,28 @@ func PrintWckeyCpusList(
 }
 
 func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, startTime, endTime time.Time, groupList []uint32, isPrintCount bool) {
-	// cluster -> account:wckey -> summary
+	// Mapping: cluster -> account:wckey -> summary
 	clusterAccountWckeyMap := make(map[string]map[string]*CpuLevelSummary)
-	clusterTotal := make(map[string]float64) // float64 for cpu, int64 for count
+	clusterTotal := make(map[string]float64) // Holds total per cluster
 
 	var actualGroupList []uint32
 	var cpuAllocIndexMap map[uint32]int
 
 	if len(groupList) == 0 {
-		// Dynamically collect all actual CpuAlloc values
 		cpuAllocSet := make(map[uint32]struct{})
 		for _, item := range accountUserWckeyList {
-			cpuAllocSet[item.CpuAlloc] = struct{}{}
+			cpuAllocSet[item.CpusAlloc] = struct{}{}
 		}
 		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
 		for cpus := range cpuAllocSet {
 			actualGroupList = append(actualGroupList, cpus)
 		}
 		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
-		// Build a mapping for fast group lookup
 		cpuAllocIndexMap = make(map[uint32]int)
 		for i, v := range actualGroupList {
 			cpuAllocIndexMap[v] = i
 		}
 	} else {
-		// Use the original grouping logic
 		actualGroupList = groupList
 	}
 
@@ -1111,11 +1004,9 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 
 		var groupIdx int
 		if len(groupList) == 0 {
-			// Group by actual cpuAlloc value
-			groupIdx = cpuAllocIndexMap[item.CpuAlloc]
+			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
 		} else {
-			// Use original bucketing/grouping logic
-			groupIdx = FindCpuGroupIndex(item.CpuAlloc, groupList)
+			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
 		}
 
 		if isPrintCount {
@@ -1127,15 +1018,19 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 		}
 	}
 
+	// Print table header and info
 	totalSecs := int64(endTime.Sub(startTime).Seconds())
 	fmt.Println(strings.Repeat("-", 100))
 	if totalSecs > 0 {
 		fmt.Printf("Job Sizes %s - %s (%d secs)\n",
-			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
+			startTime.Format("2006-01-02T15:04:05"),
+			endTime.Format("2006-01-02T15:04:05"),
+			totalSecs)
 	}
-	divisor := util.ReportUsageType(FlagOutType, true, isPrintCount)
+	util.PrintUsageTypeInfo(FlagOutType, true, isPrintCount)
+	divisor := util.ReportUsageDivisor(FlagOutType)
 
-	// Generate table header dynamically
+	// Build table header
 	header := []string{"Cluster", "Account:Wckey"}
 	if len(groupList) == 0 {
 		for _, cpu := range actualGroupList {
@@ -1187,10 +1082,18 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 			if clusterTotal[cluster] > 0 {
 				percent = accountWckeyTotal / clusterTotal[cluster] * 100
 			}
-			row = append(row,
-				fmt.Sprintf("%.1f", accountWckeyTotal),
-				fmt.Sprintf("%.2f%%", percent),
-			)
+			// Format total and percent columns properly
+			if isPrintCount {
+				row = append(row,
+					fmt.Sprintf("%d", int64(accountWckeyTotal)),
+					fmt.Sprintf("%.2f%%", percent),
+				)
+			} else {
+				row = append(row,
+					fmt.Sprintf("%.1f", accountWckeyTotal),
+					fmt.Sprintf("%.2f%%", percent),
+				)
+			}
 			table.Append(row)
 		}
 	}

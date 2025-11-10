@@ -26,29 +26,27 @@ import (
 
 var (
 	FlagConfigFilePath   string
-	FlagJson             bool
 	FlagFilterStartTime  string
 	FlagFilterEndTime    string
 	FlagFilterAccounts   string
 	FlagFilterUsers      string
-	FlagFilterQoss       string
+	FlagFilterQosList    string
 	FlagOutType          string
-	FlagTopCount         uint32
 	FlagGroups           string
 	FlagFilterWckeys     string
 	FlagFilterGids       string
 	FlagFilterGrouping   string
 	FlagFilterJobIDs     string
 	FlagFilterPartitions string
+	FlagFilterNodeNames  string
+	FlagTopCount         uint32
 	FlagPrintJobCount    bool
-	FlagFilterNodenames  string
 
 	RootCmd = &cobra.Command{
 		Use:     "creport",
-		Short:   "Display system job report",
+		Short:   "Display system jobs info report",
 		Long:    "",
 		Version: util.Version(),
-		Args:    cobra.MaximumNArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 			util.DetectNetworkProxy()
@@ -60,25 +58,25 @@ var (
 
 	userCmd = &cobra.Command{
 		Use:   "user",
-		Short: "Display system user job report",
+		Short: "Display system user jobs info report",
 		Long:  "",
 	}
 
 	clusterCmd = &cobra.Command{
 		Use:   "cluster",
-		Short: "Display system cluster job report",
+		Short: "Display system cluster jobs info report",
 		Long:  "",
 	}
 
 	jobCmd = &cobra.Command{
 		Use:   "job",
-		Short: "Display system  job size report",
+		Short: "Display system job size info report",
 		Long:  "",
 	}
 
 	userTopUsageCmd = &cobra.Command{
 		Use:   "topusage",
-		Short: "",
+		Short: "Display statistical information of the top job accounts under the specified users",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryUsersTopSummaryItem()
@@ -87,7 +85,7 @@ var (
 
 	accountUtilizationByUserCmd = &cobra.Command{
 		Use:   "accountutilizationbyuser",
-		Short: "Display statistical information for all job users under the specified account, as of the end of the specified time",
+		Short: "Display statistical information of all job accounts under the specified users",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSummary(CheckAccountUserStatus)
@@ -95,7 +93,7 @@ var (
 	}
 	userUtilizationByAccountCmd = &cobra.Command{
 		Use:   "userutilizationbyaccount",
-		Short: "Display statistical information for all job account under the specified user, as of the end of the specified time",
+		Short: "Display statistical information for all job users under the specified accounts",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSummary(CheckUserAccountStatus)
@@ -103,7 +101,7 @@ var (
 	}
 	userUtilizationByWckeyCmd = &cobra.Command{
 		Use:   "userutilizationbywckey",
-		Short: "Display the statistical information of all job wckeys under the specified user that ended at the specified time",
+		Short: "Display the statistical information for all job users under the specified wckeys",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSummary(CheckUserWckeyStatus)
@@ -111,7 +109,7 @@ var (
 	}
 	wckeyUtilizationByUserCmd = &cobra.Command{
 		Use:   "wckeyutilizationbyuser",
-		Short: "Display the statistical information of all job users under the specified user that ended at the specified time",
+		Short: "Display the statistical information for all job wckeys under the specified users",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSummary(CheckWckeyUserStatus)
@@ -119,7 +117,7 @@ var (
 	}
 	accountUtilizationByQosCmd = &cobra.Command{
 		Use:   "accountutilizationbyqos",
-		Short: "Display the statistical information of all job qos under the specified account that ended at the specified time",
+		Short: "Display the statistical information for all job accounts under the specified qos",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSummary(CheckAccountQosStatus)
@@ -127,7 +125,7 @@ var (
 	}
 	utilizationCmd = &cobra.Command{
 		Use:   "utilization",
-		Short: "Display relevant cluster parameters such as cluster nodes",
+		Short: "Display relevant cluster parameters",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSummary(CheckClusterStatus)
@@ -135,7 +133,7 @@ var (
 	}
 	sizesByAccountCmd = &cobra.Command{
 		Use:   "sizesbyaccount",
-		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified account",
+		Short: "Display job size statistics information under the specified accounts",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSizeSummary(CheckAccountCpusStatus)
@@ -143,7 +141,7 @@ var (
 	}
 	sizesByWckeyCmd = &cobra.Command{
 		Use:   "sizesbywckey",
-		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified wckey",
+		Short: "Display job size statistics information under the specified wckeys",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSizeSummary(CheckWckeyCpusStatus)
@@ -151,7 +149,7 @@ var (
 	}
 	sizesByAccountAndWcKey = &cobra.Command{
 		Use:   "sizesbyaccountandwckey",
-		Short: "Displays statistics about the job size of all jobs that ended at a specified time under a specified wckey and account",
+		Short: "Display job size statistics information under the specified accounts and wckeys",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return QueryJobSizeSummary(CheckAccountWckeyCpusStatus)
@@ -250,7 +248,7 @@ func init() {
 				GetDefaultEndTime(), "Filter job collections by end time(timeFormat: 2025-06-06T15:04:05)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
 				GetDefaultStartTime(), "Filter job collections by start time(timeFormat: 2025-01-02T15:04:05)")
-			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterQoss, "qos", "",
+			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterQosList, "qos", "",
 				"", "Select qoss to view (comma separated list)",
 			)
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagOutType, "time", "t", "seconds",
@@ -293,7 +291,7 @@ func init() {
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByAccountCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
 				" The report will print number of jobs range instead of time used")
-			sizesByAccountCmd.Flags().StringVarP(&FlagFilterNodenames, "nodes", "n", "",
+			sizesByAccountCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
 		}
 		jobCmd.AddCommand(sizesByWckeyCmd)
@@ -318,7 +316,7 @@ func init() {
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByWckeyCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
 				" The report will print number of jobs range instead of time used")
-			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterNodenames, "nodes", "n", "",
+			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
 		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
@@ -343,7 +341,7 @@ func init() {
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByAccountAndWcKey.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
 				" The report will print number of jobs range instead of time used")
-			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterNodenames, "nodes", "n", "",
+			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
 		}
 	}
