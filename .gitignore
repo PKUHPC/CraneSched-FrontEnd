@@ -12,7 +12,6 @@ generated
 build
 out
 bin
-.cache/
 
 # Testing
 testcase

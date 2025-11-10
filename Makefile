@@ -144,7 +144,7 @@ plugin-other:
 
 clean:
 	@echo "Cleaning up..."
-	@rm -rf build .cache
+	@rm -rf build generated
 
 install:
 	@echo "- Installing executables, plugins and auxiliary files..."
