@@ -47,7 +47,7 @@ func FillReqByCobraFlags() (*protos.QueryTasksInfoRequest, error) {
 		&PartitionsProcessor{},
 		&JobIDsProcessor{},
 		&LicensesProcessor{},
-		&NodenamesProcessor{},
+		&NodeNamesProcessor{},
 	}
 
 	for _, p := range processors {

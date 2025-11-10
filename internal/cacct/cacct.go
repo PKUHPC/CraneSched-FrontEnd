@@ -134,13 +134,10 @@ func QueryJob() error {
 		request.FilterTaskTypes = filterTaskTypeList
 	}
 
-	if FlagFilterNodenames != "" {
-		filterNodenameList, ok := util.ParseHostList(FlagFilterNodenames)
+	if FlagFilterNodeNames != "" {
+		filterNodenameList, ok := util.ParseHostList(FlagFilterNodeNames)
 		if !ok {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodenames),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodeNames))
 		}
 		request.FilterNodenameList = filterNodenameList
 	}
