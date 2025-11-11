@@ -575,11 +575,16 @@ CforedCrunStateMachineLoop:
 					jobId, stepId)
 			}
 
+			// Get the maximum exit code from all tasks
+			exitCode := gSupervisorChanKeeper.getMaxExitCode(jobId, stepId)
+			log.Debugf("[Cfored->Crun][Step #%d.%d] Sending exit code %d to crun", jobId, stepId, exitCode)
+
 			reply = &protos.StreamCrunReply{
 				Type: protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY,
 				Payload: &protos.StreamCrunReply_PayloadTaskCompletionAckReply{
 					PayloadTaskCompletionAckReply: &protos.StreamCrunReply_TaskCompletionAckReply{
-						Ok: true,
+						Ok:       true,
+						ExitCode: exitCode,
 					},
 				},
 			}
@@ -588,6 +593,7 @@ CforedCrunStateMachineLoop:
 			delete(gVars.ctldReplyChannelMapByStep, step)
 			gVars.ctldReplyChannelMapMtx.Unlock()
 			gSupervisorChanKeeper.crunTaskStopAndRemoveChannel(jobId, stepId)
+			gSupervisorChanKeeper.clearExitCodes(jobId, stepId)
 
 			if err := toCrunStream.Send(reply); err != nil {
 				log.Errorf("[Cfored->Crun] Failed to send CompletionAck to crun: %s. "+
@@ -595,7 +601,7 @@ CforedCrunStateMachineLoop:
 			} else {
 				log.Debug("[Cfored->Crun] TASK_COMPLETION_ACK_REPLY sent to Crun")
 			}
-			log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully with exit code %d", jobId, stepId, exitCode)
 
 			break CforedCrunStateMachineLoop
 

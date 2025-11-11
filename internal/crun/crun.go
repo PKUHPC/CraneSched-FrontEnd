@@ -580,7 +580,14 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 	}
 
 	if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
-		log.Debug("Task completed.")
+		exitCode := cforedReply.GetPayloadTaskCompletionAckReply().ExitCode
+		if exitCode != 0 {
+			log.Infof("Task completed with exit code: %d", exitCode)
+			fmt.Printf("Task completed with exit code: %d\n", exitCode)
+			m.err = util.ErrorGeneric
+		} else {
+			log.Debug("Task completed successfully.")
+		}
 	} else {
 		log.Errorln("Failed to notify server of task completion")
 		m.err = util.ErrorBackend

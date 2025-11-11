@@ -777,6 +777,7 @@ message StreamCrunReply {
 
   message TaskCompletionAckReply {
     bool ok = 1;
+    uint32 exit_code = 2;
   }
 
   message TaskIOForwardReadyReply {
@@ -822,7 +823,9 @@ message StreamTaskIORequest {
     bytes msg = 1;
   }
 
-  message SupervisorUnRegisterReq {}
+  message SupervisorUnRegisterReq {
+    uint32 exit_code = 1;
+  }
 
   message TaskX11OutputReq {
     bytes msg = 1;

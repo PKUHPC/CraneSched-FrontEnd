@@ -54,6 +54,10 @@ type SupervisorChannelKeeper struct {
 	taskIORequestChannelMtx sync.Mutex
 	// I/O message from Supervisor to Crun
 	taskIORequestChannelMap map[StepIdentifier]chan *protos.StreamTaskIORequest
+
+	stepExitCodeMtx sync.Mutex
+	// Exit codes from each supervisor (per craned)
+	stepExitCodeMap map[StepIdentifier]map[string] /*CranedId*/ uint32
 }
 
 var gSupervisorChanKeeper *SupervisorChannelKeeper
@@ -63,6 +67,7 @@ func NewCranedChannelKeeper() *SupervisorChannelKeeper {
 	keeper.toSupervisorChannelCV = sync.NewCond(&keeper.toSupervisorChannelMtx)
 	keeper.toSupervisorChannels = make(map[StepIdentifier]map[string]*CrunRequestSupervisorChannel)
 	keeper.taskIORequestChannelMap = make(map[StepIdentifier]chan *protos.StreamTaskIORequest)
+	keeper.stepExitCodeMap = make(map[StepIdentifier]map[string]uint32)
 	return keeper
 }
 
@@ -184,6 +189,42 @@ func (keeper *SupervisorChannelKeeper) crunTaskStopAndRemoveChannel(taskId uint3
 	keeper.taskIORequestChannelMtx.Lock()
 	delete(keeper.taskIORequestChannelMap, StepIdentifier{JobId: taskId, StepId: stepId})
 	keeper.taskIORequestChannelMtx.Unlock()
+}
+
+func (keeper *SupervisorChannelKeeper) setExitCode(taskId uint32, stepId uint32, cranedId string, exitCode uint32) {
+	keeper.stepExitCodeMtx.Lock()
+	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
+	if _, exist := keeper.stepExitCodeMap[stepIdentity]; !exist {
+		keeper.stepExitCodeMap[stepIdentity] = make(map[string]uint32)
+	}
+	keeper.stepExitCodeMap[stepIdentity][cranedId] = exitCode
+	keeper.stepExitCodeMtx.Unlock()
+}
+
+func (keeper *SupervisorChannelKeeper) getMaxExitCode(taskId uint32, stepId uint32) uint32 {
+	keeper.stepExitCodeMtx.Lock()
+	defer keeper.stepExitCodeMtx.Unlock()
+	
+	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
+	exitCodes, exist := keeper.stepExitCodeMap[stepIdentity]
+	if !exist || len(exitCodes) == 0 {
+		return 0
+	}
+	
+	// Return the maximum exit code from all tasks
+	maxExitCode := uint32(0)
+	for _, exitCode := range exitCodes {
+		if exitCode > maxExitCode {
+			maxExitCode = exitCode
+		}
+	}
+	return maxExitCode
+}
+
+func (keeper *SupervisorChannelKeeper) clearExitCodes(taskId uint32, stepId uint32) {
+	keeper.stepExitCodeMtx.Lock()
+	delete(keeper.stepExitCodeMap, StepIdentifier{JobId: taskId, StepId: stepId})
+	keeper.stepExitCodeMtx.Unlock()
 }
 
 type GrpcCforedServer struct {
@@ -314,8 +355,12 @@ CforedSupervisorStateMachineLoop:
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
 
 					case protos.StreamTaskIORequest_SUPERVISOR_UNREGISTER:
-						log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorUnReg from Craned %s",
-							jobId, stepId, cranedId)
+						exitCode := supervisorReq.GetPayloadUnregisterReq().GetExitCode()
+						log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorUnReg from Craned %s with exit code %d",
+							jobId, stepId, cranedId, exitCode)
+						
+						// Store the exit code for this craned
+						gSupervisorChanKeeper.setExitCode(jobId, stepId, cranedId, exitCode)
 
 						reply = &protos.StreamTaskIOReply{
 							Type: protos.StreamTaskIOReply_SUPERVISOR_UNREGISTER_REPLY,
