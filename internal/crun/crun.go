@@ -23,6 +23,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"net"
+	"os/exec"
 	"os/user"
 	"regexp"
 	"strconv"
@@ -107,10 +108,20 @@ type StateMachineOfCrun struct {
 	chanOutputFromRemote    chan []byte
 	chanX11InputFromLocal   chan []byte
 	chanX11OutputFromRemote chan []byte
+
+	CrunProlog string
+	CrunEpilog string
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
 	replyChannel chan ReplyReceiveItem
+}
+
+type RunCommandArgs struct {
+	Program    string
+	Args       []string
+	Envs       map[string]string
+	TimeoutSec int
 }
 
 func (r *CforedReplyReceiver) GetReplyChannel() chan ReplyReceiveItem {
@@ -183,6 +194,32 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		m.err = util.ErrorBackend
 		m.state = End
 		return
+	}
+	m.CrunProlog = config.CrunProlog
+	m.CrunEpilog = config.CrunEpilog
+
+	if FlagProlog != "" {
+		m.CrunProlog = FlagProlog
+	}
+	if FlagEpilog != "" {
+		m.CrunEpilog = FlagEpilog
+	}
+
+	if len(m.CrunProlog) > 0 {
+		ExitCode := m.RunCommand(RunCommandArgs{
+			Program:    m.CrunProlog,
+			Args:       nil,
+			Envs:       m.task.Env,
+			TimeoutSec: 300,
+		})
+		if ExitCode != 0 {
+			log.Errorf("Prolog '%s' failed (exit code %d).", m.CrunProlog, ExitCode)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		}
+		log.Tracef("Prolog '%s' finished successfully.", m.CrunProlog)
+
 	}
 
 	m.client = protos.NewCraneForeDClient(m.conn)
@@ -586,6 +623,22 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		m.err = util.ErrorBackend
 	}
 
+	if len(m.CrunEpilog) > 0 {
+		ExitCode := m.RunCommand(RunCommandArgs{
+			Program:    m.CrunEpilog,
+			Args:       nil,
+			Envs:       m.task.Env,
+			TimeoutSec: 300,
+		})
+		if ExitCode != 0 {
+			log.Errorf("Epilog '%s' failed (exit code %d).", m.CrunEpilog, ExitCode)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		}
+		log.Tracef("Epilog '%s' finished successfully.", m.CrunEpilog)
+	}
+
 	m.state = End
 }
 
@@ -987,6 +1040,64 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
 		go m.StartX11ReaderWriterRoutine()
 	}
+}
+
+func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
+	ExitCode := 127
+
+	ctx := context.Background()
+	if runCommandArgs.TimeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(runCommandArgs.TimeoutSec)*time.Second)
+		defer cancel()
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	cmd := exec.CommandContext(ctx, runCommandArgs.Program, runCommandArgs.Args...)
+
+	if len(runCommandArgs.Envs) > 0 {
+		envs := os.Environ()
+		for k, v := range runCommandArgs.Envs {
+			envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmd.Env = envs
+	}
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	if err := cmd.Start(); err != nil {
+		log.Errorf("Failed to start command: %v", err.Error())
+		return -1
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-ctx.Done():
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+
+	case <-sigCh:
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+
+	case err := <-done:
+		if err != nil {
+			log.Errorf("Failed to execute command: %v", err.Error())
+		}
+	}
+
+	if cmd.ProcessState != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if status.Exited() {
+				ExitCode = status.ExitStatus()
+			}
+		}
+	}
+
+	return ExitCode
 }
 
 func MainCrun(args []string) error {
