@@ -95,7 +95,7 @@ func StartCallocStream(task *protos.TaskToCtld) error {
 	conn, err := grpc.NewClient(unixSocketPath, opts...)
 	if err != nil {
 		log.Errorf("Failed to connect to local unix socket %s: %s.",
-			unixSocketPath, err, util.ErrorBackend)
+			unixSocketPath, err)
 		return &util.CraneError{Code: util.ErrorBackend}
 	}
 	defer func(conn *grpc.ClientConn) {
@@ -318,7 +318,7 @@ CallocStateMachineLoop:
 			}
 
 			if cforedReply.Type != protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
-				log.Error("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s.", cforedReply.Type.String())
+				log.Errorf("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s.", cforedReply.Type.String())
 				return &util.CraneError{Code: util.ErrorBackend}
 			}
 
