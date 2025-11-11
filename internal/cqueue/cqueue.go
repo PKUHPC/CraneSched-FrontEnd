@@ -79,14 +79,14 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 		if rpcErr, ok := grpcstatus.FromError(err); ok {
 			switch rpcErr.Code() {
 			case grpccodes.DeadlineExceeded:
-				util.GrpcErrorPrintf(err, "Query time out,due to too many jobs")
+				util.GrpcErrorPrintf(err, "Query time out, due to too many jobs")
 				return nil, util.NewCraneErr(util.ErrorBackend,
-					"Query timed out due to large number of jobs.Please try with a smaller scope or use filters.",
+					"Query timed out due to large number of jobs. Please try with a smaller scope or use filters.",
 				)
 			case grpccodes.ResourceExhausted:
 				util.GrpcErrorPrintf(err, "Response too large")
 				return nil, util.NewCraneErr(util.ErrorNetwork,
-					"Response too large for gRPC.Please reduce the query scope or avoid using -m with huge values.")
+					"Response too large for gRPC. Please reduce the query scope or avoid using -m with huge values.")
 			default:
 				util.GrpcErrorPrintf(err, "Failed to query task queue")
 				return nil, &util.CraneError{Code: util.ErrorNetwork}
