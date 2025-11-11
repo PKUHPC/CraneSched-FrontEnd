@@ -20,15 +20,30 @@ package util
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
 )
 
-var VERSION = "Unknown"
-var BUILD_TIME = "Unknown"
+const unknown = "Unknown"
+
+var VERSION = unknown
+var SOURCE_DATE_EPOCH = unknown
 
 func VersionTemplate() string {
 	return `{{.Version}}` + "\n"
 }
 
 func Version() string {
-	return fmt.Sprintf("CraneSched %s\nBuild Time: %s", VERSION, BUILD_TIME)
+	displayTime := unknown
+
+	// Try to parse SOURCE_DATE_EPOCH as Unix epoch
+	epoch, err := strconv.ParseInt(strings.TrimSpace(SOURCE_DATE_EPOCH), 10, 64)
+	if err == nil {
+		displayTime = time.Unix(epoch, 0).
+			In(time.FixedZone("UTC", 0)).
+			Format(time.RFC1123Z)
+	}
+
+	return fmt.Sprintf("CraneSched %s\nSource Time: %s", VERSION, displayTime)
 }
