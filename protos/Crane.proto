@@ -1054,6 +1054,8 @@ service CraneCtld {
   rpc QueryTasksInfo(QueryTasksInfoRequest) returns (QueryTasksInfoReply);
   rpc CreateReservation(CreateReservationRequest) returns (CreateReservationReply);
   rpc DeleteReservation(DeleteReservationRequest) returns (DeleteReservationReply);
+  rpc QueryJobSummary(QueryJobSummaryRequest) returns (stream QueryJobSummaryReply);
+  rpc QueryJobSizeSummary(QueryJobSizeSummaryRequest) returns (stream QueryJobSizeSummaryReply);
 
   /* RPC called form plugin */
   rpc PowerStateChange(PowerStateChangeRequest) returns (PowerStateChangeReply);
@@ -1064,9 +1066,6 @@ service CraneCtld {
   /* RPCS called from ccon */
   rpc AttachInContainerTask(AttachInContainerTaskRequest) returns (AttachInContainerTaskReply);
   rpc ExecInContainerTask(ExecInContainerTaskRequest) returns (ExecInContainerTaskReply);
-  rpc QueryJobSummary(QueryJobSummaryRequest) returns (stream QueryJobSummaryReply);
-  rpc QueryJobSizeSummary(QueryJobSizeSummaryRequest) returns (stream QueryJobSizeSummaryReply);
-
 }
 
 service CeffQueryService {

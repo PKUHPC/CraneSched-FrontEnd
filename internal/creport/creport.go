@@ -120,10 +120,12 @@ func QueryUsersTopSummaryItem() error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the EndTime filter: %s.", err))
 		}
 		request.FilterEndTime = timestamppb.New(end_time)
-		start := request.FilterStartTime.AsTime()
-		end := request.FilterEndTime.AsTime()
-		if !end.After(start) {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invaild end_time: end_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+		if request.FilterStartTime != nil {
+			start := request.FilterStartTime.AsTime()
+			end := request.FilterEndTime.AsTime()
+			if !end.After(start) {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+			}
 		}
 	}
 
@@ -206,10 +208,12 @@ func QueryJobSummary(CheckType CheckStatus) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the EndTime filter: %s.", err))
 		}
 		request.FilterEndTime = timestamppb.New(end_time)
-		start := request.FilterStartTime.AsTime()
-		end := request.FilterEndTime.AsTime()
-		if !end.After(start) {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+		if request.FilterStartTime != nil {
+			start := request.FilterStartTime.AsTime()
+			end := request.FilterEndTime.AsTime()
+			if !end.After(start) {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+			}
 		}
 	}
 
@@ -311,10 +315,12 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse the EndTime filter: %s.", err))
 		}
 		request.FilterEndTime = timestamppb.New(end_time)
-		start := request.FilterStartTime.AsTime()
-		end := request.FilterEndTime.AsTime()
-		if !end.After(start) {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+		if request.FilterStartTime != nil {
+			start := request.FilterStartTime.AsTime()
+			end := request.FilterEndTime.AsTime()
+			if !end.After(start) {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+			}
 		}
 	}
 
@@ -420,7 +426,7 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 			item.Username,
 			usr.Name,
 			item.Account,
-			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
+			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 			"0",
 		})
 	}
@@ -465,7 +471,7 @@ func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 			item.Account,
 			item.Username,
 			usr.Name,
-			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
+			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 			"0",
 		})
 	}
@@ -508,7 +514,7 @@ func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 			item.Username,
 			usr.Name,
 			item.Account,
-			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
+			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 			"0",
 		})
 	}
@@ -546,7 +552,7 @@ func PrintUserWckeyList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 			item.Username,
 			usr.Name,
 			item.Wckey,
-			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
+			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 		})
 	}
 	table.AppendBulk(tableData)
@@ -583,7 +589,7 @@ func PrintWckeyUserList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 			item.Wckey,
 			item.Username,
 			usr.Name,
-			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
+			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 		})
 	}
 	table.AppendBulk(tableData)
@@ -622,7 +628,7 @@ func PrintAccountQosList(JobSummaryItemList []*protos.JobSummaryItem, startTime,
 			item.Cluster,
 			item.Account,
 			item.Qos,
-			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 1, 32),
+			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 			"0",
 		})
 	}
@@ -653,7 +659,7 @@ func PrintClusterList(JobSummaryItemList []*protos.JobSummaryItem, startTime, en
 	for cluster, TotalCpuTime := range clusterMap {
 		tableData = append(tableData, []string{
 			cluster,
-			strconv.FormatFloat(float64(TotalCpuTime/divisor), 'f', 0, 32),
+			strconv.FormatFloat(float64(TotalCpuTime/divisor), 'f', 2, 64),
 			"-",
 			"-",
 			"-",
@@ -729,7 +735,7 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 
 		var groupIdx int
 		if len(groupList) == 0 {
-			// Group by actual cpuAlloc value
+			// Group by actual cpusAlloc value
 			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
 		} else {
 			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
@@ -797,14 +803,18 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 				}
 			} else {
 				for _, cpu := range summary.CpuTime {
-					row = append(row, fmt.Sprintf("%.1f", cpu/divisor))
+					row = append(row, fmt.Sprintf("%.2f", cpu/divisor))
 					accountTotal += cpu
 				}
 				accountTotal /= divisor
 			}
+			clusterTotalValue := clusterTotal[cluster]
+			if !isPrintCount {
+				clusterTotalValue /= divisor
+			}
 			percent := 0.0
-			if clusterTotal[cluster] > 0 {
-				percent = accountTotal / clusterTotal[cluster] * 100
+			if clusterTotalValue > 0 {
+				percent = accountTotal / clusterTotalValue * 100
 			}
 			// Format total and percent columns properly
 			if isPrintCount {
@@ -813,7 +823,7 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 					fmt.Sprintf("%.2f%%", percent))
 			} else {
 				row = append(row,
-					fmt.Sprintf("%.1f", accountTotal),
+					fmt.Sprintf("%.2f", accountTotal),
 					fmt.Sprintf("%.2f%%", percent))
 			}
 			table.Append(row)
@@ -864,7 +874,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 
 		var groupIdx int
 		if len(groupList) == 0 {
-			// Group by actual cpuAlloc value
+			// Group by actual cpusAlloc value
 			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
 		} else {
 			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
@@ -934,14 +944,18 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 				}
 			} else {
 				for _, cpu := range summary.CpuTime {
-					row = append(row, fmt.Sprintf("%.1f", cpu/divisor))
+					row = append(row, fmt.Sprintf("%.2f", cpu/divisor))
 					wckeyTotal += cpu
 				}
 				wckeyTotal /= divisor
 			}
+			clusterTotalValue := clusterTotal[cluster]
+			if !isPrintCount {
+				clusterTotalValue /= divisor
+			}
 			percent := 0.0
-			if clusterTotal[cluster] > 0 {
-				percent = wckeyTotal / clusterTotal[cluster] * 100
+			if clusterTotalValue > 0 {
+				percent = wckeyTotal / clusterTotalValue * 100
 			}
 			// Format total and percent columns properly
 			if isPrintCount {
@@ -951,7 +965,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 				)
 			} else {
 				row = append(row,
-					fmt.Sprintf("%.1f", wckeyTotal),
+					fmt.Sprintf("%.2f", wckeyTotal),
 					fmt.Sprintf("%.2f%%", percent),
 				)
 			}
@@ -1073,14 +1087,18 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 				}
 			} else {
 				for _, cpu := range summary.CpuTime {
-					row = append(row, fmt.Sprintf("%.1f", cpu/divisor))
+					row = append(row, fmt.Sprintf("%.2f", cpu/divisor))
 					accountWckeyTotal += cpu
 				}
 				accountWckeyTotal /= divisor
 			}
+			clusterTotalValue := clusterTotal[cluster]
+			if !isPrintCount {
+				clusterTotalValue /= divisor
+			}
 			percent := 0.0
-			if clusterTotal[cluster] > 0 {
-				percent = accountWckeyTotal / clusterTotal[cluster] * 100
+			if clusterTotalValue > 0 {
+				percent = accountWckeyTotal / clusterTotalValue * 100
 			}
 			// Format total and percent columns properly
 			if isPrintCount {
@@ -1090,7 +1108,7 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 				)
 			} else {
 				row = append(row,
-					fmt.Sprintf("%.1f", accountWckeyTotal),
+					fmt.Sprintf("%.2f", accountWckeyTotal),
 					fmt.Sprintf("%.2f%%", percent),
 				)
 			}
