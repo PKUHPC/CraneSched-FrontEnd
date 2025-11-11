@@ -83,7 +83,7 @@ func StartCfored() {
 	util.InitLogger(debugLevel)
 
 	if err := os.MkdirAll(config.CforedLogDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create log directory: %s\n", err.Error())
+		log.Errorf("Failed to create log directory: %s", err.Error())
 		os.Exit(1)
 	}
 
