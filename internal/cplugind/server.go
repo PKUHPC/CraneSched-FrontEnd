@@ -79,7 +79,7 @@ func (pd *PluginDaemon) StartHook(ctx context.Context, req *protos.StartHookRequ
 
 	// Only call plugins that implement JobLifecycleHooks
 	for _, p := range gPluginMap {
-		if handler, ok := (*p).(api.JobLifecycleHooks); ok {
+		if handler, ok := p.Plugin.(api.JobLifecycleHooks); ok {
 			hs = append(hs, handler.StartHook)
 		}
 	}
@@ -97,7 +97,7 @@ func (pd *PluginDaemon) EndHook(ctx context.Context, req *protos.EndHookRequest)
 
 	// Only call plugins that implement JobLifecycleHooks
 	for _, p := range gPluginMap {
-		if handler, ok := (*p).(api.JobLifecycleHooks); ok {
+		if handler, ok := p.Plugin.(api.JobLifecycleHooks); ok {
 			hs = append(hs, handler.EndHook)
 		}
 	}
@@ -115,7 +115,7 @@ func (pd *PluginDaemon) CreateCgroupHook(ctx context.Context, req *protos.Create
 
 	// Only call plugins that implement CgroupLifecycleHooks
 	for _, p := range gPluginMap {
-		if handler, ok := (*p).(api.CgroupLifecycleHooks); ok {
+		if handler, ok := p.Plugin.(api.CgroupLifecycleHooks); ok {
 			hs = append(hs, handler.CreateCgroupHook)
 		}
 	}
@@ -133,7 +133,7 @@ func (pd *PluginDaemon) DestroyCgroupHook(ctx context.Context, req *protos.Destr
 
 	// Only call plugins that implement CgroupLifecycleHooks
 	for _, p := range gPluginMap {
-		if handler, ok := (*p).(api.CgroupLifecycleHooks); ok {
+		if handler, ok := p.Plugin.(api.CgroupLifecycleHooks); ok {
 			hs = append(hs, handler.DestroyCgroupHook)
 		}
 	}
@@ -151,7 +151,7 @@ func (pd *PluginDaemon) NodeEventHook(ctx context.Context, req *protos.NodeEvent
 
 	// Only call plugins that implement NodeEventHooks
 	for _, p := range gPluginMap {
-		if handler, ok := (*p).(api.NodeEventHooks); ok {
+		if handler, ok := p.Plugin.(api.NodeEventHooks); ok {
 			hs = append(hs, handler.NodeEventHook)
 		}
 	}
@@ -169,7 +169,7 @@ func (pd *PluginDaemon) UpdatePowerStateHook(ctx context.Context, req *protos.Up
 
 	// Only call plugins that implement PowerManagementHooks
 	for _, p := range gPluginMap {
-		if handler, ok := (*p).(api.PowerManagementHooks); ok {
+		if handler, ok := p.Plugin.(api.PowerManagementHooks); ok {
 			hs = append(hs, handler.UpdatePowerStateHook)
 		}
 	}
@@ -187,7 +187,7 @@ func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.Regi
 
 	// Only call plugins that implement CranedLifecycleHooks
 	for _, p := range gPluginMap {
-		if handler, ok := (*p).(api.CranedLifecycleHooks); ok {
+		if handler, ok := p.Plugin.(api.CranedLifecycleHooks); ok {
 			hs = append(hs, handler.RegisterCranedHook)
 		}
 	}
