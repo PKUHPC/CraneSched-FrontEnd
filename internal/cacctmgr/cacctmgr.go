@@ -45,7 +45,9 @@ var (
 	stub             protos.CraneCtldClient
 	config           *util.Config
 	dbConfig         *util.InfluxDbConfig
-	dbConfigInitOnce sync.Once
+	
+	// unused
+	// dbConfigInitOnce sync.Once
 )
 
 type ServerAddr struct {

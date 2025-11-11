@@ -89,6 +89,16 @@ var (
 	FlagDescription         string
 )
 
+var actionToExecute = map[string]func(command *CAcctMgrCommand) int{
+	"add":     executeAddCommand,
+	"delete":  executeDeleteCommand,
+	"block":   executeBlockCommand,
+	"unblock": executeUnblockCommand,
+	"modify":  executeModifyCommand,
+	"show":    executeShowCommand,
+	"reset":   executeResetCommand,
+}
+
 func validateUintValue(value string, fieldName string, bitSize int) error {
 	_, err := strconv.ParseUint(value, 10, bitSize)
 	if err != nil {
@@ -105,39 +115,7 @@ func ParseCmdArgs(args []string) {
 		showHelp()
 		os.Exit(0)
 	}
-
-	var processedArgs []string
-	for _, arg := range commandArgs {
-		if arg == "" {
-			processedArgs = append(processedArgs, "\"\"")
-			continue
-		}
-
-		if strings.Contains(arg, "=") {
-			parts := strings.SplitN(arg, "=", 2)
-			key := parts[0]
-			value := parts[1]
-
-			if value == "" {
-				processedArgs = append(processedArgs, key+"=\"\"")
-				continue
-			}
-
-			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
-				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
-				processedArgs = append(processedArgs, arg)
-			} else if strings.Contains(value, " ") {
-				processedArgs = append(processedArgs, key+"="+strconv.Quote(value))
-			} else {
-				processedArgs = append(processedArgs, arg)
-			}
-		} else if strings.Contains(arg, " ") && !strings.HasPrefix(arg, "'") && !strings.HasPrefix(arg, "\"") {
-			processedArgs = append(processedArgs, strconv.Quote(arg))
-		} else {
-			processedArgs = append(processedArgs, arg)
-		}
-	}
-	cmdStr := strings.Join(processedArgs, " ")
+	cmdStr := getCmdStringByArgs(commandArgs)
 	command, err := ParseCAcctMgrCommand(cmdStr)
 
 	if err != nil {
@@ -155,23 +133,10 @@ func executeCommand(command *CAcctMgrCommand) int {
 	userUid = uint32(os.Getuid())
 
 	action := command.GetAction()
-
-	switch action {
-	case "add":
-		return executeAddCommand(command)
-	case "delete":
-		return executeDeleteCommand(command)
-	case "block":
-		return executeBlockCommand(command)
-	case "unblock":
-		return executeUnblockCommand(command)
-	case "modify":
-		return executeModifyCommand(command)
-	case "show":
-		return executeShowCommand(command)
-	case "reset":
-		return executeResetCommand(command)
-	default:
+	execueAction, exists := actionToExecute[action]
+	if exists {
+		return execueAction(command)
+	} else {
 		log.Errorf("unknown operation type: %s", action)
 		return util.ErrorCmdArg
 	}

@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/participle/v2"
@@ -396,3 +397,38 @@ func unquoteIfQuoted(s string) string {
 	}
 	return s
 }
+
+func getCmdStringByArgs(commandArgs []string) string {
+		var processedArgs []string
+	for _, arg := range commandArgs {
+		if arg == "" {
+			processedArgs = append(processedArgs, "\"\"")
+			continue
+		}
+
+		if strings.Contains(arg, "=") {
+			parts := strings.SplitN(arg, "=", 2)
+			key := parts[0]
+			value := parts[1]
+
+			if value == "" {
+				processedArgs = append(processedArgs, key+"=\"\"")
+				continue
+			}
+			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
+				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
+				processedArgs = append(processedArgs, arg)
+			} else if strings.Contains(value, " ") {
+				processedArgs = append(processedArgs, key+"="+strconv.Quote(value))
+			} else {
+				processedArgs = append(processedArgs, arg)
+			}
+		} else if strings.Contains(arg, " ") && !strings.HasPrefix(arg, "'") && !strings.HasPrefix(arg, "\"") {
+			processedArgs = append(processedArgs, strconv.Quote(arg))
+		} else {
+			processedArgs = append(processedArgs, arg)
+		}
+	}
+	cmdStr := strings.Join(processedArgs, " ")
+	return cmdStr
+} 
