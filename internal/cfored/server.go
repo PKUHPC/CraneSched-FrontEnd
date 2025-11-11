@@ -204,13 +204,13 @@ func (keeper *SupervisorChannelKeeper) setExitCode(taskId uint32, stepId uint32,
 func (keeper *SupervisorChannelKeeper) getMaxExitCode(taskId uint32, stepId uint32) uint32 {
 	keeper.stepExitCodeMtx.Lock()
 	defer keeper.stepExitCodeMtx.Unlock()
-	
+
 	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
 	exitCodes, exist := keeper.stepExitCodeMap[stepIdentity]
 	if !exist || len(exitCodes) == 0 {
 		return 0
 	}
-	
+
 	// Return the maximum exit code from all tasks
 	maxExitCode := uint32(0)
 	for _, exitCode := range exitCodes {
@@ -358,7 +358,7 @@ CforedSupervisorStateMachineLoop:
 						exitCode := supervisorReq.GetPayloadUnregisterReq().GetExitCode()
 						log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorUnReg from Craned %s with exit code %d",
 							jobId, stepId, cranedId, exitCode)
-						
+
 						// Store the exit code for this craned
 						gSupervisorChanKeeper.setExitCode(jobId, stepId, cranedId, exitCode)
 
