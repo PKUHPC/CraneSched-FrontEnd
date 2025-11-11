@@ -22,7 +22,6 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"path/filepath"
 
