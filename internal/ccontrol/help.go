@@ -41,6 +41,7 @@ ENTITIES:
   partition   - Node partitions
   job         - Jobs/tasks
   reservation - Reservations
+  lic         - Licenses
 
 COMMANDS:
   show node [<nodename>]
@@ -58,6 +59,10 @@ COMMANDS:
   show reservation [<reservationName>]
     Show information about reservations.
     If no reservation name is specified, information for all reservations will be displayed.
+  
+  show lic [<licenseName>]
+   Show information about licenses.
+   if no license name is specified, information for all licenses will be displayed.
 
   update nodeName=<nodename> state=<state> [reason=<reason>]
     Update attributes of a node.
