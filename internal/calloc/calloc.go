@@ -214,7 +214,7 @@ CallocStateMachineLoop:
 					fmt.Printf("Allocated craned nodes: %s.\n", cforedPayload.AllocatedCranedRegex)
 					state = TaskRunning
 				} else {
-					fmt.Println("Failed to allocate task resource. Exiting...")
+					fmt.Println("Failed to allocate job resource. Exiting...")
 					break CallocStateMachineLoop
 				}
 
@@ -224,7 +224,7 @@ CallocStateMachineLoop:
 			}
 
 		case TaskRunning:
-			go StartTerminal(gVars.shellPath, cancelRequestChannel, terminalExitChannel)
+			go StartTerminal(gVars.shellPath, jobId, cancelRequestChannel, terminalExitChannel)
 
 			select {
 			case <-terminalExitChannel:
@@ -267,7 +267,7 @@ CallocStateMachineLoop:
 						state = TaskKilling
 
 					case protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY:
-						fmt.Println("Task failed ")
+						fmt.Println("Job failed ")
 					}
 				}
 
