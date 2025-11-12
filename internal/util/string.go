@@ -483,7 +483,7 @@ func CheckMailType(mailtype string) bool {
 	return true
 }
 
-func ParseLicensesString(val string) (map[string]uint32, bool, error) {
+func ParseLicensesString(val string) ([]*protos.TaskToCtld_License, bool, error) {
 	tmpStr := strings.ReplaceAll(val, " ", "")
 	var licenseVec []string
 
@@ -500,7 +500,7 @@ func ParseLicensesString(val string) (map[string]uint32, bool, error) {
 		licenseVec = strings.Split(tmpStr, ",")
 	}
 
-	licCountMap := make(map[string]uint32)
+	var licCount []*protos.TaskToCtld_License
 	pattern := regexp.MustCompile(`(\w+):(\d+)`)
 
 	for _, licenseCount := range licenseVec {
@@ -519,10 +519,13 @@ func ParseLicensesString(val string) (map[string]uint32, bool, error) {
 		if count <= 0 {
 			return nil, hasPipe, fmt.Errorf("license count must > 0")
 		}
-		licCountMap[name] = uint32(count)
+		licCount = append(licCount, &protos.TaskToCtld_License{
+			Key:   name,
+			Count: uint32(count),
+		})
 	}
 
-	return licCountMap, hasPipe, nil
+	return licCount, hasPipe, nil
 }
 
 // CheckNodeList check if the node list is comma separated node names.
