@@ -138,11 +138,11 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		case "--qos", "Q":
 			task.Qos = arg.val
 		case "--licenses", "-L":
-			licCountMap, isLicenseOr, err := util.ParseLicensesString(arg.val)
+			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
 			if err != nil {
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.LicensesCount = licCountMap
+			task.LicensesCount = licCount
 			task.IsLicensesOr = isLicenseOr
 		case "--chdir":
 			task.Cwd = arg.val
@@ -246,11 +246,11 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.Qos = FlagQos
 	}
 	if FlagLicenses != "" {
-		licCountMap, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
+		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --licenses value '%s': %w", FlagLicenses, err)
 		}
-		task.LicensesCount = licCountMap
+		task.LicensesCount = licCount
 		task.IsLicensesOr = isLicenseOr
 	}
 	if FlagCwd != "" {
