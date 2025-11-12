@@ -392,21 +392,22 @@ func ProcessAllocCPUs(item *JobOrStep) string {
 func ProcessElapsedTime(item *JobOrStep) string {
 	var status protos.TaskStatus
 	var startTime, endTime time.Time
-	var elapsedSeconds int64
 	if item.isStep {
 		status = item.stepInfo.Status
 		startTime = item.stepInfo.StartTime.AsTime()
 		endTime = item.stepInfo.EndTime.AsTime()
-		elapsedSeconds = item.stepInfo.ElapsedTime.Seconds
 	} else {
 		status = item.task.Status
 		startTime = item.task.StartTime.AsTime()
 		endTime = item.task.EndTime.AsTime()
-		elapsedSeconds = item.task.ElapsedTime.Seconds
 	}
 
 	if status == protos.TaskStatus_Running {
-		return util.SecondTimeFormat(elapsedSeconds)
+		if item.isStep {
+			return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
+		} else {
+			return util.SecondTimeFormat(item.task.ElapsedTime.Seconds)
+		}
 	} else if status == protos.TaskStatus_Completed {
 		if startTime.IsZero() || endTime.IsZero() {
 			return ""
