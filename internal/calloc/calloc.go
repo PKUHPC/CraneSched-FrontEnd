@@ -411,7 +411,10 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 
 	setGresGpusFlag := false
 	if FlagGres != "" {
-		gresMap := util.ParseGres(FlagGres)
+		gresMap, err := util.ParseGres(FlagGres)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --gres: %s", err))
+		}
 		task.GresPerNode = gresMap
 		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
 			setGresGpusFlag = true

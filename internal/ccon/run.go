@@ -277,7 +277,11 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	}
 
 	if gresSpec != "" {
-		task.GresPerNode = util.ParseGres(gresSpec)
+		gresMap, err := util.ParseGres(gresSpec)
+		if err != nil {
+			return fmt.Errorf("invalid gres specification '%s': %v", gresSpec, err)
+		}
+		task.GresPerNode = gresMap
 	}
 
 	return nil
@@ -331,7 +335,12 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 			if f.Run.Gpus != "" && f.Crane.Gres == "" {
 				return fmt.Errorf("--gpus is not supported. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'")
 			}
-			step.GresPerNode = util.ParseGres(gresSpec)
+			gresPerNode, err := util.ParseGres(gresSpec)
+			if err != nil {
+				return fmt.Errorf("invalid gres specification '%s': %v", gresSpec, err)
+			}
+			step.GresPerNode = gresPerNode
+
 		}
 	}
 
