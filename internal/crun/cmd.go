@@ -109,6 +109,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.Flags().SetInterspersed(false)
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "",
