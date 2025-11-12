@@ -597,13 +597,18 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if err := CheckJobNameLength(step.Name); err != nil {
 		return err
 	}
-	if step.CpusPerTask <= 0 {
-		return fmt.Errorf("--cpus-per-task must > 0")
+	if step.ReqResourcesPerTask != nil &&
+		step.ReqResourcesPerTask.AllocatableRes != nil {
+		if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit <= 0 {
+			return fmt.Errorf("--cpus-per-task must > 0")
+		} else if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit > 1e6 {
+			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit)
+		}
 	}
-	if step.NtasksPerNode <= 0 {
+	if step.NtasksPerNode != nil && *step.NtasksPerNode <= 0 {
 		return fmt.Errorf("--ntasks-per-node must > 0")
 	}
-	if step.NodeNum <= 0 {
+	if step.NodeNum != nil && *step.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
 	if step.TimeLimit.AsDuration() <= 0 {
@@ -614,9 +619,6 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	}
 	if !CheckNodeList(step.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
-	}
-	if step.ReqResources.AllocatableRes.CpuCoreLimit > 1e6 {
-		return fmt.Errorf("requesting too many CPUs: %f", step.ReqResources.AllocatableRes.CpuCoreLimit)
 	}
 	if step.ExtraAttr != "" {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user

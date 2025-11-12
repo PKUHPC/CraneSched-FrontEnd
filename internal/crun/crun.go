@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
+	"github.com/spf13/cobra"
 	"net"
 	"os/user"
 	"regexp"
@@ -83,6 +84,8 @@ type StateMachineOfCrun struct {
 	step   *protos.StepToCtld
 	jobId  uint32 // This field will be set after ReqTaskId state
 	stepId uint32 // This field will be set after ReqTaskId state
+
+	cranedId []string
 
 	inputFlag string // Crun --input flag, used to determine how to read input from stdin
 
@@ -313,6 +316,8 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 
 			if Ok {
 				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+
+				m.cranedId = cforedPayload.CranedIds
 				m.state = WaitForward
 			} else {
 				log.Errorln("Failed to allocate job resource. Exiting...")
@@ -990,13 +995,12 @@ func (m *StateMachineOfCrun) StartIOForward() {
 
 	m.chanX11InputFromLocal = make(chan []byte, 100)
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
-	var totalNodes uint32
+	totalNodes := uint32(len(m.cranedId))
+
 	var iaMeta *protos.InteractiveTaskAdditionalMeta
 	if m.job != nil {
-		totalNodes = m.job.NodeNum * m.job.NtasksPerNode
 		iaMeta = m.job.GetInteractiveMeta()
 	} else {
-		totalNodes = m.step.NodeNum * m.step.NtasksPerNode
 		iaMeta = m.step.GetInteractiveMeta()
 	}
 	go m.forwardingSigHandlerRoutine()
@@ -1023,7 +1027,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	}
 }
 
-func MainCrun(args []string) error {
+func MainCrun(cmd *cobra.Command, args []string) error {
 	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -1103,23 +1107,16 @@ func MainCrun(args []string) error {
 		}
 	} else {
 		step = &protos.StepToCtld{
-			Name:      "InteractiveStep",
-			TimeLimit: util.InvalidDuration(),
-			JobId:     jobId,
-			ReqResources: &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{
-					CpuCoreLimit:       1,
-					MemoryLimitBytes:   0,
-					MemorySwLimitBytes: 0,
-				},
-			},
-			Type:            protos.TaskType_Interactive,
-			Uid:             uint32(os.Getuid()),
-			Gid:             gids,
-			NodeNum:         1,
-			NtasksPerNode:   1,
-			CpusPerTask:     1,
-			RequeueIfFailed: false,
+			Name:                "InteractiveStep",
+			TimeLimit:           util.InvalidDuration(),
+			JobId:               jobId,
+			ReqResourcesPerTask: nil,
+			Type:                protos.TaskType_Interactive,
+			Uid:                 uint32(os.Getuid()),
+			Gid:                 gids,
+			NodeNum:             nil,
+			NtasksPerNode:       nil,
+			RequeueIfFailed:     false,
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
@@ -1138,9 +1135,12 @@ func MainCrun(args []string) error {
 		job.NtasksPerNode = FlagNtasksPerNode
 		job.Name = util.ExtractExecNameFromArgs(args)
 	} else {
-		step.NodeNum = FlagNodes
-		step.CpusPerTask = FlagCpuPerTask
-		step.NtasksPerNode = FlagNtasksPerNode
+		if cmd.Flags().Changed(NodesOptionStr) {
+			step.NodeNum = &FlagNodes
+		}
+		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
+			step.NtasksPerNode = &FlagNtasksPerNode
+		}
 		step.Name = util.ExtractExecNameFromArgs(args)
 	}
 
@@ -1170,8 +1170,15 @@ func MainCrun(args []string) error {
 			job.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
 			job.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
 		} else {
-			step.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-			step.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+			if step.ReqResourcesPerTask == nil {
+				step.ReqResourcesPerTask = &protos.ResourceView{
+					AllocatableRes: &protos.AllocatableResource{MemoryLimitBytes: memInByte,
+						MemorySwLimitBytes: memInByte},
+				}
+			} else {
+				step.ReqResourcesPerTask.AllocatableRes.MemoryLimitBytes = memInByte
+				step.ReqResourcesPerTask.AllocatableRes.MemorySwLimitBytes = memInByte
+			}
 		}
 	}
 	if FlagGres != "" {
@@ -1179,7 +1186,15 @@ func MainCrun(args []string) error {
 		if jobMode {
 			job.ReqResources.DeviceMap = gresMap
 		} else {
-			step.ReqResources.DeviceMap = gresMap
+			if len(gresMap.NameTypeMap) != 0 {
+				if step.ReqResourcesPerTask == nil {
+					step.ReqResourcesPerTask = &protos.ResourceView{
+						DeviceMap: gresMap,
+					}
+				} else {
+					step.ReqResourcesPerTask.DeviceMap = gresMap
+				}
+			}
 		}
 	}
 	if FlagPartition != "" {
@@ -1324,8 +1339,6 @@ func MainCrun(args []string) error {
 	// Set total limit of cpu cores
 	if jobMode {
 		job.ReqResources.AllocatableRes.CpuCoreLimit = job.CpusPerTask * float64(job.NtasksPerNode)
-	} else {
-		step.ReqResources.AllocatableRes.CpuCoreLimit = step.CpusPerTask * float64(step.NtasksPerNode)
 	}
 
 	// Check the validity of the parameters

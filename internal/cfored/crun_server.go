@@ -309,6 +309,7 @@ CforedCrunStateMachineLoop:
 							PayloadTaskAllocReply: &protos.StreamCrunReply_TaskResAllocatedReply{
 								Ok:                   ctldPayload.Ok,
 								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
+								CranedIds:            ctldPayload.CranedIds,
 							},
 						},
 					}
