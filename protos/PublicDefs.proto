@@ -163,7 +163,7 @@ message DependencyStatus {
 
 message Signal {
   int32 signal_number = 1;
-  uint32 signal_time = 2; // seconds_before_kill
+  uint32 signal_time = 2;  // seconds_before_kill
   enum SignalFlag {
     NONE = 0;
     // (B) Send the signal only to the batch shell, not to other job steps.
@@ -207,6 +207,8 @@ message JobToCtld {
   // ccon (nested): Container (StepToCtld only)
   optional PodJobAdditionalMeta pod_meta = 23;
   optional ContainerJobAdditionalMeta container_meta = 24;
+  IoMeta io_meta = 25;
+  string sh_script = 26;  // Crun and cbatch script content
 
   string extra_attr = 30;
 
@@ -299,6 +301,9 @@ message StepToCtld {
 
   // Step <-> Container
   optional ContainerJobAdditionalMeta container_meta = 24;
+
+  IoMeta io_meta = 25;
+  string sh_script = 26;
 
   string task_prolog = 27;
   string task_epilog = 28;
@@ -420,6 +425,9 @@ message StepToD {
   string task_prolog = 30;
   string task_epilog = 31;
   repeated Signal signals = 32;
+
+  IoMeta io_meta = 33;
+  string sh_script = 34;
 }
 
 message JobStepsToD {
@@ -432,12 +440,20 @@ message JobStepIds {
   repeated uint32 steps = 1;
 }
 
-message BatchJobAdditionalMeta {
-  string sh_script = 1;
-  optional bool open_mode_append = 2;
+message IoMeta {
+  // Append mode for output and error files
+  optional bool open_mode_append = 1;
+  string input_file_pattern = 2;
   string output_file_pattern = 3;
   string error_file_pattern = 4;
-  string interpreter = 5;
+
+  // For crun only
+  optional uint32 input_task_id = 5;
+  optional uint32 output_task_id = 6;
+}
+
+message BatchJobAdditionalMeta {
+  string interpreter = 1;
 }
 
 message X11Meta {
@@ -450,7 +466,6 @@ message X11Meta {
 
 message InteractiveJobAdditionalMeta {
   string cfored_name = 1;
-  string sh_script = 2;
   string term_env = 3;
   InteractiveJobType interactive_type = 4;
 
@@ -540,6 +555,10 @@ message ContainerJobAdditionalMeta {
   bool stdin_once = 18;
 
   map<string, string> mounts = 24;
+
+  // CDI fully-qualified names for devices allocated to this container.
+  // Populated by craned at step dispatch time; NOT persisted to database.
+  repeated string cdi_devices = 25;
 }
 
 message JobInfo {
@@ -829,8 +848,8 @@ enum ErrCode {
   ERR_CRI_CONTAINER_NOT_READY = 82;  // Job/step is pending or container is not ready.
   ERR_CRI_MULTIPLE_NODES = 83;       // Requested CRI operation is not supported in multi-node steps.
 
-  ERR_INVALID_MEM_FORMAT = 84;       // Invalid mem format when parsing mem
-  ERR_STEP_RES_BEYOND = 85;          // Step resource request exceeds job resource.
+  ERR_INVALID_MEM_FORMAT = 84;  // Invalid mem format when parsing mem
+  ERR_STEP_RES_BEYOND = 85;     // Step resource request exceeds job resource.
 
   ERR_INVALID_WCKEY = 86;
   ERR_WCKEY_ALREADY_EXISTS = 87;
@@ -872,7 +891,7 @@ enum ModifyField {
   Partition = 0;
   Qos = 1;
   DefaultQos = 2;
-  Description = 3; // account and qos
+  Description = 3;  // account and qos
   // user
   AdminLevel = 4;
   DefaultAccount = 5;
@@ -894,7 +913,6 @@ enum ModifyField {
 
   // wckey
   DefaultWckey = 40;
-
 }
 
 message AccountInfo {
@@ -1006,18 +1024,6 @@ message CranedRemoteMeta {
   uint32 config_crc = 9;
 }
 
-message LicenseInfo {
-  string name = 1;
-  uint32 total = 2;
-  uint32 used = 3;
-  uint32 free = 4;
-  uint32 reserved = 5;
-  bool remote = 6;
-  uint32 last_consumed = 7;
-  uint32 last_deficit = 8;
-  int64 last_update = 9;
-}
-
 enum TxnAction {
   AddAccount = 0;
   ModifyAccount = 1;
@@ -1028,6 +1034,18 @@ enum TxnAction {
   AddQos = 6;
   ModifyQos = 7;
   DeleteQos = 8;
+}
+
+message LicenseInfo {
+  string name = 1;
+  uint32 total = 2;
+  uint32 used = 3;
+  uint32 free = 4;
+  uint32 reserved = 5;
+  bool remote = 6;
+  uint32 last_consumed = 7;
+  uint32 last_deficit = 8;
+  int64 last_update = 9;
 }
 
 message LicenseResourceInfo {
@@ -1044,7 +1062,7 @@ message LicenseResourceInfo {
 }
 
 message LicenseResource {
-  enum Type{
+  enum Type {
     NotSet = 0;
     License = 1;
   }
@@ -1083,4 +1101,3 @@ message JobSizeSummaryItem {
   double total_cpu_time = 5;
   int64 total_count = 6;
 }
-

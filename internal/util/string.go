@@ -1185,10 +1185,10 @@ func RemoveBracketsWithoutDashOrComma(input string) string {
 	return output
 }
 
-func ParseGres(gres string) *protos.DeviceMap {
+func ParseGres(gres string) (*protos.DeviceMap, error) {
 	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
 	if gres == "" {
-		return result
+		return result, nil
 	}
 	gresList := strings.Split(gres, ",")
 	for _, g := range gresList {
@@ -1197,7 +1197,7 @@ func ParseGres(gres string) *protos.DeviceMap {
 		if len(parts) == 2 {
 			gresNameCount, err := strconv.ParseUint(parts[1], 10, 64)
 			if err != nil {
-				log.Errorf("Error parsing gres count: %s\n", g)
+				return nil, fmt.Errorf("error parsing gres count: %s", g)
 			}
 			if gresNameCount == 0 {
 				continue
@@ -1211,8 +1211,7 @@ func ParseGres(gres string) *protos.DeviceMap {
 			gresType := parts[1]
 			count, err := strconv.ParseUint(parts[2], 10, 64)
 			if err != nil {
-				fmt.Printf("Error parsing count for %s: %v\n", name, err)
-				continue
+				return nil, fmt.Errorf("Error parsing count for %s: %v\n", name, err)
 			}
 			if count == 0 {
 				continue
@@ -1225,11 +1224,11 @@ func ParseGres(gres string) *protos.DeviceMap {
 				result.NameTypeMap[name].TypeCountMap[gresType] = count
 			}
 		} else {
-			log.Errorf("Error parsing gres: %s\n", g)
+			return nil, fmt.Errorf("Error parsing gres: %s\n", g)
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
