@@ -138,7 +138,7 @@ func isTerminalStatus(status protos.TaskStatus) bool {
 	case protos.TaskStatus_Pending,
 		protos.TaskStatus_Running,
 		protos.TaskStatus_Configuring,
-		protos.TaskStatus_Configured,
+		protos.TaskStatus_Starting,
 		protos.TaskStatus_Completing:
 		return false
 	default:
