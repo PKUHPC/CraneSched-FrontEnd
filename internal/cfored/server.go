@@ -162,6 +162,32 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(taskId uin
 	}
 }
 
+func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSingleSupervisor(taskId uint32, stepId uint32,
+	cranedId string, request *protos.StreamCrunRequest) {
+	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
+	keeper.toSupervisorChannelMtx.Lock()
+	defer keeper.toSupervisorChannelMtx.Unlock()
+	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
+	if !exist {
+		log.Errorf("[Job #%d.%d] Trying to forward crun request to non-exist step.", taskId, stepId)
+		return
+	}
+	supervisorChannel, exist := stepChannels[cranedId]
+	if !exist {
+		log.Errorf("[Step #%d.%d] Trying to forward crun request to non-exist craned %s.", taskId, stepId, cranedId)
+	}
+
+	select {
+	case supervisorChannel.requestChannel <- request:
+	default:
+		if len(supervisorChannel.requestChannel) == cap(supervisorChannel.requestChannel) {
+			log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
+		} else {
+			log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
+		}
+	}
+}
+
 func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(taskId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamTaskIORequest) {
 	keeper.taskIORequestChannelMtx.Lock()
 	keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] = ioToCrunChannel
@@ -311,6 +337,9 @@ CforedSupervisorStateMachineLoop:
 
 					case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote X11", jobId, stepId)
+						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+					case protos.StreamTaskIORequest_TASK_EXIT_STATUS:
+						log.Tracef("[Superivisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
 
 					case protos.StreamTaskIORequest_SUPERVISOR_UNREGISTER:
