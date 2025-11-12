@@ -74,8 +74,8 @@ func StartTerminal(shellPath string,
 		Ctty:       0,
 		Foreground: true,
 	}
-	env:= os.Environ()
-	env = append(env, fmt.Sprintf("CRANE_JOB_ID=%d",jobId))
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("CRANE_JOB_ID=%d", jobId))
 	process.Env = env
 
 	err = process.Start()
