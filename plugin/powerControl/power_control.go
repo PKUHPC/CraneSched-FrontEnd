@@ -18,6 +18,9 @@ import (
 )
 
 var _ api.Plugin = PowerControlPlugin{}
+var _ api.JobLifecycleHooks = PowerControlPlugin{}
+var _ api.PowerManagementHooks = PowerControlPlugin{}
+var _ api.CranedLifecycleHooks = PowerControlPlugin{}
 
 var (
 	PluginInstance = PowerControlPlugin{}
@@ -289,12 +292,6 @@ func (p PowerControlPlugin) EndHook(ctx *api.PluginContext) {
 		}
 	}
 }
-
-func (p PowerControlPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
-
-func (p PowerControlPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
-
-func (p PowerControlPlugin) NodeEventHook(ctx *api.PluginContext) {}
 
 func main() {
 	log.Fatal("This is a plugin, should not be executed directly.\n" +

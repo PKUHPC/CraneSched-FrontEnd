@@ -33,6 +33,7 @@ import (
 )
 
 var _ api.Plugin = &EventPlugin{}
+var _ api.NodeEventHooks = &EventPlugin{}
 
 var PluginInstance = EventPlugin{}
 
@@ -85,18 +86,6 @@ func (p *EventPlugin) Unload(meta api.PluginMeta) error {
 	log.Infoln("Event plugin is unloaded.")
 	return nil
 }
-
-func (p *EventPlugin) StartHook(ctx *api.PluginContext) {}
-
-func (p *EventPlugin) EndHook(ctx *api.PluginContext) {}
-
-func (p *EventPlugin) CreateCgroupHook(ctx *api.PluginContext) {}
-
-func (p *EventPlugin) DestroyCgroupHook(ctx *api.PluginContext) {}
-
-func (p *EventPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
-
-func (p *EventPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func (p EventPlugin) NodeEventHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.NodeEventHookRequest)

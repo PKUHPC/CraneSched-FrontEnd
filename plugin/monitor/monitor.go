@@ -38,6 +38,9 @@ import (
 
 // Compile-time check to ensure MonitorPlugin implements api.Plugin
 var _ api.Plugin = &MonitorPlugin{}
+var _ api.CgroupLifecycleHooks = &MonitorPlugin{}
+var _ api.GrpcServiceRegistrar = &MonitorPlugin{}
+var _ api.HostConfigAware = &MonitorPlugin{}
 
 // PluginD will call plugin's method thru this variable
 var PluginInstance = MonitorPlugin{}
@@ -89,11 +92,6 @@ type MonitorPlugin struct {
 	hostConfigPath string
 	queryService   *CeffQueryService
 }
-
-// Dummy implementations
-func (dp *MonitorPlugin) StartHook(ctx *api.PluginContext)     {}
-func (dp *MonitorPlugin) EndHook(ctx *api.PluginContext)       {}
-func (dp *MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {}
 
 func getProcCount(cgroupPath string) (uint64, error) {
 	content, err := os.ReadFile(cgroupPath)
@@ -369,10 +367,6 @@ func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 
 	log.Infof("Monitoring stopped for job #%v", req.TaskId)
 }
-
-func (p *MonitorPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {}
-
-func (p *MonitorPlugin) RegisterCranedHook(ctx *api.PluginContext) {}
 
 func (p *MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error {
 	if p.queryService == nil {
