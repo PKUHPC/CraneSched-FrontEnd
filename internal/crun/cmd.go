@@ -20,6 +20,7 @@ package crun
 
 import (
 	"CraneFrontEnd/internal/util"
+
 	"github.com/spf13/cobra"
 )
 
@@ -58,6 +59,8 @@ var (
 	FlagReservation string
 
 	FlagHold bool
+
+	FlagLicenses string
 
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
@@ -113,4 +116,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
+	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
 }
