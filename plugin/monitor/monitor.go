@@ -30,6 +30,7 @@ import (
 
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
+
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -154,9 +155,9 @@ func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string
 	// As Cgroup may be created without any process inside, we need to mark
 	// if the first process is launched.
 	migrated := false
-	cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, task_name)
-	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, task_name)
-	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, task_name)
+	//cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, task_name)
+	//cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, task_name)
+	//cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, task_name)
 
 	for {
 		select {
@@ -165,28 +166,31 @@ func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string
 			return
 		default:
 			// If none pid found, the cgroup is empty, continue
-			procCount, err := getProcCount(cgroupProcListPath)
-			if err != nil {
-				log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
-				continue
-			}
+			//procCount, err := getProcCount(cgroupProcListPath)
+			procCount := uint64(2)
+			//if err != nil {
+			//	log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
+			//	continue
+			//}
 			if !migrated && procCount == 0 {
 				time.Sleep(time.Duration(p.Interval) * time.Millisecond)
 				continue
 			}
 			migrated = true
 
-			cpuUsage, err := getCpuUsage(cgroupCpuPath)
-			if err != nil {
-				log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
-				continue
-			}
+			//cpuUsage, err := getCpuUsage(cgroupCpuPath)
+			//if err != nil {
+			//	log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
+			//	continue
+			//}
+			cpuUsage := uint64(3)
 
-			memoryUsage, err := getMemoryUsage(cgroupMemPath)
-			if err != nil {
-				log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
-				continue
-			}
+			//memoryUsage, err := getMemoryUsage(cgroupMemPath)
+			//if err != nil {
+			//	log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
+			//	continue
+			//}
+			memoryUsage := uint64(6)
 
 			p.buffer <- ResourceUsage{
 				TaskID:      id,
