@@ -270,8 +270,10 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 		if payload.Ok {
 			m.jobId = payload.JobId
 			m.stepId = payload.StepId
-			if m.step != nil {
-				fmt.Printf("Job id allocated: %d, waiting resources.\n", m.jobId)
+			if m.step == nil {
+				fmt.Printf("Task id allocated: %d, waiting resources.\n", m.jobId)
+			} else {
+				fmt.Printf("Job %d step %d allocated, waiting resources.\n", m.jobId, m.stepId)
 			}
 			m.state = WaitRes
 		} else {
