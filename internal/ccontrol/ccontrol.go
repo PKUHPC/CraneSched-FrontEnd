@@ -590,6 +590,15 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return nil
+		} else {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+	}
+
 	if len(reply.LicenseInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No license is available.")
