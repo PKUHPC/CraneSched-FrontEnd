@@ -923,3 +923,7 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int
 
 	return util.ErrorSuccess
 }
+
+func init() {
+	log.SetFormatter(&util.CraneFormatter{})
+}

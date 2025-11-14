@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"regexp"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -78,7 +79,10 @@ var (
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return CancelTask(args)
+			if err := CancelTask(args); err != nil {
+				log.Error(err)
+			}
+			return nil
 		},
 	}
 )
@@ -108,4 +112,5 @@ func init() {
 		"Cancel jobs running on the specified nodes")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
+	log.SetFormatter(&util.CraneFormatter{})
 }

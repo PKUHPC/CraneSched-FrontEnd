@@ -21,6 +21,7 @@ package cacct
 import (
 	"CraneFrontEnd/internal/util"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -57,14 +58,14 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					return &util.CraneError{
-						Code:    util.ErrorCmdArg,
-						Message: "Output line number limit must be greater than 0.",
-					}
+					log.Error(util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0."))
+					return nil
 				}
 			}
-
-			return QueryJob()
+			if err := QueryJob(); err != nil {
+				log.Error(err)
+			}
+			return nil
 		},
 	}
 )
@@ -163,4 +164,5 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", util.MaxRepliedJobs,
 		"Limit the number of lines in the output, 0 means no limit") // See kDefaultQueryTaskNumLimit
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	log.SetFormatter(&util.CraneFormatter{})
 }
