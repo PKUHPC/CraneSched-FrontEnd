@@ -91,6 +91,9 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 				util.GrpcErrorPrintf(err, "Failed to query task queue")
 				return nil, &util.CraneError{Code: util.ErrorNetwork}
 			}
+		} else {
+			util.GrpcErrorPrintf(err, "Failed to query task queue, grpcstatus get error failed.")
+			return nil, &util.CraneError{Code: util.ErrorNetwork}
 		}
 	}
 	return reply, nil
