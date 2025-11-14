@@ -46,6 +46,7 @@ func FillReqByCobraFlags() (*protos.QueryTasksInfoRequest, error) {
 		&AccountProcessor{},
 		&PartitionsProcessor{},
 		&JobIDsProcessor{},
+		&StepIDsProcessor{},
 	}
 
 	for _, p := range processors {
@@ -104,10 +105,19 @@ func Query() error {
 	if err != nil {
 		return err
 	}
+
 	if FlagJson {
-		return JsonOutput(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return nil
+		} else {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+	} else if FlagStep {
+		return QueryStepsTableOutput(reply)
+	} else {
+		return QueryTableOutput(reply)
 	}
-	return QueryTableOutput(reply)
 }
 
 func loopedQuery(iterate uint64) error {
