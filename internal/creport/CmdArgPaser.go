@@ -48,11 +48,20 @@ var (
 		Long:    "",
 		Version: util.Version(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			var err error
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
 			stub = util.GetStubToCtldByConfig(config)
-			return err
+			return nil
+		},
+	}
+
+	activeCmd = &cobra.Command{
+		Use:   "active",
+		Short: "Manually trigger command(only for root)",
+		Long:  "",
+		Args:  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return ActiveAggregationManually()
 		},
 	}
 
@@ -176,6 +185,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.AddCommand(activeCmd)
 	RootCmd.AddCommand(userCmd)
 	{
 		userCmd.AddCommand(userTopUsageCmd)
@@ -192,7 +202,7 @@ func init() {
 				"Set the job output time unit")
 			userTopUsageCmd.Flags().Uint32VarP(&FlagTopCount, "topcount", "", 10, "Change the number of users displayed, default is 10 ")
 			userTopUsageCmd.Flags().StringVarP(&FlagGroups, "group", "", "",
-				"Group all accounts together for each user")
+				"Group all accounts together for each user, Default is a separate entry for each user and account reference")
 		}
 
 	}

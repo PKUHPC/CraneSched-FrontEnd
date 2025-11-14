@@ -35,6 +35,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -78,6 +79,18 @@ func GetDefaultEndTime() string {
 	return endTime.Format("2006-01-02T15:04:05")
 }
 
+func ActiveAggregationManually() error {
+	if os.Geteuid() == 0 {
+		_, err := stub.ActiveAggregationManually(context.Background(), &emptypb.Empty{})
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("ActiveAggregationManually err: %v", err))
+		}
+		return nil
+	} else {
+		return util.NewCraneErr(util.ErrorCmdArg, "Only the root user can perform this operation")
+	}
+}
+
 func QueryUsersTopSummaryItem() error {
 	request := &protos.QueryJobSummaryRequest{}
 	if FlagFilterAccounts != "" {
@@ -99,7 +112,7 @@ func QueryUsersTopSummaryItem() error {
 	if FlagGroups != "" {
 		filterGroupUserList, err := util.GetAllGroupUsers(FlagGroups)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %s.", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid group specified: %s.", err))
 		}
 		request.FilterUsers = util.MergeAndDedup(request.FilterUsers, filterGroupUserList)
 	}
@@ -131,7 +144,7 @@ func QueryUsersTopSummaryItem() error {
 
 	if FlagOutType != "" {
 		if !util.CheckCreportOutType(FlagOutType) {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --time/-t, please input seconds/minutes/hours"))
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid --time/-t, please input seconds/minutes/hours")
 		}
 	}
 
@@ -219,7 +232,7 @@ func QueryJobSummary(CheckType CheckStatus) error {
 
 	if FlagOutType != "" {
 		if !util.CheckCreportOutType(FlagOutType) {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --time/-t, please input seconds/minutes/hours"))
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid --time/-t, please input seconds/minutes/hours")
 		}
 	}
 
@@ -326,7 +339,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 
 	if FlagOutType != "" {
 		if !util.CheckCreportOutType(FlagOutType) {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid time/-t, please input seconds/minutes/hours"))
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid --time/-t, please input seconds/minutes/hours")
 		}
 	}
 
@@ -413,18 +426,25 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	table.SetHeader(header)
 	tableData := make([][]string, 0, len(JobSummaryItemList))
 
+	usernameToName := make(map[string]string)
 	for count, item := range JobSummaryItemList {
-		usr, err := user.Lookup(item.Username)
-		if err != nil {
-			continue
-		}
 		if count >= int(countMax) {
 			break
+		}
+
+		properName, ok := usernameToName[item.Username]
+		if !ok {
+			usr, err := user.Lookup(item.Username)
+			if err != nil {
+				continue
+			}
+			properName = usr.Name
+			usernameToName[item.Username] = properName
 		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Username,
-			usr.Name,
+			properName,
 			item.Account,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 			"0",
@@ -461,16 +481,22 @@ func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	table.SetHeader(header)
 	tableData := make([][]string, 0, len(JobSummaryItemList))
 
+	usernameToName := make(map[string]string)
 	for _, item := range JobSummaryItemList {
-		usr, err := user.Lookup(item.Username)
-		if err != nil {
-			continue
+		properName, ok := usernameToName[item.Username]
+		if !ok {
+			usr, err := user.Lookup(item.Username)
+			if err != nil {
+				continue
+			}
+			properName = usr.Name
+			usernameToName[item.Username] = properName
 		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Account,
 			item.Username,
-			usr.Name,
+			properName,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 			"0",
 		})
@@ -504,15 +530,21 @@ func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	util.SetBorderTable(table)
 	table.SetHeader(header)
 	tableData := make([][]string, 0, len(JobSummaryItemList))
+	usernameToName := make(map[string]string)
 	for _, item := range JobSummaryItemList {
-		usr, err := user.Lookup(item.Username)
-		if err != nil {
-			continue
+		properName, ok := usernameToName[item.Username]
+		if !ok {
+			usr, err := user.Lookup(item.Username)
+			if err != nil {
+				continue
+			}
+			properName = usr.Name
+			usernameToName[item.Username] = properName
 		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Username,
-			usr.Name,
+			properName,
 			item.Account,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 			"0",
@@ -542,15 +574,21 @@ func PrintUserWckeyList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 	table.SetHeader(header)
 	tableData := make([][]string, 0, len(accountUserWckeyList))
 
+	usernameToName := make(map[string]string)
 	for _, item := range accountUserWckeyList {
-		usr, err := user.Lookup(item.Username)
-		if err != nil {
-			continue
+		properName, ok := usernameToName[item.Username]
+		if !ok {
+			usr, err := user.Lookup(item.Username)
+			if err != nil {
+				continue
+			}
+			properName = usr.Name
+			usernameToName[item.Username] = properName
 		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Username,
-			usr.Name,
+			properName,
 			item.Wckey,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 		})
@@ -579,16 +617,22 @@ func PrintWckeyUserList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 	table.SetHeader(header)
 	tableData := make([][]string, 0, len(accountUserWckeyList))
 
+	usernameToName := make(map[string]string)
 	for _, item := range accountUserWckeyList {
-		usr, err := user.Lookup(item.Username)
-		if err != nil {
-			continue
+		properName, ok := usernameToName[item.Username]
+		if !ok {
+			usr, err := user.Lookup(item.Username)
+			if err != nil {
+				continue
+			}
+			properName = usr.Name
+			usernameToName[item.Username] = properName
 		}
 		tableData = append(tableData, []string{
 			item.Cluster,
 			item.Wckey,
 			item.Username,
-			usr.Name,
+			properName,
 			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
 		})
 	}

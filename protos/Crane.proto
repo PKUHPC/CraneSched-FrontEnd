@@ -1056,6 +1056,7 @@ service CraneCtld {
   rpc DeleteReservation(DeleteReservationRequest) returns (DeleteReservationReply);
   rpc QueryJobSummary(QueryJobSummaryRequest) returns (stream QueryJobSummaryReply);
   rpc QueryJobSizeSummary(QueryJobSizeSummaryRequest) returns (stream QueryJobSizeSummaryReply);
+  rpc ActiveAggregationManually(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   /* RPC called form plugin */
   rpc PowerStateChange(PowerStateChangeRequest) returns (PowerStateChangeReply);
