@@ -122,6 +122,12 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.BeginTime = timestamppb.New(beginTime)
+		case "--deadline":
+			deadlineTime, err := util.ParseTime(arg.val)
+			if err != nil {
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.DeadlineTime = timestamppb.New(deadlineTime)
 		case "--mem":
 			memInByte, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
@@ -297,6 +303,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			return nil, fmt.Errorf("invalid argument: invalid --begin value '%s': %w", FlagBeginTime, err)
 		}
 		task.BeginTime = timestamppb.New(beginTime)
+	}
+	if FlagDeadlineTime != "" {
+		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: invalid --deadline value '%s': %w", FlagDeadlineTime, err)
+		}
+		task.DeadlineTime = timestamppb.New(deadlineTime)
 	}
 	if FlagExclusive {
 		task.Exclusive = true
