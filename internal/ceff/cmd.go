@@ -20,6 +20,8 @@ package ceff
 
 import (
 	"CraneFrontEnd/internal/util"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -55,7 +57,10 @@ var (
 			} else {
 				jobIds = args[0]
 			}
-			return QueryTasksInfoByIds(jobIds)
+			if err := QueryTasksInfoByIds(jobIds); err != nil {
+				log.Error(err)
+			}
+			return nil
 		},
 	}
 )
@@ -70,4 +75,5 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	log.SetFormatter(&util.CraneFormatter{})
 }

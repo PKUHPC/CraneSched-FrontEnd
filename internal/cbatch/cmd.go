@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -86,12 +87,14 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagRepeat == 0 {
-				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
+				log.Error(util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0"))
+				return nil
 			}
 
 			task, err := BuildCbatchJob(cmd, args)
 			if err != nil {
-				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
+				log.Error(util.WrapCraneErr(util.ErrorCmdArg, "%v", err))
+				return nil
 			}
 
 			task.Uid = uint32(os.Getuid())
@@ -107,10 +110,15 @@ var (
 			}
 
 			if FlagRepeat == 1 {
-				return SendRequest(task)
+				if err := SendRequest(task); err != nil {
+					log.Error(err)
+				}
 			} else {
-				return SendMultipleRequests(task, FlagRepeat)
+				if err := SendMultipleRequests(task, FlagRepeat); err != nil {
+					log.Error(err)
+				}
 			}
+			return nil
 		},
 	}
 )
@@ -155,4 +163,5 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagBeginTime, "begin", "b", "", "Defer job until specified time.")
+	log.SetFormatter(&util.CraneFormatter{})
 }

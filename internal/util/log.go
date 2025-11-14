@@ -23,6 +23,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type CraneFormatter struct {
+	log.TextFormatter
+}
+
+func (f *CraneFormatter) Format(entry *log.Entry) ([]byte, error) {
+	msg := entry.Message
+	return []byte(msg), nil
+}
+
 func InitLogger(level string) {
 	switch level {
 	case "trace":

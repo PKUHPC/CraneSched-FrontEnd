@@ -21,6 +21,7 @@ package cqueue
 import (
 	"CraneFrontEnd/internal/util"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -56,14 +57,19 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
+					log.Error(util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0."))
 				}
 			}
 			if FlagIterate != 0 {
-				return loopedQuery(FlagIterate)
+				if err := loopedQuery(FlagIterate); err != nil {
+					log.Error(err)
+				}
 			} else {
-				return Query()
+				if err := Query(); err != nil {
+					log.Error(err)
+				}
 			}
+			return nil
 		},
 	}
 )
@@ -157,4 +163,5 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 		"Limit the number of lines in the output, 0 means no limit")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
+	log.SetFormatter(&util.CraneFormatter{})
 }

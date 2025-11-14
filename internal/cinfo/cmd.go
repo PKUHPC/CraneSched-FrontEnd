@@ -21,6 +21,7 @@ package cinfo
 import (
 	"CraneFrontEnd/internal/util"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -49,10 +50,15 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagIterate != 0 {
-				return loopedQuery(FlagIterate)
+				if err := loopedQuery(FlagIterate); err != nil {
+					log.Error(err)
+				}
 			} else {
-				return Query()
+				if err := Query(); err != nil {
+					log.Error(err)
+				}
 			}
+			return nil
 		},
 	}
 )
@@ -110,4 +116,5 @@ If the format is invalid or unrecognized, the program will terminate with an err
 Example: --format "%.5partition %.6a %s" would output the partition's name in the current environment 
          with a minimum width of 5, state of the node with a minimum width of 6, and the State.
 `)
+	log.SetFormatter(&util.CraneFormatter{})
 }
