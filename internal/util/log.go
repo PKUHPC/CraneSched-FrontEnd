@@ -27,6 +27,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+
+type CraneFormatter struct {
+	log.TextFormatter
+}
+
+func (f *CraneFormatter) Format(entry *log.Entry) ([]byte, error) {
+	msg := entry.Message
+	return []byte(msg), nil
+}
+
+func InitCraneLogger() {
+	log.SetFormatter(&CraneFormatter{})
+}
+
 func SetupLogger(level string) {
 	SetLoggerLevel(level)
 	if level == "debug" || level == "trace" {
