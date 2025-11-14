@@ -355,6 +355,12 @@ func SendRequest(task *protos.TaskToCtld) error {
 		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
 		return nil
 	} else {
+		if len(reply.GetReason()) > 0 {
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: fmt.Sprintf("Job allocation failed: %s.", reply.GetReason()),
+			}
+		}
 		return &util.CraneError{
 			Code:    util.ErrorBackend,
 			Message: fmt.Sprintf("Job allocation failed: %s.", util.ErrMsg(reply.GetCode())),
