@@ -335,8 +335,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 
 	submitHostname, err := os.Hostname()
 	if err != nil {
-		log.Errorf("Failed to get hostname of the submitting host: %v", err)
-		return false, nil
+		return nil, fmt.Errorf("Failed to get hostname of the submitting host: %v", err)
 	}
 	task.SubmitHostname = submitHostname
 
