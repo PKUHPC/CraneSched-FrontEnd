@@ -20,6 +20,8 @@ package ceff
 
 import (
 	"CraneFrontEnd/internal/util"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -70,4 +72,5 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+	log.SetFormatter(&util.CraneFormatter{})
 }
