@@ -20,6 +20,7 @@ package util
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"bufio"
 	"fmt"
 	"math"
 	"os"
@@ -1255,4 +1256,284 @@ func StringToTxnAction(str string) (protos.TxnAction, bool) {
 	}
 
 	return 0, false
+}
+
+var validCreportTypes = map[string]string{
+	"SecPer":  "Seconds/Percentage of Total",
+	"MinPer":  "Minutes/Percentage of Total",
+	"HourPer": "Hours/Percentage of Total",
+	"seconds": "Seconds",
+	"minutes": "Minutes",
+	"hours":   "Hours",
+	"percent": "Percentage of Total",
+}
+
+func CheckCreportOutType(outType string) bool {
+	_, ok := validCreportTypes[outType]
+	return ok
+}
+
+func PrintUsageTypeInfo(outType string, isJobSize, isPrintCount bool) {
+	if isJobSize {
+		if isPrintCount {
+			fmt.Println("Units are in number of jobs range")
+		} else {
+			if suffix, ok := validCreportTypes[outType]; ok {
+				fmt.Printf("Time reported in %s\n", suffix)
+			}
+		}
+	} else {
+		if suffix, ok := validCreportTypes[outType]; ok {
+			fmt.Printf("Usage reported in CPU %s\n", suffix)
+		}
+	}
+}
+
+func ReportUsageDivisor(outType string) float64 {
+	switch outType {
+	case "seconds":
+		return 1
+	case "minutes":
+		return 60
+	case "hours":
+		return 3600
+	default:
+		return 1
+	}
+}
+
+func GetAllGroupUsers(groupListStr string) ([]string, error) {
+	groupNames := strings.Split(groupListStr, ",")
+	groupSet := make(map[string]struct{})
+	for _, groupName := range groupNames {
+		trimmedGroupName := strings.TrimSpace(groupName)
+		if trimmedGroupName != "" {
+			groupSet[trimmedGroupName] = struct{}{}
+		}
+	}
+	// Parse /etc/group, collect groupName->gid, gid->groupName, and supplementary members
+	groupNameToGID := make(map[string]string)
+	gidToGroupName := make(map[string]string)
+	userSet := make(map[string]struct{})
+
+	groupFile, err := os.Open("/etc/group")
+	if err != nil {
+		return nil, err
+	}
+	defer groupFile.Close()
+
+	scanner := bufio.NewScanner(groupFile)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, ":")
+		if len(fields) < 4 {
+			continue
+		}
+		groupName := fields[0]
+		gid := fields[2]
+		groupNameToGID[groupName] = gid
+		gidToGroupName[gid] = groupName
+
+		// If this is a target group, collect supplementary members
+		if _, ok := groupSet[groupName]; ok {
+			users := strings.Split(fields[3], ",")
+			for _, user := range users {
+				user = strings.TrimSpace(user)
+				if user != "" {
+					userSet[user] = struct{}{}
+				}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// Collect target group GIDs
+	targetGIDs := make(map[string]struct{})
+	for groupName := range groupSet {
+		if gid, ok := groupNameToGID[groupName]; ok {
+			targetGIDs[gid] = struct{}{}
+		}
+	}
+
+	// Parse /etc/passwd, collect primary group members
+	passwdFile, err := os.Open("/etc/passwd")
+	if err != nil {
+		return nil, err
+	}
+	defer passwdFile.Close()
+
+	scanner = bufio.NewScanner(passwdFile)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, ":")
+		if len(fields) < 4 {
+			continue
+		}
+		user := fields[0]
+		gid := fields[3]
+		if _, ok := targetGIDs[gid]; ok {
+			userSet[user] = struct{}{}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0, len(userSet))
+	for user := range userSet {
+		result = append(result, user)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+func MergeAndDedup[T comparable](listA, listB []T) []T {
+	unique := make(map[T]struct{})
+	for _, item := range listA {
+		unique[item] = struct{}{}
+	}
+	for _, item := range listB {
+		unique[item] = struct{}{}
+	}
+	result := make([]T, 0, len(unique))
+	for item := range unique {
+		result = append(result, item)
+	}
+	return result
+}
+
+func GetUsersByGIDs(groupIds string) ([]string, error) {
+	groupIdStrList := strings.Split(groupIds, ",")
+	var groupIdList []uint32
+	for i := 0; i < len(groupIdStrList); i++ {
+		groupId, err := strconv.ParseUint(strings.TrimSpace(groupIdStrList[i]), 10, 32)
+		if err != nil || groupId == 0 {
+			return nil, fmt.Errorf("invalid group id \"%s\"", groupIdStrList[i])
+		}
+		groupIdList = append(groupIdList, uint32(groupId))
+	}
+
+	gidSet := make(map[uint32]struct{})
+	for _, gid := range groupIdList {
+		gidSet[gid] = struct{}{}
+	}
+
+	userSet := make(map[string]struct{})
+
+	// Scan /etc/group for supplementary group members
+	groupFile, err := os.Open("/etc/group")
+	if err != nil {
+		return nil, err
+	}
+	defer groupFile.Close()
+
+	scanner := bufio.NewScanner(groupFile)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Split(line, ":")
+		if len(parts) < 4 {
+			continue
+		}
+		gidInt, err := strconv.Atoi(parts[2])
+		if err != nil {
+			continue
+		}
+		gid := uint32(gidInt)
+		if _, ok := gidSet[gid]; !ok {
+			continue
+		}
+		users := strings.Split(parts[3], ",")
+		for _, user := range users {
+			user = strings.TrimSpace(user)
+			if user != "" {
+				userSet[user] = struct{}{}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// Scan /etc/passwd for primary group members
+	passwdFile, err := os.Open("/etc/passwd")
+	if err != nil {
+		return nil, err
+	}
+	defer passwdFile.Close()
+
+	scanner = bufio.NewScanner(passwdFile)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, ":")
+		if len(fields) < 4 {
+			continue
+		}
+		user := fields[0]
+		gidInt, err := strconv.Atoi(fields[3])
+		if err != nil {
+			continue
+		}
+		gid := uint32(gidInt)
+		if _, ok := gidSet[gid]; ok {
+			userSet[user] = struct{}{}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0, len(userSet))
+	for user := range userSet {
+		result = append(result, user)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+func ParseAndSortUintList(input string) ([]uint32, error) {
+	if input == "individual" {
+		return []uint32{}, nil
+	}
+	segments := strings.Split(input, ",")
+	uniqueNumbers := make(map[uint32]struct{})
+	for index, segment := range segments {
+		trimmed := strings.TrimSpace(segment)
+		if trimmed == "" {
+			return nil, fmt.Errorf("empty value detected at position %d", index+1)
+		}
+		number, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("invalid number '%s' at position %d", trimmed, index+1)
+		}
+		if number < 0 {
+			return nil, fmt.Errorf("negative number '%s' at position %d", trimmed, index+1)
+		}
+		uniqueNumbers[uint32(number)] = struct{}{}
+	}
+
+	resultList := make([]uint32, 0, len(uniqueNumbers))
+	for number := range uniqueNumbers {
+		resultList = append(resultList, number)
+	}
+	sort.Slice(resultList, func(i, j int) bool { return resultList[i] < resultList[j] })
+
+	if len(resultList) == 0 || resultList[0] != 0 {
+		resultList = append([]uint32{0}, resultList...)
+	}
+
+	return resultList, nil
 }
