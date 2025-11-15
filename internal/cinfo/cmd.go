@@ -50,15 +50,10 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagIterate != 0 {
-				if err := loopedQuery(FlagIterate); err != nil {
-					log.Error(err)
-				}
+				return loopedQuery(FlagIterate)
 			} else {
-				if err := Query(); err != nil {
-					log.Error(err)
-				}
+				return Query()
 			}
-			return nil
 		},
 	}
 )
