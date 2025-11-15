@@ -57,10 +57,7 @@ var (
 			} else {
 				jobIds = args[0]
 			}
-			if err := QueryTasksInfoByIds(jobIds); err != nil {
-				log.Error(err)
-			}
-			return nil
+			return QueryTasksInfoByIds(jobIds)
 		},
 	}
 )

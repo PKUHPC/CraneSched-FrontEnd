@@ -87,14 +87,12 @@ var (
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagRepeat == 0 {
-				log.Error(util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0"))
-				return nil
+				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
 			}
 
 			task, err := BuildCbatchJob(cmd, args)
 			if err != nil {
-				log.Error(util.WrapCraneErr(util.ErrorCmdArg, "%v", err))
-				return nil
+				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
 			}
 
 			task.Uid = uint32(os.Getuid())
@@ -110,15 +108,10 @@ var (
 			}
 
 			if FlagRepeat == 1 {
-				if err := SendRequest(task); err != nil {
-					log.Error(err)
-				}
+				return SendRequest(task)
 			} else {
-				if err := SendMultipleRequests(task, FlagRepeat); err != nil {
-					log.Error(err)
-				}
+				return SendMultipleRequests(task, FlagRepeat)
 			}
-			return nil
 		},
 	}
 )

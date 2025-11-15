@@ -57,19 +57,14 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("max-lines") {
 				if FlagNumLimit == 0 {
-					log.Error(util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0."))
+					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
 				}
 			}
 			if FlagIterate != 0 {
-				if err := loopedQuery(FlagIterate); err != nil {
-					log.Error(err)
-				}
+				return loopedQuery(FlagIterate)
 			} else {
-				if err := Query(); err != nil {
-					log.Error(err)
-				}
+				return Query()
 			}
-			return nil
 		},
 	}
 )

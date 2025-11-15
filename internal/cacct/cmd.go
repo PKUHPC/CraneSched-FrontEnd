@@ -61,10 +61,8 @@ var (
 					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
 				}
 			}
-			if err := QueryJob(); err != nil {
-				log.Error(err)
-			}
-			return nil
+
+			return QueryJob()
 		},
 	}
 )

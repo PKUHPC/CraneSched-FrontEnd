@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -91,6 +92,7 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 						}
 						if craneErr.Code != ErrorCmdArg {
 							cmd.SilenceUsage = true // Silence usage info output
+							cmd.SilenceErrors = true
 						}
 					}
 				}
@@ -107,6 +109,9 @@ func RunAndHandleExit(cmd *cobra.Command) {
 	if err := cmd.Execute(); err != nil {
 		var craneErr *CraneError
 		if errors.As(err, &craneErr) {
+			if craneErr.Error() != "" && craneErr.Code != ErrorCmdArg {
+				log.Error(craneErr)
+			}
 			os.Exit(craneErr.Code)
 		} else {
 			os.Exit(ErrorGeneric)
