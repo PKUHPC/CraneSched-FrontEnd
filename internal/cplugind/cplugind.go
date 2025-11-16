@@ -54,7 +54,7 @@ var RootCmd = &cobra.Command{
 
 		// Parse plugin configuration from separate plugin.yaml file
 		if err := ParsePluginConfig(config.CraneBaseDir, FlagPluginConfig); err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Failed to parse plugin config from %s: %s", FlagPluginConfig, err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse plugin config from %s: %s", FlagPluginConfig, err))
 		}
 
 		if !gPluginConfig.Enabled {
