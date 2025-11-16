@@ -13,7 +13,13 @@ import (
 )
 
 const (
-	aboutPlugin = "CraneSched Meta CNI"
+	aboutPlugin = `Meta CNI Plugin for CraneSched
+
+This plugin allows chaining multiple CNI plugins and manipulating their runtime
+parameters such as CNI_ARGS, Plugin Config, etc.
+
+You can use this plugin to adapt existing CNI plugins to CraneSched.
+`
 )
 
 func main() {
@@ -79,6 +85,6 @@ func emptyResult(cniVersion string) (cnitypes.Result, error) {
 	if cniVersion == "" {
 		cniVersion = version.Current()
 	}
-	payload := []byte(fmt.Sprintf(`{"cniVersion":%q}`, cniVersion))
+	payload := fmt.Appendf(nil, `{"cniVersion":%q}`, cniVersion)
 	return create.Create(cniVersion, payload)
 }
