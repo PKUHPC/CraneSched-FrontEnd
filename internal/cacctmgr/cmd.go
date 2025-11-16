@@ -925,5 +925,5 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int
 }
 
 func init() {
-	log.SetFormatter(&util.CraneFormatter{})
+	util.InitCraneLogger()
 }

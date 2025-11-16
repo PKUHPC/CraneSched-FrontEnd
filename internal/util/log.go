@@ -32,6 +32,10 @@ func (f *CraneFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
+func InitCraneLogger() {
+	log.SetFormatter(&CraneFormatter{})
+}
+
 func InitLogger(level string) {
 	switch level {
 	case "trace":
