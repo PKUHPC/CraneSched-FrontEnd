@@ -5,12 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"sort"
-	"strings"
 	"time"
 
-	metautils "CraneFrontEnd/tool/meta_cni/pkg/utils"
+	"CraneFrontEnd/tool/meta_cni/pkg/utils"
 
 	"github.com/containernetworking/cni/pkg/invoke"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -81,18 +78,6 @@ func LoadMetaPluginConf(data []byte) (*MetaPluginConf, error) {
 	return conf, nil
 }
 
-func (d *DelegateEntry) validate() error {
-	if d == nil {
-		return errors.New("delegate entry is nil")
-	}
-
-	if len(d.Conf) == 0 && d.Type == "" {
-		return errors.New("delegate must specify either type or conf")
-	}
-
-	return nil
-}
-
 // Execute runs delegates for a single CNI action using the provided args.
 func (conf *MetaPluginConf) Execute(action Action, args *skel.CmdArgs) (cnitypes.Result, error) {
 	ctx, cancel := conf.context()
@@ -102,20 +87,24 @@ func (conf *MetaPluginConf) Execute(action Action, args *skel.CmdArgs) (cnitypes
 	var lastResult cnitypes.Result
 
 	for idx, delegate := range delegates {
-		env, err := conf.buildRuntimeEnv(args, delegate.RuntimeOverride)
-		if err != nil {
-			return nil, err
-		}
-		restore, err := applyEnv(env)
-		if err != nil {
-			return nil, fmt.Errorf("meta-cni: delegate %s env setup failed: %w", delegate.identifier(), err)
-		}
-
-		log.WithFields(log.Fields{
+		logger := log.WithFields(log.Fields{
 			"delegate": delegate.identifier(),
 			"action":   string(action),
 			"index":    idx,
-		}).Debug("invoking delegate")
+		})
+
+		env, err := conf.buildRuntimeEnv(args, delegate.RuntimeOverride)
+		if err != nil {
+			logger.Errorf("error in building runtime env: %v", err)
+			return nil, err
+		}
+		restore, err := utils.ApplyEnv(env)
+		if err != nil {
+			logger.Errorf("error in applying runtime env: %v", err)
+			return nil, fmt.Errorf("meta-cni: delegate %s env setup failed: %w", delegate.identifier(), err)
+		}
+
+		logger.Debug("invoking delegate")
 
 		var callErr error
 		switch action {
@@ -132,6 +121,7 @@ func (conf *MetaPluginConf) Execute(action Action, args *skel.CmdArgs) (cnitypes
 		restore()
 
 		if callErr != nil {
+			logger.Errorf("error in calling: %v", callErr)
 			return nil, fmt.Errorf("meta-cni: delegate %s failed: %w", delegate.identifier(), callErr)
 		}
 	}
@@ -191,20 +181,21 @@ func (conf *MetaPluginConf) buildRuntimeEnv(args *skel.CmdArgs, delegateOverride
 			env["CNI_PATH"] = override.CNIPath
 		}
 		if len(override.Args) > 0 {
-			merged, err := mergeArgs(env["CNI_ARGS"], override.Args)
+			merged, err := utils.MergeArgs(env["CNI_ARGS"], override.Args)
 			if err != nil {
 				return fmt.Errorf("meta-cni: invalid args override: %w", err)
 			}
 			env["CNI_ARGS"] = merged
 		}
 		if len(override.Envs) > 0 {
-			if err := mergeEnvs(env, override.Envs); err != nil {
+			if err := utils.MergeEnvs(env, override.Envs); err != nil {
 				return fmt.Errorf("meta-cni: invalid env override: %w", err)
 			}
 		}
 		return nil
 	}
 
+	// Global runtime override has lower precedence than delegate-specific override.
 	if err := apply(conf.RuntimeOverride); err != nil {
 		return nil, err
 	}
@@ -213,47 +204,6 @@ func (conf *MetaPluginConf) buildRuntimeEnv(args *skel.CmdArgs, delegateOverride
 	}
 
 	return env, nil
-}
-
-func applyEnv(env map[string]string) (func(), error) {
-	snapshot := make(map[string]*string, len(env))
-
-	for key, value := range env {
-		if _, recorded := snapshot[key]; !recorded {
-			if prev, ok := os.LookupEnv(key); ok {
-				val := prev
-				snapshot[key] = &val
-			} else {
-				snapshot[key] = nil
-			}
-		}
-
-		var err error
-		if value == "" {
-			err = os.Unsetenv(key)
-		} else {
-			err = os.Setenv(key, value)
-		}
-
-		if err != nil {
-			restoreEnv(snapshot)
-			return nil, fmt.Errorf("set env %s: %w", key, err)
-		}
-	}
-
-	return func() {
-		restoreEnv(snapshot)
-	}, nil
-}
-
-func restoreEnv(snapshot map[string]*string) {
-	for key, value := range snapshot {
-		if value == nil {
-			_ = os.Unsetenv(key)
-			continue
-		}
-		_ = os.Setenv(key, *value)
-	}
 }
 
 func (d *DelegateEntry) call(ctx context.Context, action Action, cniVersion string) (cnitypes.Result, error) {
@@ -276,7 +226,7 @@ func (d *DelegateEntry) call(ctx context.Context, action Action, cniVersion stri
 
 func (d *DelegateEntry) effectiveConf(parentVersion string) ([]byte, string, error) {
 	var (
-		payload       map[string]interface{}
+		payload       map[string]any
 		err           error
 		effectiveType = d.Type
 	)
@@ -286,7 +236,7 @@ func (d *DelegateEntry) effectiveConf(parentVersion string) ([]byte, string, err
 			return nil, "", errors.New("delegate type is required")
 		}
 
-		payload = map[string]interface{}{
+		payload = map[string]any{
 			"cniVersion": parentVersion,
 			"type":       effectiveType,
 		}
@@ -334,77 +284,17 @@ func (d *DelegateEntry) identifier() string {
 	if d.Type != "" {
 		return d.Type
 	}
-	return "<delegate>"
+	return "<unknown>"
 }
 
-func parseArgs(input string) map[string]string {
-	result := make(map[string]string)
-	for _, entry := range strings.Split(input, ";") {
-		if entry == "" {
-			continue
-		}
-		keyVal := strings.SplitN(entry, "=", 2)
-		if len(keyVal) != 2 {
-			continue
-		}
-		result[keyVal[0]] = keyVal[1]
-	}
-	return result
-}
-
-func mergeArgs(base string, overrides []string) (string, error) {
-	if len(overrides) == 0 {
-		return base, nil
+func (d *DelegateEntry) validate() error {
+	if d == nil {
+		return errors.New("delegate entry is nil")
 	}
 
-	current := parseArgs(base)
-
-	expressions, err := metautils.ParseManipulators(overrides)
-	if err != nil {
-		return "", err
+	if len(d.Conf) == 0 && d.Type == "" {
+		return errors.New("delegate must specify either type or conf")
 	}
 
-	for _, expr := range expressions {
-		if expr.Delete {
-			delete(current, expr.Key)
-			continue
-		}
-		current[expr.Key] = expr.Value
-	}
-
-	if len(current) == 0 {
-		return "", nil
-	}
-
-	keys := make([]string, 0, len(current))
-	for key := range current {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	pairs := make([]string, 0, len(keys))
-	for _, key := range keys {
-		pairs = append(pairs, fmt.Sprintf("%s=%s", key, current[key]))
-	}
-	return strings.Join(pairs, ";"), nil
-}
-
-func mergeEnvs(env map[string]string, entries []string) error {
-	if len(entries) == 0 {
-		return nil
-	}
-
-	expressions, err := metautils.ParseManipulators(entries)
-	if err != nil {
-		return err
-	}
-
-	for _, expr := range expressions {
-		if expr.Delete {
-			delete(env, expr.Key)
-			continue
-		}
-		env[expr.Key] = expr.Value
-	}
 	return nil
 }

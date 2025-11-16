@@ -1,9 +1,9 @@
 package utils
 
 import (
-	"strings"
 	"sync"
 
+	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -12,8 +12,9 @@ var loggerSetupOnce sync.Once
 // ensureLoggerDefaults configures logrus with sane defaults once.
 func ensureLoggerDefaults() {
 	loggerSetupOnce.Do(func() {
-		log.SetFormatter(&log.TextFormatter{FullTimestamp: true})
+		log.SetFormatter(&nested.Formatter{})
 		log.SetLevel(log.InfoLevel)
+		log.SetReportCaller(false)
 	})
 }
 
@@ -21,20 +22,15 @@ func ensureLoggerDefaults() {
 func InitLogger(level string) {
 	ensureLoggerDefaults()
 
-	switch strings.ToLower(level) {
+	switch level {
 	case "trace":
 		log.SetLevel(log.TraceLevel)
 	case "debug":
 		log.SetLevel(log.DebugLevel)
-	case "warn":
-		log.SetLevel(log.WarnLevel)
-	case "error":
-		log.SetLevel(log.ErrorLevel)
-	case "fatal":
-		log.SetLevel(log.FatalLevel)
-	case "panic":
-		log.SetLevel(log.PanicLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
 	default:
+		log.Warnf("Invalid log level %s, using info level", level)
 		log.SetLevel(log.InfoLevel)
 	}
 }
