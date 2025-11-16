@@ -399,10 +399,15 @@ func unquoteIfQuoted(s string) string {
 }
 
 func getCmdStringByArgs(commandArgs []string) string {
-		var processedArgs []string
+	var processedArgs []string
 	for _, arg := range commandArgs {
 		if arg == "" {
 			processedArgs = append(processedArgs, "\"\"")
+			continue
+		}
+
+		if strings.Contains(arg, "format") {
+			FlagFormat = arg;
 			continue
 		}
 
@@ -431,4 +436,4 @@ func getCmdStringByArgs(commandArgs []string) string {
 	}
 	cmdStr := strings.Join(processedArgs, " ")
 	return cmdStr
-} 
+}

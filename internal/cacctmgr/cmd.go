@@ -65,7 +65,6 @@ var (
 	// These flags are implemented,
 	// but not added to any cmd!
 	FlagNoHeader bool
-	FlagFormat   string
 	FlagNodeList string
 	FlagNumLimit uint32
 
@@ -87,6 +86,10 @@ var (
 	FlagPriority            string
 	FlagAdminLevel          string
 	FlagDescription         string
+
+	// Prepare to implement
+	// show   --format=
+	FlagFormat string
 )
 
 var actionToExecute = map[string]func(command *CAcctMgrCommand) int{
@@ -792,7 +795,6 @@ func executeShowAccountCommand(command *CAcctMgrCommand) int {
 	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
 		name = nameParam
 	}
-
 	if name == "" {
 		return ShowAccounts()
 	}
