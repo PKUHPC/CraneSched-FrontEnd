@@ -501,8 +501,10 @@ func DeleteReservation(ReservationName string) error {
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
 	} else {
-		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
-		return &util.CraneError{Code: util.ErrorBackend}
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to delete reservation: %s.\n", reply.GetReason()),
+		}
 	}
 	return nil
 }

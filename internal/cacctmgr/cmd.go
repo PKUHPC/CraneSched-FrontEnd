@@ -152,12 +152,10 @@ func ParseCmdArgs(args []string) {
 	err = executeCommand(command)
 	var craneErr *util.CraneError
 	if err != nil && errors.As(err, &craneErr) {
-		if craneErr.Message != "" {
-			if craneErr.Code == util.ErrorSuccess {
-				fmt.Print(craneErr.Message)
-			} else {
-				log.Error(craneErr)
-			}
+		if craneErr.Code == util.ErrorSuccess {
+			fmt.Print(craneErr.Message)
+		} else {
+			log.Error(craneErr)
 		}
 		os.Exit(craneErr.Code)
 	} else {
