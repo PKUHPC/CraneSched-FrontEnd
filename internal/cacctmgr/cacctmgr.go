@@ -39,11 +39,11 @@ import (
 )
 
 var (
-	userUid          uint32
-	stub             protos.CraneCtldClient
-	config           *util.Config
-	dbConfig         *util.InfluxDbConfig
-	
+	userUid  uint32
+	stub     protos.CraneCtldClient
+	config   *util.Config
+	dbConfig *util.InfluxDbConfig
+
 	// unused
 	// dbConfigInitOnce sync.Once
 )
@@ -279,7 +279,6 @@ func DeleteAccount(value string) util.ExitCode {
 }
 
 func DeleteUser(value string, account string) util.ExitCode {
-
 	userList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		log.Errorf("Invalid user list specified: %v.\n", err)
@@ -323,7 +322,6 @@ func DeleteUser(value string, account string) util.ExitCode {
 }
 
 func DeleteQos(value string) util.ExitCode {
-
 	if FlagForce {
 		log.Warning("--force flag is ignored for delete operations")
 	}
@@ -522,7 +520,6 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 	}
 }
 
-
 func FindAccount(value string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
@@ -564,12 +561,10 @@ func FindAccount(value string) util.ExitCode {
 	}
 
 	PrintAccountList(reply.AccountList)
-
 	return util.ErrorSuccess
 }
 
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) util.ExitCode {
-
 	if FlagForce {
 		log.Warning("--force flag is ignored for block operations")
 	}
@@ -615,7 +610,6 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 }
 
 func UnblockAccountOrUser(value string, entityType protos.EntityType, account string) util.ExitCode {
-
 	if FlagForce {
 		log.Warning("--force flag is ignored for unblock operations")
 	}
@@ -723,7 +717,6 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 }
 
 func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
-
 	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
 	defer client.Close()
 

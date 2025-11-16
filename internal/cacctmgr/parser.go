@@ -407,7 +407,7 @@ func getCmdStringByArgs(commandArgs []string) string {
 		}
 
 		if strings.Contains(arg, "format") {
-			FlagFormat = arg;
+			FlagFormat = arg
 			continue
 		}
 
