@@ -90,13 +90,15 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 	}
 }
 
-func AddAccount(account *protos.AccountInfo) util.ExitCode {
+func AddAccount(account *protos.AccountInfo) error {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
 	if err := util.CheckEntityName(account.Name); err != nil {
-		log.Errorf("Failed to add account: invalid account name: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to add account: invalid account name: %v\n", err),
+		}
 	}
 
 	req := new(protos.AddAccountRequest)
@@ -114,48 +116,62 @@ func AddAccount(account *protos.AccountInfo) util.ExitCode {
 			}
 		}
 		if !find {
-			log.Errorf("Failed to add account: default QoS %s is not in allowed QoS list", account.DefaultQos)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Failed to add account: default QoS %s is not in allowed QoS list\n", account.DefaultQos),
+			}
 		}
 	}
 
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
-		log.Errorf("Failed to add account: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to add account: %v\n", err),
+		}
+
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
+
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("Account added successfully.")
-		return util.ErrorSuccess
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintln("Account added successfully."),
+		}
 	} else {
-		fmt.Printf("Failed to add account: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to add account: %s.\n", util.ErrMsg(reply.GetCode())),
+		}
 	}
 }
 
-func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) util.ExitCode {
+func AddUser(user *protos.UserInfo, partition []string, level string, coordinator bool) error {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
 	var err error
 	if err = util.CheckEntityName(user.Name); err != nil {
-		log.Errorf("Failed to add user: invalid user name: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to add user: invalid user name: %v\n", err),
+		}
 	}
 
 	user.Uid, err = util.GetUidByUserName(user.Name)
 	if err != nil {
-		log.Errorf("Failed to add user: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to add user: %v\n", err),
+		}
 	}
 
 	req := new(protos.AddUserRequest)
@@ -172,8 +188,10 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	} else if level == "admin" {
 		user.AdminLevel = protos.UserInfo_Admin
 	} else {
-		log.Errorf("Failed to add user: unknown admin level, valid values: none, operator, admin.")
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintln("Failed to add user: unknown admin level, valid values: none, operator, admin."),
+		}
 	}
 
 	if coordinator {
@@ -182,34 +200,42 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 
 	reply, err := stub.AddUser(context.Background(), req)
 	if err != nil {
-		log.Errorf("Failed to add user: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to add user: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("User added successfully.")
-		return util.ErrorSuccess
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintln("User added successfully."),
+		}
 	} else {
-		fmt.Printf("Failed to add user: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to add user: %s.\n", util.ErrMsg(reply.GetCode())),
+		}
 	}
 }
 
-func AddQos(qos *protos.QosInfo) util.ExitCode {
+func AddQos(qos *protos.QosInfo) error {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
 	if err := util.CheckEntityName(qos.Name); err != nil {
-		log.Errorf("Failed to add QoS: invalid QoS name: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to add QoS: invalid QoS name: %v\n", err),
+		}
 	}
 
 	req := new(protos.AddQosRequest)
@@ -218,24 +244,30 @@ func AddQos(qos *protos.QosInfo) util.ExitCode {
 
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
-		log.Errorf("Failed to add QoS: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to add QoS: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("QoS added successfully.")
-		return util.ErrorSuccess
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintln("QoS added successfully."),
+		}
 	} else {
-		fmt.Printf("Failed to add QoS: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to add QoS: %s.\n", util.ErrMsg(reply.GetCode())),
+		}
 	}
 }
 
@@ -246,49 +278,62 @@ func DeleteAccount(value string) util.ExitCode {
 
 	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid user list specified: %v.\n", err),
+		}
 	}
 
 	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList}
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to delete account %s: %v", value, err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to delete account %s: %v\n", value, err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Successfully deleted account '%s'.\n", value)
-		return util.ErrorSuccess
-	} else {
-		fmt.Printf("Failed to delete account: \n")
-		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintf("Successfully deleted account '%s'.\n", value),
 		}
-		return util.ErrorBackend
+	} else {
+		msg := "Failed to delete account: \n"
+		for _, richError := range reply.RichErrorList {
+			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
 }
 
 func DeleteUser(value string, account string) util.ExitCode {
 	userList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid user list specified: %v.\n", err),
+		}
 	}
 
 	if slices.Contains(userList, "ALL") {
 		if !FlagForce {
-			log.Errorf("To delete all users in the account, you must set --force.")
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintln("To delete all users in the account, you must set --force."),
+			}
 		}
 		userList = []string{"ALL"}
 	}
@@ -297,27 +342,34 @@ func DeleteUser(value string, account string) util.ExitCode {
 
 	reply, err := stub.DeleteUser(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to remove user %s: %v", value, err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to remove user %s: %v\n", value, err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Successfully removed user '%s'.\n", value)
-		return util.ErrorSuccess
-	} else {
-		fmt.Printf("Failed to remove user: \n")
-		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintf("Successfully removed user '%s'.\n", value),
 		}
-		return util.ErrorBackend
+	} else {
+		msg := "Failed to remove user: \n"
+		for _, richError := range reply.RichErrorList {
+			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
 }
 
@@ -328,57 +380,76 @@ func DeleteQos(value string) util.ExitCode {
 
 	qosList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid user list specified: %v.\n", err),
+		}
 	}
 	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList}
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to delete QoS %s: %v", value, err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to delete QoS %s: %v\n", value, err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Successfully deleted QoS '%s'.\n", value)
-		return util.ErrorSuccess
-	} else {
-		fmt.Printf("Failed to delete QoS: \n")
-		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintf("Successfully deleted QoS '%s'.\n", value),
 		}
-		return util.ErrorBackend
+	} else {
+		msg := "Failed to delete QoS: \n"
+		for _, richError := range reply.RichErrorList {
+			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
 }
 
-func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.ExitCode {
+func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) error {
 	var valueList []string
 	var err error
 
 	valueList, err = util.ParseStringParamList(newValue, ",")
 	if err != nil {
 		if modifyField == protos.ModifyField_Qos {
-			log.Errorf("Invalid qos list specified: %v.\n", err)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid qos list specified: %v.\n", err),
+			}
 		} else if modifyField == protos.ModifyField_Partition {
-			log.Errorf("Invalid partition list specified: %v.\n", err)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid partition list specified: %v.\n", err),
+			}
 		} else {
-			log.Errorf("Invalid value list specified: %v.\n", err)
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid value list specified: %v.\n", err),
+			}
 		}
-		return util.ErrorCmdArg
 	}
 
 	if modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_Description {
 		if len(valueList) != 1 {
-			log.Errorf("Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintln("Invalid value specified! Modify Description and DefaultQos, please provide only one value."),
+			}
 		}
 	}
 
@@ -393,39 +464,46 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 
 	reply, err := stub.ModifyAccount(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to modify account information: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to modify account information: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(util.FmtJson.FormatReply(reply))
+			return nil
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: fmt.Sprintln(util.FmtJson.FormatReply(reply))}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("Information was successfully modified.")
-		return util.ErrorSuccess
+		fmt.Println("Modify information succeeded.")
+		return nil
 	} else {
-		fmt.Printf("Failed to modify information:\n")
+		msg := "Failed to modify information:\n"
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				msg += fmt.Sprintf("%s \n", util.ErrMsg(richError.Code))
 			} else {
-				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+				msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 			}
 		}
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
 }
 
-func ModifyUser(modifyField protos.ModifyField, newValue string, name string, account string, partition string, requestType protos.OperationType) util.ExitCode {
+func ModifyUser(modifyField protos.ModifyField, newValue string, name string, account string, partition string, requestType protos.OperationType) error {
 	if modifyField == protos.ModifyField_AdminLevel {
 		if newValue != "none" && newValue != "operator" && newValue != "admin" {
-			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintln("Unknown admin level, valid values: none, operator, admin."),
+			}
 		}
 	}
 
@@ -434,14 +512,18 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 	valueList, err = util.ParseStringParamList(newValue, ",")
 	if err != nil {
-		log.Errorf("Invalid value list specified: %v.\n", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Invalid value list specified: %v.\n", err),
+		}
 	}
 
 	if modifyField == protos.ModifyField_AdminLevel || modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_DefaultAccount {
 		if len(valueList) != 1 {
-			log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintln("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value."),
+			}
 		}
 	}
 
@@ -458,35 +540,40 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 	reply, err := stub.ModifyUser(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to modify user information: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to modify user information: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(util.FmtJson.FormatReply(reply))
+			return nil
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: fmt.Sprintln(util.FmtJson.FormatReply(reply))}
 		}
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information succeeded.")
-		return util.ErrorSuccess
+		return nil
 	} else {
-		fmt.Printf("Modify information failed: \n")
+		msg := fmt.Sprintf("Modify information failed: \n")
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				msg += fmt.Sprintf("%s \n", util.ErrMsg(richError.Code))
 			} else {
-				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+				msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 			}
 		}
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
 }
 
-func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.ExitCode {
+func ModifyQos(modifyField protos.ModifyField, newValue string, name string) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for QoS modify operations")
 	}
@@ -499,28 +586,33 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 
 	reply, err := stub.ModifyQos(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to modify QoS: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to modify QoS: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(util.FmtJson.FormatReply(reply))
+			return nil
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: fmt.Sprintln(util.FmtJson.FormatReply(reply))}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Println("Modify information succeeded.")
-		return util.ErrorSuccess
+		return nil
 	} else {
-		fmt.Printf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode())),
+		}
 	}
 }
 
-func FindAccount(value string) util.ExitCode {
+func FindAccount(value string) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
@@ -529,34 +621,43 @@ func FindAccount(value string) util.ExitCode {
 		var err error
 		accountList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			log.Errorf("Invalid account list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid account list specified: %v.\n", err),
+			}
 		}
 	}
 
 	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: accountList}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to find account: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to find account: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 
 	if !reply.GetOk() {
+		msg := ""
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Println(util.ErrMsg(richError.Code))
+				msg += fmt.Sprintln(util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
 		}
 	}
 
@@ -574,38 +675,48 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 		var err error
 		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			log.Errorf("Invalid account/user list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid account/user list specified: %v.\n", err),
+			}
 		}
 	}
 
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to block entity: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to block entity: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Block %s succeeded.\n", value)
-		return util.ErrorSuccess
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintf("Block %s succeeded.\n", value),
+		}
 	} else {
+		msg := ""
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				msg += fmt.Sprintln(util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
 }
 
@@ -619,46 +730,58 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 		var err error
 		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			log.Errorf("Invalid account/user list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid account/user list specified: %v.\n", err),
+			}
 		}
 	}
 
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to unblock entity: %v", err)
-		return util.ErrorNetwork
+		return &util.CraneError{
+			Code:    util.ErrorNetwork,
+			Message: fmt.Sprintf("Failed to unblock entity: %v\n", err),
+		}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Unblock %s succeeded.\n", value)
-		return util.ErrorSuccess
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintf("Unblock %s succeeded.\n", value),
+		}
 	} else {
+		msg := ""
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				msg += fmt.Sprintln(util.ErrMsg(richError.Code))
 				break
 			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
 }
 
 // Extracts the EventPlugin InfluxDB configuration from the specified YAML configuration files
-func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, util.ExitCode) {
+func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, error) {
 	if !config.Plugin.Enabled {
-		log.Errorf("Plugin is not enabled")
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintln("Plugin is not enabled"),
+		}
 	}
 
 	var eventConfigPath string
@@ -670,29 +793,37 @@ func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, util.ExitC
 	}
 
 	if eventConfigPath == "" {
-		log.Errorf("event plugin not found")
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintln("event plugin not found"),
+		}
 	}
 
 	confFile, err := os.ReadFile(eventConfigPath)
 	if err != nil {
-		log.Errorf("Failed to read config file %s: %v.", eventConfigPath, err)
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to read config file %s: %v.\n", eventConfigPath, err),
+		}
 	}
 
 	dbConf := &struct {
 		Database *util.InfluxDbConfig `yaml:"Database"`
 	}{}
 	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
-		log.Errorf("Failed to parse YAML config file: %v", err)
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to parse YAML config file: %v\n", err),
+		}
 	}
 	if dbConf.Database == nil {
-		log.Errorf("Database section not found in YAML")
-		return nil, util.ErrorCmdArg
+		return nil, &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintln("Database section not found in YAML"),
+		}
 	}
 
-	return dbConf.Database, util.ErrorSuccess
+	return dbConf.Database, &util.CraneError{Code: util.ErrorSuccess}
 }
 
 func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
@@ -813,7 +944,7 @@ func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName strin
 	return records, nil
 }
 
-func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
+func QueryEventInfoByNodes(nodeRegex string) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for query operations")
 	}
@@ -822,46 +953,60 @@ func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 	if len(nodeRegex) != 0 {
 		nodeNames, ok = util.ParseHostList(nodeRegex)
 		if !ok {
-			log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid node pattern: %s.\n", nodeRegex),
+			}
 		}
 	}
 
 	if len(nodeNames) > 0 {
 		missingList, err := MissingElements(config.CranedNodeList, nodeNames)
 		if err != nil {
-			log.Errorf("Invalid input for nodes: %v", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid input for nodes: %v\n", err),
+			}
 		}
 		if len(missingList) > 0 {
-			log.Errorf("Invalid input nodes: %v", missingList)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid input nodes: %v\n", missingList),
+			}
 		}
 	} else {
 		var err error
 		nodeNames, err = util.GetValidNodeList(config.CranedNodeList)
 		if err != nil {
-			log.Errorf("Invalid input for nodes: %v", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid input for nodes: %v\n", err),
+			}
 		}
 	}
 
 	if len(config.ClusterName) == 0 {
-		log.Errorf("ClusterName empty")
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintln("ClusterName empty"),
+		}
 	}
 
 	// Query Resource Usage Records in InfluxDB
 	result, err := QueryInfluxDbDataByTags(dbConfig, config.ClusterName, nodeNames)
 	if err != nil {
-		log.Errorf("Failed to query job info from InfluxDB: %v", err)
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: fmt.Sprintf("Failed to query job info from InfluxDB: %v\n", err),
+		}
 	}
 
 	filteredRecords, err := SortRecords(result)
 	if err != nil {
-		log.Errorf("Failed to sort records: %v", err)
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintf("Failed to sort records: %v\n", err),
+		}
 	}
 
 	if FlagJson {
@@ -882,11 +1027,15 @@ func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 		}
 		jsonData, err := json.MarshalIndent(eventJsonList, "", "  ")
 		if err != nil {
-			log.Errorf("Failed to marshal data to JSON: %v", err)
-			return util.ErrorBackend
+			return &util.CraneError{
+				Code:    util.ErrorBackend,
+				Message: fmt.Sprintf("Failed to marshal data to JSON: %v\n", err),
+			}
 		}
-		fmt.Println(string(jsonData))
-		return util.ErrorSuccess
+		return &util.CraneError{
+			Code:    util.ErrorSuccess,
+			Message: fmt.Sprintln(string(jsonData)),
+		}
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -907,7 +1056,7 @@ func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 	}
 
 	table.Render()
-	return util.ErrorSuccess
+	return &util.CraneError{Code: util.ErrorSuccess}
 }
 
 func FormatNanoTime(ns int64) string {
@@ -954,20 +1103,24 @@ func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error)
 	return filteredRecords, nil
 }
 
-func ResetUserCredential(value string) util.ExitCode {
+func ResetUserCredential(value string) error {
 	var userList []string
 
 	if value == "" {
-		log.Errorf("User is empty")
-		return util.ErrorCmdArg
+		return &util.CraneError{
+			Code:    util.ErrorCmdArg,
+			Message: fmt.Sprintln("User is empty"),
+		}
 	}
 
 	if value != "all" {
 		var err error
 		userList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			log.Errorf("Invalid user list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid user list specified: %v.\n", err),
+			}
 		}
 	}
 
@@ -975,24 +1128,29 @@ func ResetUserCredential(value string) util.ExitCode {
 	reply, err := stub.ResetUserCredential(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to reset user credential")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			return &util.CraneError{Code: util.ErrorSuccess, Message: msg}
 		} else {
-			return util.ErrorBackend
+			return &util.CraneError{Code: util.ErrorBackend, Message: msg}
 		}
 	}
 
 	if !reply.GetOk() {
+		msg := ""
 		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return util.ErrorBackend
+		return &util.CraneError{
+			Code:    util.ErrorBackend,
+			Message: msg,
+		}
 	}
-
-	fmt.Printf("reset user %s credential succeeded.\n", value)
-	return util.ErrorSuccess
+	return &util.CraneError{
+		Code:    util.ErrorSuccess,
+		Message: fmt.Sprintf("reset user %s credential succeeded.\n", value),
+	}
 }
