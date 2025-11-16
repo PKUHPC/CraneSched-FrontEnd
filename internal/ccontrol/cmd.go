@@ -271,7 +271,7 @@ func executeUpdateNodeCommand(command *CControlCommand) error {
 			Message: fmt.Sprintf("change node state failed: %s\n", err),
 		}
 	}
-	return &util.CraneError{Code: util.ErrorGeneric}
+	return &util.CraneError{Code: util.ErrorSuccess}
 }
 
 func executeUpdateJobCommand(command *CControlCommand) error {
