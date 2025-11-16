@@ -21,7 +21,6 @@ package cacct
 import (
 	"CraneFrontEnd/internal/util"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -161,5 +160,5 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", util.MaxRepliedJobs,
 		"Limit the number of lines in the output, 0 means no limit") // See kDefaultQueryTaskNumLimit
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
-	log.SetFormatter(&util.CraneFormatter{})
+	util.InitCraneLogger()
 }

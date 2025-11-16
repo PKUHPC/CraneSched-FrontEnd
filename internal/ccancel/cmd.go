@@ -22,7 +22,6 @@ import (
 	"CraneFrontEnd/internal/util"
 	"regexp"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -103,5 +102,5 @@ func init() {
 		"Cancel jobs running on the specified nodes")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
-	log.SetFormatter(&util.CraneFormatter{})
+	util.InitCraneLogger()
 }

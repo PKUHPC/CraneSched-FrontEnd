@@ -21,7 +21,6 @@ package cqueue
 import (
 	"CraneFrontEnd/internal/util"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -158,5 +157,5 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 		"Limit the number of lines in the output, 0 means no limit")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
-	log.SetFormatter(&util.CraneFormatter{})
+	util.InitCraneLogger()
 }
