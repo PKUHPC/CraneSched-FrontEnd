@@ -60,7 +60,7 @@ var (
 			}
 
 			if len(args) > 0 {
-				matched, _ := regexp.MatchString(`^([1-9][0-9]*)(,[1-9][0-9]*)*$`, args[0])
+				matched, _ := regexp.MatchString(`^([1-9][0-9]*(\.[1-9][0-9]*)?)(,[1-9][0-9]*(\.[1-9][0-9]*)?)*$`, args[0])
 				if !matched {
 					return &util.CraneError{
 						Code: util.ErrorCmdArg,

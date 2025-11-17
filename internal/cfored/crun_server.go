@@ -85,18 +85,24 @@ CforedCrunStateMachineLoop:
 				}
 			}
 
-			if crunRequest.Type != protos.StreamCrunRequest_TASK_REQUEST {
-				log.Fatalf("[Cfored<-Crun] Expect TASK_REQUEST but got %s", crunRequest.Type)
+			if crunRequest.Type != protos.StreamCrunRequest_TASK_REQUEST && crunRequest.Type != protos.StreamCrunRequest_STEP_REQUEST {
+				log.Fatalf("[Cfored<-Crun] Expect TASK_REQUEST or STEP_REQUEST but got %s", crunRequest.Type)
 				break
 			}
 
-			log.Debug("[Cfored<-Crun] Receive TASK_REQUEST")
+			log.Debugf("[Cfored<-Crun] Receive %s", crunRequest.Type)
 
 			ctx := toCrunStream.Context()
 			p, ok := peer.FromContext(ctx)
 			if ok {
 				if auth, ok := p.AuthInfo.(*util.UnixPeerAuthInfo); ok {
-					uid := crunRequest.GetPayloadTaskReq().Task.Uid
+
+					var uid uint32
+					if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
+						uid = crunRequest.GetPayloadTaskReq().Task.Uid
+					} else {
+						uid = crunRequest.GetPayloadStepReq().Step.Uid
+					}
 					if uid != auth.UID {
 						log.Warnf("Security: UID mismatch - peer UID %d does not match task UID %d", auth.UID, crunRequest.GetPayloadTaskReq().Task.Uid)
 						reply = &protos.StreamCrunReply{
@@ -139,25 +145,46 @@ CforedCrunStateMachineLoop:
 				log.Infof("[Cfored<->Crun]Cfored not connected to CraneCtld")
 				break CforedCrunStateMachineLoop
 			} else {
-				crunPid = crunRequest.GetPayloadTaskReq().CrunPid
+				if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
+					crunPid = crunRequest.GetPayloadTaskReq().CrunPid
+				} else {
+					crunPid = crunRequest.GetPayloadStepReq().CrunPid
+				}
 
 				gVars.ctldReplyChannelMapMtx.Lock()
 				gVars.ctldReplyChannelMapByPid[crunPid] = ctldReplyChannel
 				gVars.ctldReplyChannelMapMtx.Unlock()
-
-				task := crunRequest.GetPayloadTaskReq().Task
-				interactiveMeta := task.GetInteractiveMeta()
-				interactiveMeta.CforedName = gVars.hostName
-				crunPty = interactiveMeta.Pty
-				cforedRequest := &protos.StreamCforedRequest{
-					Type: protos.StreamCforedRequest_TASK_REQUEST,
-					Payload: &protos.StreamCforedRequest_PayloadTaskReq{
-						PayloadTaskReq: &protos.StreamCforedRequest_TaskReq{
-							CforedName: gVars.hostName,
-							Pid:        crunPid,
-							Task:       task,
+				var iaMeta *protos.InteractiveTaskAdditionalMeta
+				if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
+					iaMeta = crunRequest.GetPayloadTaskReq().Task.GetInteractiveMeta()
+				} else {
+					iaMeta = crunRequest.GetPayloadStepReq().Step.GetInteractiveMeta()
+				}
+				iaMeta.CforedName = gVars.hostName
+				crunPty = iaMeta.Pty
+				var cforedRequest *protos.StreamCforedRequest
+				if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
+					cforedRequest = &protos.StreamCforedRequest{
+						Type: protos.StreamCforedRequest_TASK_REQUEST,
+						Payload: &protos.StreamCforedRequest_PayloadTaskReq{
+							PayloadTaskReq: &protos.StreamCforedRequest_TaskReq{
+								CforedName: gVars.hostName,
+								Pid:        crunPid,
+								Task:       crunRequest.GetPayloadTaskReq().Task,
+							},
 						},
-					},
+					}
+				} else {
+					cforedRequest = &protos.StreamCforedRequest{
+						Type: protos.StreamCforedRequest_STEP_REQUEST,
+						Payload: &protos.StreamCforedRequest_PayloadStepReq{
+							PayloadStepReq: &protos.StreamCforedRequest_StepReq{
+								CforedName: gVars.hostName,
+								Pid:        crunPid,
+								Step:       crunRequest.GetPayloadStepReq().Step,
+							},
+						},
+					}
 				}
 
 				gVars.cforedRequestCtldChannel <- cforedRequest
@@ -282,6 +309,7 @@ CforedCrunStateMachineLoop:
 							PayloadTaskAllocReply: &protos.StreamCrunReply_TaskResAllocatedReply{
 								Ok:                   ctldPayload.Ok,
 								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
+								CranedIds:            ctldPayload.CranedIds,
 							},
 						},
 					}
@@ -387,7 +415,7 @@ CforedCrunStateMachineLoop:
 			}
 
 		case CrunWaitTaskComplete:
-			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State Crun_Wait_Task_Complete", jobId, stepId)
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State CRUN_WAIT_TASK_COMPLETE", jobId, stepId)
 		forwarding:
 			for {
 				select {
@@ -563,7 +591,7 @@ CforedCrunStateMachineLoop:
 			state = CrunWaitCtldAck
 
 		case CrunWaitCtldAck:
-			log.Infof("[Cfored<->Crun][Step #%d.%d]  Enter State WAIT_CTLD_ACK", jobId, stepId)
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CTLD_ACK", jobId, stepId)
 
 			ctldReply := <-ctldReplyChannel
 			if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
@@ -590,10 +618,10 @@ CforedCrunStateMachineLoop:
 			gSupervisorChanKeeper.crunTaskStopAndRemoveChannel(jobId, stepId)
 
 			if err := toCrunStream.Send(reply); err != nil {
-				log.Errorf("[Cfored->Crun] Failed to send CompletionAck to crun: %s. "+
-					"The connection to crun was broken.", err.Error())
+				log.Errorf("[Cfored->Crun][Step #%d.%d] Failed to send CompletionAck to crun: %s. "+
+					"The connection to crun was broken.", jobId, stepId, err.Error())
 			} else {
-				log.Debug("[Cfored->Crun] TASK_COMPLETION_ACK_REPLY sent to Crun")
+				log.Debugf("[Cfored->Crun][Step #%d.%d] TASK_COMPLETION_ACK_REPLY sent to Crun", jobId, stepId)
 			}
 			log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
 

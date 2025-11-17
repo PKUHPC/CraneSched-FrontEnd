@@ -564,37 +564,41 @@ func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.ExitCode {
 	header := []string{"JOBID", "PARTITION", "NAME", "USER",
 		"ST", "TIME", "NODES", "NODELIST(REASON)"}
 	tableData := make([][]string, len(reply.TaskInfoList))
-	for i := 0; i < len(reply.TaskInfoList); i++ {
+	i := 0
+	for _, jobInfo := range reply.TaskInfoList {
 		var timeElapsedStr string
-		if reply.TaskInfoList[i].Status == protos.TaskStatus_Running {
-			timeElapsedStr = util.SecondTimeFormat(reply.TaskInfoList[i].ElapsedTime.Seconds)
+		if jobInfo.Status == protos.TaskStatus_Running {
+			timeElapsedStr = util.SecondTimeFormat(jobInfo.ElapsedTime.Seconds)
 		} else {
 			timeElapsedStr = "-"
 		}
 
 		var reasonOrListStr string
-		if reply.TaskInfoList[i].Status == protos.TaskStatus_Pending {
-			reasonOrListStr = reply.TaskInfoList[i].GetPendingReason()
+		if jobInfo.Status == protos.TaskStatus_Pending {
+			reasonOrListStr = jobInfo.GetPendingReason()
 		} else {
-			reasonOrListStr = reply.TaskInfoList[i].GetCranedList()
+			reasonOrListStr = jobInfo.GetCranedList()
 		}
 
 		tableData[i] = []string{
-			strconv.FormatUint(uint64(reply.TaskInfoList[i].TaskId), 10),
-			reply.TaskInfoList[i].Partition,
-			reply.TaskInfoList[i].Name,
-			reply.TaskInfoList[i].Username,
-			reply.TaskInfoList[i].Status.String(),
+			strconv.FormatUint(uint64(jobInfo.TaskId), 10),
+			jobInfo.Partition,
+			jobInfo.Name,
+			jobInfo.Username,
+			jobInfo.Status.String(),
 			timeElapsedStr,
-			strconv.FormatUint(uint64(reply.TaskInfoList[i].NodeNum), 10),
+			strconv.FormatUint(uint64(jobInfo.NodeNum), 10),
 			reasonOrListStr,
 		}
+
+		i += 1
 	}
 
 	if cqueue.FlagStartTime {
 		header = append(header, "StartTime")
-		for i := 0; i < len(tableData); i++ {
-			startTime := reply.TaskInfoList[i].StartTime
+		i = 0
+		for _, jobInfo := range reply.TaskInfoList {
+			startTime := jobInfo.StartTime
 			if startTime.Seconds != 0 {
 				tableData[i] = append(tableData[i],
 					startTime.AsTime().In(time.Local).
@@ -602,12 +606,15 @@ func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.ExitCode {
 			} else {
 				tableData[i] = append(tableData[i], "")
 			}
+			i += 1
 		}
 	}
 	if cqueue.FlagFilterQos != "" {
 		header = append(header, "QoS")
-		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], reply.TaskInfoList[i].Qos)
+		i = 0
+		for _, jobInfo := range reply.TaskInfoList {
+			tableData[i] = append(tableData[i], jobInfo.Qos)
+			i += 1
 		}
 	}
 
