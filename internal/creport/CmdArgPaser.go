@@ -32,7 +32,7 @@ var (
 	FlagFilterUsers      string
 	FlagFilterQosList    string
 	FlagOutType          string
-	FlagGroups           string
+	FlagGroupSet         bool
 	FlagFilterWckeys     string
 	FlagFilterGids       string
 	FlagFilterGrouping   string
@@ -89,6 +89,16 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("group") {
+				FlagGroupSet = true
+			} else {
+				FlagGroupSet = false
+			}
+			if cmd.Flags().Changed("topcount") {
+				if FlagTopCount == 0 {
+					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0")
+				}
+			}
 			return QueryUsersTopSummaryItem()
 		},
 	}
@@ -199,9 +209,9 @@ func init() {
 			userTopUsageCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			userTopUsageCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes)")
 			userTopUsageCmd.Flags().Uint32VarP(&FlagTopCount, "topcount", "", 10, "Change the number of users displayed, default is 10 ")
-			userTopUsageCmd.Flags().StringVarP(&FlagGroups, "group", "", "",
+			userTopUsageCmd.Flags().BoolVar(&FlagGroupSet, "group", false,
 				"Group all accounts together for each user, Default is a separate entry for each user and account reference")
 		}
 
@@ -219,9 +229,7 @@ func init() {
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
-			accountUtilizationByUserCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
-				"Select wckeys to view (comma separated list)")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 		}
 		clusterCmd.AddCommand(userUtilizationByAccountCmd)
 		{
@@ -234,9 +242,7 @@ func init() {
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
-			userUtilizationByAccountCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
-				"Select wckeys to view (comma separated list)")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 		}
 		clusterCmd.AddCommand(userUtilizationByWckeyCmd)
 		{
@@ -247,9 +253,7 @@ func init() {
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
-			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
-				"Select wckeys to view (comma separated list)")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 		}
 		clusterCmd.AddCommand(wckeyUtilizationByUserCmd)
 		{
@@ -258,7 +262,7 @@ func init() {
 			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
 			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
 				"Select wckeys to view (comma separated list)")
 		}
@@ -268,13 +272,12 @@ func init() {
 				GetDefaultEndTime(), "Filter job collections by end time(format: 2006-01-02T15:04:05)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
-			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterQosList, "qos", "",
-				"", "Select qoss to view (comma separated list)",
-			)
+			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterQosList, "qos", "q",
+				"", "Select qoss to view (comma separated list)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
-			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
-				"Select wckeys to view (comma separated list)")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
+			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
+				"Select accounts to view (comma separated list)")
 		}
 		clusterCmd.AddCommand(utilizationCmd)
 		{
@@ -283,7 +286,7 @@ func init() {
 			utilizationCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
 			utilizationCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 		}
 
 	}
@@ -297,16 +300,14 @@ func init() {
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
-			sizesByAccountCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
-				"Select users to view (comma separated list)")
 			sizesByAccountCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
-				"Select grouping  to view (comma separated list)")
-			sizesByAccountCmd.Flags().StringVarP(&FlagFilterJobIDs, "jobs", "j", "",
-				"Select job ids to view (comma separated list), default is all")
+				"Comma separated list of size groupings "+
+					"(e.g. 50,100,150 would group job cpu count 1-49, 50-99, 100-149, > 150). "+
+					"grouping=individual will result in a single column for each job size found.")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByAccountCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
@@ -320,16 +321,14 @@ func init() {
 				GetDefaultEndTime(), "Filter job collections by end time(format: 2006-01-02T15:04:05)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
-			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
-				"Select accounts to view (comma separated list)")
-			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
-				"Select users to view (comma separated list)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
-				"Select grouping  to view (comma separated list)")
+				"Comma separated list of size groupings "+
+					"(e.g. 50,100,150 would group job cpu count 1-49, 50-99, 100-149, > 150). "+
+					"grouping=individual will result in a single column for each job size found.")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterJobIDs, "jobs", "j", "",
 				"Select job ids to view (comma separated list), default is all")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
@@ -338,6 +337,8 @@ func init() {
 				" The report will print number of jobs range instead of time used")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
+			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
+				"Select wckeys to view (comma separated list)")
 		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
 		{
@@ -347,14 +348,14 @@ func init() {
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
-			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
-				"Select users to view (comma separated list)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit")
+				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterGids, "gid", "", "",
 				"Select group id to view (comma separated list)")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterGrouping, "grouping", "", "50,250,500,1000",
-				"Select grouping  to view (comma separated list)")
+				"Comma separated list of size groupings "+
+					"(e.g. 50,100,150 would group job cpu count 1-49, 50-99, 100-149, > 150). "+
+					"grouping=individual will result in a single column for each job size found.")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterJobIDs, "jobs", "j", "",
 				"Select job ids to view (comma separated list), default is all")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
@@ -363,6 +364,8 @@ func init() {
 				" The report will print number of jobs range instead of time used")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
+			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
+				"Select wckeys to view (comma separated list)")
 		}
 	}
 

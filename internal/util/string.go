@@ -1302,99 +1302,6 @@ func ReportUsageDivisor(outType string) float64 {
 	}
 }
 
-func GetAllGroupUsers(groupListStr string) ([]string, error) {
-	groupNames := strings.Split(groupListStr, ",")
-	groupSet := make(map[string]struct{})
-	for _, groupName := range groupNames {
-		trimmedGroupName := strings.TrimSpace(groupName)
-		if trimmedGroupName != "" {
-			groupSet[trimmedGroupName] = struct{}{}
-		}
-	}
-	// Parse /etc/group, collect groupName->gid, gid->groupName, and supplementary members
-	groupNameToGID := make(map[string]string)
-	gidToGroupName := make(map[string]string)
-	userSet := make(map[string]struct{})
-
-	groupFile, err := os.Open("/etc/group")
-	if err != nil {
-		return nil, err
-	}
-	defer groupFile.Close()
-
-	scanner := bufio.NewScanner(groupFile)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		fields := strings.Split(line, ":")
-		if len(fields) < 4 {
-			continue
-		}
-		groupName := fields[0]
-		gid := fields[2]
-		groupNameToGID[groupName] = gid
-		gidToGroupName[gid] = groupName
-
-		// If this is a target group, collect supplementary members
-		if _, ok := groupSet[groupName]; ok {
-			users := strings.Split(fields[3], ",")
-			for _, user := range users {
-				user = strings.TrimSpace(user)
-				if user != "" {
-					userSet[user] = struct{}{}
-				}
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	// Collect target group GIDs
-	targetGIDs := make(map[string]struct{})
-	for groupName := range groupSet {
-		if gid, ok := groupNameToGID[groupName]; ok {
-			targetGIDs[gid] = struct{}{}
-		}
-	}
-
-	// Parse /etc/passwd, collect primary group members
-	passwdFile, err := os.Open("/etc/passwd")
-	if err != nil {
-		return nil, err
-	}
-	defer passwdFile.Close()
-
-	scanner = bufio.NewScanner(passwdFile)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		fields := strings.Split(line, ":")
-		if len(fields) < 4 {
-			continue
-		}
-		user := fields[0]
-		gid := fields[3]
-		if _, ok := targetGIDs[gid]; ok {
-			userSet[user] = struct{}{}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	result := make([]string, 0, len(userSet))
-	for user := range userSet {
-		result = append(result, user)
-	}
-	sort.Strings(result)
-	return result, nil
-}
-
 func MergeAndDedup[T comparable](listA, listB []T) []T {
 	unique := make(map[T]struct{})
 	for _, item := range listA {
@@ -1415,7 +1322,7 @@ func GetUsersByGIDs(groupIds string) ([]string, error) {
 	var groupIdList []uint32
 	for i := 0; i < len(groupIdStrList); i++ {
 		groupId, err := strconv.ParseUint(strings.TrimSpace(groupIdStrList[i]), 10, 32)
-		if err != nil || groupId == 0 {
+		if err != nil {
 			return nil, fmt.Errorf("invalid group id \"%s\"", groupIdStrList[i])
 		}
 		groupIdList = append(groupIdList, uint32(groupId))

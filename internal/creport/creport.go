@@ -63,6 +63,13 @@ type CpuLevelSummary struct {
 	JobCount []int64
 }
 
+type UserSummary struct {
+	Cluster      string
+	Username     string
+	Accounts     map[string]struct{}
+	TotalCpuTime float64
+}
+
 func GetDefaultStartTime() string {
 	now := time.Now()
 	yesterday := now.AddDate(0, 0, -1)
@@ -109,14 +116,6 @@ func QueryUsersTopSummaryItem() error {
 		request.FilterUsers = filterUserList
 	}
 
-	if FlagGroups != "" {
-		filterGroupUserList, err := util.GetAllGroupUsers(FlagGroups)
-		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid group specified: %s.", err))
-		}
-		request.FilterUsers = util.MergeAndDedup(request.FilterUsers, filterGroupUserList)
-	}
-
 	var start_time, end_time time.Time
 	var err error
 	if FlagFilterStartTime != "" {
@@ -137,7 +136,7 @@ func QueryUsersTopSummaryItem() error {
 			start := request.FilterStartTime.AsTime()
 			end := request.FilterEndTime.AsTime()
 			if !end.After(start) {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterEndTime, FlagFilterStartTime))
 			}
 		}
 	}
@@ -166,7 +165,7 @@ func QueryUsersTopSummaryItem() error {
 		}
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
-	PrintUsersTopSumList(JobSummaryItemList, start_time, end_time)
+	PrintUsersTopSumList(JobSummaryItemList, start_time, end_time, FlagGroupSet)
 
 	return nil
 }
@@ -225,7 +224,7 @@ func QueryJobSummary(CheckType CheckStatus) error {
 			start := request.FilterStartTime.AsTime()
 			end := request.FilterEndTime.AsTime()
 			if !end.After(start) {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterEndTime, FlagFilterStartTime))
 			}
 		}
 	}
@@ -332,7 +331,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 			start := request.FilterStartTime.AsTime()
 			end := request.FilterEndTime.AsTime()
 			if !end.After(start) {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterStartTime, FlagFilterEndTime))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("End_time %s must be after start_time %s", FlagFilterEndTime, FlagFilterStartTime))
 			}
 		}
 	}
@@ -405,7 +404,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	return nil
 }
 
-func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
+func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time, group bool) {
 	sort.Slice(JobSummaryItemList, func(i, j int) bool {
 		return JobSummaryItemList[i].TotalCpuTime > JobSummaryItemList[j].TotalCpuTime
 	})
@@ -427,32 +426,95 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	tableData := make([][]string, 0, len(JobSummaryItemList))
 
 	usernameToName := make(map[string]string)
-	for count, item := range JobSummaryItemList {
-		if count >= int(countMax) {
-			break
+
+	if group {
+		// Group by username, merge accounts and sum total CPU time
+		userSummaryMap := make(map[string]*UserSummary)
+		for _, item := range JobSummaryItemList {
+			summary, exists := userSummaryMap[item.Username]
+			if !exists {
+				summary = &UserSummary{
+					Cluster:      item.Cluster,
+					Username:     item.Username,
+					Accounts:     make(map[string]struct{}),
+					TotalCpuTime: 0,
+				}
+				userSummaryMap[item.Username] = summary
+			}
+			summary.Accounts[item.Account] = struct{}{}
+			summary.TotalCpuTime += item.TotalCpuTime
 		}
 
-		properName, ok := usernameToName[item.Username]
-		if !ok {
-			usr, err := user.Lookup(item.Username)
-			if err != nil {
-				continue
-			}
-			properName = usr.Name
-			usernameToName[item.Username] = properName
+		// Sort by total CPU time descending
+		groupedList := make([]*UserSummary, 0, len(userSummaryMap))
+		for _, v := range userSummaryMap {
+			groupedList = append(groupedList, v)
 		}
-		tableData = append(tableData, []string{
-			item.Cluster,
-			item.Username,
-			properName,
-			item.Account,
-			strconv.FormatFloat(float64(item.TotalCpuTime/divisor), 'f', 2, 64),
-			"0",
+		sort.Slice(groupedList, func(i, j int) bool {
+			return groupedList[i].TotalCpuTime > groupedList[j].TotalCpuTime
 		})
+
+		count := 0
+		for _, summary := range groupedList {
+			if count >= int(countMax) {
+				break
+			}
+			properName, ok := usernameToName[summary.Username]
+			if !ok {
+				usr, err := user.Lookup(summary.Username)
+				if err != nil || usr.Name == "" {
+					properName = summary.Username
+				} else {
+					properName = usr.Name
+				}
+				usernameToName[summary.Username] = properName
+			}
+			// Merge accounts to a comma separated string
+			accountList := make([]string, 0, len(summary.Accounts))
+			for acc := range summary.Accounts {
+				accountList = append(accountList, acc)
+			}
+			sort.Strings(accountList)
+			accountStr := strings.Join(accountList, ",")
+			tableData = append(tableData, []string{
+				summary.Cluster,
+				summary.Username,
+				properName,
+				accountStr,
+				strconv.FormatFloat(float64(summary.TotalCpuTime)/float64(divisor), 'f', 2, 64),
+				"0",
+			})
+			count++
+		}
+	} else {
+		// Original logic, no grouping
+		for count, item := range JobSummaryItemList {
+			if count >= int(countMax) {
+				break
+			}
+			properName, ok := usernameToName[item.Username]
+			if !ok {
+				usr, err := user.Lookup(item.Username)
+				if err != nil || usr.Name == "" {
+					properName = item.Username
+				} else {
+					properName = usr.Name
+				}
+				usernameToName[item.Username] = properName
+			}
+			tableData = append(tableData, []string{
+				item.Cluster,
+				item.Username,
+				properName,
+				item.Account,
+				strconv.FormatFloat(float64(item.TotalCpuTime)/float64(divisor), 'f', 2, 64),
+				"0",
+			})
+		}
 	}
+
 	table.AppendBulk(tableData)
 	table.Render()
-
 }
 
 func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time) {
@@ -475,7 +537,7 @@ func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	util.PrintUsageTypeInfo(FlagOutType, false, false)
 	divisor := util.ReportUsageDivisor(FlagOutType)
 
-	header := []string{"Cluster", "Account", "User", "Proper_name", "Used", "Energy"}
+	header := []string{"Cluster", "Account", "Login", "Proper_name", "Used", "Energy"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
@@ -525,7 +587,7 @@ func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	util.PrintUsageTypeInfo(FlagOutType, false, false)
 	divisor := util.ReportUsageDivisor(FlagOutType)
 
-	header := []string{"Cluster", "User", "Proper_name", "Account", "Used", "Energy"}
+	header := []string{"Cluster", "Login", "Proper_name", "Account", "Used", "Energy"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
@@ -568,7 +630,7 @@ func PrintUserWckeyList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 	util.PrintUsageTypeInfo(FlagOutType, false, false)
 	divisor := util.ReportUsageDivisor(FlagOutType)
 
-	header := []string{"Cluster", "User", "Proper_name", "Wckey", "Used"}
+	header := []string{"Cluster", "Login", "Proper_name", "Wckey", "Used"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
@@ -611,7 +673,7 @@ func PrintWckeyUserList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 	util.PrintUsageTypeInfo(FlagOutType, false, false)
 	divisor := util.ReportUsageDivisor(FlagOutType)
 
-	header := []string{"Cluster", "Wckey", "User", "Proper_name", "Used"}
+	header := []string{"Cluster", "Wckey", "Login", "Proper_name", "Used"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
