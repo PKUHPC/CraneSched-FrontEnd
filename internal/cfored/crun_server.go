@@ -415,7 +415,7 @@ CforedCrunStateMachineLoop:
 			}
 
 		case CrunWaitTaskComplete:
-			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State Crun_Wait_Task_Complete", jobId, stepId)
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State CRUN_WAIT_TASK_COMPLETE", jobId, stepId)
 		forwarding:
 			for {
 				select {
@@ -591,7 +591,7 @@ CforedCrunStateMachineLoop:
 			state = CrunWaitCtldAck
 
 		case CrunWaitCtldAck:
-			log.Infof("[Cfored<->Crun][Step #%d.%d]  Enter State WAIT_CTLD_ACK", jobId, stepId)
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CTLD_ACK", jobId, stepId)
 
 			ctldReply := <-ctldReplyChannel
 			if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
@@ -618,10 +618,10 @@ CforedCrunStateMachineLoop:
 			gSupervisorChanKeeper.crunTaskStopAndRemoveChannel(jobId, stepId)
 
 			if err := toCrunStream.Send(reply); err != nil {
-				log.Errorf("[Cfored->Crun] Failed to send CompletionAck to crun: %s. "+
-					"The connection to crun was broken.", err.Error())
+				log.Errorf("[Cfored->Crun][Step #%d.%d] Failed to send CompletionAck to crun: %s. "+
+					"The connection to crun was broken.", jobId, stepId, err.Error())
 			} else {
-				log.Debug("[Cfored->Crun] TASK_COMPLETION_ACK_REPLY sent to Crun")
+				log.Debugf("[Cfored->Crun][Step #%d.%d] TASK_COMPLETION_ACK_REPLY sent to Crun", jobId, stepId)
 			}
 			log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
 

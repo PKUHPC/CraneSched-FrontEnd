@@ -27,7 +27,7 @@ var (
 	FlagNodes              uint32
 	NodesOptionStr         = "nodes"
 	FlagCpuPerTask         float64
-	CpuPerTaskOptionStr    = "cpus-per-job"
+	CpuPerTaskOptionStr    = "cpus-per-task"
 	FlagNtasksPerNode      uint32
 	NtasksPerNodeOptionStr = "ntasks-per-node"
 	FlagTime               string

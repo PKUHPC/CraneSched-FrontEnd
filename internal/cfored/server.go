@@ -98,7 +98,7 @@ func (keeper *SupervisorChannelKeeper) supervisorDownAndRemoveChannelToSuperviso
 }
 
 func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool, taskId uint32, stepId uint32) {
-	log.Tracef("[Cfored<->Crun][Job #%d.%d] Waiting for step related craned [%v] up", taskId, stepId, cranedIds)
+	log.Tracef("[Cfored<->Crun][Step #%d.%d] Waiting for step related craned [%v] up", taskId, stepId, cranedIds)
 	keeper.toSupervisorChannelMtx.Lock()
 	defer keeper.toSupervisorChannelMtx.Unlock()
 	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
@@ -240,7 +240,7 @@ CforedSupervisorStateMachineLoop:
 	for {
 		switch state {
 		case SupervisorReg:
-			log.Debugf("[Cfored<->Supervisor] Enter State SupervisorReg")
+			log.Debugf("[Cfored<->Supervisor][Step #%d.%d] Enter State SupervisorReg", jobId, stepId)
 			item := <-requestChannel
 			cranedReq, err := item.message, item.err
 			if err != nil { // Failure Edge

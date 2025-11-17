@@ -1143,6 +1143,15 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
 			step.NtasksPerNode = &FlagNtasksPerNode
 		}
+		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
+			if step.ReqResourcesPerTask == nil {
+				step.ReqResourcesPerTask = &protos.ResourceView{
+					AllocatableRes: &protos.AllocatableResource{CpuCoreLimit: FlagCpuPerTask},
+				}
+			} else {
+				step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
+			}
+		}
 		step.Name = util.ExtractExecNameFromArgs(args)
 	}
 
