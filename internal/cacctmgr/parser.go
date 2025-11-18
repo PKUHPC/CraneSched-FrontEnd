@@ -405,9 +405,10 @@ func getCmdStringByArgs(commandArgs []string) string {
 			processedArgs = append(processedArgs, "\"\"")
 			continue
 		}
-
+		//  FlagFormat
 		if strings.Contains(arg, "format") {
-			FlagFormat = arg
+			// format: format=Name...   format Name...
+			FlagFormat = arg[7:]
 			continue
 		}
 
