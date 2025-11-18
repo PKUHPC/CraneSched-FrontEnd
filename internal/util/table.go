@@ -123,28 +123,27 @@ func TrimTable(rows *[][]string) {
 }
 
 // split String by the seps that you provide for
-func SplitString(str string,seps []string) []string {
+func SplitString(str string, seps []string) []string {
 	if len(seps) == 0 {
 		return []string{str}
 	}
 
-	result := strings.Split(str,seps[0]) 
+	result := strings.Split(str, seps[0])
 
 	if len(seps) > 1 {
-		var finalResult []string  
+		var finalResult []string
 		for _, part := range result {
-			finalResult = append(finalResult,SplitString(part,seps[1:])...)
+			finalResult = append(finalResult, SplitString(part, seps[1:])...)
 		}
 		result = finalResult
 	}
 	// clean the space before string or after string
-	var cleanedResult []string  
+	var cleanedResult []string
 	for _, part := range result {
 		trimmed := strings.TrimSpace(part)
 		if trimmed != "" {
-			cleanedResult = append(cleanedResult,trimmed)
+			cleanedResult = append(cleanedResult, trimmed)
 		}
 	}
 	return cleanedResult
 }
-
