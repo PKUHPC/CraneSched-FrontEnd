@@ -162,5 +162,5 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 		"Limit the number of lines in the output, 0 means no limit") // See kDefaultQueryTaskNumLimit
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	RootCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodelist", "w", "",
-		"Specify nodenames to view (comma separated list), default is all")
+		"Specify node names to view (comma separated list), default is all")
 }
