@@ -34,8 +34,6 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
-
-	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -87,14 +85,17 @@ func GetDefaultEndTime() string {
 }
 
 func ActiveAggregationManually() error {
-	if os.Geteuid() == 0 {
-		_, err := stub.ActiveAggregationManually(context.Background(), &emptypb.Empty{})
-		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("ActiveAggregationManually err: %v", err))
-		}
+	request := &protos.ActiveAggregationManuallyRequest{}
+	request.Uid = uint32(os.Getuid())
+	reply, err := stub.ActiveAggregationManually(context.Background(), request)
+	fmt.Println("uid %v",os.Getuid())
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to manually trigger aggregation: %v", err))
+	}
+	if reply.GetOk() {
 		return nil
 	} else {
-		return util.NewCraneErr(util.ErrorCmdArg, "Only the root user can perform this operation")
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to manually trigger aggregation : %v", reply.GetReason()))
 	}
 }
 
