@@ -175,7 +175,6 @@ func PrintAccountList(accountList []*protos.AccountInfo) {
 	// Print account table
 	PrintAccountTable(accountList)
 }
-
 // Name Desciption AllowedPartition Users DefaultQos AllowedQosList Coordinators Blocked
 func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInfo) {
 	formatTableData := make([][]string, len(accountList))
@@ -232,7 +231,6 @@ func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInf
 	}
 	tableCtx.header, tableCtx.tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
 }
-
 func AccountDefaultOutput(tableCtx *Tableoutput, accountList []*protos.AccountInfo) {
 	tableCtx.header = []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "Coordinators", "Blocked"}
 	tableCtx.tableData = make([][]string, len(accountList))
@@ -329,29 +327,12 @@ func PrintUserList(userList []*protos.UserInfo) {
 	PrintUserTable(userMap)
 }
 
-func UserDefaultOutput() {
-
-}
-
-func UserFormatOutput() {
-	
-}
-
-func PrintUserTable(userMap map[string][]*protos.UserInfo) {
-	table := tablewriter.NewWriter(os.Stdout)
-	util.SetBorderTable(table)
-
-	if FlagFormat != "" {
-		UserFormatOutput()
-	} else {
-		UserDefaultOutput()
-	}
-	table.SetHeader([]string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "Coordinated", "AdminLevel", "Blocked"})
-	tableData := make([][]string, len(userMap))
+func UserDefaultOutput(tableCtx *Tableoutput,userMap map[string][]*protos.UserInfo) {
+	tableCtx.header = []string{"Account", "UserName", "Uid", "AllowedPartition", "AllowedQosList", "DefaultQos", "Coordinated", "AdminLevel", "Blocked"}
 	for _, value := range userMap {
 		for _, userInfo := range value {
 			if len(userInfo.AllowedPartitionQosList) == 0 {
-				tableData = append(tableData, []string{
+				tableCtx.tableData = append(tableCtx.tableData, []string{
 					userInfo.Account,
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
@@ -364,7 +345,7 @@ func PrintUserTable(userMap map[string][]*protos.UserInfo) {
 				})
 			}
 			for _, allowedPartitionQos := range userInfo.AllowedPartitionQosList {
-				tableData = append(tableData, []string{
+				tableCtx.tableData = append(tableCtx.tableData, []string{
 					userInfo.Account,
 					userInfo.Name,
 					strconv.FormatUint(uint64(userInfo.Uid), 10),
@@ -378,11 +359,205 @@ func PrintUserTable(userMap map[string][]*protos.UserInfo) {
 			}
 		}
 	}
+}
 
-	if !FlagFull && FlagFormat == "" {
-		util.TrimTable(&tableData)
+func CalcuTotalRows(userMap map[string][]*protos.UserInfo) int {
+	totalRows := 0
+    for _, users := range userMap {
+        for _, userInfo := range users {
+            if len(userInfo.AllowedPartitionQosList) == 0 {
+                totalRows++
+            } else {
+                totalRows += len(userInfo.AllowedPartitionQosList)
+            }
+        }
+    }
+	return totalRows
+}
+
+func UserFormatOutput(tableCtx *Tableoutput, userMap map[string][]*protos.UserInfo) {
+    formatReq := util.SplitString(FlagFormat, []string{" ", ","})
+    tableOutputWidth := createSlice(len(formatReq), -1)
+    tableOutputHeader := make([]string, len(formatReq))
+    
+    // calculate the total Rows
+    totalRows :=  CalcuTotalRows(userMap)
+    formatTableData := make([][]string, totalRows)
+    for i := range formatTableData {
+        formatTableData[i] = make([]string, 0, len(formatReq)) 
+    }
+    
+    // fill the Datas
+    for i := 0; i < len(formatReq); i++ {
+        currentRow := 0  // current Row index
+        switch strings.ToLower(formatReq[i]) {
+        case "account":
+            tableOutputHeader[i] = "Account"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], userInfo.Account)
+                        currentRow++
+                    } else {
+                        for range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], userInfo.Account)
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "username":
+            tableOutputHeader[i] = "UserName"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], userInfo.Name)
+                        currentRow++
+                    } else {
+                        for range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], userInfo.Name)
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "uid":
+            tableOutputHeader[i] = "Uid"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], 
+                            strconv.FormatUint(uint64(userInfo.Uid), 10))
+                        currentRow++
+                    } else {
+                        for range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], 
+                                strconv.FormatUint(uint64(userInfo.Uid), 10))
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "allowedpartition":
+            tableOutputHeader[i] = "AllowedPartition"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], "")
+                        currentRow++
+                    } else {
+                        for _, allowedPartitionQos := range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], 
+                                allowedPartitionQos.PartitionName)
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "allowedqoslist":
+            tableOutputHeader[i] = "AllowedQosList"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], "")
+                        currentRow++
+                    } else {
+                        for _, allowedPartitionQos := range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], 
+                                strings.Join(allowedPartitionQos.QosList, ", "))
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "defaultqos":
+            tableOutputHeader[i] = "DefaultQos"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], "")
+                        currentRow++
+                    } else {
+                        for _, allowedPartitionQos := range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], 
+                                allowedPartitionQos.DefaultQos)
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "coordinated":
+            tableOutputHeader[i] = "Coordinated"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    coordinators := strings.Join(userInfo.CoordinatorAccounts, ", ")
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], coordinators)
+                        currentRow++
+                    } else {
+                        for range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], coordinators)
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "adminlevel":
+            tableOutputHeader[i] = "AdminLevel"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    adminLevelStr := fmt.Sprintf("%v", userInfo.AdminLevel)
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], adminLevelStr)
+                        currentRow++
+                    } else {
+                        for range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], adminLevelStr)
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        case "blocked":
+            tableOutputHeader[i] = "Blocked"
+            for _, users := range userMap {
+                for _, userInfo := range users {
+                    blockedStr := strconv.FormatBool(userInfo.Blocked)
+                    if len(userInfo.AllowedPartitionQosList) == 0 {
+                        formatTableData[currentRow] = append(formatTableData[currentRow], blockedStr)
+                        currentRow++
+                    } else {
+                        for range userInfo.AllowedPartitionQosList {
+                            formatTableData[currentRow] = append(formatTableData[currentRow], blockedStr)
+                            currentRow++
+                        }
+                    }
+                }
+            }
+        default:
+            log.Errorf("Invalid format. Your enter: %s is error", formatReq[i])
+            os.Exit(util.ErrorInvalidFormat)
+        }
+    }
+    tableCtx.header, tableCtx.tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
+}
+
+func PrintUserTable(userMap map[string][]*protos.UserInfo) {
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+
+	var tableCtx Tableoutput 
+	if FlagFormat != "" {
+		UserFormatOutput(&tableCtx,userMap)
+	} else {
+		UserDefaultOutput(&tableCtx,userMap)
 	}
-	table.AppendBulk(tableData)
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableCtx.tableData)
+	}
+
+	table.SetHeader(tableCtx.header)
+	table.AppendBulk(tableCtx.tableData)
 	table.Render()
 }
 
