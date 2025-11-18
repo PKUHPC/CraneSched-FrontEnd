@@ -483,6 +483,51 @@ func CheckMailType(mailtype string) bool {
 	return true
 }
 
+func ParseLicensesString(val string) ([]*protos.TaskToCtld_License, bool, error) {
+	tmpStr := strings.ReplaceAll(val, " ", "")
+	var licenseVec []string
+
+	hasComma := strings.Contains(tmpStr, ",")
+	hasPipe := strings.Contains(tmpStr, "|")
+
+	if hasComma && hasPipe {
+		return nil, hasPipe, fmt.Errorf("cannot mix AND (,) and OR (|) in licenses string")
+	}
+
+	if hasPipe {
+		licenseVec = strings.Split(tmpStr, "|")
+	} else {
+		licenseVec = strings.Split(tmpStr, ",")
+	}
+
+	var licCount []*protos.TaskToCtld_License
+	pattern := regexp.MustCompile(`(\w+):(\d+)`)
+
+	for _, licenseCount := range licenseVec {
+		if !pattern.MatchString(licenseCount) {
+			return nil, hasPipe, fmt.Errorf("invalid licenses string format")
+		}
+		matches := pattern.FindStringSubmatch(licenseCount)
+		if len(matches) != 3 {
+			return nil, hasPipe, fmt.Errorf("invalid licenses string format")
+		}
+		name := matches[1]
+		count, err := strconv.ParseUint(matches[2], 10, 32)
+		if err != nil {
+			return nil, hasPipe, err
+		}
+		if count <= 0 {
+			return nil, hasPipe, fmt.Errorf("license count must > 0")
+		}
+		licCount = append(licCount, &protos.TaskToCtld_License{
+			Key:   name,
+			Count: uint32(count),
+		})
+	}
+
+	return licCount, hasPipe, nil
+}
+
 // CheckNodeList check if the node list is comma separated node names.
 // The node name should contain only letters and numbers, and start with a letter, end with a number.
 func CheckNodeList(nodeStr string) bool {

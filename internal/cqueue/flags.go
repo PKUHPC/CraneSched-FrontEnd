@@ -146,3 +146,18 @@ func (p *TaskTypesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	req.FilterTaskTypes = filterTaskTypeList
 	return nil
 }
+
+// FlagFilterLicenses
+type LicensesProcessor struct{}
+
+func (p *LicensesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+	if FlagFilterLicenses == "" {
+		return nil
+	}
+	filterLicensesList, err := util.ParseStringParamList(FlagFilterLicenses, ",")
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid licenses list specified: %s.", err))
+	}
+	req.FilterLicenses = filterLicensesList
+	return nil
+}
