@@ -331,9 +331,10 @@ func ProcessAllocCPUs(task *protos.TaskInfo) string {
 
 // ElapsedTime (D)
 func ProcessElapsedTime(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Running {
+	switch task.Status {
+	case protos.TaskStatus_Running:
 		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
-	} else if task.Status == protos.TaskStatus_Completed {
+	case protos.TaskStatus_Completed:
 		if task.StartTime == nil || task.EndTime == nil {
 			return "-"
 		}

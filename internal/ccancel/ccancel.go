@@ -77,7 +77,7 @@ func CancelTask(args []string) error {
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledTasks) > 0 {
-			return util.NewCraneErr(util.ErrorNetwork, "some tasks were not cancelled")
+			return util.NewCraneErr(util.ErrorBackend, "some tasks were not cancelled")
 		} else {
 			return nil
 		}
@@ -92,7 +92,7 @@ func CancelTask(args []string) error {
 		for i := 0; i < len(reply.NotCancelledTasks); i++ {
 			log.Errorf("Failed to cancel job: %d. Reason: %s.\n", reply.NotCancelledTasks[i], reply.NotCancelledReasons[i])
 		}
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorBackend, "some tasks were not cancelled")
 	}
 	return nil
 }

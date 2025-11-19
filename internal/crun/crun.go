@@ -1165,7 +1165,7 @@ func MainCrun(args []string) error {
 	m.inputFlag = FlagInput
 
 	if FlagPty && strings.ToLower(FlagInput) != FlagInputALL {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("--input is incompatible with --pty."))
+		return util.NewCraneErr(util.ErrorCmdArg, "--input is incompatible with --pty.")
 	}
 
 	m.Init(task)
