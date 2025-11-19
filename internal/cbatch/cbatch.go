@@ -445,7 +445,7 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to read the script file", err)
 	}
 
 	return nil
