@@ -21,6 +21,7 @@ package util
 import (
 	"CraneFrontEnd/generated/protos"
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -1443,4 +1444,11 @@ func ParseAndSortUintList(input string) ([]uint32, error) {
 	}
 
 	return resultList, nil
+}
+
+func PrintAsJsonToStdout(outputList interface{}) {
+	enc := json.NewEncoder(os.Stdout)
+	if err := enc.Encode(outputList); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to encode json: %v\n", err)
+	}
 }

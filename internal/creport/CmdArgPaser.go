@@ -41,6 +41,7 @@ var (
 	FlagFilterNodeNames  string
 	FlagTopCount         uint32
 	FlagPrintJobCount    bool
+	FlagJson             bool
 
 	RootCmd = &cobra.Command{
 		Use:     "creport",
@@ -213,6 +214,7 @@ func init() {
 			userTopUsageCmd.Flags().Uint32VarP(&FlagTopCount, "topcount", "", 10, "Change the number of users displayed, default is 10 ")
 			userTopUsageCmd.Flags().BoolVar(&FlagGroupSet, "group", false,
 				"Group all accounts together for each user, Default is a separate entry for each user and account reference")
+			userTopUsageCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 
 	}
@@ -230,6 +232,7 @@ func init() {
 				"Select users to view (comma separated list)")
 			accountUtilizationByUserCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
 				"Set the job output time unit(seconds/minutes/hours, default: minutes")
+			accountUtilizationByUserCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 		clusterCmd.AddCommand(userUtilizationByAccountCmd)
 		{
@@ -243,6 +246,7 @@ func init() {
 				"Select users to view (comma separated list)")
 			userUtilizationByAccountCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
 				"Set the job output time unit(seconds/minutes/hours, default: minutes")
+			userUtilizationByAccountCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 		clusterCmd.AddCommand(userUtilizationByWckeyCmd)
 		{
@@ -254,6 +258,7 @@ func init() {
 				"Select users to view (comma separated list)")
 			userUtilizationByWckeyCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
 				"Set the job output time unit(seconds/minutes/hours, default: minutes")
+			userUtilizationByWckeyCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 		clusterCmd.AddCommand(wckeyUtilizationByUserCmd)
 		{
@@ -265,6 +270,7 @@ func init() {
 				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
 				"Select wckeys to view (comma separated list)")
+			wckeyUtilizationByUserCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 		clusterCmd.AddCommand(accountUtilizationByQosCmd)
 		{
@@ -278,6 +284,7 @@ func init() {
 				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
+			accountUtilizationByQosCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 		clusterCmd.AddCommand(utilizationCmd)
 		{
@@ -287,6 +294,7 @@ func init() {
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
 			utilizationCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
 				"Set the job output time unit(seconds/minutes/hours, default: minutes")
+			utilizationCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 
 	}
@@ -314,6 +322,7 @@ func init() {
 				" The report will print number of jobs range instead of time used")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
+			sizesByAccountCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 		jobCmd.AddCommand(sizesByWckeyCmd)
 		{
@@ -339,6 +348,7 @@ func init() {
 				"Specify nodes name to view (comma separated list), default is all")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
 				"Select wckeys to view (comma separated list)")
+			sizesByWckeyCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
 		{
@@ -366,6 +376,7 @@ func init() {
 				"Specify nodes name to view (comma separated list), default is all")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
 				"Select wckeys to view (comma separated list)")
+			sizesByAccountAndWcKey.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
 	}
 
