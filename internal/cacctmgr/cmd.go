@@ -86,10 +86,7 @@ var (
 	FlagPriority            string
 	FlagAdminLevel          string
 	FlagDescription         string
-
-	// Prepare to implement
-	// show   --format=
-	FlagFormat string
+	FlagFormat              string
 )
 
 var actionToExecute = map[string]func(command *CAcctMgrCommand) int{
@@ -136,9 +133,9 @@ func executeCommand(command *CAcctMgrCommand) int {
 	userUid = uint32(os.Getuid())
 
 	action := command.GetAction()
-	execueAction, exists := actionToExecute[action]
+	executeAction, exists := actionToExecute[action]
 	if exists {
-		return execueAction(command)
+		return executeAction(command)
 	} else {
 		log.Errorf("unknown operation type: %s", action)
 		return util.ErrorCmdArg

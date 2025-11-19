@@ -88,7 +88,7 @@ func PrintTxnLogList(txnLogList []*protos.QueryTxnLogReply_Txn) {
 
 func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string) util.ExitCode {
 	if FlagForce {
-		log.Warning("--force flag is ignored for unblock operations")
+		log.Warning("--force flag is ignored for show operations")
 	}
 
 	var action string
@@ -190,7 +190,7 @@ func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInf
 			for j := 0; j < len(accountList); j++ {
 				formatTableData[j] = append(formatTableData[j], accountList[j].Name)
 			}
-		case "desciption":
+		case "description":
 			tableOutputHeader[i] = "Description"
 			for j := 0; j < len(accountList); j++ {
 				formatTableData[j] = append(formatTableData[j], accountList[j].Description)
@@ -234,7 +234,7 @@ func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInf
 }
 func AccountDefaultOutput(tableCtx *Tableoutput, accountList []*protos.AccountInfo) {
 	tableCtx.header = []string{"Name", "Description", "AllowedPartition", "Users", "DefaultQos", "AllowedQosList", "Coordinators", "Blocked"}
-	tableCtx.tableData = make([][]string, len(accountList))
+	tableCtx.tableData = make([][]string, 0, len(accountList))
 	for _, accountInfo := range accountList {
 		tableCtx.tableData = append(tableCtx.tableData, []string{
 			accountInfo.Name,
@@ -536,7 +536,7 @@ func UserFormatOutput(tableCtx *Tableoutput, userMap map[string][]*protos.UserIn
 				}
 			}
 		default:
-			log.Errorf("Invalid format. Your enter: %s is error", formatReq[i])
+			log.Errorf("Invalid format. You entered: '%s'", formatReq[i])
 			os.Exit(util.ErrorInvalidFormat)
 		}
 	}
@@ -682,7 +682,7 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 				currentRow++
 			}
 		default:
-			log.Errorf("Invalid format. Your enter: %s is error", formatReq[i])
+			log.Errorf("Invalid format. You entered: '%s'", formatReq[i])
 			os.Exit(util.ErrorInvalidFormat)
 		}
 	}
@@ -691,7 +691,7 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 
 func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"}
-	tableCtx.tableData = make([][]string, len(qosList))
+	tableCtx.tableData = make([][]string, 0, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
 		if info.MaxTimeLimitPerTask >= util.MaxJobTimeLimit {
@@ -750,7 +750,7 @@ func ShowQos(value string) util.ExitCode {
 		var err error
 		qosList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			log.Errorf("Invalid user list specified: %v.\n", err)
+			log.Errorf("Invalid QoS list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
