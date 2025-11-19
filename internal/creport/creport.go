@@ -60,7 +60,6 @@ type CpuLevelSummary struct {
 	CpuTime  []float64
 	JobCount []int64
 }
-
 type UserTopSummaryJson struct {
 	Cluster      string   `json:"cluster"`
 	Username     string   `json:"login"`
@@ -78,7 +77,6 @@ type AccountUserJson struct {
 	Used       float64 `json:"used"`
 	Energy     string  `json:"energy"`
 }
-
 type UserWckeyJson struct {
 	Cluster    string  `json:"cluster"`
 	Username   string  `json:"login"`
@@ -318,17 +316,17 @@ func QueryJobSummary(CheckType CheckStatus) error {
 
 	switch CheckType {
 	case CheckAccountUserStatus:
-		PrintAccountUserList(JobSummaryItemList, start_time, end_time, FlagJson)
+		PrintAccountUserSummary(JobSummaryItemList, start_time, end_time, FlagJson, true)
 	case CheckUserAccountStatus:
-		PrintUserAccountList(JobSummaryItemList, start_time, end_time, FlagJson)
+		PrintAccountUserSummary(JobSummaryItemList, start_time, end_time, FlagJson, false)
 	case CheckClusterStatus:
 		PrintClusterList(JobSummaryItemList, start_time, end_time, FlagJson)
 	case CheckAccountQosStatus:
 		PrintAccountQosList(JobSummaryItemList, start_time, end_time, FlagJson)
 	case CheckUserWckeyStatus:
-		PrintUserWckeyList(JobSummaryItemList, start_time, end_time, FlagJson)
+		PrintUserWckeySummary(JobSummaryItemList, start_time, end_time, FlagJson, true)
 	case CheckWckeyUserStatus:
-		PrintWckeyUserList(JobSummaryItemList, start_time, end_time, FlagJson)
+		PrintUserWckeySummary(JobSummaryItemList, start_time, end_time, FlagJson, false)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, "Unsupported cmd")
 	}
@@ -474,9 +472,10 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	countMax := FlagTopCount
 	divisor := util.ReportUsageDivisor(FlagOutType)
 	usernameToName := make(map[string]string)
-	var outputList []UserTopSummaryJson
+	outputList := make([]UserTopSummaryJson, 0, countMax)
 
 	if group {
+		// Group by username, merge accounts and sum total CPU time
 		userSummaryMap := make(map[string]*UserTopSummaryJson)
 		for _, item := range JobSummaryItemList {
 			summary, exists := userSummaryMap[item.Username]
@@ -491,19 +490,16 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 				userSummaryMap[item.Username] = summary
 			}
 			// Avoid duplicate accounts
-			found := false
+			accountSet := make(map[string]struct{})
 			for _, acc := range summary.Accounts {
-				if acc == item.Account {
-					found = true
-					break
-				}
+				accountSet[acc] = struct{}{}
 			}
-			if !found {
+			if _, found := accountSet[item.Account]; !found {
 				summary.Accounts = append(summary.Accounts, item.Account)
 			}
 			summary.TotalCpuTime += item.TotalCpuTime
 		}
-		// Sort by TotalCpuTime descending
+		// Convert map to slice and sort by TotalCpuTime descending
 		groupedList := make([]*UserTopSummaryJson, 0, len(userSummaryMap))
 		for _, v := range userSummaryMap {
 			groupedList = append(groupedList, v)
@@ -511,15 +507,16 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 		sort.Slice(groupedList, func(i, j int) bool {
 			return groupedList[i].TotalCpuTime > groupedList[j].TotalCpuTime
 		})
-		count := 0
-		for _, summary := range groupedList {
+
+		for count, summary := range groupedList {
 			if count >= int(countMax) {
 				break
 			}
+			// Lookup proper name, skip if not found
 			properName, ok := usernameToName[summary.Username]
 			if !ok {
 				usr, err := user.Lookup(summary.Username)
-				if err != nil {
+				if err != nil || usr.Name == "" {
 					continue // skip this user if lookup failed
 				}
 				properName = usr.Name
@@ -529,14 +526,14 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 			sort.Strings(summary.Accounts)
 			summary.TotalCpuTime = summary.TotalCpuTime / float64(divisor)
 			outputList = append(outputList, *summary)
-			count++
 		}
 	} else {
-		count := 0
-		for _, item := range JobSummaryItemList {
+		// No grouping, original logic
+		for count, item := range JobSummaryItemList {
 			if count >= int(countMax) {
 				break
 			}
+			// Lookup proper name, skip if not found
 			properName, ok := usernameToName[item.Username]
 			if !ok {
 				usr, err := user.Lookup(item.Username)
@@ -554,7 +551,6 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 				TotalCpuTime: item.TotalCpuTime / float64(divisor),
 				Energy:       "0",
 			})
-			count++
 		}
 	}
 
@@ -564,7 +560,11 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 		return
 	}
 
-	// Table output
+	PrintUserTopTable(outputList, startTime, endTime, countMax)
+}
+
+// PrintUserTopTable prints the user summary as a formatted table
+func PrintUserTopTable(outputList []UserTopSummaryJson, startTime, endTime time.Time, countMax uint32) {
 	fmt.Println(strings.Repeat("-", 100))
 	totalSecs := int64(endTime.Sub(startTime).Seconds())
 	if totalSecs > 0 {
@@ -592,21 +592,73 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 	table.Render()
 }
 
-func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool) {
-	sort.Slice(JobSummaryItemList, func(i, j int) bool {
-		if JobSummaryItemList[i].Account < JobSummaryItemList[j].Account {
-			return true
+// PrintAccountUserTable prints a list of AccountUserJson in table format
+func PrintAccountUserTable(outputList []AccountUserJson, startTime, endTime time.Time, header []string, title string) {
+	totalSecs := int64(endTime.Sub(startTime).Seconds())
+	fmt.Println(strings.Repeat("-", 100))
+	if totalSecs > 0 {
+		fmt.Printf("%s %s - %s (%d secs)\n",
+			title, startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
+	}
+	util.PrintUsageTypeInfo(FlagOutType, false, false)
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	table.SetHeader(header)
+	tableData := make([][]string, 0, len(outputList))
+	for _, row := range outputList {
+		var rowSlice []string
+		for _, col := range header { // Use header as column order
+			switch col {
+			case "Cluster":
+				rowSlice = append(rowSlice, row.Cluster)
+			case "Account":
+				rowSlice = append(rowSlice, row.Account)
+			case "Login":
+				rowSlice = append(rowSlice, row.Username)
+			case "Proper_name":
+				rowSlice = append(rowSlice, row.ProperName)
+			case "Used":
+				rowSlice = append(rowSlice, strconv.FormatFloat(row.Used, 'f', 2, 64))
+			case "Energy":
+				rowSlice = append(rowSlice, row.Energy)
+			}
 		}
-		if JobSummaryItemList[i].Account > JobSummaryItemList[j].Account {
-			return false
-		}
-		return JobSummaryItemList[i].Username < JobSummaryItemList[j].Username
-	})
+		tableData = append(tableData, rowSlice)
+	}
+	table.AppendBulk(tableData)
+	table.Render()
+}
 
+// PrintAccountUserSummary summarizes job usage by account and user, and prints as table or JSON
+func PrintAccountUserSummary(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool, sortByAccountFirst bool) {
 	divisor := util.ReportUsageDivisor(FlagOutType)
 	usernameToName := make(map[string]string)
 	var outputList []AccountUserJson
 
+	// Sorting
+	if sortByAccountFirst {
+		sort.Slice(JobSummaryItemList, func(i, j int) bool {
+			if JobSummaryItemList[i].Account < JobSummaryItemList[j].Account {
+				return true
+			}
+			if JobSummaryItemList[i].Account > JobSummaryItemList[j].Account {
+				return false
+			}
+			return JobSummaryItemList[i].Username < JobSummaryItemList[j].Username
+		})
+	} else {
+		sort.Slice(JobSummaryItemList, func(i, j int) bool {
+			if JobSummaryItemList[i].Username < JobSummaryItemList[j].Username {
+				return true
+			}
+			if JobSummaryItemList[i].Username > JobSummaryItemList[j].Username {
+				return false
+			}
+			return JobSummaryItemList[i].Account < JobSummaryItemList[j].Account
+		})
+	}
+
+	// Build output list
 	for _, item := range JobSummaryItemList {
 		properName, ok := usernameToName[item.Username]
 		if !ok {
@@ -627,115 +679,86 @@ func PrintAccountUserList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 		})
 	}
 
+	// Output as JSON or table
 	if isJson {
 		util.PrintAsJsonToStdout(outputList)
 		return
 	}
 
 	// Table output
+	if sortByAccountFirst {
+		header := []string{"Cluster", "Account", "Login", "Proper_name", "Used", "Energy"}
+		title := "Cluster/Account/User Utilization"
+		PrintAccountUserTable(outputList, startTime, endTime, header, title)
+	} else {
+		header := []string{"Cluster", "Login", "Proper_name", "Account", "Used", "Energy"}
+		title := "Cluster/User/Account Utilization"
+		PrintAccountUserTable(outputList, startTime, endTime, header, title)
+	}
+}
+
+func PrintUserWckeyTable(outputList []UserWckeyJson, startTime, endTime time.Time, header []string, title string) {
 	totalSecs := int64(endTime.Sub(startTime).Seconds())
 	fmt.Println(strings.Repeat("-", 100))
 	if totalSecs > 0 {
-		fmt.Printf("Cluster/Account/User Utilization %s - %s (%d secs)\n",
-			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
+		fmt.Printf("%s %s - %s (%d secs)\n",
+			title, startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
 	}
 	util.PrintUsageTypeInfo(FlagOutType, false, false)
-	header := []string{"Cluster", "Account", "Login", "Proper_name", "Used", "Energy"}
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 	table.SetHeader(header)
-	tableData := make([][]string, 0, len(outputList))
 	for _, row := range outputList {
-		tableData = append(tableData, []string{
-			row.Cluster,
-			row.Account,
-			row.Username,
-			row.ProperName,
-			strconv.FormatFloat(row.Used, 'f', 2, 64),
-			row.Energy,
-		})
-	}
-	table.AppendBulk(tableData)
-	table.Render()
-}
-
-func PrintUserAccountList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool) {
-	sort.Slice(JobSummaryItemList, func(i, j int) bool {
-		if JobSummaryItemList[i].Username < JobSummaryItemList[j].Username {
-			return true
-		}
-		if JobSummaryItemList[i].Username > JobSummaryItemList[j].Username {
-			return false
-		}
-		return JobSummaryItemList[i].Account < JobSummaryItemList[j].Account
-	})
-
-	divisor := util.ReportUsageDivisor(FlagOutType)
-	usernameToName := make(map[string]string)
-	var outputList []AccountUserJson
-
-	for _, item := range JobSummaryItemList {
-		properName, ok := usernameToName[item.Username]
-		if !ok {
-			usr, err := user.Lookup(item.Username)
-			if err != nil {
-				continue // skip this user if lookup failed
+		var rowSlice []string
+		for _, col := range header { // Use header as column order
+			switch col {
+			case "Cluster":
+				rowSlice = append(rowSlice, row.Cluster)
+			case "Login":
+				rowSlice = append(rowSlice, row.Username)
+			case "Proper_name":
+				rowSlice = append(rowSlice, row.ProperName)
+			case "Wckey":
+				rowSlice = append(rowSlice, row.Wckey)
+			case "Used":
+				rowSlice = append(rowSlice, strconv.FormatFloat(row.Used, 'f', 2, 64))
 			}
-			properName = usr.Name
-			usernameToName[item.Username] = properName
 		}
-		outputList = append(outputList, AccountUserJson{
-			Cluster:    item.Cluster,
-			Username:   item.Username,
-			ProperName: properName,
-			Account:    item.Account,
-			Used:       float64(item.TotalCpuTime) / float64(divisor),
-			Energy:     "0",
-		})
+		table.Append(rowSlice)
 	}
-
-	if isJson {
-		util.PrintAsJsonToStdout(outputList)
-		return
-	}
-
-	// Table output
-	totalSecs := int64(endTime.Sub(startTime).Seconds())
-	fmt.Println(strings.Repeat("-", 100))
-	if totalSecs > 0 {
-		fmt.Printf("Cluster/User/Account Utilization %s - %s (%d secs)\n",
-			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
-	}
-	util.PrintUsageTypeInfo(FlagOutType, false, false)
-	header := []string{"Cluster", "Login", "Proper_name", "Account", "Used", "Energy"}
-	table := tablewriter.NewWriter(os.Stdout)
-	util.SetBorderTable(table)
-	table.SetHeader(header)
-	tableData := make([][]string, 0, len(outputList))
-	for _, row := range outputList {
-		tableData = append(tableData, []string{
-			row.Cluster,
-			row.Username,
-			row.ProperName,
-			row.Account,
-			strconv.FormatFloat(row.Used, 'f', 2, 64),
-			row.Energy,
-		})
-	}
-	table.AppendBulk(tableData)
 	table.Render()
 }
 
-func PrintUserWckeyList(accountUserWckeyList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool) {
-	sort.Slice(accountUserWckeyList, func(i, j int) bool {
-		return accountUserWckeyList[i].TotalCpuTime < accountUserWckeyList[j].TotalCpuTime
-	})
-
+func PrintUserWckeySummary(itemList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool, sortByUserFirst bool) {
 	divisor := util.ReportUsageDivisor(FlagOutType)
 	usernameToName := make(map[string]string)
 	var outputList []UserWckeyJson
 
-	for _, item := range accountUserWckeyList {
+	// Sorting
+	if sortByUserFirst {
+		sort.Slice(itemList, func(i, j int) bool {
+			if itemList[i].Username < itemList[j].Username {
+				return true
+			}
+			if itemList[i].Username > itemList[j].Username {
+				return false
+			}
+			return itemList[i].Wckey < itemList[j].Wckey
+		})
+	} else {
+		sort.Slice(itemList, func(i, j int) bool {
+			if itemList[i].Wckey < itemList[j].Wckey {
+				return true
+			}
+			if itemList[i].Wckey > itemList[j].Wckey {
+				return false
+			}
+			return itemList[i].Username < itemList[j].Username
+		})
+	}
+
+	// Build output list
+	for _, item := range itemList {
 		properName, ok := usernameToName[item.Username]
 		if !ok {
 			usr, err := user.Lookup(item.Username)
@@ -760,88 +783,15 @@ func PrintUserWckeyList(accountUserWckeyList []*protos.JobSummaryItem, startTime
 	}
 
 	// Table output
-	totalSecs := int64(endTime.Sub(startTime).Seconds())
-	fmt.Println(strings.Repeat("-", 100))
-	if totalSecs > 0 {
-		fmt.Printf("Cluster/Account/User Utilization %s - %s (%d secs)\n",
-			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
+	if sortByUserFirst {
+		header := []string{"Cluster", "Login", "Proper_name", "Wckey", "Used"}
+		title := "Cluster/User/Wckey Utilization"
+		PrintUserWckeyTable(outputList, startTime, endTime, header, title)
+	} else {
+		header := []string{"Cluster", "Wckey", "Login", "Proper_name", "Used"}
+		title := "Cluster/Wckey/User Utilization"
+		PrintUserWckeyTable(outputList, startTime, endTime, header, title)
 	}
-	util.PrintUsageTypeInfo(FlagOutType, false, false)
-	header := []string{"Cluster", "Login", "Proper_name", "Wckey", "Used"}
-	table := tablewriter.NewWriter(os.Stdout)
-	util.SetBorderTable(table)
-	table.SetHeader(header)
-	tableData := make([][]string, 0, len(outputList))
-	for _, row := range outputList {
-		tableData = append(tableData, []string{
-			row.Cluster,
-			row.Username,
-			row.ProperName,
-			row.Wckey,
-			strconv.FormatFloat(row.Used, 'f', 2, 64),
-		})
-	}
-	table.AppendBulk(tableData)
-	table.Render()
-}
-
-func PrintWckeyUserList(accountUserWckeyList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool) {
-	sort.Slice(accountUserWckeyList, func(i, j int) bool {
-		return accountUserWckeyList[i].Wckey < accountUserWckeyList[j].Wckey
-	})
-
-	divisor := util.ReportUsageDivisor(FlagOutType)
-	usernameToName := make(map[string]string)
-	var outputList []UserWckeyJson
-
-	for _, item := range accountUserWckeyList {
-		properName, ok := usernameToName[item.Username]
-		if !ok {
-			usr, err := user.Lookup(item.Username)
-			if err != nil {
-				continue // skip if lookup failed
-			}
-			properName = usr.Name
-			usernameToName[item.Username] = properName
-		}
-		outputList = append(outputList, UserWckeyJson{
-			Cluster:    item.Cluster,
-			Wckey:      item.Wckey,
-			Username:   item.Username,
-			ProperName: properName,
-			Used:       float64(item.TotalCpuTime) / float64(divisor),
-		})
-	}
-
-	if isJson {
-		util.PrintAsJsonToStdout(outputList)
-		return
-	}
-
-	// Table output
-	totalSecs := int64(endTime.Sub(startTime).Seconds())
-	fmt.Println(strings.Repeat("-", 100))
-	if totalSecs > 0 {
-		fmt.Printf("Cluster/WCKey/User Utilization %s - %s (%d secs)\n",
-			startTime.Format("2006-01-02T15:04:05"), endTime.Format("2006-01-02T15:04:05"), totalSecs)
-	}
-	util.PrintUsageTypeInfo(FlagOutType, false, false)
-	header := []string{"Cluster", "Wckey", "Login", "Proper_name", "Used"}
-	table := tablewriter.NewWriter(os.Stdout)
-	util.SetBorderTable(table)
-	table.SetHeader(header)
-	tableData := make([][]string, 0, len(outputList))
-	for _, row := range outputList {
-		tableData = append(tableData, []string{
-			row.Cluster,
-			row.Wckey,
-			row.Username,
-			row.ProperName,
-			strconv.FormatFloat(row.Used, 'f', 2, 64),
-		})
-	}
-	table.AppendBulk(tableData)
-	table.Render()
 }
 
 func PrintAccountQosList(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool) {
