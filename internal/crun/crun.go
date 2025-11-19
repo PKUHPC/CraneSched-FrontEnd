@@ -996,7 +996,7 @@ func MainCrun(args []string) error {
 
 	var err error
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get working directory: %s.", err))
+		return util.WrapCraneErr(util.ErrorSystem, "Failed to get working directory: %s.", err)
 	}
 
 	if len(args) == 0 {

@@ -344,11 +344,11 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
 	if gVars.cwd, err = os.Getwd(); err != nil {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get working directory: %s", err))
+		return util.WrapCraneErr(util.ErrorSystem, "Failed to get working directory: %s", err)
 	}
 
 	if gVars.user, err = user.Current(); err != nil {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get current user: %s", err))
+		return util.WrapCraneErr(util.ErrorSystem, "Failed to get current user: %s", err)
 	}
 
 	// Get egid using os.Getgid() instead of using user.Current()
