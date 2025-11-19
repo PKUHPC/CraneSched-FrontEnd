@@ -196,7 +196,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CRI_GENERIC:             "CRI runtime returns error. Check logs for details.",
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
-	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory parsing format",
+	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory format",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
