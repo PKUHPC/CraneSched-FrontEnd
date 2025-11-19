@@ -768,14 +768,12 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 
 	if FlagJson {
 		if reply.GetOk() {
-			fmt.Println(util.FmtJson.FormatReply(reply))
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend, Message: fmt.Sprintln(util.FmtJson.FormatReply(reply))}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("Modify information succeeded.")
 		return nil
 	} else {
 		msg := "Failed to modify information:\n"
@@ -844,14 +842,12 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 	if FlagJson {
 		if reply.GetOk() {
-			fmt.Println(util.FmtJson.FormatReply(reply))
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend, Message: fmt.Sprintln(util.FmtJson.FormatReply(reply))}
 		}
 	}
 	if reply.GetOk() {
-		fmt.Println("Modify information succeeded.")
 		return nil
 	} else {
 		msg := fmt.Sprintf("Modify information failed: \n")
@@ -890,7 +886,6 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) err
 
 	if FlagJson {
 		if reply.GetOk() {
-			fmt.Println(util.FmtJson.FormatReply(reply))
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend, Message: fmt.Sprintln(util.FmtJson.FormatReply(reply))}
@@ -898,7 +893,6 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) err
 	}
 
 	if reply.GetOk() {
-		fmt.Println("Modify information succeeded.")
 		return nil
 	} else {
 		return &util.CraneError{
