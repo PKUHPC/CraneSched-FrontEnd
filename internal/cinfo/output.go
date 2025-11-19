@@ -170,10 +170,10 @@ func ParseBySpec(specifiers [][]int, reply *protos.QueryClusterInfoReply) ([]int
 			// with width specifier
 			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
 			if err != nil {
-				return nil, nil, nil, &util.CraneError{
-					Code:    util.ErrorInvalidFormat,
-					Message: "Invalid width specifier.",
-				}
+				return nil, nil, nil, util.NewCraneErr(
+					util.ErrorInvalidFormat,
+					"Invalid width specifier.",
+				)
 			}
 			tableOutputWidth = append(tableOutputWidth, int(width))
 		}
@@ -188,11 +188,11 @@ func ParseBySpec(specifiers [][]int, reply *protos.QueryClusterInfoReply) ([]int
 			tableOutputHeader = append(tableOutputHeader, strings.ToUpper(processor.header))
 			processor.process(flattened, tableOutputCell)
 		} else {
-			return nil, nil, nil, &util.CraneError{
-				Code: util.ErrorInvalidFormat,
-				Message: fmt.Sprintf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
+			return nil, nil, nil, util.NewCraneErr(
+				util.ErrorInvalidFormat,
+				fmt.Sprintf("Invalid format specifier or string: %s, string unfold case insensitive, reference:\n"+
 					"p/Partition, a/Avail, n/Nodes, s/State, l/NodeList.", field),
-			}
+			)
 		}
 	}
 	// Get the suffix of the format string
