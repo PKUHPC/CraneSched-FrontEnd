@@ -358,36 +358,42 @@ func DeleteQos(value string) util.ExitCode {
 	}
 }
 
-func ModifyAccount(modifyField protos.ModifyField, newValue string, name string, requestType protos.OperationType) util.ExitCode {
+func ModifyAccount(params []ModifyParam, name string) util.ExitCode {
 	var valueList []string
 	var err error
 
-	valueList, err = util.ParseStringParamList(newValue, ",")
-	if err != nil {
-		if modifyField == protos.ModifyField_Qos {
-			log.Errorf("Invalid qos list specified: %v.\n", err)
-		} else if modifyField == protos.ModifyField_Partition {
-			log.Errorf("Invalid partition list specified: %v.\n", err)
-		} else {
-			log.Errorf("Invalid value list specified: %v.\n", err)
-		}
-		return util.ErrorCmdArg
+	req := protos.ModifyAccountRequest{
+		Uid:   userUid,
+		Name:  name,
+		Force: FlagForce,
 	}
 
-	if modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_Description {
-		if len(valueList) != 1 {
-			log.Errorf("Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
+	for _, param := range params {
+		valueList, err = util.ParseStringParamList(param.NewValue, ",")
+		if err != nil {
+			switch param.ModifyField {
+			case protos.ModifyField_Qos:
+				log.Errorf("Invalid qos list specified: %v.\n", err)
+			case protos.ModifyField_Partition:
+				log.Errorf("Invalid partition list specified: %v.\n", err)
+			default:
+				log.Errorf("Invalid value list specified: %v.\n", err)
+			}
 			return util.ErrorCmdArg
 		}
-	}
 
-	req := protos.ModifyAccountRequest{
-		Uid:         userUid,
-		ModifyField: modifyField,
-		ValueList:   valueList,
-		Name:        name,
-		Type:        requestType,
-		Force:       FlagForce,
+		if param.ModifyField == protos.ModifyField_DefaultQos || param.ModifyField == protos.ModifyField_Description {
+			if len(valueList) != 1 {
+				log.Errorf("Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
+				return util.ErrorCmdArg
+			}
+		}
+
+		req.Operations = append(req.Operations, &protos.ModifyFieldOperation{
+			ModifyField: param.ModifyField,
+			ValueList:   valueList,
+			Type:        param.RequestType,
+		})
 	}
 
 	reply, err := stub.ModifyAccount(context.Background(), &req)
@@ -420,39 +426,45 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 	}
 }
 
-func ModifyUser(modifyField protos.ModifyField, newValue string, name string, account string, partition string, requestType protos.OperationType) util.ExitCode {
-	if modifyField == protos.ModifyField_AdminLevel {
-		if newValue != "none" && newValue != "operator" && newValue != "admin" {
-			log.Errorf("Unknown admin level, valid values: none, operator, admin.")
-			return util.ErrorCmdArg
-		}
-	}
-
-	var valueList []string
-	var err error
-
-	valueList, err = util.ParseStringParamList(newValue, ",")
-	if err != nil {
-		log.Errorf("Invalid value list specified: %v.\n", err)
-		return util.ErrorCmdArg
-	}
-
-	if modifyField == protos.ModifyField_AdminLevel || modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_DefaultAccount {
-		if len(valueList) != 1 {
-			log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
-			return util.ErrorCmdArg
-		}
-	}
+func ModifyUser(params []ModifyParam, name string, account string, partition string) util.ExitCode {
 
 	req := protos.ModifyUserRequest{
-		Uid:         userUid,
-		ModifyField: modifyField,
-		ValueList:   valueList,
-		Name:        name,
-		Partition:   partition,
-		Type:        requestType,
-		Account:     account,
-		Force:       FlagForce,
+		Uid:       userUid,
+		Name:      name,
+		Partition: partition,
+		Account:   account,
+		Force:     FlagForce,
+	}
+
+	for _, param := range params {
+		if param.ModifyField == protos.ModifyField_AdminLevel {
+			if param.NewValue != "none" && param.NewValue != "operator" && param.NewValue != "admin" {
+				log.Errorf("Unknown admin level, valid values: none, operator, admin.")
+				return util.ErrorCmdArg
+			}
+		}
+
+		var valueList []string
+		var err error
+
+		valueList, err = util.ParseStringParamList(param.NewValue, ",")
+		if err != nil {
+			log.Errorf("Invalid value list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+
+		if param.ModifyField == protos.ModifyField_AdminLevel || param.ModifyField == protos.ModifyField_DefaultQos || param.ModifyField == protos.ModifyField_DefaultAccount {
+			if len(valueList) != 1 {
+				log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
+				return util.ErrorCmdArg
+			}
+		}
+
+		req.Operations = append(req.Operations, &protos.ModifyFieldOperation{
+			ModifyField: param.ModifyField,
+			ValueList:   valueList,
+			Type:        param.RequestType,
+		})
 	}
 
 	reply, err := stub.ModifyUser(context.Background(), &req)
@@ -485,15 +497,20 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 	}
 }
 
-func ModifyQos(modifyField protos.ModifyField, newValue string, name string) util.ExitCode {
+func ModifyQos(params []ModifyParam, name string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for QoS modify operations")
 	}
 	req := protos.ModifyQosRequest{
-		Uid:         userUid,
-		ModifyField: modifyField,
-		Value:       newValue,
-		Name:        name,
+		Uid:  userUid,
+		Name: name,
+	}
+
+	for _, param := range params {
+		req.Operations = append(req.Operations, &protos.ModifyFieldOperation{
+			ModifyField: param.ModifyField,
+			ValueList:   []string{param.NewValue},
+		})
 	}
 
 	reply, err := stub.ModifyQos(context.Background(), &req)
