@@ -1,0 +1,39 @@
+# Unified Monitor Plugin Configuration
+# Combines functionality from energy, monitor, and event plugins
+
+Monitor:
+  # Monitoring settings
+  SamplePeriod: 5s 
+  LogPath: "/var/log/crane/monitor.log"
+  GPUType: "nvidia"
+  
+  # Feature enable/disable flags
+  Enabled:
+    Job: true      # Job-level energy and resource monitoring
+    Ipmi: true     # IPMI-based power monitoring
+    Gpu: true      # GPU monitoring
+    Rapl: true     # RAPL-based CPU energy monitoring
+    System: true   # System load monitoring (CPU, memory, disk, network)
+    Event: true    # Node event tracking
+
+# Cgroup settings (for basic resource monitoring compatibility)
+Cgroup:
+  CPU: "/sys/fs/cgroup/cpuacct/%j/cpuacct.usage"
+  Memory: "/sys/fs/cgroup/memory/%j/memory.usage_in_bytes"
+  ProcList: "/sys/fs/cgroup/memory/%j/cgroup.procs"
+
+# Database configuration
+Database:
+  Type: "influxdb"            
+  Influxdb:
+    Url: "YOUR_INFLUXDB_URL"
+    Token: "YOUR_INFLUXDB_TOKEN"
+    Org: "YOUR_INFLUXDB_ORG_NAME"
+    NodeBucket: "YOUR_NODE_BUCKET_NAME"      # For node-level energy and event data
+    JobBucket: "YOUR_JOB_BUCKET_NAME"        # For job-level energy and resource data
+    EventMeasurement: "NodeEvents"           # Measurement name for events
+    ResourceMeasurement: "ResourceUsage"     # Measurement name for resource usage
+
+# Legacy settings for backward compatibility
+Interval: 1000     # Monitoring interval in milliseconds (for simple resource monitoring)
+BufferSize: 32     # Buffer size for data writing

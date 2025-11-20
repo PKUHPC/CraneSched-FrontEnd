@@ -1,391 +1,275 @@
-/**
- * Copyright (c) 2024 Peking University and Peking University
- * Changsha Institute for Computing and Digital Economy
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path"
+	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
+
+	nested "github.com/antonfisher/nested-logrus-formatter"
+	logrus "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/generated/protos"
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"gopkg.in/yaml.v3"
+	"CraneFrontEnd/plugin/monitor/pkg/config"
+	"CraneFrontEnd/plugin/monitor/pkg/db"
+	"CraneFrontEnd/plugin/monitor/pkg/monitor"
 )
 
-// Compile-time check to ensure MonitorPlugin implements api.Plugin
-var _ api.Plugin = &MonitorPlugin{}
-var _ api.CgroupLifecycleHooks = &MonitorPlugin{}
-var _ api.GrpcServiceRegistrar = &MonitorPlugin{}
-var _ api.HostConfigAware = &MonitorPlugin{}
+var log = logrus.WithField("component", "MonitorPlugin")
 
-// PluginD will call plugin's method thru this variable
-var PluginInstance = MonitorPlugin{}
+func init() {
+	logrus.SetFormatter(&nested.Formatter{
+		HideKeys:        true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		ShowFullLevel:   true,
+		NoColors:        false,
+		NoFieldsColors:  false,
+		NoFieldsSpace:   true,
+		FieldsOrder:     []string{"caller", "component"},
 
-type config struct {
-	// Cgroup pattern
-	Cgroup struct {
-		CPU      string `yaml:"CPU"`
-		Memory   string `yaml:"Memory"`
-		ProcList string `yaml:"ProcList"`
-	} `yaml:"Cgroup"`
-
-	// InfluxDB configuration
-	Database struct {
-		Username    string `yaml:"Username"`
-		Bucket      string `yaml:"Bucket"`
-		Org         string `yaml:"Org"`
-		Measurement string `yaml:"Measurement"`
-		Token       string `yaml:"Token"`
-		Url         string `yaml:"Url"`
-	} `yaml:"Database"`
-
-	// Interval for sampling resource usage, in ms
-	Interval uint32 `yaml:"Interval"`
-	// Buffer size for storing resource usage data
-	BufferSize uint32 `yaml:"BufferSize"`
-
-	// Hostname, set at Init time, not configurable
-	hostname string
-}
-
-type ResourceUsage struct {
-	TaskID      int64
-	CPUUsage    uint64
-	MemoryUsage uint64
-	ProcCount   uint64
-	Hostname    string
-	Timestamp   time.Time
-}
-
-type MonitorPlugin struct {
-	config
-	client         influxdb2.Client
-	cond           *sync.Cond         // Sync consumer
-	once           sync.Once          // Ensure the Singleton of InfluxDB client
-	buffer         chan ResourceUsage // Buffer channel for processing usage data
-	jobCtx         map[int64]context.CancelFunc
-	jobMutex       sync.RWMutex
-	hostConfigPath string
-	queryService   *CeffQueryService
-}
-
-func getProcCount(cgroupPath string) (uint64, error) {
-	content, err := os.ReadFile(cgroupPath)
-	if err != nil {
-		return 0, err
-	}
-
-	// return the line count
-	return uint64(strings.Count(string(content), "\n")), nil
-}
-
-func getCpuUsage(cgroupPath string) (uint64, error) {
-	content, err := os.ReadFile(cgroupPath)
-	if err != nil {
-		return 0, err
-	}
-
-	cpuUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return cpuUsage, nil
-}
-
-func getMemoryUsage(cgroupPath string) (uint64, error) {
-	content, err := os.ReadFile(cgroupPath)
-	if err != nil {
-		return 0, err
-	}
-
-	memoryUsage, err := strconv.ParseUint(strings.TrimSpace(string(content)), 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return memoryUsage, nil
-}
-
-func getHostname() (string, error) {
-	content, err := os.ReadFile("/etc/hostname")
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(content)), nil
-}
-
-func getRealCgroupPath(pattern string, task_name string) string {
-	return strings.ReplaceAll(pattern, "%j", task_name)
-}
-
-func (p *MonitorPlugin) producer(ctx context.Context, id int64, task_name string) {
-	log.Infof("Monitoring goroutine for job #%v started.", id)
-
-	if (p.buffer == nil) || (p.client == nil) {
-		log.Errorf("Buffer channel or InfluxDB client not initialized.")
-		return
-	}
-
-	// As Cgroup may be created without any process inside, we need to mark
-	// if the first process is launched.
-	migrated := false
-	cgroupProcListPath := getRealCgroupPath(p.config.Cgroup.ProcList, task_name)
-	cgroupCpuPath := getRealCgroupPath(p.config.Cgroup.CPU, task_name)
-	cgroupMemPath := getRealCgroupPath(p.config.Cgroup.Memory, task_name)
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Infof("Monitoring goroutine for job #%v cancelled.", id)
-			return
-		default:
-			// If none pid found, the cgroup is empty, continue
-			procCount, err := getProcCount(cgroupProcListPath)
-			if err != nil {
-				log.Errorf("Failed to get process count in %s: %v", cgroupProcListPath, err)
-				continue
-			}
-			if !migrated && procCount == 0 {
-				time.Sleep(time.Duration(p.Interval) * time.Millisecond)
-				continue
-			}
-			migrated = true
-
-			cpuUsage, err := getCpuUsage(cgroupCpuPath)
-			if err != nil {
-				log.Errorf("Failed to get CPU usage in %s: %v", cgroupCpuPath, err)
-				continue
-			}
-
-			memoryUsage, err := getMemoryUsage(cgroupMemPath)
-			if err != nil {
-				log.Errorf("Failed to get memory usage in %s: %v", cgroupMemPath, err)
-				continue
-			}
-
-			p.buffer <- ResourceUsage{
-				TaskID:      id,
-				ProcCount:   procCount,
-				CPUUsage:    cpuUsage,
-				MemoryUsage: memoryUsage,
-				Hostname:    p.hostname,
-				Timestamp:   time.Now(),
-			}
-		}
-
-		// Sleep for the interval
-		time.Sleep(time.Duration(p.Interval) * time.Millisecond)
-	}
-}
-
-func (p *MonitorPlugin) consumer() {
-	dbConfig := p.Database
-	p.client = influxdb2.NewClientWithOptions(dbConfig.Url, dbConfig.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
-	defer p.client.Close()
-
-	ctx := context.Background()
-	if pong, err := p.client.Ping(ctx); err != nil {
-		log.Errorf("Failed to ping InfluxDB: %v", err)
-		return
-	} else if !pong {
-		log.Error("Failed to ping InfluxDB: not pong")
-		return
-	}
-	log.Infof("InfluxDB client is created: %v", p.client.ServerURL())
-
-	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
-	p.cond = sync.NewCond(&sync.Mutex{})
-	for stat := range p.buffer {
-		tags := map[string]string{
-			"job_id":   strconv.FormatInt(stat.TaskID, 10),
-			"hostname": stat.Hostname,
-		}
-		fields := map[string]interface{}{
-			"proc_count":   stat.ProcCount,
-			"cpu_usage":    stat.CPUUsage,
-			"memory_usage": stat.MemoryUsage,
-		}
-		point := influxdb2.NewPoint(dbConfig.Measurement, tags, fields, stat.Timestamp)
-
-		if err := writer.WritePoint(ctx, point); err != nil {
-			log.Errorf("Failed to write point to InfluxDB: %v", err)
-			break
-		}
-
-		log.Tracef("Recorded Job ID: %v, Hostname: %s, Proc Count: %d, CPU Usage: %d, Memory Usage: %.2f KB at %v",
-			stat.TaskID, stat.Hostname, stat.ProcCount, stat.CPUUsage, float64(stat.MemoryUsage)/1024, stat.Timestamp)
-	}
-
-	// consumer is done, signal to exit
-	p.cond.L.Lock()
-	p.cond.Broadcast()
-	p.cond.L.Unlock()
-}
-
-func (p *MonitorPlugin) Name() string {
-	return "Monitor"
-}
-
-func (p *MonitorPlugin) Version() string {
-	return "v0.0.1"
-}
-
-func (p *MonitorPlugin) SetHostConfigPath(path string) {
-	p.hostConfigPath = path
-}
-
-func (p *MonitorPlugin) Load(meta api.PluginMeta) error {
-	if meta.Config == "" {
-		return errors.New("config file is not specified")
-	}
-
-	content, err := os.ReadFile(meta.Config)
-	if err != nil {
-		return err
-	}
-
-	if err := yaml.Unmarshal(content, &p.config); err != nil {
-		return err
-	}
-
-	p.hostname, err = getHostname()
-	if err != nil {
-		return err
-	}
-
-	if p.BufferSize <= 0 {
-		p.BufferSize = 32
-		log.Warnf("Buffer size is not specified or invalid, using default: %v", p.BufferSize)
-	}
-	p.buffer = make(chan ResourceUsage, p.BufferSize)
-	p.jobCtx = make(map[int64]context.CancelFunc)
-
-	// Apply default values, use cgroup v1 path
-	if p.config.Cgroup.CPU == "" {
-		p.config.Cgroup.CPU = "/sys/fs/cgroup/cpuacct/%j/cpuacct.usage"
-		log.Warnf("CPU cgroup path is not specified, using default: %s", p.config.Cgroup.CPU)
-	}
-	if p.config.Cgroup.Memory == "" {
-		p.config.Cgroup.Memory = "/sys/fs/cgroup/memory/%j/memory.usage_in_bytes"
-		log.Warnf("Memory cgroup path is not specified, using default: %s", p.config.Cgroup.Memory)
-	}
-	if p.config.Cgroup.ProcList == "" {
-		p.config.Cgroup.ProcList = "/sys/fs/cgroup/memory/%j/cgroup.procs"
-		log.Warnf("ProcList cgroup path is not specified, using default: %s", p.config.Cgroup.ProcList)
-	}
-
-	log.Infoln("Monitor plugin is initialized.")
-	log.Tracef("Monitor plugin config: %v", p.config)
-
-	if err := p.initQueryService(); err != nil {
-		return fmt.Errorf("failed to initialize monitor query service: %w", err)
-	}
-
-	return nil
-}
-
-func (p *MonitorPlugin) Unload(meta api.PluginMeta) error {
-	// Cancel all monitoring goroutines
-	p.jobMutex.Lock()
-	for _, cancel := range p.jobCtx {
-		cancel()
-	}
-	p.jobMutex.Unlock()
-
-	// Close channel, then consumer closes the InfluxDB client
-	close(p.buffer)
-
-	// Wait for consumer to finish
-	if p.cond != nil {
-		p.cond.L.Lock()
-		p.cond.Wait()
-		p.cond.L.Unlock()
-	}
-
-	log.Infoln("Monitor plugin gracefully unloaded.")
-	return nil
-}
-
-func (p *MonitorPlugin) CreateCgroupHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)
-	if !ok {
-		log.Errorln("Invalid request type, expected CreateCgroupHookRequest.")
-		return
-	}
-
-	p.once.Do(func() {
-		go p.consumer()
+		CustomCallerFormatter: func(f *runtime.Frame) string {
+			filename := path.Base(f.File)
+			return fmt.Sprintf(" [%s:%d]", filename, f.Line)
+		},
 	})
 
-	monitorCtx, cancel := context.WithCancel(context.Background())
-
-	p.jobMutex.Lock()
-	p.jobCtx[int64(req.TaskId)] = cancel
-	p.jobMutex.Unlock()
-
-	go p.producer(monitorCtx, int64(req.TaskId), req.Cgroup)
+	logrus.SetReportCaller(true)
+	logrus.SetLevel(logrus.DebugLevel)
 }
 
-func (p *MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.DestroyCgroupHookRequest)
+var _ api.Plugin = MonitorPlugin{}
+var _ api.CgroupLifecycleHooks = MonitorPlugin{}
+var _ api.NodeEventHooks = MonitorPlugin{}
+var _ api.GrpcServiceRegistrar = MonitorPlugin{}
+var _ api.HostConfigAware = MonitorPlugin{}
+
+var PluginInstance = MonitorPlugin{}
+
+var gpuConfigs = map[string]struct {
+	pattern    *regexp.Regexp
+	validRange func(int) bool
+}{
+	"nvidia": {
+		pattern:    regexp.MustCompile(`/dev/nvidia(\d+)`),
+		validRange: func(num int) bool { return num >= 0 && num < 128 },
+	},
+}
+
+type GlobalMonitor struct {
+	config       *config.Config
+	monitor      *monitor.Monitor
+	queryService *QueryService
+}
+
+var globalMonitor GlobalMonitor
+
+type MonitorPlugin struct{}
+
+func (p MonitorPlugin) Name() string {
+	return "monitor"
+}
+
+func (p MonitorPlugin) Version() string {
+	return "1.0.0"
+}
+
+func (p MonitorPlugin) SetHostConfigPath(path string) {
+	if globalMonitor.queryService != nil {
+		globalMonitor.queryService.hostConfigPath = path
+	}
+}
+
+func (p MonitorPlugin) Load(meta api.PluginMeta) error {
+	log.Info("Initializing unified monitor plugin")
+
+	cfg, err := config.LoadConfig(meta.Config)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if err := setupLogging(cfg.Monitor.LogPath); err != nil {
+		log.Warnf("Failed to setup logging: %v, using default stderr", err)
+	}
+
+	globalMonitor.config = cfg
+	config.PrintConfig(cfg)
+
+	if err := p.ensureInitialized(); err != nil {
+		return fmt.Errorf("failed to initialize resources: %w", err)
+	}
+
+	globalMonitor.monitor.NodeMonitor.Start()
+
+	log.Info("Unified monitor plugin initialized successfully")
+	return nil
+}
+
+func (p MonitorPlugin) Unload(meta api.PluginMeta) error {
+	log.Info("Unloading monitor plugin")
+
+	if globalMonitor.monitor != nil {
+		globalMonitor.monitor.Close()
+		globalMonitor.monitor = nil
+	}
+
+	if db.GetInstance() != nil {
+		if err := db.GetInstance().Close(); err != nil {
+			return fmt.Errorf("error closing database: %v", err)
+		}
+	}
+
+	globalMonitor = GlobalMonitor{}
+
+	log.Info("Monitor plugin gracefully unloaded")
+	return nil
+}
+
+func (p MonitorPlugin) CreateCgroupHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.CreateCgroupHookRequest)
 	if !ok {
-		log.Errorln("Invalid request type, expected DestroyCgroupHookRequest.")
+		log.Error("Invalid request type, expected CreateCgroupHookRequest")
 		return
 	}
 
-	p.jobMutex.Lock()
-	if cancel, exists := p.jobCtx[int64(req.TaskId)]; exists {
-		cancel()
-		delete(p.jobCtx, int64(req.TaskId))
-	}
-	p.jobMutex.Unlock()
+	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 
-	log.Infof("Monitoring stopped for job #%v", req.TaskId)
+	requestCpu := req.Resource.AllocatableResInNode.CpuCoreLimit
+	requestMemory := req.Resource.AllocatableResInNode.MemoryLimitBytes
+	boundGPUs := getBoundGPUs(req.Resource.DedicatedResInNode, globalMonitor.config.Monitor.GPUType)
+	resourceRequest := monitor.ResourceRequest{
+		ReqCPU:    requestCpu,
+		ReqMemory: requestMemory,
+		ReqGPUs:   boundGPUs,
+	}
+
+	globalMonitor.monitor.JobMonitor.Start(req.TaskId, req.Cgroup, resourceRequest)
 }
 
-func (p *MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error {
-	if p.queryService == nil {
+func (p MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.DestroyCgroupHookRequest)
+	if !ok {
+		log.Error("Invalid request type, expected DestroyCgroupHookRequest")
+		return
+	}
+
+	log.Infof("DestroyCgroupHook received for cgroup: %s", req.Cgroup)
+	globalMonitor.monitor.JobMonitor.Stop(req.TaskId)
+}
+
+func (p MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {
+	if !globalMonitor.config.Monitor.Enabled.Event {
+		log.Debug("Event monitoring is disabled, skipping NodeEventHook")
+		return
+	}
+
+	req, ok := ctx.Request().(*protos.NodeEventHookRequest)
+	if !ok {
+		log.Error("Invalid request type, expected NodeEventHookRequest")
+		return
+	}
+
+	log.Infof("NodeEventHook received for %d events", len(req.GetEventInfoList()))
+	
+	if err := db.GetInstance().SaveNodeEvents(req.GetEventInfoList()); err != nil {
+		log.Errorf("Failed to save node events: %v", err)
+	}
+}
+
+func (p MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error {
+	if globalMonitor.queryService == nil {
 		return fmt.Errorf("monitor query service is not initialized")
 	}
 
-	protos.RegisterCeffQueryServiceServer(server, p.queryService)
+	protos.RegisterCeffQueryServiceServer(server, globalMonitor.queryService)
 	log.Info("Monitor plugin registered CeffQueryService gRPC endpoints")
 	return nil
 }
 
-func (p *MonitorPlugin) initQueryService() error {
-	service, err := NewCeffQueryService(p, p.hostConfigPath)
-	if err != nil {
-		return err
+func (p MonitorPlugin) ensureInitialized() error {
+	if db.GetInstance() == nil {
+		err := db.InitDB(globalMonitor.config)
+		if err != nil {
+			return fmt.Errorf("failed to create database: %w", err)
+		}
 	}
 
-	p.queryService = service
+	if globalMonitor.monitor == nil {
+		globalMonitor.monitor = monitor.NewMonitor(globalMonitor.config.Monitor)
+	}
+
+	if globalMonitor.queryService == nil {
+		globalMonitor.queryService = NewQueryService(globalMonitor.config)
+	}
+
 	return nil
+}
+
+func setupLogging(logPath string) error {
+	logDir := path.Dir(logPath)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	logFile, err := os.OpenFile(logPath,
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %w", err)
+	}
+
+	logrus.SetOutput(io.MultiWriter(os.Stdout, logFile))
+	log.Infof("Successfully set up logging to file %s", logPath)
+	return nil
+}
+
+func getBoundGPUs(res *protos.DedicatedResourceInNode, gpuType string) []int {
+	boundGPUs := make([]int, 0)
+
+	gpuConfig, exists := gpuConfigs[gpuType]
+	if !exists {
+		log.Errorf("Unsupported GPU type: %s", gpuType)
+		return boundGPUs
+	}
+
+	for deviceName, typeSlotMap := range res.GetNameTypeMap() {
+		if !strings.Contains(strings.ToLower(deviceName), "gpu") {
+			continue
+		}
+
+		for typeName, slots := range typeSlotMap.TypeSlotsMap {
+			log.Infof("Device type: %s", typeName)
+
+			for _, slot := range slots.Slots {
+				matches := gpuConfig.pattern.FindStringSubmatch(slot)
+				if len(matches) != 2 {
+					log.Errorf("Invalid %s GPU device path format: %s", gpuType, slot)
+					continue
+				}
+
+				deviceNum, err := strconv.Atoi(matches[1])
+				if err != nil {
+					log.Errorf("Failed to parse GPU number: %v", err)
+					continue
+				}
+
+				if gpuConfig.validRange(deviceNum) {
+					log.Infof("Bound %s GPU device number: %d", gpuType, deviceNum)
+					boundGPUs = append(boundGPUs, deviceNum)
+				} else {
+					log.Warnf("Invalid %s GPU device number: %d", gpuType, deviceNum)
+				}
+			}
+		}
+	}
+
+	return boundGPUs
 }
 
 func main() {

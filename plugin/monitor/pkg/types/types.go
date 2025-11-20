@@ -36,7 +36,7 @@ type GPUMetrics struct {
 	Power   float64 // unit: W
 	Util    float64 // GPU utilization(%)
 	MemUtil float64 // GPU VRAM utilization(%)
-	Temp    float64 // unit: â„ƒ
+	Temp    float64 // unit: â„?
 }
 
 type SystemLoadMetrics struct {
@@ -45,7 +45,7 @@ type SystemLoadMetrics struct {
 	CPULoad5       float64 // 5 minute load average
 	CPULoad15      float64 // 15 minute load average
 	Frequencies    float64 // CPU average frequency(MHz)
-	CPUTemperature float64 // CPU temperature(â„ƒ)
+	CPUTemperature float64 // CPU temperature(â„?
 
 	MemoryUtil  float64 // memory utilization(%)
 	MemoryUsed  float64 // used memory(GB)

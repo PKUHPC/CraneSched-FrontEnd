@@ -9,8 +9,9 @@ import (
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	logrus "github.com/sirupsen/logrus"
 
-	"CraneFrontEnd/plugin/energy/pkg/config"
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/plugin/monitor/pkg/config"
+	"CraneFrontEnd/plugin/monitor/pkg/types"
 )
 
 var log = logrus.WithField("component", "InfluxDB")
@@ -21,11 +22,13 @@ const (
 )
 
 type InfluxDB struct {
-	client     influxdb2.Client
-	org        string
-	nodeBucket string
-	jobBucket  string
-	enabled    *config.Enabled
+	client              influxdb2.Client
+	org                 string
+	nodeBucket          string
+	jobBucket           string
+	eventMeasurement    string
+	resourceMeasurement string
+	enabled             *config.Enabled
 }
 
 func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
@@ -53,11 +56,13 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 	}
 
 	db := &InfluxDB{
-		client:     client,
-		org:        config.DB.InfluxDB.Org,
-		nodeBucket: config.DB.InfluxDB.NodeBucket,
-		jobBucket:  config.DB.InfluxDB.JobBucket,
-		enabled:    &config.Monitor.Enabled,
+		client:              client,
+		org:                 config.DB.InfluxDB.Org,
+		nodeBucket:          config.DB.InfluxDB.NodeBucket,
+		jobBucket:           config.DB.InfluxDB.JobBucket,
+		eventMeasurement:    config.DB.InfluxDB.EventMeasurement,
+		resourceMeasurement: config.DB.InfluxDB.ResourceMeasurement,
+		enabled:             &config.Monitor.Enabled,
 	}
 
 	if err := db.createBucketIfNotExists(db.nodeBucket); err != nil {
@@ -203,6 +208,62 @@ func (db *InfluxDB) SaveJobEnergy(jobData *types.JobData) error {
 	)
 
 	return writeAPI.WritePoint(context.Background(), p)
+}
+
+func (db *InfluxDB) SaveNodeEvents(events []*protos.CranedEventInfo) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	log.Infof("Saving %d node events", len(events))
+
+	writeAPI := db.client.WriteAPIBlocking(db.org, db.nodeBucket)
+	
+	measurement := db.eventMeasurement
+	if measurement == "" {
+		measurement = "NodeEvents"
+	}
+
+	ctx := context.Background()
+	for _, event := range events {
+		tags := map[string]string{
+			"cluster_name": event.ClusterName,
+			"node_name":    event.NodeName,
+		}
+		
+		reason := event.Reason
+		if reason == "" {
+			reason = " "
+		}
+		
+		var stateValue int32
+		if controlState, ok := event.StateType.(*protos.CranedEventInfo_ControlState); ok {
+			stateValue = int32(controlState.ControlState)
+		} else if powerState, ok := event.StateType.(*protos.CranedEventInfo_PowerState); ok {
+			stateValue = int32(powerState.PowerState)
+		} else {
+			stateValue = -1 // unknown state type
+		}
+		
+		fields := map[string]any{
+			"uid":        event.Uid,
+			"start_time": event.StartTime.AsTime().UnixNano(),
+			"state":      stateValue,
+			"reason":     reason,
+		}
+
+		point := influxdb2.NewPoint(measurement, tags, fields, time.Now())
+
+		if err := writeAPI.WritePoint(ctx, point); err != nil {
+			log.Errorf("Failed to write event to InfluxDB: %v", err)
+			return fmt.Errorf("failed to write event: %v", err)
+		}
+
+		log.Tracef("Recorded cluster_name: %v, uid: %v, node_name: %s, state: %d, start_time: %s, Reason: %s",
+			event.ClusterName, event.Uid, event.NodeName, stateValue, event.StartTime.AsTime().Format(time.RFC3339), event.Reason)
+	}
+
+	return nil
 }
 
 func (db *InfluxDB) Close() error {

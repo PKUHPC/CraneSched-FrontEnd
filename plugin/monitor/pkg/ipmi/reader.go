@@ -10,7 +10,7 @@ import (
 	logrus "github.com/sirupsen/logrus"
 	"github.com/u-root/u-root/pkg/ipmi"
 
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"CraneFrontEnd/plugin/monitor/pkg/types"
 )
 
 var log = logrus.WithField("component", "IPMI")
