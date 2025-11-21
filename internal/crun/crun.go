@@ -78,6 +78,11 @@ type ReplyReceiveItem struct {
 	err   error
 }
 
+type X11GlobalId struct {
+	CranedId string
+	LocalId  uint32
+}
+
 type StateMachineOfCrun struct {
 	task   *protos.TaskToCtld
 	jobId  uint32 // This field will be set after ReqTaskId state
@@ -99,14 +104,14 @@ type StateMachineOfCrun struct {
 	cforedReplyReceiver *CforedReplyReceiver
 
 	// These fields are used under Forwarding State.
-	taskFinishCtx           context.Context
-	taskFinishCb            context.CancelFunc
-	taskErrCtx              context.Context
-	taskErrCb               context.CancelFunc
-	chanInputFromTerm       chan []byte
-	chanOutputFromRemote    chan []byte
-	chanX11InputFromLocal   chan []byte
-	chanX11OutputFromRemote chan []byte
+	taskFinishCtx         context.Context
+	taskFinishCb          context.CancelFunc
+	taskErrCtx            context.Context
+	taskErrCb             context.CancelFunc
+	chanInputFromTerm     chan []byte
+	chanOutputFromRemote  chan []byte
+	X11FwdMap             map[X11GlobalId]chan []byte
+	chanX11InputFromLocal chan *protos.StreamCrunRequest
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
@@ -422,16 +427,8 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					return
 				}
 
-			case msg := <-m.chanX11InputFromLocal:
-				request = &protos.StreamCrunRequest{
-					Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
-					Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
-						PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
-							Msg: msg,
-						},
-					},
-				}
-				if err := m.stream.Send(request); err != nil {
+			case req := <-m.chanX11InputFromLocal:
+				if err := m.stream.Send(req); err != nil {
 					log.Errorf("Failed to send Task X11 Input to CrunStream: %s. "+
 						"Connection to Crun is broken", err)
 					gVars.connectionBroken = true
@@ -507,7 +504,41 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
 
 				case protos.StreamCrunReply_TASK_X11_FORWARD:
-					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
+					reply := cforedReply.GetPayloadTaskX11ForwardReply()
+					to_x11_chan, exist := m.X11FwdMap[X11GlobalId{CranedId: reply.CranedId, LocalId: reply.X11Id}]
+					if exist {
+						if reply.Eof {
+							to_x11_chan <- nil
+						} else {
+							to_x11_chan <- reply.Msg
+						}
+					} else {
+						log.Tracef("[X11 #{%s.%d}] No such X11 forwarding channel, dropping data and reply eof.",
+							reply.CranedId, reply.X11Id)
+						req := &protos.StreamCrunRequest{
+							Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
+							Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
+								&protos.StreamCrunRequest_TaskX11ForwardReq{
+									Msg:      nil,
+									X11Id:    reply.X11Id,
+									Eof:      true,
+									CranedId: reply.CranedId,
+								},
+							},
+						}
+						m.chanX11InputFromLocal <- req
+					}
+				case protos.StreamCrunReply_TASK_EXIT_STATUS:
+					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
+					if exitStatus.ExitCode != 0 {
+						if exitStatus.Signaled {
+							fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+						} else {
+							fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+								exitStatus.TaskId, exitStatus.ExitCode)
+						}
+						m.err = int(exitStatus.ExitCode)
+					}
 
 				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
 					m.taskFinishCtx.Done()
@@ -888,24 +919,39 @@ reading:
 	}
 }
 
-func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
+func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine(CranedId string, LocalId uint32) {
 	var reader *bufio.Reader
 	var conn net.Conn
 	var err error
+
+	id := X11GlobalId{CranedId: CranedId, LocalId: LocalId}
+	chanX11InputFromRemote := make(chan []byte, 100)
+	m.X11FwdMap[id] = chanX11InputFromRemote
+	failedReq := &protos.StreamCrunRequest{
+		Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
+		Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
+			&protos.StreamCrunRequest_TaskX11ForwardReq{
+				Msg:      nil,
+				X11Id:    LocalId,
+				Eof:      true,
+				CranedId: CranedId,
+			},
+		},
+	}
 
 	x11meta := m.task.GetInteractiveMeta().GetX11Meta()
 	if x11meta.Port == 0 { // Unix Socket
 		conn, err = net.Dial("unix", x11meta.Target)
 		if err != nil {
 			log.Errorf("Failed to connect to X11 display by unix: %v", err)
-			return
+			m.chanX11InputFromLocal <- failedReq
 		}
 	} else { // TCP socket
 		address := net.JoinHostPort(x11meta.Target, fmt.Sprintf("%d", x11meta.Port))
 		conn, err = net.Dial("tcp", address)
 		if err != nil {
 			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
-			return
+			m.chanX11InputFromLocal <- failedReq
 		}
 	}
 	defer conn.Close()
@@ -918,6 +964,20 @@ func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
 			n, err := reader.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
+					data := make([]byte, n)
+					copy(data, buffer[:n])
+					req := &protos.StreamCrunRequest{
+						Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
+						Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
+							&protos.StreamCrunRequest_TaskX11ForwardReq{
+								Msg:      data,
+								X11Id:    LocalId,
+								Eof:      true,
+								CranedId: CranedId,
+							},
+						},
+					}
+					m.chanX11InputFromLocal <- req
 					return
 				}
 				log.Tracef("X11 fd has been closed and stop reading: %v", err)
@@ -925,7 +985,18 @@ func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
 			}
 			data := make([]byte, n)
 			copy(data, buffer[:n])
-			m.chanX11InputFromLocal <- data
+			req := &protos.StreamCrunRequest{
+				Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
+				Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
+					&protos.StreamCrunRequest_TaskX11ForwardReq{
+						Msg:      data,
+						X11Id:    LocalId,
+						Eof:      false,
+						CranedId: CranedId,
+					},
+				},
+			}
+			m.chanX11InputFromLocal <- req
 			log.Tracef("Received data from x11 fd (len %d)", len(data))
 		}
 	}()
@@ -937,7 +1008,12 @@ loop:
 		case <-m.taskFinishCtx.Done():
 			break loop
 
-		case msg := <-m.chanX11OutputFromRemote:
+		case msg := <-chanX11InputFromRemote:
+			if msg == nil {
+				delete(m.X11FwdMap, id)
+				log.Tracef("X11 fd closed by remote, exiting x11 writer routine.")
+				break loop
+			}
 			log.Tracef("Writing to x11 fd.")
 			_, err := writer.Write(msg)
 			if err != nil {
@@ -952,6 +1028,7 @@ loop:
 			}
 		}
 	}
+	return
 }
 
 func (m *StateMachineOfCrun) StartIOForward() {
@@ -961,8 +1038,8 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanInputFromTerm = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
 
-	m.chanX11InputFromLocal = make(chan []byte, 100)
-	m.chanX11OutputFromRemote = make(chan []byte, 20)
+	m.chanX11InputFromLocal = make(chan *protos.StreamCrunRequest, 100)
+	m.X11FwdMap = make(map[X11GlobalId]chan []byte)
 
 	go m.forwardingSigHandlerRoutine()
 	if strings.ToLower(FlagInput) == FlagInputALL {
@@ -982,11 +1059,6 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	}
 
 	go m.StdoutWriterRoutine()
-
-	iaMeta := m.task.GetInteractiveMeta()
-	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
-		go m.StartX11ReaderWriterRoutine()
-	}
 }
 
 func MainCrun(args []string) error {
