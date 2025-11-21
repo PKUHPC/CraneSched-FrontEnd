@@ -509,6 +509,18 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				case protos.StreamCrunReply_TASK_X11_FORWARD:
 					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
 
+				case protos.StreamCrunReply_TASK_EXIT_STATUS:
+					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
+					if exitStatus.ExitCode != 0 {
+						if exitStatus.Signaled {
+							fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+						} else {
+							fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+								exitStatus.TaskId, exitStatus.ExitCode)
+						}
+						m.err = int(exitStatus.ExitCode)
+					}
+
 				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
 					m.taskFinishCtx.Done()
 					log.Trace("Received TASK_CANCEL_REQUEST")
