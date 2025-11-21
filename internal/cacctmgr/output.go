@@ -220,7 +220,7 @@ func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInf
 			for j := 0; j < len(accountList); j++ {
 				formatTableData[j] = append(formatTableData[j], strings.Join(accountList[j].Coordinators, ", "))
 			}
-		case "Blocked":
+		case "blocked":
 			tableOutputHeader[i] = "Blocked"
 			for j := 0; j < len(accountList); j++ {
 				formatTableData[j] = append(formatTableData[j], strconv.FormatBool(accountList[j].Blocked))
