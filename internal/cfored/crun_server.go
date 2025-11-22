@@ -469,39 +469,48 @@ CforedCrunStateMachineLoop:
 						}
 						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding msg size[%d]",
 							jobId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
-						if err := toCrunStream.Send(reply); err != nil {
-							log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send TASK_IO_FORWARD to crun: %s. "+
-								"The connection to crun was broken.", jobId, stepId, err.Error())
-							state = CancelTaskOfDeadCrun
-							break forwarding
-						}
 					} else if taskMsg.Type == protos.StreamTaskIORequest_TASK_X11_OUTPUT {
+						req := taskMsg.GetPayloadTaskX11OutputReq()
 						reply = &protos.StreamCrunReply{
 							Type: protos.StreamCrunReply_TASK_X11_FORWARD,
 							Payload: &protos.StreamCrunReply_PayloadTaskX11ForwardReply{
 								PayloadTaskX11ForwardReply: &protos.StreamCrunReply_TaskX11ForwardReply{
-									Msg: taskMsg.GetPayloadTaskX11OutputReq().Msg,
+									Msg: req.Msg,
 								},
 							},
 						}
 						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d]  fowarding x11 msg size[%d]",
 							jobId, stepId, len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
-						if err := toCrunStream.Send(reply); err != nil {
-							log.Debugf("[Cfored<->Crun] Failed to send TASK_X11_FORWARD to crun: %s. "+
-								"The connection to crun was broken.", err.Error())
-							state = CancelTaskOfDeadCrun
-							break forwarding
+					} else if taskMsg.Type == protos.StreamTaskIORequest_TASK_EXIT_STATUS {
+						req := taskMsg.GetPayloadTaskExitStatusReq()
+						reply = &protos.StreamCrunReply{
+							Type: protos.StreamCrunReply_TASK_EXIT_STATUS,
+							Payload: &protos.StreamCrunReply_PayloadTaskExitStatusReply{
+								PayloadTaskExitStatusReply: &protos.StreamCrunReply_TaskExitStatusReply{
+									TaskId:   req.TaskId,
+									ExitCode: req.ExitCode,
+									Signaled: req.Signaled,
+								},
+							},
 						}
+						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][Task #%d] fowarding task exit msg ",
+							jobId, stepId, req.TaskId)
 					} else {
-						log.Fatalf("[Supervisor->Cfored->Crun][Step #%d.%d]  Expect Type TASK_OUTPUT or TASK_X11_OUTPUT.",
+						log.Fatalf("[Supervisor->Cfored->Crun][Step #%d.%d] Expect Type TASK_OUTPUT or TASK_X11_OUTPUT or TASK_EXIT_STATUS.",
 							jobId, stepId)
+						break forwarding
+					}
+					if err := toCrunStream.Send(reply); err != nil {
+						log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send %s to crun: %s. "+
+							"The connection to crun was broken.", jobId, stepId, taskMsg.Type.String(), err.Error())
+						state = CancelTaskOfDeadCrun
 						break forwarding
 					}
 				}
 			}
 
 		case CrunWaitTaskCancel:
-			log.Debugf("[Cfored<->Crun][Step #%d.%d]  Enter State WAIT_CRUN_CANCEL. Sending TASK_CANCEL_REQUEST to Crun...",
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CRUN_CANCEL. Sending TASK_CANCEL_REQUEST to Crun...",
 				jobId, stepId)
 
 			reply = &protos.StreamCrunReply{
@@ -563,7 +572,7 @@ CforedCrunStateMachineLoop:
 			state = CrunWaitCtldAck
 
 		case CrunWaitCtldAck:
-			log.Infof("[Cfored<->Crun][Step #%d.%d]  Enter State WAIT_CTLD_ACK", jobId, stepId)
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CTLD_ACK", jobId, stepId)
 
 			ctldReply := <-ctldReplyChannel
 			if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
