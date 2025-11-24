@@ -29,6 +29,7 @@ var (
 	FlagFull             bool
 	FlagNoHeader         bool
 	FlagStartTime        bool
+	FlagDeadlineTime     bool
 	FlagSelf             bool
 	FlagFilterPartitions string
 	FlagFilterJobIDs     string
@@ -98,6 +99,7 @@ func init() {
 		"Display at specified intervals (seconds), default is 0 (no iteration)")
 	RootCmd.Flags().BoolVarP(&FlagStartTime, "start", "S", false,
 		"Display expected start time of pending jobs")
+	RootCmd.Flags().BoolVar(&FlagDeadlineTime, "deadline", false, "Display the deadline time of jobs")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
 		"Do not print header line in the output")
 	RootCmd.Flags().BoolVar(&FlagSelf, "self", false,
@@ -114,6 +116,7 @@ Supported format identifiers or string, string case insensitive:
 	%a/%Account            - Display the account associated with the job.
 	%C/%ReqCpus            - Display the cpus requested to the job.
 	%c/%AllocCpus          - Display the cpus allocated to the job.
+	%deadline/%Deadline    - Display the deadline time of jobs.
 	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
 	%h/%Held               - Display the hold state of the job.
 	%j/%JobID              - Display the ID of the job.
