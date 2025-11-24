@@ -147,7 +147,7 @@ func showHelp() {
     Parameter details:
       Name=<name1,name2,...>    Show only these QoS (comma-separated)
       (If not specified, all QoS will be displayed)
-      format=<Name,Desciption,Priority,MaxJobsPerUser,MaxCpusPerUser,MaxCpusPerUser,
+      format=<Name,Description,Priority,MaxJobsPerUser,MaxCpusPerUser,MaxCpusPerUser,
               MaxTimeLimitPerTask> (Spelling must be correct,case is not important)
       For Example: cacctmgr show qos format=name,MaxJobsPerUser,MaxCpusPerUser
 
