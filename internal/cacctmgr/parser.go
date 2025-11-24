@@ -90,10 +90,11 @@ type ResetCommand struct {
 }
 
 type EntityType struct {
-	Account bool `parser:"@'account'"`
-	User    bool `parser:"| @'user'"`
-	Qos     bool `parser:"| @'qos'"`
-	Txn     bool `parser:"| @'transaction'"`
+	Account  bool `parser:"@'account'"`
+	User     bool `parser:"| @'user'"`
+	Qos      bool `parser:"| @'qos'"`
+	Txn      bool `parser:"| @'transaction'"`
+	Resource bool `parser:"| @'resource'"`
 }
 
 type Flag struct {
@@ -159,6 +160,8 @@ func (r EntityType) String() string {
 		return "qos"
 	case r.Txn:
 		return "transaction"
+	case r.Resource:
+		return "resource"
 	default:
 		return ""
 	}
