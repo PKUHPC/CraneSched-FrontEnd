@@ -38,6 +38,9 @@ var (
 		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
 	}
 	FlagWckey protos.WckeyInfo
+	FlagResource protos.LicenseResourceInfo
+	FlagAllowed  uint32
+	FlagClusters string
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -161,6 +164,8 @@ func executeAddCommand(command *CAcctMgrCommand) int {
 		return executeAddQosCommand(command)
 	case "wckey":
 		return executeAddWckeyCommand(command)
+	case "resource":
+		return executeAddResourceCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -306,6 +311,69 @@ func executeAddWckeyCommand(command *CAcctMgrCommand) int {
 	return AddWckey(&FlagWckey)
 }
 
+func executeAddResourceCommand(command *CAcctMgrCommand) int {
+	FlagResource = protos.LicenseResourceInfo{
+		Type: protos.LicenseResource_NotSet,
+	}
+
+	FlagResource.ResourceName = command.GetID()
+	KVParams := command.GetKVMaps()
+
+	hasCluster := false
+	hasAllowed := false
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagResource.ResourceName = value
+		case "server":
+			FlagResource.Server = value
+		case "count":
+			if err := validateUintValue(value, "count", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			count, _ := strconv.ParseUint(value, 10, 32)
+			FlagResource.Count = uint32(count)
+		case "descriptions":
+			FlagResource.Description = value
+		case "lastconsumed":
+			if err := validateUintValue(value, "lastConsumed", 64); err != nil {
+				return util.ErrorCmdArg
+			}
+			lastConsumed, _ := strconv.ParseUint(value, 10, 64)
+			FlagResource.LastConsumed = uint32(lastConsumed)
+		case "servertype":
+			FlagResource.ServerType = value
+		case "type":
+			if value == "license" {
+				FlagResource.Type = protos.LicenseResource_License
+			} else {
+				log.Errorf("unknown type: %s", value)
+				return util.ErrorCmdArg
+			}
+		case "allowed":
+			if err := validateUintValue(value, "allowed", 64); err != nil {
+				return util.ErrorCmdArg
+			}
+			allowed, _ := strconv.ParseUint(value, 10, 64)
+			FlagAllowed = uint32(allowed)
+			hasAllowed = true
+		case "clusters":
+			FlagClusters = value
+			hasCluster = true
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if hasCluster != hasAllowed {
+		log.Errorf("'allowed' and 'cluster' must be specified together")
+		return util.ErrorCmdArg
+	}
+	return AddLicenseResource(&FlagResource, FlagClusters, FlagAllowed)
+}
+
 func executeDeleteCommand(command *CAcctMgrCommand) int {
 	entity := command.GetEntity()
 
@@ -318,6 +386,8 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 		return executeDeleteQosCommand(command)
 	case "wckey":
 		return executeDeleteWckeyCommand(command)
+	case "resource":
+		return executeDeleteResourceCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -412,6 +482,27 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
 		}
 	}
 	return DeleteWckey(FlagWckey.Name, FlagWckey.UserName)
+}
+
+func executeDeleteResourceCommand(command *CAcctMgrCommand) int {
+	FlagEntityName = command.GetID()
+	FlagServer := ""
+	if FlagEntityName == "" {
+		log.Errorf("Error: required entity resource not set")
+		return util.ErrorCmdArg
+	}
+	KVParams := command.GetKVMaps()
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagEntityName = value
+		case "server":
+			FlagServer = value
+		case "clusters":
+			FlagClusters = value
+		}
+	}
+	return DeleteLicenseResource(FlagEntityName, FlagServer, FlagClusters)
 }
 
 func executeBlockCommand(command *CAcctMgrCommand) int {
@@ -564,6 +655,8 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 		return executeModifyQosCommand(command)
 	case "wckey":
 		return executeModifyWckeyCommand(command)
+	case "resource":
+		return executeModifyResourceCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -974,6 +1067,73 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	return ModifyQos(params, FlagEntityName)
 }
 
+func executeModifyResourceCommand(command *CAcctMgrCommand) int {
+	FlagResourceName := ""
+	FlagServerName := ""
+
+	WhereParams := command.GetWhereParams()
+	SetParams, _, _ := command.GetSetParams()
+
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify resource command requires 'where' clause to specify which resource to modify")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"name", "server"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagResourceName = value
+		case "server":
+			FlagServerName = value
+		case "cluster":
+			FlagClusters = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for resource modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(SetParams) == 0 {
+		log.Errorf("Error: modify resource command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range SetParams {
+		switch strings.ToLower(key) {
+		case "count":
+			if err := validateUintValue(value, "count", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			ModifyResource(FlagResourceName, FlagServerName, "", protos.LicenseResource_Count, value)
+		case "lastconsumed":
+			if err := validateUintValue(value, "lastConsumed", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			ModifyResource(FlagResourceName, FlagServerName, "", protos.LicenseResource_LastConsumed, value)
+		case "descriptions":
+			ModifyResource(FlagResourceName, FlagServerName, "", protos.LicenseResource_Description, value)
+		case "flags":
+		// TODO
+		case "allowed":
+			if len(FlagClusters) == 0 {
+				log.Errorf("Error: modify 'allowed' requires 'clusters' clause to specify which cluster resource to modify")
+				return util.ErrorCmdArg
+			}
+			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_Allowed, value)
+		default:
+			log.Errorf("Error: unknown set parameter '%s' for qos modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return util.ErrorSuccess
+}
+
 func executeShowCommand(command *CAcctMgrCommand) int {
 	entity := command.GetEntity()
 
@@ -986,6 +1146,8 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 		return executeShowQosCommand(command)
 	case "transaction":
 		return executeShowTxnLogCommand(command)
+	case "resource":
+		return executeShowResourceCommand(command)
 	case "event":
 		return executeShowEventCommand(command)
 	case "wckey":
@@ -1103,6 +1265,35 @@ func executeShowTxnLogCommand(command *CAcctMgrCommand) int {
 	}
 
 	return ShowTxn(FlagActor, FlagTarget, FlagAction, FlagInfo, FlagStartTime)
+}
+
+func executeShowResourceCommand(command *CAcctMgrCommand) int {
+
+	FlagWithClusters := command.GetID()
+
+	FlagServer := ""
+
+	WhereParams := command.GetWhereParams()
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagEntityName = value
+		case "server":
+			FlagServer = value
+		case "cluster":
+			FlagClusters = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for show transaction", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	hasWithClusters := false
+	if strings.ToLower(FlagWithClusters) == "withclusters" {
+		hasWithClusters = true
+	}
+
+	return ShowLicenseResources(FlagEntityName, FlagServer, FlagClusters, hasWithClusters)
 }
 
 func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
