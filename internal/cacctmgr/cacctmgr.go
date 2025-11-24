@@ -101,11 +101,47 @@ func PrintLicenseResource(resourceList []*protos.LicenseResourceInfo, hasWithClu
 	// Table format control
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
-	table.SetHeader([]string{"Name", "Server", "Type", "Count", "LastConsumed", "Allocated", "ServerType", "Flags"})
+	if !hasWithClusters {
+		table.SetHeader([]string{"Name", "Server", "Type", "Count", "LastConsumed", "Allocated", "ServerType", "Flags"})
+	} else {
+		table.SetHeader([]string{"Name", "Server", "Type", "Count", "LastConsumed", "Allocated", "ServerType", "Clusters", "Allowed", "Flags"})
+	}
+
 	tableData := make([][]string, len(resourceList))
-	//for _, info := range resourceList {
-	//
-	//}
+	for _, info := range resourceList {
+		var typeString string
+		if info.Type == protos.LicenseResource_License {
+			typeString = "License"
+		}
+
+		if !hasWithClusters {
+			tableData = append(tableData, []string{
+				info.ResourceName,
+				info.Server,
+				typeString,
+				strconv.Itoa(int(info.Count)),
+				strconv.Itoa(int(info.LastConsumed)),
+				strconv.Itoa(int(info.Allocated)),
+				info.ServerType,
+				"", // TODO: flags
+			})
+		} else {
+			for cluster_name, allowed := range info.ClusterResourceInfo {
+				tableData = append(tableData, []string{
+					info.ResourceName,
+					info.Server,
+					typeString,
+					strconv.Itoa(int(info.Count)),
+					strconv.Itoa(int(info.LastConsumed)),
+					strconv.Itoa(int(info.Allocated)),
+					info.ServerType,
+					cluster_name,
+					strconv.Itoa(int(allowed)),
+					"", // TODO: flags
+				})
+			}
+		}
+	}
 
 	if !FlagFull && FlagFormat == "" {
 		util.TrimTable(&tableData)
@@ -283,6 +319,7 @@ func AddLicenseResource(licenseResource *protos.LicenseResourceInfo, clusters st
 		}
 	}
 
+	licenseResource.ClusterResourceInfo = make(map[string]uint32)
 	for _, cluster := range clusterList {
 		licenseResource.ClusterResourceInfo[cluster] = allowed
 	}
