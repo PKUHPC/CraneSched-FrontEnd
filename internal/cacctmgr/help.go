@@ -60,12 +60,12 @@ func showHelp() {
     Parameter details:
       Name=<name1,name2,...>    Name of accounts to delete (comma-separated)
   
-	show account [Name=<name1,name2,...>] [format=<Name,Desciption,...>]
+	show account [Name=<name1,name2,...>] [format=<Name,Description,...>]
     Display information about accounts.
     Parameter details:
       Name=<name1,name2,...>    Show only these accounts (comma-separated)
       (If not specified, all accounts will be displayed)
-      format=<Name,Desciption,AllowedPartition,Users,DefaultQos,AllowedQosList,
+      format=<Name,Description,AllowedPartition,Users,DefaultQos,AllowedQosList,
               Coordinators,Blocked> (Spelling must be correct,case is not important)
               For Example: cacctmgr show account format=name,users,coordinators
   
