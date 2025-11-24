@@ -226,7 +226,7 @@ func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInf
 				formatTableData[j] = append(formatTableData[j], strconv.FormatBool(accountList[j].Blocked))
 			}
 		default:
-			log.Errorf("Invalid format.Your enter:%s is error", formatReq[i])
+			log.Errorf("Invalid format. You entered: '%s'", formatReq[i])
 			os.Exit(util.ErrorInvalidFormat)
 		}
 	}
@@ -296,6 +296,7 @@ func ShowAccounts() util.ExitCode {
 			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
+		return util.ErrorBackend
 	}
 	PrintAccountList(reply.AccountList)
 	return util.ErrorSuccess
@@ -600,6 +601,7 @@ func ShowUser(value string, account string) util.ExitCode {
 			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
+		return util.ErrorBackend
 	}
 
 	PrintUserList(reply.UserList)
@@ -778,6 +780,7 @@ func ShowQos(value string) util.ExitCode {
 			}
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
+		return util.ErrorBackend
 	}
 
 	PrintQosList(reply.QosList)
