@@ -137,6 +137,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			task.Account = arg.val
 		case "--qos", "Q":
 			task.Qos = arg.val
+		case "--licenses", "-L":
+			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
+			if err != nil {
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.LicensesCount = licCount
+			task.IsLicensesOr = isLicenseOr
 		case "--chdir":
 			task.Cwd = arg.val
 		case "--exclude", "-x":
@@ -237,6 +244,14 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if FlagQos != "" {
 		task.Qos = FlagQos
+	}
+	if FlagLicenses != "" {
+		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: invalid --licenses value '%s': %w", FlagLicenses, err)
+		}
+		task.LicensesCount = licCount
+		task.IsLicensesOr = isLicenseOr
 	}
 	if FlagCwd != "" {
 		task.Cwd = FlagCwd
@@ -355,10 +370,7 @@ func SendRequest(task *protos.TaskToCtld) error {
 		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
 		return nil
 	} else {
-		return &util.CraneError{
-			Code:    util.ErrorBackend,
-			Message: fmt.Sprintf("Job allocation failed: %s.", util.ErrMsg(reply.GetCode())),
-		}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Job allocation failed: %s.", util.ErrMsg(reply.GetCode())))
 	}
 }
 
@@ -401,7 +413,7 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) error {
 func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return err
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -443,9 +455,13 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 		}
 		err := processor.Process(scanner.Text(), sh, args)
 		if err != nil {
-			return fmt.Errorf("failed to process line %d: %w", num, err)
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Parsing error at line %d: %s", num, err))
 		}
 	}
 
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to read the script file", err)
+	}
+
+	return nil
 }

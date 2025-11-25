@@ -108,6 +108,8 @@ func executeShowCommand(command *CControlCommand) int {
 		return executeShowJobCommand(command)
 	case "reservation":
 		return executeShowReservationCommand(command)
+	case "lic":
+		return executeShowLicenseCommand(command)
 	default:
 		log.Debugf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -164,6 +166,20 @@ func executeShowReservationCommand(command *CControlCommand) int {
 	err := ShowReservations(name, FlagQueryAll)
 	if err != nil {
 		log.Errorf("show reservations failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeShowLicenseCommand(command *CControlCommand) int {
+	name := command.GetID()
+	if len(name) == 0 {
+		FlagQueryAll = true
+		name = ""
+	}
+	err := ShowLicenses(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show licenses failed: %s", err)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess
