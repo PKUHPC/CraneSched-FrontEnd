@@ -1106,6 +1106,18 @@ func MainCrun(args []string) error {
 		task.Hold = true
 	}
 
+	if FlagLicenses != "" {
+		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: %s.", err),
+			}
+		}
+		task.LicensesCount = licCount
+		task.IsLicensesOr = isLicenseOr
+	}
+
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
