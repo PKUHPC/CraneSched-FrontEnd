@@ -38,10 +38,10 @@ type CgroupConfig struct {
 }
 
 type DBConfig struct {
-	Type     string          `mapstructure:"Type"`
-	InfluxDB *InfluxDBConfig `mapstructure:"Influxdb"`
-	Interval uint32          `mapstructure:"Interval"`
-	BufferSize uint32        `mapstructure:"BufferSize"`
+	Type       string          `mapstructure:"Type"`
+	InfluxDB   *InfluxDBConfig `mapstructure:"Influxdb"`
+	Interval   uint32          `mapstructure:"Interval"`
+	BufferSize uint32          `mapstructure:"BufferSize"`
 }
 
 type InfluxDBConfig struct {

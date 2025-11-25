@@ -175,7 +175,7 @@ func (p MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {
 	}
 
 	log.Infof("NodeEventHook received for %d events", len(req.GetEventInfoList()))
-	
+
 	if err := db.GetInstance().SaveNodeEvents(req.GetEventInfoList()); err != nil {
 		log.Errorf("Failed to save node events: %v", err)
 	}
