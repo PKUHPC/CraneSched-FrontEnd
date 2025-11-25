@@ -731,6 +731,7 @@ message StreamCrunRequest {
     TASK_COMPLETION_REQUEST = 1;
     TASK_IO_FORWARD = 2;
     TASK_X11_FORWARD = 3;
+    TASK_X11_EOF = 4;
   }
 
   message TaskReq {
@@ -749,6 +750,15 @@ message StreamCrunRequest {
 
   message TaskX11ForwardReq {
     bytes msg = 1;
+    uint32 local_id = 2;
+    string craned_id = 3;
+  }
+
+  message TaskX11EOFReq {
+    bytes msg = 1;
+    bool eof = 2;
+    uint32 local_id = 3;
+    string craned_id = 4;
   }
 
   CrunRequestType type = 1;
@@ -758,6 +768,7 @@ message StreamCrunRequest {
     TaskCompleteReq payload_task_complete_req = 3;
     TaskIOForwardReq payload_task_io_forward_req = 4;
     TaskX11ForwardReq payload_task_x11_forward_req = 5;
+    TaskX11EOFReq payload_task_x11_eof_req = 6;
   }
 }
 
@@ -771,6 +782,8 @@ message StreamCrunReply {
     TASK_IO_FORWARD_READY = 5;
     TASK_X11_FORWARD = 6;
     TASK_EXIT_STATUS = 7;
+    TASK_X11_CONN = 8;
+    TASK_X11_EOF = 9;
   }
 
   message TaskIdReply {
@@ -799,8 +812,20 @@ message StreamCrunReply {
     bytes msg = 1;
   }
 
+  message TaskX11ConnReply {
+    string craned_id = 1;
+    uint32 local_id = 2;
+  }
+
   message TaskX11ForwardReply {
     bytes msg = 1;
+    string craned_id = 2;
+    uint32 local_id = 3;
+  }
+
+  message TaskX11EofReply {
+    string craned_id = 1;
+    uint32 local_id = 2;
   }
 
   message TaskExitStatusReply {
@@ -820,6 +845,8 @@ message StreamCrunReply {
     TaskIOForwardReply payload_task_io_forward_reply = 7;
     TaskX11ForwardReply payload_task_x11_forward_reply = 8;
     TaskExitStatusReply payload_task_exit_status_reply = 9;
+    TaskX11ConnReply payload_task_x11_conn_reply = 10;
+    TaskX11EofReply payload_task_x11_eof_reply = 11;
   }
 }
 
@@ -830,6 +857,8 @@ message StreamTaskIORequest {
     SUPERVISOR_UNREGISTER = 2;
     TASK_X11_OUTPUT = 3;
     TASK_EXIT_STATUS = 4;
+    TASK_X11_CONN = 5;
+    TASK_X11_EOF = 6;
   }
 
   message SupervisorRegisterReq {
@@ -844,14 +873,26 @@ message StreamTaskIORequest {
 
   message SupervisorUnRegisterReq {}
 
-  message TaskX11OutputReq {
-    bytes msg = 1;
+  message TaskX11FwdConnReq {
+    uint32 local_id = 1;
+    string craned_id = 2;
   }
 
-  message TaskExitStatus{
+  message TaskX11OutputReq {
+    bytes msg = 1;
+    uint32 local_id = 2;
+    string craned_id = 3;
+  }
+
+  message TaskX11OutputEofReq {
+    uint32 local_id = 1;
+    string craned_id = 2;
+  }
+
+  message TaskExitStatus {
     uint32 task_id = 1;
     uint32 exit_code = 2;
-    bool   signaled = 3;
+    bool signaled = 3;
   }
 
   SupervisorRequestType type = 1;
@@ -862,6 +903,8 @@ message StreamTaskIORequest {
     SupervisorUnRegisterReq payload_unregister_req = 4;
     TaskX11OutputReq payload_task_x11_output_req = 5;
     TaskExitStatus payload_task_exit_status_req = 6;
+    TaskX11FwdConnReq payload_task_x11_fwd_conn_req = 7;
+    TaskX11OutputEofReq payload_task_x11_eof_req = 8;
   }
 }
 
@@ -888,6 +931,8 @@ message StreamTaskIOReply {
 
   message TaskX11InputReq {
     bytes msg = 1;
+    bool eof = 2;
+    uint32 local_id = 3;
   }
 
   SupervisorReplyType type = 1;

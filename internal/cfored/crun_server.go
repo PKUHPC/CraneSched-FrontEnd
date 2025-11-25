@@ -422,9 +422,17 @@ CforedCrunStateMachineLoop:
 							gSupervisorChanKeeper.forwardCrunRequestToSupervisor(jobId, stepId, crunRequest)
 
 						case protos.StreamCrunRequest_TASK_X11_FORWARD:
-							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive Local TASK_X11_FORWARD to remote task",
-								jobId, stepId)
-							gSupervisorChanKeeper.forwardCrunRequestToSupervisor(jobId, stepId, crunRequest)
+
+							payload := crunRequest.GetPayloadTaskX11ForwardReq()
+							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive Local TASK_X11_FORWARD to craned %s id:%d",
+								jobId, stepId, payload.GetCranedId(), payload.LocalId)
+							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
+
+						case protos.StreamCrunRequest_TASK_X11_EOF:
+							payload := crunRequest.GetPayloadTaskX11EofReq()
+							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive Local TASK_X11_EOF to craned %s id:%d",
+								jobId, stepId, payload.GetCranedId(), payload.LocalId)
+							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
 
 						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
 							log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
@@ -457,8 +465,8 @@ CforedCrunStateMachineLoop:
 						state = CrunWaitTaskCancel
 						break forwarding
 					}
-
-					if taskMsg.Type == protos.StreamTaskIORequest_TASK_OUTPUT {
+					switch taskMsg.Type {
+					case protos.StreamTaskIORequest_TASK_OUTPUT:
 						reply = &protos.StreamCrunReply{
 							Type: protos.StreamCrunReply_TASK_IO_FORWARD,
 							Payload: &protos.StreamCrunReply_PayloadTaskIoForwardReply{
@@ -469,7 +477,24 @@ CforedCrunStateMachineLoop:
 						}
 						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding msg size[%d]",
 							jobId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
-					} else if taskMsg.Type == protos.StreamTaskIORequest_TASK_X11_OUTPUT {
+
+					case protos.StreamTaskIORequest_TASK_X11_CONN:
+						req := taskMsg.GetPayloadTaskX11FwdConnReq()
+						localId := req.LocalId
+						cranedId := req.CranedId
+						reply = &protos.StreamCrunReply{
+							Type: protos.StreamCrunReply_TASK_X11_CONN,
+							Payload: &protos.StreamCrunReply_PayloadTaskX11ConnReply{
+								PayloadTaskX11ConnReply: &protos.StreamCrunReply_TaskX11ConnReply{
+									LocalId:  localId,
+									CranedId: cranedId,
+								},
+							},
+						}
+						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding x11 conn request to craned %s id:%d",
+							jobId, stepId, cranedId, localId)
+
+					case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
 						req := taskMsg.GetPayloadTaskX11OutputReq()
 						reply = &protos.StreamCrunReply{
 							Type: protos.StreamCrunReply_TASK_X11_FORWARD,
@@ -479,9 +504,25 @@ CforedCrunStateMachineLoop:
 								},
 							},
 						}
-						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d]  fowarding x11 msg size[%d]",
-							jobId, stepId, len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
-					} else if taskMsg.Type == protos.StreamTaskIORequest_TASK_EXIT_STATUS {
+						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d]  fowarding x11 msg size from craned %s id:%d len: [%d]",
+							jobId, stepId, req.GetCranedId(), req.GetLocalId(), len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
+
+					case protos.StreamTaskIORequest_TASK_X11_EOF:
+						req := taskMsg.GetPayloadTaskX11EofReq()
+						reply = &protos.StreamCrunReply{
+							Type: protos.StreamCrunReply_TASK_X11_EOF,
+							Payload: &protos.StreamCrunReply_PayloadTaskX11EofReply{
+								PayloadTaskX11EofReply: &protos.StreamCrunReply_TaskX11EofReply{
+									Eof:      true,
+									LocalId:  req.LocalId,
+									CranedId: req.CranedId,
+								},
+							},
+						}
+						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding x11 eof from craned %s id:%d",
+							jobId, stepId, req.GetCranedId(), req.GetLocalId())
+
+					case protos.StreamTaskIORequest_TASK_EXIT_STATUS:
 						req := taskMsg.GetPayloadTaskExitStatusReq()
 						reply = &protos.StreamCrunReply{
 							Type: protos.StreamCrunReply_TASK_EXIT_STATUS,
@@ -495,11 +536,12 @@ CforedCrunStateMachineLoop:
 						}
 						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][Task #%d] fowarding task exit msg ",
 							jobId, stepId, req.TaskId)
-					} else {
+					default:
 						log.Fatalf("[Supervisor->Cfored->Crun][Step #%d.%d] Expect Type TASK_OUTPUT or TASK_X11_OUTPUT or TASK_EXIT_STATUS.",
 							jobId, stepId)
 						break forwarding
 					}
+
 					if err := toCrunStream.Send(reply); err != nil {
 						log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send %s to crun: %s. "+
 							"The connection to crun was broken.", jobId, stepId, taskMsg.Type.String(), err.Error())

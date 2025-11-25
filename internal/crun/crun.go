@@ -22,7 +22,6 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
-	"net"
 	"os/user"
 	"regexp"
 	"strconv"
@@ -99,14 +98,13 @@ type StateMachineOfCrun struct {
 	cforedReplyReceiver *CforedReplyReceiver
 
 	// These fields are used under Forwarding State.
-	taskFinishCtx           context.Context
-	taskFinishCb            context.CancelFunc
-	taskErrCtx              context.Context
-	taskErrCb               context.CancelFunc
-	chanInputFromTerm       chan []byte
-	chanOutputFromRemote    chan []byte
-	chanX11InputFromLocal   chan []byte
-	chanX11OutputFromRemote chan []byte
+	taskFinishCtx        context.Context
+	taskFinishCb         context.CancelFunc
+	taskErrCtx           context.Context
+	taskErrCb            context.CancelFunc
+	chanInputFromTerm    chan []byte
+	chanOutputFromRemote chan []byte
+	X11SessionMgr        *X11SessionMgr
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
@@ -422,15 +420,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					return
 				}
 
-			case msg := <-m.chanX11InputFromLocal:
-				request = &protos.StreamCrunRequest{
-					Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
-					Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
-						PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
-							Msg: msg,
-						},
-					},
-				}
+			case request := <-m.X11SessionMgr.X11RequestChan:
 				if err := m.stream.Send(request); err != nil {
 					log.Errorf("Failed to send Task X11 Input to CrunStream: %s. "+
 						"Connection to Crun is broken", err)
@@ -506,8 +496,12 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				case protos.StreamCrunReply_TASK_IO_FORWARD:
 					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
 
+				case protos.StreamCrunReply_TASK_X11_CONN:
+					fallthrough
 				case protos.StreamCrunReply_TASK_X11_FORWARD:
-					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
+					fallthrough
+				case protos.StreamCrunReply_TASK_X11_EOF:
+					m.X11SessionMgr.X11ReplyChan <- cforedReply
 
 				case protos.StreamCrunReply_TASK_EXIT_STATUS:
 					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
@@ -900,81 +894,12 @@ reading:
 	}
 }
 
-func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
-	var reader *bufio.Reader
-	var conn net.Conn
-	var err error
-
-	x11meta := m.task.GetInteractiveMeta().GetX11Meta()
-	if x11meta.Port == 0 { // Unix Socket
-		conn, err = net.Dial("unix", x11meta.Target)
-		if err != nil {
-			log.Errorf("Failed to connect to X11 display by unix: %v", err)
-			return
-		}
-	} else { // TCP socket
-		address := net.JoinHostPort(x11meta.Target, fmt.Sprintf("%d", x11meta.Port))
-		conn, err = net.Dial("tcp", address)
-		if err != nil {
-			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
-			return
-		}
-	}
-	defer conn.Close()
-
-	go func() {
-		reader = bufio.NewReader(conn)
-		buffer := make([]byte, 4096)
-
-		for {
-			n, err := reader.Read(buffer)
-			if err != nil {
-				if err == io.EOF {
-					return
-				}
-				log.Tracef("X11 fd has been closed and stop reading: %v", err)
-				return
-			}
-			data := make([]byte, n)
-			copy(data, buffer[:n])
-			m.chanX11InputFromLocal <- data
-			log.Tracef("Received data from x11 fd (len %d)", len(data))
-		}
-	}()
-
-	writer := bufio.NewWriter(conn)
-loop:
-	for {
-		select {
-		case <-m.taskFinishCtx.Done():
-			break loop
-
-		case msg := <-m.chanX11OutputFromRemote:
-			log.Tracef("Writing to x11 fd.")
-			_, err := writer.Write(msg)
-			if err != nil {
-				log.Errorf("Failed to write to x11 fd: %v", err)
-				break loop
-			}
-
-			err = writer.Flush()
-			if err != nil {
-				log.Errorf("Failed to flush data to x11 fd: %v", err)
-				break loop
-			}
-		}
-	}
-}
-
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
 	m.taskErrCtx, m.taskErrCb = context.WithCancel(context.Background())
 
 	m.chanInputFromTerm = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
-
-	m.chanX11InputFromLocal = make(chan []byte, 100)
-	m.chanX11OutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigHandlerRoutine()
 	if strings.ToLower(FlagInput) == FlagInputALL {
@@ -996,8 +921,9 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()
+	m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.taskFinishCtx, &m.taskErrCtx)
 	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
-		go m.StartX11ReaderWriterRoutine()
+		go m.X11SessionMgr.SessionMgrRoutine()
 	}
 }
 

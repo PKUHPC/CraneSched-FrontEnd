@@ -98,7 +98,7 @@ func (keeper *SupervisorChannelKeeper) supervisorDownAndRemoveChannelToSuperviso
 }
 
 func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool, taskId uint32, stepId uint32) {
-	log.Tracef("[Cfored<->Crun][Job #%d.%d] Waiting for step related craned [%v] up", taskId, stepId, cranedIds)
+	log.Tracef("[Cfored<->Crun][Step #%d.%d] Waiting for step related craned [%v] up", taskId, stepId, cranedIds)
 	keeper.toSupervisorChannelMtx.Lock()
 	defer keeper.toSupervisorChannelMtx.Unlock()
 	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
@@ -115,7 +115,7 @@ func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []s
 			keeper.toSupervisorChannelCV.Wait() // gVars.toSupervisorChannelMtx is unlocked.
 			// Once Wait() returns, the lock is held again.
 		} else {
-			log.Debugf("[Cfored<->Crun][Job #%d.%d] All related craned up now", taskId, stepId)
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] All related craned up now", taskId, stepId)
 			readyChan <- true
 			break
 		}
@@ -130,7 +130,7 @@ func (keeper *SupervisorChannelKeeper) SupervisorCrashAndRemoveAllChannel(taskId
 	if exist {
 		channel <- nil
 	} else {
-		log.Warningf("[Supervisor->Cfored][Job #%d.%d] Supervisor on Craned %s"+
+		log.Warningf("[Supervisor->Cfored][Step #%d.%d] Supervisor on Craned %s"+
 			" crashed but no crun found, skiping.", taskId, stepId, cranedId)
 	}
 	keeper.taskIORequestChannelMtx.Unlock()
@@ -142,21 +142,21 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(taskId uin
 	defer keeper.toSupervisorChannelMtx.Unlock()
 	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
 	if !exist {
-		log.Errorf("[Job #%d.%d] Trying to forward crun request to non-exist step.", taskId, stepId)
+		log.Errorf("[Step #%d.%d] Trying to forward crun request to non-exist step.", taskId, stepId)
 		return
 	}
 	for cranedId, supervisorChannel := range stepChannels {
 		if !supervisorChannel.valid.Load() {
-			log.Tracef("[Job #%d.%d] Ignoring crun request to invalid supervisor on Craned %s", taskId, stepId, cranedId)
+			log.Tracef("[Step #%d.%d] Ignoring crun request to invalid supervisor on Craned %s", taskId, stepId, cranedId)
 			continue
 		}
 		select {
 		case supervisorChannel.requestChannel <- request:
 		default:
 			if len(supervisorChannel.requestChannel) == cap(supervisorChannel.requestChannel) {
-				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
+				log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
 			} else {
-				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
+				log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
 			}
 		}
 	}
@@ -169,7 +169,7 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSingleSupervisor(task
 	defer keeper.toSupervisorChannelMtx.Unlock()
 	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
 	if !exist {
-		log.Errorf("[Job #%d.%d] Trying to forward crun request to non-exist step.", taskId, stepId)
+		log.Errorf("[Step #%d.%d] Trying to forward crun request to non-exist step.", taskId, stepId)
 		return
 	}
 	supervisorChannel, exist := stepChannels[cranedId]
@@ -181,9 +181,9 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSingleSupervisor(task
 	case supervisorChannel.requestChannel <- request:
 	default:
 		if len(supervisorChannel.requestChannel) == cap(supervisorChannel.requestChannel) {
-			log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
+			log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
 		} else {
-			log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
+			log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
 		}
 	}
 }
@@ -201,7 +201,7 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, step
 		// maybe too much msg, cfored will hang.
 		channel <- ioToCrun
 	} else {
-		log.Warningf("[Supervisor->Cfored->Crun][Job #%d.%d]Trying forward to I/O to an unknown crun.", taskId, stepId)
+		log.Warningf("[Supervisor->Cfored->Crun][Step #%d.%d]Trying forward to I/O to an unknown crun.", taskId, stepId)
 	}
 	keeper.taskIORequestChannelMtx.Unlock()
 }
