@@ -398,6 +398,12 @@ func (m *StateMachineOfCrun) StateForwarding() {
 	}
 
 	m.StartIOForward()
+	var x11ReqChan chan *protos.StreamCrunRequest
+	if m.X11SessionMgr != nil {
+		x11ReqChan = m.X11SessionMgr.X11RequestChan
+	} else {
+		x11ReqChan = nil
+	}
 
 	// Forward Terminal input to Cfored.
 	go func() {
@@ -420,7 +426,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					return
 				}
 
-			case request := <-m.X11SessionMgr.X11RequestChan:
+			case request := <-x11ReqChan:
 				if err := m.stream.Send(request); err != nil {
 					log.Errorf("Failed to send Task X11 Input to CrunStream: %s. "+
 						"Connection to Crun is broken", err)
@@ -921,8 +927,9 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.task.GetInteractiveMeta()
-	m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.taskFinishCtx, &m.taskErrCtx)
 	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
+
+		m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.taskFinishCtx, &m.taskErrCtx)
 		go m.X11SessionMgr.SessionMgrRoutine()
 	}
 }

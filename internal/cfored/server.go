@@ -335,9 +335,14 @@ CforedSupervisorStateMachineLoop:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote output", jobId, stepId)
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
 
+					case protos.StreamTaskIORequest_TASK_X11_CONN:
+						fallthrough
 					case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
+						fallthrough
+					case protos.StreamTaskIORequest_TASK_X11_EOF:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote X11", jobId, stepId)
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+
 					case protos.StreamTaskIORequest_TASK_EXIT_STATUS:
 						log.Tracef("[Superivisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
@@ -386,11 +391,7 @@ CforedSupervisorStateMachineLoop:
 								},
 							},
 						}
-						if err := toSupervisorStream.Send(reply); err != nil {
-							log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
-								"on Craned %s was broken.", jobId, stepId, cranedId)
-							state = SupervisorUnReg
-						}
+
 					case protos.StreamCrunRequest_TASK_X11_FORWARD:
 						payload := crunReq.GetPayloadTaskX11ForwardReq()
 						msg := payload.GetMsg()
@@ -400,19 +401,22 @@ CforedSupervisorStateMachineLoop:
 							Type: protos.StreamTaskIOReply_TASK_X11_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
 								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_TaskX11InputReq{
-									Msg: msg,
+									Msg:     msg,
+									Eof:     payload.Eof,
+									LocalId: payload.LocalId,
 								},
 							},
 						}
-						if err := toSupervisorStream.Send(reply); err != nil {
-							log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
-								"on Craned %s was broken.", jobId, stepId, cranedId)
-							state = SupervisorUnReg
-						}
+
 					default:
 						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from crun ",
 							jobId, stepId, crunReq.Type.String())
 						break supervisorIOForwarding
+					}
+					if err := toSupervisorStream.Send(reply); err != nil {
+						log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
+							"on Craned %s was broken.", jobId, stepId, cranedId)
+						state = SupervisorUnReg
 					}
 				}
 			}

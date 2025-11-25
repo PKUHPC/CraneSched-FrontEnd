@@ -428,12 +428,6 @@ CforedCrunStateMachineLoop:
 								jobId, stepId, payload.GetCranedId(), payload.LocalId)
 							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
 
-						case protos.StreamCrunRequest_TASK_X11_EOF:
-							payload := crunRequest.GetPayloadTaskX11EofReq()
-							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive Local TASK_X11_EOF to craned %s id:%d",
-								jobId, stepId, payload.GetCranedId(), payload.LocalId)
-							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
-
 						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
 							log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
 							toCtldRequest := &protos.StreamCforedRequest{
@@ -500,11 +494,13 @@ CforedCrunStateMachineLoop:
 							Type: protos.StreamCrunReply_TASK_X11_FORWARD,
 							Payload: &protos.StreamCrunReply_PayloadTaskX11ForwardReply{
 								PayloadTaskX11ForwardReply: &protos.StreamCrunReply_TaskX11ForwardReply{
-									Msg: req.Msg,
+									Msg:      req.Msg,
+									LocalId:  req.LocalId,
+									CranedId: req.CranedId,
 								},
 							},
 						}
-						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d]  fowarding x11 msg size from craned %s id:%d len: [%d]",
+						log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding x11 msg from craned %s id:%d len: [%d]",
 							jobId, stepId, req.GetCranedId(), req.GetLocalId(), len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
 
 					case protos.StreamTaskIORequest_TASK_X11_EOF:
@@ -513,7 +509,6 @@ CforedCrunStateMachineLoop:
 							Type: protos.StreamCrunReply_TASK_X11_EOF,
 							Payload: &protos.StreamCrunReply_PayloadTaskX11EofReply{
 								PayloadTaskX11EofReply: &protos.StreamCrunReply_TaskX11EofReply{
-									Eof:      true,
 									LocalId:  req.LocalId,
 									CranedId: req.CranedId,
 								},

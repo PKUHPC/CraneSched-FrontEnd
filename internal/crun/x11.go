@@ -68,27 +68,32 @@ type X11SessionMgr struct {
 }
 
 func (session *X11Session) SessionRoutine() {
-	status := X11ConnectingLocal
 X11StatusMachine:
 	for {
-		switch status {
+		switch session.Status {
 		case X11ConnectingLocal:
 			session.StatusConnectingLocal()
 		case X11Forwarding:
+			log.Tracef("[X11 %s:%d] X11 session forwarding.", session.X11Id.CranedId, session.X11Id.LocalId)
 			session.StatusForwarding()
 		case X11Ended:
-			log.Tracef("[X11 %s:%d] X11 session ended.", session.X11Id.CranedId, session.X11Id.LocalId)
+			session.sessionMgr.sessionMutex.Lock()
+			delete(session.sessionMgr.x11Sessions, session.X11Id)
+			session.sessionMgr.sessionMutex.Unlock()
+			log.Tracef("[X11 %s:%d] X11 session ended and removed.", session.X11Id.CranedId, session.X11Id.LocalId)
+
 			break X11StatusMachine
 		}
 	}
 }
 
-func (session *X11Session) SendEofToSupervisor() {
+func (session *X11Session) SendEofToSupervisor(data []byte) {
 	session.eofSent.Do(func() {
 		req := &protos.StreamCrunRequest{
-			Type: protos.StreamCrunRequest_TASK_X11_EOF,
-			Payload: &protos.StreamCrunRequest_PayloadTaskX11EofReq{
-				PayloadTaskX11EofReq: &protos.StreamCrunRequest_TaskX11EOFReq{
+			Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
+			Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
+				PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
+					Msg:      data,
 					CranedId: session.X11Id.CranedId,
 					LocalId:  session.X11Id.LocalId,
 				},
@@ -109,19 +114,24 @@ func (session *X11Session) StatusConnectingLocal() {
 	if session.sessionMgr.port == 0 { // Unix Socket
 		session.conn, err = net.Dial("unix", session.sessionMgr.target)
 		if err != nil {
-			log.Errorf("Failed to connect to X11 display by unix: %v", err)
+			log.Errorf("[X11 %s:%d] Failed to connect to X11 display by unix: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
 			session.Status = X11Ended
-			session.SendEofToSupervisor()
+			session.SendEofToSupervisor(make([]byte, 0))
+			return
 		}
 	} else { // TCP socket
 		address := net.JoinHostPort(session.sessionMgr.target, fmt.Sprintf("%d", session.sessionMgr.port))
 		session.conn, err = net.Dial("tcp", address)
 		if err != nil {
-			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
+			log.Errorf("[X11 %s:%d] Failed to connect to X11 display by tcp: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
 			session.Status = X11Ended
-			session.SendEofToSupervisor()
+			session.SendEofToSupervisor(make([]byte, 0))
+			return
 		}
 	}
+	log.Debugf("[X11 %s:%d] X11 session connected local X11 server.", session.X11Id.CranedId, session.X11Id.LocalId)
+	session.Status = X11Forwarding
+	return
 }
 
 func (session *X11Session) StatusForwarding() {
@@ -136,7 +146,9 @@ func (session *X11Session) StatusForwarding() {
 			if err != nil {
 				if err == io.EOF {
 					log.Tracef("[X11 %s:%d] X11 fd reached EOF, stop reading.", session.X11Id.CranedId, session.X11Id.LocalId)
-					session.SendEofToSupervisor()
+					data := make([]byte, n)
+					copy(data, buffer[:n])
+					session.SendEofToSupervisor(data)
 					break
 				}
 				log.Tracef("[X11 %s:%d] X11 fd has been closed and stop reading: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
@@ -154,47 +166,40 @@ func (session *X11Session) StatusForwarding() {
 					},
 				},
 			}
-			session.X11ToSupervisor <- req
 			log.Tracef("[X11 %s:%d] Received data from x11 fd (len %d)", session.X11Id.CranedId, session.X11Id.LocalId, len(data))
+			session.X11ToSupervisor <- req
 		}
 
 		wg.Done()
 	}()
 
 	go func() {
-		writer := bufio.NewWriter(session.conn)
 	loop:
 		for {
 			select {
 			case msg := <-session.X11ToLocal:
 				if msg == nil {
 					log.Tracef("[X11 %s:%d] X11 session received eof to local, stop writing.", session.X11Id.CranedId, session.X11Id.LocalId)
+					err := session.conn.Close()
+					log.Debugf("[X11 %s:%d] X11 session closed local connection.", session.X11Id.CranedId, session.X11Id.LocalId)
+					if err != nil {
+						log.Errorf("[X11 %s:%d] Error closing x11 connection: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
+					}
 					break loop
 				}
 				log.Tracef("[X11 %s:%d] Writing to x11 fd.", session.X11Id.CranedId, session.X11Id.LocalId)
-				_, err := writer.Write(msg)
+				_, err := session.conn.Write(msg)
 				if err != nil {
 					log.Errorf("[X11 %s:%d] Failed to write to x11 fd: %v, stop writing.", session.X11Id.CranedId, session.X11Id.LocalId, err)
 					break loop
 				}
-
-				err = writer.Flush()
-				if err != nil {
-					log.Errorf("[X11 %s:%d] Failed to flush data to x11 fd: %v, stop writing.", session.X11Id.CranedId, session.X11Id.LocalId, err)
-					break loop
-				}
 			}
 		}
-		session.SendEofToSupervisor()
+		session.SendEofToSupervisor(make([]byte, 0))
 		wg.Done()
 	}()
 
 	wg.Wait()
-	err := session.conn.Close()
-	log.Debugf("[X11 %s:%d] X11 session closed local connection.", session.X11Id.CranedId, session.X11Id.LocalId)
-	if err != nil {
-		log.Errorf("[X11 %s:%d] Error closing x11 connection: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
-	}
 	session.Status = X11Ended
 }
 
@@ -249,44 +254,44 @@ func (sm *X11SessionMgr) SessionMgrRoutine() {
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
 				data := payload.GetMsg()
-				log.Tracef("X11 forward data from craned %s local id %d, data len %d", cranedId, localId, len(data))
+				log.Tracef("[X11 %s:%d] forward data len %d", cranedId, localId, len(data))
 				globalId := X11GlobalId{
 					CranedId: cranedId,
 					LocalId:  localId,
 				}
 				sm.sessionMutex.Lock()
 				session, exists := sm.x11Sessions[globalId]
+
+				sm.sessionMutex.Unlock()
 				if exists {
 					session.X11ToLocal <- data
 				} else {
-					log.Warnf("Received X11 forward for non-existing session craned %s local id %d", cranedId, localId)
+					log.Warnf("[X11 %s:%d] Received X11 forward for non-existing session ", cranedId, localId)
 				}
-				sm.sessionMutex.Unlock()
 			case protos.StreamCrunReply_TASK_X11_EOF:
 				payload := reply.GetPayloadTaskX11EofReply()
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
-				log.Tracef("X11 EOF from craned %s local id %d", cranedId, localId)
+				log.Tracef("[X11 %s:%d] X11 EOF", cranedId, localId)
 				globalId := X11GlobalId{
 					CranedId: cranedId,
 					LocalId:  localId,
 				}
 				sm.sessionMutex.Lock()
 				session, exists := sm.x11Sessions[globalId]
+				sm.sessionMutex.Unlock()
 				if exists {
 					session.X11ToLocal <- nil
-					delete(sm.x11Sessions, globalId)
-					log.Tracef("Removed X11 session craned %s local id %d", cranedId, localId)
+					log.Tracef("[X11 %s:%d] Removed X11 session ", cranedId, localId)
 				} else {
-					log.Warnf("Received X11 EOF for non-existing session craned %s local id %d", cranedId, localId)
+					log.Warnf("[X11 %s:%d] Received X11 EOF for non-existing session", cranedId, localId)
 				}
-				sm.sessionMutex.Unlock()
 			}
 		case <-(*sm.finishCtx).Done():
 			log.Tracef("Received X11 finish signal, terminating all X11 sessions")
 			sm.sessionMutex.Lock()
 			for id, session := range sm.x11Sessions {
-				log.Tracef("Stopping X11 session craned %s local id %d", id.CranedId, id.LocalId)
+				log.Tracef("[X11 %s:%d] Stopping X11 session", id.CranedId, id.LocalId)
 				session.StopLocalReadWrite()
 			}
 			sm.sessionMutex.Unlock()
