@@ -60,11 +60,14 @@ func showHelp() {
     Parameter details:
       Name=<name1,name2,...>    Name of accounts to delete (comma-separated)
   
-	show account [Name=<name1,name2,...>]
+	show account [Name=<name1,name2,...>] [format=<Name,Description,...>]
     Display information about accounts.
     Parameter details:
       Name=<name1,name2,...>    Show only these accounts (comma-separated)
       (If not specified, all accounts will be displayed)
+      format=<Name,Description,AllowedPartition,Users,DefaultQos,AllowedQosList,
+              Coordinators,Blocked> (Spelling must be correct, case is not important)
+              For Example: cacctmgr show account format=name,users,coordinators
   
 	add user <name> Account=<account> [Coordinator=true|false] [Level=<level>] 
 		[Partition=<part1,part2,...>] [Name=<name1,name2,...>]
@@ -83,13 +86,16 @@ func showHelp() {
       Name=<name1,name2,...>    Name of users to delete (comma-separated)
     (if name is 'ALL' and set --force, all users from a specific account will be delete.)
   
-	show user [Accounts=<account>] [Name=<name1,name2,...>]
+	show user [Accounts=<account>] [Name=<name1,name2,...>] [format=<Account,UserName,...>]
     Display information about users.
     Parameter details:
       Accounts=<account>         Show users of this account only
       Name=<name1,name2,...>    Show only these users (comma-separated)
       (If not specified, all users will be displayed)
-  
+      format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
+              AdminLevel,Blocked> (Spelling must be correct, case is not important)
+              For Example: cacctmgr show user format=account,defaultqos,adminlevel
+
 	block account <name> [Account=<account>]
     Block the specified account from submitting jobs.
     Parameter details:
@@ -136,11 +142,14 @@ func showHelp() {
     Parameter details:
       Name=<name1,name2,...>    Name of QoS to delete (comma-separated)
   
-	show qos <name> [Name=<name1,name2,...>]
+	show qos [Name=<name1,name2,...>] [format=<Name,Description,...>]
     Display information about QoS.
     Parameter details:
       Name=<name1,name2,...>    Show only these QoS (comma-separated)
       (If not specified, all QoS will be displayed)
+      format=<Name,Description,Priority,MaxJobsPerUser,MaxCpusPerUser,MaxCpusPerUser,
+              MaxTimeLimitPerTask> (Spelling must be correct, case is not important)
+      For Example: cacctmgr show qos format=name,MaxJobsPerUser,MaxCpusPerUser
 
     show transaction [Actor=<actor>] [Target=<target>] [Action=<action>] [Info=<info>] [StartTime=<start_time>]
     Display transaction log records.
