@@ -492,6 +492,12 @@ func executeDeleteResourceCommand(command *CAcctMgrCommand) int {
 		return util.ErrorCmdArg
 	}
 	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"server"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
 		case "name":
