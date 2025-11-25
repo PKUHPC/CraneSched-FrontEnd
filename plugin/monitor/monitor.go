@@ -42,6 +42,7 @@ var _ api.Plugin = &MonitorPlugin{}
 var _ api.CgroupLifecycleHooks = &MonitorPlugin{}
 var _ api.GrpcServiceRegistrar = &MonitorPlugin{}
 var _ api.HostConfigAware = &MonitorPlugin{}
+var _ api.ResourceHooks = &MonitorPlugin{}
 
 // PluginD will call plugin's method thru this variable
 var PluginInstance = MonitorPlugin{}
