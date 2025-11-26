@@ -402,13 +402,20 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 }
 
 func QueryTasksInfoByIds(jobIds string) error {
-	jobIdList, err := util.ParseJobIdList(jobIds, ",")
+	stepIdList, err := util.ParseStepIdList(jobIds, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s", err))
 	}
+	jobIdList := make([]uint32, len(stepIdList))
+	for jobId, _ := range stepIdList {
+		jobIdList = append(jobIdList, jobId)
+	}
+	for _, jobId := range jobIdList {
+		stepIdList[jobId] = &protos.JobStepIds{Steps: make([]uint32, 0)}
+	}
 
 	req := &protos.QueryTasksInfoRequest{
-		FilterTaskIds:               jobIdList,
+		FilterIds:                   stepIdList,
 		OptionIncludeCompletedTasks: true,
 	}
 

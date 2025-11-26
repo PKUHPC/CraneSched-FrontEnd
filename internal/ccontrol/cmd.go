@@ -106,6 +106,8 @@ func executeShowCommand(command *CControlCommand) int {
 		return executeShowPartitionCommand(command)
 	case "job":
 		return executeShowJobCommand(command)
+	case "step":
+		return executeShowStepCommand(command)
 	case "reservation":
 		return executeShowReservationCommand(command)
 	case "lic":
@@ -152,6 +154,22 @@ func executeShowJobCommand(command *CControlCommand) int {
 	err := ShowJobs(name, FlagQueryAll)
 	if err != nil {
 		log.Errorf("show jobs failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeShowStepCommand(command *CControlCommand) int {
+	name := command.GetID()
+
+	if len(name) == 0 {
+		FlagQueryAll = true
+
+	}
+
+	err := ShowSteps(name, FlagQueryAll)
+	if err != nil {
+		log.Errorf("show steps failed: %s", err)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess

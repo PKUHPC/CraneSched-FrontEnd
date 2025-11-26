@@ -46,6 +46,7 @@ func FillReqByCobraFlags() (*protos.QueryTasksInfoRequest, error) {
 		&AccountProcessor{},
 		&PartitionsProcessor{},
 		&JobIDsProcessor{},
+		&StepIDsProcessor{},
 		&LicensesProcessor{},
 	}
 
@@ -105,10 +106,14 @@ func Query() error {
 	if err != nil {
 		return err
 	}
+
 	if FlagJson {
 		return JsonOutput(reply)
+	} else if FlagStep {
+		return QueryStepsTableOutput(reply)
+	} else {
+		return QueryTableOutput(reply)
 	}
-	return QueryTableOutput(reply)
 }
 
 func loopedQuery(iterate uint64) error {
