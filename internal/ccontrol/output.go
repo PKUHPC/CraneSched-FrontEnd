@@ -721,3 +721,43 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	}
 	return outputJobs(reply.TaskInfoList, jobIdList)
 }
+
+func ShowLicenses(licenseName string, queryAll bool) error {
+	var licenseNameList []string
+	if licenseName != "" {
+		licenseNameList = strings.Split(licenseName, ",")
+	}
+
+	req := &protos.QueryLicensesInfoRequest{LicenseNameList: licenseNameList}
+	reply, err := stub.QueryLicensesInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show license")
+		return util.NewCraneErr(util.ErrorNetwork, "Failed to show license")
+	}
+
+	if !reply.Ok {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for lic %v", licenseName))
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+
+	if len(reply.LicenseInfoList) == 0 {
+		if queryAll {
+			fmt.Println("No license is available.")
+		} else {
+			fmt.Printf("license %s not found.\n", licenseName)
+		}
+		return nil
+	}
+
+	for _, licenseInfo := range reply.LicenseInfoList {
+		fmt.Printf("LicenseName=%v \n"+
+			"\tTotal=%v Used=%d Free=%d\n",
+			licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free)
+	}
+
+	return nil
+}
