@@ -11,6 +11,7 @@ var log = logrus.WithField("component", "Config")
 
 type Config struct {
 	Monitor MonitorConfig `mapstructure:"Monitor"`
+	Cgroup  CgroupConfig  `mapstructure:"Cgroup"`
 	DB      DBConfig      `mapstructure:"Database"`
 }
 
@@ -27,19 +28,30 @@ type Enabled struct {
 	GPU    bool `mapstructure:"Gpu"`
 	RAPL   bool `mapstructure:"Rapl"`
 	System bool `mapstructure:"System"`
+	Event  bool `mapstructure:"Event"`
+}
+
+type CgroupConfig struct {
+	CPU      string `mapstructure:"CPU"`
+	Memory   string `mapstructure:"Memory"`
+	ProcList string `mapstructure:"ProcList"`
 }
 
 type DBConfig struct {
-	Type     string          `mapstructure:"Type"`
-	InfluxDB *InfluxDBConfig `mapstructure:"Influxdb"`
+	Type       string          `mapstructure:"Type"`
+	InfluxDB   *InfluxDBConfig `mapstructure:"Influxdb"`
+	Interval   uint32          `mapstructure:"Interval"`
+	BufferSize uint32          `mapstructure:"BufferSize"`
 }
 
 type InfluxDBConfig struct {
-	URL        string `mapstructure:"Url"`
-	Token      string `mapstructure:"Token"`
-	Org        string `mapstructure:"Org"`
-	NodeBucket string `mapstructure:"NodeBucket"`
-	JobBucket  string `mapstructure:"JobBucket"`
+	URL                 string `mapstructure:"Url"`
+	Token               string `mapstructure:"Token"`
+	Org                 string `mapstructure:"Org"`
+	NodeBucket          string `mapstructure:"NodeBucket"`
+	JobBucket           string `mapstructure:"JobBucket"`
+	EventMeasurement    string `mapstructure:"EventMeasurement"`
+	ResourceMeasurement string `mapstructure:"ResourceMeasurement"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -73,8 +85,21 @@ func validateConfig(cfg *Config) error {
 			cfg.DB.InfluxDB.JobBucket == "" {
 			return fmt.Errorf("incomplete influxdb configuration")
 		}
+		if cfg.DB.InfluxDB.EventMeasurement == "" {
+			cfg.DB.InfluxDB.EventMeasurement = "NodeEvents"
+		}
+		if cfg.DB.InfluxDB.ResourceMeasurement == "" {
+			cfg.DB.InfluxDB.ResourceMeasurement = "ResourceUsage"
+		}
 	default:
 		return fmt.Errorf("unsupported database type: %s", cfg.DB.Type)
+	}
+
+	if cfg.DB.Interval <= 0 {
+		cfg.DB.Interval = 1000
+	}
+	if cfg.DB.BufferSize <= 0 {
+		cfg.DB.BufferSize = 32
 	}
 
 	return nil
@@ -96,10 +121,19 @@ func PrintConfig(cfg *Config) {
 	log.Infof("    GPU: %v", cfg.Monitor.Enabled.GPU)
 	log.Infof("    RAPL: %v", cfg.Monitor.Enabled.RAPL)
 	log.Infof("    System: %v", cfg.Monitor.Enabled.System)
+	log.Infof("    Event: %v", cfg.Monitor.Enabled.Event)
+
+	// Cgroup
+	log.Infof("Cgroup Configuration:")
+	log.Infof("  CPU: %s", cfg.Cgroup.CPU)
+	log.Infof("  Memory: %s", cfg.Cgroup.Memory)
+	log.Infof("  ProcList: %s", cfg.Cgroup.ProcList)
 
 	// Database
 	log.Infof("Database Configuration:")
 	log.Infof("  Type: %s", cfg.DB.Type)
+	log.Infof("  Interval: %d ms", cfg.DB.Interval)
+	log.Infof("  BufferSize: %d", cfg.DB.BufferSize)
 
 	switch cfg.DB.Type {
 	case "influxdb":
@@ -109,6 +143,8 @@ func PrintConfig(cfg *Config) {
 			log.Infof("    Organization: %s", cfg.DB.InfluxDB.Org)
 			log.Infof("    Node Bucket: %s", cfg.DB.InfluxDB.NodeBucket)
 			log.Infof("    Job Bucket: %s", cfg.DB.InfluxDB.JobBucket)
+			log.Infof("    Event Measurement: %s", cfg.DB.InfluxDB.EventMeasurement)
+			log.Infof("    Resource Measurement: %s", cfg.DB.InfluxDB.ResourceMeasurement)
 			if cfg.DB.InfluxDB.Token != "" {
 				tokenPreview := cfg.DB.InfluxDB.Token[:10] + "..."
 				log.Infof("    Token: %s", tokenPreview)
