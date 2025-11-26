@@ -1050,10 +1050,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if stepMode {
 		parsedJobId, err := strconv.ParseUint(envJobIdString, 10, 32)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorInvalidFormat,
-				Message: "Invalid CRANE_JOB_ID",
-			}
+			return util.NewCraneErr(util.ErrorInvalidFormat,
+				"Invalid CRANE_JOB_ID")
+
 		}
 		jobId = uint32(parsedJobId)
 	}
@@ -1063,10 +1062,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	egid := syscall.Getegid()
 	groups, err := syscall.Getgroups()
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorSystem,
-			Message: fmt.Sprintf("Failed to get user groups: %s.", err),
-		}
+		return util.NewCraneErr(util.ErrorSystem, fmt.Sprintf("Failed to get user groups: %s.", err))
 	}
 	gids := []uint32{uint32(egid)}
 
@@ -1202,18 +1198,16 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if jobMode {
 			job.PartitionName = FlagPartition
 		} else {
-			return util.NewCraneErr(util.ErrorCmdArg,fmt.Sprintf("Invalid argument: --partition is not supported in step."),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --partition is not supported in step."))
 		}
+	}
 
 	if FlagJob != "" {
 		if jobMode {
 			job.Name = FlagJob
 		} else {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: --job is not supported in step."),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --job is not supported in step."))
+
 		}
 	}
 
@@ -1221,10 +1215,8 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if jobMode {
 			job.Qos = FlagQos
 		} else {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: --qos is not supported in step."),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --qos is not supported in step."))
+
 		}
 	}
 
@@ -1239,11 +1231,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if jobMode {
 			job.Account = FlagAccount
 		} else {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: --account is not supported in step."),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --account is not supported in step."))
 		}
+
 	}
 
 	if FlagNodelist != "" {
@@ -1278,10 +1268,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if jobMode {
 			job.Reservation = FlagReservation
 		} else {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: --reservation is not supported in step."),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --reservation is not supported in step."))
 		}
 	}
 
@@ -1301,21 +1288,17 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if jobMode {
 			job.Exclusive = true
 		} else {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: --exclusive is not supported in step."),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --exclusive is not supported in step."))
+
 		}
 	}
 	if FlagHold {
 		if jobMode {
 			job.Hold = true
 		} else {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: --hold is not supported in step."),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --hold is not supported in step."))
 		}
+
 	}
 
 	if FlagLicenses != "" {
@@ -1323,24 +1306,18 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid argument: %s.", err)
 		}
-		task.LicensesCount = licCount
-		task.IsLicensesOr = isLicenseOr
+		job.LicensesCount = licCount
+		job.IsLicensesOr = isLicenseOr
 	}
 
 	// Marshal extra attributes
 	if jobMode {
 		if err := structExtraFromCli.Marshal(&job.ExtraAttr); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 	} else {
 		if err := structExtraFromCli.Marshal(&step.ExtraAttr); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 	}
 
@@ -1352,17 +1329,11 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	// Check the validity of the parameters
 	if jobMode {
 		if err := util.CheckTaskArgs(job); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 	} else {
 		if err := util.CheckStepArgs(step); err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: %s.", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 	}
 
