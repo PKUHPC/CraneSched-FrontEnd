@@ -340,11 +340,11 @@ CforedSupervisorStateMachineLoop:
 					case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
 						fallthrough
 					case protos.StreamTaskIORequest_TASK_X11_EOF:
-						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote X11", jobId, stepId)
+						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote %s", jobId, stepId, supervisorReq.Type.String())
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
 
 					case protos.StreamTaskIORequest_TASK_EXIT_STATUS:
-						log.Tracef("[Superivisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
+						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
 
 					case protos.StreamTaskIORequest_SUPERVISOR_UNREGISTER:
@@ -395,8 +395,8 @@ CforedSupervisorStateMachineLoop:
 					case protos.StreamCrunRequest_TASK_X11_FORWARD:
 						payload := crunReq.GetPayloadTaskX11ForwardReq()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding len [%d] x11 to Suerpvisor "+
-							"on Craned %s", jobId, stepId, len(msg), cranedId)
+						log.Debugf("[Cfored->Supervisor][Step #%d.%d][X11 #%d] forwarding len [%d] x11 to Suerpvisor on Craned %s",
+							jobId, stepId, payload.LocalId, len(msg), cranedId)
 						reply = &protos.StreamTaskIOReply{
 							Type: protos.StreamTaskIOReply_TASK_X11_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
