@@ -1148,16 +1148,18 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 			if err := validateUintValue(value, "count", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			ModifyResource(FlagResourceName, FlagServerName, "", protos.LicenseResource_Count, value)
+			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_Count, value)
 		case "lastconsumed":
 			if err := validateUintValue(value, "lastConsumed", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			ModifyResource(FlagResourceName, FlagServerName, "", protos.LicenseResource_LastConsumed, value)
+			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_LastConsumed, value)
 		case "descriptions":
-			ModifyResource(FlagResourceName, FlagServerName, "", protos.LicenseResource_Description, value)
+			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_Description, value)
 		case "flags":
-		// TODO
+			// TODO
+		case "type":
+			// TODO: add type
 		case "allowed":
 			if len(FlagClusters) == 0 {
 				log.Errorf("Error: modify 'allowed' requires 'clusters' clause to specify which cluster resource to modify")
@@ -1165,7 +1167,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 			}
 			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_Allowed, value)
 		default:
-			log.Errorf("Error: unknown set parameter '%s' for qos modification", key)
+			log.Errorf("Error: unknown set parameter '%s' for resource modification", key)
 			return util.ErrorCmdArg
 		}
 	}
