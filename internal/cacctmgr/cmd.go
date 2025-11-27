@@ -1077,17 +1077,41 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 	FlagResourceName := ""
 	FlagServerName := ""
 
+	KvParams := command.GetKVMaps()
 	WhereParams := command.GetWhereParams()
 	SetParams, _, _ := command.GetSetParams()
 
-	if len(WhereParams) == 0 {
+	if len(KvParams) == 0 && len(WhereParams) == 0 {
 		log.Errorf("Error: modify resource command requires 'where' clause to specify which resource to modify")
 		return util.ErrorCmdArg
 	}
 
-	err := checkEmptyKVParams(WhereParams, []string{"name", "server"})
-	if err != util.ErrorSuccess {
-		return err
+	if len(KvParams) > 0 {
+		err := checkEmptyKVParams(KvParams, []string{"name", "server"})
+		if err != util.ErrorSuccess {
+			return err
+		}
+	}
+
+	for key, value := range KvParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagResourceName = value
+		case "server":
+			FlagServerName = value
+		case "clusters":
+			FlagClusters = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for resource modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(WhereParams) > 0 {
+		err := checkEmptyKVParams(WhereParams, []string{"name", "server"})
+		if err != util.ErrorSuccess {
+			return err
+		}
 	}
 
 	for key, value := range WhereParams {
@@ -1096,7 +1120,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 			FlagResourceName = value
 		case "server":
 			FlagServerName = value
-		case "cluster":
+		case "clusters":
 			FlagClusters = value
 		default:
 			log.Errorf("Error: unknown where parameter '%s' for resource modification", key)
@@ -1109,6 +1133,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 		return util.ErrorCmdArg
 	}
 
+	// TODO: one request
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "count":

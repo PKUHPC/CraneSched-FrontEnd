@@ -66,11 +66,12 @@ type UnblockCommand struct {
 }
 
 type ModifyCommand struct {
-	Action      string       `parser:"@'modify'"`
-	Entity      *EntityType  `parser:"@@"`
-	Where       *WhereClause `parser:"@@?"`
-	Set         *SetClause   `parser:"@@?"`
-	GlobalFlags []*Flag      `parser:"@@*"`
+	Action      string           `parser:"@'modify'"`
+	Entity      *EntityType      `parser:"@@"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	Where       *WhereClause     `parser:"@@?"`
+	Set         *SetClause       `parser:"@@?"`
+	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
 type ShowCommand struct {
@@ -287,6 +288,8 @@ func (c *CAcctMgrCommand) GetKVMaps() map[string]string {
 	case ShowCommand:
 		params = cmd.KVParams
 	case ResetCommand:
+		params = cmd.KVParams
+	case ModifyCommand:
 		params = cmd.KVParams
 	default:
 		return kvMap
