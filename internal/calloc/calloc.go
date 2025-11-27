@@ -476,6 +476,11 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		task.IsLicensesOr = isLicenseOr
 	}
 
+	task.SubmitDir, err = os.Getwd()
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
+	}
+
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))

@@ -126,6 +126,10 @@ var (
 			if task.Cwd == "" {
 				task.Cwd, _ = os.Getwd()
 			}
+			task.SubmitDir, err = os.Getwd()
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
+			}
 
 			if FlagRepeat == 1 {
 				return SendRequest(task)
