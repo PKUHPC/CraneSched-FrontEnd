@@ -990,7 +990,7 @@ message AddLicenseResourceRequest {
 
 message AddLicenseResourceReply {
   bool ok = 1;
-  ErrCode code = 2;
+  RichError rich_err = 2;
 }
 
 message ModifyLicenseResourceRequest {
@@ -1004,7 +1004,7 @@ message ModifyLicenseResourceRequest {
 
 message ModifyLicenseResourceReply {
   bool ok = 1;
-  ErrCode code = 2;
+  RichError rich_err = 2;
 }
 
 message DeleteLicenseResourceRequest {
@@ -1016,7 +1016,7 @@ message DeleteLicenseResourceRequest {
 
 message DeleteLicenseResourceReply {
   bool ok = 1;
-  ErrCode code = 2;
+  RichError rich_err = 2;
 }
 
 message QueryLicenseResourceRequest {
@@ -1028,7 +1028,7 @@ message QueryLicenseResourceRequest {
 
 message QueryLicenseResourceReply {
   bool ok = 1;
-  ErrCode code = 2;
+  RichError rich_err = 2;
   repeated LicenseResourceInfo license_resource_list = 3;
 }
 
