@@ -803,6 +803,7 @@ enum ErrCode {
   ERR_INVALID_ARGUMENT = 95;
 
   ERR_CLUSTER_LICENSE_NOT_FOUND = 96;
+  ERR_RESOURCE_ALREADY_EXIST = 97;
 }
 
 enum EntityType {
@@ -932,6 +933,18 @@ message CranedRemoteMeta {
   repeated uint32 lost_jobs = 7;
   repeated NetworkInterface network_interfaces = 8;
   uint32 config_crc = 9;
+}
+
+message LicenseInfo {
+  string name = 1;
+  uint32 total = 2;
+  uint32 used = 3;
+  uint32 free = 4;
+  uint32 reserved = 5;
+  bool remote = 6;
+  uint32 LastConsumed = 7;
+  uint32 LastDeficit = 8;
+  uint64 LastUpdate = 9;
 }
 
 enum TxnAction {

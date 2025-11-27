@@ -320,8 +320,20 @@ func AddLicenseResource(licenseResource *protos.LicenseResourceInfo, clusters st
 	}
 
 	licenseResource.ClusterResourceInfo = make(map[string]uint32)
+
 	for _, cluster := range clusterList {
+		if _, ok := licenseResource.ClusterResourceInfo[clusters]; ok {
+			continue
+		}
 		licenseResource.ClusterResourceInfo[cluster] = allowed
+		licenseResource.Allocated += allowed
+	}
+
+	if licenseResource.Allocated > licenseResource.Count {
+		log.Errorf("Allocated resources (%d) exceed total available count (%d)",
+			licenseResource.Allocated,
+			licenseResource.Count)
+		return util.ErrorCmdArg
 	}
 
 	req := new(protos.AddLicenseResourceRequest)
@@ -346,7 +358,12 @@ func AddLicenseResource(licenseResource *protos.LicenseResourceInfo, clusters st
 		fmt.Println("Resource added successfully.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to add Resource: %s.\n", util.ErrMsg(reply.GetCode()))
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to add Resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to add Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+		}
+
 		return util.ErrorBackend
 	}
 }
@@ -507,7 +524,11 @@ func DeleteLicenseResource(name string, server string, clusters string) util.Exi
 		fmt.Printf("Successfully deleted Resource '%s'.\n", name)
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to delete Resource: '%s' \n", util.ErrMsg(reply.Code))
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to deleted Resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to deleted Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+		}
 		return util.ErrorBackend
 	}
 }
@@ -735,13 +756,10 @@ func ModifyResource(name string, server string, clusters string, modifyField pro
 		fmt.Println("Information was successfully modified.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Failed to modify information:\n")
-		for _, richError := range reply.RichErrorList {
-			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
-			} else {
-				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
-			}
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to modify information: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to modify information: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
 		}
 		return util.ErrorBackend
 	}
@@ -823,11 +841,14 @@ func ShowLicenseResources(name string, server string, clusters string, hasWithCl
 	}
 
 	if !reply.GetOk() {
-		fmt.Printf("Failed to show resource: %s \n", util.ErrMsg(reply.GetCode()))
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to show resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to show resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+		}
 		return util.ErrorBackend
 	}
 
-	// TODO: print
 	PrintLicenseResource(reply.LicenseResourceList, hasWithClusters)
 
 	return util.ErrorSuccess

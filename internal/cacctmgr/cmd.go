@@ -313,11 +313,19 @@ func executeAddWckeyCommand(command *CAcctMgrCommand) int {
 
 func executeAddResourceCommand(command *CAcctMgrCommand) int {
 	FlagResource = protos.LicenseResourceInfo{
-		Type: protos.LicenseResource_NotSet,
+		Type:         protos.LicenseResource_NotSet,
+		Allocated:    uint32(0),
+		Count:        uint32(0),
+		LastConsumed: uint32(0),
 	}
 
 	FlagResource.ResourceName = command.GetID()
 	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"server"})
+	if err != util.ErrorSuccess {
+		return err
+	}
 
 	hasCluster := false
 	hasAllowed := false
