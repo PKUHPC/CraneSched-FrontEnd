@@ -103,7 +103,7 @@ protos:
 	@echo "  - Summary:"
 	@echo "    - Protobuf files generated in ./generated/protos/"
 
-build:
+build: protos
 	@echo "- Building executables with $(GO_VERSION)..."
 	@mkdir -p $(BIN_DIR)
 	@for dir in cmd/*/ ; do \
