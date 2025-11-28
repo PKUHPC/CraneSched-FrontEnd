@@ -695,7 +695,7 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) uti
 	}
 }
 
-func ModifyResource(name string, server string, clusters string, modifyField protos.LicenseResource_Field, newValue string) util.ExitCode {
+func ModifyResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for Resource modify operations")
 	}
@@ -711,12 +711,15 @@ func ModifyResource(name string, server string, clusters string, modifyField pro
 	}
 
 	req := protos.ModifyLicenseResourceRequest{
-		Uid:           userUid,
-		ResourceName:  name,
-		Server:        server,
-		Clusters:      clusterList,
-		OperatorField: modifyField,
-		Value:         newValue,
+		Uid:          userUid,
+		ResourceName: name,
+		Server:       server,
+		Clusters:     clusterList,
+	}
+
+	req.Operators = make([]*protos.ModifyLicenseResourceRequest_Operator, 0)
+	for filed, value := range operators {
+		req.Operators = append(req.Operators, &protos.ModifyLicenseResourceRequest_Operator{OperatorField: filed, Value: value})
 	}
 
 	reply, err := stub.ModifyLicenseResource(context.Background(), &req)
