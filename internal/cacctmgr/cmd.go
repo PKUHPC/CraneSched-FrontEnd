@@ -99,7 +99,6 @@ var actionToExecute = map[string]func(command *CAcctMgrCommand) int{
 	"show":    executeShowCommand,
 	"reset":   executeResetCommand,
 }
-)
 
 type ModifyParam struct {
 	ModifyField protos.ModifyField
