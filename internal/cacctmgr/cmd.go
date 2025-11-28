@@ -1142,35 +1142,40 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 	}
 
 	// TODO: one request
+	operators := make(map[protos.LicenseResource_Field]string, 0)
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "count":
 			if err := validateUintValue(value, "count", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_Count, value)
+			operators[protos.LicenseResource_Count] = value
 		case "lastconsumed":
 			if err := validateUintValue(value, "lastConsumed", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_LastConsumed, value)
+			operators[protos.LicenseResource_LastConsumed] = value
 		case "descriptions":
-			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_Description, value)
+			operators[protos.LicenseResource_Description] = value
 		case "flags":
 			// TODO
 		case "type":
-			// TODO: add type
+			operators[protos.LicenseResource_ResourceType] = value
 		case "allowed":
 			if len(FlagClusters) == 0 {
 				log.Errorf("Error: modify 'allowed' requires 'clusters' clause to specify which cluster resource to modify")
 				return util.ErrorCmdArg
 			}
-			ModifyResource(FlagResourceName, FlagServerName, FlagClusters, protos.LicenseResource_Allowed, value)
+			operators[protos.LicenseResource_Allowed] = value
+		case "servertype":
+			operators[protos.LicenseResource_ServerType] = value
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for resource modification", key)
 			return util.ErrorCmdArg
 		}
 	}
+
+	ModifyResource(FlagResourceName, FlagServerName, FlagClusters, operators)
 
 	return util.ErrorSuccess
 }

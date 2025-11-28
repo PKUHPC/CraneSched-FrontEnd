@@ -992,5 +992,6 @@ message LicenseResource {
     Description = 3;
     Flags = 4;
     ServerType = 5;
+    ResourceType = 6;
   }
 }
