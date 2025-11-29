@@ -788,9 +788,6 @@ func ShowQos(value string) util.ExitCode {
 }
 
 func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
-	if len(wckeyList) == 0 {
-		return
-	}
 	sort.Slice(wckeyList, func(i, j int) bool {
 		return wckeyList[i].UserName < wckeyList[j].UserName
 	})
@@ -816,8 +813,17 @@ func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
 	table.Render()
 }
 
-func ShowWckey() util.ExitCode {
-	req := protos.QueryWckeyInfoRequest{Uid: userUid}
+func ShowWckey(wckeyStr string) util.ExitCode {
+	var wckeyList []string
+	if wckeyStr != "" {
+		var err error
+		wckeyList, err = util.ParseStringParamList(wckeyStr, ",")
+		if err != nil {
+			log.Errorf("Invalid user list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+	req := protos.QueryWckeyInfoRequest{Uid: userUid, WckeyList: wckeyList}
 	reply, err := stub.QueryWckeyInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the wckey")
@@ -834,13 +840,8 @@ func ShowWckey() util.ExitCode {
 	}
 
 	if !reply.GetOk() {
-		for _, richError := range reply.RichErrorList {
-			if richError.Description == "" {
-				fmt.Println(util.ErrMsg(richError.Code))
-				break
-			}
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
-		}
+		fmt.Printf("Show wckey err: %s \n", util.ErrMsg(reply.Code))
+		return util.ErrorBackend
 	}
 
 	PrintWckeyList(reply.WckeyList)

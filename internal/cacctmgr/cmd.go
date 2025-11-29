@@ -37,7 +37,7 @@ var (
 		MaxCpusPerUser:      math.MaxUint32,
 		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
 	}
-	FlagWckey   protos.WckeyInfo
+	FlagWckey protos.WckeyInfo
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -153,7 +153,7 @@ func executeAddCommand(command *CAcctMgrCommand) int {
 		return executeAddUserCommand(command)
 	case "qos":
 		return executeAddQosCommand(command)
-	case "wckey":	
+	case "wckey":
 		return executeAddWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
@@ -276,15 +276,14 @@ func executeAddWckeyCommand(command *CAcctMgrCommand) int {
 	FlagWckey = protos.WckeyInfo{}
 	KVParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(KVParams, []string{"name", "cluster", "user"})
+	FlagWckey.Name = command.GetID()
+	err := checkEmptyKVParams(KVParams, []string{"cluster", "user"})
 	if err != util.ErrorSuccess {
 		return err
 	}
 
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
-		case "name":
-			FlagWckey.Name = value
 		case "cluster":
 			FlagWckey.Cluster = value
 		case "user":
@@ -383,15 +382,14 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
 	FlagWckey = protos.WckeyInfo{}
 	KVParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(KVParams, []string{"name", "cluster", "user"})
+	FlagWckey.Name = command.GetID()
+	err := checkEmptyKVParams(KVParams, []string{"cluster", "user"})
 	if err != util.ErrorSuccess {
 		return err
 	}
 
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
-		case "name":
-			FlagWckey.Name = value
 		case "cluster":
 			FlagWckey.Cluster = value
 		case "user":
@@ -753,21 +751,44 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 
 func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 	FlagWckey = protos.WckeyInfo{}
-	KVParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(KVParams, []string{"name", "cluster", "user"})
+	WhereParams := command.GetWhereParams()
+	SetParams, AddParams, DeleteParams := command.GetSetParams()
+
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify user command requires 'where' clause to specify which user to modify")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"user", "cluster"})
 	if err != util.ErrorSuccess {
 		return err
 	}
 
-	for key, value := range KVParams {
+	for key, value := range WhereParams {
 		switch strings.ToLower(key) {
-		case "name":
-			FlagWckey.Name = value
-		case "cluster":
-			FlagWckey.Cluster = value
 		case "user":
 			FlagWckey.UserName = value
+		case "cluster":
+			FlagWckey.Cluster = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for user modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(SetParams) == 0 || len(AddParams) != 0 || len(DeleteParams) != 0 {
+		log.Errorf("Error: modify user command requires 'set' clause to specify what to modify")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range SetParams {
+		switch strings.ToLower(key) {
+		case "defaultwckey":
+			FlagWckey.Name = value
+		default:
+			log.Errorf("Error: unknown set parameter '%s' for user modification", key)
+			return util.ErrorCmdArg
 		}
 	}
 	return ModifyDefaultWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
@@ -860,6 +881,8 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 		return executeShowTxnLogCommand(command)
 	case "event":
 		return executeShowEventCommand(command)
+	case "wckey":
+		return executeShowWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -876,6 +899,11 @@ func executeShowAccountCommand(command *CAcctMgrCommand) int {
 	}
 
 	return FindAccount(name)
+}
+
+func executeShowWckeyCommand(command *CAcctMgrCommand) int {
+	wckey_list := command.GetID()
+	return ShowWckey(wckey_list)
 }
 
 func executeShowUserCommand(command *CAcctMgrCommand) int {
