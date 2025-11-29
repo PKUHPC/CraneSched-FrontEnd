@@ -402,6 +402,25 @@ func GrpcErrorPrintf(err error, format string, a ...any) {
 	}
 }
 
+func GrpcErrorSprintf(err error, format string, a ...any) string {
+	s := fmt.Sprintf(format, a...)
+	if rpcErr, ok := grpcstatus.FromError(err); ok {
+		switch rpcErr.Code() {
+		case grpccodes.Unavailable:
+			return fmt.Sprintf("%s: Connection to CraneCtld is broken.", s)
+		case grpccodes.Unauthenticated:
+			return fmt.Sprintf("%s: Access denied.", s)
+		case grpccodes.DeadlineExceeded: // timeout errors
+			return fmt.Sprintf("%s: Request timeout, please try again or reduce the query scope.", s)
+		case grpccodes.ResourceExhausted: // resource exhaustion/oversized responses
+			return fmt.Sprintf("%s: Response too large, please reduce the query scope.", s)
+		default:
+			return fmt.Sprintf("%s: gRPC error code %s.", s, rpcErr.String())
+		}
+	}
+	return ""
+}
+
 func RefreshCertInterceptor(refreshCertificateFunc func() error, updateConnFunc func() (*grpc.ClientConn, error)) grpc.UnaryClientInterceptor {
 	return func(
 		ctx context.Context,

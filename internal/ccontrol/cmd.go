@@ -20,6 +20,7 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -52,7 +53,7 @@ var (
 	FlagNodeNum         uint32
 )
 
-var actionToExecute = map[string]func(command *CControlCommand) int{
+var actionToExecute = map[string]func(command *CControlCommand) util.CraneError{
 	"show":    executeShowCommand,
 	"update":  executeUpdateCommand,
 	"hold":    executeHoldCommand,
@@ -76,13 +77,14 @@ func ParseCmdArgs(args []string) {
 	}
 
 	result := executeCommand(command)
-	if result != util.ErrorSuccess {
-		log.Errorf("Command execution failed")
+	if result.Message != "" {
+		log.Error(result.Message)
 	}
-	os.Exit(result)
+
+	os.Exit(result.Code)
 }
 
-func executeCommand(command *CControlCommand) int {
+func executeCommand(command *CControlCommand) util.CraneError {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	userUid = uint32(os.Getuid())
@@ -92,12 +94,11 @@ func executeCommand(command *CControlCommand) int {
 	if exists {
 		return executeAction(command)
 	} else {
-		log.Debugf("unknown operation type: %s", action)
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown operation type: %s\n", action))
 	}
 }
 
-func executeShowCommand(command *CControlCommand) int {
+func executeShowCommand(command *CControlCommand) util.CraneError {
 	entity := command.GetEntity()
 	switch entity {
 	case "node":
@@ -111,81 +112,75 @@ func executeShowCommand(command *CControlCommand) int {
 	case "lic":
 		return executeShowLicenseCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeShowNodeCommand(command *CControlCommand) int {
+func executeShowNodeCommand(command *CControlCommand) util.CraneError {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 		name = ""
 	}
 	err := ShowNodes(name, FlagQueryAll)
-	if err != nil {
-		log.Errorf("show nodes failed: %s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("show nodes failed: %s\n", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeShowPartitionCommand(command *CControlCommand) int {
+func executeShowPartitionCommand(command *CControlCommand) util.CraneError {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 	}
 	err := ShowPartitions(name, FlagQueryAll)
-	if err != nil {
-		log.Errorf("show partitions failed: %s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("show partitions failed: %s\n", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeShowJobCommand(command *CControlCommand) int {
+func executeShowJobCommand(command *CControlCommand) util.CraneError {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 	}
 
 	err := ShowJobs(name, FlagQueryAll)
-	if err != nil {
-		log.Errorf("show jobs failed: %s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("show job failed: %s\n", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeShowReservationCommand(command *CControlCommand) int {
+func executeShowReservationCommand(command *CControlCommand) util.CraneError {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 		name = ""
 	}
 	err := ShowReservations(name, FlagQueryAll)
-	if err != nil {
-		log.Errorf("show reservations failed: %s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("show reservations failed: %s", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeShowLicenseCommand(command *CControlCommand) int {
+func executeShowLicenseCommand(command *CControlCommand) util.CraneError {
 	name := command.GetID()
 	if len(name) == 0 {
 		FlagQueryAll = true
 		name = ""
 	}
 	err := ShowLicenses(name, FlagQueryAll)
-	if err != nil {
-		log.Errorf("show licenses failed: %s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("show licenses failed: %s", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeUpdateCommand(command *CControlCommand) int {
+func executeUpdateCommand(command *CControlCommand) util.CraneError {
 	kvParams := command.GetKVMaps()
 
 	for key := range kvParams {
@@ -209,22 +204,18 @@ func executeUpdateCommand(command *CControlCommand) int {
 			return executeUpdatePartitionCommand(command)
 		}
 	}
-
-	log.Debugf("unknown attribute to modify")
-	return util.ErrorCmdArg
+	return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("unknown attribute to modify"))
 }
 
-func executeUpdateNodeCommand(command *CControlCommand) int {
+func executeUpdateNodeCommand(command *CControlCommand) util.CraneError {
 	kvParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(kvParams, []string{"state", "reason"})
-	if err != util.ErrorSuccess {
+	if err := checkEmptyKVParams(kvParams, []string{"state", "reason"}); err.Code != util.ErrorSuccess {
 		return err
 	}
 
 	if FlagNodeName == "" {
-		log.Debug("node name not specified")
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("node name not specified"))
 	}
 
 	for key, value := range kvParams {
@@ -236,22 +227,21 @@ func executeUpdateNodeCommand(command *CControlCommand) int {
 		case "nodename", "node":
 			continue
 		default:
-			log.Errorf("unknown attribute to modify: %s", key)
-			return util.ErrorCmdArg
+			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown attribute to modify: %s\n", key))
 		}
 	}
-	error := ChangeNodeState(FlagNodeName, FlagState, FlagReason)
-	if error != nil {
-		log.Errorf("change node state failed: %s", error)
-		return util.ErrorGeneric
+	err := ChangeNodeState(FlagNodeName, FlagState, FlagReason)
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("change node state failed: %s\n", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeUpdateJobCommand(command *CControlCommand) int {
+func executeUpdateJobCommand(command *CControlCommand) util.CraneError {
 	kvParams := command.GetKVMaps()
 
-	var lastErr int = util.ErrorSuccess
+	var craneError = *util.NewCraneErr(util.ErrorSuccess, "")
+
 	var jobParamFlags UpdateJobParamFlags
 	jobParamValuesMap := make(map[UpdateJobParamFlags]string)
 	for key, value := range kvParams {
@@ -270,16 +260,14 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 			jobParamValuesMap[MailUserTypeFlag] = value
 		case "mailtype":
 			if !util.CheckMailType(value) {
-				log.Errorf("Invalid mailtype value to modify: %s", value)
-				return util.ErrorCmdArg
+				return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid mailtype value to modify: %s\n", value))
 			}
 			jobParamFlags |= MailTypeTypeFlag
 			jobParamValuesMap[MailTypeTypeFlag] = value
 		case "jobid", "job":
 			continue
 		default:
-			log.Errorf("unknown attribute to modify: %s", key)
-			return util.ErrorCmdArg
+			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown attribute to modify: %s\n", key))
 		}
 	}
 
@@ -287,77 +275,71 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 		value := jobParamValuesMap[PriorityTypeFlag]
 		priority, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			lastErr = util.ErrorCmdArg
+			craneError.Code = util.ErrorCmdArg
 		}
 		FlagPriority = priority
-		err = ChangeTaskPriority(FlagTaskIds, FlagPriority)
-		if err != nil {
-			log.Errorf("change task priority failed: %s", err)
-			lastErr = util.ErrorGeneric
+		result := ChangeTaskPriority(FlagTaskIds, FlagPriority)
+		if result.Code != util.ErrorSuccess {
+			craneError.Message += fmt.Sprintf("change task priority failed: %s\n", result.Message)
+			craneError.Code = util.ErrorGeneric
 		}
 	}
 
 	if jobParamFlags&TimelimitTypeFlag != 0 {
 		FlagTimeLimit = jobParamValuesMap[TimelimitTypeFlag]
 		err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
-		if err != nil {
-			log.Errorf("change task time limit failed: %s", err)
-			lastErr = util.ErrorGeneric
+		if err.Code != util.ErrorSuccess {
+			craneError.Message += fmt.Sprintf("change task time limit failed: %s\n", err.Message)
+			craneError.Code = util.ErrorGeneric
 		}
 	}
 
 	if jobParamFlags&(CommentTypeFlag|MailUserTypeFlag|MailTypeTypeFlag) != 0 {
 		err := ChangeTaskExtraAttrs(FlagTaskIds, jobParamValuesMap)
-		if err != nil {
-			log.Errorf("change job ExtraAttrs failed: %s", err)
-			lastErr = util.ErrorGeneric
+		if err.Code != util.ErrorSuccess {
+			craneError.Message += fmt.Sprintf("change job ExtraAttrs failed: %s\n", err.Message)
+			craneError.Code = util.ErrorGeneric
 		}
 	}
 
-	return lastErr
+	return craneError
 }
 
-func executeUpdatePartitionCommand(command *CControlCommand) int {
+func executeUpdatePartitionCommand(command *CControlCommand) util.CraneError {
 	kvParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(kvParams, nil)
-	if err != util.ErrorSuccess {
+	if err := checkEmptyKVParams(kvParams, nil); err.Code != util.ErrorSuccess {
 		return err
 	}
 
 	if FlagPartitionName == "" {
-		log.Debug("partition name not specified")
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("partition name not specified"))
 	}
 
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "accounts", "allowedaccounts":
 			FlagAllowedAccounts = value
-			err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts)
-			if err != nil {
-				log.Errorf("%s", err)
-				return util.ErrorGeneric
+			if err := ModifyPartitionAcl(FlagPartitionName, true, FlagAllowedAccounts); err.Code != util.ErrorSuccess {
+				return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("%s\n", err.Message))
 			}
 		case "deniedaccounts":
 			FlagDeniedAccounts = value
-			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err != nil {
-				log.Errorf("%s", err)
-				return util.ErrorGeneric
+			if err := ModifyPartitionAcl(FlagPartitionName, false, FlagDeniedAccounts); err.Code != util.ErrorSuccess {
+				return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("%s\n", err.Message))
 			}
 			log.Warning("Hint: When using AllowedAccounts, DeniedAccounts will not take effect.")
 		case "partitionname", "partition":
 			continue
 		default:
-			log.Errorf("unknown attribute to modify: %s", key)
-			return util.ErrorCmdArg
+			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown attribute to modify: %s\n", key))
 		}
 	}
 
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeHoldCommand(command *CControlCommand) int {
+func executeHoldCommand(command *CControlCommand) util.CraneError {
 	jobIds := command.GetID()
 
 	timeLimit := command.GetKVParamValue("timelimit")
@@ -366,57 +348,50 @@ func executeHoldCommand(command *CControlCommand) int {
 	}
 
 	if jobIds == "" {
-		log.Debug("no job id specified")
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no job id specified"))
 	}
 
 	FlagHoldTime = timeLimit
 
 	err := HoldReleaseJobs(jobIds, true)
-	if err != nil {
-		log.Errorf("hold jobs failed: %s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("hold jobs failed: %s\n", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeReleaseCommand(command *CControlCommand) int {
+func executeReleaseCommand(command *CControlCommand) util.CraneError {
 	jobIds := command.GetID()
 	if jobIds == "" {
-		log.Debug("no job id specified")
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no job id specified"))
 	}
 
 	err := HoldReleaseJobs(jobIds, false)
-	if err != nil {
-		log.Errorf("release jobs failed: %s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("release jobs failed: %s\n", err.Message))
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeCreateCommand(command *CControlCommand) int {
+func executeCreateCommand(command *CControlCommand) util.CraneError {
 	entity := command.GetEntity()
 	switch entity {
 	case "reservation":
 		return executeCreateReservationCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeCreateReservationCommand(command *CControlCommand) int {
+func executeCreateReservationCommand(command *CControlCommand) util.CraneError {
 	FlagReservationName = command.GetID()
 	if len(FlagReservationName) == 0 {
-		log.Debug("no reservation name specified")
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no reservation name specified"))
 	}
 
 	kvParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(kvParams, []string{"starttime", "duration", "account"})
-	if err != util.ErrorSuccess {
+	if err := checkEmptyKVParams(kvParams, []string{"starttime", "duration", "account"}); err.Code != util.ErrorSuccess {
 		return err
 	}
 
@@ -437,54 +412,47 @@ func executeCreateReservationCommand(command *CControlCommand) int {
 		case "nodecnt":
 			nodeNum, err := strconv.ParseUint(value, 10, 32)
 			if err != nil {
-				log.Errorf("invalid nodenum value: %s", value)
-				return util.ErrorCmdArg
+				return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid nodenum value: %s\n", value))
 			}
 			FlagNodeNum = uint32(nodeNum)
 		default:
-			log.Errorf("unknown attribute to modify: %s", key)
-			return util.ErrorCmdArg
+			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown attribute to modify: %s\n", key))
 		}
 	}
 
-	error := CreateReservation()
-	if error != nil {
-		log.Errorf("%s", error)
-		return util.ErrorGeneric
+	err := CreateReservation()
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, err.Message)
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeDeleteCommand(command *CControlCommand) int {
+func executeDeleteCommand(command *CControlCommand) util.CraneError {
 	entity := command.GetEntity()
 	switch entity {
 	case "reservation":
 		return executeDeleteReservationCommand(command)
 	default:
-		log.Debugf("unknown entity type: %s", entity)
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeDeleteReservationCommand(command *CControlCommand) int {
+func executeDeleteReservationCommand(command *CControlCommand) util.CraneError {
 	name := command.GetID()
 	if len(name) == 0 {
-		log.Debug("no reservation name specified")
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no reservation name specified"))
 	}
 
 	err := DeleteReservation(name)
-	if err != nil {
-		log.Errorf("%s", err)
-		return util.ErrorGeneric
+	if err.Code != util.ErrorSuccess {
+		return *util.NewCraneErr(util.ErrorGeneric, err.Message)
 	}
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int {
+func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) util.CraneError {
 	if len(kvParams) == 0 {
-		log.Debug("no attributes to modify")
-		return util.ErrorCmdArg
+		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no attributes to modify"))
 	}
 
 	if len(requiredFields) > 0 {
@@ -503,10 +471,13 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) int
 		}
 
 		if len(missingFields) > 0 {
-			log.Errorf("missing required fields: %s", strings.Join(missingFields, ", "))
-			return util.ErrorCmdArg
+			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("missing required fields: %s\n", strings.Join(missingFields, ", ")))
 		}
 	}
 
-	return util.ErrorSuccess
+	return *util.NewCraneErr(util.ErrorSuccess, "")
+}
+
+func init() {
+	util.InitCraneLogger()
 }
