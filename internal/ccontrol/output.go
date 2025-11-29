@@ -142,33 +142,29 @@ func formatDeniedAccounts(deniedAccounts []string) string {
 	return strings.Join(deniedAccounts, ",")
 }
 
-func getCranedNodesReply(nodeName string) (*protos.QueryCranedInfoReply, error) {
+func getCranedNodesReply(nodeName string) (*protos.QueryCranedInfoReply, util.CraneError) {
 	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show nodes")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show nodes")
+		return nil, *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to show nodes"))
 	}
-	return reply, nil
+	return reply, *util.NewCraneErr(util.ErrorSuccess, "")
 }
-func handleNodesEmptyResult(nodeName string, queryAll bool) error {
+func handleNodesEmptyResult(nodeName string, queryAll bool) util.CraneError {
 	if queryAll {
-		fmt.Println("No node is available.")
-		return nil
+		fmt.Printf("No node is available.")
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
-	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Node %s not found.", nodeName))
+	return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Node %s not found.", nodeName))
 }
 
-func outputNodes(nodes []*protos.CranedInfo) error {
+func outputNodes(nodes []*protos.CranedInfo) {
 	for _, node := range nodes {
-		if err := printNodeDetails(node); err != nil {
-			return err
-		}
+		printNodeDetails(node)
 	}
-	return nil
 }
 
-func printNodeDetails(node *protos.CranedInfo) error {
+func printNodeDetails(node *protos.CranedInfo) {
 	stateStr := formatNodeState(node)
 	cranedVersion := "unknown"
 	if len(node.CranedVersion) > 0 {
@@ -199,8 +195,6 @@ func printNodeDetails(node *protos.CranedInfo) error {
 		cranedOs,
 		timeInfo.bootTime, timeInfo.startTime, timeInfo.lastBusyTime,
 	)
-
-	return nil
 }
 
 type nodeTimes struct {
@@ -259,49 +253,46 @@ func formatGresInfo(node *protos.CranedInfo) string {
 	)
 }
 
-func ShowNodes(nodeName string, queryAll bool) error {
+func ShowNodes(nodeName string, queryAll bool) util.CraneError {
 	reply, err := getCranedNodesReply(nodeName)
-	if err != nil {
+	if err.Code != util.ErrorSuccess {
 		return err
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 	if len(reply.CranedInfoList) == 0 {
 		return handleNodesEmptyResult(nodeName, queryAll)
 	}
-	return outputNodes(reply.CranedInfoList)
+	outputNodes(reply.CranedInfoList)
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
 // show Partitions
-func getPartitionInfoReply(partitionName string) (*protos.QueryPartitionInfoReply, error) {
+func getPartitionInfoReply(partitionName string) (*protos.QueryPartitionInfoReply, util.CraneError) {
 	req := &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show partitions")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show partitions")
+		return nil, *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to show partitions"))
 	}
-	return reply, nil
+	return reply, *util.NewCraneErr(util.ErrorSuccess, "")
 }
-func handleEmptyPartitionResult(partitionName string, queryAll bool) error {
+func handleEmptyPartitionResult(partitionName string, queryAll bool) util.CraneError {
 	if queryAll {
 		fmt.Println("No partition is available.")
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
-	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Partition %s not found.", partitionName))
+	return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Partition %s not found.", partitionName))
 }
 
-func outputPartitions(partitions []*protos.PartitionInfo) error {
+func outputPartitions(partitions []*protos.PartitionInfo) {
 	for _, partition := range partitions {
-		if err := printPartitionDetails(partition); err != nil {
-			return err
-		}
+		printPartitionDetails(partition)
 	}
-	return nil
 }
 
-func printPartitionDetails(partition *protos.PartitionInfo) error {
+func printPartitionDetails(partition *protos.PartitionInfo) {
 	accountsInfo := formatAccountsInfo(partition)
 	nodesInfo := fmt.Sprintf("TotalNodes=%d AliveNodes=%d", partition.TotalNodes, partition.AliveNodes)
 	cpuInfo := formatCpuResources(partition)
@@ -327,8 +318,6 @@ func printPartitionDetails(partition *protos.PartitionInfo) error {
 		gresInfo,
 		memLimits,
 		partition.Hostlist)
-
-	return nil
 }
 
 func formatAccountsInfo(partition *protos.PartitionInfo) string {
@@ -356,49 +345,48 @@ func formatGresResources(partition *protos.PartitionInfo) string {
 	return fmt.Sprintf("TotalGres=%s AvailGres=%s AllocGres=%s", total, avail, alloc)
 }
 
-func ShowPartitions(partitionName string, queryAll bool) error {
+func ShowPartitions(partitionName string, queryAll bool) util.CraneError {
 	reply, err := getPartitionInfoReply(partitionName)
-	if err != nil {
+	if err.Code != util.ErrorSuccess {
 		return err
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 	if len(reply.PartitionInfoList) == 0 {
 		return handleEmptyPartitionResult(partitionName, queryAll)
 	}
-	return outputPartitions(reply.PartitionInfoList)
+	outputPartitions(reply.PartitionInfoList)
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
 // show Reservation
-func getReservationInfoReply(reservationName string) (*protos.QueryReservationInfoReply, error) {
+func getReservationInfoReply(reservationName string) (*protos.QueryReservationInfoReply, util.CraneError) {
 	req := &protos.QueryReservationInfoRequest{
 		Uid:             uint32(os.Getuid()),
 		ReservationName: reservationName,
 	}
 	reply, err := stub.QueryReservationInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show reservations")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show reservations")
+		return nil, *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to show reservations"))
 	}
 	if !reply.GetOk() {
-		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve reservation info: %s", reply.GetReason()))
+		return nil, *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve reservation info: %s", reply.GetReason()))
 	}
-	return reply, nil
+	return reply, *util.NewCraneErr(util.ErrorSuccess, "")
 }
-func handleEmptyReservationResult(reservationName string, queryAll bool) error {
+func handleEmptyReservationResult(reservationName string, queryAll bool) util.CraneError {
 	if queryAll {
 		fmt.Println("No reservation is available.")
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
-	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Reservation %s not found.", reservationName))
+	return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Reservation %s not found.", reservationName))
 }
-func outputReservations(reservations []*protos.ReservationInfo) error {
+func outputReservations(reservations []*protos.ReservationInfo) {
 	for _, res := range reservations {
 		fmt.Println(formatReservationDetails(res))
 	}
-	return nil
 }
 
 // strings.Builder
@@ -465,76 +453,77 @@ func formatReservationResources(res *protos.ReservationInfo) string {
 	return buf.String()
 }
 
-func ShowReservations(reservationName string, queryAll bool) error {
+func ShowReservations(reservationName string, queryAll bool) util.CraneError {
 	reply, err := getReservationInfoReply(reservationName)
-	if err != nil {
+	if err.Code != util.ErrorSuccess {
 		return err
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 	if len(reply.ReservationInfoList) == 0 {
 		return handleEmptyReservationResult(reservationName, queryAll)
 	}
-	return outputReservations(reply.ReservationInfoList)
+	outputReservations(reply.ReservationInfoList)
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
 // show Jobs
-func parseJobIds(jobIds string, queryAll bool) ([]uint32, error) {
+func parseJobIds(jobIds string, queryAll bool) ([]uint32, util.CraneError) {
 	if queryAll {
-		return nil, nil
+		return nil, *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 	jobIdList, err := util.ParseJobIdList(jobIds, ",")
 	if err != nil {
-		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
+		return nil, *util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 	}
-	return jobIdList, nil
+	return jobIdList, *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func getTaskInfoReply(jobIdList []uint32) (*protos.QueryTasksInfoReply, error) {
+func getTaskInfoReply(jobIdList []uint32) (*protos.QueryTasksInfoReply, util.CraneError) {
 	req := &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show jobs")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show jobs")
+		return nil, *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to show jobs"))
 	}
 
 	if !reply.GetOk() {
-		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %v", jobIdList))
+		return nil, *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %v", jobIdList))
 	}
-	return reply, nil
+	return reply, *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func handleEmptyJobResult(jobIdList []uint32, queryAll bool) error {
+func handleEmptyJobResult(jobIdList []uint32, queryAll bool) util.CraneError {
 	if queryAll {
 		fmt.Println("No job is running.")
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 
 	jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
 	fmt.Printf("Job %s is not running.\n", jobIdListString)
-	return nil
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func outputJobs(tasks []*protos.TaskInfo, requestedIds []uint32) error {
+func outputJobs(tasks []*protos.TaskInfo, requestedIds []uint32) util.CraneError {
 	// Track if any job requested is not returned
 	printed := make(map[uint32]bool)
 	for _, task := range tasks {
-		if err := printJobDetails(task); err != nil {
+		if err := printJobDetails(task); err.Code != util.ErrorSuccess {
 			return err
 		}
 		printed[task.TaskId] = true
 	}
-	return checkMissingJobs(requestedIds, printed)
+	checkMissingJobs(requestedIds, printed)
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func printJobDetails(task *protos.TaskInfo) error {
+func printJobDetails(task *protos.TaskInfo) util.CraneError {
 	// id/name
 	fmt.Printf("JobId=%v JobName=%v\n", task.TaskId, task.Name)
 	// user / group
 	userInfo, err := getUserGroupInfo(task)
-	if err != nil {
+	if err.Code != util.ErrorSuccess {
 		return err
 	}
 	fmt.Printf("\tUser=%s(%d) GroupId=%s(%d) Account=%v\n", userInfo.username, task.Uid, userInfo.groupname, task.Gid, task.Account)
@@ -562,7 +551,7 @@ func printJobDetails(task *protos.TaskInfo) error {
 	//  mail
 	printMailNotification(task.ExtraAttr)
 
-	return nil
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
 type userGroupInfo struct {
@@ -570,23 +559,23 @@ type userGroupInfo struct {
 	groupname string
 }
 
-func getUserGroupInfo(task *protos.TaskInfo) (userGroupInfo, error) {
+func getUserGroupInfo(task *protos.TaskInfo) (userGroupInfo, util.CraneError) {
 	craneUser, err := user.LookupId(strconv.Itoa(int(task.Uid)))
 	if err != nil {
-		return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric,
+		return userGroupInfo{}, *util.NewCraneErr(util.ErrorGeneric,
 			fmt.Sprintf("Failed to get username for UID %d: %s", task.Uid, err))
 	}
 
 	group, err := user.LookupGroupId(strconv.Itoa(int(task.Gid)))
 	if err != nil {
-		return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric,
+		return userGroupInfo{}, *util.NewCraneErr(util.ErrorGeneric,
 			fmt.Sprintf("Failed to get groupname for GID %d: %s", task.Gid, err))
 	}
 
 	return userGroupInfo{
 		username:  craneUser.Username,
 		groupname: group.Name,
-	}, nil
+	}, *util.NewCraneErr(util.ErrorSuccess, "")
 }
 
 type jobTimeInfo struct {
@@ -686,9 +675,9 @@ func formatHostNameStr(hosts string) string {
 }
 
 // If any job is requested but not returned, remind the user
-func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) error {
+func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) {
 	if len(requestedIds) == 0 {
-		return nil
+		return
 	}
 	missingJobs := []uint32{}
 	for _, id := range requestedIds {
@@ -701,20 +690,19 @@ func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) error {
 		fmt.Printf("Job %s is not running.\n", missingList)
 	}
 
-	return nil
 }
-func ShowJobs(jobIds string, queryAll bool) error {
+func ShowJobs(jobIds string, queryAll bool) util.CraneError {
 	jobIdList, err := parseJobIds(jobIds, queryAll)
-	if err != nil {
+	if err.Code != util.ErrorSuccess {
 		return err
 	}
 	reply, err := getTaskInfoReply(jobIdList)
-	if err != nil {
+	if err.Code != util.ErrorSuccess {
 		return err
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 	if len(reply.TaskInfoList) == 0 {
 		return handleEmptyJobResult(jobIdList, queryAll)
@@ -722,7 +710,7 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	return outputJobs(reply.TaskInfoList, jobIdList)
 }
 
-func ShowLicenses(licenseName string, queryAll bool) error {
+func ShowLicenses(licenseName string, queryAll bool) util.CraneError {
 	var licenseNameList []string
 	if licenseName != "" {
 		licenseNameList = strings.Split(licenseName, ",")
@@ -731,17 +719,16 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 	req := &protos.QueryLicensesInfoRequest{LicenseNameList: licenseNameList}
 	reply, err := stub.QueryLicensesInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show license")
-		return util.NewCraneErr(util.ErrorNetwork, "Failed to show license")
+		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to show license"))
 	}
 
 	if !reply.Ok {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for lic %v", licenseName))
+		return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for lic %v", licenseName))
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 
 	if len(reply.LicenseInfoList) == 0 {
@@ -750,7 +737,7 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 		} else {
 			fmt.Printf("license %s not found.\n", licenseName)
 		}
-		return nil
+		return *util.NewCraneErr(util.ErrorSuccess, "")
 	}
 
 	for _, licenseInfo := range reply.LicenseInfoList {
@@ -759,5 +746,5 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 			licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free)
 	}
 
-	return nil
+	return *util.NewCraneErr(util.ErrorSuccess, "")
 }
