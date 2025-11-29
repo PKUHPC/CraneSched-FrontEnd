@@ -94,6 +94,7 @@ type EntityType struct {
 	User    bool `parser:"| @'user'"`
 	Qos     bool `parser:"| @'qos'"`
 	Txn     bool `parser:"| @'transaction'"`
+	Wckey   bool `parser:"| @'wckey'"`
 }
 
 type Flag struct {
@@ -159,6 +160,8 @@ func (r EntityType) String() string {
 		return "qos"
 	case r.Txn:
 		return "transaction"
+	case r.Wckey:
+		return "wckey"
 	default:
 		return ""
 	}
