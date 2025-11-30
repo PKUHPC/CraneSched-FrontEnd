@@ -47,7 +47,7 @@ const (
 	TimelimitTypeFlag
 )
 
-func SummarizeReply(proto interface{}) util.CraneError {
+func SummarizeReply(proto interface{}) error {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
 		if len(reply.ModifiedTasks) > 0 {
@@ -59,9 +59,9 @@ func SummarizeReply(proto interface{}) util.CraneError {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
 				msg += fmt.Sprintf("Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	case *protos.ModifyCranedStateReply:
 		if len(reply.ModifiedNodes) > 0 {
 			nodeListString := util.ConvertSliceToString(reply.ModifiedNodes, ", ")
@@ -72,9 +72,9 @@ func SummarizeReply(proto interface{}) util.CraneError {
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
 				msg += fmt.Sprintf("Failed to modify node: %s. Reason: %s.\n", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 			}
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	case *protos.ModifyTasksExtraAttrsReply:
 		if len(reply.ModifiedTasks) > 0 {
 			modifiedTasksString := util.ConvertSliceToString(reply.ModifiedTasks, ", ")
@@ -85,23 +85,23 @@ func SummarizeReply(proto interface{}) util.CraneError {
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
 				msg += fmt.Sprintf("Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	default:
-		return *util.NewCraneErr(util.ErrorGeneric, "Unknown reply.")
+		return util.NewCraneErr(util.ErrorGeneric, "Unknown reply.")
 	}
 }
 
-func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneError {
+func ChangeTaskTimeLimit(taskStr string, timeLimit string) error {
 	seconds, err := util.ParseDurationStrToSeconds(timeLimit)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorCmdArg, err.Error())
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	taskIds, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
 	}
 
 	req := &protos.ModifyTaskRequest{
@@ -114,26 +114,26 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) util.CraneError {
 	}
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task time limit"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task time limit"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedTasks) == 0 {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	return SummarizeReply(reply)
 }
 
-func HoldReleaseJobs(jobs string, hold bool) util.CraneError {
+func HoldReleaseJobs(jobs string, hold bool) error {
 	jobList, err := util.ParseJobIdList(jobs, ",")
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
 	}
 
 	req := &protos.ModifyTaskRequest{
@@ -149,11 +149,11 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneError {
 		if FlagHoldTime != "" {
 			seconds, err := util.ParseDurationStrToSeconds(FlagHoldTime)
 			if err != nil {
-				return *util.NewCraneErr(util.ErrorCmdArg, err.Error())
+				return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 			}
 
 			if seconds == 0 {
-				return *util.NewCraneErr(util.ErrorCmdArg, "Hold time must be greater than 0.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Hold time must be greater than 0.")
 			}
 
 			req.Value = &protos.ModifyTaskRequest_HoldSeconds{HoldSeconds: seconds}
@@ -164,30 +164,30 @@ func HoldReleaseJobs(jobs string, hold bool) util.CraneError {
 
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify the job"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify the job"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedTasks) == 0 {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	return SummarizeReply(reply)
 }
 
-func ChangeTaskPriority(taskStr string, priority float64) util.CraneError {
+func ChangeTaskPriority(taskStr string, priority float64) error {
 	if priority < 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, "Priority must be greater than or equal to 0.")
+		return util.NewCraneErr(util.ErrorCmdArg, "Priority must be greater than or equal to 0.")
 	}
 
 	taskIds, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorCmdArg, err.Error())
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	rounded, _ := util.ParseFloatWithPrecision(strconv.FormatFloat(priority, 'f', 1, 64), 1)
@@ -209,26 +209,26 @@ func ChangeTaskPriority(taskStr string, priority float64) util.CraneError {
 
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task priority"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task priority"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedTasks) == 0 {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	return SummarizeReply(reply)
 }
 
-func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]string) util.CraneError {
+func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]string) error {
 	jobIdList, err := util.ParseJobIdList(taskStr, ",")
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorCmdArg, err.Error())
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	req := &protos.QueryTasksInfoRequest{
@@ -237,16 +237,16 @@ func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]strin
 	}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to query job information: %s", err))
+		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to query job information: %s", err))
 	}
 
 	if !reply.GetOk() {
-		return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %s", taskStr))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %s", taskStr))
 	}
 
 	if len(reply.TaskInfoList) == 0 {
 		jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
-		return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Job %s is completed or does not exist", jobIdListString))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Job %s is completed or does not exist", jobIdListString))
 	}
 
 	updateJobExtraAttr := func(origin string, JobParamvalMap map[UpdateJobParamFlags]string) (string, error) {
@@ -273,7 +273,7 @@ func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]strin
 	for _, taskInfo := range reply.TaskInfoList {
 		newJsonStr, err := updateJobExtraAttr(taskInfo.ExtraAttr, valueMap)
 		if err != nil {
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to set extra attributes JSON: %s", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to set extra attributes JSON: %s", err))
 		}
 		pdOrRJobMap[taskInfo.TaskId] = newJsonStr
 		validJobList[taskInfo.TaskId] = true
@@ -297,30 +297,30 @@ func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]strin
 
 	rep, err := stub.ModifyTasksExtraAttrs(context.Background(), request)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task extra attrs"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task extra attrs"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(rep))
 		if len(rep.NotModifiedTasks) == 0 {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	return SummarizeReply(rep)
 }
 
-func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneError {
+func ChangeNodeState(nodeRegex string, state string, reason string) error {
 	nodeNames, ok := util.ParseHostList(nodeRegex)
 	if !ok {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", nodeRegex))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", nodeRegex))
 	}
 
 	if len(nodeNames) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, "No node provided.")
+		return util.NewCraneErr(util.ErrorCmdArg, "No node provided.")
 	}
 
 	var req = &protos.ModifyCranedStateRequest{}
@@ -330,7 +330,7 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneEr
 	switch state {
 	case "drain":
 		if reason == "" {
-			return *util.NewCraneErr(util.ErrorCmdArg, "You must specify a reason when draining a node.")
+			return util.NewCraneErr(util.ErrorCmdArg, "You must specify a reason when draining a node.")
 		}
 		req.NewState = protos.CranedControlState_CRANE_DRAIN
 		req.Reason = reason
@@ -346,28 +346,28 @@ func ChangeNodeState(nodeRegex string, state string, reason string) util.CraneEr
 		req.NewState = protos.CranedControlState_CRANE_WAKE
 	default:
 		p := []string{"drain", "resume", "on", "off", "sleep", "wake"}
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid state given: %s. Valid states are: %s.", state, strings.Join(p, ", ")))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid state given: %s. Valid states are: %s.", state, strings.Join(p, ", ")))
 	}
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify node state"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify node state"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedNodes) == 0 {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	return SummarizeReply(reply)
 }
 
-func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) util.CraneError {
+func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) error {
 	var accountList []string
 	accountList, _ = util.ParseStringParamList(accounts, ",")
 
@@ -380,36 +380,36 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) u
 
 	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Faild to modify partition %s", partition))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Faild to modify partition %s", partition))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if !reply.GetOk() {
-		return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Modify partition %s failed: %s.",
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Modify partition %s failed: %s.",
 			partition, util.ErrMsg(reply.GetCode())))
 	}
 
 	fmt.Printf("Modify partition %s succeeded.\n", partition)
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
-func CreateReservation() util.CraneError {
+func CreateReservation() error {
 	start_time, err := util.ParseTime(FlagStartTime)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorCmdArg, err.Error())
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 	duration, err := util.ParseDurationStrToSeconds(FlagDuration)
 	if err != nil || duration <= 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, "Invalid duration specified.")
+		return util.NewCraneErr(util.ErrorCmdArg, "Invalid duration specified.")
 	}
 
 	req := &protos.CreateReservationRequest{
@@ -423,7 +423,7 @@ func CreateReservation() util.CraneError {
 		req.CranedRegex = FlagNodes
 	} else {
 		if FlagPartitionName == "" {
-			return *util.NewCraneErr(util.ErrorCmdArg, "Partition name must be specified when no node regex is given.")
+			return util.NewCraneErr(util.ErrorCmdArg, "Partition name must be specified when no node regex is given.")
 		}
 	}
 
@@ -438,86 +438,86 @@ func CreateReservation() util.CraneError {
 	if FlagAccount != "" {
 		req.AllowedAccounts, req.DeniedAccounts, err = util.ParsePosNegList(FlagAccount)
 		if err != nil {
-			return *util.NewCraneErr(util.ErrorCmdArg, err.Error())
+			return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 		}
 		if len(req.AllowedAccounts) > 0 && len(req.DeniedAccounts) > 0 {
-			return *util.NewCraneErr(util.ErrorCmdArg, "You can only specify either allowed or disallowed accounts.")
+			return util.NewCraneErr(util.ErrorCmdArg, "You can only specify either allowed or disallowed accounts.")
 		}
 		if len(req.AllowedAccounts) == 0 && len(req.DeniedAccounts) == 0 {
-			return *util.NewCraneErr(util.ErrorCmdArg, "Account can not be empty.")
+			return util.NewCraneErr(util.ErrorCmdArg, "Account can not be empty.")
 		}
 	}
 
 	if FlagUser != "" {
 		req.AllowedUsers, req.DeniedUsers, err = util.ParsePosNegList(FlagUser)
 		if err != nil {
-			return *util.NewCraneErr(util.ErrorCmdArg, err.Error())
+			return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 		}
 		if len(req.AllowedUsers) > 0 && len(req.DeniedUsers) > 0 {
-			return *util.NewCraneErr(util.ErrorCmdArg, "You can only specify either allowed or disallowed users.")
+			return util.NewCraneErr(util.ErrorCmdArg, "You can only specify either allowed or disallowed users.")
 		}
 	}
 
 	reply, err := stub.CreateReservation(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to create reservation"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to create reservation"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s created successfully.\n", FlagReservationName)
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
-		return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to create reservation: %s.", reply.GetReason()))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to create reservation: %s.", reply.GetReason()))
 	}
 }
 
-func DeleteReservation(ReservationName string) util.CraneError {
+func DeleteReservation(ReservationName string) error {
 	req := &protos.DeleteReservationRequest{
 		Uid:             uint32(os.Getuid()),
 		ReservationName: ReservationName,
 	}
 	reply, err := stub.DeleteReservation(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to delete reservation"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to delete reservation"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
-		return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete reservation: %s.\n", reply.GetReason()))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete reservation: %s.\n", reply.GetReason()))
 	}
 
 }
 
-func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneError {
+func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	nodeNames, ok := util.ParseHostList(nodeRegex)
 	if !ok {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s", nodeRegex))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s", nodeRegex))
 	}
 
 	if len(nodeNames) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, "No node provided")
+		return util.NewCraneErr(util.ErrorCmdArg, "No node provided")
 	}
 
 	var enable bool
@@ -528,7 +528,7 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneError 
 	case "false", "no", "0", "off", "disable":
 		enable = false
 	default:
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid power-control value: %s. Valid values are: true/false, yes/no, 1/0, on/off, enable/disable", enableStr))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid power-control value: %s. Valid values are: true/false, yes/no, 1/0, on/off, enable/disable", enableStr))
 	}
 
 	req := &protos.EnableAutoPowerControlRequest{
@@ -539,16 +539,16 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneError 
 
 	reply, err := stub.EnableAutoPowerControl(context.Background(), req)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify node power control setting"))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify node power control setting"))
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedNodes) > 0 {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		fmt.Print(msg)
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return util.NewCraneErr(util.ErrorSuccess, "")
 	}
 
 	if len(reply.ModifiedNodes) > 0 {
@@ -566,8 +566,8 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) util.CraneError 
 			msg += fmt.Sprintf("Failed to modify node: %s. Reason: %s.\n",
 				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 		}
-		return *util.NewCraneErr(util.ErrorBackend, msg)
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return util.NewCraneErr(util.ErrorSuccess, "")
 }

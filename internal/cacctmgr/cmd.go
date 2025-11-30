@@ -21,6 +21,7 @@ package cacctmgr
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -90,7 +91,7 @@ var (
 	FlagFormat              string
 )
 
-var actionToExecute = map[string]func(command *CAcctMgrCommand) util.CraneError{
+var actionToExecute = map[string]func(command *CAcctMgrCommand) error{
 	"add":     executeAddCommand,
 	"delete":  executeDeleteCommand,
 	"block":   executeBlockCommand,
@@ -100,12 +101,12 @@ var actionToExecute = map[string]func(command *CAcctMgrCommand) util.CraneError{
 	"reset":   executeResetCommand,
 }
 
-func validateUintValue(value string, fieldName string, bitSize int) util.CraneError {
+func validateUintValue(value string, fieldName string, bitSize int) error {
 	_, err := strconv.ParseUint(value, 10, bitSize)
 	if err != nil {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for %s flag: %v\n", value, fieldName, err))
+		return fmt.Errorf("invalid argument %s for %s flag: %v", value, fieldName, err)
 	}
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func ParseCmdArgs(args []string) {
@@ -124,14 +125,20 @@ func ParseCmdArgs(args []string) {
 	}
 
 	result := executeCommand(command)
-	if result.Message != "" {
-		log.Error(result.Message)
+	if result != nil {
+		var craneError *util.CraneError
+		errors.As(result, &craneError)
+		if craneError.Message != "" {
+			log.Error(craneError.Message)
+		}
+		os.Exit(craneError.Code)
+	} else {
+		os.Exit(util.ErrorSuccess)
 	}
 
-	os.Exit(result.Code)
 }
 
-func executeCommand(command *CAcctMgrCommand) util.CraneError {
+func executeCommand(command *CAcctMgrCommand) error {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	userUid = uint32(os.Getuid())
@@ -141,11 +148,11 @@ func executeCommand(command *CAcctMgrCommand) util.CraneError {
 	if exists {
 		return executeAction(command)
 	} else {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown operation type: %s", action))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown operation type: %s", action))
 	}
 }
 
-func executeAddCommand(command *CAcctMgrCommand) util.CraneError {
+func executeAddCommand(command *CAcctMgrCommand) error {
 	entity := command.GetEntity()
 
 	switch entity {
@@ -156,11 +163,11 @@ func executeAddCommand(command *CAcctMgrCommand) util.CraneError {
 	case "qos":
 		return executeAddQosCommand(command)
 	default:
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeAddAccountCommand(command *CAcctMgrCommand) util.CraneError {
+func executeAddAccountCommand(command *CAcctMgrCommand) error {
 	// Reset FlagAccount to default values
 	FlagAccount = protos.AccountInfo{}
 	FlagAccount.Name = command.GetID()
@@ -181,14 +188,14 @@ func executeAddAccountCommand(command *CAcctMgrCommand) util.CraneError {
 		case "qoslist":
 			FlagAccount.AllowedQosList = strings.Split(value, ",")
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 
 	return AddAccount(&FlagAccount)
 }
 
-func executeAddUserCommand(command *CAcctMgrCommand) util.CraneError {
+func executeAddUserCommand(command *CAcctMgrCommand) error {
 	FlagUser = protos.UserInfo{}
 	FlagUser.Name = command.GetID()
 	FlagUserPartitions = []string{}
@@ -198,7 +205,7 @@ func executeAddUserCommand(command *CAcctMgrCommand) util.CraneError {
 	KVParams := command.GetKVMaps()
 
 	err := checkEmptyKVParams(KVParams, []string{"account"})
-	if err.Code != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -215,14 +222,14 @@ func executeAddUserCommand(command *CAcctMgrCommand) util.CraneError {
 		case "name":
 			FlagUser.Name = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 
 	return AddUser(&FlagUser, FlagUserPartitions, FlagLevel, FlagUserCoordinator)
 }
 
-func executeAddQosCommand(command *CAcctMgrCommand) util.CraneError {
+func executeAddQosCommand(command *CAcctMgrCommand) error {
 	FlagQos = protos.QosInfo{
 		MaxJobsPerUser:      math.MaxUint32,
 		MaxCpusPerUser:      math.MaxUint32,
@@ -238,37 +245,37 @@ func executeAddQosCommand(command *CAcctMgrCommand) util.CraneError {
 		case "description":
 			FlagQos.Description = value
 		case "priority":
-			if err := validateUintValue(value, "priority", 32); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "priority", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			priority, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.Priority = uint32(priority)
 		case "maxjobsperuser":
-			if err := validateUintValue(value, "maxJobsPerUser", 32); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxJobs, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobsPerUser = uint32(maxJobs)
 		case "maxcpusperuser":
-			if err := validateUintValue(value, "maxCpusPerUser", 32); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxCpus, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxCpusPerUser = uint32(maxCpus)
 		case "maxtimelimitpertask":
-			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
 			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 	return AddQos(&FlagQos)
 }
 
-func executeDeleteCommand(command *CAcctMgrCommand) util.CraneError {
+func executeDeleteCommand(command *CAcctMgrCommand) error {
 	entity := command.GetEntity()
 
 	switch entity {
@@ -279,15 +286,15 @@ func executeDeleteCommand(command *CAcctMgrCommand) util.CraneError {
 	case "qos":
 		return executeDeleteQosCommand(command)
 	default:
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeDeleteAccountCommand(command *CAcctMgrCommand) util.CraneError {
+func executeDeleteAccountCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = command.GetID()
 
 	if FlagEntityName == "" {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -300,13 +307,13 @@ func executeDeleteAccountCommand(command *CAcctMgrCommand) util.CraneError {
 	return DeleteAccount(FlagEntityName)
 }
 
-func executeDeleteUserCommand(command *CAcctMgrCommand) util.CraneError {
+func executeDeleteUserCommand(command *CAcctMgrCommand) error {
 	// Reset related flags
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -317,19 +324,19 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) util.CraneError {
 		case "name":
 			FlagEntityName = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 
 	return DeleteUser(FlagEntityName, FlagEntityAccount)
 }
 
-func executeDeleteQosCommand(command *CAcctMgrCommand) util.CraneError {
+func executeDeleteQosCommand(command *CAcctMgrCommand) error {
 	// Reset FlagEntityName
 	FlagEntityName = command.GetID()
 
 	if FlagEntityName == "" {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity qos not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity qos not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -342,7 +349,7 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) util.CraneError {
 	return DeleteQos(FlagEntityName)
 }
 
-func executeBlockCommand(command *CAcctMgrCommand) util.CraneError {
+func executeBlockCommand(command *CAcctMgrCommand) error {
 	entity := command.GetEntity()
 
 	switch entity {
@@ -351,17 +358,17 @@ func executeBlockCommand(command *CAcctMgrCommand) util.CraneError {
 	case "user":
 		return executeBlockUserCommand(command)
 	default:
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeBlockAccountCommand(command *CAcctMgrCommand) util.CraneError {
+func executeBlockAccountCommand(command *CAcctMgrCommand) error {
 	// Reset related flags
 	Name := command.GetID()
 	FlagEntityAccount = ""
 
 	if Name == "" {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -371,26 +378,26 @@ func executeBlockAccountCommand(command *CAcctMgrCommand) util.CraneError {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 
 	return BlockAccountOrUser(Name, protos.EntityType_Account, FlagEntityAccount)
 }
 
-func executeBlockUserCommand(command *CAcctMgrCommand) util.CraneError {
+func executeBlockUserCommand(command *CAcctMgrCommand) error {
 	// Reset related flags
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
 	}
 
 	KVParams := command.GetKVMaps()
 
 	err := checkEmptyKVParams(KVParams, []string{"account"})
-	if err.Code != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -399,14 +406,14 @@ func executeBlockUserCommand(command *CAcctMgrCommand) util.CraneError {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 
 	return BlockAccountOrUser(FlagEntityName, protos.EntityType_User, FlagEntityAccount)
 }
 
-func executeUnblockCommand(command *CAcctMgrCommand) util.CraneError {
+func executeUnblockCommand(command *CAcctMgrCommand) error {
 	entity := command.GetEntity()
 
 	switch entity {
@@ -415,17 +422,17 @@ func executeUnblockCommand(command *CAcctMgrCommand) util.CraneError {
 	case "user":
 		return executeUnblockUserCommand(command)
 	default:
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeUnblockAccountCommand(command *CAcctMgrCommand) util.CraneError {
+func executeUnblockAccountCommand(command *CAcctMgrCommand) error {
 	// Reset related flags
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -435,26 +442,26 @@ func executeUnblockAccountCommand(command *CAcctMgrCommand) util.CraneError {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 
 	return UnblockAccountOrUser(FlagEntityName, protos.EntityType_Account, FlagEntityAccount)
 }
 
-func executeUnblockUserCommand(command *CAcctMgrCommand) util.CraneError {
+func executeUnblockUserCommand(command *CAcctMgrCommand) error {
 	// Reset related flags
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
 	}
 
 	KVParams := command.GetKVMaps()
 
 	err := checkEmptyKVParams(KVParams, []string{"account"})
-	if err.Code != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -463,14 +470,14 @@ func executeUnblockUserCommand(command *CAcctMgrCommand) util.CraneError {
 		case "account":
 			FlagEntityAccount = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 
 	return UnblockAccountOrUser(FlagEntityName, protos.EntityType_User, FlagEntityAccount)
 }
 
-func executeModifyCommand(command *CAcctMgrCommand) util.CraneError {
+func executeModifyCommand(command *CAcctMgrCommand) error {
 	entity := command.GetEntity()
 
 	switch entity {
@@ -481,11 +488,11 @@ func executeModifyCommand(command *CAcctMgrCommand) util.CraneError {
 	case "qos":
 		return executeModifyQosCommand(command)
 	default:
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeModifyAccountCommand(command *CAcctMgrCommand) util.CraneError {
+func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 	// Reset related flags
 	FlagEntityName = ""
 	FlagDescription = ""
@@ -502,11 +509,11 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) util.CraneError {
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify account command requires 'where' clause to specify which account to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify account command requires 'where' clause to specify which account to modify"))
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"name"})
-	if err.Code != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -515,43 +522,43 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) util.CraneError {
 		case "name":
 			FlagEntityName = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for account modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify account command requires 'set' clause to specify what to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify account command requires 'set' clause to specify what to modify"))
 	}
 
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "description":
 			FlagDescription = value
-			if err := ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "defaultqos":
 			FlagDefaultQos = value
-			if err := ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			if err := ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "allowedqos":
 			FlagSetQosList = value
-			if err := ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			if err := ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for account modification\n", key))
 		}
 	}
 
@@ -559,16 +566,16 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) util.CraneError {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
-			if err := ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, protos.OperationType_Add); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, protos.OperationType_Add); err != nil {
 				return err
 			}
 		case "allowedqos":
 			FlagAllowedQosList = value
-			if err := ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, protos.OperationType_Add); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, protos.OperationType_Add); err != nil {
 				return err
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown add parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown add parameter '%s' for account modification\n", key))
 		}
 	}
 
@@ -576,23 +583,23 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) util.CraneError {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
-			if err := ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, protos.OperationType_Delete); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, protos.OperationType_Delete); err != nil {
 				return err
 			}
 		case "allowedqos":
 			FlagDeleteQosList = value
-			if err := ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, protos.OperationType_Delete); err.Code != util.ErrorSuccess {
+			if err := ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, protos.OperationType_Delete); err != nil {
 				return err
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown delete parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown delete parameter '%s' for account modification\n", key))
 		}
 	}
 
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeModifyUserCommand(command *CAcctMgrCommand) util.CraneError {
+func executeModifyUserCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = ""
 	FlagEntityAccount = ""
 	FlagEntityPartitions = ""
@@ -609,11 +616,11 @@ func executeModifyUserCommand(command *CAcctMgrCommand) util.CraneError {
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify user command requires 'where' clause to specify which user to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify user command requires 'where' clause to specify which user to modify"))
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"name"})
-	if err.Code != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -626,43 +633,43 @@ func executeModifyUserCommand(command *CAcctMgrCommand) util.CraneError {
 		case "partition":
 			FlagEntityPartitions = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for user modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify user command requires 'set' clause to specify what to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify user command requires 'set' clause to specify what to modify"))
 	}
 
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			if err := ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "allowedqos":
 			FlagSetQosList = value
-			if err := ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			if err := ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "defaultqos":
 			FlagUserDefaultQos = value
-			if err := ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		case "adminlevel":
 			FlagAdminLevel = value
-			if err := ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite); err != nil {
 				return err
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for user modification\n", key))
 		}
 	}
 
@@ -670,16 +677,16 @@ func executeModifyUserCommand(command *CAcctMgrCommand) util.CraneError {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
-			if err := ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add); err != nil {
 				return err
 			}
 		case "allowedqos":
 			FlagAllowedQosList = value
-			if err := ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add); err != nil {
 				return err
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown add parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown add parameter '%s' for user modification\n", key))
 		}
 	}
 
@@ -687,23 +694,23 @@ func executeModifyUserCommand(command *CAcctMgrCommand) util.CraneError {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
-			if err := ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete); err != nil {
 				return err
 			}
 		case "allowedqos":
 			FlagDeleteQosList = value
-			if err := ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete); err.Code != util.ErrorSuccess {
+			if err := ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete); err != nil {
 				return err
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown delete parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown delete parameter '%s' for user modification\n", key))
 		}
 	}
 
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeModifyQosCommand(command *CAcctMgrCommand) util.CraneError {
+func executeModifyQosCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = ""
 	FlagMaxCpu = ""
 	FlagMaxJob = ""
@@ -715,11 +722,11 @@ func executeModifyQosCommand(command *CAcctMgrCommand) util.CraneError {
 	SetParams, _, _ := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify qos command requires 'where' clause to specify which qos to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify qos command requires 'where' clause to specify which qos to modify"))
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"name"})
-	if err.Code != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -728,61 +735,61 @@ func executeModifyQosCommand(command *CAcctMgrCommand) util.CraneError {
 		case "name":
 			FlagEntityName = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for qos modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for qos modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 {
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify qos command requires 'set' clause to specify what to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify qos command requires 'set' clause to specify what to modify"))
 	}
 
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "maxcpusperuser":
-			if err := validateUintValue(value, "maxCpusPerUser", 32); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			FlagMaxCpu = value
-			if err := ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName); err.Code != util.ErrorSuccess {
-				return err
+			if err := ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 		case "maxjobsperuser":
-			if err := validateUintValue(value, "maxJobsPerUser", 32); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			FlagMaxJob = value
-			if err := ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagEntityName); err.Code != util.ErrorSuccess {
-				return err
+			if err := ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagEntityName); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 		case "maxtimelimitpertask":
-			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			FlagMaxTimeLimit = value
-			if err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagEntityName); err.Code != util.ErrorSuccess {
-				return err
+			if err := ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagEntityName); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 		case "priority":
-			if err := validateUintValue(value, "priority", 32); err.Code != util.ErrorSuccess {
-				return err
+			if err := validateUintValue(value, "priority", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			FlagPriority = value
-			if err := ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName); err.Code != util.ErrorSuccess {
-				return err
+			if err := ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 		case "description":
 			FlagDescription = value
-			if err := ModifyQos(protos.ModifyField_Description, FlagDescription, FlagEntityName); err.Code != util.ErrorSuccess {
-				return err
+			if err := ModifyQos(protos.ModifyField_Description, FlagDescription, FlagEntityName); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for qos modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for qos modification\n", key))
 		}
 	}
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return util.NewCraneErr(util.ErrorSuccess, "")
 }
 
-func executeShowCommand(command *CAcctMgrCommand) util.CraneError {
+func executeShowCommand(command *CAcctMgrCommand) error {
 	entity := command.GetEntity()
 
 	switch entity {
@@ -795,11 +802,11 @@ func executeShowCommand(command *CAcctMgrCommand) util.CraneError {
 	case "transaction":
 		return executeShowTxnLogCommand(command)
 	default:
-		return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
 }
 
-func executeShowAccountCommand(command *CAcctMgrCommand) util.CraneError {
+func executeShowAccountCommand(command *CAcctMgrCommand) error {
 	name := command.GetID()
 	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
 		name = nameParam
@@ -811,7 +818,7 @@ func executeShowAccountCommand(command *CAcctMgrCommand) util.CraneError {
 	return FindAccount(name)
 }
 
-func executeShowUserCommand(command *CAcctMgrCommand) util.CraneError {
+func executeShowUserCommand(command *CAcctMgrCommand) error {
 	name := command.GetID()
 	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
 		name = nameParam
@@ -822,7 +829,7 @@ func executeShowUserCommand(command *CAcctMgrCommand) util.CraneError {
 	return ShowUser(name, account)
 }
 
-func executeShowQosCommand(command *CAcctMgrCommand) util.CraneError {
+func executeShowQosCommand(command *CAcctMgrCommand) error {
 	name := command.GetID()
 	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
 		name = nameParam
@@ -832,7 +839,7 @@ func executeShowQosCommand(command *CAcctMgrCommand) util.CraneError {
 }
 
 // Reset cert
-func executeResetCommand(command *CAcctMgrCommand) util.CraneError {
+func executeResetCommand(command *CAcctMgrCommand) error {
 	name := command.GetID()
 	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
 		name = nameParam
@@ -841,7 +848,7 @@ func executeResetCommand(command *CAcctMgrCommand) util.CraneError {
 	return ResetUserCredential(name)
 }
 
-func executeShowTxnLogCommand(command *CAcctMgrCommand) util.CraneError {
+func executeShowTxnLogCommand(command *CAcctMgrCommand) error {
 	FlagActor := ""
 	FlagTarget := ""
 	FlagAction := ""
@@ -863,14 +870,14 @@ func executeShowTxnLogCommand(command *CAcctMgrCommand) util.CraneError {
 		case "starttime":
 			FlagStartTime = value
 		default:
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for show transaction\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for show transaction\n", key))
 		}
 	}
 
 	return ShowTxn(FlagActor, FlagTarget, FlagAction, FlagInfo, FlagStartTime)
 }
 
-func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) util.CraneError {
+func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) error {
 	if len(requiredFields) > 0 {
 		missingFields := []string{}
 		for _, field := range requiredFields {
@@ -888,14 +895,14 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) uti
 
 		if len(missingFields) > 0 {
 			if len(missingFields) == 1 {
-				return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: required argument %s not set\n", missingFields[0]))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: required argument %s not set\n", missingFields[0]))
 			} else {
-				return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: required arguments %s not set\n", strings.Join(missingFields, "\", \"")))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: required arguments %s not set\n", strings.Join(missingFields, "\", \"")))
 			}
 		}
 	}
 
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func init() {

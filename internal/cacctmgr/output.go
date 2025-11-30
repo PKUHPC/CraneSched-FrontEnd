@@ -86,7 +86,7 @@ func PrintTxnLogList(txnLogList []*protos.QueryTxnLogReply_Txn) {
 	table.Render()
 }
 
-func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string) util.CraneError {
+func ShowTxn(actor string, target string, actionValue string, info string, startTimeValue string) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
@@ -95,7 +95,7 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 	if actionValue != "" {
 		value, ok := util.StringToTxnAction(actionValue)
 		if !ok {
-			return *util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid action specified: %v.\n", actionValue))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid action specified: %v.\n", actionValue))
 		}
 
 		action = strconv.Itoa(int(value))
@@ -112,37 +112,38 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 		req.TimeInterval = &protos.TimeInterval{}
 		err := util.ParseInterval(startTimeValue, req.TimeInterval)
 		if err != nil {
-			return *util.WrapCraneErr(util.ErrorCmdArg, "Parse time interval failed:%s\n", err)
+			return util.WrapCraneErr(util.ErrorCmdArg, "Parse time interval failed:%s\n", err)
 		}
 	}
 
 	reply, err := stub.QueryTxnLog(context.Background(), &req)
 	if err != nil {
-		return *util.WrapCraneErr(util.ErrorNetwork, "Failed to show txn: %s", err)
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to show txn: %s", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			return *util.NewCraneErr(util.ErrorSuccess, msg)
+			fmt.Print(msg)
+			return util.NewCraneErr(util.ErrorSuccess, "")
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if !reply.GetOk() {
-		return *util.NewCraneErr(util.ErrorBackend, fmt.Sprintln(util.ErrMsg(reply.GetCode())))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintln(util.ErrMsg(reply.GetCode())))
 	}
 
 	PrintTxnLogList(reply.TxnLogList)
 
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return util.NewCraneErr(util.ErrorSuccess, "")
 }
 
 // Account
-func PrintAccountList(accountList []*protos.AccountInfo) util.CraneError {
+func PrintAccountList(accountList []*protos.AccountInfo) error {
 	if len(accountList) == 0 {
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	}
 	sort.Slice(accountList, func(i, j int) bool {
 		return accountList[i].Name < accountList[j].Name
@@ -174,7 +175,7 @@ func PrintAccountList(accountList []*protos.AccountInfo) util.CraneError {
 }
 
 // Name Desciption AllowedPartition Users DefaultQos AllowedQosList Coordinators Blocked
-func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInfo) util.CraneError {
+func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInfo) error {
 	formatTableData := make([][]string, len(accountList))
 	formatReq := util.SplitString(FlagFormat, []string{" ", ","})
 	tableOutputWidth := createSlice(len(formatReq), -1)
@@ -223,11 +224,11 @@ func AccountFormatOutput(tableCtx *Tableoutput, accountList []*protos.AccountInf
 				formatTableData[j] = append(formatTableData[j], strconv.FormatBool(accountList[j].Blocked))
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Invalid format. You entered: '%s'", formatReq[i]))
+			return util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Invalid format. You entered: '%s'", formatReq[i]))
 		}
 	}
 	tableCtx.header, tableCtx.tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func AccountDefaultOutput(tableCtx *Tableoutput, accountList []*protos.AccountInfo) {
@@ -246,14 +247,14 @@ func AccountDefaultOutput(tableCtx *Tableoutput, accountList []*protos.AccountIn
 		})
 	}
 }
-func PrintAccountTable(accountList []*protos.AccountInfo) util.CraneError {
+func PrintAccountTable(accountList []*protos.AccountInfo) error {
 	table := tablewriter.NewWriter(os.Stdout) //table format control
 	util.SetBorderTable(table)
 
 	var tableCtx Tableoutput // include header and datas
 	if FlagFormat != "" {
-		if result := AccountFormatOutput(&tableCtx, accountList); result.Code != util.ErrorSuccess {
-			return result
+		if err := AccountFormatOutput(&tableCtx, accountList); err != nil {
+			return err
 		}
 	} else {
 		AccountDefaultOutput(&tableCtx, accountList)
@@ -268,25 +269,25 @@ func PrintAccountTable(accountList []*protos.AccountInfo) util.CraneError {
 
 	table.AppendBulk(tableCtx.tableData)
 	table.Render()
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
-func ShowAccounts() util.CraneError {
+func ShowAccounts() error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
 	req := protos.QueryAccountInfoRequest{Uid: userUid}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
-		return *util.WrapCraneErr(util.ErrorNetwork, "Failed to show accounts: %s", err)
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to show accounts: %s", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return util.NewCraneErr(util.ErrorSuccess, "")
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if !reply.GetOk() {
@@ -298,15 +299,15 @@ func ShowAccounts() util.CraneError {
 			}
 			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return *util.NewCraneErr(util.ErrorBackend, msg)
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 	return PrintAccountList(reply.AccountList)
 }
 
 // User
-func PrintUserList(userList []*protos.UserInfo) util.CraneError {
+func PrintUserList(userList []*protos.UserInfo) error {
 	if len(userList) == 0 {
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return util.NewCraneErr(util.ErrorSuccess, "")
 	}
 	sort.Slice(userList, func(i, j int) bool {
 		return userList[i].Uid < userList[j].Uid
@@ -378,7 +379,7 @@ func CalcuTotalRows(userMap map[string][]*protos.UserInfo) int {
 	return totalRows
 }
 
-func UserFormatOutput(tableCtx *Tableoutput, userMap map[string][]*protos.UserInfo) util.CraneError {
+func UserFormatOutput(tableCtx *Tableoutput, userMap map[string][]*protos.UserInfo) error {
 	formatReq := util.SplitString(FlagFormat, []string{" ", ","})
 	tableOutputWidth := createSlice(len(formatReq), -1)
 	tableOutputHeader := make([]string, len(formatReq))
@@ -538,21 +539,21 @@ func UserFormatOutput(tableCtx *Tableoutput, userMap map[string][]*protos.UserIn
 				}
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Invalid format. You entered: '%s'", formatReq[i]))
+			return util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Invalid format. You entered: '%s'", formatReq[i]))
 		}
 	}
 	tableCtx.header, tableCtx.tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
-func PrintUserTable(userMap map[string][]*protos.UserInfo) util.CraneError {
+func PrintUserTable(userMap map[string][]*protos.UserInfo) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 
 	var tableCtx Tableoutput
 	if FlagFormat != "" {
-		if result := UserFormatOutput(&tableCtx, userMap); result.Code != util.ErrorSuccess {
-			return result
+		if err := UserFormatOutput(&tableCtx, userMap); err != nil {
+			return err
 		}
 	} else {
 		UserDefaultOutput(&tableCtx, userMap)
@@ -564,10 +565,10 @@ func PrintUserTable(userMap map[string][]*protos.UserInfo) util.CraneError {
 	table.SetHeader(tableCtx.header)
 	table.AppendBulk(tableCtx.tableData)
 	table.Render()
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
-func ShowUser(value string, account string) util.CraneError {
+func ShowUser(value string, account string) error {
 
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
@@ -578,22 +579,22 @@ func ShowUser(value string, account string) util.CraneError {
 		var err error
 		userList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			return *util.WrapCraneErr(util.ErrorCmdArg, "Invalid user list specified: %s.\n", err)
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid user list specified: %s.\n", err)
 		}
 	}
 	req := protos.QueryUserInfoRequest{Uid: userUid, UserList: userList, Account: account}
 	reply, err := stub.QueryUserInfo(context.Background(), &req)
 	if err != nil {
-		return *util.WrapCraneErr(util.ErrorNetwork, "Failed to show user: %s", err)
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to show user: %s", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return util.NewCraneErr(util.ErrorSuccess, "")
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if !reply.GetOk() {
@@ -605,16 +606,16 @@ func ShowUser(value string, account string) util.CraneError {
 			}
 			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return *util.NewCraneErr(util.ErrorBackend, msg)
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 
 	return PrintUserList(reply.UserList)
 }
 
 // Qos
-func PrintQosList(qosList []*protos.QosInfo) util.CraneError {
+func PrintQosList(qosList []*protos.QosInfo) error {
 	if len(qosList) == 0 {
-		return *util.NewCraneErr(util.ErrorSuccess, "")
+		return util.NewCraneErr(util.ErrorSuccess, "")
 	}
 	sort.Slice(qosList, func(i, j int) bool {
 		return qosList[i].Name < qosList[j].Name
@@ -623,7 +624,7 @@ func PrintQosList(qosList []*protos.QosInfo) util.CraneError {
 	return PrintTable(qosList)
 }
 
-func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) util.CraneError {
+func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) error {
 	formatTableData := make([][]string, len(qosList))
 	formatReq := util.SplitString(FlagFormat, []string{" ", ","})
 	tableOutputWidth := createSlice(len(formatReq), -1)
@@ -687,11 +688,11 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) util.Cran
 				currentRow++
 			}
 		default:
-			return *util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Invalid format. You entered: '%s'", formatReq[i]))
+			return util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Invalid format. You entered: '%s'", formatReq[i]))
 		}
 	}
 	tableCtx.header, tableCtx.tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, formatTableData)
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
@@ -726,14 +727,14 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 	}
 }
 
-func PrintTable(qosList []*protos.QosInfo) util.CraneError {
+func PrintTable(qosList []*protos.QosInfo) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderTable(table)
 
 	var tableCtx Tableoutput
 	if FlagFormat != "" {
-		if result := QosFormatOutput(&tableCtx, qosList); result.Code != util.ErrorSuccess {
-			return result
+		if err := QosFormatOutput(&tableCtx, qosList); err != nil {
+			return err
 		}
 	} else {
 		QosDefaultOutput(&tableCtx, qosList)
@@ -746,10 +747,10 @@ func PrintTable(qosList []*protos.QosInfo) util.CraneError {
 	table.SetHeader(tableCtx.header)
 	table.AppendBulk(tableCtx.tableData)
 	table.Render()
-	return *util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
-func ShowQos(value string) util.CraneError {
+func ShowQos(value string) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
@@ -758,22 +759,22 @@ func ShowQos(value string) util.CraneError {
 		var err error
 		qosList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			return *util.WrapCraneErr(util.ErrorCmdArg, "Invalid QoS list specified: %s.\n", err)
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid QoS list specified: %s.\n", err)
 		}
 	}
 	req := protos.QueryQosInfoRequest{Uid: userUid, QosList: qosList}
 	reply, err := stub.QueryQosInfo(context.Background(), &req)
 	if err != nil {
-		return *util.WrapCraneErr(util.ErrorNetwork, "Failed to show QoS: %s", err)
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to show QoS: %s", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return *util.NewCraneErr(util.ErrorSuccess, "")
+			return util.NewCraneErr(util.ErrorSuccess, "")
 		} else {
-			return *util.NewCraneErr(util.ErrorBackend, msg)
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
@@ -786,7 +787,7 @@ func ShowQos(value string) util.CraneError {
 			}
 			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return *util.NewCraneErr(util.ErrorBackend, msg)
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 
 	return PrintQosList(reply.QosList)
