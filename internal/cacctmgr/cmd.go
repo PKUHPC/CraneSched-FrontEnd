@@ -103,6 +103,7 @@ var actionToExecute = map[string]func(command *CAcctMgrCommand) int{
 	"modify":  executeModifyCommand,
 	"show":    executeShowCommand,
 	"reset":   executeResetCommand,
+	"update":  executeModifyCommand,
 }
 
 type ModifyParam struct {
