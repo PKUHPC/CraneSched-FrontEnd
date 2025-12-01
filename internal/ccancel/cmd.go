@@ -102,4 +102,5 @@ func init() {
 		"Cancel jobs running on the specified nodes")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
+	util.InitCraneLogger()
 }

@@ -157,4 +157,5 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 		"Limit the number of lines in the output, 0 means no limit")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
+	util.InitCraneLogger()
 }

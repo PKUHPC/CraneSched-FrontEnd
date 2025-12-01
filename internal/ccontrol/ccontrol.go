@@ -55,10 +55,11 @@ func SummarizeReply(proto interface{}) error {
 			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
 		}
 		if len(reply.NotModifiedTasks) > 0 {
+			msg := ""
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+				msg += fmt.Sprintf("Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
 	case *protos.ModifyCranedStateReply:
@@ -67,10 +68,11 @@ func SummarizeReply(proto interface{}) error {
 			fmt.Printf("Nodes %s modified successfully, please wait for a few minutes for the node state to fully update.\n", nodeListString)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
+			msg := ""
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+				msg += fmt.Sprintf("Failed to modify node: %s. Reason: %s.\n", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 			}
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
 	case *protos.ModifyTasksExtraAttrsReply:
@@ -79,14 +81,15 @@ func SummarizeReply(proto interface{}) error {
 			fmt.Printf("Jobs %s modified successfully.\n", modifiedTasksString)
 		}
 		if len(reply.NotModifiedTasks) > 0 {
+			msg := ""
 			for i := 0; i < len(reply.NotModifiedTasks); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
+				msg += fmt.Sprintf("Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedTasks[i], reply.NotModifiedReasons[i])
 			}
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
 	default:
-		return &util.CraneError{Code: util.ErrorGeneric}
+		return util.NewCraneErr(util.ErrorGeneric, "Unknown reply.")
 	}
 }
 
@@ -111,16 +114,16 @@ func ChangeTaskTimeLimit(taskStr string, timeLimit string) error {
 	}
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change task time limit")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task time limit"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedTasks) == 0 {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
@@ -161,16 +164,16 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify the job")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify the job"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedTasks) == 0 {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
@@ -206,16 +209,16 @@ func ChangeTaskPriority(taskStr string, priority float64) error {
 
 	reply, err := stub.ModifyTask(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change task priority")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task priority"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedTasks) == 0 {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
@@ -294,16 +297,16 @@ func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]strin
 
 	rep, err := stub.ModifyTasksExtraAttrs(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change task extra attrs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to change task extra attrs"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(rep))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(rep))
 		if len(rep.NotModifiedTasks) == 0 {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
@@ -348,16 +351,16 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify node state")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify node state"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedNodes) == 0 {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
@@ -377,16 +380,16 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) e
 
 	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify partition %s", partition))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
@@ -457,25 +460,25 @@ func CreateReservation() error {
 
 	reply, err := stub.CreateReservation(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to create reservation")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to create reservation"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s created successfully.\n", FlagReservationName)
+		return nil
 	} else {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to create reservation: %s.", reply.GetReason()))
 	}
-	return nil
 }
 
 func DeleteReservation(ReservationName string) error {
@@ -485,26 +488,26 @@ func DeleteReservation(ReservationName string) error {
 	}
 	reply, err := stub.DeleteReservation(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete reservation")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to delete reservation"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
+			fmt.Print(msg)
 			return nil
 		} else {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
+		return nil
 	} else {
-		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete reservation: %s.\n", reply.GetReason()))
 	}
-	return nil
+
 }
 
 func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
@@ -536,16 +539,16 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 
 	reply, err := stub.EnableAutoPowerControl(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify node power control setting")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify node power control setting"))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedNodes) > 0 {
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
-		return nil
+		fmt.Print(msg)
+		return util.NewCraneErr(util.ErrorSuccess, "")
 	}
 
 	if len(reply.ModifiedNodes) > 0 {
@@ -558,12 +561,13 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	}
 
 	if len(reply.NotModifiedNodes) > 0 {
+		msg := ""
 		for i := 0; i < len(reply.NotModifiedNodes); i++ {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+			msg += fmt.Sprintf("Failed to modify node: %s. Reason: %s.\n",
 				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 		}
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 
-	return nil
+	return util.NewCraneErr(util.ErrorSuccess, "")
 }
