@@ -722,7 +722,6 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	return outputJobs(reply.TaskInfoList, jobIdList)
 }
 
-// TODO: add remote show
 func ShowLicenses(licenseName string, queryAll bool) error {
 	var licenseNameList []string
 	if licenseName != "" {
