@@ -66,7 +66,7 @@ type UnblockCommand struct {
 }
 
 type ModifyCommand struct {
-	Action      string           `parser:"@'modify'"`
+	Action      string           `parser:"@('modify' | 'update')"`
 	Entity      *EntityType      `parser:"@@"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	Where       *WhereClause     `parser:"@@?"`
