@@ -380,7 +380,7 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) e
 
 	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Faild to modify partition %s", partition))
+		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to modify partition %s", partition))
 	}
 
 	if FlagJson {
