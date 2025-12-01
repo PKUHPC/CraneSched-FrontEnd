@@ -977,6 +977,7 @@ message LicenseResourceInfo {
   string description = 7;
   uint32 last_consumed = 8;
   uint32 allocated = 9;
+  uint32 flags = 10;
 }
 
 message LicenseResource {
@@ -993,5 +994,10 @@ message LicenseResource {
     Flags = 4;
     ServerType = 5;
     ResourceType = 6;
+  }
+
+  enum Flag {
+    None = 0;
+    Absolute = 1;
   }
 }

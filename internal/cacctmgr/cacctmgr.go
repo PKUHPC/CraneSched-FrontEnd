@@ -114,6 +114,16 @@ func PrintLicenseResource(resourceList []*protos.LicenseResourceInfo, hasWithClu
 			typeString = "License"
 		}
 
+		var allocatedString string
+		allocatedString = fmt.Sprintf("%d", info.Allocated)
+
+		var flagString string
+		if info.Flags&(uint32(protos.LicenseResource_Absolute)) != 0 {
+			flagString = "Absolute"
+		} else if info.Flags == uint32(protos.LicenseResource_None) {
+			allocatedString += "%"
+		}
+
 		if !hasWithClusters {
 			tableData = append(tableData, []string{
 				info.ResourceName,
@@ -121,23 +131,28 @@ func PrintLicenseResource(resourceList []*protos.LicenseResourceInfo, hasWithClu
 				typeString,
 				strconv.Itoa(int(info.Count)),
 				strconv.Itoa(int(info.LastConsumed)),
-				strconv.Itoa(int(info.Allocated)),
+				allocatedString,
 				info.ServerType,
-				"", // TODO: flags
+				flagString,
 			})
 		} else {
 			for cluster_name, allowed := range info.ClusterResourceInfo {
+				var allowedString string
+				allowedString = fmt.Sprintf("%d", allowed)
+				if info.Flags == uint32(protos.LicenseResource_None) {
+					allowedString += "%"
+				}
 				tableData = append(tableData, []string{
 					info.ResourceName,
 					info.Server,
 					typeString,
 					strconv.Itoa(int(info.Count)),
 					strconv.Itoa(int(info.LastConsumed)),
-					strconv.Itoa(int(info.Allocated)),
+					allocatedString,
 					info.ServerType,
 					cluster_name,
-					strconv.Itoa(int(allowed)),
-					"", // TODO: flags
+					allowedString,
+					flagString,
 				})
 			}
 		}
@@ -300,11 +315,11 @@ func AddQos(qos *protos.QosInfo) util.ExitCode {
 	}
 }
 
-func AddLicenseResource(licenseResource *protos.LicenseResourceInfo, clusters string, allowed uint32) util.ExitCode {
+func AddLicenseResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) util.ExitCode {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
-	if err := util.CheckEntityName(licenseResource.ResourceName); err != nil {
+	if err := util.CheckEntityName(name); err != nil {
 		log.Errorf("Failed to add Resource: invalid Resource name: %v", err)
 		return util.ErrorCmdArg
 	}
@@ -319,28 +334,20 @@ func AddLicenseResource(licenseResource *protos.LicenseResourceInfo, clusters st
 		}
 	}
 
-	licenseResource.ClusterResourceInfo = make(map[string]uint32)
-
-	for _, cluster := range clusterList {
-		if _, ok := licenseResource.ClusterResourceInfo[clusters]; ok {
-			continue
-		}
-		licenseResource.ClusterResourceInfo[cluster] = allowed
-		licenseResource.Allocated += allowed
+	req := protos.AddOrModifyLicenseResourceRequest{
+		Uid:          userUid,
+		ResourceName: name,
+		Server:       server,
+		Clusters:     clusterList,
+		IsAdd:        true,
 	}
 
-	if licenseResource.Allocated > licenseResource.Count {
-		log.Errorf("Allocated resources (%d) exceed total available count (%d)",
-			licenseResource.Allocated,
-			licenseResource.Count)
-		return util.ErrorCmdArg
+	req.Operators = make([]*protos.AddOrModifyLicenseResourceRequest_Operator, 0)
+	for filed, value := range operators {
+		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: filed, Value: value})
 	}
 
-	req := new(protos.AddLicenseResourceRequest)
-	req.Uid = userUid
-	req.LicenseResource = licenseResource
-
-	reply, err := stub.AddLicenseResource(context.Background(), req)
+	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
 	if err != nil {
 		log.Errorf("Failed to add Resource: %v", err)
 		return util.ErrorNetwork
@@ -521,7 +528,7 @@ func DeleteLicenseResource(name string, server string, clusters string) util.Exi
 	}
 
 	if reply.GetOk() {
-		fmt.Printf("Successfully deleted Resource '%s'.\n", name)
+		fmt.Printf("Successfully deleted Resource '%s@%s'.\n", name, server)
 		return util.ErrorSuccess
 	} else {
 		if len(reply.GetRichErr().GetDescription()) > 0 {
@@ -728,19 +735,20 @@ func ModifyResource(name string, server string, clusters string, operators map[p
 		}
 	}
 
-	req := protos.ModifyLicenseResourceRequest{
+	req := protos.AddOrModifyLicenseResourceRequest{
 		Uid:          userUid,
 		ResourceName: name,
 		Server:       server,
 		Clusters:     clusterList,
+		IsAdd:        false,
 	}
 
-	req.Operators = make([]*protos.ModifyLicenseResourceRequest_Operator, 0)
+	req.Operators = make([]*protos.AddOrModifyLicenseResourceRequest_Operator, 0)
 	for filed, value := range operators {
-		req.Operators = append(req.Operators, &protos.ModifyLicenseResourceRequest_Operator{OperatorField: filed, Value: value})
+		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: filed, Value: value})
 	}
 
-	reply, err := stub.ModifyLicenseResource(context.Background(), &req)
+	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
 	if err != nil {
 		log.Errorf("Failed to modify Resource: %v", err)
 		return util.ErrorNetwork

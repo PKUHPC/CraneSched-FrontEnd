@@ -38,9 +38,11 @@ var (
 		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
 	}
 	FlagWckey protos.WckeyInfo
-	FlagResource protos.LicenseResourceInfo
-	FlagAllowed  uint32
-	FlagClusters string
+
+	FlagResourceName string
+	FlagServerName   string
+	FlagAllowed      uint32
+	FlagClusters     string
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -312,14 +314,9 @@ func executeAddWckeyCommand(command *CAcctMgrCommand) int {
 }
 
 func executeAddResourceCommand(command *CAcctMgrCommand) int {
-	FlagResource = protos.LicenseResourceInfo{
-		Type:         protos.LicenseResource_NotSet,
-		Allocated:    uint32(0),
-		Count:        uint32(0),
-		LastConsumed: uint32(0),
-	}
+	FlagOperators := make(map[protos.LicenseResource_Field]string, 0)
 
-	FlagResource.ResourceName = command.GetID()
+	FlagResourceName = command.GetID()
 	KVParams := command.GetKVMaps()
 
 	err := checkEmptyKVParams(KVParams, []string{"server"})
@@ -333,42 +330,36 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
 		case "name":
-			FlagResource.ResourceName = value
+			FlagResourceName = value
 		case "server":
-			FlagResource.Server = value
+			FlagServerName = value
 		case "count":
 			if err := validateUintValue(value, "count", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			count, _ := strconv.ParseUint(value, 10, 32)
-			FlagResource.Count = uint32(count)
+			FlagOperators[protos.LicenseResource_Count] = value
 		case "descriptions":
-			FlagResource.Description = value
+			FlagOperators[protos.LicenseResource_Description] = value
 		case "lastconsumed":
 			if err := validateUintValue(value, "lastConsumed", 64); err != nil {
 				return util.ErrorCmdArg
 			}
-			lastConsumed, _ := strconv.ParseUint(value, 10, 64)
-			FlagResource.LastConsumed = uint32(lastConsumed)
+			FlagOperators[protos.LicenseResource_LastConsumed] = value
 		case "servertype":
-			FlagResource.ServerType = value
+			FlagOperators[protos.LicenseResource_ServerType] = value
 		case "type":
-			if value == "license" {
-				FlagResource.Type = protos.LicenseResource_License
-			} else {
-				log.Errorf("unknown type: %s", value)
-				return util.ErrorCmdArg
-			}
+			FlagOperators[protos.LicenseResource_ResourceType] = value
 		case "allowed":
 			if err := validateUintValue(value, "allowed", 64); err != nil {
 				return util.ErrorCmdArg
 			}
-			allowed, _ := strconv.ParseUint(value, 10, 64)
-			FlagAllowed = uint32(allowed)
+			FlagOperators[protos.LicenseResource_Allowed] = value
 			hasAllowed = true
-		case "clusters":
+		case "cluster":
 			FlagClusters = value
 			hasCluster = true
+		case "flags":
+			FlagOperators[protos.LicenseResource_Flags] = value
 		default:
 			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
@@ -379,7 +370,7 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 		log.Errorf("'allowed' and 'cluster' must be specified together")
 		return util.ErrorCmdArg
 	}
-	return AddLicenseResource(&FlagResource, FlagClusters, FlagAllowed)
+	return AddLicenseResource(FlagResourceName, FlagServerName, FlagClusters, FlagOperators)
 }
 
 func executeDeleteCommand(command *CAcctMgrCommand) int {
@@ -512,7 +503,7 @@ func executeDeleteResourceCommand(command *CAcctMgrCommand) int {
 			FlagEntityName = value
 		case "server":
 			FlagServer = value
-		case "clusters":
+		case "cluster":
 			FlagClusters = value
 		}
 	}
@@ -1082,8 +1073,8 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 }
 
 func executeModifyResourceCommand(command *CAcctMgrCommand) int {
-	FlagResourceName := ""
-	FlagServerName := ""
+
+	FlagOperators := make(map[protos.LicenseResource_Field]string, 0)
 
 	KvParams := command.GetKVMaps()
 	WhereParams := command.GetWhereParams()
@@ -1107,7 +1098,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 			FlagResourceName = value
 		case "server":
 			FlagServerName = value
-		case "clusters":
+		case "cluster":
 			FlagClusters = value
 		default:
 			log.Errorf("Error: unknown where parameter '%s' for resource modification", key)
@@ -1128,7 +1119,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 			FlagResourceName = value
 		case "server":
 			FlagServerName = value
-		case "clusters":
+		case "cluster":
 			FlagClusters = value
 		default:
 			log.Errorf("Error: unknown where parameter '%s' for resource modification", key)
@@ -1141,41 +1132,39 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	// TODO: one request
-	operators := make(map[protos.LicenseResource_Field]string, 0)
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "count":
 			if err := validateUintValue(value, "count", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			operators[protos.LicenseResource_Count] = value
+			FlagOperators[protos.LicenseResource_Count] = value
 		case "lastconsumed":
 			if err := validateUintValue(value, "lastConsumed", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			operators[protos.LicenseResource_LastConsumed] = value
+			FlagOperators[protos.LicenseResource_LastConsumed] = value
 		case "descriptions":
-			operators[protos.LicenseResource_Description] = value
+			FlagOperators[protos.LicenseResource_Description] = value
 		case "flags":
-			// TODO
+			FlagOperators[protos.LicenseResource_Flags] = value
 		case "type":
-			operators[protos.LicenseResource_ResourceType] = value
+			FlagOperators[protos.LicenseResource_ResourceType] = value
 		case "allowed":
 			if len(FlagClusters) == 0 {
-				log.Errorf("Error: modify 'allowed' requires 'clusters' clause to specify which cluster resource to modify")
+				log.Errorf("Error: modify 'allowed' requires 'cluster' clause to specify which cluster resource to modify")
 				return util.ErrorCmdArg
 			}
-			operators[protos.LicenseResource_Allowed] = value
+			FlagOperators[protos.LicenseResource_Allowed] = value
 		case "servertype":
-			operators[protos.LicenseResource_ServerType] = value
+			FlagOperators[protos.LicenseResource_ServerType] = value
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for resource modification", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	ModifyResource(FlagResourceName, FlagServerName, FlagClusters, operators)
+	ModifyResource(FlagResourceName, FlagServerName, FlagClusters, FlagOperators)
 
 	return util.ErrorSuccess
 }
