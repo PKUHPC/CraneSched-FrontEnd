@@ -394,6 +394,9 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
 			FlagWckey.Cluster = value
 		case "user":
 			FlagWckey.UserName = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
 		}
 	}
 	return DeleteWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
@@ -756,7 +759,7 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		log.Errorf("Error: modify user command requires 'where' clause to specify which user to modify")
+		log.Errorf("Error: modify wckey command requires 'where' clause to specify which user/cluster to modify")
 		return util.ErrorCmdArg
 	}
 
@@ -772,13 +775,13 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 		case "cluster":
 			FlagWckey.Cluster = value
 		default:
-			log.Errorf("Error: unknown where parameter '%s' for user modification", key)
+			log.Errorf("Error: unknown where parameter '%s' for wckey modification", key)
 			return util.ErrorCmdArg
 		}
 	}
 
 	if len(SetParams) == 0 || len(AddParams) != 0 || len(DeleteParams) != 0 {
-		log.Errorf("Error: modify user command requires 'set' clause to specify what to modify")
+		log.Errorf("Error: modify wckey command requires only 'set' clause (add/delete not supported)")
 		return util.ErrorCmdArg
 	}
 
@@ -787,7 +790,7 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 		case "defaultwckey":
 			FlagWckey.Name = value
 		default:
-			log.Errorf("Error: unknown set parameter '%s' for user modification", key)
+			log.Errorf("Error: unknown set parameter '%s' for wckey modification", key)
 			return util.ErrorCmdArg
 		}
 	}
@@ -902,8 +905,8 @@ func executeShowAccountCommand(command *CAcctMgrCommand) int {
 }
 
 func executeShowWckeyCommand(command *CAcctMgrCommand) int {
-	wckey_list := command.GetID()
-	return ShowWckey(wckey_list)
+	wckeyList := command.GetID()
+	return ShowWckey(wckeyList)
 }
 
 func executeShowUserCommand(command *CAcctMgrCommand) int {

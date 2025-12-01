@@ -986,7 +986,7 @@ func DeleteWckey(name, cluster, userName string) util.ExitCode {
 		}
 	}
 	if reply.GetOk() {
-		log.Errorf("Successfully deleted wckey: %s, cluster: %s, user: %s", name, cluster, userName)
+		fmt.Printf("Successfully deleted wckey: %s, cluster: %s, user: %s\n", name, cluster, userName)
 		return util.ErrorSuccess
 	} else {
 		log.Errorf("Failed to delete wckey: %s, cluster: %s, user: %s: %s", name, cluster, userName, util.ErrMsg(reply.GetRichError().GetCode()))
@@ -1013,14 +1013,14 @@ func ModifyDefaultWckey(name, cluster, userName string) util.ExitCode {
 		if reply.GetOk() {
 			return util.ErrorSuccess
 		} else {
-			return util.ErrorCmdArg
+			return util.ErrorBackend
 		}
 	}
 	if reply.GetOk() {
-		log.Errorf("Modify information succeeded.")
+		fmt.Println("Modify information succeeded.")
 		return util.ErrorSuccess
 	} else {
 		log.Errorf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorCmdArg
+		return util.ErrorBackend
 	}
 }

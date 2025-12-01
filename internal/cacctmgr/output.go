@@ -799,7 +799,7 @@ func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
 	tableData := make([][]string, 0, len(wckeyList))
 	for _, wckey := range wckeyList {
 		name := wckey.Name
-		if wckey.IsDef {
+		if wckey.IsDefault {
 			name = "*" + name
 		}
 		tableData = append(tableData, []string{
@@ -819,7 +819,7 @@ func ShowWckey(wckeyStr string) util.ExitCode {
 		var err error
 		wckeyList, err = util.ParseStringParamList(wckeyStr, ",")
 		if err != nil {
-			log.Errorf("Invalid user list specified: %v.\n", err)
+			log.Errorf("Invalid wckey list specified: %v.\n", err)
 			return util.ErrorCmdArg
 		}
 	}
