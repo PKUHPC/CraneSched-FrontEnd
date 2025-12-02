@@ -107,7 +107,7 @@ func PrintLicenseResource(resourceList []*protos.LicenseResourceInfo, hasWithClu
 		table.SetHeader([]string{"Name", "Server", "Type", "Count", "LastConsumed", "Allocated", "ServerType", "Clusters", "Allowed", "Flags"})
 	}
 
-	tableData := make([][]string, len(resourceList))
+	tableData := make([][]string, 0, len(resourceList))
 	for _, info := range resourceList {
 		var typeString string
 		if info.Type == protos.LicenseResource_License {
@@ -532,9 +532,9 @@ func DeleteLicenseResource(name string, server string, clusters string) util.Exi
 		return util.ErrorSuccess
 	} else {
 		if len(reply.GetRichErr().GetDescription()) > 0 {
-			fmt.Printf("Failed to deleted Resource: %s.\n", reply.GetRichErr().GetDescription())
+			fmt.Printf("Failed to delete Resource: %s.\n", reply.GetRichErr().GetDescription())
 		} else {
-			fmt.Printf("Failed to deleted Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+			fmt.Printf("Failed to delete Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
 		}
 		return util.ErrorBackend
 	}
