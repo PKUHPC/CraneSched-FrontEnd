@@ -43,7 +43,8 @@ func showHelp() {
 	qos         - Quality of Service settings
 	transaction - Log of account-related operations
 	event       - Node on/off events
-
+  wckey       - Workload characterization key
+  
   COMMANDS:
 	add account <name> [Description=<desc>] [Parent=<parent>] [DefaultQos=<qos>] 
 			[Partition=<part1,part2,...>] [QosList=<qos1,qos2,...>] [Name=<name1,name2,...>]
@@ -96,6 +97,21 @@ func showHelp() {
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
               AdminLevel,Blocked> (Spelling must be correct, case is not important)
               For Example: cacctmgr show user format=account,defaultqos,adminlevel
+  add wckey <name> cluster=<cluster> user=<user>
+   Create a new wckey and bind it to the user and cluster
+   Parameter details:
+      cluster=<cluster>         Specify the cluster
+      user=<user>               Name of users to add wckey
+  delete wckey <name> cluster=<cluster> user=<user>
+   Delete a exit wckey 
+   Parameter details:
+      cluster=<cluster>         Specify the cluster
+      user=<user>               Name of users to delete wckey
+  show wckey [<name1,name2,...>]
+    Display information about wckeys.
+   Parameter details:
+      <name1,name2,...>         Show only these wckeys (comma-separated) (optional)
+      If no name is specified, information for all wckeys will be displayed.
 
 	block account <name> [Account=<account>]
     Block the specified account from submitting jobs.
@@ -195,6 +211,9 @@ func showHelp() {
       set MaxJobsPerUser=<num> Set max jobs per user
       set MaxTimeLimitPerTask=<sec>  Set max time per task (seconds)
       set Priority=<priority>        Set priority
+    Wckey options:
+      where user=<name> cluster=<clustername>
+      set defaultwckey=<wckeyname>    Set default wckey for specific users and clusters
 
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
