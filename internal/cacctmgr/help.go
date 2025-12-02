@@ -101,12 +101,12 @@ func showHelp() {
    Create a new wckey and bind it to the user and cluster
    Parameter details:
       cluster=<cluster>         Specify the cluster
-      user=<user>               Name of users to add wckey
+      user=<user>               Name of user to add wckey
   delete wckey <name> cluster=<cluster> user=<user>
-   Delete a exit wckey 
+    Delete an existing wckey
    Parameter details:
       cluster=<cluster>         Specify the cluster
-      user=<user>               Name of users to delete wckey
+      user=<user>               Name of user to delete wckey
   show wckey [<name1,name2,...>]
     Display information about wckeys.
    Parameter details:
