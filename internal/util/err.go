@@ -166,8 +166,8 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_DEFAULT_QOS_MODIFICATION_DENIED: "The QoS is the default QoS for the current user/Account and cannot be modified. Ignoring this constraint with forced operation, the default QoS is randomly replaced with one of the items in the new QoS list",
 
 	// LicenseResource errors
-	protos.ErrCode_ERR_RESOURCE_NOT_FOUND:     "The resource not found in the crane",
-	protos.ErrCode_ERR_RESOURCE_ALREADY_EXIST: "The resource already exists in the crane",
+	protos.ErrCode_ERR_RESOURCE_NOT_FOUND:     "The resource was not found in Crane",
+	protos.ErrCode_ERR_RESOURCE_ALREADY_EXIST: "The resource already exists in the Crane",
 
 	// System-related errors
 	protos.ErrCode_ERR_UPDATE_DATABASE:         "Fail to update data in database",

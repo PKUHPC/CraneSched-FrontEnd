@@ -333,10 +333,10 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 				return util.ErrorCmdArg
 			}
 			FlagOperators[protos.LicenseResource_Count] = value
-		case "descriptions":
+		case "description":
 			FlagOperators[protos.LicenseResource_Description] = value
 		case "lastconsumed":
-			if err := validateUintValue(value, "lastConsumed", 64); err != nil {
+			if err := validateUintValue(value, "lastConsumed", 32); err != nil {
 				return util.ErrorCmdArg
 			}
 			FlagOperators[protos.LicenseResource_LastConsumed] = value
@@ -345,7 +345,7 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 		case "type":
 			FlagOperators[protos.LicenseResource_ResourceType] = value
 		case "allowed":
-			if err := validateUintValue(value, "allowed", 64); err != nil {
+			if err := validateUintValue(value, "allowed", 32); err != nil {
 				return util.ErrorCmdArg
 			}
 			FlagOperators[protos.LicenseResource_Allowed] = value
@@ -1049,7 +1049,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 				return util.ErrorCmdArg
 			}
 			FlagOperators[protos.LicenseResource_LastConsumed] = value
-		case "descriptions":
+		case "description":
 			FlagOperators[protos.LicenseResource_Description] = value
 		case "flags":
 			FlagOperators[protos.LicenseResource_Flags] = value
@@ -1058,6 +1058,9 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 		case "allowed":
 			if len(FlagClusters) == 0 {
 				log.Errorf("Error: modify 'allowed' requires 'cluster' clause to specify which cluster resource to modify")
+				return util.ErrorCmdArg
+			}
+			if err := validateUintValue(value, "allowed", 32); err != nil {
 				return util.ErrorCmdArg
 			}
 			FlagOperators[protos.LicenseResource_Allowed] = value
@@ -1069,9 +1072,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 		}
 	}
 
-	ModifyResource(FlagResourceName, FlagServerName, FlagClusters, FlagOperators)
-
-	return util.ErrorSuccess
+	return ModifyResource(FlagResourceName, FlagServerName, FlagClusters, FlagOperators)
 }
 
 func executeShowCommand(command *CAcctMgrCommand) int {
@@ -1223,7 +1224,7 @@ func executeShowResourceCommand(command *CAcctMgrCommand) int {
 		case "cluster":
 			FlagClusters = value
 		default:
-			log.Errorf("Error: unknown where parameter '%s' for show transaction", key)
+			log.Errorf("Error: unknown where parameter '%s' for show resource", key)
 			return util.ErrorCmdArg
 		}
 	}
