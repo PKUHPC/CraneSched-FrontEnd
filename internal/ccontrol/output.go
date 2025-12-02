@@ -1009,7 +1009,10 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 				"\tTotal=%v Used=%d Free=%d Reserved=%d Remote=no\n",
 				licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free, licenseInfo.Reserved)
 		} else {
-			timeStr := time.Unix(licenseInfo.LastUpdate/1000, (licenseInfo.LastUpdate%1000)*int64(time.Millisecond)).Format("2006-01-02 15:04:05")
+			timeStr := "unknown"
+			if licenseInfo.LastUpdate > 0 {
+				timeStr = time.Unix(licenseInfo.LastUpdate/1000, (licenseInfo.LastUpdate%1000)*int64(time.Millisecond)).In(time.Local).Format("2006-01-02 15:04:05")
+			}
 
 			fmt.Printf("LicenseName=%v \n"+
 				"\tTotal=%v Used=%d Free=%d Reserved=%d Remote=yes\n"+
