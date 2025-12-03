@@ -65,6 +65,7 @@ var _ api.CgroupLifecycleHooks = MonitorPlugin{}
 var _ api.NodeEventHooks = MonitorPlugin{}
 var _ api.GrpcServiceRegistrar = MonitorPlugin{}
 var _ api.HostConfigAware = MonitorPlugin{}
+var _ api.ResourceHooks = &MonitorPlugin{}
 
 var PluginInstance = MonitorPlugin{}
 
