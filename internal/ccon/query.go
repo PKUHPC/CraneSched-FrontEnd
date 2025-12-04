@@ -55,81 +55,165 @@ func psExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
-	// Sort tasks by Task ID descending
-	sort.Slice(reply.TaskInfoList, func(i, j int) bool {
-		taskI := reply.TaskInfoList[i]
-		taskJ := reply.TaskInfoList[j]
+	// Flatten steps for container view
+	type stepRow struct {
+		jobId     uint32
+		stepId    uint32
+		image     string
+		command   string
+		createdAt time.Time
+		status    protos.TaskStatus
+		name      string
+	}
 
-		return taskI.TaskId > taskJ.TaskId
+	var rows []stepRow
+	for _, task := range reply.TaskInfoList {
+		for _, step := range task.StepInfoList {
+			row := stepRow{
+				jobId:  task.TaskId,
+				stepId: step.StepId,
+				name:   step.Name,
+				status: step.Status,
+			}
+			if step.ContainerMeta != nil && step.ContainerMeta.Image != nil {
+				row.image = step.ContainerMeta.Image.Image
+			}
+			if step.ContainerMeta != nil {
+				var cmdParts []string
+				if step.ContainerMeta.Command != "" {
+					cmdParts = append(cmdParts, step.ContainerMeta.Command)
+				}
+				if len(step.ContainerMeta.Args) > 0 {
+					cmdParts = append(cmdParts, step.ContainerMeta.Args...)
+				}
+				if len(cmdParts) > 0 {
+					row.command = strings.Join(cmdParts, " ")
+				}
+			}
+			if step.SubmitTime != nil {
+				row.createdAt = step.SubmitTime.AsTime()
+			} else if task.SubmitTime != nil {
+				row.createdAt = task.SubmitTime.AsTime()
+			}
+			rows = append(rows, row)
+		}
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].jobId == rows[j].jobId {
+			return rows[i].stepId > rows[j].stepId
+		}
+		return rows[i].jobId > rows[j].jobId
 	})
 
 	if f.Global.Json {
-		outputJson("ps", "", f.Ps, reply)
+		outputJson("ps", "", f.Ps, rows)
 		return nil
 	}
 
 	if f.Ps.Quiet {
-		for _, task := range reply.TaskInfoList {
-			fmt.Println(strconv.FormatUint(uint64(task.TaskId), 10))
+		for _, row := range rows {
+			fmt.Printf("%d.%d\n", row.jobId, row.stepId)
 		}
-	} else {
-		table := tablewriter.NewWriter(os.Stdout)
-		util.SetBorderlessTable(table)
-		table.SetHeader([]string{"JOBID", "IMAGE", "COMMAND", "CREATED", "STATUS", "PORTS", "NAMES"})
-
-		for _, task := range reply.TaskInfoList {
-			jobID := strconv.FormatUint(uint64(task.TaskId), 10)
-
-			var image string
-			if task.ContainerMeta != nil && task.ContainerMeta.Image != nil {
-				image = task.ContainerMeta.Image.Image
-			} else {
-				image = "-"
-			}
-
-			var command string
-			if task.ContainerMeta != nil {
-				// Build command from container metadata
-				var cmdParts []string
-				if task.ContainerMeta.Command != "" {
-					cmdParts = append(cmdParts, task.ContainerMeta.Command)
-				}
-				if len(task.ContainerMeta.Args) > 0 {
-					cmdParts = append(cmdParts, task.ContainerMeta.Args...)
-				}
-				if len(cmdParts) > 0 {
-					command = strings.Join(cmdParts, " ")
-				}
-			}
-			command = truncateCommand(command, 20)
-
-			status := strings.ToUpper(task.Status.String())
-			createdStr := formatDuration(time.Since(task.SubmitTime.AsTime())) + " ago"
-
-			var ports string
-			if task.ContainerMeta != nil && len(task.ContainerMeta.Ports) > 0 {
-				var portStrs []string
-				for hostPort, containerPort := range task.ContainerMeta.Ports {
-					portStrs = append(portStrs, fmt.Sprintf("%d:%d", hostPort, containerPort))
-				}
-				ports = strings.Join(portStrs, ", ")
-			} else {
-				ports = "-"
-			}
-
-			table.Append([]string{
-				jobID,
-				image,
-				command,
-				createdStr,
-				status,
-				ports,
-				task.Name,
-			})
-		}
-		table.Render()
+		return nil
 	}
 
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderlessTable(table)
+	table.SetHeader([]string{"CONTAINER", "IMAGE", "COMMAND", "CREATED", "STATUS", "NAME"})
+
+	for _, row := range rows {
+		createdStr := "-"
+		if !row.createdAt.IsZero() {
+			createdStr = formatDuration(time.Since(row.createdAt)) + " ago"
+		}
+		table.Append([]string{
+			fmt.Sprintf("%d.%d", row.jobId, row.stepId),
+			row.image,
+			truncateCommand(row.command, 20),
+			createdStr,
+			strings.ToUpper(row.status.String()),
+			row.name,
+		})
+	}
+	table.Render()
+	return nil
+}
+
+func podExecute(cmd *cobra.Command, args []string) error {
+	if len(args) != 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, "pod command does not accept any arguments")
+	}
+
+	f := GetFlags()
+	request := protos.QueryTasksInfoRequest{
+		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
+		OptionIncludeCompletedTasks: f.Pod.All,
+	}
+
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query container pods")
+		return util.NewCraneErr(util.ErrorNetwork, "")
+	}
+
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend, "")
+	}
+
+	sort.Slice(reply.TaskInfoList, func(i, j int) bool {
+		return reply.TaskInfoList[i].TaskId > reply.TaskInfoList[j].TaskId
+	})
+
+	if f.Global.Json {
+		outputJson("pod", "", f.Pod, reply.TaskInfoList)
+		return nil
+	}
+
+	if f.Pod.Quiet {
+		for _, task := range reply.TaskInfoList {
+			fmt.Println(task.TaskId)
+		}
+		return nil
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderlessTable(table)
+	table.SetHeader([]string{"JOBID", "POD", "PARTITION", "CREATED", "STATUS", "PORTS"})
+
+	for _, task := range reply.TaskInfoList {
+		createdStr := "-"
+		if task.SubmitTime != nil {
+			createdStr = formatDuration(time.Since(task.SubmitTime.AsTime())) + " ago"
+		}
+
+		podName := "-"
+		if task.PodMeta != nil && task.PodMeta.Name != "" {
+			podName = task.PodMeta.Name
+		}
+
+		var ports string
+		if task.PodMeta != nil && len(task.PodMeta.Ports) > 0 {
+			var portStrs []string
+			for _, port := range task.PodMeta.Ports {
+				portStrs = append(portStrs, fmt.Sprintf("%d:%d", port.HostPort, port.ContainerPort))
+			}
+			ports = strings.Join(portStrs, ", ")
+		} else {
+			ports = "-"
+		}
+
+		table.Append([]string{
+			strconv.FormatUint(uint64(task.TaskId), 10),
+			podName,
+			task.Partition,
+			createdStr,
+			strings.ToUpper(task.Status.String()),
+			ports,
+		})
+	}
+
+	table.Render()
 	return nil
 }
 

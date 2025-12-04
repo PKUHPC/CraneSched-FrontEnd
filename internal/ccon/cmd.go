@@ -82,9 +82,16 @@ var (
 
 	PsCmd = &cobra.Command{
 		Use:              "ps [flags]",
-		Short:            "List containers",
+		Short:            "List containers (steps)",
 		PersistentPreRun: initConfigAndStub,
 		RunE:             psExecute,
+	}
+
+	PodCmd = &cobra.Command{
+		Use:              "pod [flags]",
+		Short:            "List container pods (jobs)",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             podExecute,
 	}
 
 	InspectCmd = &cobra.Command{
@@ -192,6 +199,9 @@ func InitializeCommandFlags() {
 	PsCmd.Flags().BoolVarP(&f.Ps.All, "all", "a", false, "Show all containers (default shows just running)")
 	PsCmd.Flags().BoolVarP(&f.Ps.Quiet, "quiet", "q", false, "Only display container IDs")
 
+	PodCmd.Flags().BoolVarP(&f.Pod.All, "all", "a", false, "Show all pods (default shows just running)")
+	PodCmd.Flags().BoolVarP(&f.Pod.Quiet, "quiet", "q", false, "Only display pod IDs")
+
 	LogCmd.Flags().BoolVarP(&f.Log.Follow, "follow", "f", false, "Follow log output")
 	LogCmd.Flags().IntVar(&f.Log.Tail, "tail", -1, "Number of lines to show from the end of the logs")
 	LogCmd.Flags().BoolVarP(&f.Log.Timestamps, "timestamps", "t", false, "Show timestamps")
@@ -224,7 +234,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	// Link all commands to the root command
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, PodCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
 	RootCmd.AddCommand(CreateCmd, StartCmd, RestartCmd)
 
 	// Hide crane flags by default. Only display them when running 'ccon run'.

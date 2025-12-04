@@ -78,6 +78,11 @@ type PsFlags struct {
 	Quiet bool
 }
 
+type PodFlags struct {
+	All   bool
+	Quiet bool
+}
+
 type LogFlags struct {
 	Follow     bool
 	Tail       int
@@ -112,6 +117,7 @@ type Flags struct {
 	Run    RunFlags
 	Stop   StopFlags
 	Ps     PsFlags
+	Pod    PodFlags
 	Log    LogFlags
 	Login  LoginFlags
 	Attach AttachFlags
