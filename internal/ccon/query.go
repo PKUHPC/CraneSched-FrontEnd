@@ -217,49 +217,6 @@ func podExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func inspectExecute(cmd *cobra.Command, args []string) error {
-	if len(args) != 1 {
-		return util.NewCraneErr(util.ErrorCmdArg, "inspect requires exactly one argument: CONTAINER")
-	}
-
-	jobIDStr := args[0]
-	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
-	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid job ID: %s", jobIDStr))
-	}
-	idFilter := map[uint32]*protos.JobStepIds{}
-	idFilter[uint32(jobID)] = &protos.JobStepIds{}
-	request := protos.QueryTasksInfoRequest{
-		FilterIds:                   idFilter,
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: true,
-	}
-
-	reply, err := stub.QueryTasksInfo(context.Background(), &request)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container task")
-		return util.NewCraneErr(util.ErrorNetwork, "")
-	}
-
-	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, "")
-	}
-
-	if len(reply.TaskInfoList) == 0 {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container with job ID %s not found", jobIDStr))
-	}
-
-	task := reply.TaskInfoList[0]
-
-	jsonData, err := json.MarshalIndent(task, "", "  ")
-	if err != nil {
-		return util.WrapCraneErr(util.ErrorBackend, "failed to format data from backend: %v", err)
-	}
-
-	fmt.Println(string(jsonData))
-	return nil
-}
-
 func truncateCommand(command string, maxLen int) string {
 	if command == "" {
 		return "-"
@@ -292,4 +249,119 @@ func formatDuration(d time.Duration) string {
 	} else {
 		return fmt.Sprintf("%d days", int(d.Hours()/24))
 	}
+}
+
+func inspectPodExecute(cmd *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return util.NewCraneErr(util.ErrorCmdArg, "inspectp requires exactly one argument: POD")
+	}
+
+	jobIDStr := args[0]
+	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid job ID: %s", jobIDStr))
+	}
+
+	idFilter := map[uint32]*protos.JobStepIds{}
+	idFilter[uint32(jobID)] = &protos.JobStepIds{}
+	request := protos.QueryTasksInfoRequest{
+		FilterIds:                   idFilter,
+		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
+		OptionIncludeCompletedTasks: true,
+	}
+
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query container pod")
+		return util.NewCraneErr(util.ErrorNetwork, "")
+	}
+
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend, "")
+	}
+
+	if len(reply.TaskInfoList) == 0 {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container pod %s not found", jobIDStr))
+	}
+
+	task := reply.TaskInfoList[0]
+	jsonData, err := json.MarshalIndent(task, "", "  ")
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorBackend, "failed to format data from backend: %v", err)
+	}
+
+	fmt.Println(string(jsonData))
+	return nil
+}
+
+func inspectStepExecute(cmd *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return util.NewCraneErr(util.ErrorCmdArg, "inspect requires exactly one argument: CONTAINER (format: JOBID.STEPID)")
+	}
+
+	jobID, stepID, err := parseJobStepArg(args[0])
+	if err != nil {
+		return err
+	}
+
+	idFilter := map[uint32]*protos.JobStepIds{}
+	idFilter[jobID] = &protos.JobStepIds{Steps: []uint32{stepID}}
+	request := protos.QueryTasksInfoRequest{
+		FilterIds:                   idFilter,
+		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
+		OptionIncludeCompletedTasks: true,
+	}
+
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query container step")
+		return util.NewCraneErr(util.ErrorNetwork, "")
+	}
+
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend, "")
+	}
+
+	if len(reply.TaskInfoList) == 0 {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container step %d.%d not found", jobID, stepID))
+	}
+
+	var targetStep *protos.StepInfo
+	for _, step := range reply.TaskInfoList[0].StepInfoList {
+		if step.StepId == stepID {
+			targetStep = step
+			break
+		}
+	}
+
+	if targetStep == nil {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container step %d.%d not found", jobID, stepID))
+	}
+
+	jsonData, err := json.MarshalIndent(targetStep, "", "  ")
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorBackend, "failed to format data from backend: %v", err)
+	}
+
+	fmt.Println(string(jsonData))
+	return nil
+}
+
+func parseJobStepArg(arg string) (uint32, uint32, error) {
+	parts := strings.Split(arg, ".")
+	if len(parts) != 2 {
+		return 0, 0, util.NewCraneErr(util.ErrorCmdArg, "CONTAINER must be in JOBID.STEPID format")
+	}
+
+	jobID64, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil {
+		return 0, 0, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid job ID: %s", parts[0]))
+	}
+
+	stepID64, err := strconv.ParseUint(parts[1], 10, 32)
+	if err != nil {
+		return 0, 0, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid step ID: %s", parts[1]))
+	}
+
+	return uint32(jobID64), uint32(stepID64), nil
 }

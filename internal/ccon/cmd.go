@@ -88,17 +88,24 @@ var (
 	}
 
 	PodCmd = &cobra.Command{
-		Use:              "pod [flags]",
+		Use:              "pods [flags]",
 		Short:            "List container pods (jobs)",
 		PersistentPreRun: initConfigAndStub,
 		RunE:             podExecute,
 	}
 
+	InspectPodCmd = &cobra.Command{
+		Use:              "inspectp POD",
+		Short:            "Display detailed information for a container pod (job)",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             inspectPodExecute,
+	}
+
 	InspectCmd = &cobra.Command{
 		Use:              "inspect CONTAINER",
-		Short:            "Display detailed information on one or more containers",
+		Short:            "Display detailed information for a container step (format: JOBID.STEPID)",
 		PersistentPreRun: initConfigAndStub,
-		RunE:             inspectExecute,
+		RunE:             inspectStepExecute,
 	}
 
 	AttachCmd = &cobra.Command{
@@ -234,7 +241,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	// Link all commands to the root command
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, PodCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, PodCmd, InspectPodCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
 	RootCmd.AddCommand(CreateCmd, StartCmd, RestartCmd)
 
 	// Hide crane flags by default. Only display them when running 'ccon run'.

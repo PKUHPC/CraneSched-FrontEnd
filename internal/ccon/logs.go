@@ -76,7 +76,6 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 	task := reply.TaskInfoList[0]
 
-	// FIXME: Currently only support single-step container logs
 	logPath, err := buildLogPath(task, uint32(jobID), 1)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorBackend, "%v", err)
