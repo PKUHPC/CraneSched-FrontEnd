@@ -79,6 +79,7 @@ type EntityType struct {
 	Node        bool `parser:"@'node'"`
 	Partition   bool `parser:"| @'partition'"`
 	Job         bool `parser:"| @'job'"`
+	Step        bool `parser:"| @'step'"`
 	Reservation bool `parser:"| @'reservation'"`
 	Lic         bool `parser:"| @'lic'"`
 }
@@ -109,6 +110,8 @@ func (e EntityType) String() string {
 		return "partition"
 	case e.Job:
 		return "job"
+	case e.Step:
+		return "step"
 	case e.Reservation:
 		return "reservation"
 	case e.Lic:

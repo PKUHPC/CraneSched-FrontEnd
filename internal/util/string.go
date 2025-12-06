@@ -462,6 +462,38 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
+func ParseJobId(jobId string) (int64, error) {
+	parts := strings.Split(jobId, ".")
+	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || jobId64 <= 0 {
+		return 0, fmt.Errorf("invalid job id")
+	}
+	return jobId64, nil
+}
+
+// ParseJobIdStepId parses a job step id string in the format "jobid" or "jobid.stepid".
+// Returns jobid, stepid, error. -1 if not present.
+func ParseJobIdStepId(jobStepId string) (int64, int64, error) {
+	parts := strings.Split(jobStepId, ".")
+	if len(parts) == 0 || len(parts) > 2 {
+		return -1, -1, fmt.Errorf("invalid job or step id format")
+	}
+	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || jobId64 <= 0 {
+		return -1, -1, fmt.Errorf("invalid job id")
+	}
+	var stepId64 int64
+	if len(parts) == 2 {
+		stepId64, err = strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || stepId64 < 0 {
+			return -1, -1, fmt.Errorf("invalid step id")
+		}
+		return jobId64, stepId64, nil
+	}
+
+	return jobId64, -1, nil
+}
+
 var allowedMailTypes = map[string]struct{}{
 	"NONE":      {},
 	"BEGIN":     {},
@@ -595,6 +627,48 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
 		mailtype := gjson.Get(task.ExtraAttr, "mail.type")
 		mailuser := gjson.Get(task.ExtraAttr, "mail.user")
+		if mailtype.Exists() != mailuser.Exists() {
+			return fmt.Errorf("incomplete mail arguments")
+		}
+		if mailtype.Exists() && !CheckMailType(mailtype.String()) {
+			return fmt.Errorf("invalid --mail-type")
+		}
+	}
+
+	return nil
+}
+
+func CheckStepArgs(step *protos.StepToCtld) error {
+	if err := CheckJobNameLength(step.Name); err != nil {
+		return err
+	}
+	if step.ReqResourcesPerTask != nil &&
+		step.ReqResourcesPerTask.AllocatableRes != nil {
+		if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit <= 0 {
+			return fmt.Errorf("--cpus-per-task must > 0")
+		} else if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit > 1e6 {
+			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit)
+		}
+	}
+	if step.NtasksPerNode != nil && *step.NtasksPerNode <= 0 {
+		return fmt.Errorf("--ntasks-per-node must > 0")
+	}
+	if step.NodeNum != nil && *step.NodeNum <= 0 {
+		return fmt.Errorf("--nodes must > 0")
+	}
+	if step.TimeLimit.AsDuration() <= 0 {
+		return fmt.Errorf("--time must > 0")
+	}
+	if !CheckNodeList(step.Nodelist) {
+		return fmt.Errorf("invalid format for --nodelist")
+	}
+	if !CheckNodeList(step.Excludes) {
+		return fmt.Errorf("invalid format for --exclude")
+	}
+	if step.ExtraAttr != "" {
+		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
+		mailtype := gjson.Get(step.ExtraAttr, "mail.type")
+		mailuser := gjson.Get(step.ExtraAttr, "mail.user")
 		if mailtype.Exists() != mailuser.Exists() {
 			return fmt.Errorf("incomplete mail arguments")
 		}
@@ -1140,7 +1214,38 @@ func ParseStringParamList(parameters string, splitStr string) ([]string, error) 
 	return parameterList, nil
 }
 
+func ParseStepIdList(stepIdStr string, splitStr string) (map[uint32]*protos.JobStepIds, error) {
+	stepIds := make(map[uint32]*protos.JobStepIds)
+	stepIdStrList := strings.Split(stepIdStr, splitStr)
+	for i := 0; i < len(stepIdStrList); i++ {
+		stepIdPair := strings.Split(stepIdStrList[i], ".")
+		if len(stepIdPair) > 2 {
+			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStrList[i])
+		}
+		jobId, err := strconv.ParseUint(stepIdPair[0], 10, 32)
+		if err != nil || jobId == 0 {
+			return nil, fmt.Errorf("invalid job id \"%s\"", stepIdStrList[i])
+		}
+		if len(stepIdPair) == 1 {
+			if _, exists := stepIds[uint32(jobId)]; !exists {
+				stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
+			}
+			continue
+		}
+		stepId, err := strconv.ParseUint(stepIdPair[1], 10, 32)
+		if err != nil || stepId == 0 {
+			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStrList[i])
+		}
+		if _, exists := stepIds[uint32(jobId)]; !exists {
+			stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
+		}
+		stepIds[uint32(jobId)].Steps = append(stepIds[uint32(jobId)].Steps, uint32(stepId))
+	}
+
+	return stepIds, nil
+}
 func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
+
 	jobIdStrList := strings.Split(jobIds, splitStr)
 	var jobIdList []uint32
 	for i := 0; i < len(jobIdStrList); i++ {
@@ -1253,6 +1358,35 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 
 	*r = extra
 	return nil
+}
+
+func JobStepListToString(steps map[uint32]*protos.JobStepIds) string {
+	jobIdStrList := make([]string, 0)
+	stepIdStrList := make([]string, 0)
+	for jobId, stepIds := range steps {
+		if stepIds == nil || len(stepIds.Steps) == 0 {
+			jobIdStrList = append(jobIdStrList, fmt.Sprintf("%d", jobId))
+		} else {
+			for _, stepId := range stepIds.Steps {
+				stepIdStrList = append(stepIdStrList, fmt.Sprintf("%d.%d", jobId, stepId))
+			}
+		}
+	}
+	jobStr := ""
+	if len(jobIdStrList) != 0 {
+		jobStr = fmt.Sprintf("Job %s", ConvertSliceToString(jobIdStrList, ","))
+	}
+
+	if len(stepIdStrList) == 0 {
+		return jobStr
+	} else {
+		stepStr := fmt.Sprintf("Step %s", ConvertSliceToString(stepIdStrList, ","))
+		if len(jobStr) == 0 {
+			return stepStr
+		} else {
+			return jobStr + " " + stepStr
+		}
+	}
 }
 
 func ConvertSliceToString[T any](slice []T, sep string) string {

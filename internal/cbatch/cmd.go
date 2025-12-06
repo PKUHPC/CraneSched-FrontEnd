@@ -99,7 +99,7 @@ var (
 			task.CmdLine = strings.Join(os.Args, " ")
 
 			// Process the content of --get-user-env
-			util.SetPropagatedEnviron(task)
+			util.SetPropagatedEnviron(&task.Env, &task.GetUserEnv)
 
 			task.Type = protos.TaskType_Batch
 			if task.Cwd == "" {

@@ -492,8 +492,25 @@ func parseJobIds(jobIds string, queryAll bool) ([]uint32, error) {
 	return jobIdList, nil
 }
 
+// show steps
+func parseStepIds(jobIds string, queryAll bool) (map[uint32] /*Job Id*/ *protos.JobStepIds, error) {
+	if queryAll {
+		return nil, nil
+	}
+	jobIdList, err := util.ParseStepIdList(jobIds, ",")
+	if err != nil {
+		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
+	}
+	return jobIdList, nil
+}
+
 func getTaskInfoReply(jobIdList []uint32) (*protos.QueryTasksInfoReply, error) {
-	req := &protos.QueryTasksInfoRequest{FilterTaskIds: jobIdList}
+	idFilter := map[uint32]*protos.JobStepIds{}
+	for _, jobId := range jobIdList {
+		idFilter[jobId] = nil
+	}
+
+	req := &protos.QueryTasksInfoRequest{FilterIds: idFilter}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show jobs")
@@ -720,6 +737,159 @@ func ShowJobs(jobIds string, queryAll bool) error {
 		return handleEmptyJobResult(jobIdList, queryAll)
 	}
 	return outputJobs(reply.TaskInfoList, jobIdList)
+}
+
+func ShowSteps(stepIds string, queryAll bool) error {
+	var req *protos.QueryTasksInfoRequest
+	var err error
+
+	jobStepMap, err := parseStepIds(stepIds, queryAll)
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid step list specified: %s.", err))
+	}
+
+	req = &protos.QueryTasksInfoRequest{FilterIds: jobStepMap}
+	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show steps")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend,
+			fmt.Sprintf("Failed to retrive the information of step %s", stepIds),
+		)
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+
+	if len(reply.TaskInfoList) == 0 {
+		if queryAll {
+			fmt.Println("No step is running.")
+		} else {
+			jobIdListString := util.JobStepListToString(jobStepMap)
+			fmt.Printf("Step %s is not running.\n", jobIdListString)
+		}
+		return nil
+	}
+
+	// Helper function to format null/empty strings
+	formatNullStr := func(s string) string {
+		if len(s) == 0 {
+			return "(null)"
+		}
+		return s
+	}
+
+	// Track if any step requested is not returned
+	printed := map[StepIdentifier]bool{}
+
+	for _, taskInfo := range reply.TaskInfoList {
+		// Iterate through all steps in this task
+		for _, stepInfo := range taskInfo.StepInfoList {
+			stepId := stepInfo.StepId
+			printed[StepIdentifier{JobId: taskInfo.TaskId, StepId: stepId}] = true
+
+			var timeStartStr string
+			timeStart := stepInfo.StartTime.AsTime()
+			if !timeStart.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+				timeStartStr = timeStart.In(time.Local).Format("2006-01-02T15:04:05")
+			} else {
+				timeStartStr = "Unknown"
+			}
+
+			var timeLimitStr string
+			if stepInfo.TimeLimit.Seconds >= util.MaxJobTimeLimit {
+				timeLimitStr = "UNLIMITED"
+			} else {
+				timeLimitStr = util.SecondTimeFormat(stepInfo.TimeLimit.Seconds)
+			}
+
+			stateStr := strings.ToUpper(stepInfo.Status.String())
+
+			partitionStr := formatNullStr(taskInfo.Partition)
+
+			nodeListStr := formatNullStr(stepInfo.GetCranedList())
+
+			var cpusStr string
+			if stepInfo.AllocatedResView != nil && stepInfo.AllocatedResView.AllocatableRes != nil {
+				cpus := stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+				cpusStr = strconv.FormatInt(int64(cpus), 10)
+			} else {
+				cpusStr = "0"
+			}
+
+			taskStr := fmt.Sprintf("1")
+
+			nameStr := formatNullStr(stepInfo.Name)
+
+			var gresStr string
+			if stepInfo.AllocatedResView != nil && stepInfo.AllocatedResView.AllocatableRes != nil {
+				gres := stepInfo.AllocatedResView.AllocatableRes
+				var gresParts []string
+				if gres.CpuCoreLimit > 0 {
+					gresParts = append(gresParts, fmt.Sprintf("cpu=%d", int64(gres.CpuCoreLimit)))
+				}
+				if gres.MemoryLimitBytes > 0 {
+					gresParts = append(gresParts, fmt.Sprintf("mem=%s", util.FormatMemToMB(gres.MemoryLimitBytes)))
+				}
+				if stepInfo.NodeNum > 0 {
+					gresParts = append(gresParts, fmt.Sprintf("node=%d", stepInfo.NodeNum))
+				}
+				if len(gresParts) > 0 {
+					gresStr = strings.Join(gresParts, ",")
+				} else {
+					gresStr = "(null)"
+				}
+			} else {
+				gresStr = "(null)"
+			}
+
+			fullStepId := fmt.Sprintf("%d.%d", stepInfo.JobId, stepId)
+
+			printed[StepIdentifier{
+				JobId: stepInfo.JobId, StepId: stepInfo.StepId,
+			}] = true
+
+			fmt.Printf("StepId=%v UserId=%v StartTime=%v TimeLimit=%v\n",
+				fullStepId, stepInfo.Uid, timeStartStr, timeLimitStr)
+
+			fmt.Printf("   State=%v Partition=%v NodeList=%v\n",
+				stateStr, partitionStr, nodeListStr)
+
+			fmt.Printf("   Nodes=%v CPUs=%v Tasks=%v Name=%v\n",
+				stepInfo.NodeNum, cpusStr, taskStr, nameStr)
+
+			if gresStr != "(null)" {
+				fmt.Printf("   GRES=%v\n", gresStr)
+			}
+
+			fmt.Println()
+		}
+	}
+
+	if !queryAll {
+		notRunningSteps := []StepIdentifier{}
+		for jobId, jobSteps := range jobStepMap {
+			for _, stepId := range jobSteps.Steps {
+				if !printed[StepIdentifier{JobId: jobId, StepId: stepId}] {
+					notRunningSteps = append(notRunningSteps, StepIdentifier{JobId: jobId, StepId: stepId})
+				}
+			}
+		}
+		if len(notRunningSteps) > 0 {
+			id_strs := make([]string, len(notRunningSteps))
+			for i, step := range notRunningSteps {
+				id_strs[i] = step.String()
+			}
+			fmt.Printf("Step %s is not running.\n", strings.Join(id_strs, ", "))
+		}
+	}
+
+	return nil
 }
 
 func ShowLicenses(licenseName string, queryAll bool) error {

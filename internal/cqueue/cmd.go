@@ -24,6 +24,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var DefaultStepIdFilter = "ALL"
+
 var (
 	FlagConfigFilePath   string
 	FlagFull             bool
@@ -31,6 +33,8 @@ var (
 	FlagStartTime        bool
 	FlagSelf             bool
 	FlagFilterPartitions string
+	FlagStep             bool
+	FlagFilterStepIDs    string
 	FlagFilterJobIDs     string
 	FlagFilterJobNames   string
 	FlagFilterQos        string
@@ -60,6 +64,11 @@ var (
 					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
 				}
 			}
+
+			FlagStep = cmd.Flags().Changed("step")
+			if FlagFilterStepIDs == DefaultStepIdFilter {
+				FlagFilterStepIDs = ""
+			}
 			if FlagIterate != 0 {
 				return loopedQuery(FlagIterate)
 			} else {
@@ -79,6 +88,9 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath,
 		"Path to configuration file")
+	RootCmd.Flags().StringVarP(&FlagFilterStepIDs, "step", "s", "",
+		"Specify step ids to view (comma separated list), default is all")
+	RootCmd.Flags().Lookup("step").NoOptDefVal = DefaultStepIdFilter
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
 		"Specify job ids to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
@@ -115,34 +127,35 @@ func init() {
 	  - With dot and size (%.5j): field uses minimum width, right-aligned (padding on left)
 
 Supported format identifiers or string, string case insensitive:
-	%a/%Account            - Display the account associated with the job.
-	%C/%ReqCpus            - Display the cpus requested to the job.
-	%c/%AllocCpus          - Display the cpus allocated to the job.
-	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
-	%h/%Held               - Display the hold state of the job.
-	%j/%JobID              - Display the ID of the job.
-	%k/%Comment            - Display the comment of the job.
-	%L/%NodeList           - Display the list of nodes the job is running on.
-	%l/%TimeLimit          - Display the time limit for the job.
-	%M/%ReqMemPerNode      - Display the requested mem per node of the job.
-	%m/%AllocMemPerNode    - Display the requested mem per node of the job.
-	%N/%NodeNum            - Display the number of nodes requested by the job.
-	%n/%Name               - Display the name of the job.
-	%o/%Command            - Display the command line of the job.
-	%P/%Partition          - Display the partition the job is running in.
-	%p/%Priority           - Display the priority of the job.
-	%Q/%ReqCpuPerNode      - Display the requested cpu per node of the job.
-	%q/%QoS                - Display the Quality of Service level for the job.
-	%R/%Reason             - Display the reason of pending.
-	%r/%ReqNodes           - Display the reqnodes of the job.
-	%S/%StartTime          - Display the start time of the job.
-	%s/%SubmitTime         - Display the submission time of the job.
-	%t/%State              - Display the current state of the job.
-	%T/%JobType            - Display the job type.
-	%U/%Uid                - Display the uid of the job.
-	%u/%User               - Display the user who submitted the job.
-	%X/%Exclusive          - Display the exclusive status of the job.
-	%x/%ExcludeNodes       - Display the exclude nodes of the job.
+	%a/%Account            - Display the account associated with the job/step.
+	%C/%ReqCpus            - Display the cpus requested to the job. (For jobs only)
+	%c/%AllocCpus          - Display the cpus allocated to the job. (For jobs only)
+	%e/%ElapsedTime        - Display the elapsed time from the start of the job/step.
+	%h/%Held               - Display the hold state of the job. (For jobs only)
+	%i/%StepId             - Display the ID of the step (format: jobId.stepId). (For steps only)
+	%j/%JobID              - Display the ID of the job (or parent job ID for steps).
+	%k/%Comment            - Display the comment of the job. (For jobs only)
+	%L/%NodeList           - Display the list of nodes the job/step is running on.
+	%l/%TimeLimit          - Display the time limit for the job/step.
+	%M/%ReqMemPerNode      - Display the requested mem per node of the job. (For jobs only)
+	%m/%AllocMemPerNode    - Display the requested mem per node of the job. (For jobs only)
+	%N/%NodeNum            - Display the number of nodes requested by the job/step.
+	%n/%Name               - Display the name of the job/step.
+	%o/%Command            - Display the command line of the job/step.
+	%P/%Partition          - Display the partition the job/step is running in.
+	%p/%Priority           - Display the priority of the job. (For jobs only)
+	%Q/%ReqCpuPerNode      - Display the requested cpu per node of the job. (For jobs only)
+	%q/%QoS                - Display the Quality of Service level for the job/step.
+	%R/%Reason             - Display the reason of pending. (For jobs only)
+	%r/%ReqNodes           - Display the reqnodes of the job. (For jobs only)
+	%S/%StartTime          - Display the start time of the job. (For jobs only)
+	%s/%SubmitTime         - Display the submission time of the job. (For jobs only)
+	%t/%State              - Display the current state of the job/step.
+	%T/%JobType            - Display the job type. (For jobs only)
+	%U/%Uid                - Display the uid of the job/step.
+	%u/%User               - Display the user who submitted the job/step.
+	%X/%Exclusive          - Display the exclusive status of the job. (For jobs only)
+	%x/%ExcludeNodes       - Display the exclude nodes of the job. (For jobs only)
 
 Examples:
   --format "%j %n %t"              # Natural width for all fields

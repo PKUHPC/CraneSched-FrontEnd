@@ -221,8 +221,8 @@ CtldClientStateMachineLoop:
 						if ok {
 							toFeCtlReplyChannel <- ctldReply
 						} else {
-							log.Warningf("[Cfored<->Ctld] Task Id %d shall exist in "+
-								"ctldReplyChannelMapByStep!", jobId)
+							log.Warningf("[Cfored<->Ctld][Step #%d.%d] shall exist in "+
+								"ctldReplyChannelMapByStep!", jobId, stepId)
 						}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
@@ -257,6 +257,19 @@ CtldClientStateMachineLoop:
 					Type: protos.StreamCtldReply_TASK_CANCEL_REQUEST,
 					Payload: &protos.StreamCtldReply_PayloadTaskCancelRequest{
 						PayloadTaskCancelRequest: &protos.StreamCtldReply_TaskCancelRequest{
+							JobId:  step.JobId,
+							StepId: step.StepId,
+						},
+					},
+				}
+				c <- reply
+			}
+
+			for step, c := range gVars.ctldReplyChannelMapByStep {
+				reply := &protos.StreamCtldReply{
+					Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
+					Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
+						PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
 							JobId:  step.JobId,
 							StepId: step.StepId,
 						},

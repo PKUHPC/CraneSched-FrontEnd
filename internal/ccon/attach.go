@@ -54,10 +54,12 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr))
 	}
+	idFilter := map[uint32]*protos.JobStepIds{}
+	idFilter[uint32(taskId)] = &protos.JobStepIds{}
 
 	// First, query the task to verify it's a container task and is running
 	queryReq := &protos.QueryTasksInfoRequest{
-		FilterTaskIds:   []uint32{uint32(taskId)},
+		FilterIds:       idFilter,
 		FilterTaskTypes: []protos.TaskType{protos.TaskType_Container},
 	}
 
