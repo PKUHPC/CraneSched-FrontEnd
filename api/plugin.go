@@ -31,6 +31,7 @@ const (
 
 	UpdatePowerStateHook
 	RegisterCranedHook
+	UpdateLicensesHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -103,4 +104,8 @@ type GrpcServiceRegistrar interface {
 // CraneSched host configuration file before initialization.
 type HostConfigAware interface {
 	SetHostConfigPath(path string)
+}
+
+type ResourceHooks interface {
+	UpdateLicensesHook(ctx *PluginContext)
 }
