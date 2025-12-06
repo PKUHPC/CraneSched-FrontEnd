@@ -3,7 +3,7 @@ package db
 import (
 	"sync"
 
-	"CraneFrontEnd/plugin/energy/pkg/config"
+	"CraneFrontEnd/plugin/monitor/pkg/config"
 )
 
 var (
