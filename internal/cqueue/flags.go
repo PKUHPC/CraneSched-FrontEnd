@@ -147,6 +147,21 @@ func (p *TaskTypesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	return nil
 }
 
+// FlagFilterNodeNames
+type NodeNamesProcessor struct{}
+
+func (p *NodeNamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+	if FlagFilterNodeNames == "" {
+		return nil
+	}
+	filterNodenameList, ok := util.ParseHostList(FlagFilterNodeNames)
+	if !ok {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", FlagFilterNodeNames))
+	}
+	req.FilterNodenameList = filterNodenameList
+	return nil
+}
+
 // FlagFilterLicenses
 type LicensesProcessor struct{}
 
