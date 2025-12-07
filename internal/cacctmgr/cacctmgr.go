@@ -95,7 +95,7 @@ func AddAccount(account *protos.AccountInfo) error {
 		log.Warning("The --force flag is ignored for add operations")
 	}
 	if err := util.CheckEntityName(account.Name); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to add account: invalid account name: %v\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to add account: invalid account name: %v\n", err)
 	}
 
 	req := new(protos.AddAccountRequest)
@@ -119,14 +119,14 @@ func AddAccount(account *protos.AccountInfo) error {
 
 	reply, err := stub.AddAccount(context.Background(), req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to add account: %v\n", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to add account: %v\n", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
@@ -134,7 +134,7 @@ func AddAccount(account *protos.AccountInfo) error {
 	}
 	if reply.GetOk() {
 		fmt.Println("Account added successfully.")
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to add account: %s.\n", util.ErrMsg(reply.GetCode())))
 	}
@@ -146,12 +146,12 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	}
 	var err error
 	if err = util.CheckEntityName(user.Name); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to add user: invalid user name: %v\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to add user: invalid user name: %v\n", err)
 	}
 
 	user.Uid, err = util.GetUidByUserName(user.Name)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to add user: %v\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to add user: %v\n", err)
 	}
 
 	req := new(protos.AddUserRequest)
@@ -184,14 +184,14 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Println("User added successfully.")
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to add user: %s.\n", util.ErrMsg(reply.GetCode())))
 	}
@@ -202,7 +202,7 @@ func AddQos(qos *protos.QosInfo) error {
 		log.Warning("The --force flag is ignored for add operations")
 	}
 	if err := util.CheckEntityName(qos.Name); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to add QoS: invalid QoS name: %v\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to add QoS: invalid QoS name: %v\n", err)
 	}
 
 	req := new(protos.AddQosRequest)
@@ -211,21 +211,21 @@ func AddQos(qos *protos.QosInfo) error {
 
 	reply, err := stub.AddQos(context.Background(), req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to add QoS: %v\n", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to add QoS: %v\n", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Println("QoS added successfully.")
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to add QoS: %s.\n", util.ErrMsg(reply.GetCode())))
 	}
@@ -238,7 +238,7 @@ func DeleteAccount(value string) error {
 
 	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %v.\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid user list specified: %v.\n", err)
 	}
 
 	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList}
@@ -252,14 +252,14 @@ func DeleteAccount(value string) error {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Successfully deleted account '%s'.\n", value)
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		msg := "Failed to delete account: \n"
 		for _, richError := range reply.RichErrorList {
@@ -272,7 +272,7 @@ func DeleteAccount(value string) error {
 func DeleteUser(value string, account string) error {
 	userList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %v.\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid user list specified: %v.\n", err)
 	}
 
 	if slices.Contains(userList, "ALL") {
@@ -293,14 +293,14 @@ func DeleteUser(value string, account string) error {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Successfully removed user '%s'.\n", value)
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		msg := "Failed to remove user: \n"
 		for _, richError := range reply.RichErrorList {
@@ -317,7 +317,7 @@ func DeleteQos(value string) error {
 
 	qosList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %v.\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid user list specified: %v.\n", err)
 	}
 	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList}
 
@@ -330,14 +330,14 @@ func DeleteQos(value string) error {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Successfully deleted QoS '%s'.\n", value)
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		msg := "Failed to delete QoS: \n"
 		for _, richError := range reply.RichErrorList {
@@ -354,11 +354,11 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 	valueList, err = util.ParseStringParamList(newValue, ",")
 	if err != nil {
 		if modifyField == protos.ModifyField_Qos {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid qos list specified: %v.\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid qos list specified: %v.\n", err)
 		} else if modifyField == protos.ModifyField_Partition {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid partition list specified: %v.\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid partition list specified: %v.\n", err)
 		} else {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid value list specified: %v.\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid value list specified: %v.\n", err)
 		}
 	}
 
@@ -379,7 +379,7 @@ func ModifyAccount(modifyField protos.ModifyField, newValue string, name string,
 
 	reply, err := stub.ModifyAccount(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to modify account information: %v\n", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to modify account information: %v\n", err)
 	}
 
 	if FlagJson {
@@ -420,7 +420,7 @@ func ModifyUser(modifyField protos.ModifyField, newValue string, name string, ac
 
 	valueList, err = util.ParseStringParamList(newValue, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid value list specified: %v.\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid value list specified: %v.\n", err)
 	}
 
 	if modifyField == protos.ModifyField_AdminLevel || modifyField == protos.ModifyField_DefaultQos || modifyField == protos.ModifyField_DefaultAccount {
@@ -484,14 +484,14 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) err
 
 	reply, err := stub.ModifyQos(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to modify QoS: %v\n", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to modify QoS: %v\n", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
@@ -499,7 +499,7 @@ func ModifyQos(modifyField protos.ModifyField, newValue string, name string) err
 
 	if reply.GetOk() {
 		fmt.Println("Information was successfully modified.")
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode())))
 	}
@@ -514,14 +514,14 @@ func FindAccount(value string) error {
 		var err error
 		accountList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid account list specified: %v.\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid account list specified: %v.\n", err)
 		}
 	}
 
 	req := protos.QueryAccountInfoRequest{Uid: userUid, AccountList: accountList}
 	reply, err := stub.QueryAccountInfo(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to find account: %v\n", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to find account: %v\n", err)
 	}
 
 	if FlagJson {
@@ -560,28 +560,28 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 		var err error
 		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid account/user list specified: %v.\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid account/user list specified: %v.\n", err)
 		}
 	}
 
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: true, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to block entity: %v\n", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to block entity: %v\n", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Block %s succeeded.\n", value)
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		msg := ""
 		for _, richError := range reply.RichErrorList {
@@ -605,28 +605,28 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 		var err error
 		entityList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid account/user list specified: %v.\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid account/user list specified: %v.\n", err)
 		}
 	}
 
 	req := protos.BlockAccountOrUserRequest{Uid: userUid, Block: false, EntityType: entityType, EntityList: entityList, Account: account}
 	reply, err := stub.BlockAccountOrUser(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to unblock entity: %v\n", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to unblock entity: %v\n", err)
 	}
 
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Unblock %s succeeded.\n", value)
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	} else {
 		msg := ""
 		for _, richError := range reply.RichErrorList {
@@ -667,13 +667,13 @@ func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, error) {
 		Database *util.InfluxDbConfig `yaml:"Database"`
 	}{}
 	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
-		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to parse YAML config file: %v\n", err))
+		return nil, util.WrapCraneErr(util.ErrorCmdArg, "Failed to parse YAML config file: %v\n", err)
 	}
 	if dbConf.Database == nil {
 		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Database section not found in YAML"))
 	}
 
-	return dbConf.Database, util.NewCraneErr(util.ErrorSuccess, "")
+	return dbConf.Database, nil
 }
 
 func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
@@ -810,7 +810,7 @@ func QueryEventInfoByNodes(nodeRegex string) error {
 	if len(nodeNames) > 0 {
 		missingList, err := MissingElements(config.CranedNodeList, nodeNames)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid input for nodes: %v\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid input for nodes: %v\n", err)
 		}
 		if len(missingList) > 0 {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid input nodes: %v\n", missingList))
@@ -819,7 +819,7 @@ func QueryEventInfoByNodes(nodeRegex string) error {
 		var err error
 		nodeNames, err = util.GetValidNodeList(config.CranedNodeList)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid input for nodes: %v\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid input for nodes: %v\n", err)
 		}
 	}
 
@@ -830,12 +830,12 @@ func QueryEventInfoByNodes(nodeRegex string) error {
 	// Query Resource Usage Records in InfluxDB
 	result, err := QueryInfluxDbDataByTags(dbConfig, config.ClusterName, nodeNames)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to query job info from InfluxDB: %v\n", err))
+		return util.WrapCraneErr(util.ErrorBackend, "Failed to query job info from InfluxDB: %v\n", err)
 	}
 
 	filteredRecords, err := SortRecords(result)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to sort records: %v\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to sort records: %v\n", err)
 	}
 
 	if FlagJson {
@@ -856,10 +856,10 @@ func QueryEventInfoByNodes(nodeRegex string) error {
 		}
 		jsonData, err := json.MarshalIndent(eventJsonList, "", "  ")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to marshal data to JSON: %v\n", err))
+			return util.WrapCraneErr(util.ErrorBackend, "Failed to marshal data to JSON: %v\n", err)
 		}
 		fmt.Println(string(jsonData))
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -880,7 +880,7 @@ func QueryEventInfoByNodes(nodeRegex string) error {
 	}
 
 	table.Render()
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func FormatNanoTime(ns int64) string {
@@ -938,20 +938,20 @@ func ResetUserCredential(value string) error {
 		var err error
 		userList, err = util.ParseStringParamList(value, ",")
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid user list specified: %v.\n", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid user list specified: %v.\n", err)
 		}
 	}
 
 	req := protos.ResetUserCredentialRequest{Uid: userUid, UserList: userList}
 	reply, err := stub.ResetUserCredential(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, util.GrpcErrorSprintf(err, "Failed to reset user credential"))
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to reset user credential")
 	}
 	if FlagJson {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
@@ -965,5 +965,5 @@ func ResetUserCredential(value string) error {
 		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 	fmt.Printf("reset user %s credential succeeded.\n", value)
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }

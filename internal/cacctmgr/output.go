@@ -125,7 +125,7 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
@@ -137,7 +137,7 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 
 	PrintTxnLogList(reply.TxnLogList)
 
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 // Account
@@ -285,7 +285,7 @@ func ShowAccounts() error {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
@@ -307,7 +307,7 @@ func ShowAccounts() error {
 // User
 func PrintUserList(userList []*protos.UserInfo) error {
 	if len(userList) == 0 {
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	}
 	sort.Slice(userList, func(i, j int) bool {
 		return userList[i].Uid < userList[j].Uid
@@ -592,7 +592,7 @@ func ShowUser(value string, account string) error {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
@@ -615,7 +615,7 @@ func ShowUser(value string, account string) error {
 // Qos
 func PrintQosList(qosList []*protos.QosInfo) error {
 	if len(qosList) == 0 {
-		return util.NewCraneErr(util.ErrorSuccess, "")
+		return nil
 	}
 	sort.Slice(qosList, func(i, j int) bool {
 		return qosList[i].Name < qosList[j].Name
@@ -772,7 +772,7 @@ func ShowQos(value string) error {
 		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
 			fmt.Print(msg)
-			return util.NewCraneErr(util.ErrorSuccess, "")
+			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}

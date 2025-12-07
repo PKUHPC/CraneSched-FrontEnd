@@ -596,7 +596,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 		}
 	}
 
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeModifyUserCommand(command *CAcctMgrCommand) error {
@@ -707,7 +707,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 		}
 	}
 
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeModifyQosCommand(command *CAcctMgrCommand) error {
@@ -786,7 +786,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for qos modification\n", key))
 		}
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeShowCommand(command *CAcctMgrCommand) error {

@@ -26,6 +26,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	grpccodes "google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 type ExitCode = int
@@ -69,6 +71,29 @@ func WrapCraneErr(code ExitCode, format string, err error) *CraneError {
 	return &CraneError{
 		Code:    code,
 		Message: fmt.Sprintf(format, err),
+		cause:   err,
+	}
+}
+
+func NewCraneErrFromGrpc(code ExitCode, err error, format string, a ...any) *CraneError {
+	msg := fmt.Sprintf(format, a...)
+	if rpcErr, ok := grpcstatus.FromError(err); ok {
+		switch rpcErr.Code() {
+		case grpccodes.Unavailable:
+			msg = fmt.Sprintf("%s: Connection to CraneCtld is broken.", msg)
+		case grpccodes.Unauthenticated:
+			msg = fmt.Sprintf("%s: Access denied.", msg)
+		case grpccodes.DeadlineExceeded: // timeout errors
+			msg = fmt.Sprintf("%s: Request timeout, please try again or reduce the query scope.", msg)
+		case grpccodes.ResourceExhausted: // resource exhaustion/oversized responses
+			msg = fmt.Sprintf("%s: Response too large, please reduce the query scope.", msg)
+		default:
+			msg = fmt.Sprintf("%s: gRPC error code %s.", msg, rpcErr.String())
+		}
+	}
+	return &CraneError{
+		Code:    code,
+		Message: msg,
 		cause:   err,
 	}
 }

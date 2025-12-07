@@ -132,7 +132,7 @@ func executeShowNodeCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "show nodes failed: %s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeShowPartitionCommand(command *CControlCommand) error {
@@ -144,7 +144,7 @@ func executeShowPartitionCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "show partitions failed: %s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeShowJobCommand(command *CControlCommand) error {
@@ -157,7 +157,7 @@ func executeShowJobCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "show job failed: %s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeShowReservationCommand(command *CControlCommand) error {
@@ -170,7 +170,7 @@ func executeShowReservationCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "show reservations failed: %s", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeShowLicenseCommand(command *CControlCommand) error {
@@ -183,7 +183,7 @@ func executeShowLicenseCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "show licenses failed: %s", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeUpdateCommand(command *CControlCommand) error {
@@ -240,7 +240,7 @@ func executeUpdateNodeCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "change node state failed: %s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeUpdateJobCommand(command *CControlCommand) error {
@@ -342,7 +342,7 @@ func executeUpdatePartitionCommand(command *CControlCommand) error {
 		}
 	}
 
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeHoldCommand(command *CControlCommand) error {
@@ -363,7 +363,7 @@ func executeHoldCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "hold jobs failed: %s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeReleaseCommand(command *CControlCommand) error {
@@ -376,7 +376,7 @@ func executeReleaseCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "release jobs failed: %s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeCreateCommand(command *CControlCommand) error {
@@ -430,7 +430,7 @@ func executeCreateReservationCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "%s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func executeDeleteCommand(command *CControlCommand) error {
@@ -453,7 +453,7 @@ func executeDeleteReservationCommand(command *CControlCommand) error {
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "%s\n", err)
 	}
-	return util.NewCraneErr(util.ErrorSuccess, "")
+	return nil
 }
 
 func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) error {
