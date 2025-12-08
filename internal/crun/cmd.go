@@ -112,7 +112,7 @@ func init() {
 
 	RootCmd.Flags().StringVarP(&FlagInput, "input", "i", "all", "Source and destination of stdin redirection")
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
-	RootCmd.Flags().BoolVar(&FlagUnbuffered, "unbuffered", false, "Disable stdio buffering")
+	RootCmd.Flags().BoolVarP(&FlagUnbuffered, "unbuffered", "u", false, "Disable stdio buffering")
 	RootCmd.Flags().BoolVarP(&FlagLabel, "label", "l", false, "Label each task's output")
 	RootCmd.Flags().BoolVarP(&FlagOversubscribe, "oversubscribe", "s", false, "Allow oversubscription")
 
