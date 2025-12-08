@@ -44,12 +44,16 @@ var (
 	FlagNodelist      string
 	FlagExcludes      string
 	FlagGres          string
+	FlagCpuFreq       string
+	FlagSignal        string
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagStdoutPath    string
 	FlagStderrPath    string
 	FlagOpenMode      string
 	FlagExclusive     bool
+	FlagNoRequeue     bool
+	FlagOversubscribe bool
 
 	FlagInterpreter   string
 	FlagWrappedScript string
@@ -127,6 +131,8 @@ func init() {
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per job")
 	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
+	RootCmd.Flags().StringVar(&FlagCpuFreq, "cpu-freq", "", "CPU frequency request")
+	RootCmd.Flags().StringVar(&FlagSignal, "signal", "", "Signal forwarding configuration")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
@@ -141,6 +147,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().BoolVarP(&FlagOversubscribe, "oversubscribe", "s", false, "Allow oversubscriptio")
 	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "Redirection path of standard output of the script")
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
 	RootCmd.Flags().StringVar(&FlagWrappedScript, "wrap", "", "Wrap command string in a sh script and submit")
@@ -151,6 +158,7 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagComment, "comment", "", "Comment of the job")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	RootCmd.Flags().StringVar(&FlagOpenMode, "open-mode", "", "Set the mode for opening output and error files, supported values: append, truncate (default is truncate) ")
+	RootCmd.Flags().BoolVar(&FlagNoRequeue, "no-requeue", false, "Do not requeue the job if preempted (accepted flag, currently not processed)")
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")

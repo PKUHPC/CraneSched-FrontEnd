@@ -40,10 +40,15 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagGres          string
+	FlagCpuFreq       string
+	FlagSignal        string
 
-	FlagInput     string
-	FlagPty       bool
-	FlagExclusive bool
+	FlagInput         string
+	FlagPty           bool
+	FlagExclusive     bool
+	FlagUnbuffered    bool
+	FlagLabel         bool
+	FlagOversubscribe bool
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -88,6 +93,8 @@ func init() {
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
 	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
+	RootCmd.Flags().StringVar(&FlagCpuFreq, "cpu-freq", "", "CPU frequency request")
+	RootCmd.Flags().StringVar(&FlagSignal, "signal", "", "Signal forwarding configuration")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
@@ -105,6 +112,9 @@ func init() {
 
 	RootCmd.Flags().StringVarP(&FlagInput, "input", "i", "all", "Source and destination of stdin redirection")
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
+	RootCmd.Flags().BoolVar(&FlagUnbuffered, "unbuffered", false, "Disable stdio buffering")
+	RootCmd.Flags().BoolVarP(&FlagLabel, "label", "l", false, "Label each task's output")
+	RootCmd.Flags().BoolVarP(&FlagOversubscribe, "oversubscribe", "s", false, "Allow oversubscription")
 
 	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Enable X11 support, default is false. If not with --x11-forwarding, direct X11 is used (insecure)")
 	RootCmd.Flags().BoolVar(&FlagX11Fwd, "x11-forwarding", false, "Enable X11 forwarding by CraneSched (secure), default is false")

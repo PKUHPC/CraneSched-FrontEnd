@@ -104,6 +104,10 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
 			task.ReqResources.DeviceMap = gresMap
+		case "--cpu-freq":
+			// Accepted for CLI/script compatibility but not handled yet.
+		case "--signal":
+			// Accepted for CLI/script compatibility but not handled yet.
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -193,6 +197,20 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.Exclusive = val
+		case "--oversubscribe", "-s":
+			if arg.val != "" {
+				if _, err := strconv.ParseBool(arg.val); err != nil {
+					return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				}
+			}
+			// Accepted for compatibility but not yet processed
+		case "--no-requeue":
+			if arg.val != "" {
+				if _, err := strconv.ParseBool(arg.val); err != nil {
+					return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				}
+			}
+			// Accepted for compatibility but not yet processed
 		default:
 			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}
@@ -295,6 +313,12 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if FlagExclusive {
 		task.Exclusive = true
+	}
+	if FlagNoRequeue {
+		// Accepted for compatibility but not yet processed
+	}
+	if FlagOversubscribe {
+		// Accepted for compatibility but not yet processed
 	}
 	if FlagOpenMode != "" {
 		switch FlagOpenMode {
