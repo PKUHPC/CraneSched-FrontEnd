@@ -654,45 +654,74 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 }
 
-// Extracts the EventPlugin InfluxDB configuration from the specified YAML configuration files
+// Extracts the Monitor Plugin InfluxDB configuration from the specified YAML configuration files
 func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, util.ExitCode) {
 	if !config.Plugin.Enabled {
 		log.Errorf("Plugin is not enabled")
 		return nil, util.ErrorCmdArg
 	}
 
-	var eventConfigPath string
+	var monitorConfigPath string
 	for _, plugin := range config.Plugin.Plugins {
-		if plugin.Name == "event" {
-			eventConfigPath = plugin.Config
+		if plugin.Name == "monitor" {
+			monitorConfigPath = plugin.Config
 			break
 		}
 	}
 
-	if eventConfigPath == "" {
-		log.Errorf("event plugin not found")
+	if monitorConfigPath == "" {
+		log.Errorf("monitor plugin not found")
 		return nil, util.ErrorCmdArg
 	}
 
-	confFile, err := os.ReadFile(eventConfigPath)
+	confFile, err := os.ReadFile(monitorConfigPath)
 	if err != nil {
-		log.Errorf("Failed to read config file %s: %v.", eventConfigPath, err)
+		log.Errorf("Failed to read config file %s: %v.", monitorConfigPath, err)
 		return nil, util.ErrorCmdArg
 	}
 
-	dbConf := &struct {
-		Database *util.InfluxDbConfig `yaml:"Database"`
+	// Parse monitor plugin config structure
+	monitorConf := &struct {
+		Database struct {
+			Type     string `yaml:"Type"`
+			Influxdb struct {
+				Url                 string `yaml:"Url"`
+				Token               string `yaml:"Token"`
+				Org                 string `yaml:"Org"`
+				NodeBucket          string `yaml:"NodeBucket"`
+				JobBucket           string `yaml:"JobBucket"`
+				EventMeasurement    string `yaml:"EventMeasurement"`
+				ResourceMeasurement string `yaml:"ResourceMeasurement"`
+			} `yaml:"Influxdb"`
+		} `yaml:"Database"`
 	}{}
-	if err := yaml.Unmarshal(confFile, dbConf); err != nil {
+
+	if err := yaml.Unmarshal(confFile, monitorConf); err != nil {
 		log.Errorf("Failed to parse YAML config file: %v", err)
 		return nil, util.ErrorCmdArg
 	}
-	if dbConf.Database == nil {
-		log.Errorf("Database section not found in YAML")
+
+	if monitorConf.Database.Type != "influxdb" {
+		log.Errorf("Only influxdb type is supported for event queries, got: %s", monitorConf.Database.Type)
 		return nil, util.ErrorCmdArg
 	}
 
-	return dbConf.Database, util.ErrorSuccess
+	// Map monitor plugin config to util.InfluxDbConfig
+	// For event queries, use NodeBucket and EventMeasurement
+	dbConfig := &util.InfluxDbConfig{
+		Url:         monitorConf.Database.Influxdb.Url,
+		Token:       monitorConf.Database.Influxdb.Token,
+		Org:         monitorConf.Database.Influxdb.Org,
+		Bucket:      monitorConf.Database.Influxdb.NodeBucket,
+		Measurement: monitorConf.Database.Influxdb.EventMeasurement,
+	}
+
+	// Set default if EventMeasurement is empty
+	if dbConfig.Measurement == "" {
+		dbConfig.Measurement = "NodeEvents"
+	}
+
+	return dbConfig, util.ErrorSuccess
 }
 
 func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
