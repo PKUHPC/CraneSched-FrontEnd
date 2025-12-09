@@ -1300,6 +1300,12 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 
 	}
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(job, FlagDependency)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
