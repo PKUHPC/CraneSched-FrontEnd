@@ -1229,6 +1229,8 @@ func MainCrun(args []string) error {
 			Cwd:     gVars.cwd,
 
 			Env: make(map[string]string),
+			TaskProlog: FlagTaskProlog,
+			TaskEpilog: FlagTaskEpilog,
 		}
 	}
 

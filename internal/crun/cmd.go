@@ -84,8 +84,10 @@ var (
 	FlagNTasksPerCore string
 	FlagConstraint    string
 
-	FlagProlog string
-	FlagEpilog string
+	FlagProlog     string
+	FlagEpilog     string
+	FlagTaskProlog string
+	FlagTaskEpilog string
 
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
@@ -151,4 +153,6 @@ func init() {
 
 	RootCmd.Flags().StringVarP(&FlagProlog, "prolog", "", "", "Prolog of the job")
 	RootCmd.Flags().StringVarP(&FlagEpilog, "epilog", "", "", "Epilog of the job")
+	RootCmd.Flags().StringVarP(&FlagTaskProlog, "task-prolog", "", "", "Task prolog of the job")
+	RootCmd.Flags().StringVarP(&FlagTaskEpilog, "task-epilog", "", "", "Task epilog of the job")
 }
