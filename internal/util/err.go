@@ -173,7 +173,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_TIME_TIMIT_BEYOND:       "Time-limit reached the user's limit",
 	protos.ErrCode_ERR_CPUS_PER_TASK_BEYOND:    "cpus-per-task reached the user's limit",
 	protos.ErrCode_ERR_NO_ENOUGH_NODE:          "Nodes num not enough for task",
-	protos.ErrCode_ERR_BEYOND_TASK_ID:          "System error occurred or the number of pending tasks exceeded maximum value",
+	protos.ErrCode_ERR_BEYOND_TASK_ID:          "The number of pending tasks exceeded maximum value",
 	protos.ErrCode_ERR_CGROUP:                  "Error when manipulating cgroup",
 	protos.ErrCode_ERR_SYSTEM_ERR:              "Linux Error",
 	protos.ErrCode_ERR_RPC_FAILURE:             "RPC call failed",
@@ -198,6 +198,8 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
 	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory format",
+	protos.ErrCode_ERR_MISSING_DEPENDENCY:		"One or more dependency jobs may not exist or have ended",
+	protos.ErrCode_ERR_DB_INSERT_FAILED:        "Database insertion failed due to internal error",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {

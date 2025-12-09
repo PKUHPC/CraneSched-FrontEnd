@@ -1105,6 +1105,12 @@ func MainCrun(args []string) error {
 	if FlagHold {
 		task.Hold = true
 	}
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)

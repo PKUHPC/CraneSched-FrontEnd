@@ -40,6 +40,7 @@ var (
 	FlagGetUserEnv    bool
 	FlagExport        string
 	FlagGres          string
+	FlagDependency    string
 
 	FlagInput     string
 	FlagPty       bool
@@ -117,4 +118,5 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
+	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 }

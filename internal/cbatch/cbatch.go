@@ -193,6 +193,11 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.Exclusive = val
+		case "--dependency", "-d":
+		err := util.SetTaskDependencies(task, arg.val)
+		if err != nil {
+				return nil, fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
+		}
 		default:
 			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}
@@ -332,6 +337,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 
 	// Set total limit of cpu cores
 	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
+		}
+	}
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {

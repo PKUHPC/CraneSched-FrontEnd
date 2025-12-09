@@ -562,6 +562,14 @@ func printJobDetails(task *protos.TaskInfo) error {
 	//  mail
 	printMailNotification(task.ExtraAttr)
 
+	// dependency
+	if task.DependencyStatus != nil {
+		depStatusStr := formatDependencyStatus(task.DependencyStatus)
+		if depStatusStr != "" {
+			fmt.Printf("\tDependency=%s\n", depStatusStr)
+		}
+	}
+
 	return nil
 }
 
@@ -676,6 +684,78 @@ func printMailNotification(extraAttr string) {
 	if mailUser != "" || mailType != "" {
 		fmt.Printf("\tMailUser=%v MailType=%v\n", mailUser, mailType)
 	}
+}
+
+func formatDependencyType(depType protos.DependencyType) string {
+	switch depType {
+	case protos.DependencyType_AFTER:
+		return "AFTER"
+	case protos.DependencyType_AFTER_ANY:
+		return "AFTERANY"
+	case protos.DependencyType_AFTER_OK:
+		return "AFTEROK"
+	case protos.DependencyType_AFTER_NOT_OK:
+		return "AFTERNOTOK"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+func formatDependencyCondition(cond *protos.DependencyCondition) string {
+	if cond == nil {
+		return ""
+	}
+	depTypeStr := formatDependencyType(cond.Type)
+	if cond.DelaySeconds > 0 {
+		delayStr := util.SecondTimeFormat(int64(cond.DelaySeconds))
+		return fmt.Sprintf("%s:%d+%s", depTypeStr, cond.JobId, delayStr)
+	}
+	return fmt.Sprintf("%s:%d", depTypeStr, cond.JobId)
+}
+
+func formatDependencyStatus(depStatus *protos.DependencyStatus) string {
+	var buf strings.Builder
+
+	sep := ","
+	if depStatus.IsOr {
+		sep = "?"
+	}
+
+	if len(depStatus.Pending) > 0 {
+		var pendingStrs []string
+		for _, cond := range depStatus.Pending {
+			pendingStrs = append(pendingStrs, formatDependencyCondition(cond))
+		}
+		buf.WriteString(fmt.Sprintf("PendingDependencies=%s ", strings.Join(pendingStrs, sep)))
+	}
+
+	switch depStatus.GetReadyTimeType().(type) {
+	case *protos.DependencyStatus_ReadyTime:
+		readyTime := depStatus.GetReadyTime().AsTime()
+		if(depStatus.IsOr || len(depStatus.Pending) == 0) {
+			buf.WriteString(fmt.Sprintf("Status=ReadyAfter %s", readyTime.In(time.Local).Format("2006-01-02 15:04:05")))
+		} else {
+			buf.WriteString("Status=WaitForAll")
+		}
+	case *protos.DependencyStatus_InfiniteFuture:
+		if depStatus.GetInfiniteFuture() {
+			if depStatus.IsOr {
+				if len(depStatus.Pending) == 0 {
+					buf.WriteString("Status=AllFailed")
+				} else {
+					buf.WriteString("Status=WaitForAny")
+				}
+			} else {
+				buf.WriteString("Status=SomeFailed")
+			}
+		}
+	case *protos.DependencyStatus_InfinitePast:
+		// must be AND
+		if depStatus.GetInfinitePast() {
+			buf.WriteString("Status=WaitForAll")
+		}
+	}
+	return buf.String()
 }
 
 func formatHostNameStr(hosts string) string {
