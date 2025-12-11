@@ -20,7 +20,9 @@ package cfored
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
+	"google.golang.org/grpc"
 	"sync"
 	"time"
 
@@ -28,6 +30,8 @@ import (
 )
 
 type GrpcCtldClient struct {
+	config           *util.Config
+	ctldConn         *grpc.ClientConn
 	ctldClientStub   protos.CraneCtldClient
 	ctldReplyChannel chan *protos.StreamCtldReply
 }
@@ -80,7 +84,7 @@ CtldClientStateMachineLoop:
 					log.Errorf("Failed to close to ctld connection: %s", err.Error())
 				}
 			}
-
+			client.ctldConn, client.ctldClientStub = util.GetConnAndStubToCtldByConfig(client.config)
 			stream, err = client.ctldClientStub.CforedStream(context.Background())
 			if err != nil {
 				log.Errorf("[Cfored<->Ctld] Cannot connect to CraneCtld: %s. "+
