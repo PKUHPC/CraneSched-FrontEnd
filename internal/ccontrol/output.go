@@ -569,13 +569,20 @@ func printJobDetails(task *protos.TaskInfo) error {
 	fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n", task.CmdLine, task.Cwd)
 	// resource
 	printResourceRequests(task)
-
-	fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
-		"\tExclusive=%v Comment=%v Wckey=%v\n",
-		formatHostNameStr(util.HostNameListToStr(task.GetReqNodes())),
-		formatHostNameStr(util.HostNameListToStr(task.GetExcludeNodes())),
-		strconv.FormatBool(task.Exclusive), getJobExtraAttr(task.ExtraAttr, "comment"),
-		task.Wckey)
+	if task.WckeyValid {
+		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+			"\tExclusive=%v Comment=%v Wckey=%v\n",
+			formatHostNameStr(util.HostNameListToStr(task.GetReqNodes())),
+			formatHostNameStr(util.HostNameListToStr(task.GetExcludeNodes())),
+			strconv.FormatBool(task.Exclusive), getJobExtraAttr(task.ExtraAttr, "comment"),
+			task.Wckey)
+	} else {
+		fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+			"\tExclusive=%v Comment=%v\n",
+			formatHostNameStr(util.HostNameListToStr(task.GetReqNodes())),
+			formatHostNameStr(util.HostNameListToStr(task.GetExcludeNodes())),
+			strconv.FormatBool(task.Exclusive), getJobExtraAttr(task.ExtraAttr, "comment"))
+	}
 
 	//  mail
 	printMailNotification(task.ExtraAttr)

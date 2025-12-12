@@ -968,12 +968,12 @@ func AddWckey(wckey *protos.WckeyInfo) util.ExitCode {
 	}
 }
 
-func DeleteWckey(name, cluster, userName string) util.ExitCode {
-	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, Cluster: cluster, UserName: userName}
+func DeleteWckey(name, userName string) util.ExitCode {
+	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, UserName: userName}
 
 	reply, err := stub.DeleteWckey(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete wckey %s, cluster %s, user %s", name, cluster, userName)
+		util.GrpcErrorPrintf(err, "Failed to delete wckey %s, user %s", name, userName)
 		return util.ErrorNetwork
 	}
 
@@ -986,19 +986,18 @@ func DeleteWckey(name, cluster, userName string) util.ExitCode {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Successfully deleted wckey: %s, cluster: %s, user: %s\n", name, cluster, userName)
+		fmt.Printf("Successfully deleted wckey: %s, user: %s\n", name, userName)
 		return util.ErrorSuccess
 	} else {
-		log.Errorf("Failed to delete wckey: %s, cluster: %s, user: %s: %s", name, cluster, userName, util.ErrMsg(reply.GetRichError().GetCode()))
+		log.Errorf("Failed to delete wckey: %s, user: %s: %s", name, userName, util.ErrMsg(reply.GetRichError().GetCode()))
 		return util.ErrorBackend
 	}
 }
 
-func ModifyDefaultWckey(name, cluster, userName string) util.ExitCode {
+func ModifyDefaultWckey(name, userName string) util.ExitCode {
 	req := protos.ModifyDefaultWckeyRequest{
 		Uid:      userUid,
 		Name:     name,
-		Cluster:  cluster,
 		UserName: userName,
 	}
 

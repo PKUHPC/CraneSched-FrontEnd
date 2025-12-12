@@ -277,15 +277,18 @@ func executeAddWckeyCommand(command *CAcctMgrCommand) int {
 	KVParams := command.GetKVMaps()
 
 	FlagWckey.Name = command.GetID()
-	err := checkEmptyKVParams(KVParams, []string{"cluster", "user"})
+	if FlagWckey.Name == "" {
+		log.Errorf("Error: required entity wckey not set")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(KVParams, []string{"user"})
 	if err != util.ErrorSuccess {
 		return err
 	}
 
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
-		case "cluster":
-			FlagWckey.Cluster = value
 		case "user":
 			FlagWckey.UserName = value
 		default:
@@ -383,15 +386,18 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
 	KVParams := command.GetKVMaps()
 
 	FlagWckey.Name = command.GetID()
-	err := checkEmptyKVParams(KVParams, []string{"cluster", "user"})
+	if FlagWckey.Name == "" {
+		log.Errorf("Error: required entity wckey not set")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(KVParams, []string{"user"})
 	if err != util.ErrorSuccess {
 		return err
 	}
 
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
-		case "cluster":
-			FlagWckey.Cluster = value
 		case "user":
 			FlagWckey.UserName = value
 		default:
@@ -399,7 +405,7 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
 			return util.ErrorCmdArg
 		}
 	}
-	return DeleteWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
+	return DeleteWckey(FlagWckey.Name, FlagWckey.UserName)
 }
 
 func executeBlockCommand(command *CAcctMgrCommand) int {
@@ -759,11 +765,11 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		log.Errorf("Error: modify wckey command requires 'where' clause to specify which user/cluster to modify")
+		log.Errorf("Error: modify wckey command requires 'where' clause to specify which user to modify")
 		return util.ErrorCmdArg
 	}
 
-	err := checkEmptyKVParams(WhereParams, []string{"user", "cluster"})
+	err := checkEmptyKVParams(WhereParams, []string{"user"})
 	if err != util.ErrorSuccess {
 		return err
 	}
@@ -772,8 +778,6 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 		switch strings.ToLower(key) {
 		case "user":
 			FlagWckey.UserName = value
-		case "cluster":
-			FlagWckey.Cluster = value
 		default:
 			log.Errorf("Error: unknown where parameter '%s' for wckey modification", key)
 			return util.ErrorCmdArg
@@ -794,7 +798,11 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 			return util.ErrorCmdArg
 		}
 	}
-	return ModifyDefaultWckey(FlagWckey.Name, FlagWckey.Cluster, FlagWckey.UserName)
+	if FlagWckey.Name == "" {
+		log.Errorf("Error: modify wckey command requires non-empty 'defaultwckey'")
+		return util.ErrorCmdArg
+	}
+	return ModifyDefaultWckey(FlagWckey.Name, FlagWckey.UserName)
 }
 
 func executeModifyQosCommand(command *CAcctMgrCommand) int {

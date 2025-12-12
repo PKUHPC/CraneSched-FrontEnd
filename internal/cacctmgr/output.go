@@ -787,7 +787,7 @@ func ShowQos(value string) util.ExitCode {
 	return util.ErrorSuccess
 }
 
-func PrintWckeyList(wckeyList []*protos.WckeyInfo) {
+func PrintWckeyList(wckeyList []*protos.QueryWckeyInfo) {
 	sort.Slice(wckeyList, func(i, j int) bool {
 		return wckeyList[i].UserName < wckeyList[j].UserName
 	})
