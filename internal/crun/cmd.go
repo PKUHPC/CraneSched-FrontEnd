@@ -47,8 +47,7 @@ var (
 	FlagInput     string
 	FlagPty       bool
 	FlagExclusive bool
-	FlagMemPerCpu     string
-
+	FlagMemPerCpu string
 
 	FlagX11    bool
 	FlagX11Fwd bool

@@ -417,8 +417,8 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
-			log.Errorf("Invalid argument: %v", err)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("Invalid argument: invalid --mem-per-cpu value '%s': %v", FlagMemPerCpu, err))
 		}
 		task.MemPerCpu = &memInBytePerCpu
 	}

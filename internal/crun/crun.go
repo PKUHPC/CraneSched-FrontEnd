@@ -1181,8 +1181,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
-			log.Errorf("Invalid argument: %v", err)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 		task.MemPerCpu = &memInBytePerCpu
 	}
