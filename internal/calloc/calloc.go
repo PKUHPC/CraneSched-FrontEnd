@@ -467,10 +467,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: %s.", err),
-			}
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid argument: %s", err)
 		}
 		task.LicensesCount = licCount
 		task.IsLicensesOr = isLicenseOr

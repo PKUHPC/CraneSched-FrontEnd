@@ -168,8 +168,8 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_UPDATE_DATABASE:         "Fail to update data in database",
 	protos.ErrCode_ERR_NO_RESOURCE:             "Resource not enough for task",
 	protos.ErrCode_ERR_INVALID_NODE_NUM:        "Nodes partition not enough for task",
-	protos.ErrCode_ERR_INVAILD_NODE_LIST:       "Invalid node list",
-	protos.ErrCode_ERR_INVAILD_EX_NODE_LIST:    "Invalid exclude node list",
+	protos.ErrCode_ERR_INVALID_NODE_LIST:       "Invalid node list",
+	protos.ErrCode_ERR_INVALID_EX_NODE_LIST:    "Invalid exclude node list",
 	protos.ErrCode_ERR_TIME_TIMIT_BEYOND:       "Time-limit reached the user's limit",
 	protos.ErrCode_ERR_CPUS_PER_TASK_BEYOND:    "cpus-per-task reached the user's limit",
 	protos.ErrCode_ERR_NO_ENOUGH_NODE:          "Nodes num not enough for task",
@@ -197,6 +197,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CRI_GENERIC:             "CRI runtime returns error. Check logs for details.",
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
+	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory format",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
