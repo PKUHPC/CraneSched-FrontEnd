@@ -203,8 +203,8 @@ func (p MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error 
 		return fmt.Errorf("monitor query service is not initialized")
 	}
 
-	protos.RegisterCeffQueryServiceServer(server, globalMonitor.queryService)
-	log.Info("Monitor plugin registered CeffQueryService gRPC endpoints")
+	protos.RegisterPluginQueryServiceServer(server, globalMonitor.queryService)
+	log.Info("Monitor plugin registered PluginQueryService gRPC endpoints")
 	return nil
 }
 

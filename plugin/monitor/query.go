@@ -16,7 +16,7 @@ import (
 )
 
 type QueryService struct {
-	protos.UnimplementedCeffQueryServiceServer
+	protos.UnimplementedPluginQueryServiceServer
 
 	config         *config.Config
 	hostConfigPath string

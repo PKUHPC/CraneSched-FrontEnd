@@ -654,7 +654,7 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 }
 
 // GetPlugindClient connects to cplugind for querying event data via RPC
-func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc.ClientConn, error) {
+func GetPlugindClient(config *util.Config) (protos.PluginQueryServiceClient, *grpc.ClientConn, error) {
 	if !config.Plugin.Enabled {
 		return nil, nil, util.NewCraneErr(util.ErrorCmdArg, "Plugin is not enabled")
 	}
@@ -695,11 +695,7 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc
 			fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err))
 	}
 
-	return protos.NewCeffQueryServiceClient(conn), conn, nil
-}
-
-func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
-	nodeNameSet := make(map[string]struct{})
+	return protos.NewPluginQueryServiceClient(conn), conn, nil
 	nodeNameList, err := util.GetValidNodeList(config.CranedNodeList)
 	if err != nil {
 		return nil, err
