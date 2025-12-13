@@ -1,21 +1,31 @@
-# Configuration file for the monitor plugin
+Monitor:
+  SamplePeriod: 5s 
+  LogPath: "/var/log/crane/monitor.log"
+  GPUType: "nvidia"
+  
+  Enabled:
+    Job: true
+    Ipmi: true
+    Gpu: true
+    Rapl: true 
+    System: true 
+    Event: true    
 
-# Cgroup path pattern (%j is the job's cgroup path, created by Craned)
 Cgroup:
   CPU: "/sys/fs/cgroup/cpuacct/%j/cpuacct.usage"
   Memory: "/sys/fs/cgroup/memory/%j/memory.usage_in_bytes"
   ProcList: "/sys/fs/cgroup/memory/%j/cgroup.procs"
 
-# InfluxDB Configuration
 Database:
-  Username: "your_username"
-  Bucket: "your_bucket_name"
-  Org: "your_organization"
-  Token: "your_token"
-  Measurement: "ResourceUsage"
-  Url: "http://localhost:8086"
+  Type: "influxdb"            
+  Influxdb:
+    Url: "YOUR_INFLUXDB_URL"
+    Token: "YOUR_INFLUXDB_TOKEN"
+    Org: "YOUR_INFLUXDB_ORG_NAME"
+    NodeBucket: "YOUR_NODE_BUCKET_NAME"     
+    JobBucket: "YOUR_JOB_BUCKET_NAME"       
+    EventMeasurement: "NodeEvents"           
+    ResourceMeasurement: "ResourceUsage"     
 
-# Monitoring interval in milliseconds
-Interval: 1000
-# Buffer size for writing data to InfluxDB
-BufferSize: 32
+Interval: 1000     
+BufferSize: 32 

@@ -38,7 +38,7 @@ import (
 
 var (
 	stub         protos.CraneCtldClient
-	pluginClient protos.CeffQueryServiceClient
+	pluginClient protos.PluginQueryServiceClient
 	pluginConn   *grpc.ClientConn
 )
 
@@ -74,7 +74,7 @@ type CeffTaskInfo struct {
 var isFirstCall = true //Used for multi-job print
 
 // Connect to cplugind for querying efficiency data
-func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc.ClientConn, error) {
+func GetPlugindClient(config *util.Config) (protos.PluginQueryServiceClient, *grpc.ClientConn, error) {
 	if !config.Plugin.Enabled {
 		return nil, nil, util.NewCraneErr(util.ErrorCmdArg, "Plugin is not enabled")
 	}
@@ -115,7 +115,7 @@ func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc
 			fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err))
 	}
 
-	return protos.NewCeffQueryServiceClient(conn), conn, nil
+	return protos.NewPluginQueryServiceClient(conn), conn, nil
 }
 
 func CleanupPlugindClient() {

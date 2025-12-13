@@ -87,7 +87,7 @@ PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_P
 CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 # Targets
-.PHONY: all protos build clean install plugin plugin-energy plugin-other service format package check-goreleaser
+.PHONY: all protos build clean install plugin plugin-monitor plugin-other service format package check-goreleaser
 
 all: build plugin service
 build: protos
@@ -117,27 +117,27 @@ build:
 	@echo "    - Commit hash: $(GIT_COMMIT_HASH)"
 	@echo "    - Binaries are in ./$(BIN_DIR)/"
 
-plugin: plugin-energy plugin-other
+plugin: plugin-monitor plugin-other
 
-plugin-energy:
-	@echo "- Building energy plugin with $(GO_VERSION)..."
+plugin-monitor:
+	@echo "- Building monitor plugin with $(GO_VERSION)..."
 	@mkdir -p $(PLUGIN_DIR)
-	@cd plugin/energy && \
+	@cd plugin/monitor && \
 	if [ -n "$(CHECK_GPU)" ]; then \
 		CGO_ENABLED=1 \
 		CGO_CFLAGS="$(PLUGIN_CGO_CFLAGS)" \
 		CGO_LDFLAGS="$(PLUGIN_CGO_LDFLAGS)" \
-		$(GO) build $(BUILD_FLAGS) $(LDFLAGS) -buildmode=plugin -tags with_nvml -o ../../$(PLUGIN_DIR)/energy.so .; \
+		$(GO) build $(BUILD_FLAGS) $(LDFLAGS) -buildmode=plugin -tags with_nvml -o ../../$(PLUGIN_DIR)/monitor.so .; \
 	else \
 		CGO_ENABLED=1 \
-		$(GO) build $(BUILD_FLAGS) $(LDFLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/energy.so .; \
+		$(GO) build $(BUILD_FLAGS) $(LDFLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/monitor.so .; \
 	fi
 
 plugin-other:
 	@echo "- Building other plugins..."
 	@mkdir -p $(PLUGIN_DIR)
 	@for dir in plugin/*/ ; do \
-		if [ "$$(basename $$dir)" != "energy" ]; then \
+		if [ "$$(basename $$dir)" != "monitor" ]; then \
 			echo "  - Building: $$(basename $$dir).so"; \
 			(cd $$dir && $(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
 				-buildmode=plugin -o ../../$(PLUGIN_DIR)/$$(basename $$dir).so) || exit 1; \

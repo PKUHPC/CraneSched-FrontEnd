@@ -13,7 +13,7 @@ import (
 	v1 "github.com/containerd/cgroups/stats/v1"
 	logrus "github.com/sirupsen/logrus"
 
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"CraneFrontEnd/plugin/monitor/pkg/types"
 )
 
 /*

@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"CraneFrontEnd/plugin/energy/pkg/cgroup"
-	"CraneFrontEnd/plugin/energy/pkg/config"
-	"CraneFrontEnd/plugin/energy/pkg/db"
-	"CraneFrontEnd/plugin/energy/pkg/gpu"
-	"CraneFrontEnd/plugin/energy/pkg/types"
+	"CraneFrontEnd/plugin/monitor/pkg/cgroup"
+	"CraneFrontEnd/plugin/monitor/pkg/config"
+	"CraneFrontEnd/plugin/monitor/pkg/db"
+	"CraneFrontEnd/plugin/monitor/pkg/gpu"
+	"CraneFrontEnd/plugin/monitor/pkg/types"
 )
 
 type JobMonitor struct {

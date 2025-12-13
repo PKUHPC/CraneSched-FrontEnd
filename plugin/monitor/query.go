@@ -1,21 +1,3 @@
-/**
- * Copyright (c) 2024 Peking University and Peking University
- * Changsha Institute for Computing and Digital Economy
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -27,51 +9,29 @@ import (
 
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"CraneFrontEnd/plugin/monitor/pkg/config"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type CeffQueryService struct {
-	protos.UnimplementedCeffQueryServiceServer
+type QueryService struct {
+	protos.UnimplementedPluginQueryServiceServer
 
-	influxConfig *util.InfluxDbConfig
-	craneConfig  *util.Config
+	config         *config.Config
+	hostConfigPath string
+	craneConfig    *util.Config
 }
 
-func NewCeffQueryService(plugin *MonitorPlugin, hostConfigPath string) (*CeffQueryService, error) {
-	if plugin == nil {
-		return nil, fmt.Errorf("monitor plugin reference is nil")
+func NewQueryService(cfg *config.Config) *QueryService {
+	return &QueryService{
+		config:         cfg,
+		hostConfigPath: util.DefaultConfigPath,
 	}
-
-	influxCfg := &util.InfluxDbConfig{
-		Username:    plugin.config.Database.Username,
-		Bucket:      plugin.config.Database.Bucket,
-		Org:         plugin.config.Database.Org,
-		Token:       plugin.config.Database.Token,
-		Measurement: plugin.config.Database.Measurement,
-		Url:         plugin.config.Database.Url,
-	}
-
-	configPath := hostConfigPath
-	if configPath == "" {
-		configPath = util.DefaultConfigPath
-	}
-
-	craneCfg := util.ParseConfig(configPath)
-	if craneCfg == nil {
-		return nil, fmt.Errorf("failed to parse crane config from %s", configPath)
-	}
-
-	return &CeffQueryService{
-		influxConfig: influxCfg,
-		craneConfig:  craneCfg,
-	}, nil
 }
 
-func (s *CeffQueryService) QueryTaskEfficiency(ctx context.Context, req *protos.QueryTaskEfficiencyRequest) (*protos.QueryTaskEfficiencyReply, error) {
-	log.Infof("CeffQueryService received QueryTaskEfficiency request from UID %d for tasks: %v", req.Uid, req.TaskIds)
+func (s *QueryService) QueryTaskEfficiency(ctx context.Context, req *protos.QueryTaskEfficiencyRequest) (*protos.QueryTaskEfficiencyReply, error) {
+	log.Infof("QueryService received QueryTaskEfficiency request from UID %d for tasks: %v", req.Uid, req.TaskIds)
 
 	if len(req.TaskIds) == 0 {
 		return &protos.QueryTaskEfficiencyReply{
@@ -82,23 +42,34 @@ func (s *CeffQueryService) QueryTaskEfficiency(ctx context.Context, req *protos.
 
 	efficiencyData, err := s.queryTaskEfficiencyData(ctx, req.TaskIds, req.Uid)
 	if err != nil {
-		log.Errorf("CeffQueryService failed to query efficiency data: %v", err)
+		log.Errorf("QueryService failed to query efficiency data: %v", err)
 		return &protos.QueryTaskEfficiencyReply{
 			Ok:           false,
 			ErrorMessage: fmt.Sprintf("Failed to query efficiency data: %v", err),
 		}, nil
 	}
 
-	log.Infof("CeffQueryService successfully returned %d efficiency records for user %d", len(efficiencyData), req.Uid)
+	log.Infof("QueryService successfully returned %d efficiency records for user %d", len(efficiencyData), req.Uid)
 	return &protos.QueryTaskEfficiencyReply{
 		Ok:             true,
 		EfficiencyData: efficiencyData,
 	}, nil
 }
 
-func (s *CeffQueryService) queryTaskEfficiencyData(ctx context.Context, taskIds []uint32, userID uint32) ([]*protos.TaskEfficiencyInfo, error) {
-	if s.influxConfig == nil {
+func (s *QueryService) queryTaskEfficiencyData(ctx context.Context, taskIds []uint32, userID uint32) ([]*protos.TaskEfficiencyInfo, error) {
+	if s.config.DB.InfluxDB == nil {
 		return nil, fmt.Errorf("InfluxDB configuration not initialized")
+	}
+
+	if s.craneConfig == nil {
+		configPath := s.hostConfigPath
+		if configPath == "" {
+			configPath = util.DefaultConfigPath
+		}
+		s.craneConfig = util.ParseConfig(configPath)
+		if s.craneConfig == nil {
+			return nil, fmt.Errorf("failed to parse crane config from %s", configPath)
+		}
 	}
 
 	taskInfos, err := s.getTaskInformation(ctx, taskIds)
@@ -131,7 +102,7 @@ func (s *CeffQueryService) queryTaskEfficiencyData(ctx context.Context, taskIds 
 	return efficiencyData, nil
 }
 
-func (s *CeffQueryService) authorizeEfficiencyQuery(taskInfos []*protos.TaskInfo, taskIds []uint32, userID uint32) error {
+func (s *QueryService) authorizeEfficiencyQuery(taskInfos []*protos.TaskInfo, taskIds []uint32, userID uint32) error {
 	for _, taskInfo := range taskInfos {
 		if taskInfo == nil {
 			continue
@@ -146,7 +117,7 @@ func (s *CeffQueryService) authorizeEfficiencyQuery(taskInfos []*protos.TaskInfo
 	return nil
 }
 
-func (s *CeffQueryService) getTaskInformation(ctx context.Context, taskIds []uint32) ([]*protos.TaskInfo, error) {
+func (s *QueryService) getTaskInformation(ctx context.Context, taskIds []uint32) ([]*protos.TaskInfo, error) {
 	if s.craneConfig == nil {
 		return nil, fmt.Errorf("crane config not initialized")
 	}
@@ -169,7 +140,7 @@ func (s *CeffQueryService) getTaskInformation(ctx context.Context, taskIds []uin
 	return reply.TaskInfoList, nil
 }
 
-func (s *CeffQueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []string {
+func (s *QueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []string {
 	var nodeNames []string
 	for _, taskInfo := range taskInfos {
 		if taskInfo == nil {
@@ -186,8 +157,9 @@ func (s *CeffQueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []stri
 	return nodeNames
 }
 
-func (s *CeffQueryService) queryInfluxDbDataByTags(taskIds []uint32, hostNames []string) ([]*protos.TaskEfficiencyInfo, error) {
-	client := influxdb2.NewClient(s.influxConfig.Url, s.influxConfig.Token)
+func (s *QueryService) queryInfluxDbDataByTags(taskIds []uint32, hostNames []string) ([]*protos.TaskEfficiencyInfo, error) {
+	influxCfg := s.config.DB.InfluxDB
+	client := influxdb2.NewClient(influxCfg.URL, influxCfg.Token)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -195,6 +167,11 @@ func (s *CeffQueryService) queryInfluxDbDataByTags(taskIds []uint32, hostNames [
 		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
 	} else if !pong {
 		return nil, fmt.Errorf("failed to ping InfluxDB: not pong")
+	}
+
+	measurement := influxCfg.ResourceMeasurement
+	if measurement == "" {
+		measurement = "ResourceUsage"
 	}
 
 	jobIDFilters := make([]string, len(taskIds))
@@ -218,10 +195,10 @@ from(bucket: "%s")
         (%s) and (%s))
 |> group(columns: ["job_id", "hostname", "_field"])
 |> max(column: "_value")`,
-		s.influxConfig.Bucket, s.influxConfig.Measurement,
+		influxCfg.JobBucket, measurement,
 		jobIDCondition, hostnameCondition)
 
-	queryAPI := client.QueryAPI(s.influxConfig.Org)
+	queryAPI := client.QueryAPI(influxCfg.Org)
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -291,4 +268,211 @@ from(bucket: "%s")
 	}
 
 	return efficiencyData, nil
+}
+
+func (s *QueryService) QueryNodeEvents(ctx context.Context, req *protos.QueryNodeEventsRequest) (*protos.QueryNodeEventsReply, error) {
+	log.Infof("QueryService received QueryNodeEvents request from UID %d for nodes: %v", req.Uid, req.NodeNames)
+
+	if s.config.DB.InfluxDB == nil {
+		return &protos.QueryNodeEventsReply{
+			Ok:           false,
+			ErrorMessage: "InfluxDB configuration not initialized",
+		}, nil
+	}
+
+	if s.craneConfig == nil {
+		configPath := s.hostConfigPath
+		if configPath == "" {
+			configPath = util.DefaultConfigPath
+		}
+		s.craneConfig = util.ParseConfig(configPath)
+		if s.craneConfig == nil {
+			return &protos.QueryNodeEventsReply{
+				Ok:           false,
+				ErrorMessage: fmt.Sprintf("Failed to parse crane config from %s", configPath),
+			}, nil
+		}
+	}
+
+	// Get valid node list from crane config
+	nodeNames := req.NodeNames
+	if len(nodeNames) == 0 {
+		// Query all nodes
+		var err error
+		nodeNames, err = util.GetValidNodeList(s.craneConfig.CranedNodeList)
+		if err != nil {
+			return &protos.QueryNodeEventsReply{
+				Ok:           false,
+				ErrorMessage: fmt.Sprintf("Failed to get valid node list: %v", err),
+			}, nil
+		}
+	} else {
+		// Validate requested nodes
+		validNodes, err := util.GetValidNodeList(s.craneConfig.CranedNodeList)
+		if err != nil {
+			return &protos.QueryNodeEventsReply{
+				Ok:           false,
+				ErrorMessage: fmt.Sprintf("Failed to get valid node list: %v", err),
+			}, nil
+		}
+		validNodeSet := make(map[string]struct{})
+		for _, node := range validNodes {
+			validNodeSet[node] = struct{}{}
+		}
+
+		for _, node := range nodeNames {
+			if _, exists := validNodeSet[node]; !exists {
+				return &protos.QueryNodeEventsReply{
+					Ok:           false,
+					ErrorMessage: fmt.Sprintf("Invalid node name: %s", node),
+				}, nil
+			}
+		}
+	}
+
+	clusterName := s.craneConfig.ClusterName
+	if clusterName == "" {
+		return &protos.QueryNodeEventsReply{
+			Ok:           false,
+			ErrorMessage: "ClusterName is empty in configuration",
+		}, nil
+	}
+
+	eventInfoList, err := s.queryNodeEventsFromInfluxDB(ctx, clusterName, nodeNames)
+	if err != nil {
+		log.Errorf("Failed to query node events: %v", err)
+		return &protos.QueryNodeEventsReply{
+			Ok:           false,
+			ErrorMessage: fmt.Sprintf("Failed to query node events: %v", err),
+		}, nil
+	}
+
+	log.Infof("Successfully returned %d event records", len(eventInfoList))
+	return &protos.QueryNodeEventsReply{
+		Ok:            true,
+		EventInfoList: eventInfoList,
+	}, nil
+}
+
+func (s *QueryService) queryNodeEventsFromInfluxDB(ctx context.Context, clusterName string, nodeNames []string) ([]*protos.NodeEventInfo, error) {
+	influxCfg := s.config.DB.InfluxDB
+	client := influxdb2.NewClient(influxCfg.URL, influxCfg.Token)
+	defer client.Close()
+
+	pingCtx := context.Background()
+	if pong, err := client.Ping(pingCtx); err != nil {
+		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
+	} else if !pong {
+		return nil, fmt.Errorf("failed to ping InfluxDB: not pong")
+	}
+
+	measurement := influxCfg.EventMeasurement
+	if measurement == "" {
+		measurement = "NodeEvents"
+	}
+
+	nodeNameFilters := make([]string, len(nodeNames))
+	for i, nodeName := range nodeNames {
+		nodeNameFilters[i] = fmt.Sprintf(`r["node_name"] == "%s"`, nodeName)
+	}
+	nodeNameCondition := strings.Join(nodeNameFilters, " or ")
+
+	clusterNameCondition := fmt.Sprintf(`r["cluster_name"] == "%s"`, clusterName)
+
+	fluxQuery := fmt.Sprintf(`
+from(bucket: "%s")
+|> range(start: 0)
+|> filter(fn: (r) => 
+    r["_measurement"] == "%s" and 
+	(r["_field"] == "state" or r["_field"] == "uid" or 
+	r["_field"] == "reason" or r["_field"] == "start_time") and
+	(%s) and (%s))`,
+		influxCfg.NodeBucket, measurement,
+		nodeNameCondition, clusterNameCondition)
+
+	queryAPI := client.QueryAPI(influxCfg.Org)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	result, err := queryAPI.Query(timeoutCtx, fluxQuery)
+	if err != nil {
+		return nil, fmt.Errorf("execute query failed: %w", err)
+	}
+
+	type eventKey struct {
+		nodeName  string
+		timestamp int64
+	}
+
+	eventMap := make(map[eventKey]*protos.NodeEventInfo)
+
+	for result.Next() {
+		record := result.Record()
+
+		nodeName, ok := record.ValueByKey("node_name").(string)
+		if !ok {
+			continue
+		}
+
+		clusterNameVal, ok := record.ValueByKey("cluster_name").(string)
+		if !ok {
+			continue
+		}
+
+		timestamp := record.Time().UnixNano()
+		key := eventKey{nodeName: nodeName, timestamp: timestamp}
+
+		if _, exists := eventMap[key]; !exists {
+			eventMap[key] = &protos.NodeEventInfo{
+				ClusterName: clusterNameVal,
+				NodeName:    nodeName,
+			}
+		}
+
+		field, ok := record.ValueByKey("_field").(string)
+		if !ok {
+			continue
+		}
+
+		switch field {
+		case "state":
+			if state, ok := record.Value().(string); ok {
+				eventMap[key].State = state
+			}
+		case "reason":
+			if reason, ok := record.Value().(string); ok {
+				eventMap[key].Reason = reason
+			}
+		case "uid":
+			if uid, ok := record.Value().(uint64); ok {
+				eventMap[key].Uid = uid
+			} else if uidFloat, ok := record.Value().(float64); ok {
+				eventMap[key].Uid = uint64(uidFloat)
+			}
+		case "start_time":
+			if startTime, ok := record.Value().(int64); ok {
+				eventMap[key].StartTime = startTime
+			} else if startTimeFloat, ok := record.Value().(float64); ok {
+				eventMap[key].StartTime = int64(startTimeFloat)
+			}
+		}
+
+		// Try to get end_time if available
+		if endTime, ok := record.ValueByKey("end_time").(int64); ok {
+			eventMap[key].EndTime = endTime
+		} else if endTimeFloat, ok := record.ValueByKey("end_time").(float64); ok {
+			eventMap[key].EndTime = int64(endTimeFloat)
+		}
+	}
+
+	if result.Err() != nil {
+		return nil, fmt.Errorf("query parsing error: %w", result.Err())
+	}
+
+	var eventInfoList []*protos.NodeEventInfo
+	for _, event := range eventMap {
+		eventInfoList = append(eventInfoList, event)
+	}
+
+	return eventInfoList, nil
 }

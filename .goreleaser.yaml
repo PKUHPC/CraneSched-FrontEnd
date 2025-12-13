@@ -162,14 +162,6 @@ nfpms:
         dst: /usr/lib/crane/plugin/dummy.so
         file_info:
           mode: 0755
-      - src: build/plugin/energy.so
-        dst: /usr/lib/crane/plugin/energy.so
-        file_info:
-          mode: 0755
-      - src: build/plugin/event.so
-        dst: /usr/lib/crane/plugin/event.so
-        file_info:
-          mode: 0755
       - src: build/plugin/mail.so
         dst: /usr/lib/crane/plugin/mail.so
         file_info:
