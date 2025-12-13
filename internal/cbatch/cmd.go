@@ -66,6 +66,28 @@ var (
 
 	FlagHold      bool
 	FlagBeginTime string
+	// not implement feature:
+	FlagNTasks          string
+	FlagArray           string
+	FlagNoRequeue       string
+	FlagParsable        string
+	FlagGpusPerNode     string
+	FlagNTasksPerSocket string
+	FlagSignal          string
+	FlagWckey           string
+	FlagCpuFreq         string
+	FlagDependency      string
+	FlagTasks           string
+	FlagTasksPerNode    string
+	FlagPriority        string
+	FlagMemPerCpu       string
+	FlagThreadsPerCore  string
+	FlagDistribution    string
+	FlagInput           string
+	FlagSocketsPerNode  string
+	FlagCoresPerSocket  string
+	FlagRequeue         string
+	FlagWait            string
 
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
@@ -155,4 +177,25 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagBeginTime, "begin", "b", "", "Defer job until specified time.")
+	// not implement feature:
+	RootCmd.Flags().StringVar(&FlagNTasks, "ntasks", "", "")
+	RootCmd.Flags().StringVar(&FlagArray, "array", "", "")
+	RootCmd.Flags().StringVar(&FlagNoRequeue, "no-requeue", "", "")
+	RootCmd.Flags().StringVar(&FlagParsable, "parsable", "", "")
+	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "")
+	RootCmd.Flags().StringVar(&FlagNTasksPerSocket, "ntasks-per-socket", "", "")
+	RootCmd.Flags().StringVar(&FlagWckey, "wckey", "", "")
+	RootCmd.Flags().StringVar(&FlagCpuFreq, "cpu-freq", "", "")
+	RootCmd.Flags().StringVar(&FlagDependency, "dependency", "", "")
+	RootCmd.Flags().StringVar(&FlagTasks, "tasks", "", "")
+	RootCmd.Flags().StringVar(&FlagTasksPerNode, "tasks-per-node", "", "")
+	RootCmd.Flags().StringVar(&FlagPriority, "priority", "", "")
+	RootCmd.Flags().StringVar(&FlagMemPerCpu, "mem-per-cpu", "", "")
+	RootCmd.Flags().StringVar(&FlagThreadsPerCore, "threads-per-core", "", "")
+	RootCmd.Flags().StringVar(&FlagDistribution, "distribution", "", "")
+	RootCmd.Flags().StringVar(&FlagInput, "input", "", "")
+	RootCmd.Flags().StringVar(&FlagSocketsPerNode, "sockets-per-node", "", "")
+	RootCmd.Flags().StringVar(&FlagCoresPerSocket, "cores-per-socket", "", "")
+	RootCmd.Flags().StringVar(&FlagRequeue, "requeue", "", "")
+	RootCmd.Flags().StringVar(&FlagWait, "wait", "", "")
 }

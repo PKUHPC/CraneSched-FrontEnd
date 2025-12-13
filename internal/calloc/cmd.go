@@ -55,6 +55,13 @@ var (
 	FlagHold bool
 
 	FlagLicenses string
+	// not implement feature:
+	FlagNTasks     string
+	FlagDependency string
+	FlagMemPerCpu  string
+	FlagNoKill     string
+	FlagQuiet      string
+	FlagVerbose    string
 
 	RootCmd = &cobra.Command{
 		Use:     "calloc",
@@ -103,4 +110,11 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
+	// not implement feature:
+	RootCmd.Flags().StringVar(&FlagNTasks, "ntasks", "", "")
+	RootCmd.Flags().StringVar(&FlagDependency, "dependency", "", "")
+	RootCmd.Flags().StringVar(&FlagMemPerCpu, "mem-per-cpu", "", "")
+	RootCmd.Flags().StringVar(&FlagNoKill, "no-kill", "", "")
+	RootCmd.Flags().StringVar(&FlagQuiet, "quiet", "", "")
+	RootCmd.Flags().StringVar(&FlagVerbose, "verbose", "", "")
 }

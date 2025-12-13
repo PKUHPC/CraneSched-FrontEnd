@@ -61,6 +61,21 @@ var (
 	FlagHold bool
 
 	FlagLicenses string
+	// not implement feature:
+	FlagNTasks        string
+	FlagMultiProg     string
+	FlagOversubscribe string
+	FlagCpuBind       string
+	FlagDeadline      string
+	FlagWait          string
+	FlagMpi           string
+	FlagDependency    string
+	FlagVerbose       string
+	FlagError         string
+	FlagKillOnBadExit string
+	FlagExtraNodeInfo string
+	FlagNTasksPerCore string
+	FlagConstraint    string
 
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",
@@ -117,4 +132,19 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
+	// not implement features:
+	RootCmd.Flags().StringVar(&FlagNTasks, "ntasks", "", "")
+	RootCmd.Flags().StringVar(&FlagMultiProg, "multi-prog", "", "")
+	RootCmd.Flags().StringVar(&FlagOversubscribe, "oversubscribe", "", "")
+	RootCmd.Flags().StringVar(&FlagCpuBind, "cpu-bind", "", "")
+	RootCmd.Flags().StringVar(&FlagDeadline, "deadline", "", "")
+	RootCmd.Flags().StringVar(&FlagWait, "wait", "", "")
+	RootCmd.Flags().StringVar(&FlagMpi, "mpi", "", "")
+	RootCmd.Flags().StringVar(&FlagDependency, "dependency", "", "")
+	RootCmd.Flags().StringVar(&FlagVerbose, "verbose", "", "")
+	RootCmd.Flags().StringVar(&FlagError, "error", "", "")
+	RootCmd.Flags().StringVar(&FlagKillOnBadExit, "kill-on-bad-exit", "", "")
+	RootCmd.Flags().StringVar(&FlagExtraNodeInfo, "extra-node-info", "", "")
+	RootCmd.Flags().StringVar(&FlagNTasksPerCore, "ntasks-per-core", "", "")
+	RootCmd.Flags().StringVar(&FlagConstraint, "constraint", "", "")
 }
