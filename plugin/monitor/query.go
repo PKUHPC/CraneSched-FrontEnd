@@ -269,3 +269,210 @@ from(bucket: "%s")
 
 	return efficiencyData, nil
 }
+
+func (s *QueryService) QueryNodeEvents(ctx context.Context, req *protos.QueryNodeEventsRequest) (*protos.QueryNodeEventsReply, error) {
+	log.Infof("QueryService received QueryNodeEvents request from UID %d for nodes: %v", req.Uid, req.NodeNames)
+
+	if s.config.DB.InfluxDB == nil {
+		return &protos.QueryNodeEventsReply{
+			Ok:           false,
+			ErrorMessage: "InfluxDB configuration not initialized",
+		}, nil
+	}
+
+	if s.craneConfig == nil {
+		configPath := s.hostConfigPath
+		if configPath == "" {
+			configPath = util.DefaultConfigPath
+		}
+		s.craneConfig = util.ParseConfig(configPath)
+		if s.craneConfig == nil {
+			return &protos.QueryNodeEventsReply{
+				Ok:           false,
+				ErrorMessage: fmt.Sprintf("Failed to parse crane config from %s", configPath),
+			}, nil
+		}
+	}
+
+	// Get valid node list from crane config
+	nodeNames := req.NodeNames
+	if len(nodeNames) == 0 {
+		// Query all nodes
+		var err error
+		nodeNames, err = util.GetValidNodeList(s.craneConfig.CranedNodeList)
+		if err != nil {
+			return &protos.QueryNodeEventsReply{
+				Ok:           false,
+				ErrorMessage: fmt.Sprintf("Failed to get valid node list: %v", err),
+			}, nil
+		}
+	} else {
+		// Validate requested nodes
+		validNodes, err := util.GetValidNodeList(s.craneConfig.CranedNodeList)
+		if err != nil {
+			return &protos.QueryNodeEventsReply{
+				Ok:           false,
+				ErrorMessage: fmt.Sprintf("Failed to get valid node list: %v", err),
+			}, nil
+		}
+		validNodeSet := make(map[string]struct{})
+		for _, node := range validNodes {
+			validNodeSet[node] = struct{}{}
+		}
+
+		for _, node := range nodeNames {
+			if _, exists := validNodeSet[node]; !exists {
+				return &protos.QueryNodeEventsReply{
+					Ok:           false,
+					ErrorMessage: fmt.Sprintf("Invalid node name: %s", node),
+				}, nil
+			}
+		}
+	}
+
+	clusterName := s.craneConfig.ClusterName
+	if clusterName == "" {
+		return &protos.QueryNodeEventsReply{
+			Ok:           false,
+			ErrorMessage: "ClusterName is empty in configuration",
+		}, nil
+	}
+
+	eventInfoList, err := s.queryNodeEventsFromInfluxDB(ctx, clusterName, nodeNames)
+	if err != nil {
+		log.Errorf("Failed to query node events: %v", err)
+		return &protos.QueryNodeEventsReply{
+			Ok:           false,
+			ErrorMessage: fmt.Sprintf("Failed to query node events: %v", err),
+		}, nil
+	}
+
+	log.Infof("Successfully returned %d event records", len(eventInfoList))
+	return &protos.QueryNodeEventsReply{
+		Ok:            true,
+		EventInfoList: eventInfoList,
+	}, nil
+}
+
+func (s *QueryService) queryNodeEventsFromInfluxDB(ctx context.Context, clusterName string, nodeNames []string) ([]*protos.NodeEventInfo, error) {
+	influxCfg := s.config.DB.InfluxDB
+	client := influxdb2.NewClient(influxCfg.URL, influxCfg.Token)
+	defer client.Close()
+
+	pingCtx := context.Background()
+	if pong, err := client.Ping(pingCtx); err != nil {
+		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
+	} else if !pong {
+		return nil, fmt.Errorf("failed to ping InfluxDB: not pong")
+	}
+
+	measurement := influxCfg.EventMeasurement
+	if measurement == "" {
+		measurement = "NodeEvents"
+	}
+
+	nodeNameFilters := make([]string, len(nodeNames))
+	for i, nodeName := range nodeNames {
+		nodeNameFilters[i] = fmt.Sprintf(`r["node_name"] == "%s"`, nodeName)
+	}
+	nodeNameCondition := strings.Join(nodeNameFilters, " or ")
+
+	clusterNameCondition := fmt.Sprintf(`r["cluster_name"] == "%s"`, clusterName)
+
+	fluxQuery := fmt.Sprintf(`
+from(bucket: "%s")
+|> range(start: 0)
+|> filter(fn: (r) => 
+    r["_measurement"] == "%s" and 
+	(r["_field"] == "state" or r["_field"] == "uid" or 
+	r["_field"] == "reason" or r["_field"] == "start_time") and
+	(%s) and (%s))`,
+		influxCfg.NodeBucket, measurement,
+		nodeNameCondition, clusterNameCondition)
+
+	queryAPI := client.QueryAPI(influxCfg.Org)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	result, err := queryAPI.Query(timeoutCtx, fluxQuery)
+	if err != nil {
+		return nil, fmt.Errorf("execute query failed: %w", err)
+	}
+
+	type eventKey struct {
+		nodeName  string
+		timestamp int64
+	}
+
+	eventMap := make(map[eventKey]*protos.NodeEventInfo)
+
+	for result.Next() {
+		record := result.Record()
+
+		nodeName, ok := record.ValueByKey("node_name").(string)
+		if !ok {
+			continue
+		}
+
+		clusterNameVal, ok := record.ValueByKey("cluster_name").(string)
+		if !ok {
+			continue
+		}
+
+		timestamp := record.Time().UnixNano()
+		key := eventKey{nodeName: nodeName, timestamp: timestamp}
+
+		if _, exists := eventMap[key]; !exists {
+			eventMap[key] = &protos.NodeEventInfo{
+				ClusterName: clusterNameVal,
+				NodeName:    nodeName,
+			}
+		}
+
+		field, ok := record.ValueByKey("_field").(string)
+		if !ok {
+			continue
+		}
+
+		switch field {
+		case "state":
+			if state, ok := record.Value().(string); ok {
+				eventMap[key].State = state
+			}
+		case "reason":
+			if reason, ok := record.Value().(string); ok {
+				eventMap[key].Reason = reason
+			}
+		case "uid":
+			if uid, ok := record.Value().(uint64); ok {
+				eventMap[key].Uid = uid
+			} else if uidFloat, ok := record.Value().(float64); ok {
+				eventMap[key].Uid = uint64(uidFloat)
+			}
+		case "start_time":
+			if startTime, ok := record.Value().(int64); ok {
+				eventMap[key].StartTime = startTime
+			} else if startTimeFloat, ok := record.Value().(float64); ok {
+				eventMap[key].StartTime = int64(startTimeFloat)
+			}
+		}
+
+		// Try to get end_time if available
+		if endTime, ok := record.ValueByKey("end_time").(int64); ok {
+			eventMap[key].EndTime = endTime
+		} else if endTimeFloat, ok := record.ValueByKey("end_time").(float64); ok {
+			eventMap[key].EndTime = int64(endTimeFloat)
+		}
+	}
+
+	if result.Err() != nil {
+		return nil, fmt.Errorf("query parsing error: %w", result.Err())
+	}
+
+	var eventInfoList []*protos.NodeEventInfo
+	for _, event := range eventMap {
+		eventInfoList = append(eventInfoList, event)
+	}
+
+	return eventInfoList, nil
+}

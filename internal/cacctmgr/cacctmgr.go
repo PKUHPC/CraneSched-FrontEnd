@@ -24,28 +24,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"net"
 	"os"
+	"os/user"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/xlab/treeprint"
-	"gopkg.in/yaml.v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
-	userUid  uint32
-	stub     protos.CraneCtldClient
-	config   *util.Config
-	dbConfig *util.InfluxDbConfig
-
-	// unused
-	// dbConfigInitOnce sync.Once
+	userUid uint32
+	stub    protos.CraneCtldClient
+	config  *util.Config
 )
 
 type ServerAddr struct {
@@ -654,74 +654,49 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 }
 
-// Extracts the Monitor Plugin InfluxDB configuration from the specified YAML configuration files
-func GetEventPluginConfig(config *util.Config) (*util.InfluxDbConfig, util.ExitCode) {
+// GetPlugindClient connects to cplugind for querying event data via RPC
+func GetPlugindClient(config *util.Config) (protos.CeffQueryServiceClient, *grpc.ClientConn, error) {
 	if !config.Plugin.Enabled {
-		log.Errorf("Plugin is not enabled")
-		return nil, util.ErrorCmdArg
+		return nil, nil, util.NewCraneErr(util.ErrorCmdArg, "Plugin is not enabled")
 	}
 
-	var monitorConfigPath string
-	for _, plugin := range config.Plugin.Plugins {
-		if plugin.Name == "monitor" {
-			monitorConfigPath = plugin.Config
-			break
+	addr := config.Plugin.ListenAddress
+	port := config.Plugin.ListenPort
+	if addr == "" || port == "" {
+		return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
+			"PlugindListenAddress and PlugindListenPort must be configured")
+	}
+
+	endpoint := net.JoinHostPort(addr, port)
+	var creds credentials.TransportCredentials
+	if config.TlsConfig.Enabled {
+		certPath := config.TlsConfig.CaFilePath
+		if certPath == "" {
+			return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
+				"TLS is enabled for plugin client but no certificate file is configured")
 		}
+		var err error
+		creds, err = credentials.NewClientTLSFromFile(certPath, "")
+		if err != nil {
+			return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("Failed to load TLS credentials: %v", err))
+		}
+	} else {
+		creds = insecure.NewCredentials()
 	}
 
-	if monitorConfigPath == "" {
-		log.Errorf("monitor plugin not found")
-		return nil, util.ErrorCmdArg
-	}
-
-	confFile, err := os.ReadFile(monitorConfigPath)
+	conn, err := grpc.NewClient(endpoint,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithKeepaliveParams(util.ClientKeepAliveParams),
+		grpc.WithConnectParams(util.ClientConnectParams),
+		grpc.WithIdleTimeout(time.Duration(math.MaxInt64)),
+	)
 	if err != nil {
-		log.Errorf("Failed to read config file %s: %v.", monitorConfigPath, err)
-		return nil, util.ErrorCmdArg
+		return nil, nil, util.NewCraneErr(util.ErrorNetwork,
+			fmt.Sprintf("Failed to connect to cplugind at %s: %v", endpoint, err))
 	}
 
-	// Parse monitor plugin config structure
-	monitorConf := &struct {
-		Database struct {
-			Type     string `yaml:"Type"`
-			Influxdb struct {
-				Url                 string `yaml:"Url"`
-				Token               string `yaml:"Token"`
-				Org                 string `yaml:"Org"`
-				NodeBucket          string `yaml:"NodeBucket"`
-				JobBucket           string `yaml:"JobBucket"`
-				EventMeasurement    string `yaml:"EventMeasurement"`
-				ResourceMeasurement string `yaml:"ResourceMeasurement"`
-			} `yaml:"Influxdb"`
-		} `yaml:"Database"`
-	}{}
-
-	if err := yaml.Unmarshal(confFile, monitorConf); err != nil {
-		log.Errorf("Failed to parse YAML config file: %v", err)
-		return nil, util.ErrorCmdArg
-	}
-
-	if monitorConf.Database.Type != "influxdb" {
-		log.Errorf("Only influxdb type is supported for event queries, got: %s", monitorConf.Database.Type)
-		return nil, util.ErrorCmdArg
-	}
-
-	// Map monitor plugin config to util.InfluxDbConfig
-	// For event queries, use NodeBucket and EventMeasurement
-	dbConfig := &util.InfluxDbConfig{
-		Url:         monitorConf.Database.Influxdb.Url,
-		Token:       monitorConf.Database.Influxdb.Token,
-		Org:         monitorConf.Database.Influxdb.Org,
-		Bucket:      monitorConf.Database.Influxdb.NodeBucket,
-		Measurement: monitorConf.Database.Influxdb.EventMeasurement,
-	}
-
-	// Set default if EventMeasurement is empty
-	if dbConfig.Measurement == "" {
-		dbConfig.Measurement = "NodeEvents"
-	}
-
-	return dbConfig, util.ErrorSuccess
+	return protos.NewCeffQueryServiceClient(conn), conn, nil
 }
 
 func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
@@ -745,107 +720,12 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 	return missing, nil
 }
 
-func QueryInfluxDbDataByTags(eventConfig *util.InfluxDbConfig, clusterName string, nodes []string) ([]*ResourceUsageRecord, error) {
-	client := influxdb2.NewClient(eventConfig.Url, eventConfig.Token)
-	defer client.Close()
-
-	ctx := context.Background()
-	if pong, err := client.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ping InfluxDB: %v", err)
-	} else if !pong {
-		return nil, fmt.Errorf("failed to ping InfluxDB: not pong")
-	}
-
-	nodeNameFilters := make([]string, len(nodes))
-	for i, nodeName := range nodes {
-		nodeNameFilters[i] = fmt.Sprintf(`r["node_name"] == "%s"`, nodeName)
-	}
-	nodeNameCondition := strings.Join(nodeNameFilters, " or ")
-
-	clusterNameCondition := fmt.Sprintf(`r["cluster_name"] == "%s"`, clusterName)
-
-	fluxQuery := fmt.Sprintf(`
-	from(bucket: "%s")
-	|> range(start: 0)
-	|> filter(fn: (r) => 
-	    r["_measurement"] == "%s" and 
-		(r["_field"] == "state" or r["_field"] == "uid" or 
-		r["_field"] == "reason" or r["_field"] == "start_time") and
-		(%s) and (%s))`, eventConfig.Bucket,
-		eventConfig.Measurement, nodeNameCondition, clusterNameCondition)
-
-	queryAPI := client.QueryAPI(eventConfig.Org)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	result, err := queryAPI.Query(ctx, fluxQuery)
-	if err != nil {
-		return nil, fmt.Errorf("execute query failed: %w", err)
-	}
-
-	// Parse and aggregate the query results
-	dataMap := make(map[string]*ResourceUsageRecord)
-	for result.Next() {
-		record := result.Record()
-
-		clusterName := fmt.Sprintf("%v", record.ValueByKey("cluster_name"))
-		nodeName := fmt.Sprintf("%v", record.ValueByKey("node_name"))
-		field := fmt.Sprintf("%v", record.Field())
-		timestamp := record.Time()
-
-		key := fmt.Sprintf("%s:%s:%s", clusterName, nodeName, timestamp)
-		if _, exists := dataMap[key]; !exists {
-			dataMap[key] = &ResourceUsageRecord{
-				ClusterName: clusterName,
-				NodeName:    nodeName,
-				Timestamp:   timestamp,
-			}
-		}
-
-		switch field {
-		case "uid":
-			if uid, ok := record.Value().(uint64); ok {
-				dataMap[key].Uid = uid
-			}
-		case "start_time":
-			if startTime, ok := record.Value().(int64); ok {
-				dataMap[key].StartTime = startTime
-			}
-		case "state":
-			if state, ok := record.Value().(int64); ok {
-				dataMap[key].State = util.StateToString(state)
-			}
-		case "reason":
-			if reason, ok := record.Value().(string); ok {
-				dataMap[key].Reason = reason
-			}
-		}
-	}
-
-	if result.Err() != nil {
-		return nil, fmt.Errorf("query parsing error: %w", result.Err())
-	}
-
-	var records []*ResourceUsageRecord
-	for _, record := range dataMap {
-		records = append(records, record)
-	}
-
-	if len(records) == 0 {
-		return nil, fmt.Errorf("no matching data available")
-	}
-
-	sort.SliceStable(records, func(i, j int) bool {
-		return records[i].Timestamp.Before(records[j].Timestamp)
-	})
-
-	return records, nil
-}
-
 func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for query operations")
 	}
+
+	// Parse node names if provided
 	nodeNames := []string{}
 	var ok bool
 	if len(nodeRegex) != 0 {
@@ -854,9 +734,8 @@ func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 			log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
 			return util.ErrorCmdArg
 		}
-	}
 
-	if len(nodeNames) > 0 {
+		// Validate nodes exist in configuration
 		missingList, err := MissingElements(config.CranedNodeList, nodeNames)
 		if err != nil {
 			log.Errorf("Invalid input for nodes: %v", err)
@@ -866,46 +745,74 @@ func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 			log.Errorf("Invalid input nodes: %v", missingList)
 			return util.ErrorCmdArg
 		}
-	} else {
-		var err error
-		nodeNames, err = util.GetValidNodeList(config.CranedNodeList)
-		if err != nil {
-			log.Errorf("Invalid input for nodes: %v", err)
-			return util.ErrorCmdArg
-		}
 	}
+	// If no nodes specified, nodeNames will be empty and query all nodes
 
-	if len(config.ClusterName) == 0 {
-		log.Errorf("ClusterName empty")
-		return util.ErrorCmdArg
-	}
-
-	// Query Resource Usage Records in InfluxDB
-	result, err := QueryInfluxDbDataByTags(dbConfig, config.ClusterName, nodeNames)
+	// Connect to cplugind
+	pluginClient, pluginConn, err := GetPlugindClient(config)
 	if err != nil {
-		log.Errorf("Failed to query job info from InfluxDB: %v", err)
+		log.Errorf("Failed to connect to cplugind: %v", err)
+		return util.ErrorNetwork
+	}
+	defer pluginConn.Close()
+
+	// Get current user for authorization
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Errorf("Failed to get current user: %v", err)
+		return util.ErrorGeneric
+	}
+
+	uid, err := strconv.ParseUint(currentUser.Uid, 10, 32)
+	if err != nil {
+		log.Errorf("Failed to parse user ID: %v", err)
+		return util.ErrorGeneric
+	}
+
+	// Query events via RPC
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req := &protos.QueryNodeEventsRequest{
+		NodeNames: nodeNames,
+		Uid:       uint32(uid),
+	}
+
+	reply, err := pluginClient.QueryNodeEvents(ctx, req)
+	if err != nil {
+		log.Errorf("Failed to query node events: %v", err)
 		return util.ErrorBackend
 	}
 
-	filteredRecords, err := SortRecords(result)
-	if err != nil {
-		log.Errorf("Failed to sort records: %v", err)
-		return util.ErrorCmdArg
+	if !reply.Ok {
+		log.Errorf("Query node events failed: %s", reply.ErrorMessage)
+		return util.ErrorBackend
 	}
+
+	eventInfoList := reply.EventInfoList
+	if len(eventInfoList) == 0 {
+		log.Info("No event data found")
+		return util.ErrorSuccess
+	}
+
+	// Sort events by start time
+	sort.SliceStable(eventInfoList, func(i, j int) bool {
+		return eventInfoList[i].StartTime < eventInfoList[j].StartTime
+	})
 
 	if FlagJson {
 		eventJsonList := []*EventInfoJson{}
-		for _, record := range filteredRecords {
-			startTime := FormatNanoTime(record.StartTime)
-			endTime := FormatNanoTime(record.EndTime)
+		for _, event := range eventInfoList {
+			startTime := FormatNanoTime(event.StartTime)
+			endTime := FormatNanoTime(event.EndTime)
 			eventJson := &EventInfoJson{
-				ClusterName: record.ClusterName,
-				NodeName:    record.NodeName,
-				Uid:         record.Uid,
+				ClusterName: event.ClusterName,
+				NodeName:    event.NodeName,
+				Uid:         event.Uid,
 				StartTime:   startTime,
 				EndTime:     endTime,
-				State:       record.State,
-				Reason:      record.Reason,
+				State:       event.State,
+				Reason:      event.Reason,
 			}
 			eventJsonList = append(eventJsonList, eventJson)
 		}
@@ -922,16 +829,16 @@ func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 	table.SetBorder(true)
 	table.SetHeader([]string{"Node", "StartTime", "EndTime", "State", "Reason", "Uid"})
 
-	for _, record := range filteredRecords {
-		startTime := FormatNanoTime(record.StartTime)
-		endTime := FormatNanoTime(record.EndTime)
+	for _, event := range eventInfoList {
+		startTime := FormatNanoTime(event.StartTime)
+		endTime := FormatNanoTime(event.EndTime)
 		table.Append([]string{
-			record.NodeName,
+			event.NodeName,
 			startTime,
 			endTime,
-			record.State,
-			record.Reason,
-			strconv.FormatUint(record.Uid, 10),
+			event.State,
+			event.Reason,
+			strconv.FormatUint(event.Uid, 10),
 		})
 	}
 
@@ -944,43 +851,6 @@ func FormatNanoTime(ns int64) string {
 		return "Unknown"
 	}
 	return time.Unix(0, int64(ns)).In(time.Local).Format("2006-01-02 15:04:05")
-}
-
-func SortRecords(records []*ResourceUsageRecord) ([]*ResourceUsageRecord, error) {
-	if len(records) == 0 {
-		return nil, fmt.Errorf("records list is empty")
-	}
-
-	// Sort the records by NodeName in ascending order
-	sort.SliceStable(records, func(i, j int) bool {
-		return records[i].NodeName < records[j].NodeName
-	})
-
-	drainMap := make(map[string]*ResourceUsageRecord)
-	var filteredRecords []*ResourceUsageRecord
-	for _, currentRecord := range records {
-		if currentRecord.State == "Resume" {
-			if previousRecord, exists := drainMap[currentRecord.NodeName]; exists {
-				previousRecord.EndTime = currentRecord.StartTime
-				continue
-			}
-		} else if currentRecord.State == "Drain" {
-			drainMap[currentRecord.NodeName] = currentRecord
-		}
-
-		filteredRecords = append(filteredRecords, currentRecord)
-	}
-
-	// Sort the filteredRecords by StartTime
-	sort.SliceStable(filteredRecords, func(i, j int) bool {
-		return filteredRecords[i].StartTime > filteredRecords[j].StartTime
-	})
-
-	if FlagNumLimit > 0 && len(filteredRecords) > int(FlagNumLimit) {
-		filteredRecords = filteredRecords[:FlagNumLimit]
-	}
-
-	return filteredRecords, nil
 }
 
 func ResetUserCredential(value string) util.ExitCode {
