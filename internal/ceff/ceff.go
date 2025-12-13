@@ -116,6 +116,10 @@ func GetPlugindClient(config *util.Config) (protos.PluginQueryServiceClient, *gr
 	}
 
 	return protos.NewPluginQueryServiceClient(conn), conn, nil
+}
+
+func CleanupPlugindClient() {
+	if pluginConn != nil {
 		if err := pluginConn.Close(); err != nil {
 			log.WithError(err).Warn("Failed to close plugind connection")
 		}
