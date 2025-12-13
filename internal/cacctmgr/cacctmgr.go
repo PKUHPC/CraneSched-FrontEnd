@@ -31,7 +31,6 @@ import (
 	"slices"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
