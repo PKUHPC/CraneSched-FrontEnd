@@ -696,6 +696,10 @@ func GetPlugindClient(config *util.Config) (protos.PluginQueryServiceClient, *gr
 	}
 
 	return protos.NewPluginQueryServiceClient(conn), conn, nil
+}
+
+func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
+	nodeNameSet := make(map[string]struct{})
 	nodeNameList, err := util.GetValidNodeList(config.CranedNodeList)
 	if err != nil {
 		return nil, err
