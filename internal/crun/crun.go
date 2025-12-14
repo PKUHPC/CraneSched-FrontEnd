@@ -1116,46 +1116,46 @@ func MainCrun(args []string) error {
 	}
 
 	if FlagNTasks != "" {
-		fmt.Println("The feature --ntasks is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagMultiProg != "" {
-		fmt.Println("The feature --multi-prog is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --multi-prog is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagOversubscribe != "" {
-		fmt.Println("The feature --oversubscribe is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --oversubscribe is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagCpuBind != "" {
-		fmt.Println("The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagDeadline != "" {
-		fmt.Println("The feature --deadline is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --deadline is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagWait != "" {
-		fmt.Println("The feature --wait is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --wait is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagMpi != "" {
-		fmt.Println("The feature --mpi is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --mpi is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagDependency != "" {
-		fmt.Println("The feature --dependency is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagVerbose != "" {
-		fmt.Println("The feature --verbose is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --verbose is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagError != "" {
-		fmt.Println("The feature --error is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --error is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagKillOnBadExit != "" {
-		fmt.Println("The feature --kill-on-bad-exit is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --kill-on-bad-exit is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagExtraNodeInfo != "" {
-		fmt.Println("The feature --extra-node-info is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --extra-node-info is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagNTasksPerCore != "" {
-		fmt.Println("The feature --ntasks-per-core is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-core is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagConstraint != "" {
-		fmt.Println("The feature --constraint is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --constraint is not yet supported by Crane, the use is ignored.")
 	}
 
 	// Marshal extra attributes

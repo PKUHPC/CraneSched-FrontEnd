@@ -474,22 +474,22 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 
 	if FlagNTasks != "" {
-		fmt.Println("The feature --ntasks is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagDependency != "" {
-		fmt.Println("The feature --dependency is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagMemPerCpu != "" {
-		fmt.Println("The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagNoKill != "" {
-		fmt.Println("The feature --no-kill is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --no-kill is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagQuiet != "" {
-		fmt.Println("The feature --quiet is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --quiet is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagVerbose != "" {
-		fmt.Println("The feature --verbose is not yet supported by Crane, the use is ignored.")
+		fmt.Fprintln(os.Stderr, "The feature --verbose is not yet supported by Crane, the use is ignored.")
 	}
 
 	// Marshal extra attributes
