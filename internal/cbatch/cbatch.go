@@ -211,8 +211,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			fmt.Fprintln(os.Stderr, "The feature --cpu-freq is not yet supported by Crane, the use is ignored.")
 		case "--dependency":
 			fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
-		case "--tasks":
-			fmt.Fprintln(os.Stderr, "The feature --tasks is not yet supported by Crane, the use is ignored.")
 		case "--tasks-per-node":
 			fmt.Fprintln(os.Stderr, "The feature --tasks-per-node is not yet supported by Crane, the use is ignored.")
 		case "--priority":
@@ -386,9 +384,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if FlagDependency != "" {
 		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagTasks != "" {
-		fmt.Fprintln(os.Stderr, "The feature --tasks is not yet supported by Crane, the use is ignored.")
 	}
 	if FlagTasksPerNode != "" {
 		fmt.Fprintln(os.Stderr, "The feature --tasks-per-node is not yet supported by Crane, the use is ignored.")

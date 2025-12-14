@@ -321,7 +321,6 @@ func sbatch() *cobra.Command {
 	cmd.Flags().StringVar(&cbatch.FlagWckey, "wckey", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCpuFreq, "cpu-freq", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagDependency, "dependency", "", "")
-	cmd.Flags().StringVar(&cbatch.FlagTasks, "tasks", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagTasksPerNode, "tasks-per-node", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagPriority, "priority", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagMemPerCpu, "mem-per-cpu", "", "")
