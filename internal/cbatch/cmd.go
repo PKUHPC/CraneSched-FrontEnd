@@ -77,7 +77,6 @@ var (
 	FlagWckey           string
 	FlagCpuFreq         string
 	FlagDependency      string
-	FlagTasksPerNode    string
 	FlagPriority        string
 	FlagMemPerCpu       string
 	FlagThreadsPerCore  string
