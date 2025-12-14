@@ -233,6 +233,13 @@ func salloc() *cobra.Command {
 			return calloc.RootCmd.RunE(calloc.RootCmd, args)
 		},
 	}
+	// not implement feature:
+	cmd.Flags().StringVar(&calloc.FlagNTasks, "ntasks", "", "")
+	cmd.Flags().StringVar(&calloc.FlagDependency, "dependency", "", "")
+	cmd.Flags().StringVar(&calloc.FlagMemPerCpu, "mem-per-cpu", "", "")
+	cmd.Flags().StringVar(&calloc.FlagNoKill, "no-kill", "", "")
+	cmd.Flags().StringVar(&calloc.FlagQuiet, "quiet", "", "")
+	cmd.Flags().StringVar(&calloc.FlagVerbose, "verbose", "", "")
 
 	return cmd
 }
@@ -304,7 +311,27 @@ func sbatch() *cobra.Command {
 			return cbatch.RootCmd.RunE(cbatch.RootCmd, args)
 		},
 	}
-
+	// not implement feature:
+	cmd.Flags().StringVar(&cbatch.FlagNTasks, "ntasks", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagArray, "array", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagNoRequeue, "no-requeue", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagParsable, "parsable", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagGpusPerNode, "gpus-per-node", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagNTasksPerSocket, "ntasks-per-socket", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagWckey, "wckey", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagCpuFreq, "cpu-freq", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagDependency, "dependency", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagTasks, "tasks", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagTasksPerNode, "tasks-per-node", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagPriority, "priority", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagMemPerCpu, "mem-per-cpu", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagThreadsPerCore, "threads-per-core", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagDistribution, "distribution", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagInput, "input", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagSocketsPerNode, "sockets-per-node", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagCoresPerSocket, "cores-per-socket", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagRequeue, "requeue", "", "")
+	cmd.Flags().StringVar(&cbatch.FlagWait, "wait", "", "")
 	return cmd
 }
 
@@ -680,7 +707,21 @@ func srun() *cobra.Command {
 			return crun.RootCmd.RunE(crun.RootCmd, args)
 		},
 	}
-
+	// not implement features:
+	cmd.Flags().StringVar(&crun.FlagNTasks, "ntasks", "", "")
+	cmd.Flags().StringVar(&crun.FlagMultiProg, "multi-prog", "", "")
+	cmd.Flags().StringVar(&crun.FlagOversubscribe, "oversubscribe", "", "")
+	cmd.Flags().StringVar(&crun.FlagCpuBind, "cpu-bind", "", "")
+	cmd.Flags().StringVar(&crun.FlagDeadline, "deadline", "", "")
+	cmd.Flags().StringVar(&crun.FlagWait, "wait", "", "")
+	cmd.Flags().StringVar(&crun.FlagMpi, "mpi", "", "")
+	cmd.Flags().StringVar(&crun.FlagDependency, "dependency", "", "")
+	cmd.Flags().StringVar(&crun.FlagVerbose, "verbose", "", "")
+	cmd.Flags().StringVar(&crun.FlagError, "error", "", "")
+	cmd.Flags().StringVar(&crun.FlagKillOnBadExit, "kill-on-bad-exit", "", "")
+	cmd.Flags().StringVar(&crun.FlagExtraNodeInfo, "extra-node-info", "", "")
+	cmd.Flags().StringVar(&crun.FlagNTasksPerCore, "ntasks-per-core", "", "")
+	cmd.Flags().StringVar(&crun.FlagConstraint, "constraint", "", "")
 	return cmd
 }
 
