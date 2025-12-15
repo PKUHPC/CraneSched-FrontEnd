@@ -58,7 +58,8 @@ var (
 
 	FlagReservation string
 
-	FlagHold bool
+	FlagHold  bool
+	FlagQuiet bool
 
 	FlagLicenses string
 
@@ -117,4 +118,5 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
+	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 }
