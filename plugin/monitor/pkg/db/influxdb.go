@@ -26,6 +26,7 @@ type InfluxDB struct {
 	org                 string
 	nodeBucket          string
 	jobBucket           string
+	clusterBucket       string
 	eventMeasurement    string
 	resourceMeasurement string
 	enabled             *config.Enabled
@@ -60,6 +61,7 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 		org:                 config.DB.InfluxDB.Org,
 		nodeBucket:          config.DB.InfluxDB.NodeBucket,
 		jobBucket:           config.DB.InfluxDB.JobBucket,
+		clusterBucket:       config.DB.InfluxDB.ClusterBucket,
 		eventMeasurement:    config.DB.InfluxDB.EventMeasurement,
 		resourceMeasurement: config.DB.InfluxDB.ResourceMeasurement,
 		enabled:             &config.Monitor.Enabled,
@@ -73,6 +75,11 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 	if err := db.createBucketIfNotExists(db.jobBucket); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to create job bucket: %v", err)
+	}
+
+	if err := db.createBucketIfNotExists(db.clusterBucket); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("failed to create cluster bucket: %v", err)
 	}
 
 	return db, nil
@@ -261,6 +268,43 @@ func (db *InfluxDB) SaveNodeEvents(events []*protos.CranedEventInfo) error {
 
 		log.Tracef("Recorded cluster_name: %v, uid: %v, node_name: %s, state: %d, start_time: %s, Reason: %s",
 			event.ClusterName, event.Uid, event.NodeName, stateValue, event.StartTime.AsTime().Format(time.RFC3339), event.Reason)
+	}
+
+	return nil
+}
+
+func (db *InfluxDB) SaveLicenseUsage(licenses []*protos.LicenseInfo) error {
+	if len(licenses) == 0 {
+		return nil
+	}
+
+	log.Infof("Saving %d licenses", len(licenses))
+
+	writeAPI := db.client.WriteAPIBlocking(db.org, db.clusterBucket)
+
+	measurement := db.resourceMeasurement
+	if measurement == "" {
+		measurement = "LicenseUsage"
+	}
+	ctx := context.Background()
+	for _, license := range licenses {
+		tags := map[string]string{
+			"license_name": license.GetName(),
+		}
+
+		fields := map[string]interface{}{
+			"total": license.Total,
+			"used":  license.Used,
+			"free":  license.Free,
+		}
+		point := influxdb2.NewPoint(measurement, tags, fields, time.Now())
+
+		if err := writeAPI.WritePoint(ctx, point); err != nil {
+			log.Errorf("Failed to write license to InfluxDB: %v", err)
+			return fmt.Errorf("failed to write license: %v", err)
+		}
+
+		log.Tracef("License info: %v, total: %v, used: %v, free: %v, ts=%v", license.Name, license.Total, license.Used, license.Free, point.Time())
 	}
 
 	return nil

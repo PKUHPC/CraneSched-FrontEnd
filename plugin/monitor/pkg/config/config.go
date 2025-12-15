@@ -50,6 +50,7 @@ type InfluxDBConfig struct {
 	Org                 string `mapstructure:"Org"`
 	NodeBucket          string `mapstructure:"NodeBucket"`
 	JobBucket           string `mapstructure:"JobBucket"`
+	ClusterBucket       string `mapstructure:"ClusterBucket"`
 	EventMeasurement    string `mapstructure:"EventMeasurement"`
 	ResourceMeasurement string `mapstructure:"ResourceMeasurement"`
 }
@@ -82,7 +83,7 @@ func validateConfig(cfg *Config) error {
 		}
 		if cfg.DB.InfluxDB.URL == "" || cfg.DB.InfluxDB.Token == "" ||
 			cfg.DB.InfluxDB.Org == "" || cfg.DB.InfluxDB.NodeBucket == "" ||
-			cfg.DB.InfluxDB.JobBucket == "" {
+			cfg.DB.InfluxDB.JobBucket == "" || cfg.DB.InfluxDB.ClusterBucket == "" {
 			return fmt.Errorf("incomplete influxdb configuration")
 		}
 		if cfg.DB.InfluxDB.EventMeasurement == "" {
@@ -143,6 +144,7 @@ func PrintConfig(cfg *Config) {
 			log.Infof("    Organization: %s", cfg.DB.InfluxDB.Org)
 			log.Infof("    Node Bucket: %s", cfg.DB.InfluxDB.NodeBucket)
 			log.Infof("    Job Bucket: %s", cfg.DB.InfluxDB.JobBucket)
+			log.Infof("    Cluster Bucket: %s", cfg.DB.InfluxDB.ClusterBucket)
 			log.Infof("    Event Measurement: %s", cfg.DB.InfluxDB.EventMeasurement)
 			log.Infof("    Resource Measurement: %s", cfg.DB.InfluxDB.ResourceMeasurement)
 			if cfg.DB.InfluxDB.Token != "" {

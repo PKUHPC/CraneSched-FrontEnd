@@ -24,6 +24,7 @@ Database:
     Org: "YOUR_INFLUXDB_ORG_NAME"
     NodeBucket: "YOUR_NODE_BUCKET_NAME"
     JobBucket: "YOUR_JOB_BUCKET_NAME"
+    ClusterBucket: "YOUR_CLUSTER_BUCKET_NAME"
     EventMeasurement: "NodeEvents"
     ResourceMeasurement: "ResourceUsage"
 

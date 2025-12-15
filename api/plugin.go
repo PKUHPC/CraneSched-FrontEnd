@@ -106,6 +106,7 @@ type HostConfigAware interface {
 	SetHostConfigPath(path string)
 }
 
+// ResourceHooks handles ctld virtual resource change
 type ResourceHooks interface {
 	UpdateLicensesHook(ctx *PluginContext)
 }

@@ -65,7 +65,7 @@ var _ api.CgroupLifecycleHooks = MonitorPlugin{}
 var _ api.NodeEventHooks = MonitorPlugin{}
 var _ api.GrpcServiceRegistrar = MonitorPlugin{}
 var _ api.HostConfigAware = MonitorPlugin{}
-var _ api.ResourceHooks = &MonitorPlugin{}
+var _ api.ResourceHooks = MonitorPlugin{}
 
 var PluginInstance = MonitorPlugin{}
 
@@ -199,44 +199,17 @@ func (p MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {
 	}
 }
 
-func (p *MonitorPlugin) UpdateLicensesHook(ctx *api.PluginContext) {
+func (p MonitorPlugin) UpdateLicensesHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.UpdateLicensesHookRequest)
 	if !ok {
 		log.Errorln("Invalid request type, expected UpdateLicensesHookRequest.")
 		return
 	}
-	dbConfig := p.Database
-	p.client = influxdb2.NewClientWithOptions(dbConfig.Url, dbConfig.Token, influxdb2.DefaultOptions().SetPrecision(time.Nanosecond))
-	defer p.client.Close()
 
-	ctx2 := context.Background()
-	if pong, err := p.client.Ping(ctx2); err != nil {
-		log.Errorf("Failed to ping InfluxDB: %v", err)
-		return
-	} else if !pong {
-		log.Error("Failed to ping InfluxDB: not pong")
-		return
-	}
-	log.Infof("InfluxDB client is created: %v", p.client.ServerURL())
+	log.Infof("UpdateLicensesHook received for %d licenses", len(req.GetLicenseInfo()))
 
-	writer := p.client.WriteAPIBlocking(dbConfig.Org, dbConfig.Bucket)
-	for i, licenseInfo := range req.LicenseInfo {
-		tags := map[string]string{
-			"license": licenseInfo.Name,
-		}
-		fields := map[string]interface{}{
-			"total": licenseInfo.Total,
-			"used":  licenseInfo.Used,
-			"free":  licenseInfo.Free,
-		}
-		point := influxdb2.NewPoint(dbConfig.Measurement, tags, fields, time.Now().Add(time.Duration(i)*time.Nanosecond))
-
-		if err := writer.WritePoint(ctx2, point); err != nil {
-			log.Errorf("Failed to write point to InfluxDB: %v", err)
-			break
-		}
-
-		log.Tracef("License info: %v, total: %v, used: %v, free: %v, ts=%v", licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free, point.Time())
+	if err := db.GetInstance().SaveLicenseUsage(req.GetLicenseInfo()); err != nil {
+		log.Errorf("Failed to save license usage: %v", err)
 	}
 }
 
