@@ -73,7 +73,7 @@ type SupervisorChannelKeeper struct {
 	toSupervisorChannelMtx sync.Mutex
 	toSupervisorChannelCV  *sync.Cond
 
-	// Request message from Crun to Supervisor
+	// Request message from Crun/Cattach to Supervisor
 	toSupervisorChannels map[StepIdentifier]map[string] /*CranedId*/ *RequestSupervisorChannel
 
 	taskIORequestChannelMtx sync.Mutex
@@ -490,7 +490,7 @@ CforedSupervisorStateMachineLoop:
 							Type: protos.StreamTaskIOReply_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
 								PayloadTaskInputReq: &protos.StreamTaskIOReply_TaskInputReq{
-									jobId: jobId,
+									jobId:  jobId,
 									stepId: stepId,
 									Msg:    msg,
 									Eof:    payload.Eof,
@@ -511,7 +511,7 @@ CforedSupervisorStateMachineLoop:
 							Type: protos.StreamTaskIOReply_TASK_X11_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
 								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_TaskX11InputReq{
-									jobId: jobId,
+									jobId:  jobId,
 									StepId: stepId,
 									Msg:    msg,
 								},
