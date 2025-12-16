@@ -129,6 +129,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_INVALID_ADMIN_LEVEL:           "Unknown admin level",
 	protos.ErrCode_ERR_USER_ACCOUNT_MISMATCH:         "The user does not belong to this account",
 	protos.ErrCode_ERR_NO_ACCOUNT_SPECIFIED:          "No account is specified for the user",
+	protos.ErrCode_ERR_PERMISSION_DENIED:             "Permission denied for this operation",
 
 	// Account-related errors
 	protos.ErrCode_ERR_INVALID_ACCOUNT:        "The entered account does not exist",
@@ -181,6 +182,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_NON_EXISTENT:            "The object doesn't exist",
 	protos.ErrCode_ERR_INVALID_PARAM:           "Invalid Parameter",
 	protos.ErrCode_ERR_PROTOBUF:                "Error when using protobuf",
+	protos.ErrCode_ERR_NO_AVAIL_NODE:           "No available node meets the request",
 	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_USER:  "job max count is empty or exceeds the limit",
 	protos.ErrCode_ERR_USER_NO_PRIVILEGE:       "User has insufficient privilege",
 	protos.ErrCode_ERR_NOT_IN_ALLOWED_LIST:     "The account does not have permission to run jobs in this partition. Please contact the administrator to add it to the allowed list",
@@ -200,6 +202,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
 	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory format",
+	protos.ErrCode_ERR_STEP_RES_BEYOND:         "Step resource request exceeds the job's requested resources",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {

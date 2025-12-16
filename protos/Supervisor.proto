@@ -40,6 +40,7 @@ message InitSupervisorRequest {
   string craned_unix_socket_path = 5;
   string crane_base_dir = 6;
   string crane_script_dir = 7;
+  string job_name = 8;
 
   message ContainerConfig {
     string temp_dir = 1;
@@ -72,6 +73,8 @@ message InitSupervisorRequest {
   }
 
   CforedListenConf cfored_listen_conf = 25;
+  uint64 max_log_file_size = 26;
+  uint64 max_log_file_num = 27;
 }
 
 message SupervisorReady {

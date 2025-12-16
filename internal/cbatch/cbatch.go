@@ -61,6 +61,14 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		shScript = FlagWrappedScript
 	}
 
+	if isPod, err := isPodJob(cmd, cbatchArgs); err != nil {
+		return nil, err
+	} else if isPod {
+		task.Type = protos.TaskType_Container
+	} else {
+		task.Type = protos.TaskType_Batch
+	}
+
 	// Set the payload
 	task.Payload = &protos.TaskToCtld_BatchMeta{
 		BatchMeta: &protos.BatchTaskAdditionalMeta{
@@ -85,117 +93,11 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
+	podOpts := podOptions{}
 
-	///*************set parameter values based on the file*******************************///
-	for _, arg := range cbatchArgs {
-		switch arg.name {
-		case "--nodes", "-N":
-			num, err := strconv.ParseUint(arg.val, 10, 32)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.NodeNum = uint32(num)
-		case "--cpus-per-task", "-c":
-			num, err := util.ParseFloatWithPrecision(arg.val, 10)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.CpusPerTask = num
-		case "--gres":
-			gresMap := util.ParseGres(arg.val)
-			task.ReqResources.DeviceMap = gresMap
-		case "--ntasks-per-node":
-			num, err := strconv.ParseUint(arg.val, 10, 32)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.NtasksPerNode = uint32(num)
-		case "--time", "-t":
-			seconds, err := util.ParseDurationStrToSeconds(arg.val)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.TimeLimit.Seconds = seconds
-		case "--begin", "-b":
-			beginTime, err := util.ParseTime(arg.val)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.BeginTime = timestamppb.New(beginTime)
-		case "--mem":
-			memInByte, err := util.ParseMemStringAsByte(arg.val)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
-		case "-p", "--partition":
-			task.PartitionName = arg.val
-		case "-J", "--job-name":
-			task.Name = arg.val
-		case "-A", "--account":
-			task.Account = arg.val
-		case "--qos", "Q":
-			task.Qos = arg.val
-		case "--licenses", "-L":
-			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.LicensesCount = licCount
-			task.IsLicensesOr = isLicenseOr
-		case "--chdir":
-			task.Cwd = arg.val
-		case "--exclude", "-x":
-			task.Excludes = arg.val
-		case "--nodelist", "-w":
-			task.Nodelist = arg.val
-		case "--get-user-env":
-			if arg.val == "" {
-				task.GetUserEnv = true
-			} else {
-				val, err := strconv.ParseBool(arg.val)
-				if err != nil {
-					return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-				}
-				task.GetUserEnv = val
-			}
-		case "--export":
-			task.Env["CRANE_EXPORT_ENV"] = arg.val
-		case "-o", "--output":
-			task.GetBatchMeta().OutputFilePattern = arg.val
-		case "-e", "--error":
-			task.GetBatchMeta().ErrorFilePattern = arg.val
-		case "--interpreter":
-			task.GetBatchMeta().Interpreter = arg.val
-		case "--extra-attr":
-			structExtraFromScript.ExtraAttr = arg.val
-		case "--mail-type":
-			structExtraFromScript.MailType = arg.val
-		case "--mail-user":
-			structExtraFromScript.MailUser = arg.val
-		case "--comment":
-			structExtraFromScript.Comment = arg.val
-		case "--open-mode":
-			switch arg.val {
-			case util.OpenModeAppend:
-				task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
-			case util.OpenModeTruncate:
-				task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
-			default:
-				return nil, fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
-			}
-		case "-r", "--reservation":
-			task.Reservation = arg.val
-		case "--exclusive":
-			val, err := strconv.ParseBool(arg.val)
-			if err != nil {
-				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-			}
-			task.Exclusive = val
-		default:
-			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
-		}
+	// Set args from the script
+	if err := applyScriptArgs(cmd, cbatchArgs, task, &structExtraFromScript, &podOpts); err != nil {
+		return nil, err
 	}
 
 	var extraFromScript string
@@ -203,9 +105,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		return nil, fmt.Errorf("invalid argument: failed to marshal extra attributes from script: %w", err)
 	}
 
-	// ************* set parameter values based on the command line *********************
-	// If the command line argument is set, it replaces the argument read from the file,
-	// so the command line has a higher priority
+	// Set args from the command line flags
+	// Command line has a higher priority
 	if cmd.Flags().Changed("nodes") {
 		task.NodeNum = FlagNodes
 	}
@@ -319,6 +220,21 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagHold {
 		task.Hold = true
 	}
+	if FlagReservation != "" {
+		task.Reservation = FlagReservation
+	}
+	// Set total limit of cpu cores
+	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+
+	// Set pod meta if it's a container job
+	if task.Type == protos.TaskType_Container {
+		overridePodFromFlags(cmd, &podOpts)
+		podMeta, err := buildPodMeta(task, &podOpts)
+		if err != nil {
+			return nil, fmt.Errorf("invalid container options: %v", err)
+		}
+		task.PodMeta = podMeta
+	}
 
 	// Set and check the extra attributes
 	var extraFromCli string
@@ -326,12 +242,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		return nil, fmt.Errorf("invalid argument: failed to marshal extra attributes from CLI: %w", err)
 	}
 	task.ExtraAttr = util.AmendJobExtraAttrs(extraFromScript, extraFromCli)
-	if FlagReservation != "" {
-		task.Reservation = FlagReservation
-	}
-
-	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
@@ -345,6 +255,141 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 
 	return task, nil
+}
+
+func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.TaskToCtld, extraFromScript *util.JobExtraAttrs, podOpts *podOptions) error {
+	for _, arg := range cbatchArgs {
+		switch arg.name {
+		case "--nodes", "-N":
+			num, err := strconv.ParseUint(arg.val, 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.NodeNum = uint32(num)
+		case "--cpus-per-task", "-c":
+			num, err := util.ParseFloatWithPrecision(arg.val, 10)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.CpusPerTask = num
+		case "--gres":
+			gresMap := util.ParseGres(arg.val)
+			task.ReqResources.DeviceMap = gresMap
+		case "--ntasks-per-node":
+			num, err := strconv.ParseUint(arg.val, 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.NtasksPerNode = uint32(num)
+		case "--time", "-t":
+			seconds, err := util.ParseDurationStrToSeconds(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.TimeLimit.Seconds = seconds
+		case "--begin", "-b":
+			beginTime, err := util.ParseTime(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.BeginTime = timestamppb.New(beginTime)
+		case "--mem":
+			memInByte, err := util.ParseMemStringAsByte(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
+			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		case "-p", "--partition":
+			task.PartitionName = arg.val
+		case "-J", "--job-name":
+			task.Name = arg.val
+		case "-A", "--account":
+			task.Account = arg.val
+		case "--qos", "Q":
+			task.Qos = arg.val
+		case "--licenses", "-L":
+			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.LicensesCount = licCount
+			task.IsLicensesOr = isLicenseOr
+		case "--chdir":
+			task.Cwd = arg.val
+		case "--exclude", "-x":
+			task.Excludes = arg.val
+		case "--nodelist", "-w":
+			task.Nodelist = arg.val
+		case "--get-user-env":
+			if arg.val == "" {
+				task.GetUserEnv = true
+			} else {
+				val, err := strconv.ParseBool(arg.val)
+				if err != nil {
+					return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				}
+				task.GetUserEnv = val
+			}
+		case "--export":
+			task.Env["CRANE_EXPORT_ENV"] = arg.val
+		case "-o", "--output":
+			task.GetBatchMeta().OutputFilePattern = arg.val
+		case "-e", "--error":
+			task.GetBatchMeta().ErrorFilePattern = arg.val
+		case "--interpreter":
+			task.GetBatchMeta().Interpreter = arg.val
+		case "--extra-attr":
+			extraFromScript.ExtraAttr = arg.val
+		case "--mail-type":
+			extraFromScript.MailType = arg.val
+		case "--mail-user":
+			extraFromScript.MailUser = arg.val
+		case "--comment":
+			extraFromScript.Comment = arg.val
+		case "--open-mode":
+			switch arg.val {
+			case util.OpenModeAppend:
+				task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
+			case util.OpenModeTruncate:
+				task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
+			default:
+				return fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
+			}
+		case "-r", "--reservation":
+			task.Reservation = arg.val
+		case "--exclusive":
+			val, err := strconv.ParseBool(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.Exclusive = val
+		case "--pod":
+			// No need to process here, already handled in isPodJob
+		case "--pod-name":
+			podOpts.name = arg.val
+		case "--pod-port":
+			podOpts.ports = append(podOpts.ports, arg.val)
+		case "--pod-user":
+			podOpts.user = arg.val
+		case "--pod-userns":
+			val, err := strconv.ParseBool(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			podOpts.userns = val
+		case "--pod-host-network":
+			val, err := strconv.ParseBool(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			podOpts.hostNet = val
+		default:
+			return fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
+		}
+	}
+
+	return nil
 }
 
 func SendRequest(task *protos.TaskToCtld) error {

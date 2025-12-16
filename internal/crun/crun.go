@@ -22,11 +22,12 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
-	"github.com/spf13/cobra"
 	"net"
 	"os/user"
 	"regexp"
 	"strconv"
+
+	"github.com/spf13/cobra"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -1044,18 +1045,12 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, "Please specify program to run")
 	}
-	var jobId uint32
-	envJobIdString, stepMode := syscall.Getenv("CRANE_JOB_ID")
-	jobMode := !stepMode
-	if stepMode {
-		parsedJobId, err := strconv.ParseUint(envJobIdString, 10, 32)
-		if err != nil {
-			return util.NewCraneErr(util.ErrorInvalidFormat,
-				"Invalid CRANE_JOB_ID")
 
-		}
-		jobId = uint32(parsedJobId)
+	jobId, stepMode, err := util.ParseJobNestedEnv()
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorSystem, "Failed to parse env: %s.", err)
 	}
+	jobMode := !stepMode
 
 	var job *protos.TaskToCtld
 	var step *protos.StepToCtld
