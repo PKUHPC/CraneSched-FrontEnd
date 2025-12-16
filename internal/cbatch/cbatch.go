@@ -356,61 +356,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.Hold = true
 	}
 
-	if FlagNTasks != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagArray != "" {
-		fmt.Fprintln(os.Stderr, "The feature --array is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagNoRequeue != "" {
-		fmt.Fprintln(os.Stderr, "The feature --no-requeue is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagParsable != "" {
-		fmt.Fprintln(os.Stderr, "The feature --parsable is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagGpusPerNode != "" {
-		fmt.Fprintln(os.Stderr, "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagNTasksPerSocket != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagWckey != "" {
-		fmt.Fprintln(os.Stderr, "The feature --wckey is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagCpuFreq != "" {
-		fmt.Fprintln(os.Stderr, "The feature --cpu-freq is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagDependency != "" {
-		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagPriority != "" {
-		fmt.Fprintln(os.Stderr, "The feature --priority is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagMemPerCpu != "" {
-		fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagThreadsPerCore != "" {
-		fmt.Fprintln(os.Stderr, "The feature --threads-per-core is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagDistribution != "" {
-		fmt.Fprintln(os.Stderr, "The feature --distribution is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagInput != "" {
-		fmt.Fprintln(os.Stderr, "The feature --input is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagSocketsPerNode != "" {
-		fmt.Fprintln(os.Stderr, "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagCoresPerSocket != "" {
-		fmt.Fprintln(os.Stderr, "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagRequeue != "" {
-		fmt.Fprintln(os.Stderr, "The feature --requeue is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagWait != "" {
-		fmt.Fprintln(os.Stderr, "The feature --wait is not yet supported by Crane, the use is ignored.")
-	}
-
 	// Set and check the extra attributes
 	var extraFromCli string
 	if err := structExtraFromCli.Marshal(&extraFromCli); err != nil {

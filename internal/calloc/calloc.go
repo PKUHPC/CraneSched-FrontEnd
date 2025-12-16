@@ -473,25 +473,6 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		task.IsLicensesOr = isLicenseOr
 	}
 
-	if FlagNTasks != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagDependency != "" {
-		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagMemPerCpu != "" {
-		fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagNoKill != "" {
-		fmt.Fprintln(os.Stderr, "The feature --no-kill is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagQuiet != "" {
-		fmt.Fprintln(os.Stderr, "The feature --quiet is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagVerbose != "" {
-		fmt.Fprintln(os.Stderr, "The feature --verbose is not yet supported by Crane, the use is ignored.")
-	}
-
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))

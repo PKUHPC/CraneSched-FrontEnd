@@ -224,6 +224,8 @@ func salloc() *cobra.Command {
 				return calloc.RootCmd.Help()
 			}
 
+			PrintSallocIgnoreDummyArgsMessage()
+
 			calloc.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(calloc.RootCmd, args); err != nil {
@@ -302,7 +304,7 @@ func sbatch() *cobra.Command {
 			if help, err := cbatch.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return cbatch.RootCmd.Help()
 			}
-
+			PrintSbatchIgnoreArgsMesssage()
 			cbatch.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(cbatch.RootCmd, args); err != nil {
 				log.Error(err)
@@ -695,7 +697,7 @@ func srun() *cobra.Command {
 			if help, err := crun.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return crun.RootCmd.Help()
 			}
-
+			PrintSrunIgnoreDummyArgsMessage()
 			crun.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(crun.RootCmd, args); err != nil {
 				log.Error(err)
@@ -734,4 +736,127 @@ func Validate(c *cobra.Command, args []string) error {
 		return err
 	}
 	return nil
+}
+
+func PrintSrunIgnoreDummyArgsMessage() {
+	if crun.FlagNTasks != "" {
+		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagMultiProg != "" {
+		fmt.Fprintln(os.Stderr, "The feature --multi-prog is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagOversubscribe != "" {
+		fmt.Fprintln(os.Stderr, "The feature --oversubscribe is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagCpuBind != "" {
+		fmt.Fprintln(os.Stderr, "The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagDeadline != "" {
+		fmt.Fprintln(os.Stderr, "The feature --deadline is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagWait != "" {
+		fmt.Fprintln(os.Stderr, "The feature --wait is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagMpi != "" {
+		fmt.Fprintln(os.Stderr, "The feature --mpi is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagDependency != "" {
+		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagVerbose != "" {
+		fmt.Fprintln(os.Stderr, "The feature --verbose is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagError != "" {
+		fmt.Fprintln(os.Stderr, "The feature --error is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagKillOnBadExit != "" {
+		fmt.Fprintln(os.Stderr, "The feature --kill-on-bad-exit is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagExtraNodeInfo != "" {
+		fmt.Fprintln(os.Stderr, "The feature --extra-node-info is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagNTasksPerCore != "" {
+		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-core is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagConstraint != "" {
+		fmt.Fprintln(os.Stderr, "The feature --constraint is not yet supported by Crane, the use is ignored.")
+	}
+}
+
+func PrintSallocIgnoreDummyArgsMessage() {
+	if calloc.FlagNTasks != "" {
+		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
+	}
+	if calloc.FlagDependency != "" {
+		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
+	}
+	if calloc.FlagMemPerCpu != "" {
+		fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
+	}
+	if calloc.FlagNoKill != "" {
+		fmt.Fprintln(os.Stderr, "The feature --no-kill is not yet supported by Crane, the use is ignored.")
+	}
+	if calloc.FlagQuiet != "" {
+		fmt.Fprintln(os.Stderr, "The feature --quiet is not yet supported by Crane, the use is ignored.")
+	}
+	if calloc.FlagVerbose != "" {
+		fmt.Fprintln(os.Stderr, "The feature --verbose is not yet supported by Crane, the use is ignored.")
+	}
+}
+
+func PrintSbatchIgnoreArgsMesssage() {
+	if cbatch.FlagNTasks != "" {
+		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagArray != "" {
+		fmt.Fprintln(os.Stderr, "The feature --array is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagNoRequeue != "" {
+		fmt.Fprintln(os.Stderr, "The feature --no-requeue is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagParsable != "" {
+		fmt.Fprintln(os.Stderr, "The feature --parsable is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagGpusPerNode != "" {
+		fmt.Fprintln(os.Stderr, "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagNTasksPerSocket != "" {
+		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagWckey != "" {
+		fmt.Fprintln(os.Stderr, "The feature --wckey is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagCpuFreq != "" {
+		fmt.Fprintln(os.Stderr, "The feature --cpu-freq is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagDependency != "" {
+		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagPriority != "" {
+		fmt.Fprintln(os.Stderr, "The feature --priority is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagMemPerCpu != "" {
+		fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagThreadsPerCore != "" {
+		fmt.Fprintln(os.Stderr, "The feature --threads-per-core is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagDistribution != "" {
+		fmt.Fprintln(os.Stderr, "The feature --distribution is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagInput != "" {
+		fmt.Fprintln(os.Stderr, "The feature --input is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagSocketsPerNode != "" {
+		fmt.Fprintln(os.Stderr, "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagCoresPerSocket != "" {
+		fmt.Fprintln(os.Stderr, "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagRequeue != "" {
+		fmt.Fprintln(os.Stderr, "The feature --requeue is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagWait != "" {
+		fmt.Fprintln(os.Stderr, "The feature --wait is not yet supported by Crane, the use is ignored.")
+	}
 }

@@ -1115,49 +1115,6 @@ func MainCrun(args []string) error {
 		task.IsLicensesOr = isLicenseOr
 	}
 
-	if FlagNTasks != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagMultiProg != "" {
-		fmt.Fprintln(os.Stderr, "The feature --multi-prog is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagOversubscribe != "" {
-		fmt.Fprintln(os.Stderr, "The feature --oversubscribe is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagCpuBind != "" {
-		fmt.Fprintln(os.Stderr, "The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagDeadline != "" {
-		fmt.Fprintln(os.Stderr, "The feature --deadline is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagWait != "" {
-		fmt.Fprintln(os.Stderr, "The feature --wait is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagMpi != "" {
-		fmt.Fprintln(os.Stderr, "The feature --mpi is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagDependency != "" {
-		fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagVerbose != "" {
-		fmt.Fprintln(os.Stderr, "The feature --verbose is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagError != "" {
-		fmt.Fprintln(os.Stderr, "The feature --error is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagKillOnBadExit != "" {
-		fmt.Fprintln(os.Stderr, "The feature --kill-on-bad-exit is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagExtraNodeInfo != "" {
-		fmt.Fprintln(os.Stderr, "The feature --extra-node-info is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagNTasksPerCore != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-core is not yet supported by Crane, the use is ignored.")
-	}
-	if FlagConstraint != "" {
-		fmt.Fprintln(os.Stderr, "The feature --constraint is not yet supported by Crane, the use is ignored.")
-	}
-
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
