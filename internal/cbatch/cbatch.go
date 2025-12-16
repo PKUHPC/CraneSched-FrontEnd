@@ -193,42 +193,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.Exclusive = val
-		case "--ntasks":
-			fmt.Fprintln(os.Stderr, "The feature --ntasks is not yet supported by Crane, the use is ignored.")
-		case "--array":
-			fmt.Fprintln(os.Stderr, "The feature --array is not yet supported by Crane, the use is ignored.")
-		case "--no-requeue":
-			fmt.Fprintln(os.Stderr, "The feature --no-requeue is not yet supported by Crane, the use is ignored.")
-		case "--parsable":
-			fmt.Fprintln(os.Stderr, "The feature --parsable is not yet supported by Crane, the use is ignored.")
-		case "--gpus-per-node":
-			fmt.Fprintln(os.Stderr, "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.")
-		case "--ntasks-per-socket":
-			fmt.Fprintln(os.Stderr, "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")
-		case "--wckey":
-			fmt.Fprintln(os.Stderr, "The feature --wckey is not yet supported by Crane, the use is ignored.")
-		case "--cpu-freq":
-			fmt.Fprintln(os.Stderr, "The feature --cpu-freq is not yet supported by Crane, the use is ignored.")
-		case "--dependency":
-			fmt.Fprintln(os.Stderr, "The feature --dependency is not yet supported by Crane, the use is ignored.")
-		case "--priority":
-			fmt.Fprintln(os.Stderr, "The feature --priority is not yet supported by Crane, the use is ignored.")
-		case "--mem-per-cpu":
-			fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
-		case "--threads-per-core":
-			fmt.Fprintln(os.Stderr, "The feature --threads-per-core is not yet supported by Crane, the use is ignored.")
-		case "--distribution":
-			fmt.Fprintln(os.Stderr, "The feature --distribution is not yet supported by Crane, the use is ignored.")
-		case "--input":
-			fmt.Fprintln(os.Stderr, "The feature --input is not yet supported by Crane, the use is ignored.")
-		case "--sockets-per-node":
-			fmt.Fprintln(os.Stderr, "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.")
-		case "--cores-per-socket":
-			fmt.Fprintln(os.Stderr, "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.")
-		case "--requeue":
-			fmt.Fprintln(os.Stderr, "The feature --requeue is not yet supported by Crane, the use is ignored.")
-		case "--wait":
-			fmt.Fprintln(os.Stderr, "The feature --wait is not yet supported by Crane, the use is ignored.")
 		default:
 			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}
@@ -493,11 +457,46 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Parsing error at line %d: %s", num, err))
 		}
+
 	}
 
 	if err := scanner.Err(); err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to read the script file", err)
 	}
-
+	*args = FilterDummyArgs(*args)
 	return nil
+}
+
+func FilterDummyArgs(args []CbatchArg) []CbatchArg {
+	filteredArgs := make([]CbatchArg, 0, len(args))
+	unsupportedFlags := map[string]string{
+		"--ntasks":            "The feature --ntasks is not yet supported by Crane, the use is ignored.",
+		"--array":             "The feature --array is not yet supported by Crane, the use is ignored.",
+		"--no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
+		"--parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
+		"--gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",
+		"--ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
+		"--wckey":             "The feature --wckey is not yet supported by Crane, the use is ignored.",
+		"--cpu-freq":          "The feature --cpu-freq is not yet supported by Crane, the use is ignored.",
+		"--dependency":        "The feature --dependency is not yet supported by Crane, the use is ignored.",
+		"--priority":          "The feature --priority is not yet supported by Crane, the use is ignored.",
+		"--mem-per-cpu":       "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.",
+		"--threads-per-core":  "The feature --threads-per-core is not yet supported by Crane, the use is ignored.",
+		"--distribution":      "The feature --distribution is not yet supported by Crane, the use is ignored.",
+		"--input":             "The feature --input is not yet supported by Crane, the use is ignored.",
+		"--sockets-per-node":  "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.",
+		"--cores-per-socket":  "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.",
+		"--requeue":           "The feature --requeue is not yet supported by Crane, the use is ignored.",
+		"--wait":              "The feature --wait is not yet supported by Crane, the use is ignored.",
+	}
+
+	for _, arg := range args {
+		if message, found := unsupportedFlags[arg.name]; found {
+			fmt.Fprintln(os.Stderr, message)
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
+	return filteredArgs
 }
