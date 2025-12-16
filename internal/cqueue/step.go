@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -53,6 +54,16 @@ func QueryStepsTableOutput(reply *protos.QueryTasksInfoReply) error {
 			})
 		}
 	}
+
+	less := func(i, j int) bool {
+		jobId1, stepId1 := stepDataList[i].stepInfo.JobId, stepDataList[i].stepInfo.StepId
+		jobId2, stepId2 := stepDataList[j].stepInfo.JobId, stepDataList[j].stepInfo.StepId
+		if jobId1 != jobId2 {
+			return jobId1 > jobId2
+		}
+		return stepId1 < stepId2
+	}
+	sort.Slice(stepDataList, less)
 
 	var header []string
 	var tableData [][]string
