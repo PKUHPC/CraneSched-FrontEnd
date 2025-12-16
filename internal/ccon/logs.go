@@ -29,7 +29,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -43,17 +42,21 @@ const kLogFilename = "%d.%d.log"
 
 func logExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return util.NewCraneErr(util.ErrorCmdArg, "log requires exactly one argument: CONTAINER")
+		return util.NewCraneErr(util.ErrorCmdArg, "logs requires exactly one argument: CONTAINER (JOBID.STEPID)")
 	}
 
 	f := GetFlags()
-	jobIDStr := args[0]
-	jobID, err := strconv.ParseUint(jobIDStr, 10, 32)
+	jobID, stepID, err := util.ParseJobIdStepIdStrict(args[0])
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid job ID: %s", jobIDStr))
+		return err
 	}
+
+	if stepID == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, "step 0 is reserved for pods, please specify a valid container step ID")
+	}
+
 	idFilter := map[uint32]*protos.JobStepIds{}
-	idFilter[uint32(jobID)] = &protos.JobStepIds{}
+	idFilter[uint32(jobID)] = &protos.JobStepIds{Steps: []uint32{uint32(stepID)}}
 	request := protos.QueryTasksInfoRequest{
 		FilterIds:                   idFilter,
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
@@ -71,13 +74,31 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(reply.TaskInfoList) == 0 {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container with job ID %s not found", jobIDStr))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container %d.%d not found", jobID, stepID))
 	}
 
 	task := reply.TaskInfoList[0]
 
-	// FIXME: Currently only support single-step container logs
-	logPath, err := buildLogPath(task, uint32(jobID), 1)
+	var targetStep *protos.StepInfo
+	for _, step := range task.StepInfoList {
+		if step.StepId == stepID {
+			targetStep = step
+			break
+		}
+	}
+	if targetStep == nil {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container %d.%d not found", jobID, stepID))
+	}
+	if targetStep.GetContainerMeta() == nil {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("step %d.%d is not a container", jobID, stepID))
+	}
+
+	cwd := targetStep.Cwd
+	if cwd == "" {
+		cwd = task.Cwd
+	}
+
+	logPath, err := buildLogPath(cwd, jobID, stepID)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorBackend, "%v", err)
 	}
@@ -125,13 +146,13 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func buildLogPath(task *protos.TaskInfo, jobId, stepId uint32) (string, error) {
-	if task.Cwd == "" {
+func buildLogPath(cwd string, jobId, stepId uint32) (string, error) {
+	if cwd == "" {
 		return "", fmt.Errorf("task working directory not available")
 	}
 
 	logDir := fmt.Sprintf(kLogDirPattern, jobId)
-	logPath := filepath.Join(task.Cwd, logDir, fmt.Sprintf(kLogFilename, jobId, stepId))
+	logPath := filepath.Join(cwd, logDir, fmt.Sprintf(kLogFilename, jobId, stepId))
 
 	return logPath, nil
 }

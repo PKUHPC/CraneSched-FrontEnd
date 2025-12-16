@@ -32,16 +32,17 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // parseUserSpec parses user specification in format "uid" or "uid:gid"
-func parseUserSpec(userSpec string, containerMeta *protos.ContainerTaskAdditionalMeta) error {
+func parseUserSpec(userSpec string, podMeta *protos.PodTaskAdditionalMeta) error {
 	parts := strings.SplitN(userSpec, ":", 2)
 
 	// Parse user (UID only)
 	user := parts[0]
 	if uid, err := strconv.ParseUint(user, 10, 32); err == nil {
-		containerMeta.RunAsUser = uint32(uid)
+		podMeta.RunAsUser = uint32(uid)
 	} else {
 		// We currently do not intend to support user name resolution
 		return fmt.Errorf("user name resolution not supported, please provide a numeric UID")
@@ -51,7 +52,7 @@ func parseUserSpec(userSpec string, containerMeta *protos.ContainerTaskAdditiona
 	if len(parts) == 2 {
 		group := parts[1]
 		if gid, err := strconv.ParseUint(group, 10, 32); err == nil {
-			containerMeta.RunAsGroup = uint32(gid)
+			podMeta.RunAsGroup = uint32(gid)
 		} else {
 			return fmt.Errorf("group name resolution not supported, please provide a numeric GID")
 		}
@@ -76,8 +77,12 @@ func parseEnvVar(envVar string, envMap map[string]string) error {
 }
 
 // parsePortMapping parses port mapping in format "host:container" or "port"
-func parsePortMapping(portSpec string, portMap map[int32]int32) error {
+func parsePortMapping(portSpec string, portList *[]*protos.PodTaskAdditionalMeta_PortMapping) error {
 	parts := strings.SplitN(portSpec, ":", 2)
+
+	mapping := &protos.PodTaskAdditionalMeta_PortMapping{
+		Protocol: protos.PodTaskAdditionalMeta_PortMapping_TCP,
+	}
 
 	if len(parts) == 1 {
 		// Single port, map to same port
@@ -85,7 +90,8 @@ func parsePortMapping(portSpec string, portMap map[int32]int32) error {
 		if err != nil {
 			return fmt.Errorf("invalid port number: %v", err)
 		}
-		portMap[int32(port)] = int32(port)
+		mapping.HostPort = int32(port)
+		mapping.ContainerPort = int32(port)
 	} else {
 		// Host:container format
 		hostPort, err := strconv.ParseInt(parts[0], 10, 32)
@@ -96,9 +102,11 @@ func parsePortMapping(portSpec string, portMap map[int32]int32) error {
 		if err != nil {
 			return fmt.Errorf("invalid container port: %v", err)
 		}
-		portMap[int32(hostPort)] = int32(containerPort)
+		mapping.HostPort = int32(hostPort)
+		mapping.ContainerPort = int32(containerPort)
 	}
 
+	*portList = append(*portList, mapping)
 	return nil
 }
 
@@ -122,38 +130,79 @@ func parseVolumeMount(volumeSpec string, mountMap map[string]string) error {
 	return nil
 }
 
+// flagChanged checks if a flag is explicitly provided by user on current command or its root.
+func flagChanged(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	if flag := cmd.Flags().Lookup(name); flag != nil && flag.Changed {
+		return true
+	}
+	if flag := cmd.InheritedFlags().Lookup(name); flag != nil && flag.Changed {
+		return true
+	}
+	if flag := cmd.Root().PersistentFlags().Lookup(name); flag != nil && flag.Changed {
+		return flag.Changed
+	}
+	if flag := cmd.Root().Flags().Lookup(name); flag != nil && flag.Changed {
+		return flag.Changed
+	}
+	return false
+}
+
 // runExecute handles the run command execution
 func runExecute(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		return util.NewCraneErr(util.ErrorCmdArg, "run requires at least one argument: IMAGE [COMMAND] [ARG...]")
 	}
 
+	jobId, stepMode, err := util.ParseJobNestedEnv()
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container step: %v", err)
+	}
+
 	f := GetFlags()
 	image := args[0]
+
 	var command []string
 	if len(args) > 1 {
 		command = args[1:]
 	}
 
-	// Build the container task
-	task, err := buildContainerTask(f, image, command)
-	if err != nil {
-		return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container task: %v", err)
+	var errSubmit error
+	var reply protoreflect.ProtoMessage
+	if stepMode {
+		// Build the container step
+		step, err := buildContainerStep(cmd, f, jobId, image, command)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container step: %v", err)
+		}
+
+		if err := validateContainerStep(step); err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "validation failed: %v", err)
+		}
+
+		reply, errSubmit = submitContainerStep(step)
+	} else {
+		// Build the container job
+		task, err := buildContainerJob(cmd, f, image, command)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container task: %v", err)
+		}
+
+		if err := validateContainerJob(task); err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "validation failed: %v", err)
+		}
+
+		reply, errSubmit = submitContainerJob(task)
 	}
 
-	// Validate container-specific parameters
-	if err := validateContainerTask(task); err != nil {
-		return util.WrapCraneErr(util.ErrorCmdArg, "validation failed: %v", err)
-	}
-
-	// Submit the task
-	reply, err := submitContainerTask(task)
 	if f.Global.Json {
 		outputJson("run", "", f.Run, reply)
-		return err
+		return errSubmit
 	}
-	if err != nil {
-		return err
+	if errSubmit != nil {
+		return errSubmit
 	}
 
 	return attachAfterRun(f, reply)
@@ -214,6 +263,103 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	if gresSpec != "" {
 		// Set GPU resources via DeviceMap (like cbatch does)
 		task.ReqResources.DeviceMap = util.ParseGres(gresSpec)
+	}
+
+	return nil
+}
+
+// applyStepResourceOptions applies optional resource overrides to a container step.
+func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToCtld) error {
+	ensureAlloc := func() {
+		if step.ReqResourcesPerTask == nil {
+			step.ReqResourcesPerTask = &protos.ResourceView{
+				AllocatableRes: &protos.AllocatableResource{},
+			}
+		} else if step.ReqResourcesPerTask.AllocatableRes == nil {
+			step.ReqResourcesPerTask.AllocatableRes = &protos.AllocatableResource{}
+		}
+	}
+
+	// CPU allocation
+	if flagChanged(cmd, "cpus-per-task") || flagChanged(cmd, "cpus") {
+		if f.Run.Cpus > 0 && f.Crane.CpusPerTask > 0 {
+			return fmt.Errorf("--cpus and --cpus-per-task are mutually exclusive")
+		}
+		ensureAlloc()
+		if f.Crane.CpusPerTask > 0 {
+			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = f.Crane.CpusPerTask
+		} else if f.Run.Cpus > 0 {
+			log.Warn("--cpus is deprecated, please use --cpus-per-task instead")
+			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = f.Run.Cpus
+		}
+	}
+
+	// Memory allocation
+	if flagChanged(cmd, "mem") || flagChanged(cmd, "memory") {
+		if f.Run.Memory != "" && f.Crane.Mem != "" {
+			return fmt.Errorf("--memory and --mem are mutually exclusive")
+		}
+		memorySpec := f.Crane.Mem
+		if memorySpec == "" {
+			memorySpec = f.Run.Memory
+		}
+		if memorySpec != "" {
+			memoryBytes, err := util.ParseMemStringAsByte(memorySpec)
+			if err != nil {
+				return fmt.Errorf("invalid memory specification '%s': %v", memorySpec, err)
+			}
+			ensureAlloc()
+			step.ReqResourcesPerTask.AllocatableRes.MemoryLimitBytes = memoryBytes
+			step.ReqResourcesPerTask.AllocatableRes.MemorySwLimitBytes = memoryBytes
+		}
+	}
+
+	// GPU allocation
+	if flagChanged(cmd, "gres") || flagChanged(cmd, "gpus") {
+		if f.Run.Gpus != "" && f.Crane.Gres != "" {
+			return fmt.Errorf("--gpus and --gres are mutually exclusive")
+		}
+		gresSpec := f.Crane.Gres
+		if gresSpec == "" {
+			gresSpec = f.Run.Gpus
+		}
+		if gresSpec != "" {
+			if f.Run.Gpus != "" && f.Crane.Gres == "" {
+				return fmt.Errorf("--gpus is not supported. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'")
+			}
+			if step.ReqResourcesPerTask == nil {
+				step.ReqResourcesPerTask = &protos.ResourceView{}
+			}
+			step.ReqResourcesPerTask.DeviceMap = util.ParseGres(gresSpec)
+		}
+	}
+
+	// Node-related overrides
+	if flagChanged(cmd, "nodes") {
+		val := f.Crane.Nodes
+		step.NodeNum = &val
+	}
+
+	if flagChanged(cmd, "ntasks-per-node") {
+		val := f.Crane.NtasksPerNode
+		step.NtasksPerNode = &val
+	}
+
+	if flagChanged(cmd, "nodelist") {
+		step.Nodelist = f.Crane.Nodelist
+	}
+
+	if flagChanged(cmd, "exclude") {
+		step.Excludes = f.Crane.Excludes
+	}
+
+	// Time limit override
+	if flagChanged(cmd, "time") && f.Crane.Time != "" {
+		seconds, err := util.ParseDurationStrToSeconds(f.Crane.Time)
+		if err != nil {
+			return fmt.Errorf("invalid time specification '%s': %v", f.Crane.Time, err)
+		}
+		step.TimeLimit.Seconds = seconds
 	}
 
 	return nil
@@ -322,6 +468,23 @@ func applyEnvironmentOptions(_ *Flags, task *protos.TaskToCtld) error {
 	return nil
 }
 
+// applyStepEnvironmentOptions sets defaults for step submission
+func applyStepEnvironmentOptions(step *protos.StepToCtld) error {
+	if step.Cwd == "" {
+		step.Cwd, _ = os.Getwd()
+	}
+
+	if step.CmdLine == "" {
+		step.CmdLine = strings.Join(os.Args, " ")
+	}
+
+	if step.Uid == 0 {
+		step.Uid = uint32(os.Getuid())
+	}
+
+	return nil
+}
+
 // applyIOOptions configures TTY and input stream options for the container
 // Based on docker/podman behavior matrix:
 //
@@ -349,8 +512,119 @@ func applyIOOptions(f *Flags, containerMeta *protos.ContainerTaskAdditionalMeta)
 	containerMeta.StdinOnce = containerMeta.Stdin && !f.Run.Detach
 }
 
-// buildContainerTask creates a TaskToCtld with container metadata from command line arguments
-func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskToCtld, error) {
+// buildContainerMeta builds container-level settings shared by job and step submissions.
+func buildContainerMeta(f *Flags, image string, command []string) (*protos.ContainerTaskAdditionalMeta, error) {
+	registry, repository, tag := parseImageRef(image)
+
+	var fullImageName string
+	if strings.HasPrefix(tag, "sha256:") || strings.HasPrefix(tag, "sha1:") || strings.HasPrefix(tag, "sha512:") {
+		fullImageName = repository + "@" + tag
+	} else {
+		fullImageName = repository + ":" + tag
+	}
+
+	if registry != "" {
+		fullImageName = registry + "/" + fullImageName
+	}
+
+	username, password, err := getAuthForRegistry(registry)
+	if err != nil {
+		log.Warnf("Failed to get auth for registry %s: %v", registry, err)
+		username, password = "", ""
+	}
+
+	containerMeta := &protos.ContainerTaskAdditionalMeta{
+		Image: &protos.ContainerTaskAdditionalMeta_ImageInfo{
+			Image:         fullImageName,
+			Username:      username,
+			Password:      password,
+			ServerAddress: registry,
+			PullPolicy:    f.Run.PullPolicy,
+		},
+		Detached: f.Run.Detach,
+		Env:      make(map[string]string),
+		Mounts:   make(map[string]string),
+	}
+
+	if f.Run.Name != "" {
+		containerMeta.Name = f.Run.Name
+	}
+
+	if f.Run.Entrypoint != "" {
+		containerMeta.Command = f.Run.Entrypoint
+		containerMeta.Args = command
+	} else if len(command) > 0 {
+		containerMeta.Command = command[0]
+		if len(command) > 1 {
+			containerMeta.Args = command[1:]
+		}
+	}
+
+	if f.Run.Workdir != "" {
+		containerMeta.Workdir = f.Run.Workdir
+	}
+
+	for _, env := range f.Run.Env {
+		if err := parseEnvVar(env, containerMeta.Env); err != nil {
+			return nil, fmt.Errorf("invalid environment variable '%s': %v", env, err)
+		}
+	}
+
+	for _, volume := range f.Run.Volume {
+		if err := parseVolumeMount(volume, containerMeta.Mounts); err != nil {
+			return nil, fmt.Errorf("invalid volume mount '%s': %v", volume, err)
+		}
+	}
+
+	applyIOOptions(f, containerMeta)
+	return containerMeta, nil
+}
+
+// buildPodMeta constructs pod-level metadata for container jobs.
+func buildPodMeta(_ *cobra.Command, f *Flags, task *protos.TaskToCtld) (*protos.PodTaskAdditionalMeta, error) {
+	var networkMode protos.PodTaskAdditionalMeta_NamespaceMode
+	switch f.Run.Network {
+	case "host": // NODE
+		networkMode = protos.PodTaskAdditionalMeta_NODE
+	case "default": // POD
+		networkMode = protos.PodTaskAdditionalMeta_POD
+	default: // TARGET / CONTAINER is not support.
+		return nil, fmt.Errorf("invalid network specification '%s': only 'host' and 'default' are supported", f.Run.Network)
+	}
+
+	podMeta := &protos.PodTaskAdditionalMeta{
+		Name: f.Run.Name,
+		Namespace: &protos.PodTaskAdditionalMeta_NamespaceOption{
+			Network: networkMode,
+		},
+		Userns: f.Run.UserNS,
+	}
+
+	if f.Run.User != "" {
+		if err := parseUserSpec(f.Run.User, podMeta); err != nil {
+			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
+		}
+	} else if !podMeta.Userns {
+		podMeta.RunAsUser = task.Uid
+		podMeta.RunAsGroup = task.Gid
+	}
+
+	if networkMode == protos.PodTaskAdditionalMeta_NODE && len(f.Run.Ports) != 0 {
+		// Port mapping not feasible in NODE mode.
+		return nil, fmt.Errorf("port mapping is not supported in 'host' network mode")
+	}
+
+	for _, port := range f.Run.Ports {
+		if err := parsePortMapping(port, &podMeta.Ports); err != nil {
+			return nil, fmt.Errorf("invalid port mapping '%s': %v", port, err)
+		}
+	}
+
+	return podMeta, nil
+}
+
+// buildContainerJob creates a TaskToCtld with container metadata from command line arguments
+func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []string) (*protos.TaskToCtld, error) {
 	task := &protos.TaskToCtld{
 		Type:      protos.TaskType_Container,
 		TimeLimit: util.InvalidDuration(),
@@ -368,153 +642,85 @@ func buildContainerTask(f *Flags, image string, command []string) (*protos.TaskT
 		Env:           make(map[string]string),
 	}
 
-	// Apply resource control options (Docker-style, mapped to cbatch semantics)
 	if err := applyResourceOptions(f, task); err != nil {
 		return nil, fmt.Errorf("failed to apply resource options: %v", err)
 	}
 
-	// Apply cluster scheduling options
 	if err := applySchedulingOptions(f, task); err != nil {
 		return nil, fmt.Errorf("failed to apply scheduling options: %v", err)
 	}
 
-	// Apply environment options
 	if err := applyEnvironmentOptions(f, task); err != nil {
 		return nil, fmt.Errorf("failed to apply environment options: %v", err)
 	}
 
-	// Parse image reference to extract registry, repository, and tag
-	registry, repository, tag := parseImageRef(image)
-
-	// Reconstruct full image name, handling both tags and digests
-	var fullImageName string
-	if strings.HasPrefix(tag, "sha256:") || strings.HasPrefix(tag, "sha1:") || strings.HasPrefix(tag, "sha512:") {
-		// This is a digest reference, use @ separator
-		fullImageName = repository + "@" + tag
-	} else {
-		// This is a tag reference, use : separator
-		fullImageName = repository + ":" + tag
-	}
-
-	if registry != "" {
-		fullImageName = registry + "/" + fullImageName
-	}
-
-	// Get authentication info for the registry
-	username, password, err := getAuthForRegistry(registry)
+	containerMeta, err := buildContainerMeta(f, image, command)
 	if err != nil {
-		log.Warnf("Failed to get auth for registry %s: %v", registry, err)
-		username, password = "", ""
+		return nil, err
 	}
 
-	// Create container metadata
-	containerMeta := &protos.ContainerTaskAdditionalMeta{
-		Image: &protos.ContainerTaskAdditionalMeta_ImageInfo{
-			Image:         fullImageName,
-			Username:      username,
-			Password:      password,
-			ServerAddress: registry,
-			PullPolicy:    f.Run.PullPolicy,
-		},
-		Userns:   f.Run.UserNS,
-		Detached: f.Run.Detach,
-		Env:      make(map[string]string),
-		Mounts:   make(map[string]string),
-		Ports:    make(map[int32]int32),
+	podMeta, err := buildPodMeta(cmd, f, task)
+	if err != nil {
+		return nil, err
 	}
 
-	// Set container name
-	// Currently, we set both names in Job and ContainerMeta, however,
-	// name in ContainerMeta may be ignored.
 	if f.Run.Name != "" {
-		containerMeta.Name = f.Run.Name
 		task.Name = f.Run.Name
-	} else {
-		containerMeta.Name = ""
-		task.Name = ""
 	}
 
-	// Set entrypoint and command
-	if f.Run.Entrypoint != "" {
-		containerMeta.Command = f.Run.Entrypoint
-		containerMeta.Args = command
-	} else {
-		if len(command) > 0 {
-			containerMeta.Command = command[0]
-			if len(command) > 1 {
-				containerMeta.Args = command[1:]
-			}
-		}
-	}
-
-	// Set working directory
-	if f.Run.Workdir != "" {
-		containerMeta.Workdir = f.Run.Workdir
-	}
-
-	// Parse and set user information
-	if f.Run.User != "" {
-		if err := parseUserSpec(f.Run.User, containerMeta); err != nil {
-			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
-		}
-	} else {
-		// When --user is not specified, default behavior:
-		// - userns=true → run as container root (UID 0), which maps to current user
-		// - userns=false → run as current user (must match task.Uid/Gid)
-		if !containerMeta.Userns {
-			containerMeta.RunAsUser = task.Uid
-			containerMeta.RunAsGroup = task.Gid
-		}
-	}
-
-	// Parse and set environment variables (container-specific)
-	for _, env := range f.Run.Env {
-		if err := parseEnvVar(env, containerMeta.Env); err != nil {
-			return nil, fmt.Errorf("invalid environment variable '%s': %v", env, err)
-		}
-	}
-
-	// Parse and set port mappings
-	for _, port := range f.Run.Ports {
-		if err := parsePortMapping(port, containerMeta.Ports); err != nil {
-			return nil, fmt.Errorf("invalid port mapping '%s': %v", port, err)
-		}
-	}
-
-	// Parse and set volume mounts
-	for _, volume := range f.Run.Volume {
-		if err := parseVolumeMount(volume, containerMeta.Mounts); err != nil {
-			return nil, fmt.Errorf("invalid volume mount '%s': %v", volume, err)
-		}
-	}
-
-	// Set TTY and stdin behavior based on container configuration
-	applyIOOptions(f, containerMeta)
-
-	// Set the container metadata as payload
-	task.Payload = &protos.TaskToCtld_ContainerMeta{
-		ContainerMeta: containerMeta,
-	}
-
+	task.ContainerMeta = containerMeta
+	task.PodMeta = podMeta
 	return task, nil
 }
 
-// validateContainerTask validates container-specific parameters
-func validateContainerTask(task *protos.TaskToCtld) error {
-	containerMeta := task.GetContainerMeta()
+// buildContainerStep creates a StepToCtld for a container step submission.
+func buildContainerStep(cmd *cobra.Command, f *Flags, jobId uint32, image string, command []string) (*protos.StepToCtld, error) {
+	if f.Run.User != "" || len(f.Run.Ports) > 0 || flagChanged(cmd, "userns") {
+		return nil, fmt.Errorf("user, userns, and port options are not supported when submitting container steps; pod configuration is inherited from the job")
+	}
+
+	step := &protos.StepToCtld{
+		TimeLimit: util.InvalidDuration(),
+		JobId:     jobId,
+		Type:      protos.TaskType_Container,
+		Env:       make(map[string]string),
+		Name:      f.Run.Name,
+	}
+
+	if err := applyStepResourceOptions(cmd, f, step); err != nil {
+		return nil, fmt.Errorf("failed to apply step resource options: %v", err)
+	}
+
+	if err := applyStepEnvironmentOptions(step); err != nil {
+		return nil, fmt.Errorf("failed to apply step environment options: %v", err)
+	}
+
+	containerMeta, err := buildContainerMeta(f, image, command)
+	if err != nil {
+		return nil, err
+	}
+
+	step.ContainerMeta = containerMeta
+	return step, nil
+}
+
+// validateContainerJob validates container-specific parameters
+func validateContainerJob(task *protos.TaskToCtld) error {
+	containerMeta := task.ContainerMeta
 	if containerMeta == nil {
 		return fmt.Errorf("container metadata is missing")
 	}
+	if task.PodMeta == nil {
+		return fmt.Errorf("pod metadata is required for container tasks")
+	}
+	if task.Type != protos.TaskType_Container {
+		return fmt.Errorf("task type must be Container")
+	}
 
-	// Validate user and group IDs
-	// NOTE: If UserNS is enabled, we allow running as root (UID 0)
-	// because it will be mapped to the actual user outside the container.
-	if task.Uid != 0 {
-		if !containerMeta.Userns && (task.Uid != containerMeta.RunAsUser || task.Gid != containerMeta.RunAsGroup) {
+	if task.Uid != 0 && !task.PodMeta.Userns {
+		if task.PodMeta.RunAsUser != task.Uid || task.PodMeta.RunAsGroup != task.Gid {
 			return fmt.Errorf("with --userns=false, only current user and accessible groups are allowed")
 		}
-	} else if containerMeta.Userns {
-		log.Warnf("--userns is ignored when running as root")
 	}
 
 	// Validate image specification
@@ -522,13 +728,12 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 		return fmt.Errorf("container image is required")
 	}
 
-	// Validate port mappings
-	for hostPort, containerPort := range containerMeta.Ports {
-		if hostPort < 1 || hostPort > 65535 {
-			return fmt.Errorf("invalid host port %d: must be between 1 and 65535", hostPort)
+	for _, port := range task.PodMeta.Ports {
+		if port.HostPort < 1 || port.HostPort > 65535 {
+			return fmt.Errorf("invalid host port %d: must be between 1 and 65535", port.HostPort)
 		}
-		if containerPort < 1 || containerPort > 65535 {
-			return fmt.Errorf("invalid container port %d: must be between 1 and 65535", containerPort)
+		if port.ContainerPort < 1 || port.ContainerPort > 65535 {
+			return fmt.Errorf("invalid container port %d: must be between 1 and 65535", port.ContainerPort)
 		}
 	}
 
@@ -557,8 +762,48 @@ func validateContainerTask(task *protos.TaskToCtld) error {
 	return nil
 }
 
-// submitContainerTask submits a container task via gRPC
-func submitContainerTask(task *protos.TaskToCtld) (*protos.SubmitBatchTaskReply, error) {
+// validateContainerStep validates container step submission payload.
+func validateContainerStep(step *protos.StepToCtld) error {
+	if step.JobId == 0 {
+		return fmt.Errorf("job_id is required for container steps")
+	}
+
+	if step.Type != protos.TaskType_Container {
+		return fmt.Errorf("step type must be Container")
+	}
+
+	containerMeta := step.ContainerMeta
+	if containerMeta == nil {
+		return fmt.Errorf("container metadata is required for steps")
+	}
+
+	if containerMeta.Image == nil || containerMeta.Image.Image == "" {
+		return fmt.Errorf("container image is required")
+	}
+
+	for hostPath, containerPath := range containerMeta.Mounts {
+		if hostPath == "" || containerPath == "" {
+			return fmt.Errorf("host path and container path cannot be empty")
+		}
+	}
+
+	for envName := range containerMeta.Env {
+		if strings.HasPrefix(envName, "CRANE_") {
+			log.Warnf("Environment variable %s uses reserved CRANE_ prefix", envName)
+		}
+	}
+
+	if policy := containerMeta.Image.PullPolicy; policy != "" {
+		if policy != "Always" && policy != "IfNotPresent" && policy != "Never" {
+			return fmt.Errorf("invalid pull policy '%s': must be Always, IfNotPresent, or Never", policy)
+		}
+	}
+
+	return nil
+}
+
+// submitContainerJob submits a container task via gRPC
+func submitContainerJob(task *protos.TaskToCtld) (*protos.SubmitBatchTaskReply, error) {
 	req := &protos.SubmitBatchTaskRequest{Task: task}
 
 	reply, err := stub.SubmitBatchTask(context.Background(), req)
@@ -574,36 +819,69 @@ func submitContainerTask(task *protos.TaskToCtld) (*protos.SubmitBatchTaskReply,
 	}
 }
 
+// submitContainerStep submits a container step via gRPC
+func submitContainerStep(step *protos.StepToCtld) (*protos.SubmitContainerStepReply, error) {
+	req := &protos.SubmitContainerStepRequest{Step: step}
+
+	reply, err := stub.SubmitContainerStep(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to submit the container step")
+		return reply, util.NewCraneErr(util.ErrorNetwork, "")
+	}
+
+	if reply.GetOk() {
+		return reply, nil
+	}
+
+	return reply, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container step submission failed: %s", util.ErrMsg(reply.GetCode())))
+}
+
 // Handle auto-attaching to container after run command
 // See applyIOOptions for explanation of the behavior matrix
-func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
+func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
+	var jobId, stepId uint32
+	switch r := reply.(type) {
+	case *protos.SubmitBatchTaskReply:
+		// Primary container step
+		jobId = r.GetTaskId()
+		stepId = 1
+	case *protos.SubmitContainerStepReply:
+		// Specific container step
+		jobId = r.GetJobId()
+		stepId = r.GetStepId()
+	default:
+		return fmt.Errorf("invalid reply type for attachAfterRun")
+	}
+
 	if f.Run.Detach {
-		fmt.Printf("Container task submitted successfully. Task ID: %d\n", reply.GetTaskId())
+		fmt.Printf("Container submitted successfully. Job ID: %d, Step ID: %d\n", jobId, stepId)
 		return nil
 	}
 
 	streamOpt := StreamOptions{
-		Stdin:     f.Run.Interactive,
-		Stdout:    true,
-		Stderr:    !f.Run.Tty,
-		Tty:       f.Run.Tty,
+		Stdin:  f.Run.Interactive,
+		Stdout: true,
+		Stderr: !f.Run.Tty,
+		Tty:    f.Run.Tty,
+		// TODO: consider add transport selection.
 		Transport: "spdy",
 	}
 
-	attach := func(ctx context.Context) (*protos.AttachInContainerTaskReply, error) {
-		req := protos.AttachInContainerTaskRequest{
-			TaskId: uint32(reply.GetTaskId()),
-			Uid:    uint32(os.Getuid()),
-			Stdin:  streamOpt.Stdin,
-			Stdout: streamOpt.Stdout,
-			Stderr: streamOpt.Stderr,
-			Tty:    streamOpt.Tty,
-		}
+	req := &protos.AttachContainerStepRequest{
+		JobId:  jobId,
+		StepId: stepId,
+		Uid:    uint32(os.Getuid()),
+		Stdin:  streamOpt.Stdin,
+		Stdout: streamOpt.Stdout,
+		Stderr: streamOpt.Stderr,
+		Tty:    streamOpt.Tty,
+	}
 
+	attach := func(ctx context.Context, req *protos.AttachContainerStepRequest) (*protos.AttachContainerStepReply, error) {
 		grpcCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
-		reply, err := stub.AttachInContainerTask(grpcCtx, &req)
+		reply, err := stub.AttachContainerStep(grpcCtx, req)
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to get attach URL")
 			return nil, util.NewCraneErr(util.ErrorNetwork, "")
@@ -628,7 +906,7 @@ func attachAfterRun(f *Flags, reply *protos.SubmitBatchTaskReply) error {
 			return nil
 		}
 
-		reply, err := attach(ctx)
+		reply, err := attach(ctx, req)
 		if err != nil {
 			// Network or other gRPC errors: exit immediately
 			return err

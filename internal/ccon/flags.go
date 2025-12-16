@@ -62,6 +62,7 @@ type RunFlags struct {
 	Entrypoint  string
 	User        string
 	UserNS      bool
+	Network     string
 	Workdir     string
 	Cpus        float64
 	Memory      string
@@ -74,6 +75,11 @@ type StopFlags struct {
 }
 
 type PsFlags struct {
+	All   bool
+	Quiet bool
+}
+
+type PodFlags struct {
 	All   bool
 	Quiet bool
 }
@@ -112,6 +118,7 @@ type Flags struct {
 	Run    RunFlags
 	Stop   StopFlags
 	Ps     PsFlags
+	Pod    PodFlags
 	Log    LogFlags
 	Login  LoginFlags
 	Attach AttachFlags
