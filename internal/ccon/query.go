@@ -143,9 +143,10 @@ func inspectExecute(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid job ID: %s", jobIDStr))
 	}
-
+	idFilter := map[uint32]*protos.JobStepIds{}
+	idFilter[uint32(jobID)] = &protos.JobStepIds{}
 	request := protos.QueryTasksInfoRequest{
-		FilterTaskIds:               []uint32{uint32(jobID)},
+		FilterIds:                   idFilter,
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
 		OptionIncludeCompletedTasks: true,
 	}

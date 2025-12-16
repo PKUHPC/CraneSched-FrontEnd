@@ -47,6 +47,15 @@ const (
 	TimelimitTypeFlag
 )
 
+type StepIdentifier struct {
+	JobId  uint32
+	StepId uint32
+}
+
+func (step *StepIdentifier) String() string {
+	return fmt.Sprintf("%d.%d", step.JobId, step.StepId)
+}
+
 func SummarizeReply(proto interface{}) error {
 	switch reply := proto.(type) {
 	case *protos.ModifyTaskReply:
@@ -223,13 +232,13 @@ func ChangeTaskPriority(taskStr string, priority float64) error {
 }
 
 func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]string) error {
-	jobIdList, err := util.ParseJobIdList(taskStr, ",")
+	stepIdList, err := util.ParseStepIdList(taskStr, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	req := &protos.QueryTasksInfoRequest{
-		FilterTaskIds:               jobIdList,
+		FilterIds:                   stepIdList,
 		OptionIncludeCompletedTasks: false,
 	}
 	reply, err := stub.QueryTasksInfo(context.Background(), req)
@@ -242,8 +251,8 @@ func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]strin
 	}
 
 	if len(reply.TaskInfoList) == 0 {
-		jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Job %s is completed or does not exist", jobIdListString))
+		jobIdListString := util.JobStepListToString(stepIdList)
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("%s is completed or does not exist", jobIdListString))
 	}
 
 	updateJobExtraAttr := func(origin string, JobParamvalMap map[UpdateJobParamFlags]string) (string, error) {
@@ -277,7 +286,7 @@ func ChangeTaskExtraAttrs(taskStr string, valueMap map[UpdateJobParamFlags]strin
 	}
 
 	notGetInfoJobs := []uint32{}
-	for _, jobId := range jobIdList {
+	for jobId, _ := range stepIdList {
 		if !validJobList[jobId] {
 			notGetInfoJobs = append(notGetInfoJobs, jobId)
 		}

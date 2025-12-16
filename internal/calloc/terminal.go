@@ -20,6 +20,7 @@ package calloc
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -32,6 +33,7 @@ import (
 )
 
 func StartTerminal(shellPath string,
+	jobId uint32,
 	cancelRequestChannel chan bool,
 	terminalExitChannel chan bool) {
 
@@ -72,7 +74,9 @@ func StartTerminal(shellPath string,
 		Ctty:       0,
 		Foreground: true,
 	}
-	process.Env = os.Environ()
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("CRANE_JOB_ID=%d", jobId))
+	process.Env = env
 
 	err = process.Start()
 	if err != nil {

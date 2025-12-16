@@ -124,8 +124,13 @@ func (s *QueryService) getTaskInformation(ctx context.Context, taskIds []uint32)
 
 	ctldClient := util.GetStubToCtldByConfig(s.craneConfig)
 
+	stepIds := make(map[uint32]*protos.JobStepIds)
+	for _, id := range taskIds {
+		stepIds[id] = &protos.JobStepIds{}
+	}
+
 	req := &protos.QueryTasksInfoRequest{
-		FilterTaskIds:               taskIds,
+		FilterIds:                   stepIds,
 		OptionIncludeCompletedTasks: true,
 	}
 

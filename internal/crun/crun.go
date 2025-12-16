@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
+	"github.com/spf13/cobra"
 	"net"
 	"os/user"
 	"regexp"
@@ -79,9 +80,12 @@ type ReplyReceiveItem struct {
 }
 
 type StateMachineOfCrun struct {
-	task   *protos.TaskToCtld
+	job    *protos.TaskToCtld
+	step   *protos.StepToCtld
 	jobId  uint32 // This field will be set after ReqTaskId state
 	stepId uint32 // This field will be set after ReqTaskId state
+
+	cranedId []string
 
 	inputFlag string // Crun --input flag, used to determine how to read input from stdin
 
@@ -141,8 +145,9 @@ func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 	}
 }
 
-func (m *StateMachineOfCrun) Init(task *protos.TaskToCtld) {
-	m.task = task
+func (m *StateMachineOfCrun) Init(job *protos.TaskToCtld, step *protos.StepToCtld) {
+	m.job = job
+	m.step = step
 	m.state = ConnectCfored
 	m.err = util.ErrorSuccess
 
@@ -198,19 +203,31 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 
 	m.cforedReplyReceiver = new(CforedReplyReceiver)
 	m.cforedReplyReceiver.StartReplyReceiveRoutine(m.stream)
-
-	request := &protos.StreamCrunRequest{
-		Type: protos.StreamCrunRequest_TASK_REQUEST,
-		Payload: &protos.StreamCrunRequest_PayloadTaskReq{
-			PayloadTaskReq: &protos.StreamCrunRequest_TaskReq{
-				Task:    m.task,
-				CrunPid: int32(os.Getpid()),
+	var request *protos.StreamCrunRequest
+	if m.job != nil {
+		request = &protos.StreamCrunRequest{
+			Type: protos.StreamCrunRequest_TASK_REQUEST,
+			Payload: &protos.StreamCrunRequest_PayloadTaskReq{
+				PayloadTaskReq: &protos.StreamCrunRequest_TaskReq{
+					Task:    m.job,
+					CrunPid: int32(os.Getpid()),
+				},
 			},
-		},
+		}
+	} else {
+		request = &protos.StreamCrunRequest{
+			Type: protos.StreamCrunRequest_STEP_REQUEST,
+			Payload: &protos.StreamCrunRequest_PayloadStepReq{
+				PayloadStepReq: &protos.StreamCrunRequest_StepReq{
+					Step:    m.step,
+					CrunPid: int32(os.Getpid()),
+				},
+			},
+		}
 	}
 
 	if err := m.stream.Send(request); err != nil {
-		log.Errorf("Failed to send Task Request to CrunStream: %s. "+
+		log.Errorf("Failed to send Request to CrunStream: %s. "+
 			"Connection to Crun is broken", err)
 		gVars.connectionBroken = true
 
@@ -234,7 +251,7 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 				fallthrough
 			default:
 				log.Errorf("Connection to Cfored broken when requesting "+
-					"task id: %s. Exiting...", err)
+					"job id: %s. Exiting...", err)
 				gVars.connectionBroken = true
 				m.state = End
 				m.err = util.ErrorNetwork
@@ -253,17 +270,21 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 		if payload.Ok {
 			m.jobId = payload.JobId
 			m.stepId = payload.StepId
-			fmt.Printf("Task id allocated: %d, waiting resources.\n", m.jobId)
+			if m.step == nil {
+				fmt.Printf("Task id allocated: %d, waiting resources.\n", m.jobId)
+			} else {
+				fmt.Printf("Job %d step %d allocated, waiting resources.\n", m.jobId, m.stepId)
+			}
 			m.state = WaitRes
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s\n", payload.FailureReason)
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate job id: %s\n", payload.FailureReason)
 			m.state = End
 			m.err = util.ErrorBackend
 			return
 		}
 	case sig := <-m.sigs:
 		if sig == syscall.SIGINT {
-			log.Tracef("SIGINT Received. Not allowed to cancel task when ReqTaskId")
+			log.Tracef("SIGINT Received. Not allowed to cancel job when ReqTaskId")
 		} else {
 			log.Tracef("Unhanled sig %s", sig.String())
 		}
@@ -297,9 +318,11 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 
 			if Ok {
 				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+
+				m.cranedId = cforedPayload.CranedIds
 				m.state = WaitForward
 			} else {
-				log.Errorln("Failed to allocate task resource. Exiting...")
+				log.Errorln("Failed to allocate job resource. Exiting...")
 				m.state = End
 				m.err = util.ErrorBackend
 				return
@@ -311,7 +334,7 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 
 	case sig := <-m.sigs:
 		if sig == syscall.SIGINT {
-			log.Tracef("SIGINT Received. Cancelling the task...")
+			log.Tracef("SIGINT Received. Cancelling the job...")
 			m.state = TaskKilling
 		} else {
 			log.Tracef("Unhandled sig %s", sig.String())
@@ -346,7 +369,7 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 				m.state = Forwarding
 				return
 			} else {
-				log.Errorln("Failed to wait for task io forward ready. Exiting...")
+				log.Errorln("Failed to wait for job io forward ready. Exiting...")
 				m.state = End
 				m.err = util.ErrorBackend
 				return
@@ -496,7 +519,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					fallthrough
 				default:
 					log.Errorf("The connection to Cfored was broken: %s. "+
-						"Killing task...", err)
+						"Killing job...", err)
 					gVars.connectionBroken = true
 					m.err = util.ErrorNetwork
 					m.state = TaskKilling
@@ -582,7 +605,7 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 	if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
 		log.Debug("Task completed.")
 	} else {
-		log.Errorln("Failed to notify server of task completion")
+		log.Errorln("Failed to notify server of job completion")
 		m.err = util.ErrorBackend
 	}
 
@@ -781,9 +804,18 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	if strings.Contains(pattern, "\\") {
 		return strings.ReplaceAll(pattern, "\\", ""), nil
 	}
-	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
+	var uid uint32
+	var name string
+	if m.job != nil {
+		uid = m.job.Uid
+		name = m.job.Name
+	} else {
+		uid = m.step.Uid
+		name = m.step.Name
+	}
+	currentUser, err := user.LookupId(fmt.Sprintf("%d", uid))
 	if err != nil {
-		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", m.task.Uid, err)
+		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", uid, err)
 	}
 	replacements := map[string]string{
 		"%%": "%",
@@ -796,17 +828,17 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 		// job id
 		"%j": fmt.Sprintf("%d", m.jobId),
 		// step id
-		"%s": "0",
+		"%s": fmt.Sprintf("%d", m.stepId),
 		//short hostname
 		//"%N": "node1",
 		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
 		//"%n": "0",
-		//task identifier (rank) relative to current job.
+		//job identifier (rank) relative to current job.
 		//"%t": "0",
 		//User name
 		"%u": currentUser.Username,
 		// Job name
-		"%x": m.task.Name,
+		"%x": name,
 	}
 
 	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
@@ -892,8 +924,12 @@ func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
 	var reader *bufio.Reader
 	var conn net.Conn
 	var err error
-
-	x11meta := m.task.GetInteractiveMeta().GetX11Meta()
+	var x11meta *protos.X11Meta
+	if m.job != nil {
+		x11meta = m.job.GetInteractiveMeta().GetX11Meta()
+	} else {
+		x11meta = m.step.GetInteractiveMeta().GetX11Meta()
+	}
 	if x11meta.Port == 0 { // Unix Socket
 		conn, err = net.Dial("unix", x11meta.Target)
 		if err != nil {
@@ -963,7 +999,14 @@ func (m *StateMachineOfCrun) StartIOForward() {
 
 	m.chanX11InputFromLocal = make(chan []byte, 100)
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
+	totalNodes := uint32(len(m.cranedId))
 
+	var iaMeta *protos.InteractiveTaskAdditionalMeta
+	if m.job != nil {
+		iaMeta = m.job.GetInteractiveMeta()
+	} else {
+		iaMeta = m.step.GetInteractiveMeta()
+	}
 	go m.forwardingSigHandlerRoutine()
 	if strings.ToLower(FlagInput) == FlagInputALL {
 		go m.StdinReaderRoutine()
@@ -972,10 +1015,10 @@ func (m *StateMachineOfCrun) StartIOForward() {
 		if err != nil {
 			go m.FileReaderRoutine(FlagInput)
 		} else {
-			if uint32(num) > m.task.NtasksPerNode*m.task.NodeNum {
+			if uint32(num) > totalNodes {
 				go m.FileReaderRoutine(FlagInput)
 			} else {
-				//TODO: should fwd io to the task with relative id equal to task id instead of file
+				//TODO: should fwd io to the job with relative id equal to job id instead of file
 				go m.FileReaderRoutine(FlagInput)
 			}
 		}
@@ -983,13 +1026,12 @@ func (m *StateMachineOfCrun) StartIOForward() {
 
 	go m.StdoutWriterRoutine()
 
-	iaMeta := m.task.GetInteractiveMeta()
 	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
 		go m.StartX11ReaderWriterRoutine()
 	}
 }
 
-func MainCrun(args []string) error {
+func MainCrun(cmd *cobra.Command, args []string) error {
 	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -1002,89 +1044,232 @@ func MainCrun(args []string) error {
 	if len(args) == 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, "Please specify program to run")
 	}
+	var jobId uint32
+	envJobIdString, stepMode := syscall.Getenv("CRANE_JOB_ID")
+	jobMode := !stepMode
+	if stepMode {
+		parsedJobId, err := strconv.ParseUint(envJobIdString, 10, 32)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorInvalidFormat,
+				"Invalid CRANE_JOB_ID")
 
-	task := &protos.TaskToCtld{
-		Name:          "Interactive",
-		TimeLimit:     util.InvalidDuration(),
-		PartitionName: "",
-		ReqResources: &protos.ResourceView{
-			AllocatableRes: &protos.AllocatableResource{
-				CpuCoreLimit:       1,
-				MemoryLimitBytes:   0,
-				MemorySwLimitBytes: 0,
+		}
+		jobId = uint32(parsedJobId)
+	}
+
+	var job *protos.TaskToCtld
+	var step *protos.StepToCtld
+	egid := syscall.Getegid()
+	groups, err := syscall.Getgroups()
+	if err != nil {
+		return util.NewCraneErr(util.ErrorSystem, fmt.Sprintf("Failed to get user groups: %s.", err))
+	}
+	gids := []uint32{uint32(egid)}
+
+	for _, g := range groups {
+		if g != egid {
+			gids = append(gids, uint32(g))
+		}
+	}
+
+	if jobMode {
+		job = &protos.TaskToCtld{
+			Name:          "Interactive",
+			TimeLimit:     util.InvalidDuration(),
+			PartitionName: "",
+			ReqResources: &protos.ResourceView{
+				AllocatableRes: &protos.AllocatableResource{
+					CpuCoreLimit:       1,
+					MemoryLimitBytes:   0,
+					MemorySwLimitBytes: 0,
+				},
 			},
-		},
-		Type:            protos.TaskType_Interactive,
-		Uid:             uint32(os.Getuid()),
-		Gid:             uint32(os.Getgid()),
-		NodeNum:         1,
-		NtasksPerNode:   1,
-		CpusPerTask:     1,
-		RequeueIfFailed: false,
-		Payload: &protos.TaskToCtld_InteractiveMeta{
-			InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
-		},
-		CmdLine: strings.Join(args, " "),
-		Cwd:     gVars.cwd,
+			Type:            protos.TaskType_Interactive,
+			Uid:             uint32(os.Getuid()),
+			Gid:             gids[0],
+			NodeNum:         1,
+			NtasksPerNode:   1,
+			CpusPerTask:     1,
+			RequeueIfFailed: false,
+			Payload: &protos.TaskToCtld_InteractiveMeta{
+				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
+			},
+			CmdLine: strings.Join(args, " "),
+			Cwd:     gVars.cwd,
 
-		Env: make(map[string]string),
+			Env: make(map[string]string),
+		}
+	} else {
+		step = &protos.StepToCtld{
+			Name:                "InteractiveStep",
+			TimeLimit:           util.InvalidDuration(),
+			JobId:               jobId,
+			ReqResourcesPerTask: nil,
+			Type:                protos.TaskType_Interactive,
+			Uid:                 uint32(os.Getuid()),
+			Gid:                 gids,
+			NodeNum:             nil,
+			NtasksPerNode:       nil,
+			RequeueIfFailed:     false,
+			Payload: &protos.StepToCtld_InteractiveMeta{
+				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
+			},
+			CmdLine: strings.Join(args, " "),
+			Cwd:     gVars.cwd,
+
+			Env: make(map[string]string),
+		}
 	}
 
 	structExtraFromCli := &util.JobExtraAttrs{}
 
-	task.NodeNum = FlagNodes
-	task.CpusPerTask = FlagCpuPerTask
-	task.NtasksPerNode = FlagNtasksPerNode
-	task.Name = util.ExtractExecNameFromArgs(args)
+	if jobMode {
+		job.NodeNum = FlagNodes
+		job.CpusPerTask = FlagCpuPerTask
+		job.NtasksPerNode = FlagNtasksPerNode
+		job.Name = util.ExtractExecNameFromArgs(args)
+	} else {
+		if cmd.Flags().Changed(NodesOptionStr) {
+			step.NodeNum = &FlagNodes
+		}
+		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
+			step.NtasksPerNode = &FlagNtasksPerNode
+		}
+		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
+			if step.ReqResourcesPerTask == nil {
+				step.ReqResourcesPerTask = &protos.ResourceView{
+					AllocatableRes: &protos.AllocatableResource{CpuCoreLimit: FlagCpuPerTask},
+				}
+			} else {
+				step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
+			}
+		}
+		step.Name = util.ExtractExecNameFromArgs(args)
+	}
 
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s.", err))
 		}
-		task.TimeLimit.Seconds = seconds
+		if jobMode {
+			job.TimeLimit.Seconds = seconds
+		} else {
+			step.TimeLimit.Seconds = seconds
+		}
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		if jobMode {
+			job.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
+			job.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		} else {
+			if step.ReqResourcesPerTask == nil {
+				step.ReqResourcesPerTask = &protos.ResourceView{
+					AllocatableRes: &protos.AllocatableResource{MemoryLimitBytes: memInByte,
+						MemorySwLimitBytes: memInByte},
+				}
+			} else {
+				step.ReqResourcesPerTask.AllocatableRes.MemoryLimitBytes = memInByte
+				step.ReqResourcesPerTask.AllocatableRes.MemorySwLimitBytes = memInByte
+			}
+		}
 	}
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
-		task.ReqResources.DeviceMap = gresMap
+		if jobMode {
+			job.ReqResources.DeviceMap = gresMap
+		} else {
+			if len(gresMap.NameTypeMap) != 0 {
+				if step.ReqResourcesPerTask == nil {
+					step.ReqResourcesPerTask = &protos.ResourceView{
+						DeviceMap: gresMap,
+					}
+				} else {
+					step.ReqResourcesPerTask.DeviceMap = gresMap
+				}
+			}
+		}
 	}
 	if FlagPartition != "" {
-		task.PartitionName = FlagPartition
+		if jobMode {
+			job.PartitionName = FlagPartition
+		} else {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --partition is not supported in step."))
+		}
 	}
+
 	if FlagJob != "" {
-		task.Name = FlagJob
+		if jobMode {
+			job.Name = FlagJob
+		} else {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --job is not supported in step."))
+
+		}
 	}
+
 	if FlagQos != "" {
-		task.Qos = FlagQos
+		if jobMode {
+			job.Qos = FlagQos
+		} else {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --qos is not supported in step."))
+
+		}
 	}
+
 	if FlagCwd != "" {
-		task.Cwd = FlagCwd
+		if jobMode {
+			job.Cwd = FlagCwd
+		} else {
+			step.Cwd = FlagCwd
+		}
 	}
 	if FlagAccount != "" {
-		task.Account = FlagAccount
+		if jobMode {
+			job.Account = FlagAccount
+		} else {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --account is not supported in step."))
+		}
+
 	}
+
 	if FlagNodelist != "" {
-		task.Nodelist = FlagNodelist
+		if jobMode {
+			job.Nodelist = FlagNodelist
+		} else {
+			step.Nodelist = FlagNodelist
+		}
 	}
 	if FlagExcludes != "" {
-		task.Excludes = FlagExcludes
+		if jobMode {
+			job.Excludes = FlagExcludes
+		} else {
+			step.Excludes = FlagExcludes
+		}
 	}
 	if FlagGetUserEnv {
-		task.GetUserEnv = true
+		if jobMode {
+			job.GetUserEnv = true
+		} else {
+			step.GetUserEnv = true
+		}
 	}
 	if FlagExport != "" {
-		task.Env["CRANE_EXPORT_ENV"] = FlagExport
+		if jobMode {
+			job.Env["CRANE_EXPORT_ENV"] = FlagExport
+		} else {
+			step.Env["CRANE_EXPORT_ENV"] = FlagExport
+		}
 	}
 	if FlagReservation != "" {
-		task.Reservation = FlagReservation
+		if jobMode {
+			job.Reservation = FlagReservation
+		} else {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --reservation is not supported in step."))
+		}
 	}
 
 	if FlagExtraAttr != "" {
@@ -1100,10 +1285,20 @@ func MainCrun(args []string) error {
 		structExtraFromCli.Comment = FlagComment
 	}
 	if FlagExclusive {
-		task.Exclusive = true
+		if jobMode {
+			job.Exclusive = true
+		} else {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --exclusive is not supported in step."))
+
+		}
 	}
 	if FlagHold {
-		task.Hold = true
+		if jobMode {
+			job.Hold = true
+		} else {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --hold is not supported in step."))
+		}
+
 	}
 
 	if FlagLicenses != "" {
@@ -1111,26 +1306,49 @@ func MainCrun(args []string) error {
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid argument: %s.", err)
 		}
-		task.LicensesCount = licCount
-		task.IsLicensesOr = isLicenseOr
+		job.LicensesCount = licCount
+		job.IsLicensesOr = isLicenseOr
 	}
 
 	// Marshal extra attributes
-	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+	if jobMode {
+		if err := structExtraFromCli.Marshal(&job.ExtraAttr); err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+		}
+	} else {
+		if err := structExtraFromCli.Marshal(&step.ExtraAttr); err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+		}
 	}
 
 	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
-
-	// Check the validity of the parameters
-	if err := util.CheckTaskArgs(task); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+	if jobMode {
+		job.ReqResources.AllocatableRes.CpuCoreLimit = job.CpusPerTask * float64(job.NtasksPerNode)
 	}
 
-	util.SetPropagatedEnviron(task)
+	// Check the validity of the parameters
+	if jobMode {
+		if err := util.CheckTaskArgs(job); err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+		}
+	} else {
+		if err := util.CheckStepArgs(step); err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+		}
+	}
 
-	iaMeta := task.GetInteractiveMeta()
+	if jobMode {
+		util.SetPropagatedEnviron(&job.Env, &job.GetUserEnv)
+	} else {
+		util.SetPropagatedEnviron(&step.Env, &step.GetUserEnv)
+	}
+
+	var iaMeta *protos.InteractiveTaskAdditionalMeta
+	if jobMode {
+		iaMeta = job.GetInteractiveMeta()
+	} else {
+		iaMeta = step.GetInteractiveMeta()
+	}
 	iaMeta.Pty = FlagPty
 
 	if FlagX11 {
@@ -1177,7 +1395,7 @@ func MainCrun(args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "--input is incompatible with --pty.")
 	}
 
-	m.Init(task)
+	m.Init(job, step)
 	m.Run()
 	defer m.Close()
 
