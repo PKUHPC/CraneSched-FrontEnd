@@ -129,7 +129,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		}
 
 		if f.Global.Json {
-			outputJson("log", "", f.Log, logLines)
+			outputJson("logs", "", f.Log, logLines)
 			return nil
 		}
 

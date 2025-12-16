@@ -166,7 +166,7 @@ func podExecute(cmd *cobra.Command, args []string) error {
 	})
 
 	if f.Global.Json {
-		outputJson("pod", "", f.Pod, reply.TaskInfoList)
+		outputJson("pods", "", f.Pod, reply.TaskInfoList)
 		return nil
 	}
 
