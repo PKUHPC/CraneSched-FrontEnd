@@ -193,6 +193,14 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.Exclusive = val
+		case "-s", "--signal":
+			sig, sec, err := util.ParseSignalParamString(arg.val)
+			if err != nil {
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.SignalParam = &protos.SignalParam{}
+			task.SignalParam.SignalNumber = sig
+			task.SignalParam.SecondsBeforeKill = sec
 		default:
 			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}

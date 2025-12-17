@@ -51,6 +51,7 @@ var (
 	FlagDebugLevel     string
 
 	FlagReservation string
+	FlagSignal      string
 
 	FlagHold bool
 
@@ -103,4 +104,5 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
+	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "send signal when time limit within time seconds, format: signum[@time]")
 }

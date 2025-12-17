@@ -1310,6 +1310,16 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.IsLicensesOr = isLicenseOr
 	}
 
+	if FlagSignal != "" {
+		sig, sec, err := util.ParseSignalParamString(FlagSignal)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --signal: %s.", err))
+		}
+		job.SignalParam = &protos.SignalParam{}
+		job.SignalParam.SignalNumber = sig
+		job.SignalParam.SecondsBeforeKill = sec
+	}
+
 	// Marshal extra attributes
 	if jobMode {
 		if err := structExtraFromCli.Marshal(&job.ExtraAttr); err != nil {
