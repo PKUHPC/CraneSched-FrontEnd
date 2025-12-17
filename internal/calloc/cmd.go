@@ -55,6 +55,7 @@ var (
 	FlagDebugLevel     string
 
 	FlagReservation string
+	FlagSignal      string
 
 	FlagHold  bool
 	FlagQuiet bool
@@ -118,4 +119,5 @@ func init() {
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
+	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "send signal when time limit within time seconds, format: signum[@time]")
 }

@@ -521,6 +521,16 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		return util.WrapCraneErr(util.ErrorSystem, "Get submit hostname err: %s.", err)
 	}
 
+	if FlagSignal != "" {
+		sig, sec, err := util.ParseSignalParamString(FlagSignal)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --signal: %s", err))
+		}
+		task.SignalParam = &protos.SignalParam{}
+		task.SignalParam.SignalNumber = sig
+		task.SignalParam.SecondsBeforeKill = sec
+	}
+
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
