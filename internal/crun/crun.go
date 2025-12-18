@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pkg/term/termios"
+	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 
 	"bufio"
@@ -1064,6 +1065,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Env: make(map[string]string),
 		}
 	} else {
+		// TODO: inherit from job by env variables
 		step = &protos.StepToCtld{
 			Name:                "InteractiveStep",
 			TimeLimit:           util.InvalidDuration(),
@@ -1072,8 +1074,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Type:                protos.TaskType_Interactive,
 			Uid:                 uint32(os.Getuid()),
 			Gid:                 gids,
-			NodeNum:             nil,
-			NtasksPerNode:       nil,
+			NodeNum:             1,
+			NtasksPerNode:       1,
+			Ntasks:              1,
 			RequeueIfFailed:     false,
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
@@ -1104,10 +1107,23 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.SubmitHostname = submitHostname
 	} else {
 		if cmd.Flags().Changed(NodesOptionStr) {
-			step.NodeNum = &FlagNodes
+			step.NodeNum = FlagNodes
 		}
 		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
-			step.NtasksPerNode = &FlagNtasksPerNode
+			step.NtasksPerNode = FlagNtasksPerNode
+		}
+		if cmd.Flags().Changed(NtasksOptionStr) {
+			step.Ntasks = FlagNtasks
+			if step.NodeNum > step.Ntasks {
+				log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", step.Ntasks, step.NodeNum)
+				step.NodeNum = step.Ntasks
+			}
+			if step.NtasksPerNode*step.NodeNum < step.Ntasks {
+				log.Warnf("Warning: NtasksPerNode * NodeNum < Ntasks, ignoring NtasksPerNode setting.")
+				step.NtasksPerNode = 0 // unlimited
+			}
+		} else {
+			step.Ntasks = step.NodeNum * step.NtasksPerNode
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
 			if step.ReqResourcesPerTask == nil {

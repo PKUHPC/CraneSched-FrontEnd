@@ -687,10 +687,7 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit)
 		}
 	}
-	if step.NtasksPerNode != nil && *step.NtasksPerNode <= 0 {
-		return fmt.Errorf("--ntasks-per-node must > 0")
-	}
-	if step.NodeNum != nil && *step.NodeNum <= 0 {
+	if step.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
 	if step.TimeLimit.AsDuration() <= 0 {
