@@ -828,16 +828,11 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) util.ExitCode {
 		return util.ErrorBackend
 	}
 
-	//eventInfoList := reply.EventInfoList
 	if len(reply.EventInfoList) == 0 {
 		log.Info("No event data found")
 		return util.ErrorSuccess
 	}
 
-	// Sort events by start time
-	// sort.SliceStable(eventInfoList, func(i, j int) bool {
-	// 	return eventInfoList[i].StartTime < eventInfoList[j].StartTime
-	// })
 	eventInfoList, err := SortRecords(reply.EventInfoList, maxLines)
 	if err != nil {
 		log.Errorf("Failed to sort records: %v", err)

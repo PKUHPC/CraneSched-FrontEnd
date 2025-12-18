@@ -808,7 +808,6 @@ func executeShowUserCommand(command *CAcctMgrCommand) int {
 	}
 
 	account := command.GetKVParamValue("accounts")
-	log.Errorf("name %v, accounts: '%v'", name, account)
 	return ShowUser(name, account)
 }
 
