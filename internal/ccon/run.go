@@ -205,7 +205,11 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		return errSubmit
 	}
 
-	return attachAfterRun(f, reply)
+	if err := attachAfterRun(f, reply); err != nil {
+		return util.WrapCraneErr(util.ErrorBackend, "Failed to attach after container is submitted: %v", err)
+	}
+
+	return nil
 }
 
 // applyResourceOptions applies resource options to the task
