@@ -460,8 +460,8 @@ func ProcessJobID(item *JobOrStep) string {
 }
 
 // Wckey (K)
-func ProcessWckey(task *protos.TaskInfo) string {
-	return task.Wckey
+func ProcessWckey(item *JobOrStep) string {
+	return item.task.Wckey
 }
 
 // Comment (k)

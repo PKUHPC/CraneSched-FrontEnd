@@ -1301,7 +1301,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	}
 	if FlagFlagWckeySet {
-		task.Wckey = &FlagWckey
+		job.Wckey = &FlagWckey
 	}
 
 	if FlagLicenses != "" {
