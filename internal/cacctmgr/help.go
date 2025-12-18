@@ -97,15 +97,13 @@ func showHelp() {
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
               AdminLevel,Blocked> (Spelling must be correct, case is not important)
               For Example: cacctmgr show user format=account,defaultqos,adminlevel
-  add wckey <name> cluster=<cluster> user=<user>
-   Create a new wckey and bind it to the user and cluster
+  add wckey <name> user=<user>
+   Create a new wckey and bind it to the user
    Parameter details:
-      cluster=<cluster>         Specify the cluster
       user=<user>               Name of user to add wckey
-  delete wckey <name> cluster=<cluster> user=<user>
+  delete wckey <name> user=<user>
     Delete an existing wckey
    Parameter details:
-      cluster=<cluster>         Specify the cluster
       user=<user>               Name of user to delete wckey
   show wckey [<name1,name2,...>]
     Display information about wckeys.
@@ -212,8 +210,8 @@ func showHelp() {
       set MaxTimeLimitPerTask=<sec>  Set max time per task (seconds)
       set Priority=<priority>        Set priority
     Wckey options:
-      where user=<name> cluster=<clustername>
-      set defaultwckey=<wckeyname>    Set default wckey for specific users and clusters
+      where user=<name> 
+      set defaultwckey=<wckeyname>    Set default wckey for specific users
 
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
