@@ -215,7 +215,7 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		ExitCode := m.RunCommand(RunCommandArgs{
 			Program:    m.CrunProlog,
 			Args:       nil,
-			Envs:       m.task.Env,
+			Envs:       m.job.Env,
 			TimeoutSec: 300,
 		})
 		if ExitCode != 0 {
@@ -651,7 +651,7 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		ExitCode := m.RunCommand(RunCommandArgs{
 			Program:    m.CrunEpilog,
 			Args:       nil,
-			Envs:       m.task.Env,
+			Envs:       m.job.Env,
 			TimeoutSec: 300,
 		})
 		if ExitCode != 0 {
@@ -1143,7 +1143,7 @@ func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
 	return ExitCode
 }
 
-func MainCrun(args []string) error {
+func MainCrun(cmd *cobra.Command, args []string) error {
 	util.InitLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -1209,7 +1209,9 @@ func MainCrun(args []string) error {
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
 
-			Env: make(map[string]string),
+			Env:        make(map[string]string),
+			TaskProlog: FlagTaskProlog,
+			TaskEpilog: FlagTaskEpilog,
 		}
 	} else {
 		step = &protos.StepToCtld{
@@ -1229,7 +1231,7 @@ func MainCrun(args []string) error {
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
 
-			Env: make(map[string]string),
+			Env:        make(map[string]string),
 			TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
 		}
