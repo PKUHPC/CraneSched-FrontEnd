@@ -65,6 +65,7 @@ var _ api.CgroupLifecycleHooks = MonitorPlugin{}
 var _ api.NodeEventHooks = MonitorPlugin{}
 var _ api.GrpcServiceRegistrar = MonitorPlugin{}
 var _ api.HostConfigAware = MonitorPlugin{}
+var _ api.ResourceHooks = MonitorPlugin{}
 
 var PluginInstance = MonitorPlugin{}
 
@@ -195,6 +196,20 @@ func (p MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {
 
 	if err := db.GetInstance().SaveNodeEvents(req.GetEventInfoList()); err != nil {
 		log.Errorf("Failed to save node events: %v", err)
+	}
+}
+
+func (p MonitorPlugin) UpdateLicensesHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.UpdateLicensesHookRequest)
+	if !ok {
+		log.Errorln("Invalid request type, expected UpdateLicensesHookRequest.")
+		return
+	}
+
+	log.Infof("UpdateLicensesHook received for %d licenses", len(req.GetLicenseInfo()))
+
+	if err := db.GetInstance().SaveLicenseUsage(req.GetLicenseInfo()); err != nil {
+		log.Errorf("Failed to save license usage: %v", err)
 	}
 }
 
