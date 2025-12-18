@@ -331,7 +331,11 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 			}
 			m.state = WaitRes
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate job id: %s\n", payload.FailureReason)
+			if m.step == nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate job id: %s\n", payload.FailureReason)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate step id: %s\n", payload.FailureReason)
+			}
 			m.state = End
 			m.err = util.ErrorBackend
 			return
@@ -1171,63 +1175,81 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	if jobMode {
 		job = &protos.TaskToCtld{
-			Name:          "Interactive",
-			TimeLimit:     util.InvalidDuration(),
-			PartitionName: "",
-			ReqResources: &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{
-					CpuCoreLimit:       1,
-					MemoryLimitBytes:   0,
-					MemorySwLimitBytes: 0,
-				},
-			},
+			Name:            "Interactive",
+			TimeLimit:       util.InvalidDuration(),
+			PartitionName:   "",
 			Type:            protos.TaskType_Interactive,
 			Uid:             uint32(os.Getuid()),
 			Gid:             gids[0],
-			NodeNum:         1,
-			NtasksPerNode:   1,
-			CpusPerTask:     1,
+			NodeNum:         0,
+			NtasksPerNode:   0,
+			Ntasks:          0,
 			RequeueIfFailed: false,
 			Payload: &protos.TaskToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
-
 			Env:        make(map[string]string),
 			TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
 		}
 	} else {
+		// Initialize step with default values
 		step = &protos.StepToCtld{
-			Name:                "InteractiveStep",
-			TimeLimit:           util.InvalidDuration(),
-			JobId:               jobId,
-			ReqResourcesPerTask: nil,
-			Type:                protos.TaskType_Interactive,
-			Uid:                 uint32(os.Getuid()),
-			Gid:                 gids,
-			NodeNum:             nil,
-			NtasksPerNode:       nil,
-			RequeueIfFailed:     false,
+			Name:            "InteractiveStep",
+			TimeLimit:       util.InvalidDuration(),
+			JobId:           jobId,
+			Type:            protos.TaskType_Interactive,
+			Uid:             uint32(os.Getuid()),
+			Gid:             gids,
+			NodeNum:         0,
+			NtasksPerNode:   0,
+			Ntasks:          0,
+			RequeueIfFailed: false,
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
-
-			Env:        make(map[string]string),
+			Env:     make(map[string]string),
 			TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
+		}
+		// Inherit from job environment variables
+		if ntasksStr, exists := syscall.Getenv("CRANE_NTASKS"); exists {
+			if ntasks, err := strconv.ParseUint(ntasksStr, 10, 32); err == nil {
+				step.Ntasks = uint32(ntasks)
+			}
+		}
+		if numNodesStr, exists := syscall.Getenv("CRANE_JOB_NUM_NODES"); exists {
+			if numNodes, err := strconv.ParseUint(numNodesStr, 10, 32); err == nil {
+				step.NodeNum = uint32(numNodes)
+			}
+		}
+		if ntasksPerNodeStr, exists := syscall.Getenv("CRANE_NTASKS_PER_NODE"); exists {
+			if ntasksPerNode, err := strconv.ParseUint(ntasksPerNodeStr, 10, 32); err == nil {
+				step.NtasksPerNode = uint32(ntasksPerNode)
+			}
 		}
 	}
 
 	structExtraFromCli := &util.JobExtraAttrs{}
 
 	if jobMode {
-		job.NodeNum = FlagNodes
-		job.CpusPerTask = FlagCpuPerTask
-		job.NtasksPerNode = FlagNtasksPerNode
+		if cmd.Flags().Changed(NodesOptionStr) {
+			job.NodeNum = FlagNodes
+		}
+		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
+			job.NtasksPerNode = FlagNtasksPerNode
+		}
+		if cmd.Flags().Changed(NtasksOptionStr) {
+			job.Ntasks = FlagNtasks
+		}
+		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
+			cpuPerTask := float64(FlagCpuPerTask)
+			job.CpusPerTask = &cpuPerTask
+		}
 		job.Name = util.ExtractExecNameFromArgs(args)
 		SubmitDir, err := os.Getwd()
 		if err != nil {
@@ -1241,19 +1263,17 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.SubmitHostname = submitHostname
 	} else {
 		if cmd.Flags().Changed(NodesOptionStr) {
-			step.NodeNum = &FlagNodes
+			step.NodeNum = FlagNodes
 		}
 		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
-			step.NtasksPerNode = &FlagNtasksPerNode
+			step.NtasksPerNode = FlagNtasksPerNode
+		}
+		if cmd.Flags().Changed(NtasksOptionStr) {
+			step.Ntasks = FlagNtasks
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
-			if step.ReqResourcesPerTask == nil {
-				step.ReqResourcesPerTask = &protos.ResourceView{
-					AllocatableRes: &protos.AllocatableResource{CpuCoreLimit: FlagCpuPerTask},
-				}
-			} else {
-				step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
-			}
+			cpuPerTask := float64(FlagCpuPerTask)
+			step.CpusPerTask = &cpuPerTask
 		}
 		step.Name = util.ExtractExecNameFromArgs(args)
 	}
@@ -1275,18 +1295,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 		if jobMode {
-			job.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-			job.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+			job.MemPerNode = &memInByte
 		} else {
-			if step.ReqResourcesPerTask == nil {
-				step.ReqResourcesPerTask = &protos.ResourceView{
-					AllocatableRes: &protos.AllocatableResource{MemoryLimitBytes: memInByte,
-						MemorySwLimitBytes: memInByte},
-				}
-			} else {
-				step.ReqResourcesPerTask.AllocatableRes.MemoryLimitBytes = memInByte
-				step.ReqResourcesPerTask.AllocatableRes.MemorySwLimitBytes = memInByte
-			}
+			step.MemPerNode = &memInByte
 		}
 	}
 	if FlagMemPerCpu != "" {
@@ -1304,20 +1315,12 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		if jobMode {
-			job.ReqResources.DeviceMap = gresMap
-			if _, exist := job.ReqResources.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
+			job.GresPerNode = gresMap
+			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
 				setGresGpusFlag = true
 			}
 		} else {
-			if len(gresMap.NameTypeMap) != 0 {
-				if step.ReqResourcesPerTask == nil {
-					step.ReqResourcesPerTask = &protos.ResourceView{
-						DeviceMap: gresMap,
-					}
-				} else {
-					step.ReqResourcesPerTask.DeviceMap = gresMap
-				}
-			}
+			step.GresPerNode = gresMap
 		}
 	}
 	if FlagPartition != "" {
@@ -1464,16 +1467,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 		}
 		if jobMode {
-			job.ReqResources.DeviceMap = gpuDeviceMap
+			job.GresPerNode = gpuDeviceMap
 		} else {
 			if len(gpuDeviceMap.NameTypeMap) != 0 {
-				if step.ReqResourcesPerTask == nil {
-					step.ReqResourcesPerTask = &protos.ResourceView{
-						DeviceMap: gpuDeviceMap,
-					}
-				} else {
-					step.ReqResourcesPerTask.DeviceMap = gpuDeviceMap
-				}
+				step.GresPerNode = gpuDeviceMap
 			}
 		}
 
@@ -1490,9 +1487,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Set total limit of cpu cores
 	if jobMode {
-		job.ReqResources.AllocatableRes.CpuCoreLimit = job.CpusPerTask * float64(job.NtasksPerNode)
+		util.SetPropagatedEnviron(&job.Env, &job.GetUserEnv)
+	} else {
+		util.SetPropagatedEnviron(&step.Env, &step.GetUserEnv)
 	}
 
 	// Check the validity of the parameters
@@ -1504,12 +1502,6 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if err := util.CheckStepArgs(step); err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
-	}
-
-	if jobMode {
-		util.SetPropagatedEnviron(&job.Env, &job.GetUserEnv)
-	} else {
-		util.SetPropagatedEnviron(&step.Env, &step.GetUserEnv)
 	}
 
 	var iaMeta *protos.InteractiveTaskAdditionalMeta
