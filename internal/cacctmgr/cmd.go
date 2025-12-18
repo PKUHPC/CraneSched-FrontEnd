@@ -813,7 +813,7 @@ func executeShowUserCommand(command *CAcctMgrCommand) int {
 
 func executeShowEventCommand(command *CAcctMgrCommand) int {
 	var FlagMaxLines int = 0
-	FlagNodeList := ""
+	FlagNodesStr := ""
 	maxLinesStr := ""
 	FlagUpdateMaxLines := false
 
@@ -824,8 +824,8 @@ func executeShowEventCommand(command *CAcctMgrCommand) int {
 		case "maxlines":
 			maxLinesStr = value
 			FlagUpdateMaxLines = true
-		case "nodelist":
-			FlagNodeList = value
+		case "nodes":
+			FlagNodesStr = value
 		default:
 			log.Errorf("Error: unknown where parameter '%s' for show event", key)
 			return util.ErrorCmdArg
@@ -841,7 +841,7 @@ func executeShowEventCommand(command *CAcctMgrCommand) int {
 		}
 	}
 
-	return QueryEventInfoByNodes(FlagNodeList, FlagMaxLines)
+	return QueryEventInfoByNodes(FlagNodesStr, FlagMaxLines)
 }
 
 func executeShowQosCommand(command *CAcctMgrCommand) int {

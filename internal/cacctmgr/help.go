@@ -42,7 +42,7 @@ func showHelp() {
 	user        - Individual user
 	qos         - Quality of Service settings
   transaction - Log of account-related operations
-  event       - Node on/off events
+	event       - Node on/off events
 
   COMMANDS:
 	add account <name> [Description=<desc>] [Parent=<parent>] [DefaultQos=<qos>] 
@@ -163,8 +163,8 @@ func showHelp() {
       (If not specified, all transactions will be displayed, limit 1000)
     show event where [Maxlines=<maxlines>] [Nodelist=<nodelist>] 
     Display node event records.
-      Maxlines=<maxlines>     Filter by maxlines (Show maximum number of rows)
-      Nodelist=<node1,node2>  Filter by nodelist (Output specified node)
+      Maxlines=<maxlines>        Filter by maxlines (Show maximum number of rows)
+      Nodes=<node1,node2...>     Filter by nodes (Output specified node)
   modify <entity> where [OPTIONS] set [OPTIONS]
     Modify attributes of an existing account, user, or QoS.
     Account options:
