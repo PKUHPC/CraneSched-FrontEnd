@@ -749,7 +749,7 @@ func formatDependencyStatus(depStatus *protos.DependencyStatus) string {
 	switch depStatus.GetReadyTimeType().(type) {
 	case *protos.DependencyStatus_ReadyTime:
 		readyTime := depStatus.GetReadyTime().AsTime()
-		if(depStatus.IsOr || len(depStatus.Pending) == 0) {
+		if depStatus.IsOr || len(depStatus.Pending) == 0 {
 			buf.WriteString(fmt.Sprintf("Status=ReadyAfter %s", readyTime.In(time.Local).Format("2006-01-02 15:04:05")))
 		} else {
 			buf.WriteString("Status=WaitForAll")

@@ -194,10 +194,10 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			}
 			task.Exclusive = val
 		case "--dependency", "-d":
-		err := util.SetTaskDependencies(task, arg.val)
-		if err != nil {
+			err := util.SetTaskDependencies(task, arg.val)
+			if err != nil {
 				return nil, fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
-		}
+			}
 		default:
 			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}

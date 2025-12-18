@@ -200,7 +200,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
 	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory format",
-	protos.ErrCode_ERR_MISSING_DEPENDENCY:		"One or more dependency jobs may not exist or have ended",
+	protos.ErrCode_ERR_MISSING_DEPENDENCY:      "One or more dependency jobs may not exist or have ended",
 	protos.ErrCode_ERR_DB_INSERT_FAILED:        "Database insertion failed due to internal error",
 }
 

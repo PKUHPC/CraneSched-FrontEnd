@@ -42,11 +42,11 @@ var (
 	FlagExport        string
 	FlagExclusive     bool
 
-	FlagExtraAttr string
-	FlagMailType  string
-	FlagMailUser  string
-	FlagComment   string
-	FlagDependency    string
+	FlagExtraAttr  string
+	FlagMailType   string
+	FlagMailUser   string
+	FlagComment    string
+	FlagDependency string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string

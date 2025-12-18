@@ -61,7 +61,7 @@ var (
 
 	FlagConfigFilePath string
 	FlagJson           bool
-	FlagDependency string
+	FlagDependency     string
 
 	FlagReservation string
 
