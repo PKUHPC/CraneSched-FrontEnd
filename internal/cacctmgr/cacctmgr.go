@@ -719,7 +719,6 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 	return missing, nil
 }
 
-
 func SortRecords(records []*protos.NodeEventInfo, maxLines int) ([]*protos.NodeEventInfo, error) {
 	if len(records) == 0 {
 		return nil, fmt.Errorf("records list is empty")

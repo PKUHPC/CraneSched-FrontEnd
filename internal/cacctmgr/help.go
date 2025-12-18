@@ -41,8 +41,9 @@ func showHelp() {
 	account     - User account in the system
 	user        - Individual user
 	qos         - Quality of Service settings
-    transaction - Log of account-related operations
-  
+  transaction - Log of account-related operations
+  event       - Node on/off events
+
   COMMANDS:
 	add account <name> [Description=<desc>] [Parent=<parent>] [DefaultQos=<qos>] 
 			[Partition=<part1,part2,...>] [QosList=<qos1,qos2,...>] [Name=<name1,name2,...>]
@@ -160,7 +161,10 @@ func showHelp() {
       Info=<info>             Filter by additional info (fuzzy query)
       StartTime=<start_time>  Filter by start time (format: ~YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS~)
       (If not specified, all transactions will be displayed, limit 1000)
-
+    show event where [Maxlines=<maxlines>] [Nodelist=<nodelist>] 
+    Display node event records.
+      Maxlines=<maxlines>     Filter by maxlines (Show maximum number of rows)
+      Nodelist=<node1,node2>  Filter by nodelist (Output specified node)
   modify <entity> where [OPTIONS] set [OPTIONS]
     Modify attributes of an existing account, user, or QoS.
     Account options:
