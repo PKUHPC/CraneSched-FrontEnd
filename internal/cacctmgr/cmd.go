@@ -128,7 +128,7 @@ func ParseCmdArgs(args []string) {
 }
 
 func executeCommand(command *CAcctMgrCommand) int {
-	config := util.ParseConfig(FlagConfigFilePath)
+	config = util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	userUid = uint32(os.Getuid())
 
@@ -781,6 +781,8 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 		return executeShowQosCommand(command)
 	case "transaction":
 		return executeShowTxnLogCommand(command)
+	case "event":
+		return executeShowEventCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -806,8 +808,41 @@ func executeShowUserCommand(command *CAcctMgrCommand) int {
 	}
 
 	account := command.GetKVParamValue("accounts")
-
+	log.Errorf("name %v, accounts: '%v'", name, account)
 	return ShowUser(name, account)
+}
+
+func executeShowEventCommand(command *CAcctMgrCommand) int {
+	var FlagMaxLines int = 0
+	FlagNodeList := ""
+	maxLinesStr := ""
+	FlagUpdateMaxLines := false
+
+	WhereParams := command.GetWhereParams()
+
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "maxlines":
+			maxLinesStr = value
+			FlagUpdateMaxLines = true
+		case "nodelist":
+			FlagNodeList = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for show event", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if FlagUpdateMaxLines {
+		var err error
+		FlagMaxLines, err = strconv.Atoi(maxLinesStr)
+		if err != nil || FlagMaxLines <= 0 {
+			log.Errorf("Error: invalid maxlines: '%s'", maxLinesStr)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return QueryEventInfoByNodes(FlagNodeList, FlagMaxLines)
 }
 
 func executeShowQosCommand(command *CAcctMgrCommand) int {

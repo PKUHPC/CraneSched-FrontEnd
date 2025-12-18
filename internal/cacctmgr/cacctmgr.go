@@ -719,7 +719,48 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 	return missing, nil
 }
 
-func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
+
+func SortRecords(records []*protos.NodeEventInfo, maxLines int) ([]*protos.NodeEventInfo, error) {
+	if len(records) == 0 {
+		return nil, fmt.Errorf("records list is empty")
+	}
+
+	// Sort the records by NodeName in ascending order
+	sort.SliceStable(records, func(i, j int) bool {
+		if records[i].NodeName == records[j].NodeName {
+			return records[i].StartTime < records[j].StartTime
+		}
+		return records[i].NodeName < records[j].NodeName
+	})
+
+	drainMap := make(map[string]*protos.NodeEventInfo)
+	var filteredRecords []*protos.NodeEventInfo
+	for _, currentRecord := range records {
+		if currentRecord.State == "Resume" {
+			if previousRecord, exists := drainMap[currentRecord.NodeName]; exists {
+				previousRecord.EndTime = currentRecord.StartTime
+				continue
+			}
+		} else if currentRecord.State == "Drain" {
+			drainMap[currentRecord.NodeName] = currentRecord
+		}
+
+		filteredRecords = append(filteredRecords, currentRecord)
+	}
+
+	// Sort the filteredRecords by StartTime
+	sort.SliceStable(filteredRecords, func(i, j int) bool {
+		return filteredRecords[i].StartTime > filteredRecords[j].StartTime
+	})
+
+	if maxLines > 0 && len(filteredRecords) > maxLines {
+		filteredRecords = filteredRecords[:maxLines]
+	}
+
+	return filteredRecords, nil
+}
+
+func QueryEventInfoByNodes(nodeRegex string, maxLines int) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for query operations")
 	}
@@ -788,16 +829,21 @@ func QueryEventInfoByNodes(nodeRegex string) util.ExitCode {
 		return util.ErrorBackend
 	}
 
-	eventInfoList := reply.EventInfoList
-	if len(eventInfoList) == 0 {
+	//eventInfoList := reply.EventInfoList
+	if len(reply.EventInfoList) == 0 {
 		log.Info("No event data found")
 		return util.ErrorSuccess
 	}
 
 	// Sort events by start time
-	sort.SliceStable(eventInfoList, func(i, j int) bool {
-		return eventInfoList[i].StartTime < eventInfoList[j].StartTime
-	})
+	// sort.SliceStable(eventInfoList, func(i, j int) bool {
+	// 	return eventInfoList[i].StartTime < eventInfoList[j].StartTime
+	// })
+	eventInfoList, err := SortRecords(reply.EventInfoList, maxLines)
+	if err != nil {
+		log.Errorf("Failed to sort records: %v", err)
+		return util.ErrorCmdArg
+	}
 
 	if FlagJson {
 		eventJsonList := []*EventInfoJson{}
