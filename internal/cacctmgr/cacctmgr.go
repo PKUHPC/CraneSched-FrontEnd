@@ -719,7 +719,7 @@ func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]
 	return missing, nil
 }
 
-func SortRecords(records []*protos.NodeEventInfo, maxLines int) ([]*protos.NodeEventInfo, error) {
+func SortNodeEventRecords(records []*protos.NodeEventInfo, maxLines int) ([]*protos.NodeEventInfo, error) {
 	if len(records) == 0 {
 		return nil, fmt.Errorf("records list is empty")
 	}
@@ -833,7 +833,7 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) util.ExitCode {
 		return util.ErrorSuccess
 	}
 
-	eventInfoList, err := SortRecords(reply.EventInfoList, maxLines)
+	eventInfoList, err := SortNodeEventRecords(reply.EventInfoList, maxLines)
 	if err != nil {
 		log.Errorf("Failed to sort records: %v", err)
 		return util.ErrorCmdArg
