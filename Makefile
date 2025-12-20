@@ -87,7 +87,7 @@ PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_P
 CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 # Targets
-.PHONY: all build protos clean install plugin service format package check-goreleaser
+.PHONY: all build protos clean install plugin plugin-monitor plugin-other service format package check-goreleaser
 
 all: build plugin service
 
