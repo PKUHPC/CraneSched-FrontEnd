@@ -87,11 +87,9 @@ PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_P
 CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 # Targets
-.PHONY: all protos build clean install plugin plugin-monitor plugin-other service format package check-goreleaser
+.PHONY: all build protos clean install plugin plugin-monitor plugin-other service format package check-goreleaser
 
 all: build plugin service
-build: protos
-plugin: protos
 
 # FIXME: This is a workaround for sub-packages in proto files
 # We have to refactor the proto layout and CMakeLists in future
@@ -103,7 +101,7 @@ protos:
 	@echo "  - Summary:"
 	@echo "    - Protobuf files generated in ./generated/protos/"
 
-build:
+build: protos
 	@echo "- Building executables with $(GO_VERSION)..."
 	@mkdir -p $(BIN_DIR)
 	@for dir in cmd/*/ ; do \
@@ -119,7 +117,7 @@ build:
 
 plugin: plugin-monitor plugin-other
 
-plugin-monitor:
+plugin-monitor: protos
 	@echo "- Building monitor plugin with $(GO_VERSION)..."
 	@mkdir -p $(PLUGIN_DIR)
 	@cd plugin/monitor && \
@@ -133,7 +131,7 @@ plugin-monitor:
 		$(GO) build $(BUILD_FLAGS) $(LDFLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/monitor.so .; \
 	fi
 
-plugin-other:
+plugin-other: protos
 	@echo "- Building other plugins..."
 	@mkdir -p $(PLUGIN_DIR)
 	@for dir in plugin/*/ ; do \
@@ -162,7 +160,7 @@ clean:
 	@echo "Cleaning up..."
 	@rm -rf build generated
 
-install: service
+install: build plugin service
 	@echo "- Installing executables, plugins and auxiliary files..."
 	@if [ ! -d "$(BIN_DIR)" ]; then \
 		echo "Error: $(BIN_DIR) does not exist. Please build first."; \
