@@ -1052,6 +1052,7 @@ message AttachContainerStepRequest {
   uint32 uid = 1;
   uint32 job_id = 2;
   uint32 step_id = 3;
+  string node_name = 4;
 
   bool stdin = 6;
   bool tty = 7;
@@ -1069,6 +1070,7 @@ message ExecInContainerStepRequest {
   uint32 uid = 1;
   uint32 job_id = 2;
   uint32 step_id = 3;
+  string node_name = 4;
 
   repeated string command = 5;
 

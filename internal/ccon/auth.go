@@ -31,9 +31,18 @@ import (
 
 	"CraneFrontEnd/internal/util"
 
+	"github.com/distribution/reference"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+type ImageRef struct {
+	Image         string // fully normalized for CRI
+	ServerAddress string // registry host[:port]
+	Repository    string // path without domain
+	Tag           string // empty if Digest is set
+	Digest        string // without leading "@"
+}
 
 type AuthConfig struct {
 	Auth string `json:"auth"`
@@ -201,56 +210,45 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// parseImageRef extracts registry, repository and tag from image reference
-// e.g., "registry.example.com/myapp:latest" -> ("registry.example.com", "myapp", "latest")
-// e.g., "nginx:latest" -> ("", "nginx", "latest")
-// e.g., "nginx" -> ("", "nginx", "latest")
-// e.g., "localhost:5000/myapp:latest" -> ("localhost:5000", "myapp", "latest")
-// e.g., "myapp@sha256:abcd1234..." -> ("", "myapp", "sha256:abcd1234...")
-func parseImageRef(image string) (registry, repository, tag string) {
-	// First, check for digest references (image@sha256:...)
-	var imagePart string
-	if digestIdx := strings.Index(image, "@"); digestIdx != -1 {
-		imagePart = image[:digestIdx]
-		tag = image[digestIdx+1:] // Include the @ prefix in tag for digest
-	} else {
-		imagePart = image
+func NormalizeImageRef(input string) (ImageRef, error) {
+	in := strings.TrimSpace(input)
+	if in == "" {
+		return ImageRef{}, fmt.Errorf("image reference is empty")
 	}
 
-	// Split by first slash to separate registry from repository
-	parts := strings.SplitN(imagePart, "/", 2)
-
-	var repoWithTag string
-	if len(parts) == 2 {
-		// Check if first part contains dot, port, or is localhost (likely a registry)
-		if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") || parts[0] == "localhost" {
-			registry = parts[0]
-			repoWithTag = parts[1]
-		} else {
-			// First part is likely a namespace, not a registry
-			repoWithTag = imagePart
-		}
-	} else {
-		repoWithTag = imagePart
+	// Parse + normalize "familiar" Docker image names.
+	named, err := reference.ParseNormalizedNamed(in)
+	if err != nil {
+		return ImageRef{}, err
 	}
 
-	// If we already have a digest, don't split on colon
-	if tag != "" {
-		repository = repoWithTag
-		return registry, repository, tag
+	// If no tag and no digest, default to :latest.
+	var out reference.Named = named
+	_, hasTag := named.(reference.NamedTagged)
+	_, hasDigest := named.(reference.Canonical)
+
+	if !hasTag && !hasDigest {
+		out = reference.TagNameOnly(named) // adds :latest
 	}
 
-	// Split repository part by colon to separate repository from tag
-	repoParts := strings.SplitN(repoWithTag, ":", 2)
-	repository = repoParts[0]
-
-	if len(repoParts) == 2 {
-		tag = repoParts[1]
-	} else {
-		tag = "latest"
+	res := ImageRef{
+		Image:         out.String(),
+		ServerAddress: reference.Domain(out),
+		Repository:    reference.Path(out),
 	}
 
-	return registry, repository, tag
+	// Populate Tag/Digest (optional metadata; useful for logging/debug)
+	if c, ok := out.(reference.Canonical); ok {
+		res.Digest = c.Digest().String() // "sha256:..."
+		return res, nil
+	}
+	if t, ok := out.(reference.NamedTagged); ok {
+		res.Tag = t.Tag()
+		return res, nil
+	}
+
+	// Should be unreachable because we forced :latest if neither tag nor digest.
+	return ImageRef{}, fmt.Errorf("unexpected normalized reference type for %q", input)
 }
 
 // getAuthForRegistry retrieves saved authentication info for a registry

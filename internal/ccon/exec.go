@@ -58,6 +58,11 @@ func execExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot exec into container %d.%d in state: %s", jobID, stepID, step.Status.String()))
 	}
 
+	nodeName, err := resolveTargetNode(step, f.Exec.TargetNode)
+	if err != nil {
+		return err
+	}
+
 	// Determine stdin, stdout, stderr based on flags
 	stdin := f.Exec.Interactive
 	tty := f.Exec.Tty
@@ -66,18 +71,19 @@ func execExecute(cmd *cobra.Command, args []string) error {
 
 	// Call ExecInContainerStep RPC
 	execReq := &protos.ExecInContainerStepRequest{
-		Uid:     uint32(os.Getuid()),
-		JobId:   jobID,
-		StepId:  stepID,
-		Command: command,
-		Stdin:   stdin,
-		Tty:     tty,
-		Stdout:  stdout,
-		Stderr:  stderr,
+		Uid:      uint32(os.Getuid()),
+		JobId:    jobID,
+		StepId:   stepID,
+		NodeName: nodeName,
+		Command:  command,
+		Stdin:    stdin,
+		Tty:      tty,
+		Stdout:   stdout,
+		Stderr:   stderr,
 	}
 
-	log.Debugf("Calling ExecInContainerStep RPC for container %d.%d with command %v, flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
-		jobID, stepID, command, execReq.Stdin, execReq.Stdout, execReq.Stderr, execReq.Tty)
+	log.Debugf("Calling ExecInContainerStep RPC for container %d.%d on node %q with command %v, flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+		jobID, stepID, nodeName, command, execReq.Stdin, execReq.Stdout, execReq.Stderr, execReq.Tty)
 
 	reply, err := stub.ExecInContainerStep(context.Background(), execReq)
 	if err != nil {

@@ -518,31 +518,23 @@ func applyIOOptions(f *Flags, containerMeta *protos.ContainerTaskAdditionalMeta)
 
 // buildContainerMeta builds container-level settings shared by job and step submissions.
 func buildContainerMeta(f *Flags, image string, command []string) (*protos.ContainerTaskAdditionalMeta, error) {
-	registry, repository, tag := parseImageRef(image)
-
-	var fullImageName string
-	if strings.HasPrefix(tag, "sha256:") || strings.HasPrefix(tag, "sha1:") || strings.HasPrefix(tag, "sha512:") {
-		fullImageName = repository + "@" + tag
-	} else {
-		fullImageName = repository + ":" + tag
-	}
-
-	if registry != "" {
-		fullImageName = registry + "/" + fullImageName
-	}
-
-	username, password, err := getAuthForRegistry(registry)
+	imageRef, err := NormalizeImageRef(image)
 	if err != nil {
-		log.Warnf("Failed to get auth for registry %s: %v", registry, err)
+		return nil, fmt.Errorf("invalid image reference '%s': %v", image, err)
+	}
+
+	username, password, err := getAuthForRegistry(imageRef.ServerAddress)
+	if err != nil {
+		log.Warnf("Failed to get auth for registry %s: %v", imageRef.ServerAddress, err)
 		username, password = "", ""
 	}
 
 	containerMeta := &protos.ContainerTaskAdditionalMeta{
 		Image: &protos.ContainerTaskAdditionalMeta_ImageInfo{
-			Image:         fullImageName,
+			Image:         imageRef.Image,
 			Username:      username,
 			Password:      password,
-			ServerAddress: registry,
+			ServerAddress: imageRef.ServerAddress,
 			PullPolicy:    f.Run.PullPolicy,
 		},
 		Detached: f.Run.Detach,
@@ -887,7 +879,7 @@ func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 
 		reply, err := stub.AttachContainerStep(grpcCtx, req)
 		if err != nil {
-			util.GrpcErrorPrintf(err, "Failed to get attach URL")
+			util.GrpcErrorPrintf(err, "Failed to get attach URL for container (Job ID: %d, Step ID: %d)", jobId, stepId)
 			return nil, util.NewCraneErr(util.ErrorNetwork, "")
 		}
 
@@ -901,7 +893,7 @@ func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
 	go func() {
 		sig := <-sigchan
-		log.Infof("Received signal %s, exiting...\n(Note: Task is not cancelled.)", sig)
+		log.Infof("Received signal %s when attaching to container (Job ID: %d, Step ID: %d), exiting...\n(Note: Step is not cancelled.)", sig, jobId, stepId)
 		cancel()
 	}()
 
@@ -921,7 +913,8 @@ func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 			return StreamWithURL(ctx, reply.GetUrl(), streamOpt)
 		}
 
-		if reply.GetStatus().GetCode() == protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY {
+		switch reply.GetStatus().GetCode() {
+		case protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY:
 			// Case 2: NOT_READY - retry until status changes
 			log.Debugf("Attach not ready yet: %s. Retrying in 10 seconds...", reply.GetStatus().GetDescription())
 			select {
@@ -930,9 +923,13 @@ func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 			case <-time.After(10 * time.Second):
 				continue
 			}
+		case protos.ErrCode_ERR_INVALID_PARAM:
+			// Case 3: INVALID_PARAM (caused by step are on multiple nodes) - exit with message
+			fmt.Printf("Container submitted successfully. Job ID: %d, Step ID: %d\nMultiple nodes requested. Auto-attach disabled.\n", jobId, stepId)
+			return nil
 		}
 
 		// Case 3: Any other backend error - exit immediately with error
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get attach URL: %s", reply.GetStatus().GetDescription()))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to get attach URL for container (Job ID: %d, Step ID: %d): %s", jobId, stepId, reply.GetStatus().GetDescription()))
 	}
 }
