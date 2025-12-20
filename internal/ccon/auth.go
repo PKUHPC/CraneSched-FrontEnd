@@ -39,9 +39,6 @@ import (
 type ImageRef struct {
 	Image         string // fully normalized for CRI
 	ServerAddress string // registry host[:port]
-	Repository    string // path without domain
-	Tag           string // empty if Digest is set
-	Digest        string // without leading "@"
 }
 
 type AuthConfig struct {
@@ -149,19 +146,18 @@ func readPassword(fromStdin bool) (string, error) {
 	return string(bytePassword), nil
 }
 
-func normalizeServerAddress(server string) string {
-	if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-		server = "http://" + server
-	}
-	return server
-}
-
 func loginExecute(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, "registry server is required")
 	}
 
-	server := normalizeServerAddress(args[0])
+	server := strings.TrimSpace(args[0])
+	server = strings.TrimPrefix(server, "http://")
+	server = strings.TrimPrefix(server, "https://")
+	server = strings.TrimSuffix(server, "/")
+	if server == "" || strings.Contains(server, "/") {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid registry server: %s", args[0]))
+	}
 
 	f := GetFlags()
 	username := f.Login.Username
@@ -217,48 +213,22 @@ func NormalizeImageRef(input string) (ImageRef, error) {
 	}
 
 	// Parse + normalize "familiar" Docker image names.
-	named, err := reference.ParseNormalizedNamed(in)
+	named, err := reference.ParseDockerRef(in)
 	if err != nil {
 		return ImageRef{}, err
 	}
 
-	// If no tag and no digest, default to :latest.
-	var out reference.Named = named
-	_, hasTag := named.(reference.NamedTagged)
-	_, hasDigest := named.(reference.Canonical)
-
-	if !hasTag && !hasDigest {
-		out = reference.TagNameOnly(named) // adds :latest
-	}
-
-	res := ImageRef{
-		Image:         out.String(),
-		ServerAddress: reference.Domain(out),
-		Repository:    reference.Path(out),
-	}
-
-	// Populate Tag/Digest (optional metadata; useful for logging/debug)
-	if c, ok := out.(reference.Canonical); ok {
-		res.Digest = c.Digest().String() // "sha256:..."
-		return res, nil
-	}
-	if t, ok := out.(reference.NamedTagged); ok {
-		res.Tag = t.Tag()
-		return res, nil
-	}
-
-	// Should be unreachable because we forced :latest if neither tag nor digest.
-	return ImageRef{}, fmt.Errorf("unexpected normalized reference type for %q", input)
+	return ImageRef{
+		Image:         named.String(),
+		ServerAddress: reference.Domain(named),
+	}, nil
 }
 
 // getAuthForRegistry retrieves saved authentication info for a registry
 func getAuthForRegistry(registry string) (username, password string, err error) {
 	if registry == "" {
-		// Default to docker.io for images without registry
-		registry = "docker.io"
+		return "", "", fmt.Errorf("registry cannot be empty")
 	}
-
-	registry = normalizeServerAddress(registry)
 
 	config, err := loadRegistryConfig()
 	if err != nil {
@@ -278,7 +248,13 @@ func logoutExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "registry server is required")
 	}
 
-	server := normalizeServerAddress(args[0])
+	server := strings.TrimSpace(args[0])
+	server = strings.TrimPrefix(server, "http://")
+	server = strings.TrimPrefix(server, "https://")
+	server = strings.TrimSuffix(server, "/")
+	if server == "" || strings.Contains(server, "/") {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid registry server: %s", args[0]))
+	}
 
 	config, err := loadRegistryConfig()
 	if err != nil {
