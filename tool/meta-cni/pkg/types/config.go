@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"CraneFrontEnd/tool/meta_cni/pkg/utils"
+	"CraneFrontEnd/tool/meta-cni/pkg/utils"
 
 	"github.com/containernetworking/cni/pkg/invoke"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -65,17 +65,26 @@ func LoadMetaPluginConf(data []byte) (*MetaPluginConf, error) {
 		conf.CNIVersion = version.Current()
 	}
 
-	if len(conf.Delegates) == 0 {
-		return nil, errors.New("meta-cni: at least one delegate is required")
-	}
+	return conf, nil
+}
 
+// Validate performs config checks that should run after logger initialization.
+func (conf *MetaPluginConf) Validate() error {
+	if conf == nil {
+		return errors.New("meta-cni: config is nil")
+	}
+	if conf.Name == "" {
+		return errors.New("meta-cni: name is required")
+	}
+	if len(conf.Delegates) == 0 {
+		return errors.New("meta-cni: at least one delegate is required")
+	}
 	for i := range conf.Delegates {
 		if err := conf.Delegates[i].validate(); err != nil {
-			return nil, fmt.Errorf("meta-cni: delegate %d invalid: %w", i, err)
+			return fmt.Errorf("meta-cni: delegate %d invalid: %w", i, err)
 		}
 	}
-
-	return conf, nil
+	return nil
 }
 
 // Execute runs delegates for a single CNI action using the provided args.
@@ -294,6 +303,14 @@ func (d *DelegateEntry) validate() error {
 
 	if len(d.Conf) == 0 && d.Type == "" {
 		return errors.New("delegate must specify either type or conf")
+	}
+
+	if d.Name == "" {
+		return errors.New("delegate name is required (delegates[].name)")
+	}
+
+	if len(d.Conf) == 0 {
+		log.Warnf("meta-cni: delegate %s has no conf; using generated minimal config", d.identifier())
 	}
 
 	return nil
