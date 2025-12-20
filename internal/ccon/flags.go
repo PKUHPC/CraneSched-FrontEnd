@@ -99,11 +99,11 @@ type LoginFlags struct {
 }
 
 type AttachFlags struct {
-	Stdin     bool
-	Stdout    bool
-	Stderr    bool
-	Tty       bool
-	Transport string
+	Stdin      bool
+	Stdout     bool
+	Stderr     bool
+	Tty        bool
+	Transport  string
 	TargetNode string
 }
 

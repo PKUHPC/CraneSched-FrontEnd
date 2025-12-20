@@ -69,13 +69,19 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	var rows []stepRow
 	for _, task := range reply.TaskInfoList {
 		for _, step := range task.StepInfoList {
+			if step.StepId == 0 || step.ContainerMeta == nil {
+				// Skip pod step or non-container step
+				continue
+			}
+
 			row := stepRow{
 				jobId:  task.TaskId,
 				stepId: step.StepId,
 				name:   step.Name,
 				status: step.Status,
 			}
-			if step.ContainerMeta != nil && step.ContainerMeta.Image != nil {
+
+			if step.ContainerMeta.Image != nil {
 				row.image = step.ContainerMeta.Image.Image
 			}
 			if step.ContainerMeta != nil {
@@ -95,6 +101,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 			} else if task.SubmitTime != nil {
 				row.createdAt = task.SubmitTime.AsTime()
 			}
+
 			rows = append(rows, row)
 		}
 	}
