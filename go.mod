@@ -8,6 +8,7 @@ require (
 	github.com/alecthomas/participle/v2 v2.1.4
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/containerd/cgroups v1.1.0
+	github.com/containernetworking/cni v1.3.0
 	github.com/distribution/reference v0.6.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/nxadm/tail v1.4.11
@@ -63,14 +64,14 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/vtolstov/go-ioctl v0.0.0-20151206205506-6be9cced4810 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.18.0 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
