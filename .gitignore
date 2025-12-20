@@ -16,4 +16,5 @@ bin
 # Testing
 testcase
 *.out
+*.bak
 test/

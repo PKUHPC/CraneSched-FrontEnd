@@ -3,13 +3,15 @@ package main
 import (
 	"fmt"
 
-	metatypes "CraneFrontEnd/tool/meta_cni/pkg/types"
-	"CraneFrontEnd/tool/meta_cni/pkg/utils"
+	metatypes "CraneFrontEnd/tool/meta-cni/pkg/types"
+	"CraneFrontEnd/tool/meta-cni/pkg/utils"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/create"
 	"github.com/containernetworking/cni/pkg/version"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -42,6 +44,13 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	utils.InitLogger(conf.LogLevel)
 
+	log.Debugf("Loaded config: %+v", conf)
+	if err := conf.Validate(); err != nil {
+		return err
+	}
+
+	log.Debugf("CNI Args: %q", args.Args)
+
 	result, err := conf.Execute(metatypes.ActionAdd, args)
 	if err != nil {
 		return err
@@ -65,6 +74,13 @@ func cmdCheck(args *skel.CmdArgs) error {
 
 	utils.InitLogger(conf.LogLevel)
 
+	log.Debugf("Loaded config: %+v", conf)
+	if err := conf.Validate(); err != nil {
+		return err
+	}
+
+	log.Debugf("CNI Args: %q", args.Args)
+
 	_, err = conf.Execute(metatypes.ActionCheck, args)
 	return err
 }
@@ -76,6 +92,13 @@ func cmdDel(args *skel.CmdArgs) error {
 	}
 
 	utils.InitLogger(conf.LogLevel)
+
+	log.Debugf("Loaded config: %+v", conf)
+	if err := conf.Validate(); err != nil {
+		return err
+	}
+
+	log.Debugf("CNI Args: %q", args.Args)
 
 	_, err = conf.Execute(metatypes.ActionDel, args)
 	return err

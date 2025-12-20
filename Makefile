@@ -72,6 +72,8 @@ DESTDIR ?=
 
 BIN_DIR := build/bin
 PLUGIN_DIR := build/plugin
+TOOL_DIR := build/tool
+
 SERVICE_TEMPLATES := $(wildcard etc/*.service.in)
 SERVICE_NAMES := $(patsubst etc/%.service.in,%,$(SERVICE_TEMPLATES))
 SERVICE_OUTPUT_DIR := build/etc
@@ -87,7 +89,7 @@ PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_P
 CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
 
 # Targets
-.PHONY: all build protos clean install plugin plugin-monitor plugin-other service format package check-goreleaser
+.PHONY: all build protos clean install plugin plugin-monitor plugin-other tool service format package check-goreleaser
 
 all: build plugin service
 
@@ -143,6 +145,17 @@ plugin-other: protos
 	done
 	@echo "  - Summary:"
 	@echo "    - Plugins are in ./$(PLUGIN_DIR)/"
+
+tool: protos
+	@echo "- Building tools with $(GO_VERSION)..."
+	@mkdir -p $(TOOL_DIR)
+	@for dir in tool/*/ ; do \
+		echo "  - Building $$dir"; \
+		(cd $$dir && $(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
+			-o ../../$(TOOL_DIR)/$$(basename $$dir)) || exit 1; \
+	done
+	@echo "  - Summary:"
+	@echo "    - Tools are in ./$(TOOL_DIR)/"
 
 service:
 	@echo "- Rendering systemd service files with PREFIX=$(PREFIX)..."
