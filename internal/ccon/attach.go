@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -64,19 +65,25 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot attach to container %d.%d in state: %s", jobID, stepID, step.Status.String()))
 	}
 
-	// Call AttachContainerStep RPC
-	attachReq := &protos.AttachContainerStepRequest{
-		Uid:    uint32(os.Getuid()),
-		JobId:  jobID,
-		StepId: stepID,
-		Stdin:  f.Attach.Stdin,
-		Tty:    f.Attach.Tty,
-		Stdout: f.Attach.Stdout,
-		Stderr: f.Attach.Stderr,
+	nodeName, err := resolveTargetNode(step, f.Attach.TargetNode)
+	if err != nil {
+		return err
 	}
 
-	log.Debugf("Calling AttachContainerStep RPC for container %d.%d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
-		jobID, stepID, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
+	// Call AttachContainerStep RPC
+	attachReq := &protos.AttachContainerStepRequest{
+		Uid:      uint32(os.Getuid()),
+		JobId:    jobID,
+		StepId:   stepID,
+		NodeName: nodeName,
+		Stdin:    f.Attach.Stdin,
+		Tty:      f.Attach.Tty,
+		Stdout:   f.Attach.Stdout,
+		Stderr:   f.Attach.Stderr,
+	}
+
+	log.Debugf("Calling AttachContainerStep RPC for container %d.%d on node %q with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+		jobID, stepID, nodeName, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
 
 	reply, err := stub.AttachContainerStep(context.Background(), attachReq)
 	if err != nil {
@@ -121,4 +128,29 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	return err
+}
+
+func resolveTargetNode(step *protos.StepInfo, targetNode string) (string, error) {
+	executionNodes := step.GetExecutionNode()
+	if targetNode == "" {
+		switch len(executionNodes) {
+		case 0:
+			return "", util.NewCraneErr(util.ErrorBackend, "execution node list of this step is empty")
+		case 1:
+			return executionNodes[0], nil
+		default:
+			return "", util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("container is running on multiple nodes: %s; please specify --target-node to select one", step.GetCranedList()))
+		}
+	}
+
+	if len(executionNodes) > 0 {
+		found := slices.Contains(executionNodes, targetNode)
+		if !found {
+			return "", util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("container is not running on the target node %q: %s", targetNode, step.GetCranedList()))
+		}
+	}
+
+	return targetNode, nil
 }

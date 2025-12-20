@@ -233,10 +233,12 @@ func InitializeCommandFlags() {
 	AttachCmd.Flags().BoolVar(&f.Attach.Stderr, "stderr", false, "Attach STDERR")
 	AttachCmd.Flags().BoolVar(&f.Attach.Tty, "tty", true, "Allocate a pseudo-TTY")
 	AttachCmd.Flags().StringVar(&f.Attach.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
+	AttachCmd.Flags().StringVarP(&f.Attach.TargetNode, "target-node", "n", "", "Target node to attach to")
 
 	ExecCmd.Flags().BoolVarP(&f.Exec.Interactive, "interactive", "i", false, "Keep STDIN open")
 	ExecCmd.Flags().BoolVarP(&f.Exec.Tty, "tty", "t", false, "Allocate a pseudo-TTY")
 	ExecCmd.Flags().StringVar(&f.Exec.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
+	ExecCmd.Flags().StringVarP(&f.Exec.TargetNode, "target-node", "n", "", "Target node to execute command on")
 }
 
 func init() {

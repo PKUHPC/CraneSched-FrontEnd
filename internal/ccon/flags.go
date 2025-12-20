@@ -104,12 +104,14 @@ type AttachFlags struct {
 	Stderr    bool
 	Tty       bool
 	Transport string
+	TargetNode string
 }
 
 type ExecFlags struct {
 	Interactive bool
 	Tty         bool
 	Transport   string
+	TargetNode  string
 }
 
 type Flags struct {
