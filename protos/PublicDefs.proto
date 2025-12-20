@@ -244,7 +244,7 @@ message StepToCtld {
     BatchTaskAdditionalMeta batch_meta = 21;
     InteractiveTaskAdditionalMeta interactive_meta = 22;
   }
-  
+
   // Step <-> Container
   optional ContainerTaskAdditionalMeta container_meta = 24;
 
@@ -400,8 +400,8 @@ message InteractiveTaskAdditionalMeta {
 }
 
 message PodTaskAdditionalMeta {
-  string name = 1; // Pod name, will use to generate hostname
-  
+  string name = 1;  // Pod name, will use to generate hostname
+
   map<string, string> labels = 2;
   map<string, string> annotations = 3;
 
@@ -752,15 +752,17 @@ enum ErrCode {
 
   ERR_CRI_GENERIC = 80;              // CRI runtime returns error. For other errors in Crane, use ERR_GENERIC_FAILURE.
   ERR_CRI_DISABLED = 81;             // CRI support is disabled in the cluster.
-  ERR_CRI_CONTAINER_NOT_READY = 82;  // Task is pending or container is not ready.
-  ERR_INVALID_MEM_FORMAT = 83;       // Invalid mem format when parsing mem
-  ERR_STEP_RES_BEYOND = 84;          // Step resource request exceeds job resource.
+  ERR_CRI_CONTAINER_NOT_READY = 82;  // Job/step is pending or container is not ready.
+  ERR_CRI_MULTIPLE_NODES = 83;       // Requested CRI operation is not supported in multi-node steps.
 
-  ERR_INVALID_WCKEY = 85;
-  ERR_WCKEY_ALREADY_EXISTS = 86;
-  ERR_INVALID_CLUSTER = 87;
-  ERR_DEL_DEFAULT_WCKEY = 88;
-  ERR_NO_DEFAULT_WCKEY = 89;
+  ERR_INVALID_MEM_FORMAT = 84;       // Invalid mem format when parsing mem
+  ERR_STEP_RES_BEYOND = 85;          // Step resource request exceeds job resource.
+
+  ERR_INVALID_WCKEY = 86;
+  ERR_WCKEY_ALREADY_EXISTS = 87;
+  ERR_INVALID_CLUSTER = 88;
+  ERR_DEL_DEFAULT_WCKEY = 89;
+  ERR_NO_DEFAULT_WCKEY = 90;
 }
 
 enum EntityType {
@@ -850,7 +852,7 @@ message QueryWckeyInfo {
   string name = 1;
   string cluster = 2;
   string user_name = 3;
-  bool is_default = 4; 
+  bool is_default = 4;
 }
 
 message WckeyInfo {

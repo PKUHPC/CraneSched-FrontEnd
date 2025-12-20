@@ -863,6 +863,8 @@ func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 		Transport: "spdy",
 	}
 
+	// NOTE: We left NodeName empty here, as we can't predict where the container will be scheduled.
+	// So the backend will handle the routing.
 	req := &protos.AttachContainerStepRequest{
 		JobId:  jobId,
 		StepId: stepId,
@@ -923,9 +925,9 @@ func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 			case <-time.After(10 * time.Second):
 				continue
 			}
-		case protos.ErrCode_ERR_INVALID_PARAM:
-			// Case 3: INVALID_PARAM (caused by step are on multiple nodes) - exit with message
-			fmt.Printf("Container submitted successfully. Job ID: %d, Step ID: %d\nMultiple nodes requested. Auto-attach disabled.\n", jobId, stepId)
+		case protos.ErrCode_ERR_CRI_MULTIPLE_NODES:
+			// Case 3: MULTIPLE_NODES (step is spawned on multiple nodes) - exit with msg
+			fmt.Printf("Container submitted successfully. Job ID: %d, Step ID: %d\nMultiple nodes requested, auto-attach disabled.\n", jobId, stepId)
 			return nil
 		}
 
