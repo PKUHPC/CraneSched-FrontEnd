@@ -55,7 +55,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		f.Attach.Stderr = false
 	}
 
-	_, step, err := getContainerStep(jobID, stepID, false)
+	_, step, err := GetContainerStep(jobID, stepID, false)
 	if err != nil {
 		return err
 	}

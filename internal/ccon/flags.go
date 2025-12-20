@@ -114,6 +114,10 @@ type ExecFlags struct {
 	TargetNode  string
 }
 
+type WaitFlags struct {
+	Interval int
+}
+
 type Flags struct {
 	Global GlobalFlags
 	Crane  CraneFlags
@@ -125,6 +129,7 @@ type Flags struct {
 	Login  LoginFlags
 	Attach AttachFlags
 	Exec   ExecFlags
+	Wait   WaitFlags
 
 	flagSetCrane *pflag.FlagSet
 }
