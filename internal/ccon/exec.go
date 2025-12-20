@@ -48,7 +48,7 @@ func execExecute(cmd *cobra.Command, args []string) error {
 	// Get flags
 	f := GetFlags()
 
-	_, step, err := getContainerStep(jobID, stepID, false)
+	_, step, err := GetContainerStep(jobID, stepID, false)
 	if err != nil {
 		return err
 	}

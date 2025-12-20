@@ -358,8 +358,34 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// getContainerStep queries exact 1 specific container step and returns the task and step info.
-func getContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.TaskInfo, *protos.StepInfo, error) {
+// GetContainerJob queries exact 1 specific container job and returns the task info.
+func GetContainerJob(jobId uint32, includeCompleted bool) (*protos.TaskInfo, error) {
+	idFilter := map[uint32]*protos.JobStepIds{
+		jobId: {},
+	}
+	request := protos.QueryTasksInfoRequest{
+		FilterIds:                   idFilter,
+		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
+		OptionIncludeCompletedTasks: includeCompleted,
+	}
+
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query container job")
+		return nil, util.NewCraneErr(util.ErrorNetwork, "")
+	}
+	if !reply.GetOk() {
+		return nil, util.NewCraneErr(util.ErrorBackend, "")
+	}
+	if len(reply.TaskInfoList) == 0 {
+		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container job %d not found", jobId))
+	}
+
+	return reply.TaskInfoList[0], nil
+}
+
+// GetContainerStep queries exact 1 specific container step and returns the task and step info.
+func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.TaskInfo, *protos.StepInfo, error) {
 	idFilter := map[uint32]*protos.JobStepIds{
 		jobID: {Steps: []uint32{stepID}},
 	}

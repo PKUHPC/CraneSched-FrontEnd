@@ -88,6 +88,13 @@ var (
 		RunE:             stopExecute,
 	}
 
+	WaitCmd = &cobra.Command{
+		Use:              "wait [flags]",
+		Short:            "Wait for all container steps in the current job to finish",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             waitExecute,
+	}
+
 	PsCmd = &cobra.Command{
 		Use:              "ps [flags]",
 		Short:            "List containers (steps)",
@@ -239,6 +246,8 @@ func InitializeCommandFlags() {
 	ExecCmd.Flags().BoolVarP(&f.Exec.Tty, "tty", "t", false, "Allocate a pseudo-TTY")
 	ExecCmd.Flags().StringVar(&f.Exec.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
 	ExecCmd.Flags().StringVarP(&f.Exec.TargetNode, "target-node", "n", "", "Target node to execute command on")
+
+	WaitCmd.Flags().IntVarP(&f.Wait.Interval, "interval", "t", defaultWaitIntervalSeconds, "Polling interval in seconds (min 10s)")
 }
 
 func init() {
@@ -252,7 +261,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	// Link all commands to the root command
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, PodCmd, InspectPodCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, WaitCmd, RmCmd, PsCmd, PodCmd, InspectPodCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
 	RootCmd.AddCommand(CreateCmd, StartCmd, RestartCmd)
 
 	// Hide crane flags by default. Only display them when running 'ccon run'.
