@@ -441,8 +441,8 @@ from(bucket: "%s")
 
 		switch field {
 		case "state":
-			if state, ok := record.Value().(string); ok {
-				eventMap[key].State = state
+			if state, ok := record.Value().(int64); ok {
+				eventMap[key].State = util.StateToString(state)
 			}
 		case "reason":
 			if reason, ok := record.Value().(string); ok {
