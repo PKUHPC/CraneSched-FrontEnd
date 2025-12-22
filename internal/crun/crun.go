@@ -1309,6 +1309,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.LicensesCount = licCount
 		job.IsLicensesOr = isLicenseOr
 	}
+	task.SubmitDir, err = os.Getwd()
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
+	}
 
 	// Marshal extra attributes
 	if jobMode {
