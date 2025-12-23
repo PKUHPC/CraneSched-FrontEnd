@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"CraneFrontEnd/tool/meta-cni/pkg/engine"
 	metatypes "CraneFrontEnd/tool/meta-cni/pkg/types"
 	"CraneFrontEnd/tool/meta-cni/pkg/utils"
 
@@ -51,7 +52,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	log.Debugf("CNI Args: %q", args.Args)
 
-	result, err := conf.Execute(metatypes.ActionAdd, args)
+	result, err := engine.Execute(conf, engine.ActionAdd, args)
 	if err != nil {
 		return err
 	}
@@ -81,7 +82,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 
 	log.Debugf("CNI Args: %q", args.Args)
 
-	_, err = conf.Execute(metatypes.ActionCheck, args)
+	_, err = engine.Execute(conf, engine.ActionCheck, args)
 	return err
 }
 
@@ -100,7 +101,7 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	log.Debugf("CNI Args: %q", args.Args)
 
-	_, err = conf.Execute(metatypes.ActionDel, args)
+	_, err = engine.Execute(conf, engine.ActionDel, args)
 	return err
 }
 
