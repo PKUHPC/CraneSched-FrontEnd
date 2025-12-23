@@ -497,7 +497,8 @@ func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	}
 
 	for _, arg := range args {
-		if message, found := unsupportedFlags[arg.name]; found {
+		nameWithoutPrefix := strings.TrimLeft(arg.name, "-")
+		if message, found := unsupportedFlags[nameWithoutPrefix]; found {
 			fmt.Fprintln(os.Stderr, message)
 		} else {
 			filteredArgs = append(filteredArgs, arg)

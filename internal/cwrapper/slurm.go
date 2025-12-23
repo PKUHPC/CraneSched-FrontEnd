@@ -304,7 +304,7 @@ func sbatch() *cobra.Command {
 			if help, err := cbatch.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return cbatch.RootCmd.Help()
 			}
-			PrintSbatchIgnoreArgsMesssage()
+			PrintSbatchIgnoreArgsMessage()
 			cbatch.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(cbatch.RootCmd, args); err != nil {
 				log.Error(err)
@@ -804,7 +804,7 @@ func PrintSallocIgnoreDummyArgsMessage() {
 	}
 }
 
-func PrintSbatchIgnoreArgsMesssage() {
+func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagNTasks != "" {
 		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
 	}
