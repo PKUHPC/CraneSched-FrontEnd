@@ -173,27 +173,34 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 }
 
 func ParseRelativeTime(ts string) (int64, error) {
-	// handle now+1hour now-2week etc.
-	re := regexp.MustCompile(`^(\d+)([a-zA-Z]*)$`)
-	if result := re.FindStringSubmatch(ts); result != nil {
-		value, err := strconv.ParseInt(result[1], 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("invalid duration: %v", ts)
-		}
-		unit := strings.ToLower(result[2])
-		switch unit {
-		case "", "s", "sec", "second", "seconds":
-			return value, nil
-		case "m", "min", "minute", "minutes":
-			return value * 60, nil
-		case "h", "hour", "hours":
-			return value * 3600, nil
-		case "d", "day", "days":
-			return value * 24 * 3600, nil
-		case "w", "week", "weeks":
-			return value * 7 * 24 * 3600, nil
-		default:
-			return 0, fmt.Errorf("invalid duration: %v", ts)
+	// handle compound duration like 1h2m30s, 1h30m, etc.
+	if regexp.MustCompile(`^(\d+[a-zA-Z]+)+$`).MatchString(ts) {
+		multiUnitRe := regexp.MustCompile(`(\d+)([a-zA-Z]+)`)
+		matches := multiUnitRe.FindAllStringSubmatch(ts, -1)
+		if matches != nil {
+			var totalSeconds int64 = 0
+			for _, match := range matches {
+				value, err := strconv.ParseInt(match[1], 10, 64)
+				if err != nil {
+					return 0, fmt.Errorf("invalid duration: %v", ts)
+				}
+				unit := strings.ToLower(match[2])
+				switch unit {
+				case "", "s", "sec", "second", "seconds":
+					totalSeconds += value
+				case "m", "min", "minute", "minutes":
+					totalSeconds += value * 60
+				case "h", "hour", "hours":
+					totalSeconds += value * 3600
+				case "d", "day", "days":
+					totalSeconds += value * 24 * 3600
+				case "w", "week", "weeks":
+					totalSeconds += value * 7 * 24 * 3600
+				default:
+					return 0, fmt.Errorf("invalid duration unit '%s' in: %v", unit, ts)
+				}
+			}
+			return totalSeconds, nil
 		}
 	}
 	// handle now+12:20:12
@@ -1464,7 +1471,7 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 
 	// Regex: (type):(job_id[+delay][:job_id[+delay]]...)
 	depPattern := regexp.MustCompile(`^(after|afterok|afternotok|afterany):(.+)$`)
-	jobPattern := regexp.MustCompile(`(\d+)(?:\+(\d+(?:[a-zA-Z]+)?))?`)
+	jobPattern := regexp.MustCompile(`(\d+)(?:\+([^:]+))?(?::|$)`)
 
 	depStrList := strings.Split(depStr, sep)
 	for _, subDepStr := range depStrList {
@@ -1497,7 +1504,10 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 		}
 
 		for _, jobMatch := range jobMatches {
-			jobId, _ := strconv.ParseUint(jobMatch[1], 10, 32)
+			jobId, err := strconv.ParseUint(jobMatch[1], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid job ID '%s' in dependency: %v", jobMatch[1], err)
+			}
 			var delaySeconds uint64 = 0
 			if jobMatch[2] != "" {
 				delayStr := jobMatch[2]
