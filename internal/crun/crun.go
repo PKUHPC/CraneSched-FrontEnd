@@ -280,7 +280,11 @@ func (m *StateMachineOfCrun) StateReqTaskId() {
 			}
 			m.state = WaitRes
 		} else {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate job id: %s\n", payload.FailureReason)
+			if m.step == nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate job id: %s\n", payload.FailureReason)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate step id: %s\n", payload.FailureReason)
+			}
 			m.state = End
 			m.err = util.ErrorBackend
 			return
