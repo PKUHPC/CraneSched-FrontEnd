@@ -1464,7 +1464,7 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 
 	// Regex: (type):(job_id[+delay][:job_id[+delay]]...)
 	depPattern := regexp.MustCompile(`^(after|afterok|afternotok|afterany):(.+)$`)
-	jobPattern := regexp.MustCompile(`(\d+)(?:\+([0-9a-zA-Z]+))?`)
+	jobPattern := regexp.MustCompile(`(\d+)(?:\+(\d+(?:[a-zA-Z]+)?))?`)
 
 	depStrList := strings.Split(depStr, sep)
 	for _, subDepStr := range depStrList {
