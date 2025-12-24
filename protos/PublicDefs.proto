@@ -160,7 +160,7 @@ message TaskToCtld {
     ContainerTaskAdditionalMeta container_meta = 23;
   }
   IoMeta io_meta = 24;
-  string sh_script = 25; // Crun and cbatch script content
+  string sh_script = 25;  // Crun and cbatch script content
 
   string extra_attr = 30;
 
@@ -220,13 +220,14 @@ message StepToCtld {
   google.protobuf.Duration time_limit = 1;
   // account, qos from job
   uint32 job_id = 2;
+  // FIXME: Only cpu is per task, memory and gres is total for the step now.
   ResourceView req_resources_per_task = 3;
   TaskType type = 5;
   uint32 uid = 6;  // Only for authorization
   string name = 7;
 
-  optional uint32 node_num = 8;
-  optional uint32 ntasks_per_node = 9;
+  uint32 node_num = 8;
+  uint32 ntasks_per_node = 9;
 
   bool requeue_if_failed = 12;
   bool get_user_env = 13;
@@ -357,7 +358,7 @@ message JobStepIds {
   repeated uint32 steps = 1;
 }
 
-message IoMeta{
+message IoMeta {
   // Append mode for output and error files
   optional bool open_mode_append = 1;
   string input_file_pattern = 2;

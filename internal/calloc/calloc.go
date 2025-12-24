@@ -396,7 +396,10 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	task.NtasksPerNode = FlagNtasksPerNode
 
 	if FlagGres != "" {
-		gresMap := util.ParseGres(FlagGres)
+		gresMap, err := util.ParseGres(FlagGres)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --gres: %s", err))
+		}
 		task.ReqResources.DeviceMap = gresMap
 	}
 	if FlagTime != "" {

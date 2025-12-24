@@ -1094,16 +1094,22 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		step = &protos.StepToCtld{
-			Name:                "InteractiveStep",
-			TimeLimit:           util.InvalidDuration(),
-			JobId:               jobId,
-			ReqResourcesPerTask: nil,
-			Type:                protos.TaskType_Interactive,
-			Uid:                 uint32(os.Getuid()),
-			Gid:                 gids,
-			NodeNum:             nil,
-			NtasksPerNode:       nil,
-			RequeueIfFailed:     false,
+			Name:      "InteractiveStep",
+			TimeLimit: util.InvalidDuration(),
+			JobId:     jobId,
+			ReqResourcesPerTask: &protos.ResourceView{
+				AllocatableRes: &protos.AllocatableResource{
+					CpuCoreLimit:       0,
+					MemoryLimitBytes:   0,
+					MemorySwLimitBytes: 0,
+				},
+			},
+			Type:            protos.TaskType_Interactive,
+			Uid:             uint32(os.Getuid()),
+			Gid:             gids,
+			NodeNum:         0,
+			NtasksPerNode:   0,
+			RequeueIfFailed: false,
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
@@ -1124,19 +1130,13 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.Name = util.ExtractExecNameFromArgs(args)
 	} else {
 		if cmd.Flags().Changed(NodesOptionStr) {
-			step.NodeNum = &FlagNodes
+			step.NodeNum = FlagNodes
 		}
 		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
-			step.NtasksPerNode = &FlagNtasksPerNode
+			step.NtasksPerNode = FlagNtasksPerNode
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
-			if step.ReqResourcesPerTask == nil {
-				step.ReqResourcesPerTask = &protos.ResourceView{
-					AllocatableRes: &protos.AllocatableResource{CpuCoreLimit: FlagCpuPerTask},
-				}
-			} else {
-				step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
-			}
+			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
 		}
 		step.Name = util.ExtractExecNameFromArgs(args)
 	}
@@ -1173,19 +1173,14 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if FlagGres != "" {
-		gresMap := util.ParseGres(FlagGres)
+		gresMap, err := util.ParseGres(FlagGres)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --gres: %s", err))
+		}
 		if jobMode {
 			job.ReqResources.DeviceMap = gresMap
 		} else {
-			if len(gresMap.NameTypeMap) != 0 {
-				if step.ReqResourcesPerTask == nil {
-					step.ReqResourcesPerTask = &protos.ResourceView{
-						DeviceMap: gresMap,
-					}
-				} else {
-					step.ReqResourcesPerTask.DeviceMap = gresMap
-				}
-			}
+			step.ReqResourcesPerTask.DeviceMap = gresMap
 		}
 	}
 	if FlagPartition != "" {

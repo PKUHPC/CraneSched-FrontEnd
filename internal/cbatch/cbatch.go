@@ -102,7 +102,10 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			}
 			task.CpusPerTask = num
 		case "--gres":
-			gresMap := util.ParseGres(arg.val)
+			gresMap, err := util.ParseGres(arg.val)
+			if err != nil {
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
 			task.ReqResources.DeviceMap = gresMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
@@ -219,7 +222,11 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("gres") {
-		task.ReqResources.DeviceMap = util.ParseGres(FlagGres)
+		gresMap, err := util.ParseGres(FlagGres)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: invalid --gres value '%s': %w", FlagGres, err)
+		}
+		task.ReqResources.DeviceMap = gresMap
 	}
 
 	if FlagTime != "" {
