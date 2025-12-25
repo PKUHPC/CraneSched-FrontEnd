@@ -22,11 +22,12 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
-	"github.com/spf13/cobra"
 	"net"
 	"os/user"
 	"regexp"
 	"strconv"
+
+	"github.com/spf13/cobra"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -1128,6 +1129,16 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.CpusPerTask = FlagCpuPerTask
 		job.NtasksPerNode = FlagNtasksPerNode
 		job.Name = util.ExtractExecNameFromArgs(args)
+		SubmitDir, err := os.Getwd()
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
+		}
+		job.SubmitDir = SubmitDir
+		submitHostname, err := os.Hostname()
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorSystem, "Get submit hostname err: %s.", err)
+		}
+		job.SubmitHostname = submitHostname
 	} else {
 		if cmd.Flags().Changed(NodesOptionStr) {
 			step.NodeNum = &FlagNodes
@@ -1308,10 +1319,6 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 		job.LicensesCount = licCount
 		job.IsLicensesOr = isLicenseOr
-	}
-	task.SubmitDir, err = os.Getwd()
-	if err != nil {
-		return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
 	}
 
 	// Marshal extra attributes
