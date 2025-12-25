@@ -40,6 +40,8 @@ fields below are in addition to standard CNI fields such as `cniVersion`,
 - `logLevel` (string): `trace`, `debug`, or `info`. Defaults to info.
 - `timeoutSeconds` (int): When > 0, a single timeout for the entire action
   (ADD/CHECK/DEL) across all delegates.
+- `resultMode` (string): Controls whether delegate results are passed to the
+  next plugin. Supported values are `none` (default), `chained`, and `merged`.
 - `runtimeOverride` (object): Global runtime override applied to every delegate.
 - `delegates` (array, required): List of delegate plugins to invoke.
 
@@ -104,14 +106,17 @@ environment variable.
 - DEL: delegates run in reverse order.
 - Each delegate is invoked with its own adjusted environment. The environment
   is restored after the call.
-- Delegates are invoked without a previous result (prevResult is nil). If a
-  delegate expects a prevResult, it will not receive one from this meta plugin.
-- The last non-nil result from ADD is returned. If every delegate returns nil,
-  the plugin emits an empty result with the configured cniVersion.
+- `resultMode` controls how previous results are handled for ADD:
+  - `none`: no prevResult is passed to delegates.
+  - `chained`: the last delegate result is passed as prevResult to the next.
+  - `merged`: delegate results are merged and the merged result is passed on.
+- The last non-nil result from ADD is returned. In `merged` mode, the merged
+  result is returned instead. If every delegate returns nil, the plugin emits
+  an empty result with the configured cniVersion.
 
 ## Example
 
-See `tool/meta-cni/00-meta.example.conf` for a full configuration example with
+See `tool/meta-cni/config/00-meta.example.conf` for a full configuration example with
 two delegates and runtime overrides. The key parts are:
 
 - Top-level `type` matching your installed binary name (example uses
