@@ -167,8 +167,8 @@ var errMsgMap = map[protos.ErrCode]string{
 
 	// LicenseResource errors
 	protos.ErrCode_ERR_INVALID_ARGUMENT:       "Invalid argument provided",
-	protos.ErrCode_ERR_RESOURCE_NOT_FOUND:     "The resource was not found in Crane",
-	protos.ErrCode_ERR_RESOURCE_ALREADY_EXIST: "The resource already exists in the Crane",
+	protos.ErrCode_ERR_RESOURCE_NOT_FOUND:     "The resource was not found in the crane",
+	protos.ErrCode_ERR_RESOURCE_ALREADY_EXIST: "The resource already exists in the crane",
 
 	// System-related errors
 	protos.ErrCode_ERR_UPDATE_DATABASE:         "Fail to update data in database",
