@@ -293,9 +293,12 @@ func (db *InfluxDB) SaveLicenseUsage(licenses []*protos.LicenseInfo) error {
 		}
 
 		fields := map[string]interface{}{
-			"total": license.Total,
-			"used":  license.Used,
-			"free":  license.Free,
+			"total":         license.Total,
+			"used":          license.Used,
+			"free":          license.Free,
+			"reserved":      license.Reserved,
+			"last_deficit":  license.LastDeficit,
+			"last_consumed": license.LastConsumed,
 		}
 		point := influxdb2.NewPoint(measurement, tags, fields, time.Now())
 
