@@ -22,11 +22,14 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
-	"github.com/spf13/cobra"
-	"net"
 	"os/user"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/spf13/cobra"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -60,7 +63,8 @@ const (
 )
 
 const (
-	FlagInputALL string = "all"
+	FlagIOForwardALL  string = "all"
+	FlagIOForwardNONE string = "none"
 )
 
 type GlobalVariables struct {
@@ -85,9 +89,13 @@ type StateMachineOfCrun struct {
 	jobId  uint32 // This field will be set after ReqTaskId state
 	stepId uint32 // This field will be set after ReqTaskId state
 
-	cranedId []string
+	cranedId      []string
+	cranedTaskMap map[string][]uint32 // craned to task ids map
+	ntasksTotal   uint32
 
-	inputFlag string // Crun --input flag, used to determine how to read input from stdin
+	inputFlag  string // Crun --input flag, used to determine how to read input from stdin
+	outputFlag string // Crun --output flag, used to determine how to write output to stdout
+	errorFlag  string // Crun --err flag, used to determine how to write error to stderr
 
 	state StateOfCrun
 	err   util.ExitCode // Hold the final error of the state machine if any
@@ -103,14 +111,15 @@ type StateMachineOfCrun struct {
 	cforedReplyReceiver *CforedReplyReceiver
 
 	// These fields are used under Forwarding State.
-	taskFinishCtx           context.Context
-	taskFinishCb            context.CancelFunc
-	taskErrCtx              context.Context
-	taskErrCb               context.CancelFunc
-	chanInputFromTerm       chan []byte
+	stopStepCtx context.Context
+	stopStepCb  context.CancelFunc
+	//stop step will stop reading from local stdin/file/x11
+	stopReadCtx             context.Context
+	stopWriteCtx            context.Context
+	chanInputFromLocal      chan []byte
 	chanOutputFromRemote    chan []byte
-	chanX11InputFromLocal   chan []byte
-	chanX11OutputFromRemote chan []byte
+	chanErrOutputFromRemote chan []byte
+	X11SessionMgr           *X11SessionMgr
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
@@ -320,6 +329,12 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 				fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
 
 				m.cranedId = cforedPayload.CranedIds
+				m.cranedTaskMap = make(map[string][]uint32)
+				for craned, tasks := range cforedPayload.CranedTaskMap {
+					m.cranedTaskMap[craned] = tasks.TaskIds
+				}
+				m.ntasksTotal = cforedPayload.NtasksTotal
+
 				m.state = WaitForward
 			} else {
 				log.Errorln("Failed to allocate job resource. Exiting...")
@@ -399,6 +414,7 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 
 func (m *StateMachineOfCrun) StateForwarding() {
 	var request *protos.StreamCrunRequest
+	var taskIdWithInput *uint32
 
 	if FlagPty {
 		ptyAttr := unix.Termios{}
@@ -423,18 +439,39 @@ func (m *StateMachineOfCrun) StateForwarding() {
 	}
 
 	m.StartIOForward()
+	var x11ReqFromLocal chan *protos.StreamCrunRequest
+	if m.X11SessionMgr != nil {
+		x11ReqFromLocal = m.X11SessionMgr.X11RequestChan
+	} else {
+		x11ReqFromLocal = nil
+	}
 
-	// Forward Terminal input to Cfored.
+	parsedId, err := strconv.ParseUint(m.inputFlag, 10, 32)
+	if err == nil {
+		if parsedId < uint64(m.ntasksTotal) {
+			taskIdWithInput = new(uint32)
+			*taskIdWithInput = uint32(parsedId)
+		} else {
+			log.Tracef("The task id %d specified in --input is out of range [0, %d), "+
+				"consider it a file path, input is broadcasted.", parsedId, m.ntasksTotal)
+		}
+	}
+
+	// Forward input to Cfored.
 	go func() {
 		for {
 			select {
-			case msg := <-m.chanInputFromTerm:
+			case msg, ok := <-m.chanInputFromLocal:
+				if !ok {
+					msg = nil
+				}
 				request = &protos.StreamCrunRequest{
 					Type: protos.StreamCrunRequest_TASK_IO_FORWARD,
 					Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
 						PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
-							Msg: msg,
-							Eof: msg == nil,
+							Msg:    msg,
+							Eof:    msg == nil,
+							TaskId: taskIdWithInput,
 						},
 					},
 				}
@@ -444,16 +481,11 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					gVars.connectionBroken = true
 					return
 				}
-
-			case msg := <-m.chanX11InputFromLocal:
-				request = &protos.StreamCrunRequest{
-					Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
-					Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
-						PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
-							Msg: msg,
-						},
-					},
+				if msg == nil {
+					return
 				}
+
+			case request := <-x11ReqFromLocal:
 				if err := m.stream.Send(request); err != nil {
 					log.Errorf("Failed to send Task X11 Input to CrunStream: %s. "+
 						"Connection to Crun is broken", err)
@@ -461,7 +493,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					return
 				}
 
-			case <-m.taskFinishCtx.Done():
+			case <-m.stopReadCtx.Done():
 				return
 			}
 		}
@@ -469,7 +501,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 
 	for m.state == Forwarding {
 		select {
-		case <-m.taskFinishCtx.Done():
+		case <-m.stopStepCtx.Done():
 			request = &protos.StreamCrunRequest{
 				Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
 				Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
@@ -480,27 +512,6 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			}
 
 			log.Debug("Sending TASK_COMPLETION_REQUEST with COMPLETED state...")
-			if err := m.stream.Send(request); err != nil {
-				log.Errorf("The connection to Cfored was broken: %s. "+
-					"Exiting...", err)
-				gVars.connectionBroken = true
-				m.state = End
-				m.err = util.ErrorNetwork
-			} else {
-				m.state = WaitAck
-			}
-
-		case <-m.taskErrCtx.Done():
-			request = &protos.StreamCrunRequest{
-				Type: protos.StreamCrunRequest_TASK_COMPLETION_REQUEST,
-				Payload: &protos.StreamCrunRequest_PayloadTaskCompleteReq{
-					PayloadTaskCompleteReq: &protos.StreamCrunRequest_TaskCompleteReq{
-						Status: protos.TaskStatus_Cancelled,
-					},
-				},
-			}
-
-			log.Debug("Sending TASK_COMPLETION_REQUEST with Cancelled state...")
 			if err := m.stream.Send(request); err != nil {
 				log.Errorf("The connection to Cfored was broken: %s. "+
 					"Exiting...", err)
@@ -527,13 +538,37 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			} else {
 				switch cforedReply.Type {
 				case protos.StreamCrunReply_TASK_IO_FORWARD:
-					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
+					select {
+					case m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg:
+					case <-m.stopWriteCtx.Done():
+					}
+				case protos.StreamCrunReply_TASK_ERR_OUTPUT_FORWARD:
+					select {
+					case m.chanErrOutputFromRemote <- cforedReply.GetPayloadTaskIoErrOutputForwardReply().Msg:
+					case <-m.stopWriteCtx.Done():
+					}
 
+				case protos.StreamCrunReply_TASK_X11_CONN:
+					fallthrough
 				case protos.StreamCrunReply_TASK_X11_FORWARD:
-					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
+					fallthrough
+				case protos.StreamCrunReply_TASK_X11_EOF:
+					m.X11SessionMgr.X11ReplyChan <- cforedReply
+
+				case protos.StreamCrunReply_TASK_EXIT_STATUS:
+					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
+					if exitStatus.ExitCode != 0 {
+						if exitStatus.Signaled {
+							fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+						} else {
+							fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+								exitStatus.TaskId, exitStatus.ExitCode)
+						}
+						m.err = int(exitStatus.ExitCode)
+					}
 
 				case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
-					m.taskFinishCtx.Done()
+					m.stopStepCb()
 					log.Trace("Received TASK_CANCEL_REQUEST")
 					m.state = TaskKilling
 
@@ -595,6 +630,49 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		}
 	}
 
+	switch cforedReply.Type {
+	case protos.StreamCrunReply_TASK_IO_FORWARD:
+		select {
+		case m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg:
+		case <-m.stopWriteCtx.Done():
+		}
+		return // Still in WaitAck state
+	case protos.StreamCrunReply_TASK_ERR_OUTPUT_FORWARD:
+		select {
+		case m.chanErrOutputFromRemote <- cforedReply.GetPayloadTaskIoErrOutputForwardReply().Msg:
+		case <-m.stopWriteCtx.Done():
+		}
+		return
+
+	case protos.StreamCrunReply_TASK_X11_CONN:
+		fallthrough
+	case protos.StreamCrunReply_TASK_X11_FORWARD:
+		fallthrough
+	case protos.StreamCrunReply_TASK_X11_EOF:
+		m.X11SessionMgr.X11ReplyChan <- cforedReply
+		return // Still in WaitAck state
+
+	case protos.StreamCrunReply_TASK_EXIT_STATUS:
+		exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
+		if exitStatus.ExitCode != 0 {
+			if exitStatus.Signaled {
+				fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+			} else {
+				fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+					exitStatus.TaskId, exitStatus.ExitCode)
+			}
+			m.err = int(exitStatus.ExitCode)
+		}
+		return // Still in WaitAck state
+
+	case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
+		log.Fatalf("Received TASK_CANCEL_REQUEST in WaitAck state.")
+
+	case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
+		log.Debug("Task completed.")
+		m.state = End
+	}
+
 	if cforedReply.Type != protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY {
 		log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
 		m.err = util.ErrorBackend
@@ -637,7 +715,9 @@ CrunStateMachineLoop:
 		case WaitAck:
 			m.StateWaitAck()
 		case End:
-			break CrunStateMachineLoop
+			{
+				break CrunStateMachineLoop
+			}
 		}
 	}
 }
@@ -658,7 +738,7 @@ loop:
 				log.Tracef("Recv signal: %v", sig)
 				now := time.Now()
 				if lastSigint.Add(time.Second).After(now) {
-					m.taskFinishCb()
+					m.stopStepCb()
 					break loop
 				} else {
 					lastSigint = now
@@ -674,16 +754,8 @@ loop:
 }
 
 func (m *StateMachineOfCrun) StdoutWriterRoutine() {
-	file := os.NewFile(os.Stdout.Fd(), "stdout")
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Errorf("Failed to close stdout file: %s.", err)
-		}
-	}(file)
-
 	log.Trace("Starting StdoutWriterRoutine")
-	writer := bufio.NewWriter(file)
+	writer := bufio.NewWriter(os.Stdout)
 
 writing:
 	for {
@@ -702,10 +774,121 @@ writing:
 				break writing
 			}
 
-		case <-m.taskFinishCtx.Done():
+		case <-m.stopWriteCtx.Done():
 			break writing
 		}
 	}
+}
+
+func (m *StateMachineOfCrun) StderrWriterRoutine() {
+	log.Trace("Starting StderrWriterRoutine")
+	writer := bufio.NewWriter(os.Stderr)
+
+writing:
+	for {
+		select {
+		case msg := <-m.chanErrOutputFromRemote:
+			_, err := writer.Write(msg)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to write to stderr: %v\n", err)
+				break writing
+			}
+			if err := writer.Flush(); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to flush to stderr: %v\n", err)
+				break writing
+			}
+		case <-m.stopWriteCtx.Done():
+			break writing
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) DiscardRoutine(src <-chan []byte, name string) {
+	log.Tracef("Starting DiscardRoutine(%s)", name)
+	for {
+		select {
+		case <-src:
+		case <-m.stopWriteCtx.Done():
+			return
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) FileWriterRoutine(filePath string, src <-chan []byte) {
+	if filePath == "" {
+		return
+	}
+
+	if dir := filepath.Dir(filePath); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.Errorf("Failed to create output dir %s: %s", dir, err)
+			m.stopStepCb()
+			return
+		}
+	}
+
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		log.Errorf("Failed to open file %s: %s", filePath, err)
+		m.stopStepCb()
+		return
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Errorf("Failed to close file %s: %s", filePath, err)
+		}
+	}()
+
+	writer := bufio.NewWriter(file)
+
+writing:
+	for {
+		select {
+		case msg := <-src:
+			if _, err := writer.Write(msg); err != nil {
+				log.Errorf("Failed to write to file %s: %s", filePath, err)
+				m.stopStepCb()
+				break writing
+			}
+			if err := writer.Flush(); err != nil {
+				log.Errorf("Failed to flush file %s: %s", filePath, err)
+				m.stopStepCb()
+				break writing
+			}
+		case <-m.stopWriteCtx.Done():
+			break writing
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) StdoutFileWriterRoutine(filePattern string) {
+	parsedFilePath, isLocalFile, err := m.ParseFilePattern(filePattern)
+	if err != nil {
+		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
+		m.stopStepCb()
+		return
+	}
+	if !isLocalFile {
+		log.Debugf("Output file pattern is remote-only, skip: %s", filePattern)
+		return
+	}
+	log.Debugf("Writing stdout to file %s", parsedFilePath)
+	m.FileWriterRoutine(parsedFilePath, m.chanOutputFromRemote)
+}
+
+func (m *StateMachineOfCrun) StderrFileWriterRoutine(filePattern string) {
+	parsedFilePath, isLocalFile, err := m.ParseFilePattern(filePattern)
+	if err != nil {
+		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
+		m.stopStepCb()
+		return
+	}
+	if !isLocalFile {
+		log.Debugf("Error file pattern is remote-only, skip: %s", filePattern)
+		return
+	}
+	log.Debugf("Writing stderr to file %s", parsedFilePath)
+	m.FileWriterRoutine(parsedFilePath, m.chanErrOutputFromRemote)
 }
 
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
@@ -732,7 +915,7 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	}
 
 	defer syscall.Close(epfd)
-	defer close(m.chanInputFromTerm)
+	defer close(m.chanInputFromLocal)
 	events := make([]syscall.EpollEvent, 10)
 	buf := make([]byte, 4096)
 reading:
@@ -751,7 +934,7 @@ reading:
 		}
 
 		select {
-		case <-m.taskFinishCtx.Done():
+		case <-m.stopReadCtx.Done():
 			break reading
 		default:
 		}
@@ -787,7 +970,7 @@ reading:
 					log.Trace("Read 0 bytes (EOF), closing channel and exiting goroutine")
 					return
 				}
-				m.chanInputFromTerm <- buf[:nr]
+				m.chanInputFromLocal <- buf[:nr]
 				log.Tracef("Sent %d bytes to channel", nr)
 			}
 		}
@@ -795,14 +978,10 @@ reading:
 
 }
 
-func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
+func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, error) {
 	log.Tracef("Parsefile pattern: %s", pattern)
 	if pattern == "" {
-		return pattern, nil
-	}
-	// User input two backslash , but we will only get one.
-	if strings.Contains(pattern, "\\") {
-		return strings.ReplaceAll(pattern, "\\", ""), nil
+		return pattern, true, nil
 	}
 	var uid uint32
 	var name string
@@ -815,26 +994,42 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	}
 	currentUser, err := user.LookupId(fmt.Sprintf("%d", uid))
 	if err != nil {
-		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", uid, err)
+		return pattern, true, fmt.Errorf("failed to lookup user by uid %d: %s", uid, err)
 	}
-	replacements := map[string]string{
+	hostname, err := os.Hostname()
+	if err != nil {
+		return pattern, true, fmt.Errorf("failed to get hostname:%s", err)
+	}
+	nodeId := slices.Index(m.cranedId, hostname)
+	if nodeId == -1 {
+		return pattern, true, fmt.Errorf("failed to find hostname %s in allocated craned nodes", hostname)
+	}
+	// User input two backslash , but we will only get one.
+	if strings.Contains(pattern, "\\") {
+		return strings.ReplaceAll(pattern, "\\", ""), true, nil
+	}
+
+	remoteReplacements := map[string]struct{}{
+		//short hostname
+		"%N": {},
+		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
+		"%n": {},
+		// task id in step
+		"%t": {},
+	}
+
+	localReplacements := map[string]string{
 		"%%": "%",
 		//Job array's master job allocation number.
 		//"%A": "",
 		//Job array ID (index) number.
 		//"%a": "",
 		//jobid.stepid of the running job (e.g. "128.0")
-		//"%J": "111.0",
+		"%J": fmt.Sprintf("%d.%d", m.jobId, m.stepId),
 		// job id
 		"%j": fmt.Sprintf("%d", m.jobId),
 		// step id
 		"%s": fmt.Sprintf("%d", m.stepId),
-		//short hostname
-		//"%N": "node1",
-		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
-		//"%n": "0",
-		//job identifier (rank) relative to current job.
-		//"%t": "0",
 		//User name
 		"%u": currentUser.Username,
 		// Job name
@@ -842,6 +1037,8 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 	}
 
 	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
+
+	isLocalFile := true
 
 	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
 		parts := re.FindStringSubmatch(match)
@@ -855,7 +1052,12 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 		padding := parts[1]   // '5' in '%5j'
 		specifier := parts[2] // 'j' in '%5j'
 
-		value, found := replacements["%"+specifier]
+		_, foundInRemote := remoteReplacements["%"+specifier]
+		if foundInRemote {
+			isLocalFile = false
+		}
+
+		value, found := localReplacements["%"+specifier]
 		if !found {
 			return match // fallback
 		}
@@ -874,20 +1076,38 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, error) {
 
 		return value
 	})
-
-	return result, nil
+	if !isLocalFile {
+		return "", false, nil
+	} else {
+		return result, true, nil
+	}
 }
+
 func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
-	parsedFilePath, err := m.ParseFilePattern(filePattern)
+	defer func() {
+		// File input producer owns closing the input channel.
+		// The forwarder goroutine must handle channel close gracefully.
+		close(m.chanInputFromLocal)
+	}()
+
+	parsedFilePath, isLocalFile, err := m.ParseFilePattern(filePattern)
 	if err != nil {
 		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
+		m.chanInputFromLocal <- nil
+		m.stopStepCb()
+		return
+	}
+	if !isLocalFile {
+		log.Debugf("Input file is not a local file: %s", filePattern)
+		m.chanInputFromLocal <- nil
+		m.stopStepCb()
 		return
 	}
 	file, err := os.Open(parsedFilePath)
 	if err != nil {
 		log.Errorf("Failed to open file %s: %s", parsedFilePath, err)
-		m.chanInputFromTerm <- nil
-		m.taskErrCb()
+		m.chanInputFromLocal <- nil
+		m.stopStepCb()
 		return
 	}
 	log.Debugf("Reading from file %s", parsedFilePath)
@@ -902,104 +1122,98 @@ func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {
 reading:
 	for {
 		select {
-		case <-m.taskFinishCtx.Done():
+		case <-m.stopReadCtx.Done():
 			break reading
 		default:
 			n, err := reader.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
-					m.chanInputFromTerm <- buffer[:n]
-					m.chanInputFromTerm <- nil
+					m.chanInputFromLocal <- buffer[:n]
+					m.chanInputFromLocal <- nil
 					break reading
 				}
 				log.Errorf("Failed to read from fd: %v", err)
 				break reading
 			}
-			m.chanInputFromTerm <- buffer[:n]
-		}
-	}
-}
-
-func (m *StateMachineOfCrun) StartX11ReaderWriterRoutine() {
-	var reader *bufio.Reader
-	var conn net.Conn
-	var err error
-	var x11meta *protos.X11Meta
-	if m.job != nil {
-		x11meta = m.job.GetInteractiveMeta().GetX11Meta()
-	} else {
-		x11meta = m.step.GetInteractiveMeta().GetX11Meta()
-	}
-	if x11meta.Port == 0 { // Unix Socket
-		conn, err = net.Dial("unix", x11meta.Target)
-		if err != nil {
-			log.Errorf("Failed to connect to X11 display by unix: %v", err)
-			return
-		}
-	} else { // TCP socket
-		address := net.JoinHostPort(x11meta.Target, fmt.Sprintf("%d", x11meta.Port))
-		conn, err = net.Dial("tcp", address)
-		if err != nil {
-			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
-			return
-		}
-	}
-	defer conn.Close()
-
-	go func() {
-		reader = bufio.NewReader(conn)
-		buffer := make([]byte, 4096)
-
-		for {
-			n, err := reader.Read(buffer)
-			if err != nil {
-				if err == io.EOF {
-					return
-				}
-				log.Tracef("X11 fd has been closed and stop reading: %v", err)
-				return
-			}
-			data := make([]byte, n)
-			copy(data, buffer[:n])
-			m.chanX11InputFromLocal <- data
-			log.Tracef("Received data from x11 fd (len %d)", len(data))
-		}
-	}()
-
-	writer := bufio.NewWriter(conn)
-loop:
-	for {
-		select {
-		case <-m.taskFinishCtx.Done():
-			break loop
-
-		case msg := <-m.chanX11OutputFromRemote:
-			log.Tracef("Writing to x11 fd.")
-			_, err := writer.Write(msg)
-			if err != nil {
-				log.Errorf("Failed to write to x11 fd: %v", err)
-				break loop
-			}
-
-			err = writer.Flush()
-			if err != nil {
-				log.Errorf("Failed to flush data to x11 fd: %v", err)
-				break loop
-			}
+			m.chanInputFromLocal <- buffer[:n]
 		}
 	}
 }
 
 func (m *StateMachineOfCrun) StartIOForward() {
-	m.taskFinishCtx, m.taskFinishCb = context.WithCancel(context.Background())
-	m.taskErrCtx, m.taskErrCb = context.WithCancel(context.Background())
+	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
+	m.stopReadCtx = m.stopStepCtx
+	m.stopWriteCtx = m.stopStepCtx
 
-	m.chanInputFromTerm = make(chan []byte, 100)
+	m.chanInputFromLocal = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
+	m.chanErrOutputFromRemote = make(chan []byte, 20)
+	go m.forwardingSigHandlerRoutine()
+	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
+		log.Debugf("Input from stdin to all tasks")
+		go m.StdinReaderRoutine()
+	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
+		log.Debugf("No input forwarding")
+	} else {
+		taskId, err := strconv.ParseUint(m.inputFlag, 10, 32)
+		if err != nil {
+			log.Debugf("Input from file %s, filepath is not a number", m.inputFlag)
+			go m.FileReaderRoutine(m.inputFlag)
+		} else {
+			if taskId < uint64(m.ntasksTotal) {
+				log.Debugf("Input from stdin to %d", taskId)
+				go m.StdinReaderRoutine()
+			} else {
+				log.Debugf("Input from file %s, num but greater than ntasksTotal %d", m.inputFlag, m.ntasksTotal)
+				go m.FileReaderRoutine(m.inputFlag)
 
-	m.chanX11InputFromLocal = make(chan []byte, 100)
-	m.chanX11OutputFromRemote = make(chan []byte, 20)
-	totalNodes := uint32(len(m.cranedId))
+			}
+		}
+	}
+
+	if strings.ToLower(m.outputFlag) == FlagIOForwardALL {
+		log.Debugf("Output to stdout")
+		go m.StdoutWriterRoutine()
+	} else if strings.ToLower(m.outputFlag) == FlagIOForwardNONE {
+		log.Debugf("Output discarded")
+		go m.DiscardRoutine(m.chanOutputFromRemote, "stdout")
+	} else {
+		taskId, err := strconv.ParseUint(m.outputFlag, 10, 32)
+		if err != nil {
+			log.Debugf("Output to file %s", m.outputFlag)
+			go m.StdoutFileWriterRoutine(m.outputFlag)
+		} else {
+			if taskId < uint64(m.ntasksTotal) {
+				log.Debugf("Output to stdout (filtered by sender task %d)", taskId)
+				go m.StdoutWriterRoutine()
+			} else {
+				log.Debugf("Output to file %s (task id %d >= ntasksTotal %d)", m.outputFlag, taskId, m.ntasksTotal)
+				go m.StdoutFileWriterRoutine(m.outputFlag)
+			}
+		}
+	}
+
+	if strings.ToLower(m.errorFlag) == FlagIOForwardALL {
+		log.Debugf("Stderr output to stderr")
+		go m.StderrWriterRoutine()
+	} else if strings.EqualFold(m.errorFlag, "none") {
+		log.Debugf("Stderr output discarded")
+		go m.DiscardRoutine(m.chanErrOutputFromRemote, "stderr")
+	} else {
+		taskId, err := strconv.ParseUint(m.errorFlag, 10, 32)
+		if err != nil {
+			log.Debugf("Stderr output to file %s", m.errorFlag)
+			go m.StderrFileWriterRoutine(m.errorFlag)
+		} else {
+			if taskId < uint64(m.ntasksTotal) {
+				log.Debugf("Stderr output to stderr (filtered by sender task %d)", taskId)
+				go m.StderrWriterRoutine()
+			} else {
+				log.Debugf("Stderr output to file %s (task id %d >= ntasksTotal %d)", m.errorFlag, taskId, m.ntasksTotal)
+				go m.StderrFileWriterRoutine(m.errorFlag)
+			}
+		}
+	}
 
 	var iaMeta *protos.InteractiveTaskAdditionalMeta
 	if m.job != nil {
@@ -1007,27 +1221,9 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	} else {
 		iaMeta = m.step.GetInteractiveMeta()
 	}
-	go m.forwardingSigHandlerRoutine()
-	if strings.ToLower(FlagInput) == FlagInputALL {
-		go m.StdinReaderRoutine()
-	} else {
-		num, err := strconv.Atoi(FlagInput)
-		if err != nil {
-			go m.FileReaderRoutine(FlagInput)
-		} else {
-			if uint32(num) > totalNodes {
-				go m.FileReaderRoutine(FlagInput)
-			} else {
-				//TODO: should fwd io to the job with relative id equal to job id instead of file
-				go m.FileReaderRoutine(FlagInput)
-			}
-		}
-	}
-
-	go m.StdoutWriterRoutine()
-
 	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
-		go m.StartX11ReaderWriterRoutine()
+		m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.stopReadCtx)
+		go m.X11SessionMgr.SessionMgrRoutine()
 	}
 }
 
@@ -1094,28 +1290,38 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.TaskToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
-			CmdLine: strings.Join(args, " "),
-			Cwd:     gVars.cwd,
+			ShScript: strings.Join(args, " "),
+			IoMeta:   &protos.IoMeta{},
+			CmdLine:  strings.Join(args, " "),
+			Cwd:      gVars.cwd,
 
 			Env: make(map[string]string),
 		}
 	} else {
 		step = &protos.StepToCtld{
-			Name:                "InteractiveStep",
-			TimeLimit:           util.InvalidDuration(),
-			JobId:               jobId,
-			ReqResourcesPerTask: nil,
-			Type:                protos.TaskType_Interactive,
-			Uid:                 uint32(os.Getuid()),
-			Gid:                 gids,
-			NodeNum:             nil,
-			NtasksPerNode:       nil,
-			RequeueIfFailed:     false,
+			Name:      "InteractiveStep",
+			TimeLimit: util.InvalidDuration(),
+			JobId:     jobId,
+			ReqResourcesPerTask: &protos.ResourceView{
+				AllocatableRes: &protos.AllocatableResource{
+					CpuCoreLimit:       0,
+					MemoryLimitBytes:   0,
+					MemorySwLimitBytes: 0,
+				},
+			},
+			Type:            protos.TaskType_Interactive,
+			Uid:             uint32(os.Getuid()),
+			Gid:             gids,
+			NodeNum:         0,
+			NtasksPerNode:   0,
+			RequeueIfFailed: false,
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
-			CmdLine: strings.Join(args, " "),
-			Cwd:     gVars.cwd,
+			ShScript: strings.Join(args, " "),
+			IoMeta:   &protos.IoMeta{},
+			CmdLine:  strings.Join(args, " "),
+			Cwd:      gVars.cwd,
 
 			Env: make(map[string]string),
 		}
@@ -1130,19 +1336,13 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.Name = util.ExtractExecNameFromArgs(args)
 	} else {
 		if cmd.Flags().Changed(NodesOptionStr) {
-			step.NodeNum = &FlagNodes
+			step.NodeNum = FlagNodes
 		}
 		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
-			step.NtasksPerNode = &FlagNtasksPerNode
+			step.NtasksPerNode = FlagNtasksPerNode
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
-			if step.ReqResourcesPerTask == nil {
-				step.ReqResourcesPerTask = &protos.ResourceView{
-					AllocatableRes: &protos.AllocatableResource{CpuCoreLimit: FlagCpuPerTask},
-				}
-			} else {
-				step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
-			}
+			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
 		}
 		step.Name = util.ExtractExecNameFromArgs(args)
 	}
@@ -1179,19 +1379,14 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if FlagGres != "" {
-		gresMap := util.ParseGres(FlagGres)
+		gresMap, err := util.ParseGres(FlagGres)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --gres: %s", err))
+		}
 		if jobMode {
 			job.ReqResources.DeviceMap = gresMap
 		} else {
-			if len(gresMap.NameTypeMap) != 0 {
-				if step.ReqResourcesPerTask == nil {
-					step.ReqResourcesPerTask = &protos.ResourceView{
-						DeviceMap: gresMap,
-					}
-				} else {
-					step.ReqResourcesPerTask.DeviceMap = gresMap
-				}
-			}
+			step.ReqResourcesPerTask.DeviceMap = gresMap
 		}
 	}
 	if FlagPartition != "" {
@@ -1381,7 +1576,6 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)
 	}
 
-	iaMeta.ShScript = strings.Join(args, " ")
 	termEnv, exits := syscall.Getenv("TERM")
 	if exits {
 		iaMeta.TermEnv = termEnv
@@ -1390,10 +1584,31 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	m := new(StateMachineOfCrun)
 	m.inputFlag = FlagInput
+	m.outputFlag = FlagOutput
+	m.errorFlag = FlagErr
 
-	if FlagPty && strings.ToLower(FlagInput) != FlagInputALL {
-		return util.NewCraneErr(util.ErrorCmdArg, "--input is incompatible with --pty.")
+	if FlagPty {
+		if cmd.Flags().Changed("input") || cmd.Flags().Changed("output") || cmd.Flags().Changed("err") {
+			return util.NewCraneErr(util.ErrorCmdArg, "--input/--output/--err are incompatible with --pty.")
+		} else {
+			log.Debugf("Crun with pty, set input/output/error to 0/0/none")
+			//For pty, we always set inputFlag to "0", only fwd for task 0
+			m.inputFlag = "0"
+			m.outputFlag = "0"
+			m.errorFlag = "none"
+		}
 	}
+
+	var ioMeta *protos.IoMeta
+	if jobMode {
+		ioMeta = job.IoMeta
+	} else {
+		ioMeta = step.IoMeta
+	}
+	ioMeta.OpenModeAppend = proto.Bool(true)
+	ioMeta.InputFilePattern = m.inputFlag
+	ioMeta.OutputFilePattern = m.outputFlag
+	ioMeta.ErrorFilePattern = m.errorFlag
 
 	m.Init(job, step)
 	m.Run()

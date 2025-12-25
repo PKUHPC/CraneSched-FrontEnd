@@ -45,6 +45,8 @@ var (
 	FlagGres               string
 
 	FlagInput     string
+	FlagOutput    string
+	FlagErr       string
 	FlagPty       bool
 	FlagExclusive bool
 
@@ -84,6 +86,7 @@ func ParseCmdArgs() {
 }
 
 func init() {
+	RootCmd.Flags().SetInterspersed(false)
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "",
@@ -107,6 +110,8 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
 
 	RootCmd.Flags().StringVarP(&FlagInput, "input", "i", "all", "Source and destination of stdin redirection")
+	RootCmd.Flags().StringVarP(&FlagOutput, "output", "o", "all", "Source and destination of stdout redirection")
+	RootCmd.Flags().StringVarP(&FlagErr, "err", "e", "all", "Source and destination of stderr redirection")
 	RootCmd.Flags().BoolVar(&FlagPty, "pty", false, "Run with a pseudo-terminal")
 
 	RootCmd.Flags().BoolVar(&FlagX11, "x11", false, "Enable X11 support, default is false. If not with --x11-forwarding, direct X11 is used (insecure)")

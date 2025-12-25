@@ -213,7 +213,11 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 
 	if gresSpec != "" {
 		// Set GPU resources via DeviceMap (like cbatch does)
-		task.ReqResources.DeviceMap = util.ParseGres(gresSpec)
+		gresMap, err := util.ParseGres(gresSpec)
+		if err != nil {
+			return fmt.Errorf("invalid gres specification '%s': %v", gresSpec, err)
+		}
+		task.ReqResources.DeviceMap = gresMap
 	}
 
 	return nil

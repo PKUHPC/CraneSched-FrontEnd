@@ -89,7 +89,7 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 						if craneErr.Error() == "" {
 							cmd.SilenceErrors = true
 						}
-						if craneErr.Code != ErrorCmdArg {
+						if craneErr.Code != ErrorCmdArg || craneErr.Message == "" {
 							cmd.SilenceUsage = true // Silence usage info output
 						}
 					}
@@ -200,6 +200,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
 	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory format",
+	protos.ErrCode_ERR_STEP_RES_BEYOND:         "Step resource request exceeds job resource.",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {

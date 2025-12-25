@@ -46,6 +46,7 @@ var (
 	FlagGres          string
 	FlagGetUserEnv    bool
 	FlagExport        string
+	FlagStdinPath     string
 	FlagStdoutPath    string
 	FlagStderrPath    string
 	FlagOpenMode      string
@@ -141,6 +142,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().StringVarP(&FlagStdinPath, "input", "i", "", "Redirection path of standard input of the script")
 	RootCmd.Flags().StringVarP(&FlagStdoutPath, "output", "o", "", "Redirection path of standard output of the script")
 	RootCmd.Flags().StringVarP(&FlagStderrPath, "error", "e", "", "Redirection path of standard error of the script")
 	RootCmd.Flags().StringVar(&FlagWrappedScript, "wrap", "", "Wrap command string in a sh script and submit")
