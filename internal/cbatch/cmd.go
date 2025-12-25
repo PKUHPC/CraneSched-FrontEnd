@@ -51,7 +51,6 @@ var (
 	FlagOpenMode      string
 	FlagExclusive     bool
 	FlagWckey         string
-	FlagFlagWckeySet  bool
 
 	FlagInterpreter   string
 	FlagWrappedScript string
@@ -89,11 +88,6 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if FlagRepeat == 0 {
 				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
-			}
-			if cmd.Flags().Changed("wckey") {
-				FlagFlagWckeySet = true
-			} else {
-				FlagFlagWckeySet = false
 			}
 
 			task, err := BuildCbatchJob(cmd, args)

@@ -463,7 +463,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagHold {
 		task.Hold = true
 	}
-	if FlagFlagWckeySet {
+	if cmd.Flags().Changed("wckey") {
 		task.Wckey = &FlagWckey
 	}
 

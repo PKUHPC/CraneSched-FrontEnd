@@ -44,11 +44,10 @@ var (
 	FlagExport             string
 	FlagGres               string
 
-	FlagInput        string
-	FlagPty          bool
-	FlagExclusive    bool
-	FlagWckey        string
-	FlagFlagWckeySet bool
+	FlagInput     string
+	FlagPty       bool
+	FlagExclusive bool
+	FlagWckey     string
 
 	FlagX11    bool
 	FlagX11Fwd bool
@@ -75,11 +74,6 @@ var (
 			util.DetectNetworkProxy()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("wckey") {
-				FlagFlagWckeySet = true
-			} else {
-				FlagFlagWckeySet = false
-			}
 			return MainCrun(cmd, args)
 		},
 	}
