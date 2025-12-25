@@ -90,6 +90,7 @@ type LogFlags struct {
 	Timestamps bool
 	Since      string
 	Until      string
+	TargetNode string
 }
 
 type LoginFlags struct {

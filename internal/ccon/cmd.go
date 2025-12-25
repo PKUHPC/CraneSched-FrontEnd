@@ -225,6 +225,7 @@ func InitializeCommandFlags() {
 	PodCmd.Flags().BoolVarP(&f.Pod.All, "all", "a", false, "Show all pods (default shows just running)")
 	PodCmd.Flags().BoolVarP(&f.Pod.Quiet, "quiet", "q", false, "Only display pod IDs")
 
+	LogCmd.Flags().StringVarP(&f.Log.TargetNode, "target-node", "n", "", "Target node to fetch logs from")
 	LogCmd.Flags().BoolVarP(&f.Log.Follow, "follow", "f", false, "Follow log output")
 	LogCmd.Flags().IntVar(&f.Log.Tail, "tail", -1, "Number of lines to show from the end of the logs")
 	LogCmd.Flags().BoolVarP(&f.Log.Timestamps, "timestamps", "t", false, "Show timestamps")

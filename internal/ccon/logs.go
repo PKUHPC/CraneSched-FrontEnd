@@ -37,8 +37,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NOTE: See ContainerInstance in TaskManager.h for log file structure details
 const kLogDirPattern = "%d.out"
-const kLogFilename = "%d.%d.log"
+const kLogFilename = "%v.%v.log"
 
 func logExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
@@ -98,9 +99,27 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		cwd = task.Cwd
 	}
 
-	logPath, err := buildLogPath(cwd, jobID, stepID)
+	var nodeName string
+	if targetStep.Status == protos.TaskStatus_Running {
+		nodeName, err = resolveTargetNode(targetStep, f.Log.TargetNode)
+		if err != nil {
+			return err
+		}
+	} else {
+		if f.Log.TargetNode == "" {
+			return util.NewCraneErr(util.ErrorCmdArg, "Target node must be specified for non-running containers")
+		}
+		nodeName = f.Log.TargetNode
+	}
+
+	logPath, err := buildLogPath(cwd, nodeName, jobID, stepID)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorBackend, "%v", err)
+	}
+
+	// Check if the file exists
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("log file does not exist: %s. Do you have shared storage?", logPath))
 	}
 
 	var sinceTime, untilTime *time.Time
@@ -146,13 +165,9 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func buildLogPath(cwd string, jobId, stepId uint32) (string, error) {
-	if cwd == "" {
-		return "", fmt.Errorf("task working directory not available")
-	}
-
+func buildLogPath(cwd, nodeName string, jobId, stepId uint32) (string, error) {
 	logDir := fmt.Sprintf(kLogDirPattern, jobId)
-	logPath := filepath.Join(cwd, logDir, fmt.Sprintf(kLogFilename, jobId, stepId))
+	logPath := filepath.Join(cwd, logDir, fmt.Sprintf(kLogFilename, stepId, nodeName))
 
 	return logPath, nil
 }
