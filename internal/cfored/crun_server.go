@@ -57,6 +57,17 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, taskMsg *protos.Stream
 		}
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding msg size[%d]",
 			jobId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
+	case protos.StreamTaskIORequest_TASK_ERR_OUTPUT:
+		*reply = &protos.StreamCrunReply{
+			Type: protos.StreamCrunReply_TASK_ERR_OUTPUT_FORWARD,
+			Payload: &protos.StreamCrunReply_PayloadTaskIoErrOutputForwardReply{
+				PayloadTaskIoErrOutputForwardReply: &protos.StreamCrunReply_TaskIOErrOutputForwardReply{
+					Msg: taskMsg.GetPayloadTaskErrOutputReq().Msg,
+				},
+			},
+		}
+		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding err msg size[%d]",
+			jobId, stepId, len(taskMsg.GetPayloadTaskErrOutputReq().GetMsg()))
 
 	case protos.StreamTaskIORequest_TASK_X11_CONN:
 		req := taskMsg.GetPayloadTaskX11FwdConnReq()
@@ -134,6 +145,8 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 
 	var execCranedIds []string
 	var crunPty bool
+	var craned_tasks_map map[string][]uint32
+	var task_craned_map map[uint32]string
 	//Whether crun down before get taskid
 	crunDownWithoutTaskId := false
 	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
@@ -403,6 +416,14 @@ CforedCrunStateMachineLoop:
 					} else {
 						execCranedIds = ctldPayload.GetCranedIds()
 					}
+					craned_tasks_map = make(map[string][]uint32)
+					task_craned_map = make(map[uint32]string)
+					for craned, tasks := range ctldPayload.CranedTaskMap {
+						for _, task := range tasks.TaskIds {
+							task_craned_map[task] = craned
+						}
+						craned_tasks_map[craned] = tasks.TaskIds
+					}
 					log.Tracef("[Ctld->Cfored->Crun][Step #%d.%d] Receive TaskResAllocReply with node %v",
 						jobId, stepId, execCranedIds)
 
@@ -525,11 +546,20 @@ CforedCrunStateMachineLoop:
 					} else {
 						switch crunRequest.Type {
 						case protos.StreamCrunRequest_TASK_IO_FORWARD:
-							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
-								" task, msg size[%d], EOF [%v]", jobId, stepId,
-								len(crunRequest.GetPayloadTaskIoForwardReq().GetMsg()),
-								crunRequest.GetPayloadTaskIoForwardReq().Eof)
-							gSupervisorChanKeeper.forwardCrunRequestToSupervisor(jobId, stepId, crunRequest)
+							req := crunRequest.GetPayloadTaskIoForwardReq()
+
+							if req.TaskId != nil {
+								node := task_craned_map[*req.TaskId]
+								log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to task #%d"+
+									"on node %s msg size[%d], EOF [%v]",
+									jobId, stepId, *req.TaskId, node, len(req.GetMsg()), req.Eof)
+								gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId,
+									node, crunRequest)
+							} else {
+								log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to tasks msg size[%d], EOF [%v]",
+									jobId, stepId, len(req.GetMsg()), req.Eof)
+								gSupervisorChanKeeper.forwardCrunRequestToSupervisor(jobId, stepId, crunRequest)
+							}
 
 						case protos.StreamCrunRequest_TASK_X11_FORWARD:
 

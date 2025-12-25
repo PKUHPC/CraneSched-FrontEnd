@@ -334,6 +334,9 @@ CforedSupervisorStateMachineLoop:
 					case protos.StreamTaskIORequest_TASK_OUTPUT:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote output", jobId, stepId)
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+					case protos.StreamTaskIORequest_TASK_ERR_OUTPUT:
+						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote err output", jobId, stepId)
+						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
 
 					case protos.StreamTaskIORequest_TASK_X11_CONN:
 						fallthrough
@@ -386,8 +389,9 @@ CforedSupervisorStateMachineLoop:
 							Type: protos.StreamTaskIOReply_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
 								PayloadTaskInputReq: &protos.StreamTaskIOReply_TaskInputReq{
-									Msg: msg,
-									Eof: payload.Eof,
+									Msg:    msg,
+									Eof:    payload.Eof,
+									TaskId: payload.TaskId,
 								},
 							},
 						}
