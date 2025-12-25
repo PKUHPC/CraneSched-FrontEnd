@@ -89,7 +89,7 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 						if craneErr.Error() == "" {
 							cmd.SilenceErrors = true
 						}
-						if craneErr.Code != ErrorCmdArg {
+						if craneErr.Code != ErrorCmdArg || craneErr.Message == "" {
 							cmd.SilenceUsage = true // Silence usage info output
 						}
 					}

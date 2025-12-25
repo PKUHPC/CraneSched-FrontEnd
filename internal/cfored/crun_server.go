@@ -405,6 +405,7 @@ CforedCrunStateMachineLoop:
 								Ok:                   ctldPayload.Ok,
 								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
 								CranedIds:            ctldPayload.CranedIds,
+								NtasksTotal:          ctldPayload.NtasksTotal,
 							},
 						},
 					}

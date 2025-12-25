@@ -63,7 +63,8 @@ const (
 )
 
 const (
-	FlagIOForwardALL string = "all"
+	FlagIOForwardALL  string = "all"
+	FlagIOForwardNONE string = "none"
 )
 
 type GlobalVariables struct {
@@ -1151,6 +1152,8 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
 		log.Debugf("Input from stdin to all tasks")
 		go m.StdinReaderRoutine()
+	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
+		log.Debugf("No input forwarding")
 	} else {
 		taskId, err := strconv.ParseUint(m.inputFlag, 10, 32)
 		if err != nil {
@@ -1171,6 +1174,9 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	if strings.ToLower(m.outputFlag) == FlagIOForwardALL {
 		log.Debugf("Output to stdout")
 		go m.StdoutWriterRoutine()
+	} else if strings.ToLower(m.outputFlag) == FlagIOForwardNONE {
+		log.Debugf("Output discarded")
+		go m.DiscardRoutine(m.chanOutputFromRemote, "stdout")
 	} else {
 		taskId, err := strconv.ParseUint(m.outputFlag, 10, 32)
 		if err != nil {
