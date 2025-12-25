@@ -561,7 +561,7 @@ func ParseLicensesString(val string) ([]*protos.TaskToCtld_License, bool, error)
 	}
 
 	var licCount []*protos.TaskToCtld_License
-	pattern := regexp.MustCompile(`(\w+):(\d+)`)
+	pattern := regexp.MustCompile(`^([a-zA-Z]+(?:@[a-zA-Z]+)?):(\d+)$`)
 
 	for _, licenseCount := range licenseVec {
 		if !pattern.MatchString(licenseCount) {
