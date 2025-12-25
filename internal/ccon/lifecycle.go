@@ -42,6 +42,10 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 		return util.WrapCraneErr(util.ErrorCmdArg, "invalid step ID: %v", err)
 	}
 
+	if stepId == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, "step 0 is reserved for pods, please specify a container step ID")
+	}
+
 	idFilter := map[uint32]*protos.JobStepIds{}
 	idFilter[uint32(jobId)] = &protos.JobStepIds{
 		Steps: []uint32{uint32(stepId)},
@@ -105,7 +109,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	if len(reply.NotCancelledJobSteps) > 0 {
 		reason := "Unknown error"
 		if len(reply.NotCancelledJobSteps) > 0 {
-			reason = reply.NotCancelledJobSteps[0].Reason
+			reason = reply.NotCancelledJobSteps[0].GetReason()
 		}
 		log.Errorf("Failed to stop container %d.%d: %s", jobId, stepId, reason)
 		return util.NewCraneErr(util.ErrorBackend, "")
