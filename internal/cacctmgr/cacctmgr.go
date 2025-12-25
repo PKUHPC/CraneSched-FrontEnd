@@ -934,3 +934,92 @@ func ResetUserCredential(value string) util.ExitCode {
 	fmt.Printf("reset user %s credential succeeded.\n", value)
 	return util.ErrorSuccess
 }
+
+func AddWckey(wckey *protos.WckeyInfo) util.ExitCode {
+	if err := util.CheckEntityName(wckey.Name); err != nil {
+		log.Errorf("Failed to add wckey: invalid wckey name: %v", err)
+		return util.ErrorCmdArg
+	}
+
+	req := new(protos.AddWckeyRequest)
+	req.Uid = userUid
+	req.Wckey = wckey
+
+	reply, err := stub.AddWckey(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to add wckey")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+	if reply.GetOk() {
+		fmt.Println("Wckey added successfully.")
+		return util.ErrorSuccess
+	} else {
+		log.Errorf("Failed to add wckey: %s.\n", util.ErrMsg(reply.GetCode()))
+		return util.ErrorBackend
+	}
+}
+
+func DeleteWckey(name, userName string) util.ExitCode {
+	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, UserName: userName}
+
+	reply, err := stub.DeleteWckey(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to delete wckey %s, user %s", name, userName)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+	if reply.GetOk() {
+		fmt.Printf("Successfully deleted wckey: %s, user: %s\n", name, userName)
+		return util.ErrorSuccess
+	} else {
+		log.Errorf("Failed to delete wckey: %s, user: %s: %s", name, userName, util.ErrMsg(reply.GetRichError().GetCode()))
+		return util.ErrorBackend
+	}
+}
+
+func ModifyDefaultWckey(name, userName string) util.ExitCode {
+	req := protos.ModifyDefaultWckeyRequest{
+		Uid:      userUid,
+		Name:     name,
+		UserName: userName,
+	}
+
+	reply, err := stub.ModifyDefaultWckey(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to modify default wckey")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+	if reply.GetOk() {
+		fmt.Println("Modify information succeeded.")
+		return util.ErrorSuccess
+	} else {
+		log.Errorf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		return util.ErrorBackend
+	}
+}

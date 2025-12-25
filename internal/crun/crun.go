@@ -22,11 +22,12 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
-	"github.com/spf13/cobra"
 	"net"
 	"os/user"
 	"regexp"
 	"strconv"
+
+	"github.com/spf13/cobra"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -1299,6 +1300,11 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --hold is not supported in step."))
 		}
 
+	}
+	if cmd.Flags().Changed("wckey") {
+		if jobMode {
+			job.Wckey = &FlagWckey
+		}
 	}
 
 	if FlagLicenses != "" {

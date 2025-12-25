@@ -37,6 +37,7 @@ var (
 		MaxCpusPerUser:      math.MaxUint32,
 		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
 	}
+	FlagWckey protos.WckeyInfo
 
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
@@ -152,6 +153,8 @@ func executeAddCommand(command *CAcctMgrCommand) int {
 		return executeAddUserCommand(command)
 	case "qos":
 		return executeAddQosCommand(command)
+	case "wckey":
+		return executeAddWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -269,6 +272,34 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 	return AddQos(&FlagQos)
 }
 
+func executeAddWckeyCommand(command *CAcctMgrCommand) int {
+	FlagWckey = protos.WckeyInfo{}
+	KVParams := command.GetKVMaps()
+
+	FlagWckey.Name = command.GetID()
+	if FlagWckey.Name == "" {
+		log.Errorf("Error: required entity wckey not set")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(KVParams, []string{"user"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "user":
+			FlagWckey.UserName = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	return AddWckey(&FlagWckey)
+}
+
 func executeDeleteCommand(command *CAcctMgrCommand) int {
 	entity := command.GetEntity()
 
@@ -279,6 +310,8 @@ func executeDeleteCommand(command *CAcctMgrCommand) int {
 		return executeDeleteUserCommand(command)
 	case "qos":
 		return executeDeleteQosCommand(command)
+	case "wckey":
+		return executeDeleteWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -346,6 +379,33 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) int {
 		}
 	}
 	return DeleteQos(FlagEntityName)
+}
+
+func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
+	FlagWckey = protos.WckeyInfo{}
+	KVParams := command.GetKVMaps()
+
+	FlagWckey.Name = command.GetID()
+	if FlagWckey.Name == "" {
+		log.Errorf("Error: required entity wckey not set")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(KVParams, []string{"user"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "user":
+			FlagWckey.UserName = value
+		default:
+			log.Errorf("unknown flag: %s", key)
+			return util.ErrorCmdArg
+		}
+	}
+	return DeleteWckey(FlagWckey.Name, FlagWckey.UserName)
 }
 
 func executeBlockCommand(command *CAcctMgrCommand) int {
@@ -496,6 +556,8 @@ func executeModifyCommand(command *CAcctMgrCommand) int {
 		return executeModifyUserCommand(command)
 	case "qos":
 		return executeModifyQosCommand(command)
+	case "wckey":
+		return executeModifyWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -696,6 +758,53 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 	return util.ErrorSuccess
 }
 
+func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
+	FlagWckey = protos.WckeyInfo{}
+
+	WhereParams := command.GetWhereParams()
+	SetParams, AddParams, DeleteParams := command.GetSetParams()
+
+	if len(WhereParams) == 0 {
+		log.Errorf("Error: modify wckey command requires 'where' clause to specify which user to modify")
+		return util.ErrorCmdArg
+	}
+
+	err := checkEmptyKVParams(WhereParams, []string{"user"})
+	if err != util.ErrorSuccess {
+		return err
+	}
+
+	for key, value := range WhereParams {
+		switch strings.ToLower(key) {
+		case "user":
+			FlagWckey.UserName = value
+		default:
+			log.Errorf("Error: unknown where parameter '%s' for wckey modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+
+	if len(SetParams) == 0 || len(AddParams) != 0 || len(DeleteParams) != 0 {
+		log.Errorf("Error: modify wckey command requires only 'set' clause (add/delete not supported)")
+		return util.ErrorCmdArg
+	}
+
+	for key, value := range SetParams {
+		switch strings.ToLower(key) {
+		case "defaultwckey":
+			FlagWckey.Name = value
+		default:
+			log.Errorf("Error: unknown set parameter '%s' for wckey modification", key)
+			return util.ErrorCmdArg
+		}
+	}
+	if FlagWckey.Name == "" {
+		log.Errorf("Error: modify wckey command requires non-empty 'defaultwckey'")
+		return util.ErrorCmdArg
+	}
+	return ModifyDefaultWckey(FlagWckey.Name, FlagWckey.UserName)
+}
+
 func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	FlagEntityName = ""
 	FlagMaxCpu = ""
@@ -783,6 +892,8 @@ func executeShowCommand(command *CAcctMgrCommand) int {
 		return executeShowTxnLogCommand(command)
 	case "event":
 		return executeShowEventCommand(command)
+	case "wckey":
+		return executeShowWckeyCommand(command)
 	default:
 		log.Errorf("unknown entity type: %s", entity)
 		return util.ErrorCmdArg
@@ -799,6 +910,11 @@ func executeShowAccountCommand(command *CAcctMgrCommand) int {
 	}
 
 	return FindAccount(name)
+}
+
+func executeShowWckeyCommand(command *CAcctMgrCommand) int {
+	wckeyList := command.GetID()
+	return ShowWckey(wckeyList)
 }
 
 func executeShowUserCommand(command *CAcctMgrCommand) int {

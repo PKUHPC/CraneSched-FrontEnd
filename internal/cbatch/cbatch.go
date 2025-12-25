@@ -193,6 +193,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			task.Exclusive = val
+		case "--wckey":
+			wckey := arg.val
+			task.Wckey = &wckey
 		default:
 			return nil, fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}
@@ -318,6 +321,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if FlagHold {
 		task.Hold = true
+	}
+	if cmd.Flags().Changed("wckey") {
+		task.Wckey = &FlagWckey
 	}
 
 	// Set and check the extra attributes

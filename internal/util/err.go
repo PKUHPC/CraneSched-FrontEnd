@@ -200,6 +200,11 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_CRI_DISABLED:            "CRI support is disabled in the cluster.",
 	protos.ErrCode_ERR_CRI_CONTAINER_NOT_READY: "Task is pending or container is not ready.",
 	protos.ErrCode_ERR_INVALID_MEM_FORMAT:      "Invalid memory format",
+	protos.ErrCode_ERR_INVALID_WCKEY:           "The specified wckey does not exist",
+	protos.ErrCode_ERR_WCKEY_ALREADY_EXISTS:    "The wckey already exists in crane",
+	protos.ErrCode_ERR_INVALID_CLUSTER:         "The entered cluster does not exist",
+	protos.ErrCode_ERR_DEL_DEFAULT_WCKEY:       "Cannot delete the default wckey. Please set a different default wckey first",
+	protos.ErrCode_ERR_NO_DEFAULT_WCKEY:        "No default wckey is set. Please specify a wckey or set a default wckey",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {

@@ -786,3 +786,65 @@ func ShowQos(value string) util.ExitCode {
 	PrintQosList(reply.QosList)
 	return util.ErrorSuccess
 }
+
+func PrintWckeyList(wckeyList []*protos.QueryWckeyInfo) {
+	sort.Slice(wckeyList, func(i, j int) bool {
+		return wckeyList[i].UserName < wckeyList[j].UserName
+	})
+
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	table.SetHeader([]string{"Name", "Cluster", "User"})
+
+	tableData := make([][]string, 0, len(wckeyList))
+	for _, wckey := range wckeyList {
+		name := wckey.Name
+		if wckey.IsDefault {
+			name = "*" + name
+		}
+		tableData = append(tableData, []string{
+			name,
+			wckey.Cluster,
+			wckey.UserName,
+		})
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
+}
+
+func ShowWckey(wckeyStr string) util.ExitCode {
+	var wckeyList []string
+	if wckeyStr != "" {
+		var err error
+		wckeyList, err = util.ParseStringParamList(wckeyStr, ",")
+		if err != nil {
+			log.Errorf("Invalid wckey list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+	req := protos.QueryWckeyInfoRequest{Uid: userUid, WckeyList: wckeyList}
+	reply, err := stub.QueryWckeyInfo(context.Background(), &req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to show the wckey")
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if !reply.GetOk() {
+		fmt.Printf("Show wckey err: %s \n", util.ErrMsg(reply.Code))
+		return util.ErrorBackend
+	}
+
+	PrintWckeyList(reply.WckeyList)
+
+	return util.ErrorSuccess
+}

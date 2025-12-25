@@ -47,6 +47,11 @@ func ProcessJobId(task *protos.TaskInfo) string {
 	return strconv.FormatUint(uint64(task.TaskId), 10)
 }
 
+// 'k'wckey
+func ProcessWckey(task *protos.TaskInfo) string {
+	return task.Wckey
+}
+
 // 'k' group
 func ProcessComment(task *protos.TaskInfo) string {
 	if !gjson.Valid(task.ExtraAttr) {
@@ -198,6 +203,10 @@ var fieldMap = map[string]FieldProcessor{
 	// 'j' group
 	"j":     {"JobId", ProcessJobId},
 	"jobid": {"JobId", ProcessJobId},
+
+	// Group K
+	"K":     {"Wckey", ProcessWckey},
+	"wckey": {"Wckey", ProcessWckey},
 
 	// 'k' group
 	"k":       {"Comment", ProcessComment},
