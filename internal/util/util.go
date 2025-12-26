@@ -31,11 +31,15 @@ type Config struct {
 
 	TlsConfig TLSConfig `yaml:"TLS"`
 
-	CraneBaseDir         string       `yaml:"CraneBaseDir"`
-	CforedLogDir         string       `yaml:"CforedLogDir"`
-	CforedDebugLevel     *string      `yaml:"CforedDebugLevel"`
-	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
-	Plugin               PluginConfig `yaml:"Plugin"`
+	CraneBaseDir         string  `yaml:"CraneBaseDir"`
+	CforedLogDir         string  `yaml:"CforedLogDir"`
+	CforedDebugLevel     *string `yaml:"CforedDebugLevel"`
+	CranedCforedSockPath string  `yaml:"CranedCforedSockPath"`
+
+	CrunProlog string `yaml:"CrunProlog"`
+	CrunEpilog string `yaml:"CrunEpilog"`
+
+	Plugin PluginConfig `yaml:"Plugin"`
 }
 
 type TLSConfig struct {

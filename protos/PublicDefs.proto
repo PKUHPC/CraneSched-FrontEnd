@@ -181,6 +181,9 @@ message TaskToCtld {
   repeated License licenses_count = 40;
   bool is_licenses_or = 41;
   optional string wckey = 42;
+
+  string task_prolog = 43;
+  string task_epilog = 44;
 }
 
 message TaskInEmbeddedDb {
@@ -245,6 +248,8 @@ message StepToCtld {
   string excludes = 34;
   string nodelist = 35;
   string container = 26;
+  string task_prolog = 27;
+  string task_epilog = 28;
 }
 
 message RuntimeAttrOfStep {
@@ -787,7 +792,7 @@ message QueryWckeyInfo {
   string name = 1;
   string cluster = 2;
   string user_name = 3;
-  bool is_default = 4; 
+  bool is_default = 4;
 }
 
 message WckeyInfo {
