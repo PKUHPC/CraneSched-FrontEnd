@@ -66,6 +66,7 @@ var (
 
 	FlagHold      bool
 	FlagBeginTime string
+
 	// not implement feature:
 	FlagNTasks          string
 	FlagArray           string
@@ -74,7 +75,6 @@ var (
 	FlagGpusPerNode     string
 	FlagNTasksPerSocket string
 	FlagSignal          string
-	FlagWckey           string
 	FlagCpuFreq         string
 	FlagDependency      string
 	FlagPriority        string
