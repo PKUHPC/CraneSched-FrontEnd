@@ -62,6 +62,7 @@ type RunFlags struct {
 	Entrypoint  string
 	User        string
 	UserNS      bool
+	Network     string
 	Workdir     string
 	Cpus        float64
 	Memory      string
@@ -78,12 +79,18 @@ type PsFlags struct {
 	Quiet bool
 }
 
+type PodFlags struct {
+	All   bool
+	Quiet bool
+}
+
 type LogFlags struct {
 	Follow     bool
 	Tail       int
 	Timestamps bool
 	Since      string
 	Until      string
+	TargetNode string
 }
 
 type LoginFlags struct {
@@ -93,17 +100,23 @@ type LoginFlags struct {
 }
 
 type AttachFlags struct {
-	Stdin     bool
-	Stdout    bool
-	Stderr    bool
-	Tty       bool
-	Transport string
+	Stdin      bool
+	Stdout     bool
+	Stderr     bool
+	Tty        bool
+	Transport  string
+	TargetNode string
 }
 
 type ExecFlags struct {
 	Interactive bool
 	Tty         bool
 	Transport   string
+	TargetNode  string
+}
+
+type WaitFlags struct {
+	Interval int
 }
 
 type Flags struct {
@@ -112,10 +125,12 @@ type Flags struct {
 	Run    RunFlags
 	Stop   StopFlags
 	Ps     PsFlags
+	Pod    PodFlags
 	Log    LogFlags
 	Login  LoginFlags
 	Attach AttachFlags
 	Exec   ExecFlags
+	Wait   WaitFlags
 
 	flagSetCrane *pflag.FlagSet
 }

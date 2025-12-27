@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -33,49 +32,35 @@ import (
 // execExecute handles the exec command execution
 func execExecute(cmd *cobra.Command, args []string) error {
 	if len(args) < 2 {
-		return util.NewCraneErr(util.ErrorCmdArg, "exec requires at least two arguments: CONTAINER_TASK_ID COMMAND [ARG...]")
+		return util.NewCraneErr(util.ErrorCmdArg, "exec requires at least two arguments: CONTAINER (JOBID.STEPID) COMMAND [ARG...]")
 	}
 
-	taskIdStr := args[0]
+	jobID, stepID, err := util.ParseJobIdStepIdStrict(args[0])
+	if err != nil {
+		return err
+	}
+	if stepID == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, "step 0 is reserved for pods, please specify a container step ID")
+	}
+
 	command := args[1:]
 
 	// Get flags
 	f := GetFlags()
 
-	// Parse task ID
-	taskId, err := strconv.ParseUint(taskIdStr, 10, 32)
+	_, step, err := GetContainerStep(jobID, stepID, false)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr))
+		return err
 	}
 
-	idFilter := map[uint32]*protos.JobStepIds{}
-	idFilter[uint32(taskId)] = &protos.JobStepIds{}
-	// First, query the task to verify it's a container task and is running
-	queryReq := &protos.QueryTasksInfoRequest{
-		FilterIds:       idFilter,
-		FilterTaskTypes: []protos.TaskType{protos.TaskType_Container},
+	// Check if the step is in a state that allows exec
+	if step.Status != protos.TaskStatus_Running {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot exec into container %d.%d in state: %s", jobID, stepID, step.Status.String()))
 	}
 
-	queryReply, err := stub.QueryTasksInfo(context.Background(), queryReq)
+	nodeName, err := resolveTargetNode(step, f.Exec.TargetNode)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query task information")
-		return util.NewCraneErr(util.ErrorNetwork, "")
-	}
-
-	if !queryReply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, "Failed to query task information")
-	}
-
-	// Check if the task exists and is a container task
-	if len(queryReply.TaskInfoList) == 0 {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container task %d not found or is not a container task", taskId))
-	}
-
-	task := queryReply.TaskInfoList[0]
-
-	// Check if the task is in a state that allows exec
-	if task.Status != protos.TaskStatus_Running {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot exec into task %d in state: %s", taskId, task.Status.String()))
+		return err
 	}
 
 	// Determine stdin, stdout, stderr based on flags
@@ -84,21 +69,23 @@ func execExecute(cmd *cobra.Command, args []string) error {
 	stdout := true // Always enable stdout for exec
 	stderr := !tty // Enable stderr only in non-TTY mode
 
-	// Call ExecInContainerTask RPC
-	execReq := &protos.ExecInContainerTaskRequest{
-		Uid:     uint32(os.Getuid()),
-		TaskId:  uint32(taskId),
-		Command: command,
-		Stdin:   stdin,
-		Tty:     tty,
-		Stdout:  stdout,
-		Stderr:  stderr,
+	// Call ExecInContainerStep RPC
+	execReq := &protos.ExecInContainerStepRequest{
+		Uid:      uint32(os.Getuid()),
+		JobId:    jobID,
+		StepId:   stepID,
+		NodeName: nodeName,
+		Command:  command,
+		Stdin:    stdin,
+		Tty:      tty,
+		Stdout:   stdout,
+		Stderr:   stderr,
 	}
 
-	log.Debugf("Calling ExecInContainerTask RPC for task %d with command %v, flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
-		taskId, command, execReq.Stdin, execReq.Stdout, execReq.Stderr, execReq.Tty)
+	log.Debugf("Calling ExecInContainerStep RPC for container %d.%d on node %q with command %v, flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+		jobID, stepID, nodeName, command, execReq.Stdin, execReq.Stdout, execReq.Stderr, execReq.Tty)
 
-	reply, err := stub.ExecInContainerTask(context.Background(), execReq)
+	reply, err := stub.ExecInContainerStep(context.Background(), execReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to exec into container task")
 		return util.NewCraneErr(util.ErrorNetwork, "")
@@ -116,11 +103,11 @@ func execExecute(cmd *cobra.Command, args []string) error {
 	// Handle RPC response
 	if reply.Ok {
 		if !f.Global.Json {
-			log.Debugf("Exec request successful for task %d\n", taskId)
+			log.Debugf("Exec request successful for container %d.%d\n", jobID, stepID)
 			if tty {
-				log.Debugf("Executing command in container task %d (TTY enabled)...\n", taskId)
+				log.Debugf("Executing command in container %d.%d (TTY enabled)...\n", jobID, stepID)
 			} else {
-				log.Debugf("Executing command in container task %d...\n", taskId)
+				log.Debugf("Executing command in container %d.%d...\n", jobID, stepID)
 			}
 		}
 

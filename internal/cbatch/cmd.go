@@ -19,7 +19,6 @@
 package cbatch
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"os"
@@ -122,7 +121,6 @@ var (
 			// Process the content of --get-user-env
 			util.SetPropagatedEnviron(&task.Env, &task.GetUserEnv)
 
-			task.Type = protos.TaskType_Batch
 			if task.Cwd == "" {
 				task.Cwd, _ = os.Getwd()
 			}
@@ -177,4 +175,6 @@ func init() {
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagBeginTime, "begin", "b", "", "Defer job until specified time.")
+
+	initPodFlags(RootCmd)
 }

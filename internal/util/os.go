@@ -242,3 +242,17 @@ func SetPropagatedEnviron(Env *map[string]string, GetUserEnv *bool) {
 		}
 	}
 }
+
+func ParseJobNestedEnv() (uint32, bool, error) {
+	jobIdStr, isStep := syscall.Getenv("CRANE_JOB_ID")
+	if !isStep {
+		return 0, false, nil
+	}
+
+	jobId, err := strconv.ParseUint(jobIdStr, 10, 32)
+	if err != nil {
+		err = fmt.Errorf("invalid CRANE_JOB_ID '%s': %v", jobIdStr, err)
+	}
+
+	return uint32(jobId), isStep, err
+}
