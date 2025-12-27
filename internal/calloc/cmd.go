@@ -56,6 +56,13 @@ var (
 	FlagHold bool
 
 	FlagLicenses string
+	// not implement feature:
+	FlagNTasks     string
+	FlagDependency string
+	FlagMemPerCpu  string
+	FlagNoKill     string
+	FlagQuiet      string
+	FlagVerbose    string
 
 	RootCmd = &cobra.Command{
 		Use:     "calloc",

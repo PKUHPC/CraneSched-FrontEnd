@@ -65,6 +65,21 @@ var (
 	FlagHold bool
 
 	FlagLicenses string
+	// not implement feature:
+	FlagNTasks        string
+	FlagMultiProg     string
+	FlagOversubscribe string
+	FlagCpuBind       string
+	FlagDeadline      string
+	FlagWait          string
+	FlagMpi           string
+	FlagDependency    string
+	FlagVerbose       string
+	FlagError         string
+	FlagKillOnBadExit string
+	FlagExtraNodeInfo string
+	FlagNTasksPerCore string
+	FlagConstraint    string
 
 	RootCmd = &cobra.Command{
 		Use:     "crun [flags] executable",

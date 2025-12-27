@@ -67,6 +67,26 @@ var (
 
 	FlagHold      bool
 	FlagBeginTime string
+	// not implement feature:
+	FlagNTasks          string
+	FlagArray           string
+	FlagNoRequeue       string
+	FlagParsable        string
+	FlagGpusPerNode     string
+	FlagNTasksPerSocket string
+	FlagSignal          string
+	FlagWckey           string
+	FlagCpuFreq         string
+	FlagDependency      string
+	FlagPriority        string
+	FlagMemPerCpu       string
+	FlagThreadsPerCore  string
+	FlagDistribution    string
+	FlagInput           string
+	FlagSocketsPerNode  string
+	FlagCoresPerSocket  string
+	FlagRequeue         string
+	FlagWait            string
 
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",

@@ -463,11 +463,53 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Parsing error at line %d: %s", num, err))
 		}
+
 	}
 
 	if err := scanner.Err(); err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to read the script file", err)
 	}
-
+	*args = FilterDummyArgs(*args)
 	return nil
+}
+
+func FilterDummyArgs(args []CbatchArg) []CbatchArg {
+	filteredArgs := make([]CbatchArg, 0, len(args))
+	unsupportedFlags := map[string]string{
+		"ntasks":            "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.",
+		"n":                 "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.",
+		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
+		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
+		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
+		"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
+		"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",
+		"ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
+		"wckey":             "The feature --wckey is not yet supported by Crane, the use is ignored.",
+		"cpu-freq":          "The feature --cpu-freq is not yet supported by Crane, the use is ignored.",
+		"dependency":        "The feature --dependency/-d is not yet supported by Crane, the use is ignored.",
+		"d":                 "The feature --dependency/-d is not yet supported by Crane, the use is ignored.",
+		"priority":          "The feature --priority is not yet supported by Crane, the use is ignored.",
+		"mem-per-cpu":       "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.",
+		"threads-per-core":  "The feature --threads-per-core is not yet supported by Crane, the use is ignored.",
+		"distribution":      "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
+		"m":                 "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
+		"input":             "The feature --input/-i is not yet supported by Crane, the use is ignored.",
+		"i":                 "The feature --input/-i is not yet supported by Crane, the use is ignored.",
+		"sockets-per-node":  "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.",
+		"cores-per-socket":  "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.",
+		"requeue":           "The feature --requeue is not yet supported by Crane, the use is ignored.",
+		"wait":              "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
+		"W":                 "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
+	}
+
+	for _, arg := range args {
+		nameWithoutPrefix := strings.TrimLeft(arg.name, "-")
+		if message, found := unsupportedFlags[nameWithoutPrefix]; found {
+			fmt.Fprintln(os.Stderr, message)
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
+	return filteredArgs
 }
