@@ -175,69 +175,31 @@ func QueryJob() error {
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey"}
-		i := 0
-		for _, taskInfo := range reply.TaskInfoList {
-
-			exitCode := ""
-			if taskInfo.ExitCode >= kTerminationSignalBase {
-				exitCode = fmt.Sprintf("0:%d", taskInfo.ExitCode-kTerminationSignalBase)
-			} else {
-				exitCode = fmt.Sprintf("%d:0", taskInfo.ExitCode)
-			}
-
-			var timeLimitStr string
-			if taskInfo.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
-				timeLimitStr = "unlimited"
-			} else {
-				timeLimitStr = util.SecondTimeFormat(taskInfo.TimeLimit.Seconds)
-			}
-
-			startTimeStr := "unknown"
-			startTime := taskInfo.StartTime.AsTime()
-			if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) &&
-				startTime.Before(time.Now()) {
-				startTimeStr = startTime.In(time.Local).Format("2006-01-02 15:04:05")
-			}
-
-			endTimeStr := "unknown"
-			if !(taskInfo.Status == protos.TaskStatus_Pending ||
-				taskInfo.Status == protos.TaskStatus_Running) {
-				endTime := taskInfo.EndTime.AsTime()
-				if startTime.Before(time.Now()) && endTime.After(startTime) {
-					endTimeStr = endTime.In(time.Local).Format("2006-01-02 15:04:05")
-				}
-			}
-
-			submitTimeStr := "unknown"
-			submitTime := taskInfo.SubmitTime.AsTime()
-			if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
-				submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
-			}
-
-			jobOrStep := &JobOrStep{task: taskInfo, stepInfo: nil, isStep: false}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "Wckey"}
+		for i, jobOrStep := range items {
 			tableData[i] = []string{
-				strconv.FormatUint(uint64(taskInfo.TaskId), 10),
-				taskInfo.Name,
-				taskInfo.Username,
-				taskInfo.Partition,
-				strconv.FormatUint(uint64(taskInfo.NodeNum), 10),
-				taskInfo.Account,
+				ProcessJobID(jobOrStep),
+				ProcessName(jobOrStep),
+				ProcessUserName(jobOrStep),
+				ProcessPartition(jobOrStep),
+				ProcessNodeNum(jobOrStep),
+				ProcessAccount(jobOrStep),
 				ProcessReqCPUs(jobOrStep),
 				ProcessReqMemPerNode(jobOrStep),
 				ProcessAllocCPUs(jobOrStep),
 				ProcessAllocMemPerNode(jobOrStep),
-				taskInfo.Status.String(),
-				timeLimitStr,
-				startTimeStr,
-				endTimeStr,
-				submitTimeStr,
-				taskInfo.Qos,
+				ProcessState(jobOrStep),
+				ProcessTimeLimit(jobOrStep),
+				ProcessStartTime(jobOrStep),
+				ProcessEndTime(jobOrStep),
+				ProcessSubmitTime(jobOrStep),
+				ProcessQos(jobOrStep),
 				ProcessExclusive(jobOrStep),
-				strconv.FormatBool(taskInfo.Held),
-				strconv.FormatUint(uint64(taskInfo.Priority), 10),
-				taskInfo.GetCranedList(),
-				exitCode, taskInfo.Wckey}
+				ProcessHeld(jobOrStep),
+				ProcessPriority(jobOrStep),
+				ProcessNodeList(jobOrStep),
+				ProcessExitCode(jobOrStep),
+				ProcessWckey(jobOrStep)}
 			i += 1
 		}
 	} else {
@@ -461,6 +423,9 @@ func ProcessJobID(item *JobOrStep) string {
 
 // Wckey (K)
 func ProcessWckey(item *JobOrStep) string {
+	if item.isStep {
+		return ""
+	}
 	return item.task.Wckey
 }
 
