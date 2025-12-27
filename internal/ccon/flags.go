@@ -143,7 +143,7 @@ func (f *Flags) InitializeCraneFlags() {
 
 	f.flagSetCrane.StringVarP(&f.Crane.Partition, "partition", "p", "", "Partition for job scheduling")
 	f.flagSetCrane.StringVarP(&f.Crane.Nodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
-	f.flagSetCrane.StringVarP(&f.Crane.Time, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" or \"hours:minutes:seconds\"")
+	f.flagSetCrane.StringVarP(&f.Crane.Time, "time", "t", "", "Time limit, format: \"[day-]hours:minutes:seconds\"")
 	f.flagSetCrane.StringVarP(&f.Crane.Account, "account", "A", "", "Account used for the job")
 	f.flagSetCrane.StringVarP(&f.Crane.Qos, "qos", "q", "", "QoS used for the job")
 	f.flagSetCrane.Uint32VarP(&f.Crane.Nodes, "nodes", "N", 1, "Number of nodes on which to run")
