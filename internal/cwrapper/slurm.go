@@ -320,7 +320,6 @@ func sbatch() *cobra.Command {
 	cmd.Flags().StringVar(&cbatch.FlagParsable, "parsable", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagGpusPerNode, "gpus-per-node", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagNTasksPerSocket, "ntasks-per-socket", "", "")
-	cmd.Flags().StringVar(&cbatch.FlagWckey, "wckey", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCpuFreq, "cpu-freq", "", "")
 	cmd.Flags().StringVarP(&cbatch.FlagDependency, "dependency", "-d", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagPriority, "priority", "", "")
@@ -829,9 +828,6 @@ func PrintSbatchIgnoreArgsMessage() {
 	}
 	if cbatch.FlagNTasksPerSocket != "" {
 		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagWckey != "" {
-		fmt.Fprintln(os.Stderr, "The feature --wckey is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagCpuFreq != "" {
 		fmt.Fprintln(os.Stderr, "The feature --cpu-freq is not yet supported by Crane, the use is ignored.")
