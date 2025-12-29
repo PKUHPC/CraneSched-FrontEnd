@@ -1184,7 +1184,11 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
-		task.MemPerCpu = &memInBytePerCpu
+		if jobMode {
+			job.MemPerCpu = &memInBytePerCpu
+		} else {
+			step.MemPerCpu = &memInBytePerCpu
+		}
 	}
 	setGresGpusFlag := false
 	if FlagGres != "" {
