@@ -91,12 +91,12 @@ type ResetCommand struct {
 }
 
 type EntityType struct {
-	Account bool `parser:"@'account'"`
-	User    bool `parser:"| @'user'"`
-	Qos     bool `parser:"| @'qos'"`
-	Txn     bool `parser:"| @'transaction'"`
-	Event   bool `parser:"| @'event'"`
-	Wckey   bool `parser:"| @'wckey'"`
+	Account  bool `parser:"@'account'"`
+	User     bool `parser:"| @'user'"`
+	Qos      bool `parser:"| @'qos'"`
+	Txn      bool `parser:"| @'transaction'"`
+	Event    bool `parser:"| @'event'"`
+	Wckey    bool `parser:"| @'wckey'"`
 	Resource bool `parser:"| @'resource'"`
 }
 
