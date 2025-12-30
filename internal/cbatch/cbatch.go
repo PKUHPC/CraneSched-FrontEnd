@@ -86,6 +86,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
 
+	setGresGpusFlag := false
+	setGpusPerNodeFlag := false
 	///*************set parameter values based on the file*******************************///
 	for _, arg := range cbatchArgs {
 		switch arg.name {
@@ -103,7 +105,23 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			task.CpusPerTask = num
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
+			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+				if setGpusPerNodeFlag {
+					return nil, fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
+				}
+				setGresGpusFlag = true
+			}
 			task.ReqResources.DeviceMap = gresMap
+		case "--gpus-per-node":
+			if setGresGpusFlag {
+				return nil, fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
+			}
+			setGpusPerNodeFlag = true
+			gpuDeviceMap, err := util.ParseGpusPerNodeStr(arg.val)
+			if err != nil {
+				return nil, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			task.ReqResources.DeviceMap = gpuDeviceMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -220,7 +238,25 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("gres") {
-		task.ReqResources.DeviceMap = util.ParseGres(FlagGres)
+		gresMap := util.ParseGres(FlagGres)
+		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+			if setGpusPerNodeFlag {
+				return nil, fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
+			}
+			setGresGpusFlag = true
+		}
+		task.ReqResources.DeviceMap = gresMap
+	}
+	if cmd.Flags().Changed("gpus-per-node") {
+		if setGresGpusFlag {
+			return nil, fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
+		}
+		setGpusPerNodeFlag = true
+		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: invalid --gpus-per-node value '%s': %w", FlagGpusPerNode, err)
+		}
+		task.ReqResources.DeviceMap = gpuDeviceMap
 	}
 
 	if FlagTime != "" {
@@ -295,9 +331,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
-	}
-	if FlagExclusive {
-		task.Exclusive = true
 	}
 	if FlagOpenMode != "" {
 		switch FlagOpenMode {

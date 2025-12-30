@@ -1102,6 +1102,66 @@ func ParseGres(gres string) *protos.DeviceMap {
 	return result
 }
 
+func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
+	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+	if strings.TrimSpace(gpuPerNodeStr) == "" {
+		return result, nil
+	}
+	gpusPerNodeStrList := strings.Split(gpuPerNodeStr, ",")
+
+	const (
+		ModeNone  = 0
+		ModeDigit = 1
+		ModeType  = 2
+	)
+	mode := ModeNone
+	typeCountMap := &protos.TypeCountMap{TypeCountMap: make(map[string]uint64)}
+
+	for index, gpuPerNodePart := range gpusPerNodeStrList {
+		gpuPerNodePart = strings.TrimSpace(gpuPerNodePart)
+		if gpuPerNodePart == "" {
+			return nil, fmt.Errorf("invalid input: empty part in gpus-per-node string")
+		}
+		parts := strings.Split(gpuPerNodePart, ":")
+		if len(parts) == 1 {
+			if mode == ModeNone {
+				mode = ModeDigit
+			} else if mode != ModeDigit {
+				return nil, fmt.Errorf("cannot mix simple number format with type:count format")
+			}
+			if index != 0 {
+				return nil, fmt.Errorf("simple number format must be the only part")
+			}
+			val, err := strconv.ParseUint(parts[0], 10, 64)
+			if err != nil || val == 0 {
+				return nil, fmt.Errorf("invalid number: %q", parts[0])
+			}
+			typeCountMap.Total = val
+		} else if len(parts) == 2 {
+			if mode == ModeNone {
+				mode = ModeType
+			} else if mode != ModeType {
+				return nil, fmt.Errorf("cannot mix simple number format with type:count format")
+			}
+			gpuType := strings.TrimSpace(parts[0])
+			numStr := strings.TrimSpace(parts[1])
+			if gpuType == "" {
+				return nil, fmt.Errorf("gpu type cannot be empty")
+			}
+			val, err := strconv.ParseUint(numStr, 10, 64)
+			if err != nil || val == 0 {
+				return nil, fmt.Errorf("invalid number for type %q: %q", gpuType, numStr)
+			}
+			typeCountMap.TypeCountMap[gpuType] = val
+		} else {
+			return nil, fmt.Errorf("invalid input: %q (too many colons)", gpuPerNodePart)
+		}
+	}
+
+	result.NameTypeMap[GresGpuName] = typeCountMap
+	return result, nil
+}
+
 func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 	state = strings.ToLower(state)
 	switch state {

@@ -1179,10 +1179,14 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+	setGresGpusFlag := false
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		if jobMode {
 			job.ReqResources.DeviceMap = gresMap
+			if _, exist := job.ReqResources.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
+				setGresGpusFlag = true
+			}
 		} else {
 			if len(gresMap.NameTypeMap) != 0 {
 				if step.ReqResourcesPerTask == nil {
@@ -1314,6 +1318,36 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 		job.LicensesCount = licCount
 		job.IsLicensesOr = isLicenseOr
+	}
+	if FlagGpusPerNode != "" {
+		if setGresGpusFlag {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: "Cannot specify both --gres gpus and --gpus-per-node flags simultaneously",
+			}
+		}
+		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: invalid --gpus-per-node: %s", err),
+			}
+
+		}
+		if jobMode {
+			job.ReqResources.DeviceMap = gpuDeviceMap
+		} else {
+			if len(gpuDeviceMap.NameTypeMap) != 0 {
+				if step.ReqResourcesPerTask == nil {
+					step.ReqResourcesPerTask = &protos.ResourceView{
+						DeviceMap: gpuDeviceMap,
+					}
+				} else {
+					step.ReqResourcesPerTask.DeviceMap = gpuDeviceMap
+				}
+			}
+		}
+
 	}
 
 	// Marshal extra attributes
