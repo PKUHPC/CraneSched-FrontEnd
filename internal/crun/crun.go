@@ -1189,6 +1189,17 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+	if FlagMemPerCpu != "" {
+		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+		}
+		if jobMode {
+			job.MemPerCpu = &memInBytePerCpu
+		} else {
+			step.MemPerCpu = &memInBytePerCpu
+		}
+	}
 	setGresGpusFlag := false
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)

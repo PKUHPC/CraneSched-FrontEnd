@@ -52,6 +52,7 @@ var (
 	FlagExclusive     bool
 	FlagWckey         string
 	FlagGpusPerNode   string
+	FlagMemPerCpu     string
 
 	FlagInterpreter   string
 	FlagWrappedScript string
@@ -79,7 +80,6 @@ var (
 	FlagCpuFreq         string
 	FlagDependency      string
 	FlagPriority        string
-	FlagMemPerCpu       string
 	FlagThreadsPerCore  string
 	FlagDistribution    string
 	FlagInput           string
@@ -182,4 +182,6 @@ func init() {
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
 	RootCmd.Flags().StringVarP(&FlagBeginTime, "begin", "b", "", "Defer job until specified time.")
 	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus required per node, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
+	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
+	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 }
