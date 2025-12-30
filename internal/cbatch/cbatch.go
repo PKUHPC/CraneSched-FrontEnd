@@ -372,6 +372,12 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	// Set total limit of cpu cores
 	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
+	submitHostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get hostname of the submitting host: %v", err)
+	}
+	task.SubmitHostname = submitHostname
+
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
 		return nil, fmt.Errorf("invalid argument: invalid output file path: %w", err)
