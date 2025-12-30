@@ -318,7 +318,7 @@ func (keeper *SupervisorChannelKeeper) getRemoteHistory(taskId uint32, stepId ui
 	keeper.taskIORequestChannelMtx.Lock()
 	defer keeper.taskIORequestChannelMtx.Unlock()
 
-	taskIOBuffer, exist := keeper.taskIOBufferMap[StepIdentifier{taskId: taskId, StepId: stepId}]
+	taskIOBuffer, exist := keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}]
 	if exist {
 		return taskIOBuffer.GetHistory()
 	}
@@ -346,7 +346,7 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(jobId uint32, stepI
 		for _, channel := range channelMap {
 			channel <- ioToCrun
 		}
-		keeper.taskIOBufferMap[StepIdentifier{taskId: taskId, StepId: stepId}].Push(ioToCrun)
+		keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}].Push(ioToCrun)
 	} else {
 		log.Warningf("[Supervisor->Cfored->FrontEnd][Step #%d.%d]Trying forward to I/O to an unknown crun/cattach.", jobId, stepId)
 	}
@@ -583,10 +583,8 @@ CforedSupervisorStateMachineLoop:
 							Type: protos.StreamTaskIOReply_TASK_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
 								PayloadTaskInputReq: &protos.StreamTaskIOReply_TaskInputReq{
-									jobId:  jobId,
-									stepId: stepId,
-									Msg:    msg,
-									Eof:    payload.Eof,
+									Msg: msg,
+									Eof: payload.Eof,
 								},
 							},
 						}
@@ -604,9 +602,7 @@ CforedSupervisorStateMachineLoop:
 							Type: protos.StreamTaskIOReply_TASK_X11_INPUT,
 							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
 								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_TaskX11InputReq{
-									jobId:  jobId,
-									StepId: stepId,
-									Msg:    msg,
+									Msg: msg,
 								},
 							},
 						}
