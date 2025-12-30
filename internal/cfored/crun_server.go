@@ -323,7 +323,7 @@ CforedCrunStateMachineLoop:
 					gVars.pidStepMapMtx.Lock()
 					gVars.pidStepMap[crunPid] = step
 					gVars.pidStepMapMtx.Unlock()
-					gSupervisorChanKeeper.setRemoteIoToCrunChannel(jobId, stepId, StepIoRequestChannel)
+					gSupervisorChanKeeper.setRemoteIoToCrunChannel(crunPid, jobId, stepId, StepIoRequestChannel)
 				}
 
 				gVars.ctldReplyChannelMapMtx.Unlock()

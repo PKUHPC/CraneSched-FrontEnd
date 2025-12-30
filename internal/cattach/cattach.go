@@ -88,7 +88,7 @@ type StateMachineOfCattach struct {
 	task   *protos.TaskToCtld
 
 	state StateOfCattach
-	err   util.CraneError // Hold the final error of the state machine if any
+	err   util.ExitCode // Hold the final error of the state machine if any
 
 	// Hold grpc resources and will be freed in Close.
 	conn   *grpc.ClientConn

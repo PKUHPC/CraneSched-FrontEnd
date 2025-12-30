@@ -180,9 +180,9 @@ CforedCattachStateMachineLoop:
 							gVars.ctldReplyChannelMapForCattachByTaskId[taskId] = make(map[int32]chan *protos.StreamCtldReply)
 						}
 						gVars.ctldReplyChannelMapForCattachByTaskId[taskId][cattachPid] = ctldReplyChannel
-						gVars.pidTaskIdMapMtx.Lock()
-						gVars.pidTaskIdMap[cattachPid] = taskId
-						gVars.pidTaskIdMapMtx.Unlock()
+						gVars.pidStepMapMtx.Lock()
+						gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: taskId, StepId: stepId}
+						gVars.pidStepMapMtx.Unlock()
 						gSupervisorChanKeeper.setRemoteIoToCrunChannel(cattachPid, taskId, stepId, TaskIoRequestChannel)
 					}
 
@@ -363,9 +363,9 @@ CforedCattachStateMachineLoop:
 				delete(gVars.ctldReplyChannelMapForCattachByTaskId, taskId)
 			}
 			// remove cattach by pid for ctldReplyChannel
-			gVars.pidTaskIdMapMtx.Lock()
-			delete(gVars.pidTaskIdMap, cattachPid)
-			gVars.pidTaskIdMapMtx.Unlock()
+			gVars.pidStepMapMtx.Lock()
+			delete(gVars.pidStepMap, cattachPid)
+			gVars.pidStepMapMtx.Unlock()
 
 			gVars.ctldReplyChannelMapMtx.Unlock()
 

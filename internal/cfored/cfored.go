@@ -21,6 +21,10 @@ package cfored
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
+
 	"io"
 	"os"
 	"os/signal"
@@ -29,8 +33,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"gopkg.in/natefinch/lumberjack.v2"
 	"syscall"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
