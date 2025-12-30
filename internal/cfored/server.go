@@ -197,6 +197,7 @@ func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(taskId 
 	keeper.toSupervisorChannelMtx.Lock()
 	defer keeper.toSupervisorChannelMtx.Unlock()
 	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
+	// TODO: when step non-exist, cattach front echo msg and close
 	if !exist {
 		log.Errorf("[Job #%d.%d] Trying to forward cattach request to non-exist step.", taskId, stepId)
 		return
