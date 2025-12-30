@@ -481,6 +481,11 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
 	}
 
+	task.SubmitHostname, err = os.Hostname()
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorSystem, "Get submit hostname err: %s.", err)
+	}
+
 	// Marshal extra attributes
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
