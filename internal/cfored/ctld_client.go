@@ -22,9 +22,10 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"google.golang.org/grpc"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -244,7 +245,7 @@ CtldClientStateMachineLoop:
 									Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
 										PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
 											CforedName:      gVars.hostName,
-											JobId:          jobId,
+											JobId:           jobId,
 											InteractiveType: protos.InteractiveTaskType_Crun,
 										},
 									},
@@ -254,7 +255,7 @@ CtldClientStateMachineLoop:
 						}
 						// cattach only focus on TASK_COMPLETION_ACK_REPLY
 						if ctldReply.Type == protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByTaskId[taskId]
+							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByTaskId[jobId]
 							if ok {
 								for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
 									toCattachCtlReplyChannel <- ctldReply
@@ -363,7 +364,7 @@ CtldClientStateMachineLoop:
 						Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
 						Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
 							PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
-								TaskId: taskId,
+								JobId: taskId,
 							},
 						},
 					}

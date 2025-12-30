@@ -23,10 +23,10 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"path/filepath"
 
-	"gopkg.in/natefinch/lumberjack.v2"
+	log "github.com/sirupsen/logrus"
+
 	"io"
 	"os"
 	"sync"
