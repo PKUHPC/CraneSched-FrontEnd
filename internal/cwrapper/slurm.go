@@ -240,7 +240,6 @@ func salloc() *cobra.Command {
 	cmd.Flags().StringVarP(&calloc.FlagDependency, "dependency", "d", "", "")
 	cmd.Flags().StringVar(&calloc.FlagMemPerCpu, "mem-per-cpu", "", "")
 	cmd.Flags().StringVarP(&calloc.FlagNoKill, "no-kill", "k", "", "")
-	cmd.Flags().StringVarP(&calloc.FlagQuiet, "quiet", "Q", "", "")
 	cmd.Flags().StringVarP(&calloc.FlagVerbose, "verbose", "v", "", "")
 
 	return cmd
@@ -801,9 +800,6 @@ func PrintSallocIgnoreDummyArgsMessage() {
 	}
 	if calloc.FlagNoKill != "" {
 		fmt.Fprintln(os.Stderr, "The feature --no-kill/-k is not yet supported by Crane, the use is ignored.")
-	}
-	if calloc.FlagQuiet != "" {
-		fmt.Fprintln(os.Stderr, "The feature --quiet/-Q is not yet supported by Crane, the use is ignored.")
 	}
 	if calloc.FlagVerbose != "" {
 		fmt.Fprintln(os.Stderr, "The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
