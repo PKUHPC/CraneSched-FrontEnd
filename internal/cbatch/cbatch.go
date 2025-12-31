@@ -367,7 +367,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			task.Name = arg.val
 		case "-A", "--account":
 			task.Account = arg.val
-		case "--qos", "Q":
+		case "--qos", "-Q":
 			task.Qos = arg.val
 		case "--licenses", "-L":
 			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
