@@ -143,6 +143,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		}
 		task.ReqResources.DeviceMap = gpuDeviceMap
 	}
+	if cmd.Flags().Changed("wckey") {
+		task.Wckey = &FlagWckey
+	}
 
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
@@ -249,11 +252,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagReservation != "" {
 		task.Reservation = FlagReservation
 	}
-	if cmd.Flags().Changed("wckey") {
-		task.Wckey = &FlagWckey
-	}
-	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Set pod meta if it's a container job
 	if task.Type == protos.TaskType_Container {
