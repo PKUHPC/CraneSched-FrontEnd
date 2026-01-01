@@ -24,7 +24,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
+	"slices"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -33,10 +33,16 @@ import (
 // attachExecute handles the attach command execution
 func attachExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return util.NewCraneErr(util.ErrorCmdArg, "attach requires exactly one argument: CONTAINER_TASK_ID")
+		return util.NewCraneErr(util.ErrorCmdArg, "attach requires exactly one argument: CONTAINER (JOBID.STEPID)")
 	}
 
-	taskIdStr := args[0]
+	jobID, stepID, err := util.ParseJobIdStepIdStrict(args[0])
+	if err != nil {
+		return err
+	}
+	if stepID == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, "step 0 is reserved for pods, please specify a container step ID")
+	}
 
 	// Get flags and apply tty/stderr mutual exclusion logic
 	f := GetFlags()
@@ -49,56 +55,37 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 		f.Attach.Stderr = false
 	}
 
-	// Parse task ID
-	taskId, err := strconv.ParseUint(taskIdStr, 10, 32)
+	_, step, err := GetContainerStep(jobID, stepID, false)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr))
-	}
-	idFilter := map[uint32]*protos.JobStepIds{}
-	idFilter[uint32(taskId)] = &protos.JobStepIds{}
-
-	// First, query the task to verify it's a container task and is running
-	queryReq := &protos.QueryTasksInfoRequest{
-		FilterIds:       idFilter,
-		FilterTaskTypes: []protos.TaskType{protos.TaskType_Container},
+		return err
 	}
 
-	queryReply, err := stub.QueryTasksInfo(context.Background(), queryReq)
+	// Check if the step is in a state that allows attaching
+	if step.Status != protos.TaskStatus_Running {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot attach to container %d.%d in state: %s", jobID, stepID, step.Status.String()))
+	}
+
+	nodeName, err := resolveTargetNode(step, f.Attach.TargetNode)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query task information")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return err
 	}
 
-	if !queryReply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, "Failed to query task information")
+	// Call AttachContainerStep RPC
+	attachReq := &protos.AttachContainerStepRequest{
+		Uid:      uint32(os.Getuid()),
+		JobId:    jobID,
+		StepId:   stepID,
+		NodeName: nodeName,
+		Stdin:    f.Attach.Stdin,
+		Tty:      f.Attach.Tty,
+		Stdout:   f.Attach.Stdout,
+		Stderr:   f.Attach.Stderr,
 	}
 
-	// Check if the task exists and is a container task
-	if len(queryReply.TaskInfoList) == 0 {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container task %d not found or is not a container task", taskId))
-	}
+	log.Debugf("Calling AttachContainerStep RPC for container %d.%d on node %q with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
+		jobID, stepID, nodeName, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
 
-	task := queryReply.TaskInfoList[0]
-
-	// Check if the task is in a state that allows attaching
-	if task.Status != protos.TaskStatus_Running {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot attach to task %d in state: %s", taskId, task.Status.String()))
-	}
-
-	// Call AttachInContainerTask RPC
-	attachReq := &protos.AttachInContainerTaskRequest{
-		Uid:    uint32(os.Getuid()),
-		TaskId: uint32(taskId),
-		Stdin:  f.Attach.Stdin,
-		Tty:    f.Attach.Tty,
-		Stdout: f.Attach.Stdout,
-		Stderr: f.Attach.Stderr,
-	}
-
-	log.Debugf("Calling AttachInContainerTask RPC for task %d with flags: stdin=%t, stdout=%t, stderr=%t, tty=%t",
-		taskId, attachReq.Stdin, attachReq.Stdout, attachReq.Stderr, attachReq.Tty)
-
-	reply, err := stub.AttachInContainerTask(context.Background(), attachReq)
+	reply, err := stub.AttachContainerStep(context.Background(), attachReq)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to attach to container task")
 		return util.NewCraneErr(util.ErrorNetwork, "")
@@ -116,11 +103,11 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	// Handle RPC response
 	if reply.Ok {
 		if !f.Global.Json {
-			log.Debugf("Attach request successful for task %d\n", taskId)
+			log.Debugf("Attach request successful for container %d.%d\n", jobID, stepID)
 			if f.Attach.Tty {
-				log.Debugf("Attaching to container task %d (TTY enabled)...\n", taskId)
+				log.Debugf("Attaching to container %d.%d (TTY enabled)...\n", jobID, stepID)
 			} else {
-				log.Debugf("Attaching to container task %d...\n", taskId)
+				log.Debugf("Attaching to container %d.%d...\n", jobID, stepID)
 			}
 		}
 
@@ -141,4 +128,29 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	return err
+}
+
+func resolveTargetNode(step *protos.StepInfo, targetNode string) (string, error) {
+	executionNodes := step.GetExecutionNode()
+	if targetNode == "" {
+		switch len(executionNodes) {
+		case 0:
+			return "", util.NewCraneErr(util.ErrorBackend, "execution node list of this step is empty")
+		case 1:
+			return executionNodes[0], nil
+		default:
+			return "", util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("container is running on multiple nodes: %s; please specify --target-node to select one", step.GetCranedList()))
+		}
+	}
+
+	if len(executionNodes) > 0 {
+		found := slices.Contains(executionNodes, targetNode)
+		if !found {
+			return "", util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("container is not running on the target node %q: %s", targetNode, step.GetCranedList()))
+		}
+	}
+
+	return targetNode, nil
 }

@@ -31,9 +31,15 @@ import (
 
 	"CraneFrontEnd/internal/util"
 
+	"github.com/distribution/reference"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+type ImageRef struct {
+	Image         string // fully normalized for CRI
+	ServerAddress string // registry host[:port]
+}
 
 type AuthConfig struct {
 	Auth string `json:"auth"`
@@ -140,19 +146,18 @@ func readPassword(fromStdin bool) (string, error) {
 	return string(bytePassword), nil
 }
 
-func normalizeServerAddress(server string) string {
-	if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-		server = "http://" + server
-	}
-	return server
-}
-
 func loginExecute(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, "registry server is required")
 	}
 
-	server := normalizeServerAddress(args[0])
+	server := strings.TrimSpace(args[0])
+	server = strings.TrimPrefix(server, "http://")
+	server = strings.TrimPrefix(server, "https://")
+	server = strings.TrimSuffix(server, "/")
+	if server == "" || strings.Contains(server, "/") {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid registry server: %s", args[0]))
+	}
 
 	f := GetFlags()
 	username := f.Login.Username
@@ -201,66 +206,29 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// parseImageRef extracts registry, repository and tag from image reference
-// e.g., "registry.example.com/myapp:latest" -> ("registry.example.com", "myapp", "latest")
-// e.g., "nginx:latest" -> ("", "nginx", "latest")
-// e.g., "nginx" -> ("", "nginx", "latest")
-// e.g., "localhost:5000/myapp:latest" -> ("localhost:5000", "myapp", "latest")
-// e.g., "myapp@sha256:abcd1234..." -> ("", "myapp", "sha256:abcd1234...")
-func parseImageRef(image string) (registry, repository, tag string) {
-	// First, check for digest references (image@sha256:...)
-	var imagePart string
-	if digestIdx := strings.Index(image, "@"); digestIdx != -1 {
-		imagePart = image[:digestIdx]
-		tag = image[digestIdx+1:] // Include the @ prefix in tag for digest
-	} else {
-		imagePart = image
+func NormalizeImageRef(input string) (ImageRef, error) {
+	in := strings.TrimSpace(input)
+	if in == "" {
+		return ImageRef{}, fmt.Errorf("image reference is empty")
 	}
 
-	// Split by first slash to separate registry from repository
-	parts := strings.SplitN(imagePart, "/", 2)
-
-	var repoWithTag string
-	if len(parts) == 2 {
-		// Check if first part contains dot, port, or is localhost (likely a registry)
-		if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") || parts[0] == "localhost" {
-			registry = parts[0]
-			repoWithTag = parts[1]
-		} else {
-			// First part is likely a namespace, not a registry
-			repoWithTag = imagePart
-		}
-	} else {
-		repoWithTag = imagePart
+	// Parse + normalize "familiar" Docker image names.
+	named, err := reference.ParseDockerRef(in)
+	if err != nil {
+		return ImageRef{}, err
 	}
 
-	// If we already have a digest, don't split on colon
-	if tag != "" {
-		repository = repoWithTag
-		return registry, repository, tag
-	}
-
-	// Split repository part by colon to separate repository from tag
-	repoParts := strings.SplitN(repoWithTag, ":", 2)
-	repository = repoParts[0]
-
-	if len(repoParts) == 2 {
-		tag = repoParts[1]
-	} else {
-		tag = "latest"
-	}
-
-	return registry, repository, tag
+	return ImageRef{
+		Image:         named.String(),
+		ServerAddress: reference.Domain(named),
+	}, nil
 }
 
 // getAuthForRegistry retrieves saved authentication info for a registry
 func getAuthForRegistry(registry string) (username, password string, err error) {
 	if registry == "" {
-		// Default to docker.io for images without registry
-		registry = "docker.io"
+		return "", "", fmt.Errorf("registry cannot be empty")
 	}
-
-	registry = normalizeServerAddress(registry)
 
 	config, err := loadRegistryConfig()
 	if err != nil {
@@ -280,7 +248,13 @@ func logoutExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "registry server is required")
 	}
 
-	server := normalizeServerAddress(args[0])
+	server := strings.TrimSpace(args[0])
+	server = strings.TrimPrefix(server, "http://")
+	server = strings.TrimPrefix(server, "https://")
+	server = strings.TrimSuffix(server, "/")
+	if server == "" || strings.Contains(server, "/") {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid registry server: %s", args[0]))
+	}
 
 	config, err := loadRegistryConfig()
 	if err != nil {

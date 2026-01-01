@@ -19,7 +19,6 @@
 package cbatch
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"os"
@@ -122,7 +121,6 @@ var (
 			// Process the content of --get-user-env
 			util.SetPropagatedEnviron(&task.Env, &task.GetUserEnv)
 
-			task.Type = protos.TaskType_Batch
 			if task.Cwd == "" {
 				task.Cwd, _ = os.Getwd()
 			}
@@ -184,4 +182,6 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus required per node, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
 	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
+
+	initPodFlags(RootCmd)
 }

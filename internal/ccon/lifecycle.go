@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -33,19 +32,24 @@ import (
 // stopExecute handles the stop command execution
 func stopExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return util.NewCraneErr(util.ErrorCmdArg, "stop requires exactly one argument: TASK_ID")
+		return util.NewCraneErr(util.ErrorCmdArg, "stop requires exactly one argument: CONTAINER (JOBID.STEPID)")
 	}
 
 	f := GetFlags()
-	taskIdStr := args[0]
 
-	// Parse task ID
-	taskId, err := strconv.ParseUint(taskIdStr, 10, 32)
+	jobId, stepId, err := util.ParseJobIdStepIdStrict(args[0])
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task ID '%s': must be a positive integer", taskIdStr))
+		return util.WrapCraneErr(util.ErrorCmdArg, "invalid step ID: %v", err)
 	}
+
+	if stepId == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, "step 0 is reserved for pods, please specify a container step ID")
+	}
+
 	idFilter := map[uint32]*protos.JobStepIds{}
-	idFilter[uint32(taskId)] = &protos.JobStepIds{}
+	idFilter[uint32(jobId)] = &protos.JobStepIds{
+		Steps: []uint32{uint32(stepId)},
+	}
 
 	// First, query the task to verify it's a container task
 	queryReq := &protos.QueryTasksInfoRequest{
@@ -65,7 +69,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	// Check if the task exists and is a container task
 	if len(queryReply.TaskInfoList) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Task %d not found or is not a container task", taskId))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Step %d.%d not found or is not a container", jobId, stepId))
 	}
 
 	// Create cancel request
@@ -98,16 +102,16 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	// Handle non-JSON output
 	if len(reply.CancelledSteps) > 0 {
-		fmt.Printf("Container task %d stopped successfully\n", taskId)
+		fmt.Printf("Container %d.%d stopped successfully\n", jobId, stepId)
 		return nil
 	}
 
 	if len(reply.NotCancelledJobSteps) > 0 {
 		reason := "Unknown error"
 		if len(reply.NotCancelledJobSteps) > 0 {
-			reason = reply.NotCancelledJobSteps[0].Reason
+			reason = reply.NotCancelledJobSteps[0].GetReason()
 		}
-		log.Errorf("Failed to stop container task %d: %s", taskId, reason)
+		log.Errorf("Failed to stop container %d.%d: %s", jobId, stepId, reason)
 		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 

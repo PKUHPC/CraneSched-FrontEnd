@@ -21,6 +21,7 @@ package ccon
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -129,7 +130,7 @@ func streamWithRetry(ctx context.Context, streamURL string, opts StreamOptions, 
 		log.Debugf("Stream attempt %d/%d for URL: %s", attempt, maxRetries, streamURL)
 
 		err := doStream(ctx, streamURL, opts)
-		if err == nil {
+		if err == nil || errors.Is(err, context.Canceled) {
 			return nil
 		}
 

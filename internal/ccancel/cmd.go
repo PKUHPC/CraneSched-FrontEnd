@@ -36,8 +36,8 @@ var (
 	FlagJson           bool
 
 	RootCmd = &cobra.Command{
-		Use:     "ccancel [flags] job_id[,job_id...]",
-		Short:   "Cancel pending or running jobs",
+		Use:     "ccancel [flags] JOBID.STEPID[,JOBID.STEPID...]",
+		Short:   "Cancel pending or running jobs/steps",
 		Long:    "",
 		Version: util.Version(),
 		Args: func(cmd *cobra.Command, args []string) error {

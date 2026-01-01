@@ -27,6 +27,7 @@ import (
 )
 
 func ParseCmdArgs() {
+	cobra.EnableTraverseRunHooks = true
 	util.RunEWrapperForLeafCommand(RootCmd)
 	util.RunAndHandleExit(RootCmd)
 }
@@ -55,6 +56,13 @@ var (
 				})
 			}
 
+			for i, arg := range args {
+				if i < len(args)-1 && (arg == "true" || arg == "false") {
+					err = util.NewCraneErr(util.ErrorCmdArg,
+						fmt.Sprintf("unexpected boolean argument '%s'; if you intended to set a boolean flag, use '--flag=%s'.", arg, arg))
+				}
+			}
+
 			return err
 		},
 	}
@@ -67,8 +75,8 @@ var (
 	}
 
 	LogCmd = &cobra.Command{
-		Use:              "log [flags] CONTAINER",
-		Short:            "Fetch the logs of a container",
+		Use:              "logs [flags] CONTAINER",
+		Short:            "Fetch the logs of a container step (JOBID.STEPID)",
 		PersistentPreRun: initConfigAndStub,
 		RunE:             logExecute,
 	}
@@ -80,18 +88,39 @@ var (
 		RunE:             stopExecute,
 	}
 
+	WaitCmd = &cobra.Command{
+		Use:              "wait [flags]",
+		Short:            "Wait for all container steps in the current job to finish",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             waitExecute,
+	}
+
 	PsCmd = &cobra.Command{
 		Use:              "ps [flags]",
-		Short:            "List containers",
+		Short:            "List containers (steps)",
 		PersistentPreRun: initConfigAndStub,
 		RunE:             psExecute,
 	}
 
+	PodCmd = &cobra.Command{
+		Use:              "pods [flags]",
+		Short:            "List container pods (jobs)",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             podExecute,
+	}
+
+	InspectPodCmd = &cobra.Command{
+		Use:              "inspectp POD",
+		Short:            "Display detailed information for a container pod (JOBID)",
+		PersistentPreRun: initConfigAndStub,
+		RunE:             inspectPodExecute,
+	}
+
 	InspectCmd = &cobra.Command{
 		Use:              "inspect CONTAINER",
-		Short:            "Display detailed information on one or more containers",
+		Short:            "Display detailed information for a container step (JOBID.STEPID)",
 		PersistentPreRun: initConfigAndStub,
-		RunE:             inspectExecute,
+		RunE:             inspectStepExecute,
 	}
 
 	AttachCmd = &cobra.Command{
@@ -174,6 +203,7 @@ func InitializeCommandFlags() {
 	RunCmd.Flags().BoolVar(&f.Run.UserNS, "userns", true, "Enable user namespace (default user becomes the faked root, enabled by default)")
 	RunCmd.Flags().StringVarP(&f.Run.Workdir, "workdir", "w", "", "Working directory inside the container")
 	RunCmd.Flags().StringVar(&f.Run.PullPolicy, "pull-policy", "", "Image pull policy: Always, IfNotPresent, or Never")
+	RunCmd.Flags().StringVar(&f.Run.Network, "network", "default", "Network mode for the container (currently only 'host' and 'default' is supported)")
 
 	RunCmd.Flags().Float64Var(&f.Run.Cpus, "cpus", 0, "Number of CPUs (maps to cpus-per-task)")
 	RunCmd.Flags().StringVar(&f.Run.Memory, "memory", "", "Memory limit (e.g., 2g, 512m)")
@@ -192,6 +222,10 @@ func InitializeCommandFlags() {
 	PsCmd.Flags().BoolVarP(&f.Ps.All, "all", "a", false, "Show all containers (default shows just running)")
 	PsCmd.Flags().BoolVarP(&f.Ps.Quiet, "quiet", "q", false, "Only display container IDs")
 
+	PodCmd.Flags().BoolVarP(&f.Pod.All, "all", "a", false, "Show all pods (default shows just running)")
+	PodCmd.Flags().BoolVarP(&f.Pod.Quiet, "quiet", "q", false, "Only display pod IDs")
+
+	LogCmd.Flags().StringVarP(&f.Log.TargetNode, "target-node", "n", "", "Target node to fetch logs from")
 	LogCmd.Flags().BoolVarP(&f.Log.Follow, "follow", "f", false, "Follow log output")
 	LogCmd.Flags().IntVar(&f.Log.Tail, "tail", -1, "Number of lines to show from the end of the logs")
 	LogCmd.Flags().BoolVarP(&f.Log.Timestamps, "timestamps", "t", false, "Show timestamps")
@@ -207,10 +241,14 @@ func InitializeCommandFlags() {
 	AttachCmd.Flags().BoolVar(&f.Attach.Stderr, "stderr", false, "Attach STDERR")
 	AttachCmd.Flags().BoolVar(&f.Attach.Tty, "tty", true, "Allocate a pseudo-TTY")
 	AttachCmd.Flags().StringVar(&f.Attach.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
+	AttachCmd.Flags().StringVarP(&f.Attach.TargetNode, "target-node", "n", "", "Target node to attach to")
 
 	ExecCmd.Flags().BoolVarP(&f.Exec.Interactive, "interactive", "i", false, "Keep STDIN open")
 	ExecCmd.Flags().BoolVarP(&f.Exec.Tty, "tty", "t", false, "Allocate a pseudo-TTY")
 	ExecCmd.Flags().StringVar(&f.Exec.Transport, "transport", "spdy", "Transport protocol (spdy, ws)")
+	ExecCmd.Flags().StringVarP(&f.Exec.TargetNode, "target-node", "n", "", "Target node to execute command on")
+
+	WaitCmd.Flags().IntVarP(&f.Wait.Interval, "interval", "t", defaultWaitIntervalSeconds, "Polling interval in seconds (min 10s)")
 }
 
 func init() {
@@ -224,7 +262,7 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	// Link all commands to the root command
-	RootCmd.AddCommand(RunCmd, StopCmd, RmCmd, PsCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
+	RootCmd.AddCommand(RunCmd, StopCmd, WaitCmd, RmCmd, PsCmd, PodCmd, InspectPodCmd, InspectCmd, LogCmd, LoginCmd, LogoutCmd, AttachCmd, ExecCmd)
 	RootCmd.AddCommand(CreateCmd, StartCmd, RestartCmd)
 
 	// Hide crane flags by default. Only display them when running 'ccon run'.
