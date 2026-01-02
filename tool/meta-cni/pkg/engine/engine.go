@@ -32,7 +32,7 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 		return nil, errors.New("meta-cni: config is nil")
 	}
 	if (action == ActionCheck || action == ActionDel) && conf.PrevResult == nil {
-		return nil, fmt.Errorf("meta-cni: prevResult is required for %s", action)
+		return nil, fmt.Errorf("meta-cni: prevResult is required for %v", action)
 	}
 
 	ctx, cancel := contextWithTimeout(conf.TimeoutSeconds)
