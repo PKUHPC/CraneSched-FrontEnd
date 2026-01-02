@@ -152,7 +152,7 @@ func parsePodPortMapping(portSpec string, ports *[]*protos.PodTaskAdditionalMeta
 func validatePodMeta(task *protos.TaskToCtld, meta *protos.PodTaskAdditionalMeta) error {
 	if task.Uid != 0 && !meta.Userns {
 		if meta.RunAsUser != task.Uid || meta.RunAsGroup != task.Gid {
-			return fmt.Errorf("with --userns=false, only current user and accessible groups are allowed")
+			return fmt.Errorf("with --pod-userns=false, only current user and accessible groups are allowed")
 		}
 	}
 

@@ -59,6 +59,7 @@ func MergeArgs(base string, overrides []string) (string, error) {
 	return strings.Join(pairs, ";"), nil
 }
 
+// NOTE: env is modified in place
 func MergeEnvs(env map[string]string, entries []string) error {
 	if len(entries) == 0 {
 		return nil
