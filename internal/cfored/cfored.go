@@ -61,7 +61,10 @@ type GlobalVariables struct {
 	// Used for calloc/crun with task id allocated.
 	ctldReplyChannelMapByStep map[StepIdentifier]chan *protos.StreamCtldReply
 
-	ctldReplyChannelMapForCattachByTaskId map[uint32]map[int32]chan *protos.StreamCtldReply
+	// Used by Cfored <--> Ctld state machine to de-multiplex messages from CraneCtld.
+	// Cfored <--> Ctld state machine GUARANTEES that NO `nil` will be sent into these channels.
+	// Used for cattach with task id allocated.
+	ctldReplyChannelMapForCattachByStep map[StepIdentifier]map[int32]chan *protos.StreamCtldReply
 
 	// Used by Calloc/Crun <--> Cfored state machine to multiplex messages
 	// these messages will be sent to CraneCtld
@@ -110,8 +113,7 @@ func StartCfored() {
 
 	gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
 	gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
-	// TODO: ByStep
-	gVars.ctldReplyChannelMapForCattachByTaskId = make(map[uint32]map[int32]chan *protos.StreamCtldReply)
+	gVars.ctldReplyChannelMapForCattachByStep = make(map[StepIdentifier]map[int32]chan *protos.StreamCtldReply)
 	gVars.pidStepMap = make(map[int32]StepIdentifier)
 
 	gSupervisorChanKeeper = NewCranedChannelKeeper()
