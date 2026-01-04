@@ -66,11 +66,12 @@ type UnblockCommand struct {
 }
 
 type ModifyCommand struct {
-	Action      string       `parser:"@'modify'"`
-	Entity      *EntityType  `parser:"@@"`
-	Where       *WhereClause `parser:"@@?"`
-	Set         *SetClause   `parser:"@@?"`
-	GlobalFlags []*Flag      `parser:"@@*"`
+	Action      string           `parser:"@('modify' | 'update')"`
+	Entity      *EntityType      `parser:"@@"`
+	KVParams    []*KeyValueParam `parser:"@@*"`
+	Where       *WhereClause     `parser:"@@?"`
+	Set         *SetClause       `parser:"@@?"`
+	GlobalFlags []*Flag          `parser:"@@*"`
 }
 
 type ShowCommand struct {
@@ -90,12 +91,13 @@ type ResetCommand struct {
 }
 
 type EntityType struct {
-	Account bool `parser:"@'account'"`
-	User    bool `parser:"| @'user'"`
-	Qos     bool `parser:"| @'qos'"`
-	Txn     bool `parser:"| @'transaction'"`
-	Event   bool `parser:"| @'event'"`
-	Wckey   bool `parser:"| @'wckey'"`
+	Account  bool `parser:"@'account'"`
+	User     bool `parser:"| @'user'"`
+	Qos      bool `parser:"| @'qos'"`
+	Txn      bool `parser:"| @'transaction'"`
+	Event    bool `parser:"| @'event'"`
+	Wckey    bool `parser:"| @'wckey'"`
+	Resource bool `parser:"| @'resource'"`
 }
 
 type Flag struct {
@@ -165,6 +167,8 @@ func (r EntityType) String() string {
 		return "event"
 	case r.Wckey:
 		return "wckey"
+	case r.Resource:
+		return "resource"
 	default:
 		return ""
 	}
@@ -284,6 +288,8 @@ func (c *CAcctMgrCommand) GetKVMaps() map[string]string {
 	case ShowCommand:
 		params = cmd.KVParams
 	case ResetCommand:
+		params = cmd.KVParams
+	case ModifyCommand:
 		params = cmd.KVParams
 	default:
 		return kvMap
