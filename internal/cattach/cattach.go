@@ -83,7 +83,7 @@ func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 }
 
 type StateMachineOfCattach struct {
-	taskId uint32 // This field will be set after ReqTaskId state
+	jobId  uint32 // This field will be set after ReqTaskId state
 	stepId uint32
 	task   *protos.TaskToCtld
 
@@ -173,7 +173,7 @@ func (m *StateMachineOfCattach) StateConnectCfored() {
 		Payload: &protos.StreamCattachRequest_PayloadTaskConnectReq{
 			PayloadTaskConnectReq: &protos.StreamCattachRequest_TaskConnectReq{
 				CattachPid: int32(os.Getpid()),
-				TaskId:     m.taskId,
+				TaskId:     m.jobId,
 				StepdId:    m.stepId,
 				Uid:        uint32(os.Getuid()),
 			},
@@ -296,7 +296,7 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					Type: protos.StreamCattachRequest_TASK_IO_FORWARD,
 					Payload: &protos.StreamCattachRequest_PayloadTaskIoForwardReq{
 						PayloadTaskIoForwardReq: &protos.StreamCattachRequest_TaskIOForwardReq{
-							TaskId: m.taskId,
+							TaskId: m.jobId,
 							Msg:    msg,
 							Eof:    msg == nil,
 						},
@@ -314,7 +314,7 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					Type: protos.StreamCattachRequest_TASK_X11_FORWARD,
 					Payload: &protos.StreamCattachRequest_PayloadTaskX11ForwardReq{
 						PayloadTaskX11ForwardReq: &protos.StreamCattachRequest_TaskX11ForwardReq{
-							TaskId: m.taskId,
+							TaskId: m.jobId,
 							Msg:    msg,
 						},
 					},
@@ -527,7 +527,7 @@ func (m *StateMachineOfCattach) ParseFilePattern(pattern string) (string, error)
 		//jobid.stepid of the running job (e.g. "128.0")
 		//"%J": "111.0",
 		// job id
-		"%j": fmt.Sprintf("%d", m.taskId),
+		"%j": fmt.Sprintf("%d", m.jobId),
 		// step id
 		"%s": "0",
 		//short hostname
@@ -781,7 +781,7 @@ func MainCattach(args []string) error {
 	if i, err := strconv.Atoi(parts[0]); err != nil {
 		return fmt.Errorf("Failed to parse stepid from command line options: %s", args[0])
 	} else {
-		m.taskId = uint32(i)
+		m.jobId = uint32(i)
 	}
 
 	if i, err := strconv.Atoi(parts[1]); err != nil {
