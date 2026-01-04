@@ -237,7 +237,6 @@ CtldClientStateMachineLoop:
 						} else {
 							log.Warningf("[Cfored<->Ctld][Step #%d.%d] shall exist in "+
 								"ctldReplyChannelMapByStep!", jobId, stepId)
-							// TODO: is true?
 							if ctldReply.Type == protos.StreamCtldReply_TASK_CANCEL_REQUEST {
 								log.Debugf("[Cfored<->Ctld] sending TASK_COMPLETION_REQUEST directly. Job Id #%d ", jobId)
 								toCtldRequest := &protos.StreamCforedRequest{
@@ -246,6 +245,7 @@ CtldClientStateMachineLoop:
 										PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
 											CforedName:      gVars.hostName,
 											JobId:           jobId,
+											StepId:          stepId,
 											InteractiveType: protos.InteractiveTaskType_Crun,
 										},
 									},
@@ -255,7 +255,7 @@ CtldClientStateMachineLoop:
 						}
 						// cattach only focus on TASK_COMPLETION_ACK_REPLY
 						if ctldReply.Type == protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByTaskId[jobId]
+							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
 							if ok {
 								for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
 									toCattachCtlReplyChannel <- ctldReply
@@ -358,20 +358,21 @@ CtldClientStateMachineLoop:
 			gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
 
 			// cancel all cattach term
-			for taskId, toCattachCtlReplyChannelMap := range gVars.ctldReplyChannelMapForCattachByTaskId {
+			for step, toCattachCtlReplyChannelMap := range gVars.ctldReplyChannelMapForCattachByStep {
 				for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
 					toCattachCtlReplyChannel <- &protos.StreamCtldReply{
 						Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
 						Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
 							PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
-								JobId: taskId,
+								JobId:  step.JobId,
+								StepId: step.StepId,
 							},
 						},
 					}
 				}
 			}
 
-			gVars.ctldReplyChannelMapForCattachByTaskId = make(map[uint32]map[int32]chan *protos.StreamCtldReply)
+			gVars.ctldReplyChannelMapForCattachByStep = make(map[StepIdentifier]map[int32]chan *protos.StreamCtldReply)
 
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
