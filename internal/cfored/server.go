@@ -83,8 +83,7 @@ type SupervisorChannelKeeper struct {
 	// Closed when all supervisors for a step have normally unregistered,
 	// signaling that no more I/O messages will arrive for that step.
 	stepDoneChannelMap map[StepIdentifier]chan struct{}
-
-	taskIOBufferMap map[StepIdentifier]*TaskIOBuffer
+	taskIOBufferMap         map[StepIdentifier]*TaskIOBuffer
 }
 
 var gSupervisorChanKeeper *SupervisorChannelKeeper
@@ -313,7 +312,7 @@ func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(taskId 
 	}
 }
 
-func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(frontId int32, jobId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamStepIORequest) {
+func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, jobId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamStepIORequest) {
 	step := StepIdentifier{JobId: jobId, StepId: stepId}
 	keeper.stepIORequestChannelMtx.Lock()
 	if keeper.taskIORequestChannelMap[step] == nil {
@@ -321,8 +320,8 @@ func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(frontId int32, j
 	}
 	keeper.taskIORequestChannelMap[step][frontId] = ioToCrunChannel
 	keeper.stepDoneChannelMap[step] = make(chan struct{})
-	if keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}] == nil {
-		keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}] = &TaskIOBuffer{
+	if keeper.taskIOBufferMap[step] == nil {
+		keeper.taskIOBufferMap[step] = &TaskIOBuffer{
 			data:     make([]*protos.StreamTaskIORequest, 10),
 			head:     0,
 			size:     0,
@@ -372,9 +371,9 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(jobId uint32, stepI
 	if exist {
 		// maybe too much msg, cfored will hang.
 		for _, channel := range channelMap {
-			channel <- ioToCrun
+			channel <- ioToFront
 		}
-		keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}].Push(ioToCrun)
+		keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}].Push(ioToFront)
 	} else {
 		log.Warningf("[Supervisor->Cfored->FrontEnd][Step #%d.%d]Trying forward to I/O to an unknown crun/cattach.", jobId, stepId)
 	}
@@ -521,7 +520,7 @@ CforedSupervisorStateMachineLoop:
 					switch supervisorReq.Type {
 					case protos.StreamStepIORequest_TASK_OUTPUT:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote output", jobId, stepId)
-						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
 					case protos.StreamStepIORequest_TASK_ERR_OUTPUT:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote err output", jobId, stepId)
 						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
@@ -536,7 +535,7 @@ CforedSupervisorStateMachineLoop:
 
 					case protos.StreamStepIORequest_TASK_EXIT_STATUS:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
-						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
 
 					case protos.StreamStepIORequest_SUPERVISOR_UNREGISTER:
 						log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorUnReg from Craned %s",
