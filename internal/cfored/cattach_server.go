@@ -176,14 +176,14 @@ CforedCattachStateMachineLoop:
 							// For crun with pty, only execute on first node
 							execCranedIds = []string{execCranedIds[0]}
 						}
-						if gVars.ctldReplyChannelMapForCattachByTaskId[taskId] == nil {
-							gVars.ctldReplyChannelMapForCattachByTaskId[taskId] = make(map[int32]chan *protos.StreamCtldReply)
+						if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}] == nil {
+							gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}] = make(map[int32]chan *protos.StreamCtldReply)
 						}
-						gVars.ctldReplyChannelMapForCattachByTaskId[taskId][cattachPid] = ctldReplyChannel
+						gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}][cattachPid] = ctldReplyChannel
 						gVars.pidStepMapMtx.Lock()
 						gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: taskId, StepId: stepId}
 						gVars.pidStepMapMtx.Unlock()
-						gSupervisorChanKeeper.setRemoteIoToCrunChannel(cattachPid, taskId, stepId, TaskIoRequestChannel)
+						gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, taskId, stepId, TaskIoRequestChannel)
 					}
 
 					gVars.ctldReplyChannelMapMtx.Unlock()
@@ -356,11 +356,11 @@ CforedCattachStateMachineLoop:
 
 			// remove cattach by taskId for ctldReplyChannel
 			gVars.ctldReplyChannelMapMtx.Lock()
-			if gVars.ctldReplyChannelMapForCattachByTaskId[taskId] != nil {
-				delete(gVars.ctldReplyChannelMapForCattachByTaskId[taskId], cattachPid)
+			if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}] != nil {
+				delete(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}], cattachPid)
 			}
-			if len(gVars.ctldReplyChannelMapForCattachByTaskId[taskId]) == 0 {
-				delete(gVars.ctldReplyChannelMapForCattachByTaskId, taskId)
+			if len(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}]) == 0 {
+				delete(gVars.ctldReplyChannelMapForCattachByStep, StepIdentifier{JobId: taskId, StepId: stepId})
 			}
 			// remove cattach by pid for ctldReplyChannel
 			gVars.pidStepMapMtx.Lock()
