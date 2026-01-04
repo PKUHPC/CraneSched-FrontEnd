@@ -958,14 +958,6 @@ enum TxnAction {
   DeleteQos = 8;
 }
 
-message LicenseInfo {
-  string name = 1;
-  uint32 total = 2;
-  uint32 used = 3;
-  uint32 free = 4;
-}
-
-
 message LicenseResourceInfo {
   string resource_name = 1;
   map<string, uint32> cluster_resource_info = 2;
