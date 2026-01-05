@@ -173,27 +173,34 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 }
 
 func ParseRelativeTime(ts string) (int64, error) {
-	// handle now+1hour now-2week etc.
-	re := regexp.MustCompile(`^(\d+)([a-zA-Z]*)$`)
-	if result := re.FindStringSubmatch(ts); result != nil {
-		value, err := strconv.ParseInt(result[1], 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("invalid duration: %v", ts)
-		}
-		unit := strings.ToLower(result[2])
-		switch unit {
-		case "", "s", "sec", "second", "seconds":
-			return value, nil
-		case "m", "min", "minute", "minutes":
-			return value * 60, nil
-		case "h", "hour", "hours":
-			return value * 3600, nil
-		case "d", "day", "days":
-			return value * 24 * 3600, nil
-		case "w", "week", "weeks":
-			return value * 7 * 24 * 3600, nil
-		default:
-			return 0, fmt.Errorf("invalid duration: %v", ts)
+	// handle compound duration like 1h2m30s, 1h30m, etc.
+	if regexp.MustCompile(`^(\d+[a-zA-Z]+)+$`).MatchString(ts) {
+		multiUnitRe := regexp.MustCompile(`(\d+)([a-zA-Z]+)`)
+		matches := multiUnitRe.FindAllStringSubmatch(ts, -1)
+		if matches != nil {
+			var totalSeconds int64 = 0
+			for _, match := range matches {
+				value, err := strconv.ParseInt(match[1], 10, 64)
+				if err != nil {
+					return 0, fmt.Errorf("invalid duration: %v", ts)
+				}
+				unit := strings.ToLower(match[2])
+				switch unit {
+				case "", "s", "sec", "second", "seconds":
+					totalSeconds += value
+				case "m", "min", "minute", "minutes":
+					totalSeconds += value * 60
+				case "h", "hour", "hours":
+					totalSeconds += value * 3600
+				case "d", "day", "days":
+					totalSeconds += value * 24 * 3600
+				case "w", "week", "weeks":
+					totalSeconds += value * 7 * 24 * 3600
+				default:
+					return 0, fmt.Errorf("invalid duration unit '%s' in: %v", unit, ts)
+				}
+			}
+			return totalSeconds, nil
 		}
 	}
 	// handle now+12:20:12
@@ -653,6 +660,15 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 		}
 		if mailtype.Exists() && !CheckMailType(mailtype.String()) {
 			return fmt.Errorf("invalid --mail-type")
+		}
+	}
+	if task.Dependencies != nil {
+		taskIds := make(map[uint32]bool)
+		for _, dep := range task.Dependencies.Deps {
+			if taskIds[dep.JobId] {
+				return fmt.Errorf("invalid argument: duplicate task %d in dependencies", dep.JobId)
+			}
+			taskIds[dep.JobId] = true
 		}
 	}
 
@@ -1515,4 +1531,84 @@ func StringToTxnAction(str string) (protos.TxnAction, bool) {
 	}
 
 	return 0, false
+}
+func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
+	depStr = strings.TrimSpace(depStr)
+
+	hasComma := strings.Contains(depStr, ",")
+	hasQuestion := strings.Contains(depStr, "?")
+	if hasComma && hasQuestion {
+		return fmt.Errorf("cannot use both ',' and '?' in the dependency string")
+	}
+
+	sep := ","
+	if hasQuestion {
+		sep = "?"
+	}
+
+	task.Dependencies = &protos.Dependencies{
+		IsOr: hasQuestion,
+	}
+
+	// Regex: (type):(job_id[+delay][:job_id[+delay]]...)
+	depPattern := regexp.MustCompile(`^(after|afterok|afternotok|afterany):(.+)$`)
+	jobPattern := regexp.MustCompile(`(\d+)(?:\+([^:]+))?(?::|$)`)
+
+	depStrList := strings.Split(depStr, sep)
+	for _, subDepStr := range depStrList {
+		matches := depPattern.FindStringSubmatch(subDepStr)
+		if matches == nil {
+			return fmt.Errorf("unrecognized dependency string: %s", subDepStr)
+		}
+
+		depTypeStr, jobsStr := matches[1], matches[2]
+
+		if !regexp.MustCompile(`^[\d+:a-zA-Z]+$`).MatchString(jobsStr) {
+			return fmt.Errorf("invalid job list format in '%s': should only contain job_id[+delay] separated by ':'", jobsStr)
+		}
+
+		var depType protos.DependencyType
+		switch depTypeStr {
+		case "after":
+			depType = protos.DependencyType_AFTER
+		case "afterok":
+			depType = protos.DependencyType_AFTER_OK
+		case "afternotok":
+			depType = protos.DependencyType_AFTER_NOT_OK
+		case "afterany":
+			depType = protos.DependencyType_AFTER_ANY
+		}
+
+		jobMatches := jobPattern.FindAllStringSubmatch(jobsStr, -1)
+		if jobMatches == nil {
+			return fmt.Errorf("no valid job IDs found in: %s", subDepStr)
+		}
+
+		for _, jobMatch := range jobMatches {
+			jobId, err := strconv.ParseUint(jobMatch[1], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid job ID '%s' in dependency: %v", jobMatch[1], err)
+			}
+			var delaySeconds uint64 = 0
+			if jobMatch[2] != "" {
+				delayStr := jobMatch[2]
+				// If delayStr contains only digits, treat it as minutes by default
+				if regexp.MustCompile(`^\d+$`).MatchString(delayStr) {
+					delayStr = delayStr + "m"
+				}
+				seconds, err := ParseRelativeTime(delayStr)
+				if err != nil {
+					return fmt.Errorf("invalid delay format '%s' in dependency: %v", jobMatch[2], err)
+				}
+				delaySeconds = uint64(seconds)
+			}
+
+			task.Dependencies.Deps = append(task.Dependencies.Deps, &protos.DependencyCondition{
+				JobId:        uint32(jobId),
+				Type:         depType,
+				DelaySeconds: delaySeconds,
+			})
+		}
+	}
+	return nil
 }

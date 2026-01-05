@@ -45,10 +45,11 @@ var (
 	FlagGpusPerNode   string
 	FlagMemPerCpu     string
 
-	FlagExtraAttr string
-	FlagMailType  string
-	FlagMailUser  string
-	FlagComment   string
+	FlagExtraAttr  string
+	FlagMailType   string
+	FlagMailUser   string
+	FlagComment    string
+	FlagDependency string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
@@ -60,10 +61,9 @@ var (
 
 	FlagLicenses string
 	// not implement feature:
-	FlagNTasks     string
-	FlagDependency string
-	FlagNoKill     string
-	FlagVerbose    string
+	FlagNTasks  string
+	FlagNoKill  string
+	FlagVerbose string
 
 	RootCmd = &cobra.Command{
 		Use:     "calloc",
@@ -117,4 +117,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
+	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 }

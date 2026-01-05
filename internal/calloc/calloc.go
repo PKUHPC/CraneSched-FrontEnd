@@ -495,6 +495,12 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		}
 		task.ReqResources.DeviceMap = gpuDeviceMap
 	}
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid --dependency: %s", err)
+		}
+	}
 
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)

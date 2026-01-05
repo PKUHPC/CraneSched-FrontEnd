@@ -43,6 +43,7 @@ var (
 	FlagGetUserEnv         bool
 	FlagExport             string
 	FlagGres               string
+	FlagDependency         string
 
 	FlagInput       string
 	FlagPty         bool
@@ -76,7 +77,6 @@ var (
 	FlagDeadline      string
 	FlagWait          string
 	FlagMpi           string
-	FlagDependency    string
 	FlagVerbose       string
 	FlagError         string
 	FlagKillOnBadExit string
@@ -144,4 +144,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
+	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 }

@@ -279,6 +279,12 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		return nil, fmt.Errorf("Failed to get hostname of the submitting host: %v", err)
 	}
 	task.SubmitHostname = submitHostname
+	if FlagDependency != "" {
+		err := util.SetTaskDependencies(task, FlagDependency)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
+		}
+	}
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
@@ -446,6 +452,11 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			podOpts.hostNet = val
+		case "--dependency", "-d":
+			err := util.SetTaskDependencies(task, arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
+			}
 		default:
 			return fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}
