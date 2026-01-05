@@ -25,7 +25,7 @@ const (
 
 func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.CraneForeD_CattachStreamServer) error {
 	var cattachPid int32
-	var taskId uint32
+	var jobId uint32
 	var stepId uint32
 	var uid uint32
 	var reply *protos.StreamCattachReply
@@ -38,7 +38,7 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
 	TaskIoRequestChannel := make(chan *protos.StreamTaskIORequest, 2)
-	taskId = math.MaxUint32
+	jobId = math.MaxUint32
 	cattachPid = -1
 	forwardEstablished := atomic.Bool{}
 	forwardEstablished.Store(false)
@@ -117,7 +117,7 @@ CforedCattachStateMachineLoop:
 				break CforedCattachStateMachineLoop
 			} else {
 				cattachPid = cattachRequest.GetPayloadTaskConnectReq().CattachPid
-				taskId = cattachRequest.GetPayloadTaskConnectReq().GetTaskId()
+				jobId = cattachRequest.GetPayloadTaskConnectReq().GetTaskId()
 				stepId = cattachRequest.GetPayloadTaskConnectReq().GetStepdId()
 
 				gVars.ctldReplyChannelMapMtx.Lock()
@@ -125,11 +125,12 @@ CforedCattachStateMachineLoop:
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
 				cforedRequest := &protos.StreamCforedRequest{
-					Type: protos.StreamCforedRequest_TASK_META_REQUEST,
-					Payload: &protos.StreamCforedRequest_PayloadTaskMetaReq{
-						PayloadTaskMetaReq: &protos.StreamCforedRequest_TaskMetaReq{
+					Type: protos.StreamCforedRequest_STEP_META_REQUEST,
+					Payload: &protos.StreamCforedRequest_PayloadStepMetaReq{
+						PayloadStepMetaReq: &protos.StreamCforedRequest_StepMetaReq{
 							Uid:        uid,
-							TaskId:     taskId,
+							JobId:      jobId,
+							StepId:     stepId,
 							CattachPid: cattachPid,
 						},
 					},
@@ -154,36 +155,36 @@ CforedCattachStateMachineLoop:
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
 				case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
-					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", taskId, stepId)
+					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", jobId, stepId)
 					state = DeadCattach
-				case protos.StreamCtldReply_TASK_META_REPLY:
-					Ok := ctldReply.GetPayloadTaskMetaReply().Ok
+				case protos.StreamCtldReply_STEP_META_REPLY:
+					Ok := ctldReply.GetPayloadStepMetaReply().Ok
 					log.Tracef("[Ctld->Cfored->Cattach][Pid#%d] Receive TaskMeta, Ok: %v", cattachPid, Ok)
 
 					gVars.ctldReplyChannelMapMtx.Lock()
 					delete(gVars.ctldReplyChannelMapByPid, cattachPid)
-					var task *protos.TaskToCtld
+					var step *protos.StepToCtld
 					if Ok {
 						// node[03-04]
-						execCranedIds, ok := util.ParseHostList(ctldReply.GetPayloadTaskMetaReply().Task.GetNodelist())
+						execCranedIds, ok := util.ParseHostList(ctldReply.GetPayloadStepMetaReply().Step.GetNodelist())
 						if !ok {
 							state = End
 							break
 						}
-						task = ctldReply.GetPayloadTaskMetaReply().Task
-						cattachPty = ctldReply.GetPayloadTaskMetaReply().Task.GetInteractiveMeta().Pty
+						step = ctldReply.GetPayloadStepMetaReply().Step
+						cattachPty = ctldReply.GetPayloadStepMetaReply().Step.GetInteractiveMeta().Pty
 						if cattachPty {
 							// For crun with pty, only execute on first node
 							execCranedIds = []string{execCranedIds[0]}
 						}
-						if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}] == nil {
-							gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}] = make(map[int32]chan *protos.StreamCtldReply)
+						if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] == nil {
+							gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] = make(map[int32]chan *protos.StreamCtldReply)
 						}
-						gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}][cattachPid] = ctldReplyChannel
+						gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}][cattachPid] = ctldReplyChannel
 						gVars.pidStepMapMtx.Lock()
-						gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: taskId, StepId: stepId}
+						gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: jobId, StepId: stepId}
 						gVars.pidStepMapMtx.Unlock()
-						gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, taskId, stepId, TaskIoRequestChannel)
+						gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
 					}
 
 					gVars.ctldReplyChannelMapMtx.Unlock()
@@ -193,14 +194,14 @@ CforedCattachStateMachineLoop:
 						Payload: &protos.StreamCattachReply_PayloadTaskConnectReply{
 							PayloadTaskConnectReply: &protos.StreamCattachReply_TaskConnectReply{
 								Ok:            Ok,
-								Task:          task,
-								FailureReason: ctldReply.GetPayloadTaskMetaReply().FailureReason,
+								Step:          step,
+								FailureReason: ctldReply.GetPayloadStepMetaReply().FailureReason,
 							},
 						},
 					}
 
 					if err := toCattachStream.Send(reply); err != nil {
-						log.Debugf("[Cfored<->Cattach][Step #%d.%d] Connection to cattach was broken.", taskId, stepId)
+						log.Debugf("[Cfored<->Cattach][Step #%d.%d] Connection to cattach was broken.", jobId, stepId)
 						state = End
 						break
 					}
@@ -216,20 +217,20 @@ CforedCattachStateMachineLoop:
 				}
 			}
 		case CattachWaitIOForward:
-			log.Infof("[Cfored<->Cattach][Step #%d.%d] Enter State WAIT_TASK_IO_FORWARD.", taskId, stepId)
+			log.Infof("[Cfored<->Cattach][Step #%d.%d] Enter State WAIT_TASK_IO_FORWARD.", jobId, stepId)
 
 			stopWaiting := atomic.Bool{}
 			stopWaiting.Store(false)
 			readyChannel := make(chan bool, 1)
-			go gSupervisorChanKeeper.waitSupervisorChannelsReady(execCranedIds, readyChannel, &stopWaiting, taskId, stepId)
+			go gSupervisorChanKeeper.waitSupervisorChannelsReady(execCranedIds, readyChannel, &stopWaiting, jobId, stepId)
 
 			select {
 			case ctldReply := <-ctldReplyChannel:
 				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
 					log.Fatalf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type TASK_COMPLETION_ACK_REPLY but got %s, ignored",
-						taskId, stepId, ctldReply.Type)
+						jobId, stepId, ctldReply.Type)
 				} else {
-					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", taskId, stepId)
+					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", jobId, stepId)
 					state = DeadCattach
 				}
 				stopWaiting.Store(true)
@@ -246,25 +247,25 @@ CforedCattachStateMachineLoop:
 
 				if err := toCattachStream.Send(reply); err != nil {
 					log.Debugf("[Cfored<->Cattach][Step #%d.%d] Failed to send TASK_IO_FORWARD_READY to cattach: %s. "+
-						"The connection to cattach was broken.", taskId, stepId, err.Error())
+						"The connection to cattach was broken.", jobId, stepId, err.Error())
 					state = End
 				} else {
 					state = CattachWaitTaskComplete
 				}
 			}
 		case CattachWaitTaskComplete:
-			log.Debugf("[Cfored<->Cattach][Job #%d] Enter State Cattach_Wait_Task_Complete", taskId)
-			history := gSupervisorChanKeeper.getRemoteHistory(taskId, stepId)
+			log.Debugf("[Cfored<->Cattach][Job #%d] Enter State Cattach_Wait_Task_Complete", jobId)
+			history := gSupervisorChanKeeper.getRemoteHistory(jobId, stepId)
 			for _, taskMsg := range history {
 				if taskMsg == nil {
 					log.Errorf("[Supervisor->Cfored->Cattach][Step #%d.%d] One of Craneds [%v] down. Exit....",
-						taskId, stepId, execCranedIds)
+						jobId, stepId, execCranedIds)
 					// IO Channel from Craned was shut down unexpectedly.
 					state = DeadCattach
 					break
 				}
 
-				if err := forwardTaskMsgToCattach(taskId, stepId, taskMsg, toCattachStream); err != nil {
+				if err := forwardTaskMsgToCattach(jobId, stepId, taskMsg, toCattachStream); err != nil {
 					state = End
 					break
 				}
@@ -275,9 +276,9 @@ CforedCattachStateMachineLoop:
 				case ctldReply := <-ctldReplyChannel:
 					if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
 						log.Warningf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type TASK_COMPLETION_ACK_REPLY but got %s, ignored",
-							taskId, stepId, ctldReply.Type)
+							jobId, stepId, ctldReply.Type)
 					} else {
-						log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive TASK_COMPLETION_ACK_REPLY", taskId, stepId)
+						log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive TASK_COMPLETION_ACK_REPLY", jobId, stepId)
 						state = DeadCattach
 						break forwarding
 					}
@@ -289,7 +290,7 @@ CforedCattachStateMachineLoop:
 						case io.EOF:
 							fallthrough
 						default:
-							log.Debugf("[Cattach->Cfored][Step #%d.%d] Connection to cattach was broken.", taskId, stepId)
+							log.Debugf("[Cattach->Cfored][Step #%d.%d] Connection to cattach was broken.", jobId, stepId)
 							state = End
 							break forwarding
 						}
@@ -297,23 +298,23 @@ CforedCattachStateMachineLoop:
 						switch cattachRequest.Type {
 						case protos.StreamCattachRequest_TASK_IO_FORWARD:
 							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
-								" task, msg size[%d], EOF [%v]", taskId, stepId,
+								" task, msg size[%d], EOF [%v]", jobId, stepId,
 								len(cattachRequest.GetPayloadTaskIoForwardReq().GetMsg()),
 								cattachRequest.GetPayloadTaskIoForwardReq().Eof)
-							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(taskId, stepId, cattachRequest)
+							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
 
 						case protos.StreamCattachRequest_TASK_X11_FORWARD:
 							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive Local TASK_X11_FORWARD to remote task",
 								cattachRequest.GetPayloadTaskX11ForwardReq().GetTaskId(), stepId)
-							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(taskId, stepId, cattachRequest)
+							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
 
 						case protos.StreamCattachRequest_TASK_COMPLETION_REQUEST:
-							log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", taskId, stepId)
+							log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
 							state = End
 							break forwarding
 						default:
 							log.Fatalf("[Cattach->Cfored][Step #%d.%d] Expect TASK_COMPLETION_REQUEST or TASK_IO_FORWARD",
-								taskId, stepId)
+								jobId, stepId)
 							break forwarding
 						}
 					}
@@ -321,20 +322,20 @@ CforedCattachStateMachineLoop:
 				case taskMsg := <-TaskIoRequestChannel:
 					if taskMsg == nil {
 						log.Errorf("[Supervisor->Cfored->Cattach][Step #%d.%d] One of Craneds [%v] down. Exit....",
-							taskId, stepId, execCranedIds)
+							jobId, stepId, execCranedIds)
 						// IO Channel from Craned was shut down unexpectedly.
 						state = DeadCattach
 						break forwarding
 					}
 
-					if err := forwardTaskMsgToCattach(taskId, stepId, taskMsg, toCattachStream); err != nil {
+					if err := forwardTaskMsgToCattach(jobId, stepId, taskMsg, toCattachStream); err != nil {
 						state = End
 						break forwarding
 					}
 				}
 			}
 		case DeadCattach:
-			log.Infof("[Cfored<->Cattach][Job #%d] Enter State DEAD_CATTACH", taskId)
+			log.Infof("[Cfored<->Cattach][Job #%d] Enter State DEAD_CATTACH", jobId)
 			reply = &protos.StreamCattachReply{
 				Type: protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY,
 				Payload: &protos.StreamCattachReply_PayloadTaskCompletionAckReply{
@@ -352,15 +353,15 @@ CforedCattachStateMachineLoop:
 			}
 			state = End
 		case End:
-			log.Infof("[Cfored<->Cattach][Job #%d] Enter State End", taskId)
+			log.Infof("[Cfored<->Cattach][Job #%d] Enter State End", jobId)
 
 			// remove cattach by taskId for ctldReplyChannel
 			gVars.ctldReplyChannelMapMtx.Lock()
-			if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}] != nil {
-				delete(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}], cattachPid)
+			if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] != nil {
+				delete(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}], cattachPid)
 			}
-			if len(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: taskId, StepId: stepId}]) == 0 {
-				delete(gVars.ctldReplyChannelMapForCattachByStep, StepIdentifier{JobId: taskId, StepId: stepId})
+			if len(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]) == 0 {
+				delete(gVars.ctldReplyChannelMapForCattachByStep, StepIdentifier{JobId: jobId, StepId: stepId})
 			}
 			// remove cattach by pid for ctldReplyChannel
 			gVars.pidStepMapMtx.Lock()
@@ -370,7 +371,7 @@ CforedCattachStateMachineLoop:
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
 			// remove task IO channel
-			gSupervisorChanKeeper.cattachStopAndRemoveChannel(taskId, stepId, cattachPid)
+			gSupervisorChanKeeper.cattachStopAndRemoveChannel(jobId, stepId, cattachPid)
 
 			break CforedCattachStateMachineLoop
 		}

@@ -197,8 +197,8 @@ CtldClientStateMachineLoop:
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
 
-					case protos.StreamCtldReply_TASK_META_REPLY:
-						frontPid := ctldReply.GetPayloadTaskMetaReply().CattachPid
+					case protos.StreamCtldReply_STEP_META_REPLY:
+						frontPid := ctldReply.GetPayloadStepMetaReply().CattachPid
 
 						gVars.ctldReplyChannelMapMtx.Lock()
 						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[frontPid]
