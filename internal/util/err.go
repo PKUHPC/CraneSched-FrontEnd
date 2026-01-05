@@ -174,7 +174,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_TIME_TIMIT_BEYOND:       "Time-limit reached the user's limit",
 	protos.ErrCode_ERR_CPUS_PER_TASK_BEYOND:    "cpus-per-task reached the user's limit",
 	protos.ErrCode_ERR_NO_ENOUGH_NODE:          "Nodes num not enough for task",
-	protos.ErrCode_ERR_BEYOND_TASK_ID:          "System error occurred or the number of pending tasks exceeded maximum value",
+	protos.ErrCode_ERR_BEYOND_TASK_ID:          "The number of pending tasks exceeded maximum value",
 	protos.ErrCode_ERR_CGROUP:                  "Error when manipulating cgroup",
 	protos.ErrCode_ERR_SYSTEM_ERR:              "Linux Error",
 	protos.ErrCode_ERR_RPC_FAILURE:             "RPC call failed",
@@ -208,6 +208,8 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_DEL_DEFAULT_WCKEY:       "Cannot delete the default wckey. Please set a different default wckey first",
 	protos.ErrCode_ERR_NO_DEFAULT_WCKEY:        "No default wckey is set. Please specify a wckey or set a default wckey",
 	protos.ErrCode_ERR_STEP_RES_BEYOND:         "Step resource request exceeds the job's requested resources",
+	protos.ErrCode_ERR_MISSING_DEPENDENCY:      "One or more dependency jobs may not exist or have ended",
+	protos.ErrCode_ERR_DB_INSERT_FAILED:        "Database insertion failed due to internal error",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {

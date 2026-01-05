@@ -1330,6 +1330,14 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			job.Wckey = &FlagWckey
 		}
 	}
+	if FlagDependency != "" {
+		if jobMode {
+			err := util.SetTaskDependencies(job, FlagDependency)
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+			}
+		}
+	}
 
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)

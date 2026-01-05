@@ -63,6 +63,7 @@ var (
 
 	FlagConfigFilePath string
 	FlagJson           bool
+	FlagDependency     string
 
 	FlagReservation string
 
@@ -77,7 +78,6 @@ var (
 	FlagNTasksPerSocket string
 	FlagSignal          string
 	FlagCpuFreq         string
-	FlagDependency      string
 	FlagPriority        string
 	FlagThreadsPerCore  string
 	FlagDistribution    string
@@ -182,6 +182,7 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus required per node, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
 	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
+	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 
 	initPodFlags(RootCmd)
 }
