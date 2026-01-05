@@ -210,7 +210,6 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_STEP_RES_BEYOND:         "Step resource request exceeds the job's requested resources",
 	protos.ErrCode_ERR_MISSING_DEPENDENCY:      "One or more dependency jobs may not exist or have ended",
 	protos.ErrCode_ERR_DB_INSERT_FAILED:        "Database insertion failed due to internal error",
-	protos.ErrCode_ERR_LUA_FAILED:             "Lua script validation failed",
 	protos.ErrCode_ERR_LUA_FAILED:              "Lua script validation failed",
 }
 
