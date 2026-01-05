@@ -85,7 +85,7 @@ func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 type StateMachineOfCattach struct {
 	jobId  uint32 // This field will be set after ReqTaskId state
 	stepId uint32
-	task   *protos.TaskToCtld
+	step   *protos.StepToCtld
 
 	state StateOfCattach
 	err   util.ExitCode // Hold the final error of the state machine if any
@@ -215,8 +215,8 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 			cforedReply := cforedReply.GetPayloadTaskConnectReply()
 			Ok := cforedReply.Ok
 			if Ok {
-				m.task = cforedReply.Task
-				FlagPty = m.task.GetInteractiveMeta().Pty
+				m.step = cforedReply.Step
+				FlagPty = m.step.GetInteractiveMeta().Pty
 				if FlagLayout {
 					m.PrintStepLayout()
 					m.state = End
@@ -263,7 +263,7 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 func (m *StateMachineOfCattach) StateForwarding() {
 	var request *protos.StreamCattachRequest
 
-	if m.task.GetInteractiveMeta().Pty {
+	if m.step.GetInteractiveMeta().Pty {
 		ptyAttr := unix.Termios{}
 		err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
 		if err != nil {
@@ -401,7 +401,7 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	go m.StdinReaderRoutine()
 	go m.StdoutWriterRoutine()
 
-	iaMeta := m.task.GetInteractiveMeta()
+	iaMeta := m.step.GetInteractiveMeta()
 	if iaMeta != nil && iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
 		go m.StartX11ReaderWriterRoutine()
 	}
@@ -514,9 +514,9 @@ func (m *StateMachineOfCattach) ParseFilePattern(pattern string) (string, error)
 	if strings.Contains(pattern, "\\") {
 		return strings.ReplaceAll(pattern, "\\", ""), nil
 	}
-	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.task.Uid))
+	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.step.Uid))
 	if err != nil {
-		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", m.task.Uid, err)
+		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", m.step.Uid, err)
 	}
 	replacements := map[string]string{
 		"%%": "%",
@@ -539,7 +539,7 @@ func (m *StateMachineOfCattach) ParseFilePattern(pattern string) (string, error)
 		//User name
 		"%u": currentUser.Username,
 		// Job name
-		"%x": m.task.Name,
+		"%x": m.step.Name,
 	}
 
 	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
@@ -646,7 +646,7 @@ func (m *StateMachineOfCattach) StartX11ReaderWriterRoutine() {
 	var conn net.Conn
 	var err error
 
-	x11meta := m.task.GetInteractiveMeta().GetX11Meta()
+	x11meta := m.step.GetInteractiveMeta().GetX11Meta()
 	if x11meta.Port == 0 { // Unix Socket
 		conn, err = net.Dial("unix", x11meta.Target)
 		if err != nil {
@@ -744,7 +744,7 @@ writing:
 
 func (m *StateMachineOfCattach) PrintStepLayout() {
 	fmt.Printf("Job step layout:\n")
-	fmt.Printf("        %d tasks, %d nodes (%s)\n\n", 1, m.task.NodeNum, m.task.Nodelist)
+	fmt.Printf("        %d tasks, %d nodes (%s)\n\n", 1, m.step.NodeNum, m.step.Nodelist)
 	//fmt.Printf("        Node %d (%s), %d task(s):", m.task.Node, layout.NodeName, len(layout.TaskIDs))
 	//for _, tid := range layout.TaskIDs {
 	//	fmt.Printf(" %d", tid)
