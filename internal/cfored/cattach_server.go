@@ -72,8 +72,8 @@ CforedCattachStateMachineLoop:
 			ctx := toCattachStream.Context()
 			p, ok := peer.FromContext(ctx)
 			if ok {
+				uid = cattachRequest.GetPayloadTaskConnectReq().GetUid()
 				if auth, ok := p.AuthInfo.(*util.UnixPeerAuthInfo); ok {
-					uid = cattachRequest.GetPayloadTaskConnectReq().GetUid()
 					if uid != auth.UID {
 						log.Warnf("Security: UID mismatch - peer UID %d does not match task UID %d", auth.UID, uid)
 						reply = &protos.StreamCattachReply{
