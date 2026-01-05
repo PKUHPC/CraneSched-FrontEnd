@@ -166,7 +166,8 @@ CforedCattachStateMachineLoop:
 					var step *protos.StepToCtld
 					if Ok {
 						// node[03-04]
-						execCranedIds, ok := util.ParseHostList(ctldReply.GetPayloadStepMetaReply().Step.GetNodelist())
+						var ok bool
+						execCranedIds, ok = util.ParseHostList(ctldReply.GetPayloadStepMetaReply().Step.GetNodelist())
 						if !ok {
 							state = End
 							break
