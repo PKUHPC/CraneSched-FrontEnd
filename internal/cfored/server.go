@@ -34,9 +34,10 @@ import (
 	"google.golang.org/grpc"
 )
 
-type CrunRequestSupervisorChannel struct {
-	valid          *atomic.Bool
-	requestChannel chan *protos.StreamCrunRequest
+type RequestSupervisorChannel struct {
+	valid                    *atomic.Bool
+	crunRequestChannel       chan *protos.StreamCrunRequest
+	cattachRequestChannelMap chan *protos.StreamCattachRequest
 }
 
 type StepIdentifier struct {
@@ -44,16 +45,41 @@ type StepIdentifier struct {
 	StepId uint32
 }
 
+type TaskIOBuffer struct {
+	data     []*protos.StreamTaskIORequest
+	head     int
+	size     int
+	capacity int
+}
+
+func (t *TaskIOBuffer) Push(item *protos.StreamTaskIORequest) {
+	t.data[t.head] = item
+	t.head = (t.head + 1) % t.capacity
+	if t.size < t.capacity {
+		t.size++
+	}
+}
+
+func (t *TaskIOBuffer) GetHistory() []*protos.StreamTaskIORequest {
+	history := make([]*protos.StreamTaskIORequest, t.size)
+	for i := 0; i < t.size; i++ {
+		idx := (t.head + t.capacity - t.size + i) % t.capacity
+		history[i] = t.data[idx]
+	}
+	return history
+}
+
 type SupervisorChannelKeeper struct {
 	toSupervisorChannelMtx sync.Mutex
 	toSupervisorChannelCV  *sync.Cond
 
-	// Request message from Crun to Supervisor
-	toSupervisorChannels map[StepIdentifier]map[string] /*CranedId*/ *CrunRequestSupervisorChannel
+	// Request message from Crun/Cattach to Supervisor
+	toSupervisorChannels map[StepIdentifier]map[string] /*CranedId*/ *RequestSupervisorChannel
 
 	taskIORequestChannelMtx sync.Mutex
-	// I/O message from Supervisor to Crun
-	taskIORequestChannelMap map[StepIdentifier]chan *protos.StreamTaskIORequest
+	// I/O message from Supervisor to Crun/Cattach
+	taskIORequestChannelMap map[StepIdentifier]map[int32]chan *protos.StreamTaskIORequest
+	taskIOBufferMap         map[StepIdentifier]*TaskIOBuffer
 }
 
 var gSupervisorChanKeeper *SupervisorChannelKeeper
@@ -61,18 +87,19 @@ var gSupervisorChanKeeper *SupervisorChannelKeeper
 func NewCranedChannelKeeper() *SupervisorChannelKeeper {
 	keeper := &SupervisorChannelKeeper{}
 	keeper.toSupervisorChannelCV = sync.NewCond(&keeper.toSupervisorChannelMtx)
-	keeper.toSupervisorChannels = make(map[StepIdentifier]map[string]*CrunRequestSupervisorChannel)
-	keeper.taskIORequestChannelMap = make(map[StepIdentifier]chan *protos.StreamTaskIORequest)
+	keeper.toSupervisorChannels = make(map[StepIdentifier]map[string]*RequestSupervisorChannel)
+	keeper.taskIORequestChannelMap = make(map[StepIdentifier]map[int32]chan *protos.StreamTaskIORequest)
+	keeper.taskIOBufferMap = make(map[StepIdentifier]*TaskIOBuffer)
 	return keeper
 }
 
-func (keeper *SupervisorChannelKeeper) supervisorUpAndSetMsgToSupervisorChannel(taskId uint32, stepId uint32, cranedId string, msgChannel chan *protos.StreamCrunRequest, valid *atomic.Bool) {
+func (keeper *SupervisorChannelKeeper) supervisorUpAndSetMsgToSupervisorChannel(taskId uint32, stepId uint32, cranedId string, msgChannel chan *protos.StreamCrunRequest, cattachMsgChannel chan *protos.StreamCattachRequest, valid *atomic.Bool) {
 	keeper.toSupervisorChannelMtx.Lock()
 	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
 	if _, exist := keeper.toSupervisorChannels[stepIdentity]; !exist {
-		keeper.toSupervisorChannels[stepIdentity] = make(map[string]*CrunRequestSupervisorChannel)
+		keeper.toSupervisorChannels[stepIdentity] = make(map[string]*RequestSupervisorChannel)
 	}
-	keeper.toSupervisorChannels[stepIdentity][cranedId] = &CrunRequestSupervisorChannel{requestChannel: msgChannel, valid: valid}
+	keeper.toSupervisorChannels[stepIdentity][cranedId] = &RequestSupervisorChannel{crunRequestChannel: msgChannel, valid: valid, cattachRequestChannelMap: cattachMsgChannel}
 	keeper.toSupervisorChannelCV.Broadcast()
 	keeper.toSupervisorChannelMtx.Unlock()
 }
@@ -125,13 +152,15 @@ func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []s
 func (keeper *SupervisorChannelKeeper) SupervisorCrashAndRemoveAllChannel(taskId uint32, stepId uint32, cranedId string) {
 	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
 	keeper.taskIORequestChannelMtx.Lock()
-	channel, exist := keeper.taskIORequestChannelMap[stepIdentity]
+	channelMap, exist := keeper.taskIORequestChannelMap[stepIdentity]
 
 	if exist {
-		channel <- nil
+		for _, channel := range channelMap {
+			channel <- nil
+		}
 	} else {
 		log.Warningf("[Supervisor->Cfored][Job #%d.%d] Supervisor on Craned %s"+
-			" crashed but no crun found, skiping.", taskId, stepId, cranedId)
+			" crashed but no crun/cattach found, skiping.", taskId, stepId, cranedId)
 	}
 	keeper.taskIORequestChannelMtx.Unlock()
 }
@@ -151,9 +180,9 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(taskId uin
 			continue
 		}
 		select {
-		case supervisorChannel.requestChannel <- request:
+		case supervisorChannel.crunRequestChannel <- request:
 		default:
-			if len(supervisorChannel.requestChannel) == cap(supervisorChannel.requestChannel) {
+			if len(supervisorChannel.crunRequestChannel) == cap(supervisorChannel.crunRequestChannel) {
 				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
 			} else {
 				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
@@ -162,20 +191,74 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(taskId uin
 	}
 }
 
-func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(taskId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamTaskIORequest) {
+func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(taskId uint32, stepId uint32, request *protos.StreamCattachRequest) {
+	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
+	keeper.toSupervisorChannelMtx.Lock()
+	defer keeper.toSupervisorChannelMtx.Unlock()
+	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
+	// TODO: when step non-exist, cattach front echo msg and close
+	if !exist {
+		log.Errorf("[Job #%d.%d] Trying to forward cattach request to non-exist step.", taskId, stepId)
+		return
+	}
+	for cranedId, supervisorChannel := range stepChannels {
+		if !supervisorChannel.valid.Load() {
+			log.Tracef("[Job #%d.%d] Ignoring cattach request to invalid supervisor on Craned %s", taskId, stepId, cranedId)
+			continue
+		}
+		select {
+		case supervisorChannel.cattachRequestChannelMap <- request:
+		default:
+			if len(supervisorChannel.cattachRequestChannelMap) == cap(supervisorChannel.cattachRequestChannelMap) {
+				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
+			} else {
+				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
+			}
+		}
+	}
+}
+
+func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, taskId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamTaskIORequest) {
 	keeper.taskIORequestChannelMtx.Lock()
-	keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] = ioToCrunChannel
+	if keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] == nil {
+		keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] = make(map[int32]chan *protos.StreamTaskIORequest)
+	}
+	keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}][frontId] = ioToCrunChannel
+	if keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}] == nil {
+		keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}] = &TaskIOBuffer{
+			data:     make([]*protos.StreamTaskIORequest, 10),
+			head:     0,
+			size:     0,
+			capacity: 10,
+		}
+	}
+
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
-func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, stepId uint32, ioToCrun *protos.StreamTaskIORequest) {
+func (keeper *SupervisorChannelKeeper) getRemoteHistory(taskId uint32, stepId uint32) []*protos.StreamTaskIORequest {
 	keeper.taskIORequestChannelMtx.Lock()
-	channel, exist := keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}]
+	defer keeper.taskIORequestChannelMtx.Unlock()
+
+	taskIOBuffer, exist := keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}]
+	if exist {
+		return taskIOBuffer.GetHistory()
+	}
+
+	return []*protos.StreamTaskIORequest{}
+}
+
+func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(taskId uint32, stepId uint32, ioToFront *protos.StreamTaskIORequest) {
+	keeper.taskIORequestChannelMtx.Lock()
+	channelMap, exist := keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}]
 	if exist {
 		// maybe too much msg, cfored will hang.
-		channel <- ioToCrun
+		for _, channel := range channelMap {
+			channel <- ioToFront
+		}
+		keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}].Push(ioToFront)
 	} else {
-		log.Warningf("[Supervisor->Cfored->Crun][Job #%d.%d]Trying forward to I/O to an unknown crun.", taskId, stepId)
+		log.Warningf("[Supervisor->Cfored->FrontEnd][Job #%d.%d]Trying forward to I/O to an unknown crun/cattach.", taskId, stepId)
 	}
 	keeper.taskIORequestChannelMtx.Unlock()
 }
@@ -183,6 +266,15 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(taskId uint32, step
 func (keeper *SupervisorChannelKeeper) crunTaskStopAndRemoveChannel(taskId uint32, stepId uint32) {
 	keeper.taskIORequestChannelMtx.Lock()
 	delete(keeper.taskIORequestChannelMap, StepIdentifier{JobId: taskId, StepId: stepId})
+	delete(keeper.taskIOBufferMap, StepIdentifier{JobId: taskId, StepId: stepId})
+	keeper.taskIORequestChannelMtx.Unlock()
+}
+
+func (keeper *SupervisorChannelKeeper) cattachStopAndRemoveChannel(taskId uint32, stepId uint32, cattachPid int32) {
+	keeper.taskIORequestChannelMtx.Lock()
+	if (keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] != nil) {
+		delete(keeper.taskIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}], cattachPid)
+	}
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
@@ -231,6 +323,7 @@ func (cforedServer *GrpcCforedServer) TaskIOStream(toSupervisorStream protos.Cra
 	go grpcStreamReceiver[protos.StreamTaskIORequest](toSupervisorStream, requestChannel)
 
 	pendingCrunReqToSupervisorChannel := make(chan *protos.StreamCrunRequest, 2)
+	pendingCattachReqToSupervisorChannel := make(chan *protos.StreamCattachRequest, 2)
 
 	var valid = &atomic.Bool{}
 	valid.Store(true)
@@ -262,7 +355,7 @@ CforedSupervisorStateMachineLoop:
 			stepId = cranedReq.GetPayloadRegisterReq().GetStepId()
 			log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorReg from node %s", jobId, stepId, cranedId)
 
-			gSupervisorChanKeeper.supervisorUpAndSetMsgToSupervisorChannel(jobId, stepId, cranedId, pendingCrunReqToSupervisorChannel, valid)
+			gSupervisorChanKeeper.supervisorUpAndSetMsgToSupervisorChannel(jobId, stepId, cranedId, pendingCrunReqToSupervisorChannel, pendingCattachReqToSupervisorChannel, valid)
 
 			reply = &protos.StreamTaskIOReply{
 				Type: protos.StreamTaskIOReply_SUPERVISOR_REGISTER_REPLY,
@@ -307,11 +400,11 @@ CforedSupervisorStateMachineLoop:
 					switch supervisorReq.Type {
 					case protos.StreamTaskIORequest_TASK_OUTPUT:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote output", jobId, stepId)
-						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
 
 					case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote X11", jobId, stepId)
-						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
 
 					case protos.StreamTaskIORequest_SUPERVISOR_UNREGISTER:
 						log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorUnReg from Craned %s",
@@ -383,6 +476,51 @@ CforedSupervisorStateMachineLoop:
 					default:
 						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from crun ",
 							jobId, stepId, crunReq.Type.String())
+						break supervisorIOForwarding
+					}
+
+				case cattachReq := <-pendingCattachReqToSupervisorChannel:
+					switch cattachReq.Type {
+					case protos.StreamCattachRequest_TASK_IO_FORWARD:
+						payload := cattachReq.GetPayloadTaskIoForwardReq()
+						msg := payload.GetMsg()
+						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding input len [%d] EOF[%v] to craned %s",
+							jobId, stepId, len(msg), payload.Eof, cranedId)
+						reply = &protos.StreamTaskIOReply{
+							Type: protos.StreamTaskIOReply_TASK_INPUT,
+							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
+								PayloadTaskInputReq: &protos.StreamTaskIOReply_TaskInputReq{
+									Msg: msg,
+									Eof: payload.Eof,
+								},
+							},
+						}
+						if err := toSupervisorStream.Send(reply); err != nil {
+							log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
+								"on Craned %s was broken.", jobId, stepId, cranedId)
+							state = SupervisorUnReg
+						}
+					case protos.StreamCattachRequest_TASK_X11_FORWARD:
+						payload := cattachReq.GetPayloadTaskX11ForwardReq()
+						msg := payload.GetMsg()
+						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding len [%d] x11 to Suerpvisor "+
+							"on Craned %s", jobId, stepId, len(msg), cranedId)
+						reply = &protos.StreamTaskIOReply{
+							Type: protos.StreamTaskIOReply_TASK_X11_INPUT,
+							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
+								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_TaskX11InputReq{
+									Msg: msg,
+								},
+							},
+						}
+						if err := toSupervisorStream.Send(reply); err != nil {
+							log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
+								"on Craned %s was broken.", jobId, stepId, cranedId)
+							state = SupervisorUnReg
+						}
+					default:
+						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from crun ",
+							jobId, stepId, cattachReq.Type.String())
 						break supervisorIOForwarding
 					}
 				}

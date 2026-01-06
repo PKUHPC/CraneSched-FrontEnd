@@ -433,7 +433,7 @@ message ModifyQosReply {
 message ModifyDefaultWckeyRequest {
   uint32 uid = 1;
   string name = 2;
-  string user_name = 3; 
+  string user_name = 3;
 }
 
 message ModifyDefaultWckeyReply {
@@ -717,6 +717,7 @@ message StreamCforedRequest {
     STEP_REQUEST = 4;
     TASK_COMPLETION_REQUEST = 2;
     CFORED_GRACEFUL_EXIT = 3;
+    STEP_META_REQUEST = 5;
   }
   CforedRequestType type = 1;
 
@@ -748,12 +749,20 @@ message StreamCforedRequest {
     string cfored_name = 1;
   }
 
+  message StepMetaReq {
+    uint32 uid = 1;
+    uint32 job_id = 2;
+    uint32 step_id = 4;
+    int32 cattach_pid = 3;
+  }
+
   oneof payload {
     CforedReg payload_cfored_reg = 2;
     TaskReq payload_task_req = 3;
     StepReq payload_step_req = 6;
     TaskCompleteReq payload_task_complete_req = 4;
     GracefulExitReq payload_graceful_exit_req = 5;
+    StepMetaReq payload_step_meta_req = 7;
   }
 }
 
@@ -765,6 +774,7 @@ message StreamCtldReply {
     TASK_COMPLETION_ACK_REPLY = 3;
     CFORED_REGISTRATION_ACK = 4;
     CFORED_GRACEFUL_EXIT_ACK = 5;
+    STEP_META_REPLY = 6;
   }
 
   message TaskIdReply {
@@ -803,6 +813,13 @@ message StreamCtldReply {
     bool ok = 1;
   }
 
+  message StepMetaReply {
+    bool ok = 1;
+    string failure_reason = 2;
+    StepToCtld step = 3;
+    int32 cattach_pid = 4;
+  }
+
   CtldReplyType type = 1;
 
   oneof payload {
@@ -812,6 +829,7 @@ message StreamCtldReply {
     TaskCompletionAckReply payload_task_completion_ack = 5;
     TaskIdReply payload_task_id_reply = 6;
     CforedGracefulExitAck payload_graceful_exit_ack = 7;
+    StepMetaReply payload_step_meta_reply = 8;
   }
 }
 
@@ -910,6 +928,95 @@ message StreamCrunReply {
     TaskIOForwardReadyReply payload_task_io_forward_ready_reply = 6;
     TaskIOForwardReply payload_task_io_forward_reply = 7;
     TaskX11ForwardReply payload_task_x11_forward_reply = 8;
+  }
+}
+
+message StreamCattachRequest {
+  enum CattachRequestType {
+    TASK_CONNECT_REQUEST = 0;
+    TASK_COMPLETION_REQUEST = 1;
+    TASK_IO_FORWARD = 2;
+    TASK_X11_FORWARD = 3;
+  }
+
+  message TaskConnectReq {
+    int32 cattach_pid = 1;
+    uint32 task_id = 2;
+    uint32 stepd_id = 3;
+    uint32 uid = 4;
+  }
+
+  message TaskCompleteReq {
+    uint32 task_id = 1;
+    TaskStatus status = 2;
+  }
+
+  message TaskIOForwardReq {
+    uint32 task_id = 1;
+    bytes msg = 2;
+    bool eof = 3;
+  }
+
+  message TaskX11ForwardReq {
+    uint32 task_id = 1;
+    bytes msg = 2;
+  }
+
+  CattachRequestType type = 1;
+
+  oneof payload {
+    TaskConnectReq payload_task_connect_req = 2;
+    TaskCompleteReq payload_task_complete_req = 3;
+    TaskIOForwardReq payload_task_io_forward_req = 4;
+    TaskX11ForwardReq payload_task_x11_forward_req = 5;
+  }
+}
+
+message StreamCattachReply {
+  enum CforedCattachReplyType {
+    TASK_CONNECT_REPLY = 0;
+    TASK_CANCEL_REQUEST = 1;
+    TASK_COMPLETION_ACK_REPLY = 2;
+    TASK_IO_FORWARD = 3;
+    TASK_IO_FORWARD_READY = 4;
+    TASK_X11_FORWARD = 5;
+  }
+
+  message TaskConnectReply {
+    bool ok = 1;
+    StepToCtld step = 2;
+    string failure_reason = 3;
+  }
+
+  message TaskCancelRequest {
+    uint32 task_id = 1;
+  }
+
+  message TaskCompletionAckReply {
+    bool ok = 1;
+  }
+
+  message TaskIOForwardReadyReply {
+    bool ok = 1;
+  }
+
+  message TaskIOForwardReply {
+    bytes msg = 1;
+  }
+
+  message TaskX11ForwardReply {
+    bytes msg = 1;
+  }
+
+  CforedCattachReplyType type = 1;
+
+  oneof payload {
+    TaskConnectReply payload_task_connect_reply = 2;
+    TaskCancelRequest payload_task_cancel_request = 3;
+    TaskCompletionAckReply payload_task_completion_ack_reply = 4;
+    TaskIOForwardReadyReply payload_task_io_forward_ready_reply = 5;
+    TaskIOForwardReply payload_task_io_forward_reply = 6;
+    TaskX11ForwardReply payload_task_x11_forward_reply = 7;
   }
 }
 
@@ -1214,6 +1321,7 @@ service CranedForPam {
 service CraneForeD {
   rpc CallocStream(stream StreamCallocRequest) returns (stream StreamCallocReply);
   rpc CrunStream(stream StreamCrunRequest) returns (stream StreamCrunReply);
+  rpc CattachStream(stream StreamCattachRequest) returns (stream StreamCattachReply);
   rpc TaskIOStream(stream StreamTaskIORequest) returns (stream StreamTaskIOReply);
   rpc QueryStepFromPort(QueryStepFromPortRequest) returns (QueryStepFromPortReply);
 }
