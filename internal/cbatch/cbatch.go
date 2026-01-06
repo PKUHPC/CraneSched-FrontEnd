@@ -598,8 +598,6 @@ func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 		"ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
 		"wckey":             "The feature --wckey is not yet supported by Crane, the use is ignored.",
 		"cpu-freq":          "The feature --cpu-freq is not yet supported by Crane, the use is ignored.",
-		"dependency":        "The feature --dependency/-d is not yet supported by Crane, the use is ignored.",
-		"d":                 "The feature --dependency/-d is not yet supported by Crane, the use is ignored.",
 		"priority":          "The feature --priority is not yet supported by Crane, the use is ignored.",
 		"mem-per-cpu":       "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.",
 		"threads-per-core":  "The feature --threads-per-core is not yet supported by Crane, the use is ignored.",
