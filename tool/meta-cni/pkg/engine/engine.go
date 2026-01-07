@@ -31,6 +31,9 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 	if conf == nil {
 		return nil, errors.New("meta-cni: config is nil")
 	}
+	if (action == ActionCheck || action == ActionDel) && conf.PrevResult == nil {
+		return nil, fmt.Errorf("meta-cni: prevResult is required for %v", action)
+	}
 
 	ctx, cancel := contextWithTimeout(conf.TimeoutSeconds)
 	defer cancel()
@@ -71,7 +74,7 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 				lastResult = latestResult
 			}
 		default:
-			_, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, nil)
+			_, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, conf.PrevResult)
 		}
 
 		restore()

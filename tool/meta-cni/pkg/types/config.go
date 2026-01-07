@@ -61,6 +61,10 @@ func LoadMetaPluginConf(data []byte) (*MetaPluginConf, error) {
 		conf.CNIVersion = version.Current()
 	}
 
+	if err := version.ParsePrevResult(&conf.PluginConf); err != nil {
+		return nil, fmt.Errorf("meta-cni: parse prevResult: %w", err)
+	}
+
 	return conf, nil
 }
 
