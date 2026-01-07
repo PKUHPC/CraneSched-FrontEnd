@@ -329,7 +329,7 @@ func sbatch() *cobra.Command {
 	cmd.Flags().StringVar(&cbatch.FlagSocketsPerNode, "sockets-per-node", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCoresPerSocket, "cores-per-socket", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagRequeue, "requeue", "", "")
-	cmd.Flags().StringVarP(&cbatch.FlagWait, "wait", "-W", "", "")
+	cmd.Flags().StringVarP(&cbatch.FlagWait, "wait", "W", "", "")
 	return cmd
 }
 

@@ -461,6 +461,9 @@ func ProcessJobID(item *JobOrStep) string {
 
 // Wckey (K)
 func ProcessWckey(item *JobOrStep) string {
+	if item.isStep {
+		return ""
+	}
 	return item.task.Wckey
 }
 
