@@ -194,7 +194,7 @@ func QueryJob() error {
 				ProcessEndTime(jobOrStep),
 				ProcessSubmitTime(jobOrStep),
 				jobOrStep.task.Qos,
-				strconv.FormatBool(jobOrStep.task.Exclusive),
+				ProcessExclusive(jobOrStep),
 				ProcessHeld(jobOrStep),
 				strconv.FormatUint(uint64(jobOrStep.task.Priority), 10),
 				ProcessNodeList(jobOrStep),
