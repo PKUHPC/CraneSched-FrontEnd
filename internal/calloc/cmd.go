@@ -27,6 +27,7 @@ import (
 var (
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
+	FlagNtasks        uint32
 	FlagNtasksPerNode uint32
 	FlagTime          string
 	FlagMem           string
@@ -91,7 +92,8 @@ func init() {
 		"info", "Available debug level: trace, debug, info")
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	RootCmd.Flags().Uint32VarP(&FlagNtasks, "ntasks", "n", 1, "Number of tasks to invoke for the job")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Maximum number of tasks to invoke on each node, 0 for unlimited")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")

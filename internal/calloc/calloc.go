@@ -368,58 +368,79 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 
 	task := &protos.TaskToCtld{
-		Name:          "Interactive",
-		TimeLimit:     util.InvalidDuration(),
-		PartitionName: "",
-		ReqResources: &protos.ResourceView{
-			AllocatableRes: &protos.AllocatableResource{
-				CpuCoreLimit:       1,
-				MemoryLimitBytes:   0,
-				MemorySwLimitBytes: 0,
-			},
-		},
+		Name:            "Interactive",
+		TimeLimit:       util.InvalidDuration(),
+		PartitionName:   "",
 		Type:            protos.TaskType_Interactive,
 		Uid:             uint32(uid),
 		Gid:             uint32(gid),
 		NodeNum:         1,
-		NtasksPerNode:   1,
-		CpusPerTask:     1,
+		NtasksPerNode:   0,
+		Ntasks:          1,
 		RequeueIfFailed: false,
 		Payload:         &protos.TaskToCtld_InteractiveMeta{InteractiveMeta: nil},
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
-
-		Env: make(map[string]string),
+		Env:             make(map[string]string),
+		TaskResView: &protos.ResourceView{
+			AllocatableRes: &protos.AllocatableResource{},
+		},
+		NodeResView: &protos.ResourceView{
+			AllocatableRes: &protos.AllocatableResource{},
+		},
 	}
 
 	structExtraFromCli := &util.JobExtraAttrs{}
 
 	task.NodeNum = FlagNodes
-	task.CpusPerTask = FlagCpuPerTask
 	task.NtasksPerNode = FlagNtasksPerNode
+
+	if cmd.Flags().Changed("ntasks") {
+		task.Ntasks = FlagNtasks
+		if task.NodeNum > task.Ntasks {
+			log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", task.Ntasks, task.NodeNum)
+			task.NodeNum = task.Ntasks
+		}
+		if task.NtasksPerNode > 0 && task.NtasksPerNode*task.NodeNum < task.Ntasks {
+			if !cmd.Flags().Changed("nodes") {
+				task.NodeNum = (task.Ntasks + task.NtasksPerNode - 1) / task.NtasksPerNode
+			} else {
+				return util.NewCraneErr(util.ErrorCmdArg, "NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
+			}
+		}
+	} else {
+		if task.NtasksPerNode == 0 {
+			task.Ntasks = task.NodeNum
+		} else {
+			task.Ntasks = task.NodeNum * task.NtasksPerNode
+		}
+	}
+
+	task.TaskResView.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
 
 	setGresGpusFlag := false
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
-		task.ReqResources.DeviceMap = gresMap
-		if _, exist := task.ReqResources.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
+		task.NodeResView.DeviceMap = gresMap
+		if _, exist := task.NodeResView.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
 			setGresGpusFlag = true
 		}
-	}
-	if FlagTime != "" {
-		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
-		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s", err))
-		}
-		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.NodeResView.AllocatableRes.MemoryLimitBytes = memInByte
+		task.NodeResView.AllocatableRes.MemorySwLimitBytes = memInByte
+	}
+
+	if FlagTime != "" {
+		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s", err))
+		}
+		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
@@ -493,7 +514,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			}
 
 		}
-		task.ReqResources.DeviceMap = gpuDeviceMap
+		task.NodeResView.DeviceMap = gpuDeviceMap
 	}
 	if FlagDependency != "" {
 		err := util.SetTaskDependencies(task, FlagDependency)
@@ -525,9 +546,6 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 	}
-
-	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {

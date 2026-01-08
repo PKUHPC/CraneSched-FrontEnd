@@ -166,7 +166,8 @@ message TaskToCtld {
   google.protobuf.Duration time_limit = 1;
 
   string partition_name = 2;
-  ResourceView req_resources = 3;
+  ResourceView node_res_view = 3;
+  ResourceView task_res_view = 16;
 
   TaskType type = 4;
 
@@ -176,7 +177,7 @@ message TaskToCtld {
   string qos = 8;
   uint32 node_num = 9;
   uint32 ntasks_per_node = 10;
-  double cpus_per_task = 11;
+  uint32 ntasks = 17;
 
   bool requeue_if_failed = 12;
   bool get_user_env = 13;
@@ -258,7 +259,8 @@ message StepToCtld {
   google.protobuf.Duration time_limit = 1;
   // account, qos from job
   uint32 job_id = 2;
-  ResourceView req_resources_per_task = 3;
+  ResourceView node_res_view = 3;
+  ResourceView task_res_view = 4;
   TaskType type = 5;
   uint32 uid = 6;  // Only for authorization
   string name = 7;

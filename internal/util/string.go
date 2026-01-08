@@ -630,12 +630,6 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if err := CheckJobNameLength(task.Name); err != nil {
 		return err
 	}
-	if task.CpusPerTask <= 0 {
-		return fmt.Errorf("--cpus-per-task must > 0")
-	}
-	if task.NtasksPerNode <= 0 {
-		return fmt.Errorf("--ntasks-per-node must > 0")
-	}
 	if task.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
@@ -648,8 +642,9 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if !CheckNodeList(task.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	if task.ReqResources.AllocatableRes.CpuCoreLimit > 1e6 {
-		return fmt.Errorf("requesting too many CPUs: %f", task.ReqResources.AllocatableRes.CpuCoreLimit)
+	CpusTotal := task.TaskResView.AllocatableRes.CpuCoreLimit*float64(task.Ntasks) + task.NodeResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum)
+	if CpusTotal > 1e6 {
+		return fmt.Errorf("requesting too many CPUs: %f", CpusTotal)
 	}
 	if task.ExtraAttr != "" {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
@@ -679,14 +674,6 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if err := CheckJobNameLength(step.Name); err != nil {
 		return err
 	}
-	if step.ReqResourcesPerTask != nil &&
-		step.ReqResourcesPerTask.AllocatableRes != nil {
-		if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit <= 0 {
-			return fmt.Errorf("--cpus-per-task must > 0")
-		} else if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit > 1e6 {
-			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit)
-		}
-	}
 	if step.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
@@ -698,6 +685,10 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	}
 	if !CheckNodeList(step.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
+	}
+	CpusTotal := step.TaskResView.AllocatableRes.CpuCoreLimit*float64(step.Ntasks) + step.NodeResView.AllocatableRes.CpuCoreLimit*float64(step.NodeNum)
+	if CpusTotal > 1e6 {
+		return fmt.Errorf("requesting too many CPUs: %f", CpusTotal)
 	}
 	if step.ExtraAttr != "" {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
