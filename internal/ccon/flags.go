@@ -40,6 +40,7 @@ type CraneFlags struct {
 	Qos           string
 	Nodes         uint32
 	NtasksPerNode uint32
+	Ntasks        uint32
 	CpusPerTask   float64
 	Exclusive     bool
 	Hold          bool
@@ -161,8 +162,9 @@ func (f *Flags) InitializeCraneFlags() {
 	f.flagSetCrane.StringVarP(&f.Crane.Time, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" or \"hours:minutes:seconds\"")
 	f.flagSetCrane.StringVarP(&f.Crane.Account, "account", "A", "", "Account used for the job")
 	f.flagSetCrane.StringVarP(&f.Crane.Qos, "qos", "q", "", "QoS used for the job")
-	f.flagSetCrane.Uint32VarP(&f.Crane.Nodes, "nodes", "N", 1, "Number of nodes on which to run")
-	f.flagSetCrane.Uint32Var(&f.Crane.NtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	f.flagSetCrane.Uint32VarP(&f.Crane.Nodes, "nodes", "N", 1, "Number of nodes requested")
+	f.flagSetCrane.Uint32Var(&f.Crane.NtasksPerNode, "ntasks-per-node", 0, "Maximum number of tasks per node (0 for unlimited)")
+	f.flagSetCrane.Uint32VarP(&f.Crane.Ntasks, "ntasks", "n", 1, "Total number of tasks")
 	f.flagSetCrane.StringVarP(&f.Crane.Excludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	f.flagSetCrane.StringVarP(&f.Crane.Reservation, "reservation", "r", "", "Use reserved resources")
 	f.flagSetCrane.BoolVar(&f.Crane.Exclusive, "exclusive", false, "Exclusive node resources")

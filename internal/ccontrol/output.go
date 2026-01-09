@@ -666,16 +666,29 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 }
 
 func printResourceRequests(task *protos.TaskInfo) {
+	totalCpu := task.ReqResView.AllocatableRes.CpuCoreLimit
+	totalMem := task.ReqResView.AllocatableRes.MemoryLimitBytes
+
+	var cpusPerTask float64
+	var memPerNode uint64
+
+	if task.Ntasks > 0 {
+		cpusPerTask = totalCpu / float64(task.Ntasks)
+	}
+	if task.NodeNum > 0 {
+		memPerNode = totalMem / uint64(task.NodeNum)
+	}
+
 	// Priority / QoS
 	fmt.Printf("\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n",
 		task.Priority, task.Qos,
-		task.ReqResView.AllocatableRes.CpuCoreLimit,
-		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes))
+		cpusPerTask,
+		util.FormatMemToMB(memPerNode))
 	// ReqRes
 	fmt.Printf("\tReqRes:node=%d cpu=%.2f mem=%v gres=%s\n",
 		task.NodeNum,
-		task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum),
-		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(task.NodeNum)),
+		totalCpu,
+		util.FormatMemToMB(totalMem),
 		formatDeviceMap(task.ReqResView.DeviceMap))
 	// AllocRes
 	if task.Status == protos.TaskStatus_Running {
