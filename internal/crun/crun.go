@@ -1048,9 +1048,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Type:            protos.TaskType_Interactive,
 			Uid:             uint32(os.Getuid()),
 			Gid:             gids[0],
-			NodeNum:         1,
-			NtasksPerNode:   0, // unlimited
-			Ntasks:          1,
+			NodeNum:         0,
+			NtasksPerNode:   0,
+			Ntasks:          0,
 			RequeueIfFailed: false,
 			Payload: &protos.TaskToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
@@ -1058,15 +1058,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
 			Env:     make(map[string]string),
-			TaskResView: &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{},
-			},
-			NodeResView: &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{},
-			},
 		}
 	} else {
-		// TODO: inherit from job by env variables
+		// Initialize step with default values
 		step = &protos.StepToCtld{
 			Name:            "InteractiveStep",
 			TimeLimit:       util.InvalidDuration(),
@@ -1074,9 +1068,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Type:            protos.TaskType_Interactive,
 			Uid:             uint32(os.Getuid()),
 			Gid:             gids,
-			NodeNum:         1,
-			NtasksPerNode:   0, // unlimited
-			Ntasks:          1,
+			NodeNum:         0,
+			NtasksPerNode:   0,
+			Ntasks:          0,
 			RequeueIfFailed: false,
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
@@ -1084,12 +1078,23 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
 			Env:     make(map[string]string),
-			TaskResView: &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{},
-			},
-			NodeResView: &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{},
-			},
+		}
+
+		// Inherit from job environment variables
+		if ntasksStr, exists := syscall.Getenv("CRANE_NTASKS"); exists {
+			if ntasks, err := strconv.ParseUint(ntasksStr, 10, 32); err == nil {
+				step.Ntasks = uint32(ntasks)
+			}
+		}
+		if numNodesStr, exists := syscall.Getenv("CRANE_JOB_NUM_NODES"); exists {
+			if numNodes, err := strconv.ParseUint(numNodesStr, 10, 32); err == nil {
+				step.NodeNum = uint32(numNodes)
+			}
+		}
+		if ntasksPerNodeStr, exists := syscall.Getenv("CRANE_NTASKS_PER_NODE"); exists {
+			if ntasksPerNode, err := strconv.ParseUint(ntasksPerNodeStr, 10, 32); err == nil {
+				step.NtasksPerNode = uint32(ntasksPerNode)
+			}
 		}
 	}
 
@@ -1104,26 +1109,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 		if cmd.Flags().Changed(NtasksOptionStr) {
 			job.Ntasks = FlagNtasks
-			if job.NodeNum > job.Ntasks {
-				log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", job.Ntasks, job.NodeNum)
-				job.NodeNum = job.Ntasks
-			}
-			if job.NtasksPerNode > 0 && job.NtasksPerNode*job.NodeNum < job.Ntasks {
-				if !cmd.Flags().Changed(NodesOptionStr) {
-					job.NodeNum = (job.Ntasks + job.NtasksPerNode - 1) / job.NtasksPerNode
-				} else {
-					return util.NewCraneErr(util.ErrorCmdArg, "NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
-				}
-			}
-		} else {
-			if job.NtasksPerNode == 0 {
-				job.Ntasks = job.NodeNum
-			} else {
-				job.Ntasks = job.NodeNum * job.NtasksPerNode
-			}
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
-			job.TaskResView.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
+			cpuPerTask := float64(FlagCpuPerTask)
+			job.CpusPerTask = &cpuPerTask
 		}
 		job.Name = util.ExtractExecNameFromArgs(args)
 		SubmitDir, err := os.Getwd()
@@ -1145,23 +1134,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		}
 		if cmd.Flags().Changed(NtasksOptionStr) {
 			step.Ntasks = FlagNtasks
-			if step.NodeNum > step.Ntasks {
-				log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", step.Ntasks, step.NodeNum)
-				step.NodeNum = step.Ntasks
-			}
-			if step.NtasksPerNode > 0 && step.NtasksPerNode*step.NodeNum < step.Ntasks {
-				log.Warnf("Warning: NtasksPerNode * NodeNum < Ntasks, ignoring NtasksPerNode setting.")
-				step.NtasksPerNode = 0 // unlimited
-			}
-		} else {
-			if step.NtasksPerNode == 0 {
-				step.Ntasks = step.NodeNum
-			} else {
-				step.Ntasks = step.NodeNum * step.NtasksPerNode
-			}
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
-			step.TaskResView.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
+			cpuPerTask := float64(FlagCpuPerTask)
+			step.CpusPerTask = &cpuPerTask
 		}
 		step.Name = util.ExtractExecNameFromArgs(args)
 	}
@@ -1183,11 +1159,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 		if jobMode {
-			job.NodeResView.AllocatableRes.MemoryLimitBytes = memInByte
-			job.NodeResView.AllocatableRes.MemorySwLimitBytes = memInByte
+			job.MemPerNode = &memInByte
 		} else {
-			step.NodeResView.AllocatableRes.MemoryLimitBytes = memInByte
-			step.NodeResView.AllocatableRes.MemorySwLimitBytes = memInByte
+			step.MemPerNode = &memInByte
 		}
 	}
 	if FlagMemPerCpu != "" {
@@ -1205,12 +1179,12 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		if jobMode {
-			job.NodeResView.DeviceMap = gresMap
-			if _, exist := job.NodeResView.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
+			job.GresPerNode = gresMap
+			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
 				setGresGpusFlag = true
 			}
 		} else {
-			step.NodeResView.DeviceMap = gresMap
+			step.GresPerNode = gresMap
 		}
 	}
 	if FlagPartition != "" {
@@ -1357,10 +1331,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 		}
 		if jobMode {
-			job.NodeResView.DeviceMap = gpuDeviceMap
+			job.GresPerNode = gpuDeviceMap
 		} else {
 			if len(gpuDeviceMap.NameTypeMap) != 0 {
-				step.NodeResView.DeviceMap = gpuDeviceMap
+				step.GresPerNode = gpuDeviceMap
 			}
 		}
 

@@ -166,8 +166,6 @@ message TaskToCtld {
   google.protobuf.Duration time_limit = 1;
 
   string partition_name = 2;
-  ResourceView node_res_view = 3;
-  ResourceView task_res_view = 16;
 
   TaskType type = 4;
 
@@ -222,6 +220,9 @@ message TaskToCtld {
   string submit_hostname = 43;
   string submit_dir = 44;
   optional uint64 mem_per_cpu = 45;
+  optional double cpus_per_task = 46;
+  optional uint64 mem_per_node = 47;
+  optional DeviceMap gres_per_node = 48;
 }
 
 message TaskInEmbeddedDb {
@@ -259,8 +260,7 @@ message StepToCtld {
   google.protobuf.Duration time_limit = 1;
   // account, qos from job
   uint32 job_id = 2;
-  ResourceView node_res_view = 3;
-  ResourceView task_res_view = 4;
+
   TaskType type = 5;
   uint32 uid = 6;  // Only for authorization
   string name = 7;
@@ -293,6 +293,9 @@ message StepToCtld {
   string nodelist = 35;
 
   optional uint64 mem_per_cpu = 36;
+  optional double cpus_per_task = 37;
+  optional uint64 mem_per_node = 38;
+  optional DeviceMap gres_per_node = 39;
 }
 
 message RuntimeAttrOfStep {
@@ -360,6 +363,7 @@ message StepToD {
 
   uint32 uid = 6;
   repeated uint32 gid = 7;
+  map<uint32 /*task id*/, ResourceInNode> task_res_map = 8;
 
   // For execution step
   optional BatchTaskAdditionalMeta batch_meta = 9;
@@ -381,6 +385,7 @@ message StepToD {
   repeated string nodelist = 20;
 
   uint32 node_num = 22;
+  uint32 ntasks = 21;
   uint32 ntasks_per_node = 23;
   double cpus_per_task = 24;
 
@@ -951,4 +956,3 @@ message LicenseInfo {
   uint32 used = 3;
   uint32 free = 4;
 }
-

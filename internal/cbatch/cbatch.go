@@ -83,17 +83,11 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 
 	// Set default values
 	task.NtasksPerNode = 0
-	task.NodeNum = 1
-	task.Ntasks = 1
+	task.NodeNum = 0
+	task.Ntasks = 0
 	task.GetUserEnv = false
 	task.Env = make(map[string]string)
 	task.TimeLimit = util.InvalidDuration()
-	task.TaskResView = &protos.ResourceView{
-		AllocatableRes: &protos.AllocatableResource{},
-	}
-	task.NodeResView = &protos.ResourceView{
-		AllocatableRes: &protos.AllocatableResource{},
-	}
 
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
@@ -115,7 +109,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.NodeNum = FlagNodes
 	}
 	if cmd.Flags().Changed("cpus-per-task") {
-		task.TaskResView.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
+		cpuPerTask := float64(FlagCpuPerTask)
+		task.CpusPerTask = &cpuPerTask
 	}
 
 	if cmd.Flags().Changed("ntasks-per-node") {
@@ -123,23 +118,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if cmd.Flags().Changed("ntasks") {
 		task.Ntasks = FlagNtasks
-		if task.NodeNum > task.Ntasks {
-			log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", task.Ntasks, task.NodeNum)
-			task.NodeNum = task.Ntasks
-		}
-		if task.NtasksPerNode > 0 && task.NtasksPerNode*task.NodeNum < task.Ntasks {
-			if !cmd.Flags().Changed("nodes") {
-				task.NodeNum = (task.Ntasks + task.NtasksPerNode - 1) / task.NtasksPerNode
-			} else {
-				return nil, fmt.Errorf("invalid argument: NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
-			}
-		}
-	} else {
-		if task.NtasksPerNode == 0 {
-			task.Ntasks = task.NodeNum
-		} else {
-			task.Ntasks = task.NodeNum * task.NtasksPerNode
-		}
 	}
 	if cmd.Flags().Changed("gres") {
 		gresMap := util.ParseGres(FlagGres)
@@ -149,7 +127,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			}
 			setGresGpusFlag = true
 		}
-		task.NodeResView.DeviceMap = gresMap
+		task.GresPerNode = gresMap
 	}
 	if cmd.Flags().Changed("gpus-per-node") {
 		if setGresGpusFlag {
@@ -160,7 +138,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --gpus-per-node value '%s': %w", FlagGpusPerNode, err)
 		}
-		task.NodeResView.DeviceMap = gpuDeviceMap
+		task.GresPerNode = gpuDeviceMap
 	}
 	if cmd.Flags().Changed("wckey") {
 		task.Wckey = &FlagWckey
@@ -178,8 +156,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --mem value '%s': %w", FlagMem, err)
 		}
-		task.NodeResView.AllocatableRes.MemoryLimitBytes = memInByte
-		task.NodeResView.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.MemPerNode = &memInByte
 	}
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
@@ -330,7 +307,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.TaskResView.AllocatableRes.CpuCoreLimit = num
+			task.CpusPerTask = &num
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
 			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
@@ -339,7 +316,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 				}
 				setGresGpusFlag = true
 			}
-			task.NodeResView.DeviceMap = gresMap
+			task.GresPerNode = gresMap
 		case "--gpus-per-node":
 			if setGresGpusFlag {
 				return fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
@@ -349,7 +326,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.NodeResView.DeviceMap = gpuDeviceMap
+			task.GresPerNode = gpuDeviceMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -379,8 +356,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.NodeResView.AllocatableRes.MemoryLimitBytes = memInByte
-			task.NodeResView.AllocatableRes.MemorySwLimitBytes = memInByte
+			task.MemPerNode = &memInByte
 		case "--mem-per-cpu":
 			memInBytePerCpu, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
@@ -610,8 +586,6 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	filteredArgs := make([]CbatchArg, 0, len(args))
 	unsupportedFlags := map[string]string{
-		"ntasks":            "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.",
-		"n":                 "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.",
 		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
