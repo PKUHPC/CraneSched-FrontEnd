@@ -327,6 +327,7 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 
 	hasCluster := false
 	hasAllowed := false
+	hasCount := false
 
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
@@ -339,6 +340,7 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 				return util.ErrorCmdArg
 			}
 			FlagOperators[protos.LicenseResource_Count] = value
+			hasCount = true
 		case "description":
 			FlagOperators[protos.LicenseResource_Description] = value
 		case "lastconsumed":
@@ -371,6 +373,12 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 		log.Errorf("'allowed' and 'cluster' must be specified together")
 		return util.ErrorCmdArg
 	}
+
+	if hasCluster && hasAllowed && !hasCount {
+		log.Errorf("'count' and 'cluster' must be specified together")
+		return util.ErrorCmdArg
+	}
+
 	return AddLicenseResource(FlagResourceName, FlagServerName, FlagClusters, FlagOperators)
 }
 
