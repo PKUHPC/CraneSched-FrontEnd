@@ -41,7 +41,6 @@ var (
 
 	FlagResourceName string
 	FlagServerName   string
-	FlagAllowed      uint32
 	FlagClusters     string
 
 	// FlagPartition and FlagSetPartition are different.

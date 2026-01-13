@@ -343,8 +343,8 @@ func AddLicenseResource(name string, server string, clusters string, operators m
 	}
 
 	req.Operators = make([]*protos.AddOrModifyLicenseResourceRequest_Operator, 0)
-	for filed, value := range operators {
-		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: filed, Value: value})
+	for field, value := range operators {
+		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: field, Value: value})
 	}
 
 	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
@@ -744,8 +744,8 @@ func ModifyResource(name string, server string, clusters string, operators map[p
 	}
 
 	req.Operators = make([]*protos.AddOrModifyLicenseResourceRequest_Operator, 0)
-	for filed, value := range operators {
-		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: filed, Value: value})
+	for field, value := range operators {
+		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: field, Value: value})
 	}
 
 	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
