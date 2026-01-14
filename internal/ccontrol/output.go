@@ -1011,7 +1011,7 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 		} else {
 			timeStr := "unknown"
 			if licenseInfo.LastUpdate > 0 {
-				timeStr = time.Unix(licenseInfo.LastUpdate/1000, (licenseInfo.LastUpdate%1000)*int64(time.Millisecond)).In(time.Local).Format("2006-01-02 15:04:05")
+				timeStr = time.Unix(licenseInfo.LastUpdate, 0).Format("2006-01-02 15:04:05")
 			}
 
 			fmt.Printf("LicenseName=%v \n"+
