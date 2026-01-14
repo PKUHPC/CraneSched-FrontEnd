@@ -100,6 +100,12 @@ var actionToExecute = map[string]func(command *CAcctMgrCommand) int{
 	"reset":   executeResetCommand,
 }
 
+type ModifyParam struct {
+	ModifyField protos.ModifyField
+	NewValue    string
+	RequestType protos.OperationType
+}
+
 func validateUintValue(value string, fieldName string, bitSize int) error {
 	_, err := strconv.ParseUint(value, 10, bitSize)
 	if err != nil {
@@ -605,23 +611,45 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		return util.ErrorCmdArg
 	}
 
+	var params []ModifyParam
+
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "description":
 			FlagDescription = value
-			ModifyAccount(protos.ModifyField_Description, FlagDescription, FlagEntityName, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Description,
+				NewValue:    FlagDescription,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "defaultqos":
 			FlagDefaultQos = value
-			ModifyAccount(protos.ModifyField_DefaultQos, FlagDefaultQos, FlagEntityName, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_DefaultQos,
+				NewValue:    FlagDefaultQos,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			ModifyAccount(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Partition,
+				NewValue:    FlagSetPartitionList,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "allowedqos":
 			FlagSetQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Qos,
+				NewValue:    FlagSetQosList,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			ModifyAccount(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_DefaultAccount,
+				NewValue:    FlagSetDefaultAccount,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
@@ -632,10 +660,18 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
-			ModifyAccount(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, protos.OperationType_Add)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Partition,
+				NewValue:    FlagAllowedPartitions,
+				RequestType: protos.OperationType_Add,
+			})
 		case "allowedqos":
 			FlagAllowedQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, protos.OperationType_Add)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Qos,
+				NewValue:    FlagAllowedQosList,
+				RequestType: protos.OperationType_Add,
+			})
 		default:
 			log.Errorf("Error: unknown add parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
@@ -646,17 +682,25 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) int {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
-			ModifyAccount(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, protos.OperationType_Delete)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Partition,
+				NewValue:    FlagDeletePartitionList,
+				RequestType: protos.OperationType_Delete,
+			})
 		case "allowedqos":
 			FlagDeleteQosList = value
-			ModifyAccount(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, protos.OperationType_Delete)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Qos,
+				NewValue:    FlagDeleteQosList,
+				RequestType: protos.OperationType_Delete,
+			})
 		default:
 			log.Errorf("Error: unknown delete parameter '%s' for account modification", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return util.ErrorSuccess
+	return ModifyAccount(params, FlagEntityName)
 }
 
 func executeModifyUserCommand(command *CAcctMgrCommand) int {
@@ -704,23 +748,44 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		return util.ErrorCmdArg
 	}
 
+	var params []ModifyParam
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagSetPartitionList = value
-			ModifyUser(protos.ModifyField_Partition, FlagSetPartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Partition,
+				NewValue:    FlagSetPartitionList,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "allowedqos":
 			FlagSetQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagSetQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Qos,
+				NewValue:    FlagSetQosList,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "defaultaccount":
 			FlagSetDefaultAccount = value
-			ModifyUser(protos.ModifyField_DefaultAccount, FlagSetDefaultAccount, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_DefaultAccount,
+				NewValue:    FlagSetDefaultAccount,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "defaultqos":
 			FlagUserDefaultQos = value
-			ModifyUser(protos.ModifyField_DefaultQos, FlagUserDefaultQos, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_DefaultQos,
+				NewValue:    FlagUserDefaultQos,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		case "adminlevel":
 			FlagAdminLevel = value
-			ModifyUser(protos.ModifyField_AdminLevel, FlagAdminLevel, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Overwrite)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_AdminLevel,
+				NewValue:    FlagAdminLevel,
+				RequestType: protos.OperationType_Overwrite,
+			})
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
@@ -731,10 +796,18 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagAllowedPartitions = value
-			ModifyUser(protos.ModifyField_Partition, FlagAllowedPartitions, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Partition,
+				NewValue:    FlagAllowedPartitions,
+				RequestType: protos.OperationType_Add,
+			})
 		case "allowedqos":
 			FlagAllowedQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagAllowedQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Add)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Qos,
+				NewValue:    FlagAllowedQosList,
+				RequestType: protos.OperationType_Add,
+			})
 		default:
 			log.Errorf("Error: unknown add parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
@@ -745,17 +818,25 @@ func executeModifyUserCommand(command *CAcctMgrCommand) int {
 		switch strings.ToLower(key) {
 		case "allowedpartition":
 			FlagDeletePartitionList = value
-			ModifyUser(protos.ModifyField_Partition, FlagDeletePartitionList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Partition,
+				NewValue:    FlagDeletePartitionList,
+				RequestType: protos.OperationType_Delete,
+			})
 		case "allowedqos":
 			FlagDeleteQosList = value
-			ModifyUser(protos.ModifyField_Qos, FlagDeleteQosList, FlagEntityName, FlagEntityAccount, FlagEntityPartitions, protos.OperationType_Delete)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Qos,
+				NewValue:    FlagDeleteQosList,
+				RequestType: protos.OperationType_Delete,
+			})
 		default:
 			log.Errorf("Error: unknown delete parameter '%s' for user modification", key)
 			return util.ErrorCmdArg
 		}
 	}
 
-	return util.ErrorSuccess
+	return ModifyUser(params, FlagEntityName, FlagEntityAccount, FlagEntityPartitions)
 }
 
 func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
@@ -840,7 +921,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 		log.Errorf("Error: modify qos command requires 'set' clause to specify what to modify")
 		return util.ErrorCmdArg
 	}
-
+	var params []ModifyParam
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "maxcpusperuser":
@@ -848,34 +929,49 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 				return util.ErrorCmdArg
 			}
 			FlagMaxCpu = value
-			ModifyQos(protos.ModifyField_MaxCpusPerUser, FlagMaxCpu, FlagEntityName)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxCpusPerUser,
+				NewValue:    FlagMaxCpu,
+			})
 		case "maxjobsperuser":
 			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
 				return util.ErrorCmdArg
 			}
 			FlagMaxJob = value
-			ModifyQos(protos.ModifyField_MaxJobsPerUser, FlagMaxJob, FlagEntityName)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxJobsPerUser,
+				NewValue:    FlagMaxJob,
+			})
 		case "maxtimelimitpertask":
 			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
 				return util.ErrorCmdArg
 			}
 			FlagMaxTimeLimit = value
-			ModifyQos(protos.ModifyField_MaxTimeLimitPerTask, FlagMaxTimeLimit, FlagEntityName)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTimeLimitPerTask,
+				NewValue:    FlagMaxTimeLimit,
+			})
 		case "priority":
 			if err := validateUintValue(value, "priority", 32); err != nil {
 				return util.ErrorCmdArg
 			}
 			FlagPriority = value
-			ModifyQos(protos.ModifyField_Priority, FlagPriority, FlagEntityName)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Priority,
+				NewValue:    FlagPriority,
+			})
 		case "description":
 			FlagDescription = value
-			ModifyQos(protos.ModifyField_Description, FlagDescription, FlagEntityName)
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Description,
+				NewValue:    FlagDescription,
+			})
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for qos modification", key)
 			return util.ErrorCmdArg
 		}
 	}
-	return util.ErrorSuccess
+	return ModifyQos(params, FlagEntityName)
 }
 
 func executeShowCommand(command *CAcctMgrCommand) int {
