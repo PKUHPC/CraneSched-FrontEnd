@@ -1525,13 +1525,13 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	}
 
 	if FlagSignal != "" {
-		sig, sec, err := util.ParseSignalParamString(FlagSignal)
+		signals, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --signal: %s.", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
 		}
-		job.SignalParam = &protos.SignalParam{}
-		job.SignalParam.SignalNumber = sig
-		job.SignalParam.SecondsBeforeKill = sec
+		for _, signal := range signals {
+			job.Signals = append(job.Signals, signal)
+		}
 	}
 
 	// Marshal extra attributes

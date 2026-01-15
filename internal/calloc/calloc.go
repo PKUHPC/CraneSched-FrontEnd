@@ -522,13 +522,13 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 
 	if FlagSignal != "" {
-		sig, sec, err := util.ParseSignalParamString(FlagSignal)
+		signals, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --signal: %s", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
 		}
-		task.SignalParam = &protos.SignalParam{}
-		task.SignalParam.SignalNumber = sig
-		task.SignalParam.SecondsBeforeKill = sec
+		for _, signal := range signals {
+			task.Signals = append(task.Signals, signal)
+		}
 	}
 
 	// Marshal extra attributes
