@@ -19,6 +19,7 @@
 package creport
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 
 	"github.com/spf13/cobra"
@@ -100,7 +101,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSummary(CheckAccountUserStatus)
+			return QueryJobSummary(protos.QueryJobSummaryRequest_ACCOUNT_UTILIZATION_BY_USER)
 		},
 	}
 	userUtilizationByAccountCmd = &cobra.Command{
@@ -109,7 +110,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSummary(CheckUserAccountStatus)
+			return QueryJobSummary(protos.QueryJobSummaryRequest_USER_UTILIZATION_BY_ACCOUNT)
 		},
 	}
 	userUtilizationByWckeyCmd = &cobra.Command{
@@ -118,7 +119,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSummary(CheckUserWckeyStatus)
+			return QueryJobSummary(protos.QueryJobSummaryRequest_USER_UTILIZATION_BY_WCKEY)
 		},
 	}
 	wckeyUtilizationByUserCmd = &cobra.Command{
@@ -127,7 +128,7 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSummary(CheckWckeyUserStatus)
+			return QueryJobSummary(protos.QueryJobSummaryRequest_WCKEY_UTILIZATION_BY_USER)
 		},
 	}
 	accountUtilizationByQosCmd = &cobra.Command{
@@ -136,18 +137,18 @@ var (
 		Long:  "",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSummary(CheckAccountQosStatus)
+			return QueryJobSummary(protos.QueryJobSummaryRequest_ACCOUNT_UTILIZATION_BY_QOS)
 		},
 	}
-	utilizationCmd = &cobra.Command{
-		Use:   "utilization",
-		Short: "Display relevant cluster parameters",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return QueryJobSummary(CheckClusterStatus)
-		},
-	}
+	// utilizationCmd = &cobra.Command{
+	// 	Use:   "utilization",
+	// 	Short: "Display relevant cluster parameters",
+	// 	Long:  "",
+	// 	Args:  cobra.ExactArgs(0),
+	// 	RunE: func(cmd *cobra.Command, args []string) error {
+	// 		return fmt.Errorf("Not implemented yet")
+	// 	},
+	// }
 	sizesByAccountCmd = &cobra.Command{
 		Use:   "sizesbyaccount",
 		Short: "Display job size statistics information under the specified accounts",
@@ -269,23 +270,23 @@ func init() {
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
 				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterQosList, "qos", "q",
-				"", "Select qoss to view (comma separated list)")
+				"", "Select QoSs to view (comma separated list)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
 				"Set the job output time unit(seconds/minutes/hours, default: minutes")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
 			accountUtilizationByQosCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 		}
-		clusterCmd.AddCommand(utilizationCmd)
-		{
-			utilizationCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
-				GetDefaultEndTime(), "Filter job collections by end time(format: 2006-01-02T15:04:05)")
-			utilizationCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
-				GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
-			utilizationCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
-				"Set the job output time unit(seconds/minutes/hours, default: minutes")
-			utilizationCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
-		}
+		// clusterCmd.AddCommand(utilizationCmd)
+		// {
+		// 	utilizationCmd.Flags().StringVarP(&FlagFilterEndTime, "end-time", "E",
+		// 		GetDefaultEndTime(), "Filter job collections by end time(format: 2006-01-02T15:04:05)")
+		// 	utilizationCmd.Flags().StringVarP(&FlagFilterStartTime, "start-time", "S",
+		// 		GetDefaultStartTime(), "Filter job collections by start time(format: 2006-01-02T15:04:05)")
+		// 	utilizationCmd.Flags().StringVarP(&FlagOutType, "time", "t", "minutes",
+		// 		"Set the job output time unit(seconds/minutes/hours, default: minutes")
+		// 	utilizationCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
+		// }
 
 	}
 	RootCmd.AddCommand(jobCmd)
