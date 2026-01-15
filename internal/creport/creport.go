@@ -160,7 +160,8 @@ func ActiveAggregationManually() error {
 }
 
 func QueryUsersTopSummaryItem() error {
-	request := &protos.QueryJobSummaryRequest{}
+	request := &protos.QueryJobSummaryRequest{ReportType: protos.QueryJobSummaryRequest_USER_TOP_USAGE}
+	request.NumLimit = FlagTopCount
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
@@ -217,6 +218,7 @@ func QueryUsersTopSummaryItem() error {
 	var JobSummaryItemList []*protos.JobSummaryItem
 	for {
 		batch, err := stream.Recv()
+		fmt.Println(util.FmtJson.FormatReply(batch))
 		if err == io.EOF {
 			break
 		}
@@ -231,8 +233,8 @@ func QueryUsersTopSummaryItem() error {
 	return nil
 }
 
-func QueryJobSummary(CheckType CheckStatus) error {
-	request := &protos.QueryJobSummaryRequest{}
+func QueryJobSummary(reportType protos.QueryJobSummaryRequest_JobSummaryReportType) error {
+	request := &protos.QueryJobSummaryRequest{ReportType: reportType}
 	if FlagFilterAccounts != "" {
 		filterAccountList, err := util.ParseStringParamList(FlagFilterAccounts, ",")
 		if err != nil {
@@ -319,18 +321,18 @@ func QueryJobSummary(CheckType CheckStatus) error {
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
 
-	switch CheckType {
-	case CheckAccountUserStatus:
+	switch reportType {
+	case protos.QueryJobSummaryRequest_ACCOUNT_UTILIZATION_BY_USER:
 		PrintAccountUserSummary(JobSummaryItemList, start_time, end_time, FlagJson, true)
-	case CheckUserAccountStatus:
+	case protos.QueryJobSummaryRequest_USER_UTILIZATION_BY_ACCOUNT:
 		PrintAccountUserSummary(JobSummaryItemList, start_time, end_time, FlagJson, false)
-	case CheckClusterStatus:
-		PrintClusterList(JobSummaryItemList, start_time, end_time, FlagJson)
-	case CheckAccountQosStatus:
+	// case protos.QueryJobSummaryRequest_CLUSTER_STATUS:
+	// 	PrintClusterList(JobSummaryItemList, start_time, end_time, FlagJson)
+	case protos.QueryJobSummaryRequest_ACCOUNT_UTILIZATION_BY_QOS:
 		PrintAccountQosList(JobSummaryItemList, start_time, end_time, FlagJson)
-	case CheckUserWckeyStatus:
+	case protos.QueryJobSummaryRequest_USER_UTILIZATION_BY_WCKEY:
 		PrintUserWckeySummary(JobSummaryItemList, start_time, end_time, FlagJson, true)
-	case CheckWckeyUserStatus:
+	case protos.QueryJobSummaryRequest_WCKEY_UTILIZATION_BY_USER:
 		PrintUserWckeySummary(JobSummaryItemList, start_time, end_time, FlagJson, false)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, "Unsupported cmd")
