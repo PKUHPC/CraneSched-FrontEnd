@@ -86,7 +86,16 @@ NVIDIA_LIB_PATH := /usr/lib/x86_64-linux-gnu
 CUDA_INCLUDE_PATH := /usr/include
 PLUGIN_CGO_CFLAGS := -I$(CUDA_INCLUDE_PATH)
 PLUGIN_CGO_LDFLAGS := -L$(NVIDIA_LIB_PATH) -lnvidia-ml -Wl,-rpath,$(NVIDIA_LIB_PATH)
-CHECK_GPU := $(shell command -v nvidia-smi 2> /dev/null)
+# CHECK_GPU: auto (default), set to 1/true to force NVML, 0/false to disable.
+CHECK_GPU ?= auto
+CHECK_GPU_DETECTED := $(shell command -v nvidia-smi 2> /dev/null)
+ifeq ($(CHECK_GPU),auto)
+	CHECK_GPU_ENABLED := $(CHECK_GPU_DETECTED)
+else ifneq (,$(filter 0 false no off,$(CHECK_GPU)))
+	CHECK_GPU_ENABLED :=
+else
+	CHECK_GPU_ENABLED := $(CHECK_GPU)
+endif
 
 # Targets
 .PHONY: all build protos clean install plugin plugin-monitor plugin-other tool service format package check-goreleaser
@@ -123,7 +132,8 @@ plugin-monitor: protos
 	@echo "- Building monitor plugin with $(GO_VERSION)..."
 	@mkdir -p $(PLUGIN_DIR)
 	@cd plugin/monitor && \
-	if [ -n "$(CHECK_GPU)" ]; then \
+	if [ -n "$(CHECK_GPU_ENABLED)" ]; then \
+		echo "  - NVML enabled, to disable, set CHECK_GPU=0"; \
 		CGO_ENABLED=1 \
 		CGO_CFLAGS="$(PLUGIN_CGO_CFLAGS)" \
 		CGO_LDFLAGS="$(PLUGIN_CGO_LDFLAGS)" \
