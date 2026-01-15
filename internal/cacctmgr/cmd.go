@@ -338,6 +338,9 @@ func executeAddResourceCommand(command *CAcctMgrCommand) int {
 				return util.ErrorCmdArg
 			}
 			FlagOperators[protos.LicenseResource_Count] = value
+			if value == "0" {
+				log.Warning("The total count of the license you entered is 0.")
+			}
 		case "description":
 			FlagOperators[protos.LicenseResource_Description] = value
 		case "lastconsumed":
