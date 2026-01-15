@@ -1630,54 +1630,55 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 	return nil
 }
 
-func ParseSignalParamString(input string) (signalNumber int32, secondsBeforeKill uint32, err error) {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return 0, 0, fmt.Errorf("signal cannot be empty")
-	}
-	signalPart, secondsPart, hasAtSign := strings.Cut(input, "@")
+func ParseSignalParamString(input string) ([]*protos.Signal, error) {
+	var signals []*protos.Signal
 
-	signalPart = strings.TrimSpace(signalPart)
-	if signalPart == "" {
-		return 0, 0, fmt.Errorf("signal name is empty")
-	}
+	var signalPattern = regexp.MustCompile(`^(?:(R|B):)?(\d+)(?:@(\d+))?$`)
 
-	normalizedSignal := strings.ToUpper(strings.TrimPrefix(signalPart, "SIG"))
+	items := strings.Split(input, ",")
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		matches := signalPattern.FindStringSubmatch(item)
+		if matches == nil {
+			return nil, fmt.Errorf("invalid signal format: %v")
+		}
 
-	if sig_num, ok := SignalMap[normalizedSignal]; ok {
-		signalNumber = sig_num
-	} else if sig_num, errConv := strconv.Atoi(normalizedSignal); errConv == nil {
-		found := false
-		for _, val := range SignalMap {
-			if val == int32(sig_num) {
-				found = true
-				break
+		signal := &protos.Signal{}
+
+		// matches[1]: Source (R or B)
+		if matches[1] != "" {
+			if matches[1] == "R" {
+				signal.SignalFlag = protos.Signal_R
+			} else if matches[1] == "B" {
+				signal.SignalFlag = protos.Signal_B
 			}
 		}
-		if !found {
-			return 0, 0, fmt.Errorf("invalid signal number: '%d' is not supported", sig_num)
-		}
-		signalNumber = int32(sig_num)
-	} else {
-		return 0, 0, fmt.Errorf("invalid signal: '%s'", signalPart)
-	}
-	if hasAtSign {
-		secondsPart = strings.TrimSpace(secondsPart)
-		if secondsPart == "" {
-			secondsBeforeKill = 60 //default val
+
+		// matches[2]: Number or string
+		if sig_num, ok := SignalMap[matches[2]]; ok {
+			signal.SignalNumber = sig_num
 		} else {
-			sec, errConv := strconv.Atoi(secondsPart)
-			if errConv != nil {
-				return 0, 0, fmt.Errorf("invalid signal seconds '%s' in input '%s'", secondsPart, input)
+			num, err := strconv.Atoi(matches[2])
+			if err != nil {
+				return nil, fmt.Errorf("invalid signal number: %v", matches[2])
 			}
-			if sec < 0 {
-				return 0, 0, fmt.Errorf("signal seconds cannot be negative: '%s' in input '%s'", secondsPart, input)
-			}
-			secondsBeforeKill = uint32(sec)
+			signal.SignalNumber = int32(num)
 		}
-	} else {
-		secondsBeforeKill = 60 //default val
+
+		// matches[3]: Time (optional)
+		if matches[3] != "" {
+			t, err := strconv.Atoi(matches[3])
+			if err != nil {
+				return nil, fmt.Errorf("invalid signal time: %v" + matches[3])
+			}
+			signal.SignalTime = uint32(t)
+		}
+
+		signals = append(signals, signal)
 	}
 
-	return signalNumber, secondsBeforeKill, nil
+	return signals, nil
 }
