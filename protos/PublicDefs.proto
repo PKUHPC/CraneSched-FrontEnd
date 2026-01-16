@@ -402,10 +402,11 @@ message StepToD {
   string submit_hostname = 26;
   uint32 total_gpus = 27;
   string submit_dir = 28;
+  repeated Signal signals = 30;
 
   // Not used now.
   string extra_attr = 29;
-  repeated Signal signals = 30;
+
 }
 
 message JobStepsToD {
