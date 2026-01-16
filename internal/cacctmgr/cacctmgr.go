@@ -89,6 +89,83 @@ func PrintAccountTree(parentTreeRoot treeprint.Tree, account string, accountMap 
 	}
 }
 
+func PrintLicenseResource(resourceList []*protos.LicenseResourceInfo, hasWithClusters bool) {
+	if len(resourceList) == 0 {
+		return
+	}
+
+	sort.Slice(resourceList, func(i, j int) bool {
+		return resourceList[i].ResourceName < resourceList[j].ResourceName
+	})
+
+	// Table format control
+	table := tablewriter.NewWriter(os.Stdout)
+	util.SetBorderTable(table)
+	if !hasWithClusters {
+		table.SetHeader([]string{"Name", "Server", "Type", "Count", "LastConsumed", "Allocated", "ServerType", "Flags"})
+	} else {
+		table.SetHeader([]string{"Name", "Server", "Type", "Count", "LastConsumed", "Allocated", "ServerType", "Clusters", "Allowed", "Flags"})
+	}
+
+	tableData := make([][]string, 0, len(resourceList))
+	for _, info := range resourceList {
+		var typeString string
+		if info.Type == protos.LicenseResource_License {
+			typeString = "License"
+		}
+
+		var allocatedString string
+		allocatedString = fmt.Sprintf("%d", info.Allocated)
+
+		var flagString string
+		if info.Flags&(uint32(protos.LicenseResource_Absolute)) != 0 {
+			flagString = "Absolute"
+		} else if info.Flags == uint32(protos.LicenseResource_None) {
+			allocatedString += "%"
+		}
+
+		if !hasWithClusters {
+			tableData = append(tableData, []string{
+				info.ResourceName,
+				info.Server,
+				typeString,
+				strconv.Itoa(int(info.Count)),
+				strconv.Itoa(int(info.LastConsumed)),
+				allocatedString,
+				info.ServerType,
+				flagString,
+			})
+		} else {
+			for cluster_name, allowed := range info.ClusterResourceInfo {
+				var allowedString string
+				allowedString = fmt.Sprintf("%d", allowed)
+				if info.Flags == uint32(protos.LicenseResource_None) {
+					allowedString += "%"
+				}
+				tableData = append(tableData, []string{
+					info.ResourceName,
+					info.Server,
+					typeString,
+					strconv.Itoa(int(info.Count)),
+					strconv.Itoa(int(info.LastConsumed)),
+					allocatedString,
+					info.ServerType,
+					cluster_name,
+					allowedString,
+					flagString,
+				})
+			}
+		}
+	}
+
+	if !FlagFull && FlagFormat == "" {
+		util.TrimTable(&tableData)
+	}
+
+	table.AppendBulk(tableData)
+	table.Render()
+}
+
 func AddAccount(account *protos.AccountInfo) util.ExitCode {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
@@ -238,6 +315,66 @@ func AddQos(qos *protos.QosInfo) util.ExitCode {
 	}
 }
 
+func AddLicenseResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) util.ExitCode {
+	if FlagForce {
+		log.Warning("The --force flag is ignored for add operations")
+	}
+	if err := util.CheckEntityName(name); err != nil {
+		log.Errorf("Failed to add Resource: invalid Resource name: %v", err)
+		return util.ErrorCmdArg
+	}
+
+	var clusterList []string
+	if len(clusters) > 0 {
+		var err error
+		clusterList, err = util.ParseStringParamList(clusters, ",")
+		if err != nil {
+			log.Errorf("Invalid cluster list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.AddOrModifyLicenseResourceRequest{
+		Uid:          userUid,
+		ResourceName: name,
+		Server:       server,
+		Clusters:     clusterList,
+		IsAdd:        true,
+	}
+
+	req.Operators = make([]*protos.AddOrModifyLicenseResourceRequest_Operator, 0)
+	for field, value := range operators {
+		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: field, Value: value})
+	}
+
+	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
+	if err != nil {
+		log.Errorf("Failed to add Resource: %v", err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+	if reply.GetOk() {
+		fmt.Println("Resource added successfully.")
+		return util.ErrorSuccess
+	} else {
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to add Resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to add Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+		}
+
+		return util.ErrorBackend
+	}
+}
+
 func DeleteAccount(value string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for delete operations")
@@ -353,6 +490,51 @@ func DeleteQos(value string) util.ExitCode {
 		fmt.Printf("Failed to delete QoS: \n")
 		for _, richError := range reply.RichErrorList {
 			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		}
+		return util.ErrorBackend
+	}
+}
+
+func DeleteLicenseResource(name string, server string, clusters string) util.ExitCode {
+	if FlagForce {
+		log.Warning("--force flag is ignored for delete operations")
+	}
+
+	var clusterList []string
+	if len(clusters) > 0 {
+		var err error
+		clusterList, err = util.ParseStringParamList(clusters, ",")
+		if err != nil {
+			log.Errorf("Invalid cluster list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.DeleteLicenseResourceRequest{Uid: userUid, ResourceName: name, Server: server, Clusters: clusterList}
+
+	reply, err := stub.DeleteLicenseResource(context.Background(), &req)
+	if err != nil {
+		log.Errorf("Failed to delete resource %s: %v", name, err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Successfully deleted Resource '%s@%s'.\n", name, server)
+		return util.ErrorSuccess
+	} else {
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to delete Resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to delete Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
 		}
 		return util.ErrorBackend
 	}
@@ -546,6 +728,62 @@ func ModifyQos(params []ModifyParam, name string) util.ExitCode {
 	}
 }
 
+func ModifyResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) util.ExitCode {
+	if FlagForce {
+		log.Warning("--force flag is ignored for Resource modify operations")
+	}
+
+	var clusterList []string
+	if len(clusters) > 0 {
+		var err error
+		clusterList, err = util.ParseStringParamList(clusters, ",")
+		if err != nil {
+			log.Errorf("Invalid cluster list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.AddOrModifyLicenseResourceRequest{
+		Uid:          userUid,
+		ResourceName: name,
+		Server:       server,
+		Clusters:     clusterList,
+		IsAdd:        false,
+	}
+
+	req.Operators = make([]*protos.AddOrModifyLicenseResourceRequest_Operator, 0)
+	for field, value := range operators {
+		req.Operators = append(req.Operators, &protos.AddOrModifyLicenseResourceRequest_Operator{OperatorField: field, Value: value})
+	}
+
+	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
+	if err != nil {
+		log.Errorf("Failed to modify Resource: %v", err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if reply.GetOk() {
+		fmt.Println("Information was successfully modified.")
+		return util.ErrorSuccess
+	} else {
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to modify information: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to modify information: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+		}
+		return util.ErrorBackend
+	}
+}
+
 func FindAccount(value string) util.ExitCode {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
@@ -587,6 +825,51 @@ func FindAccount(value string) util.ExitCode {
 	}
 
 	PrintAccountList(reply.AccountList)
+
+	return util.ErrorSuccess
+}
+
+func ShowLicenseResources(name string, server string, clusters string, hasWithClusters bool) util.ExitCode {
+	if FlagForce {
+		log.Warning("--force flag is ignored for show operations")
+	}
+	var clusterList []string
+	if clusters != "" {
+		var err error
+		clusterList, err = util.ParseStringParamList(clusters, ",")
+		if err != nil {
+			log.Errorf("Invalid cluster list specified: %v.\n", err)
+			return util.ErrorCmdArg
+		}
+	}
+
+	req := protos.QueryLicenseResourceRequest{Uid: userUid, ResourceName: name, Server: server, Clusters: clusterList}
+	reply, err := stub.QueryLicenseResource(context.Background(), &req)
+	if err != nil {
+		log.Errorf("Failed to show resource: %v", err)
+		return util.ErrorNetwork
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return util.ErrorSuccess
+		} else {
+			return util.ErrorBackend
+		}
+	}
+
+	if !reply.GetOk() {
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to show resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to show resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+		}
+		return util.ErrorBackend
+	}
+
+	PrintLicenseResource(reply.LicenseResourceList, hasWithClusters)
+
 	return util.ErrorSuccess
 }
 

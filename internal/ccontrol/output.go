@@ -1004,9 +1004,22 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 	}
 
 	for _, licenseInfo := range reply.LicenseInfoList {
-		fmt.Printf("LicenseName=%v \n"+
-			"\tTotal=%v Used=%d Free=%d\n",
-			licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free)
+		if !licenseInfo.Remote {
+			fmt.Printf("LicenseName=%v \n"+
+				"\tTotal=%v Used=%d Free=%d Reserved=%d Remote=no\n",
+				licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free, licenseInfo.Reserved)
+		} else {
+			timeStr := "unknown"
+			if licenseInfo.LastUpdate > 0 {
+				timeStr = time.Unix(licenseInfo.LastUpdate, 0).Format("2006-01-02 15:04:05")
+			}
+
+			fmt.Printf("LicenseName=%v \n"+
+				"\tTotal=%v Used=%d Free=%d Reserved=%d Remote=yes\n"+
+				"\tLastConsumed=%d LastDeficit=%d LastUpdated=%s\n",
+				licenseInfo.Name, licenseInfo.Total, licenseInfo.Used, licenseInfo.Free, licenseInfo.Reserved,
+				licenseInfo.LastConsumed, licenseInfo.LastDeficit, timeStr)
+		}
 	}
 
 	return nil
