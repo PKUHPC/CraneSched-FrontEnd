@@ -1643,7 +1643,7 @@ func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 		}
 		matches := signalPattern.FindStringSubmatch(item)
 		if matches == nil {
-			return nil, fmt.Errorf("invalid signal format: %v")
+			return nil, fmt.Errorf("invalid signal format: %v", input)
 		}
 
 		signal := &protos.Signal{}
@@ -1672,7 +1672,7 @@ func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 		if matches[3] != "" {
 			t, err := strconv.Atoi(matches[3])
 			if err != nil {
-				return nil, fmt.Errorf("invalid signal time: %v" + matches[3])
+				return nil, fmt.Errorf("invalid signal time: %v", matches[3])
 			}
 			signal.SignalTime = uint32(t)
 		} else {
