@@ -711,11 +711,19 @@ func ModifyQos(params []ModifyParam, name string) util.ExitCode {
 			return util.ErrorBackend
 		}
 	}
+
 	if reply.GetOk() {
-		fmt.Println("Modify information succeeded.")
+		fmt.Println("Information was successfully modified.")
 		return util.ErrorSuccess
 	} else {
-		fmt.Printf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
+		fmt.Printf("Failed to modify information:\n")
+		for _, richError := range reply.RichErrorList {
+			if richError.Description == "" {
+				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+			} else {
+				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			}
+		}
 		return util.ErrorBackend
 	}
 }
