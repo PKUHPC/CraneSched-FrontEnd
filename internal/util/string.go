@@ -1633,7 +1633,7 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 	var signals []*protos.Signal
 
-	var signalPattern = regexp.MustCompile(`^(?:(R|B):)?(\d+)(?:@(\d+))?$`)
+	var signalPattern = regexp.MustCompile(`^(?:(R|B):)?([A-Za-z0-9]+)(?:@(\d+))?$`)
 
 	items := strings.Split(input, ",")
 	for _, item := range items {
@@ -1675,6 +1675,8 @@ func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 				return nil, fmt.Errorf("invalid signal time: %v" + matches[3])
 			}
 			signal.SignalTime = uint32(t)
+		} else {
+			signal.SignalTime = 60
 		}
 
 		signals = append(signals, signal)
