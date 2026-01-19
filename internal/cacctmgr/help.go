@@ -44,7 +44,7 @@ func showHelp() {
 	transaction - Log of account-related operations
 	event       - Node on/off events
 	wckey       - Workload characterization key
-	resource    - License Resource
+	resource    - License resource
   
   COMMANDS:
 	add account <name> [Description=<desc>] [Parent=<parent>] [DefaultQos=<qos>] 
@@ -118,14 +118,14 @@ func showHelp() {
   	add resource <name> server=<server>
     Create a new license resource
     Parameter details:
-      name=<name>               License Resource name
+      name=<name>               License resource name
       server=<server>           Server name
       servertype=<server_type>  Server type
-      type=<notset|license>     License Type (default is 'notset')
+      type=<notset|license>     License type (default is 'notset')
       count=<count>             Total number of license resource
       lastconsumed=<lastconsumed>  Usage count obtained from external source
       allocated=<allocated>     Total number of allocated license resource
-      flags=<none|absolute>     License Resource flags (default is 'none')
+      flags=<none|absolute>     License resource flags (default is 'none')
       allowed=<allowed>         Amount available to the cluster license resource
       cluster=<cluster>         Cluster name
       description=<description> License resource description
@@ -133,8 +133,8 @@ func showHelp() {
 	delete resource <name> server=<server>
     Delete an existing resource <name> server=<server>
     Parameter details:
-      name=<name>               License Resource name
-      server=<serer>            License Resource server name
+      name=<name>               License resource name
+      server=<serer>            License resource server name
       cluster=<cluster>         Cluster name
 
 	show resource [withclusters] where [options]
