@@ -43,7 +43,8 @@ func showHelp() {
 	qos         - Quality of Service settings
 	transaction - Log of account-related operations
 	event       - Node on/off events
-  wckey       - Workload characterization key
+	wckey       - Workload characterization key
+	resource    - License Resource
   
   COMMANDS:
 	add account <name> [Description=<desc>] [Parent=<parent>] [DefaultQos=<qos>] 
@@ -97,19 +98,51 @@ func showHelp() {
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
               AdminLevel,Blocked> (Spelling must be correct, case is not important)
               For Example: cacctmgr show user format=account,defaultqos,adminlevel
-  add wckey <name> user=<user>
-   Create a new wckey and bind it to the user
-   Parameter details:
+
+	add wckey <name> user=<user>
+    Create a new wckey and bind it to the user
+    Parameter details:
       user=<user>               Name of user to add wckey
-  delete wckey <name> user=<user>
+
+	delete wckey <name> user=<user>
     Delete an existing wckey
-   Parameter details:
+    Parameter details:
       user=<user>               Name of user to delete wckey
-  show wckey [<name1,name2,...>]
+
+	show wckey [<name1,name2,...>]
     Display information about wckeys.
-   Parameter details:
+    Parameter details:
       <name1,name2,...>         Show only these wckeys (comma-separated) (optional)
       If no name is specified, information for all wckeys will be displayed.
+
+  	add resource <name> server=<server>
+    Create a new license resource
+    Parameter details:
+      name=<name>               License Resource name
+      server=<server>           Server name
+      servertype=<server_type>  Server type
+      type=<notset|license>     License Type (default is 'notset')
+      count=<count>             Total number of license resource
+      lastconsumed=<lastconsumed>  Usage count obtained from external source
+      allocated=<allocated>     Total number of allocated license resource
+      flags=<none|absolute>     License Resource flags (default is 'none')
+      allowed=<allowed>         Amount available to the cluster license resource
+      cluster=<cluster>         Cluster name
+      description=<description> License resource description
+
+	delete resource <name> server=<server>
+    Delete an existing resource <name> server=<server>
+    Parameter details:
+      name=<name>               License Resource name
+      server=<serer>            License Resource server name
+      cluster=<cluster>         Cluster name
+
+	show resource [withclusters] where [options]
+    Display information about resource.
+    Parameter details:
+      name=<name>               Show only the specified resource
+      server=<server>	        Show resources for a specific server
+      cluster=<cluster>	        Show resources for a specific cluster
 
 	block account <name> [Account=<account>]
     Block the specified account from submitting jobs.
@@ -212,6 +245,15 @@ func showHelp() {
     Wckey options:
       where user=<name> 
       set defaultwckey=<wckeyname>    Set default wckey for specific users
+    Resource options:
+      where Name=<name>, Server=<server> [Cluster=<cluster1,cluster2,..>]
+      set Description=<desc>         Set description
+      set ServerType=<desc>          Set server type for specific users
+      set Type=<notset|license>      Set license resource type
+      set Count=<num>                Set quantity of resources
+      set LastConsumed=<num>         Set external usage count
+      set Flags=<none|absolute>      Set license resource flag
+      set Allowed=<num>              Set amount allowed for the cluster (cluster must be specified)
 
   GLOBAL OPTIONS:
 	--help, -h     Display this help message
