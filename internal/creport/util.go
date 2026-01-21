@@ -22,6 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 )
 
 var validCreportTypes = map[string]string{
@@ -75,4 +78,35 @@ func PrintAsJsonToStdout(outputList interface{}) {
 		return
 	}
 	fmt.Println(string(encodedJson))
+}
+
+func ParseAndSortJobSizeList(input string) ([]uint32, error) {
+	segments := strings.Split(input, ",")
+	uniqueNumbers := make(map[uint32]struct{})
+	for index, segment := range segments {
+		trimmed := strings.TrimSpace(segment)
+		if trimmed == "" {
+			return nil, fmt.Errorf("empty value detected at position %d", index+1)
+		}
+		number, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("invalid number '%s' at position %d", trimmed, index+1)
+		}
+		if number < 0 {
+			return nil, fmt.Errorf("negative number '%s' at position %d", trimmed, index+1)
+		}
+		uniqueNumbers[uint32(number)] = struct{}{}
+	}
+
+	resultList := make([]uint32, 0, len(uniqueNumbers))
+	for number := range uniqueNumbers {
+		resultList = append(resultList, number)
+	}
+	sort.Slice(resultList, func(i, j int) bool { return resultList[i] < resultList[j] })
+
+	if len(resultList) == 0 {
+		return nil, fmt.Errorf("no valid job size thresholds provided")
+	}
+
+	return resultList, nil
 }

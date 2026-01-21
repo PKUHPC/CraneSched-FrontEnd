@@ -309,7 +309,7 @@ func init() {
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByAccountCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
-				" The report will print number of jobs range instead of time used")
+				"The report will print number of jobs range instead of time used")
 			sizesByAccountCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
 			sizesByAccountCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
@@ -333,7 +333,7 @@ func init() {
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByWckeyCmd.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
-				" The report will print number of jobs range instead of time used")
+				"The report will print number of jobs range instead of time used")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
 			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
@@ -361,7 +361,7 @@ func init() {
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 				"Specify partitions to view (comma separated list), default is all")
 			sizesByAccountAndWcKey.Flags().BoolVarP(&FlagPrintJobCount, "printjobcount", "", false,
-				" The report will print number of jobs range instead of time used")
+				"The report will print number of jobs range instead of time used")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 				"Specify nodes name to view (comma separated list), default is all")
 			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
