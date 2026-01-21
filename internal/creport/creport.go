@@ -145,20 +145,6 @@ func GetDefaultEndTime() string {
 	return endTime.Format("2006-01-02T15:04:05")
 }
 
-func ActiveAggregationManually() error {
-	request := &protos.ActiveAggregationManuallyRequest{}
-	request.Uid = uint32(os.Getuid())
-	reply, err := stub.ActiveAggregationManually(context.Background(), request)
-	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to manually trigger aggregation: %v", err))
-	}
-	if reply.GetOk() {
-		return nil
-	} else {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to manually trigger aggregation : %v", reply.GetReason()))
-	}
-}
-
 func QueryUsersTopSummaryItem() error {
 	request := &protos.QueryJobSummaryRequest{ReportType: protos.QueryJobSummaryRequest_USER_TOP_USAGE}
 	request.NumLimit = FlagTopCount

@@ -187,7 +187,6 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.AddCommand(activeCmd)
 	RootCmd.AddCommand(userCmd)
 	{
 		userCmd.AddCommand(userTopUsageCmd)
