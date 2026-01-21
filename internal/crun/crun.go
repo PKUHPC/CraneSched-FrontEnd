@@ -114,19 +114,26 @@ type StateMachineOfCrun struct {
 	chanX11InputFromLocal   chan []byte
 	chanX11OutputFromRemote chan []byte
 
-	CrunProlog string
-	CrunEpilog string
+	jobLifecycleHook JobLifecycleHook
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
 	replyChannel chan ReplyReceiveItem
 }
 
+type JobLifecycleHook struct {
+	CrunProlog          string
+	CrunEpilog          string
+	PrologTimeout       uint64
+	EpilogTimeout       uint64
+	PrologEpilogTimeout uint64
+}
+
 type RunCommandArgs struct {
 	Program    string
 	Args       []string
 	Envs       map[string]string
-	TimeoutSec int
+	TimeoutSec uint64
 }
 
 func (r *CforedReplyReceiver) GetReplyChannel() chan ReplyReceiveItem {
@@ -201,31 +208,40 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		m.state = End
 		return
 	}
-	m.CrunProlog = config.CrunProlog
-	m.CrunEpilog = config.CrunEpilog
+	m.jobLifecycleHook.CrunProlog = config.JobLifecycleHook.CrunProlog
+	m.jobLifecycleHook.CrunEpilog = config.JobLifecycleHook.CrunEpilog
+	m.jobLifecycleHook.PrologTimeout = config.JobLifecycleHook.PrologTimeout
+	m.jobLifecycleHook.EpilogTimeout = config.JobLifecycleHook.EpilogTimeout
+	m.jobLifecycleHook.PrologEpilogTimeout = config.JobLifecycleHook.PrologEpilogTimeout
 
 	if FlagProlog != "" {
-		m.CrunProlog = FlagProlog
+		m.jobLifecycleHook.CrunProlog = FlagProlog
 	}
 	if FlagEpilog != "" {
-		m.CrunEpilog = FlagEpilog
+		m.jobLifecycleHook.CrunEpilog = FlagEpilog
 	}
 
-	if len(m.CrunProlog) > 0 {
-		ExitCode := m.RunCommand(RunCommandArgs{
-			Program:    m.CrunProlog,
+	if len(m.jobLifecycleHook.CrunProlog) > 0 {
+		args := RunCommandArgs{
+			Program:    m.jobLifecycleHook.CrunProlog,
 			Args:       nil,
 			Envs:       m.job.Env,
-			TimeoutSec: 300,
-		})
+			TimeoutSec: 0,
+		}
+		if m.jobLifecycleHook.PrologTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.PrologTimeout
+		}
+		if m.jobLifecycleHook.PrologEpilogTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.PrologEpilogTimeout
+		}
+		ExitCode := m.RunCommand(args)
 		if ExitCode != 0 {
-			log.Errorf("Prolog '%s' failed (exit code %d).", m.CrunProlog, ExitCode)
+			log.Errorf("Prolog '%s' failed (exit code %d).", m.jobLifecycleHook.CrunProlog, ExitCode)
 			m.err = util.ErrorBackend
 			m.state = End
 			return
 		}
-		log.Tracef("Prolog '%s' finished successfully.", m.CrunProlog)
-
+		log.Tracef("Prolog '%s' finished successfully.", m.jobLifecycleHook.CrunProlog)
 	}
 
 	m.client = protos.NewCraneForeDClient(m.conn)
@@ -652,20 +668,27 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		m.err = util.ErrorBackend
 	}
 
-	if len(m.CrunEpilog) > 0 {
-		ExitCode := m.RunCommand(RunCommandArgs{
-			Program:    m.CrunEpilog,
+	if len(m.jobLifecycleHook.CrunEpilog) > 0 {
+		args := RunCommandArgs{
+			Program:    m.jobLifecycleHook.CrunEpilog,
 			Args:       nil,
 			Envs:       m.job.Env,
-			TimeoutSec: 300,
-		})
+			TimeoutSec: 0,
+		}
+		if m.jobLifecycleHook.EpilogTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.EpilogTimeout
+		}
+		if m.jobLifecycleHook.PrologEpilogTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.PrologEpilogTimeout
+		}
+		ExitCode := m.RunCommand(args)
 		if ExitCode != 0 {
-			log.Errorf("Epilog '%s' failed (exit code %d).", m.CrunEpilog, ExitCode)
+			log.Errorf("Epilog '%s' failed (exit code %d).", m.jobLifecycleHook.CrunEpilog, ExitCode)
 			m.err = util.ErrorBackend
 			m.state = End
 			return
 		}
-		log.Tracef("Epilog '%s' finished successfully.", m.CrunEpilog)
+		log.Tracef("Epilog '%s' finished successfully.", m.jobLifecycleHook.CrunEpilog)
 	}
 
 	m.state = End

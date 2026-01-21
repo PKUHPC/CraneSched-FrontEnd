@@ -36,8 +36,7 @@ type Config struct {
 	CforedDebugLevel     *string `yaml:"CforedDebugLevel"`
 	CranedCforedSockPath string  `yaml:"CranedCforedSockPath"`
 
-	CrunProlog string `yaml:"CrunProlog"`
-	CrunEpilog string `yaml:"CrunEpilog"`
+	JobLifecycleHook JobLifecycleHookConfig `yaml:"JobLifecycleHook"`
 
 	Plugin PluginConfig `yaml:"Plugin"`
 }
@@ -59,6 +58,14 @@ type PluginConfig struct {
 	ListenPort    string           `yaml:"PlugindListenPort"`
 	LogLevel      string           `yaml:"PlugindDebugLevel"`
 	Plugins       []api.PluginMeta `yaml:"Plugins"`
+}
+
+type JobLifecycleHookConfig struct {
+	CrunProlog          string `yaml:"CrunProlog"`
+	CrunEpilog          string `yaml:"CrunEpilog"`
+	PrologTimeout       uint64 `yaml:"PrologTimeout"`
+	EpilogTimeout       uint64 `yaml:"EpilogTimeout"`
+	PrologEpilogTimeout uint64 `yaml:"PrologEpilogTimeout"`
 }
 
 // InfluxDB Config represents the structure of the database configuration
