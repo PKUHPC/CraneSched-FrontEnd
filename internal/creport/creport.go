@@ -24,7 +24,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 
 	"io"
@@ -249,11 +248,19 @@ func QueryJobSummary(reportType protos.QueryJobSummaryRequest_JobSummaryReportTy
 		if FlagFilterGids == "individual" {
 			request.FilterGids = []uint32{}
 		} else {
-			filterGids, err := util.ParseAndSortUintList(FlagFilterGids)
-			if err != nil {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid gid list specified: %s.", err))
+			gidStrs := strings.Split(FlagFilterGids, ",")
+			gids := make([]uint32, 0)
+			for _, gidStr := range gidStrs {
+				val, err := strconv.ParseUint(gidStr, 10, 32)
+				if err != nil {
+					if err != nil {
+						return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid gid list specified: %s.", err))
+					}
+				}
+				gids = append(gids, uint32(val))
 			}
-			request.FilterGids = filterGids
+
+			request.FilterGids = gids
 		}
 	}
 
@@ -359,11 +366,19 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 		if FlagFilterGids == "individual" {
 			request.FilterGids = []uint32{}
 		} else {
-			filterGids, err := util.ParseAndSortUintList(FlagFilterGids)
-			if err != nil {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid gid list specified: %s.", err))
+			gidStrs := strings.Split(FlagFilterGids, ",")
+			gids := make([]uint32, 0)
+			for _, gidStr := range gidStrs {
+				val, err := strconv.ParseUint(gidStr, 10, 32)
+				if err != nil {
+					if err != nil {
+						return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid gid list specified: %s.", err))
+					}
+				}
+				gids = append(gids, uint32(val))
 			}
-			request.FilterGids = filterGids
+
+			request.FilterGids = gids
 		}
 	}
 
@@ -399,7 +414,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 	}
 
 	if FlagFilterGrouping != "" {
-		result, err := util.ParseAndSortUintList(FlagFilterGrouping)
+		result, err := ParseAndSortJobSizeList(FlagFilterGrouping)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid grouping: %s", err))
 		}
@@ -899,12 +914,17 @@ func PrintClusterList(JobSummaryItemList []*protos.JobSummaryItem, startTime, en
 }
 
 func GetCpusGroupHeaders(groupList []uint32) []string {
-	if len(groupList) == 1 {
-		return []string{fmt.Sprintf("%d-%d CPUs", groupList[0], math.MaxUint32)}
-	}
+
 	headers := []string{}
-	for i := 0; i < len(groupList)-1; i++ {
-		headers = append(headers, fmt.Sprintf("%d-%d CPUs", groupList[i], groupList[i+1]-1))
+
+	for i := 0; i < len(groupList); i++ {
+		var baseCpu uint32
+		if i == 0 {
+			baseCpu = 0
+		} else {
+			baseCpu = groupList[i-1]
+		}
+		headers = append(headers, fmt.Sprintf("%d-%d CPUs", baseCpu, groupList[i]-1))
 	}
 	headers = append(headers, fmt.Sprintf(">= %d CPUs", groupList[len(groupList)-1]))
 	return headers
@@ -930,22 +950,18 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 	var actualGroupList []uint32
 	var cpuAllocIndexMap map[uint32]int
 
-	if len(groupList) == 0 {
-		cpuAllocSet := make(map[uint32]struct{})
-		for _, item := range accountUserWckeyList {
-			cpuAllocSet[item.CpusAlloc] = struct{}{}
-		}
-		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
-		for cpus := range cpuAllocSet {
-			actualGroupList = append(actualGroupList, cpus)
-		}
-		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
-		cpuAllocIndexMap = make(map[uint32]int)
-		for i, v := range actualGroupList {
-			cpuAllocIndexMap[v] = i
-		}
-	} else {
-		actualGroupList = groupList
+	cpuAllocSet := make(map[uint32]struct{})
+	for _, item := range accountUserWckeyList {
+		cpuAllocSet[item.CpusAlloc] = struct{}{}
+	}
+	actualGroupList = make([]uint32, 0, len(cpuAllocSet))
+	for cpus := range cpuAllocSet {
+		actualGroupList = append(actualGroupList, cpus)
+	}
+	sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
+	cpuAllocIndexMap = make(map[uint32]int)
+	for i, v := range actualGroupList {
+		cpuAllocIndexMap[v] = i
 	}
 
 	// Aggregate data into clusterAccountMap
@@ -961,12 +977,7 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 		}
 		summary := clusterAccountMap[item.Cluster][item.Account]
 
-		var groupIdx int
-		if len(groupList) == 0 {
-			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
-		} else {
-			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
-		}
+		groupIdx := cpuAllocIndexMap[item.CpusAlloc]
 
 		if isPrintCount {
 			summary.JobCount[groupIdx] += item.TotalCount
@@ -1098,22 +1109,18 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 	var actualGroupList []uint32
 	var cpuAllocIndexMap map[uint32]int
 
-	if len(groupList) == 0 {
-		cpuAllocSet := make(map[uint32]struct{})
-		for _, item := range accountUserWckeyList {
-			cpuAllocSet[item.CpusAlloc] = struct{}{}
-		}
-		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
-		for cpus := range cpuAllocSet {
-			actualGroupList = append(actualGroupList, cpus)
-		}
-		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
-		cpuAllocIndexMap = make(map[uint32]int)
-		for i, v := range actualGroupList {
-			cpuAllocIndexMap[v] = i
-		}
-	} else {
-		actualGroupList = groupList
+	cpuAllocSet := make(map[uint32]struct{})
+	for _, item := range accountUserWckeyList {
+		cpuAllocSet[item.CpusAlloc] = struct{}{}
+	}
+	actualGroupList = make([]uint32, 0, len(cpuAllocSet))
+	for cpus := range cpuAllocSet {
+		actualGroupList = append(actualGroupList, cpus)
+	}
+	sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
+	cpuAllocIndexMap = make(map[uint32]int)
+	for i, v := range actualGroupList {
+		cpuAllocIndexMap[v] = i
 	}
 
 	for _, item := range accountUserWckeyList {
@@ -1131,11 +1138,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 		summary := clusterWckeyMap[item.Cluster][item.Wckey]
 
 		var groupIdx int
-		if len(groupList) == 0 {
-			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
-		} else {
-			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
-		}
+		groupIdx = cpuAllocIndexMap[item.CpusAlloc]
 
 		if isPrintCount {
 			summary.JobCount[groupIdx] += item.TotalCount
@@ -1267,22 +1270,18 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 	var actualGroupList []uint32
 	var cpuAllocIndexMap map[uint32]int
 
-	if len(groupList) == 0 {
-		cpuAllocSet := make(map[uint32]struct{})
-		for _, item := range accountUserWckeyList {
-			cpuAllocSet[item.CpusAlloc] = struct{}{}
-		}
-		actualGroupList = make([]uint32, 0, len(cpuAllocSet))
-		for cpus := range cpuAllocSet {
-			actualGroupList = append(actualGroupList, cpus)
-		}
-		sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
-		cpuAllocIndexMap = make(map[uint32]int)
-		for i, v := range actualGroupList {
-			cpuAllocIndexMap[v] = i
-		}
-	} else {
-		actualGroupList = groupList
+	cpuAllocSet := make(map[uint32]struct{})
+	for _, item := range accountUserWckeyList {
+		cpuAllocSet[item.CpusAlloc] = struct{}{}
+	}
+	actualGroupList = make([]uint32, 0, len(cpuAllocSet))
+	for cpus := range cpuAllocSet {
+		actualGroupList = append(actualGroupList, cpus)
+	}
+	sort.Slice(actualGroupList, func(i, j int) bool { return actualGroupList[i] < actualGroupList[j] })
+	cpuAllocIndexMap = make(map[uint32]int)
+	for i, v := range actualGroupList {
+		cpuAllocIndexMap[v] = i
 	}
 
 	for _, item := range accountUserWckeyList {
@@ -1301,11 +1300,7 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 		summary := clusterAccountWckeyMap[item.Cluster][accountWckey]
 
 		var groupIdx int
-		if len(groupList) == 0 {
-			groupIdx = cpuAllocIndexMap[item.CpusAlloc]
-		} else {
-			groupIdx = FindCpuGroupIndex(item.CpusAlloc, groupList)
-		}
+		groupIdx = cpuAllocIndexMap[item.CpusAlloc]
 
 		if isPrintCount {
 			summary.JobCount[groupIdx] += item.TotalCount
