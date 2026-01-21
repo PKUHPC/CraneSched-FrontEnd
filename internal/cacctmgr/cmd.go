@@ -73,28 +73,24 @@ var (
 	FlagNodeList string
 	FlagNumLimit uint32
 
-	FlagEntityName              string
-	FlagEntityAccount           string
-	FlagEntityPartitions        string
-	FlagDefaultQos              string
-	FlagAllowedQosList          string
-	FlagAllowedPartitions       string
-	FlagDeleteQosList           string
-	FlagDeletePartitionList     string
-	FlagSetQosList              string
-	FlagSetPartitionList        string
-	FlagPartitions              string
-	FlagQosList                 string
-	FlagMaxCpu                  string
-	FlagMaxJobsPerUser          string
-	FlagMaxSubmitJobsPerUser    string
-	FlagMaxJobsPerAccount       string
-	FlagMaxSubmitJobsPerAccount string
-	FlagMaxTimeLimit            string
-	FlagPriority                string
-	FlagAdminLevel              string
-	FlagDescription             string
-	FlagFormat                  string
+	FlagEntityName          string
+	FlagEntityAccount       string
+	FlagEntityPartitions    string
+	FlagDefaultQos          string
+	FlagAllowedQosList      string
+	FlagAllowedPartitions   string
+	FlagDeleteQosList       string
+	FlagDeletePartitionList string
+	FlagSetQosList          string
+	FlagSetPartitionList    string
+	FlagPartitions          string
+	FlagQosList             string
+	FlagMaxCpu              string
+	FlagMaxTimeLimit        string
+	FlagPriority            string
+	FlagAdminLevel          string
+	FlagDescription         string
+	FlagFormat              string
 )
 
 var actionToExecute = map[string]func(command *CAcctMgrCommand) int{
