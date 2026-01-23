@@ -32,6 +32,7 @@ const (
 	UpdatePowerStateHook
 	RegisterCranedHook
 	UpdateLicensesHook
+	TraceHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -109,4 +110,9 @@ type HostConfigAware interface {
 // ResourceHooks handles ctld virtual resource change
 type ResourceHooks interface {
 	UpdateLicensesHook(ctx *PluginContext)
+}
+
+// TraceHooks handles trace events
+type TraceHooks interface {
+	TraceHook(ctx *PluginContext)
 }
