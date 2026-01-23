@@ -49,6 +49,8 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 			"index":    idx,
 		})
 
+		delegate.Annotations = conf.RuntimeConfig.KubernetesCRIPodAnnotations
+
 		env, err := buildRuntimeEnv(args, conf.RuntimeOverride, delegate.RuntimeOverride)
 		if err != nil {
 			logger.Errorf("error in building runtime env: %v", err)
@@ -236,6 +238,10 @@ func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prev
 			if _, ok := payload["name"]; !ok {
 				payload["name"] = delegate.Name
 			}
+		}
+
+		if len(delegate.Annotations) != 0 {
+			payload["annotations"] = delegate.Annotations
 		}
 	}
 
