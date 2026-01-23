@@ -213,6 +213,18 @@ func (p MonitorPlugin) UpdateLicensesHook(ctx *api.PluginContext) {
 	}
 }
 
+func (p MonitorPlugin) TraceHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.TraceHookRequest)
+	if !ok {
+		log.Error("Invalid request type, expected TraceHookRequest")
+		return
+	}
+	
+	if err := db.GetInstance().SaveSpans(req.GetSpans()); err != nil {
+		log.Errorf("Failed to save spans: %v", err)
+	}
+}
+
 func (p MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error {
 	if globalMonitor.queryService == nil {
 		return fmt.Errorf("monitor query service is not initialized")
