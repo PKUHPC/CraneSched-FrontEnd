@@ -69,12 +69,12 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 		switch action {
 		case ActionAdd:
 			prevResult := prevResultForDelegate(conf.ResultMode, chainResult)
-			latestResult, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, prevResult)
+			latestResult, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, prevResult, conf.RuntimeConfig)
 			if latestResult != nil {
 				lastResult = latestResult
 			}
 		default:
-			_, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, conf.PrevResult)
+			_, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, conf.PrevResult, conf.RuntimeConfig)
 		}
 
 		restore()
@@ -173,11 +173,13 @@ func buildRuntimeEnv(args *skel.CmdArgs, globalOverride, delegateOverride *metat
 	return env, nil
 }
 
-func callDelegate(ctx context.Context, delegate *metatypes.DelegateEntry, action Action, cniVersion string, prevResult cnitypes.Result) (cnitypes.Result, error) {
-	confBytes, pluginType, err := effectiveConf(delegate, cniVersion, prevResult)
+func callDelegate(ctx context.Context, delegate *metatypes.DelegateEntry, action Action, cniVersion string, prevResult cnitypes.Result, runtimeConfig map[string]any) (cnitypes.Result, error) {
+	confBytes, pluginType, err := effectiveConf(delegate, cniVersion, prevResult, runtimeConfig)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Tracef("Delegate %s STDIN: %s", delegateIdentifier(delegate), string(confBytes))
 
 	switch action {
 	case ActionAdd:
@@ -191,7 +193,7 @@ func callDelegate(ctx context.Context, delegate *metatypes.DelegateEntry, action
 	}
 }
 
-func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prevResult cnitypes.Result) ([]byte, string, error) {
+func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prevResult cnitypes.Result, runtimeConfig map[string]any) ([]byte, string, error) {
 	if delegate == nil {
 		return nil, "", errors.New("delegate entry is nil")
 	}
@@ -234,6 +236,13 @@ func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prev
 			if _, ok := payload["name"]; !ok {
 				payload["name"] = delegate.Name
 			}
+		}
+	}
+
+	// Pass through runtimeConfig from the parent if delegate doesn't have its own
+	if len(runtimeConfig) > 0 {
+		if _, ok := payload["runtimeConfig"]; !ok {
+			payload["runtimeConfig"] = runtimeConfig
 		}
 	}
 

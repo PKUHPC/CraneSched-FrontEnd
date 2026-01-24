@@ -29,6 +29,10 @@ type MetaPluginConf struct {
 	ResultMode      ResultMode       `json:"resultMode,omitempty"`
 	RuntimeOverride *RuntimeOverride `json:"runtimeOverride,omitempty"`
 	Delegates       []DelegateEntry  `json:"delegates"`
+
+	// RuntimeConfig is passed by the container runtime (e.g., containerd)
+	// and contains dynamic settings like port mappings, bandwidth limits, etc.
+	RuntimeConfig map[string]any `json:"runtimeConfig,omitempty"`
 }
 
 // DelegateEntry describes a child plugin invoked by this meta plugin.
@@ -158,4 +162,10 @@ func (d *DelegateEntry) identifier() string {
 		return d.Type
 	}
 	return "<unknown>"
+}
+
+// String returns a human-readable representation of DelegateEntry for logging.
+func (d DelegateEntry) String() string {
+	return fmt.Sprintf("{Name:%s Type:%s Conf:%s RuntimeOverride:%+v Annotations:%v}",
+		d.Name, d.Type, string(d.Conf), d.RuntimeOverride, d.Annotations)
 }

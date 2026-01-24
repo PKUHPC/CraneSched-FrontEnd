@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"CraneFrontEnd/tool/meta-cni/pkg/engine"
 	metatypes "CraneFrontEnd/tool/meta-cni/pkg/types"
@@ -50,7 +51,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	log.Debugf("CNI Args: %q", args.Args)
+	log.Tracef("CNI args from runtime: %q", args.Args)
+	log.Infof("Calling chained plugins in following order: [%s]", getDelegateNames(conf))
 
 	result, err := engine.Execute(conf, engine.ActionAdd, args)
 	if err != nil {
@@ -80,7 +82,8 @@ func cmdCheck(args *skel.CmdArgs) error {
 		return err
 	}
 
-	log.Debugf("CNI Args: %q", args.Args)
+	log.Tracef("CNI args from runtime: %q", args.Args)
+	log.Infof("Calling chained plugins in following order: [%s]", getDelegateNames(conf))
 
 	_, err = engine.Execute(conf, engine.ActionCheck, args)
 	return err
@@ -99,10 +102,25 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	log.Debugf("CNI Args: %q", args.Args)
+	log.Tracef("CNI args from runtime: %q", args.Args)
+	log.Infof("Calling chained plugins in following order: [%s]", getDelegateNames(conf))
 
 	_, err = engine.Execute(conf, engine.ActionDel, args)
 	return err
+}
+
+func getDelegateNames(conf *metatypes.MetaPluginConf) string {
+	names := make([]string, len(conf.Delegates))
+	for i, d := range conf.Delegates {
+		if d.Name != "" {
+			names[i] = d.Name
+		} else if d.Type != "" {
+			names[i] = d.Type
+		} else {
+			names[i] = "<unknown>"
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 func emptyResult(cniVersion string) (cnitypes.Result, error) {
