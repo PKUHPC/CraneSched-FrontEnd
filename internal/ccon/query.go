@@ -278,7 +278,7 @@ func currentUserFilter() ([]string, error) {
 
 	cu, err := user.Current()
 	if err != nil {
-		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to get current username: %s.", err))
+		return nil, util.WrapCraneErr(util.ErrorGeneric, "failed to get username: %v", err)
 	}
 
 	return []string{cu.Username}, nil
