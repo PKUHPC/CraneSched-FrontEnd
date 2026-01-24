@@ -23,8 +23,10 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -76,6 +78,8 @@ func StartCfored() {
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 	defer gVars.globalCtxCancel()
 
+	SetupSignalHandler()
+
 	gVars.ctldConnected.Store(false)
 
 	gVars.cforedRequestCtldChannel = make(chan *protos.StreamCforedRequest, 8)
@@ -105,4 +109,24 @@ func StartCfored() {
 
 	log.Debug("Waiting all go routines to exit...")
 	wgAllRoutines.Wait()
+}
+
+func SetupSignalHandler() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP)
+
+	go func() {
+		for {
+			select {
+			case sig := <-sigChan:
+				if sig == syscall.SIGHUP {
+					log.Info("Received SIGHUP signal, reloading configuration...")
+					util.SetLoggerLevel(FlagDebugLevel)
+				}
+			case <-gVars.globalCtx.Done():
+
+				return
+			}
+		}
+	}()
 }

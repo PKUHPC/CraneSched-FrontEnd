@@ -21,6 +21,9 @@ package cfored
 import (
 	"CraneFrontEnd/internal/util"
 	"os"
+	"os/exec"
+	"strconv"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -28,6 +31,7 @@ import (
 var (
 	FlagConfigFilePath string
 	FlagDebugLevel     string
+	FlagReload         bool
 )
 
 func ParseCmdArgs() {
@@ -36,6 +40,10 @@ func ParseCmdArgs() {
 		Short:   "Daemon for interactive job management",
 		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
+			if FlagReload {
+				SendReloadSignal()
+				return
+			}
 			StartCfored()
 		},
 	}
@@ -45,8 +53,38 @@ func ParseCmdArgs() {
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Available debug level: trace,debug,info")
+	rootCmd.PersistentFlags().BoolVar(&FlagReload, "reload", false, "reload log level")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorGeneric)
+	}
+}
+
+func SendReloadSignal() {
+	var pid int
+
+	out, err := exec.Command("pidof", "cfored").Output()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	if len(out) == 0 {
+		os.Exit(1)
+	}
+
+	pidStr := string(out[:len(out)-1])
+	pid, err = strconv.Atoi(pidStr)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	err = process.Signal(syscall.SIGHUP)
+	if err != nil {
+		os.Exit(1)
 	}
 }
