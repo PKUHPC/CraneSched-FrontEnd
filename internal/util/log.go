@@ -29,7 +29,11 @@ import (
 
 func InitLogger(level string) {
 	SetLoggerLevel(level)
-	log.SetReportCaller(true)
+	if level == "debug" || level == "trace" {
+		log.SetReportCaller(true)
+	} else {
+		log.SetReportCaller(false)
+	}
 	log.SetFormatter(&nested.Formatter{
 		HideKeys:    false,
 		CallerFirst: true,

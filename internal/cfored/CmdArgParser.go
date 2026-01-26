@@ -45,7 +45,7 @@ func ParseCmdArgs() {
 				SendReloadSignal()
 				return
 			}
-			StartCfored()
+			StartCfored(cmd)
 		},
 	}
 
@@ -54,7 +54,7 @@ func ParseCmdArgs() {
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Available debug level: trace,debug,info")
-	rootCmd.PersistentFlags().BoolVar(&FlagReload, "reload", false, "reload log level")
+	rootCmd.PersistentFlags().BoolVar(&FlagReload, "reload", false, "Reload configuration")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorGeneric)

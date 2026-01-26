@@ -29,6 +29,7 @@ import (
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 type GlobalVariables struct {
@@ -68,17 +69,23 @@ type GlobalVariables struct {
 
 var gVars GlobalVariables
 
-func StartCfored() {
-	util.InitLogger(FlagDebugLevel)
-
+func StartCfored(cmd *cobra.Command) {
 	config := util.ParseConfig(FlagConfigFilePath)
+	isDebugLevelExplicit := cmd.Flags().Changed("debug-level")
+
+	// Determine effective log level
+	effectiveLogLevel := FlagDebugLevel
+	if !isDebugLevelExplicit && config.Cfored.DebugLevel != "" {
+		effectiveLogLevel = config.Cfored.DebugLevel
+	}
+	util.InitLogger(effectiveLogLevel)
 
 	util.DetectNetworkProxy()
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 	defer gVars.globalCtxCancel()
 
-	SetupSignalHandler()
+	SetupAndRunSignalHandlerRoutine()
 
 	gVars.ctldConnected.Store(false)
 
@@ -111,7 +118,7 @@ func StartCfored() {
 	wgAllRoutines.Wait()
 }
 
-func SetupSignalHandler() {
+func SetupAndRunSignalHandlerRoutine() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP)
 
@@ -121,10 +128,14 @@ func SetupSignalHandler() {
 			case sig := <-sigChan:
 				if sig == syscall.SIGHUP {
 					log.Info("Received SIGHUP signal, reloading configuration...")
-					log.SetReportCaller(false)
+					config := util.ParseConfig(FlagConfigFilePath)
+
+					if config.Cfored.DebugLevel != "" {
+						util.InitLogger(config.Cfored.DebugLevel)
+						log.Infof("Log level reloaded to %s", config.Cfored.DebugLevel)
+					}
 				}
 			case <-gVars.globalCtx.Done():
-
 				return
 			}
 		}
