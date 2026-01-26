@@ -654,14 +654,32 @@ func CheckJobNameLength(name string) error {
 }
 
 func CheckTaskArgs(task *protos.TaskToCtld) error {
+	if task.NodeNum == 0 {
+		if task.Ntasks == 0 {
+			task.Ntasks = 1
+		}
+		task.NodeNum = task.Ntasks
+	}
+	if task.Ntasks == 0 {
+		if task.NtasksPerNode == 0 {
+			task.Ntasks = task.NodeNum
+		} else {
+			task.Ntasks = task.NodeNum * task.NtasksPerNode
+		}
+	}
+	if task.NodeNum > task.Ntasks {
+		log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", task.Ntasks, task.NodeNum)
+		task.NodeNum = task.Ntasks
+	}
+	if task.NtasksPerNode > 0 && task.NtasksPerNode*task.NodeNum < task.Ntasks {
+		if task.NodeNum == 0 {
+			task.NodeNum = (task.Ntasks + task.NtasksPerNode - 1) / task.NtasksPerNode
+		} else {
+			return fmt.Errorf("invalid argument: NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
+		}
+	}
 	if err := CheckJobNameLength(task.Name); err != nil {
 		return err
-	}
-	if task.CpusPerTask <= 0 {
-		return fmt.Errorf("--cpus-per-task must > 0")
-	}
-	if task.NtasksPerNode <= 0 {
-		return fmt.Errorf("--ntasks-per-node must > 0")
 	}
 	if task.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
@@ -675,8 +693,12 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if !CheckNodeList(task.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	if task.ReqResources.AllocatableRes.CpuCoreLimit > 1e6 {
-		return fmt.Errorf("requesting too many CPUs: %f", task.ReqResources.AllocatableRes.CpuCoreLimit)
+	// Calculate total CPUs if cpus_per_task is specified
+	if task.CpusPerTask != nil && task.Ntasks > 0 {
+		CpusTotal := *task.CpusPerTask * float64(task.Ntasks)
+		if CpusTotal > 1e6 {
+			return fmt.Errorf("requesting too many CPUs: %f", CpusTotal)
+		}
 	}
 	if task.ExtraAttr != "" {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
@@ -703,21 +725,35 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 }
 
 func CheckStepArgs(step *protos.StepToCtld) error {
+	if step.NodeNum == 0 {
+		if step.Ntasks == 0 {
+			step.Ntasks = 1
+		}
+		step.NodeNum = step.Ntasks
+	}
+	if step.Ntasks == 0 {
+		if step.NtasksPerNode == 0 {
+			step.Ntasks = step.NodeNum
+		} else {
+			step.Ntasks = step.NodeNum * step.NtasksPerNode
+		}
+	}
+	if step.NodeNum > step.Ntasks {
+		log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", step.Ntasks, step.NodeNum)
+		step.NodeNum = step.Ntasks
+	}
+	if step.NtasksPerNode > 0 && step.NtasksPerNode*step.NodeNum < step.Ntasks {
+		if step.NodeNum == 0 {
+			step.NodeNum = (step.Ntasks + step.NtasksPerNode - 1) / step.NtasksPerNode
+		} else {
+			log.Warnf("Warning: NtasksPerNode * NodeNum < Ntasks, ingnoring NtasksPerNode.")
+			step.NtasksPerNode = 0
+		}
+	}
 	if err := CheckJobNameLength(step.Name); err != nil {
 		return err
 	}
-	if step.ReqResourcesPerTask != nil &&
-		step.ReqResourcesPerTask.AllocatableRes != nil {
-		if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit <= 0 {
-			return fmt.Errorf("--cpus-per-task must > 0")
-		} else if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit > 1e6 {
-			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit)
-		}
-	}
-	if step.NtasksPerNode != nil && *step.NtasksPerNode <= 0 {
-		return fmt.Errorf("--ntasks-per-node must > 0")
-	}
-	if step.NodeNum != nil && *step.NodeNum <= 0 {
+	if step.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
 	if step.TimeLimit.AsDuration() <= 0 {
@@ -728,6 +764,13 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	}
 	if !CheckNodeList(step.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
+	}
+	// Calculate total CPUs if cpus_per_task is specified
+	if step.CpusPerTask != nil && step.Ntasks > 0 {
+		CpusTotal := *step.CpusPerTask * float64(step.Ntasks)
+		if CpusTotal > 1e6 {
+			return fmt.Errorf("requesting too many CPUs: %f", CpusTotal)
+		}
 	}
 	if step.ExtraAttr != "" {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
