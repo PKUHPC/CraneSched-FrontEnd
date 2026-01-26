@@ -121,13 +121,13 @@ func (d *DelegateEntry) validate() error {
 	}
 
 	if len(d.Conf) == 0 {
-		log.Warnf("meta-cni: delegate %s has no conf; using generated minimal config", d.identifier())
+		log.Warnf("meta-cni: delegate %s has no conf; using generated minimal config", d.Identifier())
 	}
 
 	if d.Name == "" {
 		hasName, err := d.confHasName()
 		if err != nil {
-			return fmt.Errorf("delegate %s config decode: %w", d.identifier(), err)
+			return fmt.Errorf("delegate %s config decode: %w", d.Identifier(), err)
 		}
 		if !hasName {
 			return errors.New("delegate name is required (set delegates[].name or conf.name)")
@@ -151,7 +151,8 @@ func (d *DelegateEntry) confHasName() (bool, error) {
 	return payload.Name != "", nil
 }
 
-func (d *DelegateEntry) identifier() string {
+// Identifier returns a stable name for logging and errors.
+func (d *DelegateEntry) Identifier() string {
 	if d == nil {
 		return "<nil>"
 	}

@@ -111,14 +111,8 @@ func cmdDel(args *skel.CmdArgs) error {
 
 func getDelegateNames(conf *metatypes.MetaPluginConf) string {
 	names := make([]string, len(conf.Delegates))
-	for i, d := range conf.Delegates {
-		if d.Name != "" {
-			names[i] = d.Name
-		} else if d.Type != "" {
-			names[i] = d.Type
-		} else {
-			names[i] = "<unknown>"
-		}
+	for i := range conf.Delegates {
+		names[i] = conf.Delegates[i].Identifier()
 	}
 	return strings.Join(names, ", ")
 }

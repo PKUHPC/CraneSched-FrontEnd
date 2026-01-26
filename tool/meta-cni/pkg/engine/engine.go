@@ -44,7 +44,7 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 
 	for idx, delegate := range delegates {
 		logger := log.WithFields(log.Fields{
-			"delegate": delegateIdentifier(delegate),
+			"delegate": delegate.Identifier(),
 			"action":   string(action),
 			"index":    idx,
 		})
@@ -57,7 +57,7 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 		restore, err := utils.ApplyEnv(env)
 		if err != nil {
 			logger.Errorf("error in applying runtime env: %v", err)
-			return nil, fmt.Errorf("meta-cni: delegate %s env setup failed: %w", delegateIdentifier(delegate), err)
+			return nil, fmt.Errorf("meta-cni: delegate %s env setup failed: %w", delegate.Identifier(), err)
 		}
 
 		logger.Debug("invoking delegate")
@@ -85,7 +85,7 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 
 		if callErr != nil {
 			logger.Errorf("error in calling: %v", callErr)
-			return nil, fmt.Errorf("meta-cni: delegate %s failed: %w", delegateIdentifier(delegate), callErr)
+			return nil, fmt.Errorf("meta-cni: delegate %s failed: %w", delegate.Identifier(), callErr)
 		}
 	}
 
@@ -179,7 +179,7 @@ func callDelegate(ctx context.Context, delegate *metatypes.DelegateEntry, action
 		return nil, err
 	}
 
-	log.Tracef("Delegate %s STDIN: %s", delegateIdentifier(delegate), string(confBytes))
+	log.Tracef("Delegate %s STDIN: %s", delegate.Identifier(), string(confBytes))
 
 	switch action {
 	case ActionAdd:
@@ -218,13 +218,13 @@ func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prev
 		}
 	} else {
 		if err = json.Unmarshal(delegate.Conf, &payload); err != nil {
-			return nil, "", fmt.Errorf("delegate %s config decode: %w", delegateIdentifier(delegate), err)
+			return nil, "", fmt.Errorf("delegate %s config decode: %w", delegate.Identifier(), err)
 		}
 		if payloadType, ok := payload["type"].(string); ok && payloadType != "" {
 			effectiveType = payloadType
 		}
 		if effectiveType == "" {
-			return nil, "", fmt.Errorf("delegate %s missing type", delegateIdentifier(delegate))
+			return nil, "", fmt.Errorf("delegate %s missing type", delegate.Identifier())
 		}
 		if _, ok := payload["type"]; !ok {
 			payload["type"] = effectiveType
@@ -257,18 +257,18 @@ func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prev
 
 	if prevResult != nil {
 		if configVersion == "" {
-			return nil, "", fmt.Errorf("delegate %s missing cniVersion for prevResult", delegateIdentifier(delegate))
+			return nil, "", fmt.Errorf("delegate %s missing cniVersion for prevResult", delegate.Identifier())
 		}
 		converted, err := prevResult.GetAsVersion(configVersion)
 		if err != nil {
-			return nil, "", fmt.Errorf("delegate %s prevResult convert: %w", delegateIdentifier(delegate), err)
+			return nil, "", fmt.Errorf("delegate %s prevResult convert: %w", delegate.Identifier(), err)
 		}
 		payload["prevResult"] = converted
 	}
 
 	confBytes, err := json.Marshal(payload)
 	if err != nil {
-		return nil, "", fmt.Errorf("delegate %s marshal: %w", delegateIdentifier(delegate), err)
+		return nil, "", fmt.Errorf("delegate %s marshal: %w", delegate.Identifier(), err)
 	}
 
 	return confBytes, effectiveType, nil
@@ -295,17 +295,4 @@ func updateChainResult(mode metatypes.ResultMode, current, latest cnitypes.Resul
 	default:
 		return current, nil
 	}
-}
-
-func delegateIdentifier(d *metatypes.DelegateEntry) string {
-	if d == nil {
-		return "<nil>"
-	}
-	if d.Name != "" {
-		return d.Name
-	}
-	if d.Type != "" {
-		return d.Type
-	}
-	return "<unknown>"
 }
