@@ -23,10 +23,13 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 type GlobalVariables struct {
@@ -66,15 +69,23 @@ type GlobalVariables struct {
 
 var gVars GlobalVariables
 
-func StartCfored() {
-	util.InitLogger(FlagDebugLevel)
-
+func StartCfored(cmd *cobra.Command) {
 	config := util.ParseConfig(FlagConfigFilePath)
+	isDebugLevelExplicit := cmd.Flags().Changed("debug-level")
+
+	// Determine effective log level
+	effectiveLogLevel := FlagDebugLevel
+	if !isDebugLevelExplicit && config.Cfored.DebugLevel != "" {
+		effectiveLogLevel = config.Cfored.DebugLevel
+	}
+	util.InitLogger(effectiveLogLevel)
 
 	util.DetectNetworkProxy()
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 	defer gVars.globalCtxCancel()
+
+	SetupAndRunSignalHandlerRoutine()
 
 	gVars.ctldConnected.Store(false)
 
@@ -105,4 +116,28 @@ func StartCfored() {
 
 	log.Debug("Waiting all go routines to exit...")
 	wgAllRoutines.Wait()
+}
+
+func SetupAndRunSignalHandlerRoutine() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP)
+
+	go func() {
+		for {
+			select {
+			case sig := <-sigChan:
+				if sig == syscall.SIGHUP {
+					log.Info("Received SIGHUP signal, reloading configuration...")
+					config := util.ParseConfig(FlagConfigFilePath)
+
+					if config.Cfored.DebugLevel != "" {
+						util.InitLogger(config.Cfored.DebugLevel)
+						log.Infof("Log level reloaded to %s", config.Cfored.DebugLevel)
+					}
+				}
+			case <-gVars.globalCtx.Done():
+				return
+			}
+		}
+	}()
 }

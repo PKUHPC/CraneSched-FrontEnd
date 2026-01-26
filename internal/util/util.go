@@ -26,9 +26,9 @@ import (
 )
 
 type Config struct {
-	ClusterName         string `yaml:"ClusterName"`
-	ControlMachine      string `yaml:"ControlMachine"`
-	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
+	ClusterName         string            `yaml:"ClusterName"`
+	ControlMachine      string            `yaml:"ControlMachine"`
+	CraneCtldListenPort string            `yaml:"CraneCtldListenPort"`
 	CranedNodeList      []ConfigNodesList `yaml:"Nodes"`
 
 	UseTls             bool   `yaml:"UseTls"`
@@ -39,7 +39,12 @@ type Config struct {
 
 	CraneBaseDir         string       `yaml:"CraneBaseDir"`
 	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
+	Cfored               CforedConfig `yaml:"Cfored"`
 	Plugin               PluginConfig `yaml:"Plugin"`
+}
+
+type CforedConfig struct {
+	DebugLevel string `yaml:"DebugLevel"`
 }
 
 type PluginConfig struct {
@@ -60,9 +65,9 @@ type InfluxDbConfig struct {
 }
 
 type ConfigNodesList struct {
-    Name   string `yaml:"name"`
-    CPU    int    `yaml:"cpu"`
-    Memory string `yaml:"memory"`
+	Name   string `yaml:"name"`
+	CPU    int    `yaml:"cpu"`
+	Memory string `yaml:"memory"`
 }
 
 // Path = BaseDir + Dir + Name
