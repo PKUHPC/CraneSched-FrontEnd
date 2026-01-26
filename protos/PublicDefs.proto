@@ -166,8 +166,10 @@ message Signal {
   uint32 signal_time = 2; // seconds_before_kill
   enum SignalFlag {
     NONE = 0;
-    B = 1;
-    R = 2;
+    // (B) Send the signal only to the batch shell, not to other job steps.
+    BATCH_ONLY = 1;
+    // (R) Allow this job to overlap with a reservation that has MaxStartDelay set
+    RESERVATION_OVERLAP = 2;
   }
   SignalFlag signal_flag = 3;
 }
@@ -402,11 +404,13 @@ message StepToD {
   string submit_hostname = 26;
   uint32 total_gpus = 27;
   string submit_dir = 28;
-  repeated Signal signals = 30;
 
   // Not used now.
   string extra_attr = 29;
 
+  string task_prolog = 30;
+  string task_epilog = 31;
+  repeated Signal signals = 32;
 }
 
 message JobStepsToD {

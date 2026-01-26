@@ -183,7 +183,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
-	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
+	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
 
 	initPodFlags(RootCmd)
 

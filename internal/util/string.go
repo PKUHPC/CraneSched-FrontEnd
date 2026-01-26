@@ -1651,14 +1651,18 @@ func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 		// matches[1]: Source (R or B)
 		if matches[1] != "" {
 			if matches[1] == "R" {
-				signal.SignalFlag = protos.Signal_R
+				signal.SignalFlag = protos.Signal_RESERVATION_OVERLAP
 			} else if matches[1] == "B" {
-				signal.SignalFlag = protos.Signal_B
+				signal.SignalFlag = protos.Signal_BATCH_ONLY
 			}
 		}
 
 		// matches[2]: Number or string
-		if sig_num, ok := SignalMap[matches[2]]; ok {
+		sigName := matches[2]
+		if strings.HasPrefix(sigName, "SIG") && len(sigName) > 3 {
+			sigName = sigName[3:]
+		}
+		if sig_num, ok := SignalMap[sigName]; ok {
 			signal.SignalNumber = sig_num
 		} else {
 			num, err := strconv.Atoi(matches[2])
