@@ -121,7 +121,7 @@ func SetupSignalHandler() {
 			case sig := <-sigChan:
 				if sig == syscall.SIGHUP {
 					log.Info("Received SIGHUP signal, reloading configuration...")
-					util.SetLoggerLevel(FlagDebugLevel)
+					log.SetReportCaller(false)
 				}
 			case <-gVars.globalCtx.Done():
 

@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -65,26 +66,31 @@ func SendReloadSignal() {
 
 	out, err := exec.Command("pidof", "cfored").Output()
 	if err != nil {
+		log.Errorf("Fail to execute command \"pidof cfored\". reason: %v", err)
 		os.Exit(1)
 	}
 
 	if len(out) == 0 {
+		log.Errorf("The pid of cfored is empty!")
 		os.Exit(1)
 	}
 
 	pidStr := string(out[:len(out)-1])
 	pid, err = strconv.Atoi(pidStr)
 	if err != nil {
+		log.Errorf("Unable to parse pid_string. reason: %v", err)
 		os.Exit(1)
 	}
 
 	process, err := os.FindProcess(pid)
 	if err != nil {
+		log.Errorf("Unable to find process: %d", pid)
 		os.Exit(1)
 	}
 
 	err = process.Signal(syscall.SIGHUP)
 	if err != nil {
+		log.Errorf("Fail when sending signal to the process. reason: %v", err)
 		os.Exit(1)
 	}
 }
