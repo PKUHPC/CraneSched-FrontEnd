@@ -26,7 +26,11 @@ func ProcessAllocCpus(task *protos.TaskInfo) string {
 
 // 'C' group
 func ProcessReqCpuPerNode(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
+	totalCpu := task.ReqResView.AllocatableRes.CpuCoreLimit
+	if task.Ntasks > 0 {
+		return strconv.FormatFloat(totalCpu/float64(task.Ntasks), 'f', 2, 64)
+	}
+	return strconv.FormatFloat(totalCpu, 'f', 2, 64)
 }
 
 // 'e' group
@@ -83,7 +87,11 @@ func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
 
 // 'M' group
 func ProcessReqMemPerNode(task *protos.TaskInfo) string {
-	return util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes)
+	totalMem := task.ReqResView.AllocatableRes.MemoryLimitBytes
+	if task.NodeNum > 0 {
+		return util.FormatMemToMB(totalMem / uint64(task.NodeNum))
+	}
+	return util.FormatMemToMB(totalMem)
 }
 
 // 'n' group
@@ -116,7 +124,8 @@ func ProcessQoS(task *protos.TaskInfo) string {
 
 // 'Q' group
 func ProcessReqCPUs(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+	totalCpu := task.ReqResView.AllocatableRes.CpuCoreLimit
+	return strconv.FormatFloat(totalCpu, 'f', 2, 64)
 }
 
 // 'r' group
