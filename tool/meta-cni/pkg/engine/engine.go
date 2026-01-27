@@ -49,7 +49,20 @@ func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) 
 			"index":    idx,
 		})
 
-		delegate.Annotations = conf.RuntimeConfig.KubernetesCRIPodAnnotations
+		var annotations map[string]string
+		if podAnnotationsInterface, ok := conf.RuntimeConfig["io.kubernetes.cri.pod-annotations"]; ok {
+			if podAnnotations, ok := podAnnotationsInterface.(map[string]any); ok {
+				for key, value := range podAnnotations {
+					if strVal, ok := value.(string); ok {
+						annotations[key] = strVal
+					} else {
+						annotations[key] = fmt.Sprintf("%v", value)
+					}
+				}
+			}
+		}
+
+		delegate.Annotations = annotations
 
 		env, err := buildRuntimeEnv(args, conf.RuntimeOverride, delegate.RuntimeOverride)
 		if err != nil {
