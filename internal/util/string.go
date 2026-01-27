@@ -679,6 +679,9 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 			return fmt.Errorf("invalid argument: NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
 		}
 	}
+	if task.CpusPerTask != nil && *task.CpusPerTask <= 0 {
+		return fmt.Errorf("invalid --cpus-per-task")
+	}
 	if err := CheckJobNameLength(task.Name); err != nil {
 		return err
 	}
@@ -750,6 +753,9 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 			log.Warnf("Warning: NtasksPerNode * NodeNum < Ntasks, ingnoring NtasksPerNode.")
 			step.NtasksPerNode = 0
 		}
+	}
+	if step.CpusPerTask != nil && *step.CpusPerTask <= 0 {
+		return fmt.Errorf("invalid --cpus-per-task")
 	}
 	if err := CheckJobNameLength(step.Name); err != nil {
 		return err
