@@ -225,8 +225,12 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		args := RunCommandArgs{
 			Program:    m.jobLifecycleHook.CrunProlog,
 			Args:       nil,
-			Envs:       m.job.Env,
 			TimeoutSec: 0,
+		}
+		if m.job != nil {
+			args.Envs = m.job.Env
+		} else {
+			args.Envs = m.step.Env
 		}
 		if m.jobLifecycleHook.PrologTimeout > 0 {
 			args.TimeoutSec = m.jobLifecycleHook.PrologTimeout
@@ -672,8 +676,12 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		args := RunCommandArgs{
 			Program:    m.jobLifecycleHook.CrunEpilog,
 			Args:       nil,
-			Envs:       m.job.Env,
 			TimeoutSec: 0,
+		}
+		if m.job != nil {
+			args.Envs = m.job.Env
+		} else {
+			args.Envs = m.step.Env
 		}
 		if m.jobLifecycleHook.EpilogTimeout > 0 {
 			args.TimeoutSec = m.jobLifecycleHook.EpilogTimeout
