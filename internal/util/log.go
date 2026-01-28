@@ -27,7 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func InitLogger(level string) {
+func SetupLogger(level string) {
 	SetLoggerLevel(level)
 	if level == "debug" || level == "trace" {
 		log.SetReportCaller(true)
@@ -56,6 +56,4 @@ func SetLoggerLevel(level string) {
 		log.Warnf("Invalid log level %s, using info level", level)
 		log.SetLevel(log.InfoLevel)
 	}
-	log.SetReportCaller(false)
-	log.SetFormatter(&nested.Formatter{})
 }

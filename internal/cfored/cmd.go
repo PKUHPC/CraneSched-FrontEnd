@@ -93,8 +93,12 @@ func SendReloadSignal() {
 		os.Exit(1)
 	}
 
-	err = process.Signal(syscall.SIGHUP)
-	if err != nil {
+	if err = process.Signal(syscall.Signal(0)); err != nil {
+		log.Errorf("Cfored process %d in pid file is not running: %v", pid, err)
+		os.Exit(1)
+	}
+
+	if err = process.Signal(syscall.SIGHUP); err != nil {
 		log.Errorf("Fail when sending signal to the process. reason: %v", err)
 		os.Exit(1)
 	}
