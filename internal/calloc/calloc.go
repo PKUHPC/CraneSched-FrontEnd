@@ -341,7 +341,7 @@ CallocStateMachineLoop:
 }
 
 func MainCalloc(cmd *cobra.Command, args []string) error {
-	util.InitLogger(FlagDebugLevel)
+	util.SetupLogger(FlagDebugLevel)
 
 	var err error
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())

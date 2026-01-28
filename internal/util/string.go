@@ -76,6 +76,16 @@ func ParseConfig(configFilePath string) *Config {
 		os.Exit(ErrorGeneric)
 	}
 
+	if config.Cfored.PidFilePath == "" {
+		config.Cfored.PidFilePath = filepath.Join(config.CraneBaseDir, DefaultCforedPidFilePath)
+	} else {
+		config.Cfored.PidFilePath = filepath.Join(config.CraneBaseDir, config.Cfored.PidFilePath)
+	}
+
+	if config.Cfored.DebugLevel == "" && config.CforedDebugLevel != nil {
+		config.Cfored.DebugLevel = *config.CforedDebugLevel
+	}
+
 	return config
 }
 
