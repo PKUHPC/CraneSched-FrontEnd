@@ -23,6 +23,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
@@ -614,6 +615,14 @@ func buildPodMeta(_ *cobra.Command, f *Flags, task *protos.TaskToCtld) (*protos.
 		if err := parsePortMapping(port, &podMeta.Ports); err != nil {
 			return nil, fmt.Errorf("invalid port mapping '%s': %v", port, err)
 		}
+	}
+
+	if f.Run.DNS != "" {
+		ip := net.ParseIP(f.Run.DNS)
+		if ip == nil || ip.To4() == nil {
+			return nil, fmt.Errorf("Invalid dns ipv4 format: %s", f.Run.DNS)
+		}
+		podMeta.Dns = f.Run.DNS
 	}
 
 	return podMeta, nil
