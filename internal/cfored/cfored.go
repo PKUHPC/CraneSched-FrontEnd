@@ -77,7 +77,6 @@ var gVars GlobalVariables
 
 func StartCfored(cmd *cobra.Command) {
 	config := util.ParseConfig(FlagConfigFilePath)
-	isDebugLevelExplicit := cmd.Flags().Changed("debug-level")
 
 	if config.Cfored.PidFilePath != "" {
 		pidDir := filepath.Dir(config.Cfored.PidFilePath)
@@ -112,7 +111,7 @@ func StartCfored(cmd *cobra.Command) {
 	log.SetOutput(io.MultiWriter(os.Stderr, logFile))
 
 	debugLevel := FlagDebugLevel
-	if !isDebugLevelExplicit && config.Cfored.DebugLevel != "" {
+	if !cmd.Flags().Changed("debug-level") && config.Cfored.DebugLevel != "" {
 		debugLevel = config.Cfored.DebugLevel
 	}
 	util.InitLogger(debugLevel)
