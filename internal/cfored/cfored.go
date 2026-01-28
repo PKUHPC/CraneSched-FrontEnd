@@ -75,27 +75,35 @@ type GlobalVariables struct {
 
 var gVars GlobalVariables
 
+const gReloadSignal = syscall.SIGUSR2
+
+func cleanupPidFile(pidFilePath string) {
+	if pidFilePath == "" {
+		return
+	}
+	if err := os.Remove(pidFilePath); err != nil && !os.IsNotExist(err) {
+		log.Warnf("Failed to remove pid file %s: %v", pidFilePath, err)
+	}
+}
+
 func StartCfored(cmd *cobra.Command) {
 	config := util.ParseConfig(FlagConfigFilePath)
+	pidFilePath := config.Cfored.PidFilePath
 
-	if config.Cfored.PidFilePath != "" {
-		pidDir := filepath.Dir(config.Cfored.PidFilePath)
+	if pidFilePath != "" {
+		pidDir := filepath.Dir(pidFilePath)
 		if err := os.MkdirAll(pidDir, 0o755); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to create pid directory %s: %v\n", pidDir, err)
 			os.Exit(1)
 		}
 
 		pidContent := strconv.Itoa(os.Getpid()) + "\n"
-		if err := os.WriteFile(config.Cfored.PidFilePath, []byte(pidContent), 0o644); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write pid file %s: %v\n", config.Cfored.PidFilePath, err)
+		if err := os.WriteFile(pidFilePath, []byte(pidContent), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write pid file %s: %v\n", pidFilePath, err)
 			os.Exit(1)
 		}
 
-		defer func(pidFile string) {
-			if err := os.Remove(pidFile); err != nil && !os.IsNotExist(err) {
-				log.Warnf("Failed to remove pid file %s: %v", pidFile, err)
-			}
-		}(config.Cfored.PidFilePath)
+		defer cleanupPidFile(pidFilePath)
 	}
 
 	if err := os.MkdirAll(config.CforedLogDir, 0o755); err != nil {
@@ -121,7 +129,7 @@ func StartCfored(cmd *cobra.Command) {
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 	defer gVars.globalCtxCancel()
 
-	SetupAndRunSignalHandlerRoutine()
+	SetupAndRunSignalHandlerRoutine(pidFilePath)
 
 	gVars.ctldConnected.Store(false)
 
@@ -154,24 +162,31 @@ func StartCfored(cmd *cobra.Command) {
 	wgAllRoutines.Wait()
 }
 
-func SetupAndRunSignalHandlerRoutine() {
+func SetupAndRunSignalHandlerRoutine(pidFilePath string) {
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGHUP)
+	signal.Notify(sigChan, gReloadSignal, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
 		for {
 			select {
 			case sig := <-sigChan:
-				if sig == syscall.SIGHUP {
-					log.Info("Received SIGHUP signal, reloading configuration...")
+				switch sig {
+				case gReloadSignal:
+					log.Info("Received reload signal, reloading configuration...")
 					config := util.ParseConfig(FlagConfigFilePath)
 
 					if config.Cfored.DebugLevel != "" {
 						util.SetupLogger(config.Cfored.DebugLevel)
 						log.Infof("Log level reloaded to %s", config.Cfored.DebugLevel)
 					}
+				case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
+					log.Infof("Received %s, shutting down...", sig)
+					cleanupPidFile(pidFilePath)
+					gVars.globalCtxCancel()
+					return
 				}
 			case <-gVars.globalCtx.Done():
+				cleanupPidFile(pidFilePath)
 				return
 			}
 		}

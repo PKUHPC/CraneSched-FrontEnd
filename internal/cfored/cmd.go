@@ -98,7 +98,7 @@ func SendReloadSignal() {
 		os.Exit(1)
 	}
 
-	if err = process.Signal(syscall.SIGHUP); err != nil {
+	if err = process.Signal(gReloadSignal); err != nil {
 		log.Errorf("Fail when sending signal to the process. reason: %v", err)
 		os.Exit(1)
 	}
