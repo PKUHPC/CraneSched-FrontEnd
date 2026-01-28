@@ -256,7 +256,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagSignal != "" {
 		signals, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: signal value '%s' in script: %w", FlagSignal, err)
+			return nil, fmt.Errorf("invalid argument: signal value '%s' : %w", FlagSignal, err)
 		}
 		for _, signal := range signals {
 			task.Signals = append(task.Signals, signal)
