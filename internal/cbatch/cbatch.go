@@ -253,6 +253,16 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.Reservation = FlagReservation
 	}
 
+	if FlagSignal != "" {
+		signals, err := util.ParseSignalParamString(FlagSignal)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: signal value '%s' : %w", FlagSignal, err)
+		}
+		for _, signal := range signals {
+			task.Signals = append(task.Signals, signal)
+		}
+	}
+
 	// Set pod meta if it's a container job
 	if task.Type == protos.TaskType_Container {
 		overridePodFromFlags(cmd, &podOpts)
@@ -456,6 +466,14 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			err := util.SetTaskDependencies(task, arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
+			}
+		case "-s", "--signal":
+			signals, err := util.ParseSignalParamString(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			for _, signal := range signals {
+				task.Signals = append(task.Signals, signal)
 			}
 		default:
 			return fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)

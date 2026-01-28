@@ -83,6 +83,7 @@ var (
 	FlagExtraNodeInfo string
 	FlagNTasksPerCore string
 	FlagConstraint    string
+	FlagSignal        string
 
 	FlagProlog     string
 	FlagEpilog     string
@@ -155,4 +156,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagEpilog, "epilog", "", "", "Epilog of the job")
 	RootCmd.Flags().StringVarP(&FlagTaskProlog, "task-prolog", "", "", "Task prolog of the job")
 	RootCmd.Flags().StringVarP(&FlagTaskEpilog, "task-epilog", "", "", "Task epilog of the job")
+	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R}:]<sig_num>[@sig_time]")
 }

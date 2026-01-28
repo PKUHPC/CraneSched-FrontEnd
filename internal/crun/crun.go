@@ -1524,6 +1524,21 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	}
 
+	if FlagSignal != "" {
+		if jobMode {
+			signals, err := util.ParseSignalParamString(FlagSignal)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
+			}
+			for _, sig := range signals {
+				if sig.SignalFlag == protos.Signal_BATCH_ONLY {
+					return util.NewCraneErr(util.ErrorCmdArg, "Invalid --signal specification")
+				}
+				job.Signals = append(job.Signals, sig)
+			}
+		}
+	}
+
 	// Marshal extra attributes
 	if jobMode {
 		if err := structExtraFromCli.Marshal(&job.ExtraAttr); err != nil {

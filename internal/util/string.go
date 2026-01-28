@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -39,6 +40,22 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
+
+var SignalMap = map[string]int32{
+	"HUP":  int32(syscall.SIGHUP),
+	"INT":  int32(syscall.SIGINT),
+	"QUIT": int32(syscall.SIGQUIT),
+	"ILL":  int32(syscall.SIGILL),
+	"ABRT": int32(syscall.SIGABRT),
+	"FPE":  int32(syscall.SIGFPE),
+	"KILL": int32(syscall.SIGKILL),
+	"SEGV": int32(syscall.SIGSEGV),
+	"PIPE": int32(syscall.SIGPIPE),
+	"ALRM": int32(syscall.SIGALRM),
+	"TERM": int32(syscall.SIGTERM),
+	"USR1": int32(syscall.SIGUSR1),
+	"USR2": int32(syscall.SIGUSR2),
+}
 
 // TODO: Refactor this to return ErrCodes instead of exiting.
 func ParseConfig(configFilePath string) *Config {
@@ -1621,4 +1638,63 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 		}
 	}
 	return nil
+}
+
+func ParseSignalParamString(input string) ([]*protos.Signal, error) {
+	var signals []*protos.Signal
+
+	var signalPattern = regexp.MustCompile(`^(?:(R|B):)?([A-Za-z0-9]+)(?:@(\d+))?$`)
+
+	items := strings.Split(input, ",")
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		matches := signalPattern.FindStringSubmatch(item)
+		if matches == nil {
+			return nil, fmt.Errorf("invalid signal format: %v", input)
+		}
+
+		signal := &protos.Signal{}
+
+		// matches[1]: Source (R or B)
+		if matches[1] != "" {
+			if matches[1] == "R" {
+				signal.SignalFlag = protos.Signal_RESERVATION_OVERLAP
+			} else if matches[1] == "B" {
+				signal.SignalFlag = protos.Signal_BATCH_ONLY
+			}
+		}
+
+		// matches[2]: Number or string
+		sigName := strings.ToUpper(matches[2])
+		if strings.HasPrefix(sigName, "SIG") && len(sigName) > 3 {
+			sigName = sigName[3:]
+		}
+		if sig_num, ok := SignalMap[sigName]; ok {
+			signal.SignalNumber = sig_num
+		} else {
+			num, err := strconv.Atoi(matches[2])
+			if err != nil {
+				return nil, fmt.Errorf("invalid signal number: %v", matches[2])
+			}
+			signal.SignalNumber = int32(num)
+		}
+
+		// matches[3]: Time (optional)
+		if matches[3] != "" {
+			t, err := strconv.Atoi(matches[3])
+			if err != nil {
+				return nil, fmt.Errorf("invalid signal time: %v", matches[3])
+			}
+			signal.SignalTime = uint32(t)
+		} else {
+			signal.SignalTime = 60
+		}
+
+		signals = append(signals, signal)
+	}
+
+	return signals, nil
 }
