@@ -65,6 +65,12 @@ func ParseConfig(configFilePath string) *Config {
 		config.CranedCforedSockPath = filepath.Join(config.CraneBaseDir, config.CranedCforedSockPath)
 	}
 
+	if config.Cfored.PidFilePath == "" {
+		config.Cfored.PidFilePath = filepath.Join(config.CraneBaseDir, DefaultCforedPidFilePath)
+	} else {
+		config.Cfored.PidFilePath = filepath.Join(config.CraneBaseDir, config.Cfored.PidFilePath)
+	}
+
 	return config
 }
 

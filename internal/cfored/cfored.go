@@ -24,6 +24,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -72,6 +74,24 @@ var gVars GlobalVariables
 func StartCfored(cmd *cobra.Command) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	isDebugLevelExplicit := cmd.Flags().Changed("debug-level")
+
+	if config.Cfored.PidFilePath != "" {
+		pidDir := filepath.Dir(config.Cfored.PidFilePath)
+		if err := os.MkdirAll(pidDir, 0o755); err != nil {
+			log.Fatalf("Failed to create pid directory %s: %v", pidDir, err)
+		}
+
+		pidContent := strconv.Itoa(os.Getpid()) + "\n"
+		if err := os.WriteFile(config.Cfored.PidFilePath, []byte(pidContent), 0o644); err != nil {
+			log.Fatalf("Failed to write pid file %s: %v", config.Cfored.PidFilePath, err)
+		}
+
+		defer func(pidFile string) {
+			if err := os.Remove(pidFile); err != nil && !os.IsNotExist(err) {
+				log.Warnf("Failed to remove pid file %s: %v", pidFile, err)
+			}
+		}(config.Cfored.PidFilePath)
+	}
 
 	// Determine effective log level
 	effectiveLogLevel := FlagDebugLevel

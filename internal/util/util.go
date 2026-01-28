@@ -44,7 +44,8 @@ type Config struct {
 }
 
 type CforedConfig struct {
-	DebugLevel string `yaml:"DebugLevel"`
+	DebugLevel  string `yaml:"DebugLevel"`
+	PidFilePath string `yaml:"PidFilePath"`
 }
 
 type PluginConfig struct {
@@ -78,6 +79,7 @@ const (
 	DefaultPlugindSocketPath = "cplugind/cplugind.sock"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
+	DefaultCforedPidFilePath         = "cfored/cfored.pid"
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
 

@@ -21,8 +21,8 @@ package cfored
 import (
 	"CraneFrontEnd/internal/util"
 	"os"
-	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
@@ -62,23 +62,28 @@ func ParseCmdArgs() {
 }
 
 func SendReloadSignal() {
-	var pid int
-
-	out, err := exec.Command("pidof", "cfored").Output()
-	if err != nil {
-		log.Errorf("Fail to execute command \"pidof cfored\". reason: %v", err)
+	config := util.ParseConfig(FlagConfigFilePath)
+	pidFilePath := config.Cfored.PidFilePath
+	if pidFilePath == "" {
+		log.Errorf("Pid file path is not configured")
 		os.Exit(1)
 	}
 
-	if len(out) == 0 {
-		log.Errorf("The pid of cfored is empty!")
+	out, err := os.ReadFile(pidFilePath)
+	if err != nil {
+		log.Errorf("Failed to read pid file %s. reason: %v", pidFilePath, err)
 		os.Exit(1)
 	}
 
-	pidStr := string(out[:len(out)-1])
-	pid, err = strconv.Atoi(pidStr)
+	pidStr := strings.TrimSpace(string(out))
+	if pidStr == "" {
+		log.Errorf("The pid stored in %s is empty", pidFilePath)
+		os.Exit(1)
+	}
+
+	pid, err := strconv.Atoi(pidStr)
 	if err != nil {
-		log.Errorf("Unable to parse pid_string. reason: %v", err)
+		log.Errorf("Unable to parse pid_string %q. reason: %v", pidStr, err)
 		os.Exit(1)
 	}
 
