@@ -527,6 +527,9 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
 		}
 		for _, signal := range signals {
+			if signal.SignalFlag == protos.Signal_BATCH_ONLY {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid --signal specification")
+			}
 			task.Signals = append(task.Signals, signal)
 		}
 	}

@@ -1530,8 +1530,11 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
 			}
-			for _, signal := range signals {
-				job.Signals = append(job.Signals, signal)
+			for _, sig := range signals {
+				if sig.SignalFlag == protos.Signal_BATCH_ONLY {
+					return util.NewCraneErr(util.ErrorCmdArg, "Invalid --signal specification")
+				}
+				job.Signals = append(job.Signals, sig)
 			}
 		}
 	}
