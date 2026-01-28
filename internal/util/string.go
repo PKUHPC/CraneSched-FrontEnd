@@ -1658,7 +1658,7 @@ func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 		}
 
 		// matches[2]: Number or string
-		sigName := matches[2]
+		sigName := strings.ToUpper(matches[2])
 		if strings.HasPrefix(sigName, "SIG") && len(sigName) > 3 {
 			sigName = sigName[3:]
 		}
