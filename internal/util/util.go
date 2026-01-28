@@ -39,6 +39,7 @@ type Config struct {
 	JobLifecycleHook JobLifecycleHookConfig `yaml:"JobLifecycleHook"`
 
 	Plugin PluginConfig `yaml:"Plugin"`
+	Cfored CforedConfig `yaml:"Cfored"`
 }
 
 type TLSConfig struct {
@@ -49,6 +50,11 @@ type TLSConfig struct {
 	CaFilePath           string `yaml:"CaFilePath"`
 	DomainSuffix         string `yaml:"DomainSuffix"`
 	UserTlsCertPath      string `yaml:"UserTlsCertPath"`
+}
+
+type CforedConfig struct {
+	DebugLevel  string `yaml:"DebugLevel"`
+	PidFilePath string `yaml:"PidFilePath"`
 }
 
 type PluginConfig struct {
@@ -96,6 +102,7 @@ const (
 	DefaultUserConfigPrefix = ".config/crane"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
+	DefaultCforedPidFilePath         = "cfored/cfored.pid"
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
 

@@ -21,13 +21,18 @@ package cfored
 import (
 	"CraneFrontEnd/internal/util"
 	"os"
+	"strconv"
+	"strings"
+	"syscall"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var (
 	FlagConfigFilePath string
 	FlagDebugLevel     string
+	FlagReload         bool
 )
 
 func ParseCmdArgs() {
@@ -36,7 +41,11 @@ func ParseCmdArgs() {
 		Short:   "Daemon for interactive job management",
 		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
-			StartCfored()
+			if FlagReload {
+				SendReloadSignal()
+				return
+			}
+			StartCfored(cmd)
 		},
 	}
 
@@ -44,9 +53,49 @@ func ParseCmdArgs() {
 	rootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
-		"", "Available debug level: trace,debug,info")
+		"info", "Available debug level: trace,debug,info")
+	rootCmd.PersistentFlags().BoolVar(&FlagReload, "reload", false, "Reload configuration")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(util.ErrorGeneric)
+	}
+}
+
+func SendReloadSignal() {
+	config := util.ParseConfig(FlagConfigFilePath)
+	pidFilePath := config.Cfored.PidFilePath
+	if pidFilePath == "" {
+		log.Errorf("Pid file path is not configured")
+		os.Exit(1)
+	}
+
+	out, err := os.ReadFile(pidFilePath)
+	if err != nil {
+		log.Errorf("Failed to read pid file %s. reason: %v", pidFilePath, err)
+		os.Exit(1)
+	}
+
+	pidStr := strings.TrimSpace(string(out))
+	if pidStr == "" {
+		log.Errorf("The pid stored in %s is empty", pidFilePath)
+		os.Exit(1)
+	}
+
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		log.Errorf("Unable to parse pid_string %q. reason: %v", pidStr, err)
+		os.Exit(1)
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		log.Errorf("Unable to find process: %d", pid)
+		os.Exit(1)
+	}
+
+	err = process.Signal(syscall.SIGHUP)
+	if err != nil {
+		log.Errorf("Fail when sending signal to the process. reason: %v", err)
+		os.Exit(1)
 	}
 }

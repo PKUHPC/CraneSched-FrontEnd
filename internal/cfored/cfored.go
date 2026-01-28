@@ -19,18 +19,23 @@
 package cfored
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"path/filepath"
-
-	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
+
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type GlobalVariables struct {
@@ -70,35 +75,54 @@ type GlobalVariables struct {
 
 var gVars GlobalVariables
 
-func StartCfored() {
+func StartCfored(cmd *cobra.Command) {
 	config := util.ParseConfig(FlagConfigFilePath)
-	debugLevel := "info"
-	if config.CforedDebugLevel != nil {
-		debugLevel = *config.CforedDebugLevel
-	}
-	if FlagDebugLevel != "" {
-		debugLevel = FlagDebugLevel
+	isDebugLevelExplicit := cmd.Flags().Changed("debug-level")
+
+	if config.Cfored.PidFilePath != "" {
+		pidDir := filepath.Dir(config.Cfored.PidFilePath)
+		if err := os.MkdirAll(pidDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create pid directory %s: %v\n", pidDir, err)
+			os.Exit(1)
+		}
+
+		pidContent := strconv.Itoa(os.Getpid()) + "\n"
+		if err := os.WriteFile(config.Cfored.PidFilePath, []byte(pidContent), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write pid file %s: %v\n", config.Cfored.PidFilePath, err)
+			os.Exit(1)
+		}
+
+		defer func(pidFile string) {
+			if err := os.Remove(pidFile); err != nil && !os.IsNotExist(err) {
+				log.Warnf("Failed to remove pid file %s: %v", pidFile, err)
+			}
+		}(config.Cfored.PidFilePath)
 	}
 
-	util.InitLogger(debugLevel)
-
-	if err := os.MkdirAll(config.CforedLogDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create log directory: %s\n", err.Error())
+	if err := os.MkdirAll(config.CforedLogDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
 		os.Exit(1)
 	}
 
-	logFile := lumberjack.Logger{
+	logFile := &lumberjack.Logger{
 		Filename:   filepath.Join(config.CforedLogDir, "cfored.log"),
 		MaxSize:    500, // megabytes
 		MaxBackups: 3,
 	}
+	log.SetOutput(io.MultiWriter(os.Stderr, logFile))
 
-	log.SetOutput(io.MultiWriter(os.Stderr, &logFile))
+	debugLevel := FlagDebugLevel
+	if !isDebugLevelExplicit && config.Cfored.DebugLevel != "" {
+		debugLevel = config.Cfored.DebugLevel
+	}
+	util.InitLogger(debugLevel)
 
 	util.DetectNetworkProxy()
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 	defer gVars.globalCtxCancel()
+
+	SetupAndRunSignalHandlerRoutine()
 
 	gVars.ctldConnected.Store(false)
 
@@ -129,4 +153,28 @@ func StartCfored() {
 
 	log.Debug("Waiting all go routines to exit...")
 	wgAllRoutines.Wait()
+}
+
+func SetupAndRunSignalHandlerRoutine() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP)
+
+	go func() {
+		for {
+			select {
+			case sig := <-sigChan:
+				if sig == syscall.SIGHUP {
+					log.Info("Received SIGHUP signal, reloading configuration...")
+					config := util.ParseConfig(FlagConfigFilePath)
+
+					if config.Cfored.DebugLevel != "" {
+						util.InitLogger(config.Cfored.DebugLevel)
+						log.Infof("Log level reloaded to %s", config.Cfored.DebugLevel)
+					}
+				}
+			case <-gVars.globalCtx.Done():
+				return
+			}
+		}
+	}()
 }
