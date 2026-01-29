@@ -70,6 +70,7 @@ var (
 
 	FlagHold      bool
 	FlagBeginTime string
+	FlagDns       string
 
 	// not implement feature:
 	FlagNTasks          string

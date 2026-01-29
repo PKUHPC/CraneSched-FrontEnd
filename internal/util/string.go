@@ -1698,3 +1698,12 @@ func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 
 	return signals, nil
 }
+
+func CheckIpv4Format(ip string) error {
+	ipv4Regex := `^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`
+	matched, err := regexp.MatchString(ipv4Regex, ip)
+	if err != nil || !matched {
+		return fmt.Errorf("Invalid ipv4 format: %s", ip)
+	}
+	return nil
+}
