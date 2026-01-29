@@ -178,6 +178,11 @@ func runExecute(cmd *cobra.Command, args []string) error {
 			return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container step: %v", err)
 		}
 
+		// Check generic step arguments
+		if err := util.CheckStepArgs(step); err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid step arguments: %v", err)
+		}
+
 		if err := validateContainerStep(step); err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "validation failed: %v", err)
 		}
@@ -188,6 +193,11 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		task, err := buildContainerJob(cmd, f, image, command)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container task: %v", err)
+		}
+
+		// Check generic task arguments
+		if err := util.CheckTaskArgs(task); err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid task arguments: %v", err)
 		}
 
 		if err := validateContainerJob(task); err != nil {
@@ -229,13 +239,16 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 
 	// CPU allocation
 	if f.Crane.CpusPerTask > 0 {
-		task.CpusPerTask = f.Crane.CpusPerTask
+		cpuPerTask := float64(f.Crane.CpusPerTask)
+		task.CpusPerTask = &cpuPerTask
 	} else if f.Run.Cpus > 0 {
 		log.Warn("--cpus is deprecated, please use --cpus-per-task instead")
-		task.CpusPerTask = f.Run.Cpus
+		cpuPerTask := float64(f.Run.Cpus)
+		task.CpusPerTask = &cpuPerTask
 	} else {
 		// Default to 1 CPU if not specified
-		task.CpusPerTask = 1
+		cpuPerTask := float64(1)
+		task.CpusPerTask = &cpuPerTask
 	}
 
 	// Memory allocation - prefer --mem over --memory
@@ -252,8 +265,7 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 		if err != nil {
 			return fmt.Errorf("invalid memory specification '%s': %v", memorySpec, err)
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memoryBytes
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memoryBytes
+		task.MemPerNode = &memoryBytes
 	}
 
 	// GPU allocation - prefer --gres over --gpus
@@ -265,8 +277,7 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	}
 
 	if gresSpec != "" {
-		// Set GPU resources via DeviceMap (like cbatch does)
-		task.ReqResources.DeviceMap = util.ParseGres(gresSpec)
+		task.GresPerNode = util.ParseGres(gresSpec)
 	}
 
 	return nil
@@ -274,27 +285,18 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 
 // applyStepResourceOptions applies optional resource overrides to a container step.
 func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToCtld) error {
-	ensureAlloc := func() {
-		if step.ReqResourcesPerTask == nil {
-			step.ReqResourcesPerTask = &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{},
-			}
-		} else if step.ReqResourcesPerTask.AllocatableRes == nil {
-			step.ReqResourcesPerTask.AllocatableRes = &protos.AllocatableResource{}
-		}
-	}
-
 	// CPU allocation
 	if flagChanged(cmd, "cpus-per-task") || flagChanged(cmd, "cpus") {
 		if f.Run.Cpus > 0 && f.Crane.CpusPerTask > 0 {
 			return fmt.Errorf("--cpus and --cpus-per-task are mutually exclusive")
 		}
-		ensureAlloc()
 		if f.Crane.CpusPerTask > 0 {
-			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = f.Crane.CpusPerTask
+			cpuPerTask := float64(f.Crane.CpusPerTask)
+			step.CpusPerTask = &cpuPerTask
 		} else if f.Run.Cpus > 0 {
 			log.Warn("--cpus is deprecated, please use --cpus-per-task instead")
-			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = f.Run.Cpus
+			cpuPerTask := float64(f.Run.Cpus)
+			step.CpusPerTask = &cpuPerTask
 		}
 	}
 
@@ -312,9 +314,7 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 			if err != nil {
 				return fmt.Errorf("invalid memory specification '%s': %v", memorySpec, err)
 			}
-			ensureAlloc()
-			step.ReqResourcesPerTask.AllocatableRes.MemoryLimitBytes = memoryBytes
-			step.ReqResourcesPerTask.AllocatableRes.MemorySwLimitBytes = memoryBytes
+			step.MemPerNode = &memoryBytes
 		}
 	}
 
@@ -331,22 +331,24 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 			if f.Run.Gpus != "" && f.Crane.Gres == "" {
 				return fmt.Errorf("--gpus is not supported. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'")
 			}
-			if step.ReqResourcesPerTask == nil {
-				step.ReqResourcesPerTask = &protos.ResourceView{}
-			}
-			step.ReqResourcesPerTask.DeviceMap = util.ParseGres(gresSpec)
+			step.GresPerNode = util.ParseGres(gresSpec)
 		}
 	}
 
 	// Node-related overrides
 	if flagChanged(cmd, "nodes") {
 		val := f.Crane.Nodes
-		step.NodeNum = &val
+		step.NodeNum = val
 	}
 
 	if flagChanged(cmd, "ntasks-per-node") {
 		val := f.Crane.NtasksPerNode
-		step.NtasksPerNode = &val
+		step.NtasksPerNode = val
+	}
+
+	if flagChanged(cmd, "ntasks") {
+		val := f.Crane.Ntasks
+		step.Ntasks = val
 	}
 
 	if flagChanged(cmd, "nodelist") {
@@ -396,17 +398,9 @@ func applySchedulingOptions(f *Flags, task *protos.TaskToCtld) error {
 	}
 
 	// Node allocation - validate parameters
-	if f.Crane.Nodes > 0 {
-		task.NodeNum = f.Crane.Nodes
-	} else {
-		task.NodeNum = 1
-	}
-
-	if f.Crane.NtasksPerNode > 0 {
-		task.NtasksPerNode = f.Crane.NtasksPerNode
-	} else {
-		task.NtasksPerNode = 1
-	}
+	task.NodeNum = f.Crane.Nodes
+	task.NtasksPerNode = f.Crane.NtasksPerNode
+	task.Ntasks = f.Crane.Ntasks
 
 	// Node list (specific nodes)
 	if f.Crane.Nodelist != "" {
@@ -622,18 +616,11 @@ func buildPodMeta(_ *cobra.Command, f *Flags, task *protos.TaskToCtld) (*protos.
 // buildContainerJob creates a TaskToCtld with container metadata from command line arguments
 func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []string) (*protos.TaskToCtld, error) {
 	task := &protos.TaskToCtld{
-		Type:      protos.TaskType_Container,
-		TimeLimit: util.InvalidDuration(),
-		ReqResources: &protos.ResourceView{
-			AllocatableRes: &protos.AllocatableResource{
-				CpuCoreLimit:       1,
-				MemoryLimitBytes:   0,
-				MemorySwLimitBytes: 0,
-			},
-		},
-		NodeNum:       1,
-		NtasksPerNode: 1,
-		CpusPerTask:   1,
+		Type:          protos.TaskType_Container,
+		TimeLimit:     util.InvalidDuration(),
+		NodeNum:       0,
+		NtasksPerNode: 0,
+		Ntasks:        0,
 		GetUserEnv:    false,
 		Env:           make(map[string]string),
 	}
@@ -676,11 +663,31 @@ func buildContainerStep(cmd *cobra.Command, f *Flags, jobId uint32, image string
 	}
 
 	step := &protos.StepToCtld{
-		TimeLimit: util.InvalidDuration(),
-		JobId:     jobId,
-		Type:      protos.TaskType_Container,
-		Env:       make(map[string]string),
-		Name:      f.Run.Name,
+		TimeLimit:     util.InvalidDuration(),
+		JobId:         jobId,
+		Type:          protos.TaskType_Container,
+		Env:           make(map[string]string),
+		Name:          f.Run.Name,
+		NodeNum:       0,
+		NtasksPerNode: 0,
+		Ntasks:        0,
+	}
+
+	// Inherit from job environment variables
+	if ntasksStr, exists := syscall.Getenv("CRANE_NTASKS"); exists {
+		if ntasks, err := strconv.ParseUint(ntasksStr, 10, 32); err == nil {
+			step.Ntasks = uint32(ntasks)
+		}
+	}
+	if numNodesStr, exists := syscall.Getenv("CRANE_JOB_NUM_NODES"); exists {
+		if numNodes, err := strconv.ParseUint(numNodesStr, 10, 32); err == nil {
+			step.NodeNum = uint32(numNodes)
+		}
+	}
+	if ntasksPerNodeStr, exists := syscall.Getenv("CRANE_NTASKS_PER_NODE"); exists {
+		if ntasksPerNode, err := strconv.ParseUint(ntasksPerNodeStr, 10, 32); err == nil {
+			step.NtasksPerNode = uint32(ntasksPerNode)
+		}
 	}
 
 	if err := applyStepResourceOptions(cmd, f, step); err != nil {
