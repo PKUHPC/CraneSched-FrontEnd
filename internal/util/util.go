@@ -31,11 +31,15 @@ type Config struct {
 
 	TlsConfig TLSConfig `yaml:"TLS"`
 
-	CraneBaseDir         string       `yaml:"CraneBaseDir"`
-	CforedLogDir         string       `yaml:"CforedLogDir"`
-	CforedDebugLevel     *string      `yaml:"CforedDebugLevel"`
-	CranedCforedSockPath string       `yaml:"CranedCforedSockPath"`
-	Plugin               PluginConfig `yaml:"Plugin"`
+	CraneBaseDir         string  `yaml:"CraneBaseDir"`
+	CforedLogDir         string  `yaml:"CforedLogDir"`
+	CforedDebugLevel     *string `yaml:"CforedDebugLevel"`
+	CranedCforedSockPath string  `yaml:"CranedCforedSockPath"`
+
+	JobLifecycleHook JobLifecycleHookConfig `yaml:"JobLifecycleHook"`
+
+	Plugin PluginConfig `yaml:"Plugin"`
+	Cfored CforedConfig `yaml:"Cfored"`
 }
 
 type TLSConfig struct {
@@ -48,6 +52,11 @@ type TLSConfig struct {
 	UserTlsCertPath      string `yaml:"UserTlsCertPath"`
 }
 
+type CforedConfig struct {
+	DebugLevel  string `yaml:"DebugLevel"`
+	PidFilePath string `yaml:"PidFilePath"`
+}
+
 type PluginConfig struct {
 	Enabled       bool             `yaml:"Enabled"`
 	SockPath      string           `yaml:"PlugindSockPath"`
@@ -55,6 +64,14 @@ type PluginConfig struct {
 	ListenPort    string           `yaml:"PlugindListenPort"`
 	LogLevel      string           `yaml:"PlugindDebugLevel"`
 	Plugins       []api.PluginMeta `yaml:"Plugins"`
+}
+
+type JobLifecycleHookConfig struct {
+	CrunProlog          string `yaml:"CrunProlog"`
+	CrunEpilog          string `yaml:"CrunEpilog"`
+	PrologTimeout       uint64 `yaml:"PrologTimeout"`
+	EpilogTimeout       uint64 `yaml:"EpilogTimeout"`
+	PrologEpilogTimeout uint64 `yaml:"PrologEpilogTimeout"`
 }
 
 // InfluxDB Config represents the structure of the database configuration
@@ -85,6 +102,7 @@ const (
 	DefaultUserConfigPrefix = ".config/crane"
 
 	DefaultCforedSocketPath          = "craned/cfored.sock"
+	DefaultCforedPidFilePath         = "cfored/cfored.pid"
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
 

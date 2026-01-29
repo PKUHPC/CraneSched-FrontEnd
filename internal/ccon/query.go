@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,10 +40,16 @@ func psExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "ps command does not accept any arguments")
 	}
 
+	filterUsers, err := currentUserFilter()
+	if err != nil {
+		return err
+	}
+
 	f := GetFlags()
 	request := protos.QueryTasksInfoRequest{
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
 		OptionIncludeCompletedTasks: f.Ps.All,
+		FilterUsers:                 filterUsers,
 	}
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
@@ -152,10 +159,16 @@ func podExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "pod command does not accept any arguments")
 	}
 
+	filterUsers, err := currentUserFilter()
+	if err != nil {
+		return err
+	}
+
 	f := GetFlags()
 	request := protos.QueryTasksInfoRequest{
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
 		OptionIncludeCompletedTasks: f.Pod.All,
+		FilterUsers:                 filterUsers,
 	}
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
@@ -258,9 +271,27 @@ func formatDuration(d time.Duration) string {
 	}
 }
 
+func currentUserFilter() ([]string, error) {
+	if os.Getuid() == 0 {
+		return nil, nil
+	}
+
+	cu, err := user.Current()
+	if err != nil {
+		return nil, util.WrapCraneErr(util.ErrorGeneric, "failed to get username: %v", err)
+	}
+
+	return []string{cu.Username}, nil
+}
+
 func inspectPodExecute(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return util.NewCraneErr(util.ErrorCmdArg, "inspectp requires exactly one argument: POD")
+	}
+
+	filterUsers, err := currentUserFilter()
+	if err != nil {
+		return err
 	}
 
 	jobIDStr := args[0]
@@ -275,6 +306,7 @@ func inspectPodExecute(cmd *cobra.Command, args []string) error {
 		FilterIds:                   idFilter,
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
 		OptionIncludeCompletedTasks: true,
+		FilterUsers:                 filterUsers,
 	}
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)
@@ -306,6 +338,11 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "inspect requires exactly one argument: CONTAINER (format: JOBID.STEPID)")
 	}
 
+	filterUsers, err := currentUserFilter()
+	if err != nil {
+		return err
+	}
+
 	jobID, stepID, err := util.ParseJobIdStepIdStrict(args[0])
 	if err != nil {
 		return err
@@ -321,6 +358,7 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 		FilterIds:                   idFilter,
 		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
 		OptionIncludeCompletedTasks: true,
+		FilterUsers:                 filterUsers,
 	}
 
 	reply, err := stub.QueryTasksInfo(context.Background(), &request)

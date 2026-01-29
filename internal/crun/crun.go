@@ -23,6 +23,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"net"
+	"os/exec"
 	"os/user"
 	"regexp"
 	"strconv"
@@ -112,10 +113,27 @@ type StateMachineOfCrun struct {
 	chanOutputFromRemote    chan []byte
 	chanX11InputFromLocal   chan []byte
 	chanX11OutputFromRemote chan []byte
+
+	jobLifecycleHook JobLifecycleHook
 }
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CrunStreamClient
 	replyChannel chan ReplyReceiveItem
+}
+
+type JobLifecycleHook struct {
+	CrunProlog          string
+	CrunEpilog          string
+	PrologTimeout       uint64
+	EpilogTimeout       uint64
+	PrologEpilogTimeout uint64
+}
+
+type RunCommandArgs struct {
+	Program    string
+	Args       []string
+	Envs       map[string]string
+	TimeoutSec uint64
 }
 
 func (r *CforedReplyReceiver) GetReplyChannel() chan ReplyReceiveItem {
@@ -189,6 +207,45 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		m.err = util.ErrorBackend
 		m.state = End
 		return
+	}
+	m.jobLifecycleHook.CrunProlog = config.JobLifecycleHook.CrunProlog
+	m.jobLifecycleHook.CrunEpilog = config.JobLifecycleHook.CrunEpilog
+	m.jobLifecycleHook.PrologTimeout = config.JobLifecycleHook.PrologTimeout
+	m.jobLifecycleHook.EpilogTimeout = config.JobLifecycleHook.EpilogTimeout
+	m.jobLifecycleHook.PrologEpilogTimeout = config.JobLifecycleHook.PrologEpilogTimeout
+
+	if FlagProlog != "" {
+		m.jobLifecycleHook.CrunProlog = FlagProlog
+	}
+	if FlagEpilog != "" {
+		m.jobLifecycleHook.CrunEpilog = FlagEpilog
+	}
+
+	if len(m.jobLifecycleHook.CrunProlog) > 0 {
+		args := RunCommandArgs{
+			Program:    m.jobLifecycleHook.CrunProlog,
+			Args:       nil,
+			TimeoutSec: 0,
+		}
+		if m.job != nil {
+			args.Envs = m.job.Env
+		} else {
+			args.Envs = m.step.Env
+		}
+		if m.jobLifecycleHook.PrologTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.PrologTimeout
+		}
+		if m.jobLifecycleHook.PrologEpilogTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.PrologEpilogTimeout
+		}
+		ExitCode := m.RunCommand(args)
+		if ExitCode != 0 {
+			log.Errorf("Prolog '%s' failed (exit code %d).", m.jobLifecycleHook.CrunProlog, ExitCode)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		}
+		log.Tracef("Prolog '%s' finished successfully.", m.jobLifecycleHook.CrunProlog)
 	}
 
 	m.client = protos.NewCraneForeDClient(m.conn)
@@ -615,6 +672,33 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		m.err = util.ErrorBackend
 	}
 
+	if len(m.jobLifecycleHook.CrunEpilog) > 0 {
+		args := RunCommandArgs{
+			Program:    m.jobLifecycleHook.CrunEpilog,
+			Args:       nil,
+			TimeoutSec: 0,
+		}
+		if m.job != nil {
+			args.Envs = m.job.Env
+		} else {
+			args.Envs = m.step.Env
+		}
+		if m.jobLifecycleHook.EpilogTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.EpilogTimeout
+		}
+		if m.jobLifecycleHook.PrologEpilogTimeout > 0 {
+			args.TimeoutSec = m.jobLifecycleHook.PrologEpilogTimeout
+		}
+		ExitCode := m.RunCommand(args)
+		if ExitCode != 0 {
+			log.Errorf("Epilog '%s' failed (exit code %d).", m.jobLifecycleHook.CrunEpilog, ExitCode)
+			m.err = util.ErrorBackend
+			m.state = End
+			return
+		}
+		log.Tracef("Epilog '%s' finished successfully.", m.jobLifecycleHook.CrunEpilog)
+	}
+
 	m.state = End
 }
 
@@ -1037,8 +1121,66 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	}
 }
 
+func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
+	ExitCode := 127
+
+	ctx := context.Background()
+	if runCommandArgs.TimeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(runCommandArgs.TimeoutSec)*time.Second)
+		defer cancel()
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	cmd := exec.CommandContext(ctx, runCommandArgs.Program, runCommandArgs.Args...)
+
+	if len(runCommandArgs.Envs) > 0 {
+		envs := os.Environ()
+		for k, v := range runCommandArgs.Envs {
+			envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+		}
+		cmd.Env = envs
+	}
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	if err := cmd.Start(); err != nil {
+		log.Errorf("Failed to start command: %v", err.Error())
+		return -1
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-ctx.Done():
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+
+	case <-sigCh:
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+
+	case err := <-done:
+		if err != nil {
+			log.Errorf("Failed to execute command: %v", err.Error())
+		}
+	}
+
+	if cmd.ProcessState != nil {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if status.Exited() {
+				ExitCode = status.ExitStatus()
+			}
+		}
+	}
+
+	return ExitCode
+}
+
 func MainCrun(cmd *cobra.Command, args []string) error {
-	util.InitLogger(FlagDebugLevel)
+	util.SetupLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 
@@ -1097,7 +1239,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
 
-			Env: make(map[string]string),
+			Env:        make(map[string]string),
+			TaskProlog: FlagTaskProlog,
+			TaskEpilog: FlagTaskEpilog,
 		}
 	} else {
 		step = &protos.StepToCtld{
@@ -1117,7 +1261,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			CmdLine: strings.Join(args, " "),
 			Cwd:     gVars.cwd,
 
-			Env: make(map[string]string),
+			Env:        make(map[string]string),
+			TaskProlog: FlagTaskProlog,
+			TaskEpilog: FlagTaskEpilog,
 		}
 	}
 
@@ -1376,6 +1522,21 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+	}
+
+	if FlagSignal != "" {
+		if jobMode {
+			signals, err := util.ParseSignalParamString(FlagSignal)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
+			}
+			for _, sig := range signals {
+				if sig.SignalFlag == protos.Signal_BATCH_ONLY {
+					return util.NewCraneErr(util.ErrorCmdArg, "Invalid --signal specification")
+				}
+				job.Signals = append(job.Signals, sig)
+			}
+		}
 	}
 
 	// Marshal extra attributes

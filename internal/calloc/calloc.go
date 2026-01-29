@@ -341,7 +341,7 @@ CallocStateMachineLoop:
 }
 
 func MainCalloc(cmd *cobra.Command, args []string) error {
-	util.InitLogger(FlagDebugLevel)
+	util.SetupLogger(FlagDebugLevel)
 
 	var err error
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -519,6 +519,19 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	task.SubmitHostname, err = os.Hostname()
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorSystem, "Get submit hostname err: %s.", err)
+	}
+
+	if FlagSignal != "" {
+		signals, err := util.ParseSignalParamString(FlagSignal)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
+		}
+		for _, signal := range signals {
+			if signal.SignalFlag == protos.Signal_BATCH_ONLY {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid --signal specification")
+			}
+			task.Signals = append(task.Signals, signal)
+		}
 	}
 
 	// Marshal extra attributes

@@ -29,6 +29,10 @@ type MetaPluginConf struct {
 	ResultMode      ResultMode       `json:"resultMode,omitempty"`
 	RuntimeOverride *RuntimeOverride `json:"runtimeOverride,omitempty"`
 	Delegates       []DelegateEntry  `json:"delegates"`
+
+	// RuntimeConfig is passed by the container runtime (e.g., containerd)
+	// and contains dynamic settings like port mappings, bandwidth limits, etc.
+	RuntimeConfig map[string]any `json:"runtimeConfig,omitempty"`
 }
 
 // DelegateEntry describes a child plugin invoked by this meta plugin.
@@ -117,13 +121,13 @@ func (d *DelegateEntry) validate() error {
 	}
 
 	if len(d.Conf) == 0 {
-		log.Warnf("meta-cni: delegate %s has no conf; using generated minimal config", d.identifier())
+		log.Warnf("meta-cni: delegate %s has no conf; using generated minimal config", d.Identifier())
 	}
 
 	if d.Name == "" {
 		hasName, err := d.confHasName()
 		if err != nil {
-			return fmt.Errorf("delegate %s config decode: %w", d.identifier(), err)
+			return fmt.Errorf("delegate %s config decode: %w", d.Identifier(), err)
 		}
 		if !hasName {
 			return errors.New("delegate name is required (set delegates[].name or conf.name)")
@@ -147,7 +151,8 @@ func (d *DelegateEntry) confHasName() (bool, error) {
 	return payload.Name != "", nil
 }
 
-func (d *DelegateEntry) identifier() string {
+// Identifier returns a stable name for logging and errors.
+func (d *DelegateEntry) Identifier() string {
 	if d == nil {
 		return "<nil>"
 	}
@@ -158,4 +163,10 @@ func (d *DelegateEntry) identifier() string {
 		return d.Type
 	}
 	return "<unknown>"
+}
+
+// String returns a human-readable representation of DelegateEntry for logging.
+func (d DelegateEntry) String() string {
+	return fmt.Sprintf("{Name:%s Type:%s Conf:%s RuntimeOverride:%+v Annotations:%v}",
+		d.Name, d.Type, string(d.Conf), d.RuntimeOverride, d.Annotations)
 }

@@ -45,7 +45,7 @@ var (
 		Version: util.Version(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			util.DetectNetworkProxy()
-			util.InitLogger(GetFlags().Global.DebugLevel)
+			util.SetupLogger(GetFlags().Global.DebugLevel)
 
 			var err error
 			if cmd != RunCmd {
