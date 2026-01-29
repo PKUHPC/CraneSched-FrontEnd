@@ -671,6 +671,42 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 				formatTableData[currentRow] = append(formatTableData[currentRow], fmt.Sprint(cpusPerUserStr))
 				currentRow++
 			}
+		case "maxjobsperaccount":
+			tableOutputHeader[i] = "MaxJobsPerAccount"
+			for _, info := range qosList {
+				var jobsPerAccountStr string
+				if info.MaxJobsPerAccount == math.MaxUint32 {
+					jobsPerAccountStr = "unlimited"
+				} else {
+					jobsPerAccountStr = strconv.FormatUint(uint64(info.MaxJobsPerAccount), 10)
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], fmt.Sprint(jobsPerAccountStr))
+				currentRow++
+			}
+		case "maxsubmitjobsperuser":
+			tableOutputHeader[i] = "MaxSubmitJobsPerUser"
+			for _, info := range qosList {
+				var submitJobsPerUserStr string
+				if info.MaxSubmitJobsPerUser == math.MaxUint32 {
+					submitJobsPerUserStr = "unlimited"
+				} else {
+					submitJobsPerUserStr = strconv.FormatUint(uint64(info.MaxSubmitJobsPerUser), 10)
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], submitJobsPerUserStr)
+				currentRow++
+			}
+		case "maxsubmitjobsperaccount":
+			tableOutputHeader[i] = "MaxSubmitJobsPerAccount"
+			for _, info := range qosList {
+				var submitJobsPerAccountStr string
+				if info.MaxSubmitJobsPerAccount == math.MaxUint32 {
+					submitJobsPerAccountStr = "unlimited"
+				} else {
+					submitJobsPerAccountStr = strconv.FormatUint(uint64(info.MaxSubmitJobsPerAccount), 10)
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], submitJobsPerAccountStr)
+				currentRow++
+			}
 		case "maxtimelimitpertask":
 			tableOutputHeader[i] = "MaxTimeLimitPerTask"
 			for _, info := range qosList {
@@ -692,7 +728,7 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 }
 
 func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
-	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxTimeLimitPerTask"}
+	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxJobsPerAccount", "MaxSubmitJobsPerUser", "MaxSubmitJobsPerAccount", "MaxTimeLimitPerTask"}
 	tableCtx.tableData = make([][]string, 0, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -713,12 +749,33 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 		} else {
 			cpusPerUserStr = strconv.FormatUint(uint64(info.MaxCpusPerUser), 10)
 		}
+		var jobsPerAccountStr string
+		if info.MaxJobsPerAccount == math.MaxUint32 {
+			jobsPerAccountStr = "unlimited"
+		} else {
+			jobsPerAccountStr = strconv.FormatUint(uint64(info.MaxJobsPerAccount), 10)
+		}
+		var submitJobsPerUserStr string
+		if info.MaxSubmitJobsPerUser == math.MaxUint32 {
+			submitJobsPerUserStr = "unlimited"
+		} else {
+			submitJobsPerUserStr = strconv.FormatUint(uint64(info.MaxSubmitJobsPerUser), 10)
+		}
+		var submitJobsPerAccountStr string
+		if info.MaxSubmitJobsPerAccount == math.MaxUint32 {
+			submitJobsPerAccountStr = "unlimited"
+		} else {
+			submitJobsPerAccountStr = strconv.FormatUint(uint64(info.MaxSubmitJobsPerAccount), 10)
+		}
 		tableCtx.tableData = append(tableCtx.tableData, []string{
 			info.Name,
 			info.Description,
 			fmt.Sprint(info.Priority),
 			fmt.Sprint(jobsPerUserStr),
 			fmt.Sprint(cpusPerUserStr),
+			fmt.Sprint(jobsPerAccountStr),
+			fmt.Sprint(submitJobsPerUserStr),
+			fmt.Sprint(submitJobsPerAccountStr),
 			fmt.Sprint(timeLimitStr)})
 	}
 }
