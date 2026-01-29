@@ -1196,7 +1196,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 				return util.ErrorCmdArg
 			}
 			params = append(params, ModifyParam{
-				ModifyField: protos.ModifyField_FLags,
+				ModifyField: protos.ModifyField_Flags,
 				NewValue:    strconv.FormatUint(uint64(FlagQosFlags), 10),
 			})
 		default:

@@ -847,7 +847,7 @@ enum ModifyField {
   MaxTres = 16;
   MaxTresPerUser = 17;
   MaxTresPerAccount = 18;
-  FLags = 19;
+  Flags = 19;
 
   // wckey
   DefaultWckey = 40;

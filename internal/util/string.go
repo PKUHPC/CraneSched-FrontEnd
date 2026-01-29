@@ -1232,7 +1232,7 @@ func ParseTres(tres string) *protos.ResourceView {
 		if strings.HasPrefix(item, "gres/") && len(item) > 5 {
 			gresStr += item[5:] + ","
 		} else {
-			kv := strings.SplitN(item, "=", 2)
+			kv := strings.SplitN(item, ":", 2)
 			if len(kv) == 2 {
 				key := strings.TrimSpace(kv[0])
 				value := strings.TrimSpace(kv[1])
