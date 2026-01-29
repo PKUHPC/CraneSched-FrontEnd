@@ -707,6 +707,72 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 				formatTableData[currentRow] = append(formatTableData[currentRow], submitJobsPerAccountStr)
 				currentRow++
 			}
+		case "maxtresperuser":
+			tableOutputHeader[i] = "MaxTresPerUser"
+			for _, info := range qosList {
+				formatTableData[currentRow] = append(formatTableData[currentRow], util.ResourceViewToTres(info.MaxTresPerUser))
+				currentRow++
+			}
+		case "maxtresperaccount":
+			tableOutputHeader[i] = "MaxTresPerAccount"
+			for _, info := range qosList {
+				formatTableData[currentRow] = append(formatTableData[currentRow], util.ResourceViewToTres(info.MaxTresPerAccount))
+				currentRow++
+			}
+		case "maxtres":
+			tableOutputHeader[i] = "MaxTres"
+			for _, info := range qosList {
+				formatTableData[currentRow] = append(formatTableData[currentRow], util.ResourceViewToTres(info.MaxTres))
+				currentRow++
+			}
+		case "maxjobs":
+			tableOutputHeader[i] = "MaxJobs"
+			for _, info := range qosList {
+				var maxJobsStr string
+				if info.MaxJobs == math.MaxUint32 {
+					maxJobsStr = "unlimited"
+				} else {
+					maxJobsStr = strconv.FormatUint(uint64(info.MaxJobs), 10)
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], maxJobsStr)
+				currentRow++
+			}
+		case "maxsubmitjobs":
+			tableOutputHeader[i] = "MaxSubmitJobs"
+			for _, info := range qosList {
+				var maxSubmitJobsStr string
+				if info.MaxSubmitJobs == math.MaxUint32 {
+					maxSubmitJobsStr = "unlimited"
+				} else {
+					maxSubmitJobsStr = strconv.FormatUint(uint64(info.MaxSubmitJobs), 10)
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], maxSubmitJobsStr)
+				currentRow++
+			}
+		case "maxwall":
+			tableOutputHeader[i] = "MaxWall"
+			for _, info := range qosList {
+				var maxWallStr string
+				if info.MaxWall >= util.MaxJobTimeLimit {
+					maxWallStr = "unlimited"
+				} else {
+					maxWallStr = util.SecondTimeFormat(int64(info.MaxWall))
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], maxWallStr)
+				currentRow++
+			}
+		case "flag":
+			tableOutputHeader[i] = "Flag"
+			for _, info := range qosList {
+				var qosFlagStr string
+				if info.Flags == 0 {
+					qosFlagStr = "None"
+				} else {
+					qosFlagStr = "DenyOnLimit"
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], qosFlagStr)
+				currentRow++
+			}
 		case "maxtimelimitpertask":
 			tableOutputHeader[i] = "MaxTimeLimitPerTask"
 			for _, info := range qosList {
@@ -728,7 +794,9 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 }
 
 func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
-	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser", "MaxJobsPerAccount", "MaxSubmitJobsPerUser", "MaxSubmitJobsPerAccount", "MaxTimeLimitPerTask"}
+	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser",
+		"MaxJobsPerAccount", "MaxSubmitJobsPerUser", "MaxSubmitJobsPerAccount", "MaxTresPerUser", "MaxTresPerAccount",
+		"MaxTres", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxTimeLimitPerTask", "Flag"}
 	tableCtx.tableData = make([][]string, 0, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -767,6 +835,32 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 		} else {
 			submitJobsPerAccountStr = strconv.FormatUint(uint64(info.MaxSubmitJobsPerAccount), 10)
 		}
+		var maxJobsStr string
+		if info.MaxJobs == math.MaxUint32 {
+			maxJobsStr = "unlimited"
+		} else {
+			maxJobsStr = strconv.FormatUint(uint64(info.MaxJobs), 10)
+		}
+		var maxSubmitJobsStr string
+		if info.MaxSubmitJobs == math.MaxUint32 {
+			maxSubmitJobsStr = "unlimited"
+		} else {
+			maxSubmitJobsStr = strconv.FormatUint(uint64(info.MaxSubmitJobs), 10)
+		}
+		var maxWallStr string
+		if info.MaxWall >= util.MaxJobTimeLimit {
+			maxWallStr = "unlimited"
+		} else {
+			maxWallStr = util.SecondTimeFormat(int64(info.MaxWall))
+		}
+
+		var qosFlagStr string
+		if info.Flags == 0 {
+			qosFlagStr = "None"
+		} else {
+			qosFlagStr = "DenyOnLimit"
+		}
+
 		tableCtx.tableData = append(tableCtx.tableData, []string{
 			info.Name,
 			info.Description,
@@ -776,7 +870,14 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 			fmt.Sprint(jobsPerAccountStr),
 			fmt.Sprint(submitJobsPerUserStr),
 			fmt.Sprint(submitJobsPerAccountStr),
-			fmt.Sprint(timeLimitStr)})
+			util.ResourceViewToTres(info.MaxTresPerUser),
+			util.ResourceViewToTres(info.MaxTresPerAccount),
+			util.ResourceViewToTres(info.MaxTres),
+			maxJobsStr,
+			maxSubmitJobsStr,
+			maxWallStr,
+			fmt.Sprint(timeLimitStr),
+			qosFlagStr})
 	}
 }
 

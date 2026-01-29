@@ -43,6 +43,8 @@ var (
 	FlagServerName   string
 	FlagClusters     string
 
+	FlagQosFlags uint32
+
 	// FlagPartition and FlagSetPartition are different.
 	// FlagPartition limits the operation to a specific partition,
 	// while the other is the partition to be added or deleted.
@@ -244,7 +246,14 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 		MaxSubmitJobsPerUser:    math.MaxUint32,
 		MaxSubmitJobsPerAccount: math.MaxUint32,
 		MaxJobsPerAccount:       math.MaxUint32,
+		MaxTresPerUser:          util.ParseTres(""),
+		MaxTresPerAccount:       util.ParseTres(""),
+		MaxJobs:                 math.MaxUint32,
+		MaxSubmitJobs:           math.MaxUint32,
+		MaxTres:                 util.ParseTres(""),
+		MaxWall:                 util.MaxJobTimeLimit,
 		MaxTimeLimitPerTask:     util.MaxJobTimeLimit,
+		Flags:                   0,
 	}
 	FlagQos.Name = command.GetID()
 
@@ -297,6 +306,37 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			}
 			maxJobsPerAccount, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobsPerAccount = uint32(maxJobsPerAccount)
+		case "maxtresperuser":
+			FlagQos.MaxTresPerUser = util.ParseTres(value)
+		case "maxtresperaccount":
+			FlagQos.MaxTresPerAccount = util.ParseTres(value)
+		case "maxtres":
+			FlagQos.MaxTres = util.ParseTres(value)
+		case "maxjobs":
+			if err := validateUintValue(value, "maxjobs", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxJobs, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.MaxJobs = uint32(maxJobs)
+		case "maxsubmitjobs":
+			if err := validateUintValue(value, "maxsubmitjobs", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxsubmitjobs, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.MaxSubmitJobs = uint32(maxsubmitjobs)
+		case "maxwall":
+			if err := validateUintValue(value, "maxWall", 64); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxWall, _ := strconv.ParseUint(value, 10, 64)
+			FlagQos.MaxWall = maxWall
+		case "flags":
+			var err error
+			if FlagQosFlags, err = util.ParseFlags(value); err != nil {
+				log.Errorf("invalid argument %s ,err: %v", value, err)
+				return util.ErrorCmdArg
+			}
+			FlagQos.Flags = FlagQosFlags
 		default:
 			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
@@ -1086,6 +1126,45 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 				ModifyField: protos.ModifyField_MaxSubmitJobsPerAccount,
 				NewValue:    value,
 			})
+		case "maxtresperuser":
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTresPerUser,
+				NewValue:    value,
+			})
+		case "maxtresperaccount":
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTresPerAccount,
+				NewValue:    value,
+			})
+		case "maxtres":
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTres,
+				NewValue:    value,
+			})
+		case "maxjobs":
+			if err := validateUintValue(value, "maxjobs", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxJobs,
+				NewValue:    value,
+			})
+		case "maxsubmitjobs":
+			if err := validateUintValue(value, "maxsubmitjobs", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxSubmitJobs,
+				NewValue:    value,
+			})
+		case "maxwall":
+			if err := validateUintValue(value, "maxwall", 64); err != nil {
+				return util.ErrorCmdArg
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxWall,
+				NewValue:    value,
+			})
 		case "maxtimelimitpertask":
 			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
 				return util.ErrorCmdArg
@@ -1109,6 +1188,16 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_Description,
 				NewValue:    FlagDescription,
+			})
+		case "flags":
+			var err error
+			if FlagQosFlags, err = util.ParseFlags(value); err != nil {
+				log.Errorf("invalid argument %s ,err: %v", value, err)
+				return util.ErrorCmdArg
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_FLags,
+				NewValue:    strconv.FormatUint(uint64(FlagQosFlags), 10),
 			})
 		default:
 			log.Errorf("Error: unknown set parameter '%s' for qos modification", key)

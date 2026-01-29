@@ -288,24 +288,6 @@ func AddQos(qos *protos.QosInfo) util.ExitCode {
 		return util.ErrorCmdArg
 	}
 
-	qos.MaxTres = util.ParseTres(FlagGrpTres)
-	qos.MaxTresPerUser = util.ParseTres(FlagMaxTresPerUser)
-	qos.MaxTresPerAccount = util.ParseTres(FlagMaxTresPerAccount)
-
-	if FlagQosFlags != "" {
-		flags, err := util.ParseFlags(FlagQosFlags)
-		if err != nil {
-			fmt.Printf("%v.\nValid QOS flags: [", err)
-			var keys []string
-			for k := range util.QoSFlagNameMap {
-				keys = append(keys, k)
-			}
-			fmt.Printf("%s]\n", strings.Join(keys, ","))
-			return util.ErrorCmdArg
-		}
-		qos.Flags = flags
-	}
-
 	req := new(protos.AddQosRequest)
 	req.Uid = userUid
 	req.Qos = qos

@@ -107,3 +107,12 @@ const (
 	OpenModeAppend   = "append"
 	OpenModeTruncate = "truncate"
 )
+
+const (
+	QOSFlagDenyOnLimit uint32 = 1 << iota
+)
+
+var QoSFlagNameMap = map[string]uint32{
+	"none":        0,
+	"denyonlimit": QOSFlagDenyOnLimit,
+}
