@@ -342,9 +342,9 @@ func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
 		startTime := span.StartTime.AsTime()
 		endTime := span.EndTime.AsTime()
 		duration := endTime.Sub(startTime).Microseconds()
-		
+
 		fields["duration_us"] = duration
-		
+
 		// Add custom attributes
 		for k, v := range span.Attributes {
 			fields[k] = v

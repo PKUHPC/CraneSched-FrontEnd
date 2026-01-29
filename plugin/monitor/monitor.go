@@ -219,7 +219,7 @@ func (p MonitorPlugin) TraceHook(ctx *api.PluginContext) {
 		log.Error("Invalid request type, expected TraceHookRequest")
 		return
 	}
-	
+
 	if err := db.GetInstance().SaveSpans(req.GetSpans()); err != nil {
 		log.Errorf("Failed to save spans: %v", err)
 	}
