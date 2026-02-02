@@ -203,7 +203,6 @@ func QueryUsersTopSummaryItem() error {
 	var JobSummaryItemList []*protos.JobSummaryItem
 	for {
 		batch, err := stream.Recv()
-		fmt.Println(util.FmtJson.FormatReply(batch))
 		if err == io.EOF {
 			break
 		}
