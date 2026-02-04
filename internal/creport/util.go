@@ -37,6 +37,10 @@ var validCreportTypes = map[string]string{
 	"percent": "Percentage of Total",
 }
 
+type CreportJsonWrapper struct {
+	DataList interface{} `json:"data_list"`
+}
+
 func CheckCreportOutType(outType string) bool {
 	_, ok := validCreportTypes[outType]
 	return ok
@@ -72,7 +76,10 @@ func PrintUsageTypeInfo(outType string, isJobSize, printCount bool) {
 }
 
 func PrintAsJsonToStdout(outputList interface{}) {
-	encodedJson, err := json.Marshal(outputList)
+	wrapper := CreportJsonWrapper{
+		DataList: outputList,
+	}
+	encodedJson, err := json.Marshal(wrapper)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to encode json: %v\n", err)
 		return

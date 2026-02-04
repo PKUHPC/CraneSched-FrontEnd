@@ -643,7 +643,7 @@ func PrintAccountUserTable(outputList []AccountUserJson, startTime, endTime time
 func PrintAccountUserSummary(JobSummaryItemList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool, sortByAccountFirst bool) {
 	divisor := ReportUsageDivisor(FlagOutType)
 	usernameToName := make(map[string]string)
-	var outputList []AccountUserJson
+	outputList := []AccountUserJson{}
 
 	// Sorting
 	if sortByAccountFirst {
@@ -742,7 +742,7 @@ func PrintUserWckeyTable(outputList []UserWckeyJson, startTime, endTime time.Tim
 func PrintUserWckeySummary(itemList []*protos.JobSummaryItem, startTime, endTime time.Time, isJson bool, sortByUserFirst bool) {
 	divisor := ReportUsageDivisor(FlagOutType)
 	usernameToName := make(map[string]string)
-	var outputList []UserWckeyJson
+	outputList := []UserWckeyJson{}
 
 	// Sorting
 	if sortByUserFirst {
@@ -816,7 +816,7 @@ func PrintAccountQosList(JobSummaryItemList []*protos.JobSummaryItem, startTime,
 	})
 
 	divisor := ReportUsageDivisor(FlagOutType)
-	var outputList []AccountQosJson
+	outputList := []AccountQosJson{}
 
 	for _, item := range JobSummaryItemList {
 		outputList = append(outputList, AccountQosJson{
@@ -866,7 +866,7 @@ func PrintClusterList(JobSummaryItemList []*protos.JobSummaryItem, startTime, en
 	}
 
 	divisor := ReportUsageDivisor(FlagOutType)
-	var outputList []ClusterUtilizationJson
+	outputList := []ClusterUtilizationJson{}
 
 	for cluster, totalCpuTime := range clusterMap {
 		outputList = append(outputList, ClusterUtilizationJson{
@@ -1000,7 +1000,7 @@ func PrintAccountCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, sta
 	}
 
 	// Prepare outputList for JSON
-	var outputList []AccountCpusSummaryJson
+	outputList := []AccountCpusSummaryJson{}
 
 	clusters := make([]string, 0, len(clusterAccountMap))
 	for cluster := range clusterAccountMap {
@@ -1161,7 +1161,7 @@ func PrintWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem, start
 	}
 
 	// Prepare outputList for JSON
-	var outputList []WckeyCpusSummaryJson
+	outputList := []WckeyCpusSummaryJson{}
 
 	clusters := make([]string, 0, len(clusterWckeyMap))
 	for cluster := range clusterWckeyMap {
@@ -1323,7 +1323,7 @@ func PrintAccountWckeyCpusList(accountUserWckeyList []*protos.JobSizeSummaryItem
 	}
 
 	// Prepare outputList for JSON
-	var outputList []AccountWckeyCpusSummaryJson
+	outputList := []AccountWckeyCpusSummaryJson{}
 
 	clusters := make([]string, 0, len(clusterAccountWckeyMap))
 	for cluster := range clusterAccountWckeyMap {
