@@ -226,6 +226,7 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 
 func GetInvalidMsg(partitionCraned *protos.TrimmedPartitionInfo) []string {
 	return []string{
+		"",
 		partitionCraned.Name,
 		strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
 		"0",
@@ -256,6 +257,7 @@ func BuildStateString(cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo)
 func CreateValidPartitionRow(partition *protos.TrimmedPartitionInfo, cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) []string {
 	stateStr := BuildStateString(cranedList)
 	return []string{
+		cranedList.StateReason,
 		partition.Name,
 		strings.ToLower(strings.TrimPrefix(partition.State.String(), "PARTITION_")),
 		strconv.FormatUint(uint64(cranedList.Count), 10),
@@ -293,6 +295,19 @@ func FillTable(reply *protos.QueryClusterInfoReply, table *tablewriter.Table) er
 	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var err error
 	tableData := FindTableDataByReply(reply)
+	if FlagListReason {
+		header = append([]string{"REASON"}, header...)
+		tableData = FilterBadState(tableData)
+	} else {
+		for i := range tableData {
+			if len(tableData[i]) > 1 {
+				tableData[i] = tableData[i][1:]
+			} else {
+				tableData[i] = []string{}
+			}
+		}
+	}
+
 	if FlagFormat != "" {
 		header, tableData, err = FormatData(reply)
 		if err != nil {
@@ -301,7 +316,6 @@ func FillTable(reply *protos.QueryClusterInfoReply, table *tablewriter.Table) er
 		table.SetTablePadding("")
 		table.SetAutoFormatHeaders(false)
 	}
-
 	table.AppendBulk(tableData)
 	if !FlagNoHeader {
 		table.SetHeader(header)
@@ -383,4 +397,20 @@ func JsonOutput(reply *protos.QueryClusterInfoReply) error {
 	} else {
 		return util.NewCraneErr(util.ErrorBackend, "Backend returned non-ok status")
 	}
+}
+
+func FilterBadState(tableData [][]string) [][]string {
+	var new_table [][]string
+	//TODO: need to expand
+	pattern := `drain`
+
+	re := regexp.MustCompile(pattern)
+	for _, data := range tableData {
+		//FIXME: HARD CODE
+		if re.MatchString(data[4]) {
+			new_table = append(new_table, data)
+		}
+	}
+
+	return new_table
 }
