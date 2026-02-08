@@ -15,14 +15,26 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
+const (
+	// kAnnotationFQDN is the pod annotation key set by the CraneSched backend.
+	// It carries the authoritative FQDN for the pod's DNS record.
+	kAnnotationFQDN = "cranesched.internal/fqdn"
+
+	// kEtcdOpTimeout is the timeout for individual etcd operations.
+	kEtcdOpTimeout = 3 * time.Second
+)
+
 type DNSRegisterConfig struct {
 	types.NetConf
-	EtcdEndpoints []string          `json:"etcdEndpoints"`
-	Domain        string            `json:"domain"`
-	TTL           int               `json:"ttl"`
-	LeaseTTL      int               `json:"leaseTTL"`
-	Debug         bool              `json:"debug,omitempty"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
+	EtcdEndpoints []string `json:"etcdEndpoints"`
+	TTL           int      `json:"ttl"`
+	LeaseTTL      int      `json:"leaseTTL"`
+
+	// RuntimeConfig is populated by the container runtime (e.g., containerd)
+	// when the corresponding capabilities are declared in the CNI config.
+	RuntimeConfig struct {
+		PodAnnotations map[string]string `json:"io.kubernetes.cri.pod-annotations,omitempty"`
+	} `json:"runtimeConfig"`
 }
 
 // used in etcd
@@ -35,6 +47,10 @@ type DNSRecord struct {
 	Owner string `json:"owner,omitempty"`
 	// lastUpdate
 	TS int64 `json:"ts,omitempty"`
+}
+
+type leaseGranter interface {
+	Grant(ctx context.Context, ttl int64) (*clientv3.LeaseGrantResponse, error)
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
@@ -63,101 +79,82 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("no IP address found")
 	}
 
-	var (
-		hostname string
-		uid      string
-		exists   bool
-	)
-	// HARD_CODE
-	namespace := "namespace"
-	hostname, exists = config.Annotations["hostname"]
-	if !exists {
-		return fmt.Errorf("hostname is missing!")
-	}
-
-	uid, exists = config.Annotations["uid"]
-	if !exists {
-		return fmt.Errorf("uid is missing!")
-	}
-
-	fqdn := getFQDN(hostname, namespace, config.Domain)
-	etcdKey, err := getEtcdKey(fqdn)
-	if err != nil {
-		return fmt.Errorf("failed to get etcd key: %v", err)
-	}
-
-	if len(config.EtcdEndpoints) > 0 {
-		cli, err := clientv3.New(clientv3.Config{
-			Endpoints:   config.EtcdEndpoints,
-			DialTimeout: 5 * time.Second,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to connect to etcd: %v", err)
-		}
-		defer cli.Close()
-
-		ctx := context.Background()
-		leaseResp, err := cli.Grant(ctx, int64(config.LeaseTTL))
-		if err != nil {
-			return fmt.Errorf("failed to create lease: %v", err)
-		}
-
-		record := DNSRecord{
-			Host:  podIP,
-			TTL:   config.TTL,
-			Owner: uid,
-			TS:    time.Now().Unix(),
-		}
-
-		recordJSON, err := json.Marshal(record)
-		if err != nil {
-			return fmt.Errorf("failed to marshal record: %v", err)
-		}
-
-		_, err = cli.Put(ctx, etcdKey, string(recordJSON), clientv3.WithLease(leaseResp.ID))
-		if err != nil {
-			return fmt.Errorf("failed to write to etcd: %v", err)
-		}
-	}
-
-	return types.PrintResult(config.PrevResult, config.CNIVersion)
-}
-
-func cmdDel(args *skel.CmdArgs) error {
-
-	config := DNSRegisterConfig{}
-	if err := json.Unmarshal(args.StdinData, &config); err != nil {
-		return err
-	}
-
-	var (
-		hostname string
-		exists   bool
-	)
-	// HARD_CODE
-	namespace := "namespace"
-	hostname, exists = config.Annotations["hostname"]
-	if !exists {
-		return fmt.Errorf("hostname is missing!")
-	}
-
-	fqdn := getFQDN(hostname, namespace, config.Domain)
-	etcdKey, err := getEtcdKey(fqdn)
+	fqdn, err := getFQDNFromAnnotation(config.RuntimeConfig.PodAnnotations)
 	if err != nil {
 		return err
+	}
+
+	etcdKey := fqdnToEtcdKey(fqdn)
+	uid := args.ContainerID
+
+	if len(config.EtcdEndpoints) == 0 {
+		return fmt.Errorf("no etcd endpoints configured")
 	}
 
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   config.EtcdEndpoints,
 		DialTimeout: 5 * time.Second,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to connect to etcd: %v", err)
+	}
+	defer cli.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), kEtcdOpTimeout)
+	defer cancel()
+
+	record := DNSRecord{
+		Host:  podIP,
+		TTL:   config.TTL,
+		Owner: uid,
+		TS:    time.Now().Unix(),
+	}
+
+	recordJSON, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("failed to marshal record: %v", err)
+	}
+
+	putOpts, err := buildPutOptions(ctx, cli, config.LeaseTTL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare etcd put options: %v", err)
+	}
+
+	_, err = cli.Put(ctx, etcdKey, string(recordJSON), putOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to write to etcd: %v", err)
+	}
+
+	return types.PrintResult(config.PrevResult, config.CNIVersion)
+}
+
+func cmdDel(args *skel.CmdArgs) error {
+	config := DNSRegisterConfig{}
+	if err := json.Unmarshal(args.StdinData, &config); err != nil {
+		return err
+	}
+
+	if args.ContainerID == "" {
+		return fmt.Errorf("container ID is required for DEL")
+	}
+
+	fqdn, err := getFQDNFromAnnotation(config.RuntimeConfig.PodAnnotations)
+	if err != nil {
+		return err
+	}
+
+	etcdKey := fqdnToEtcdKey(fqdn)
+
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   config.EtcdEndpoints,
+		DialTimeout: 5 * time.Second,
+	})
 	if err != nil {
 		return err
 	}
 	defer cli.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), kEtcdOpTimeout)
 	defer cancel()
 
 	resp, err := cli.Get(ctx, etcdKey)
@@ -165,27 +162,29 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	// Idempotent: if the key doesn't exist, nothing to delete.
+	if len(resp.Kvs) == 0 {
+		return nil
+	}
+
 	kv := resp.Kvs[0]
 
-	var record DNSRecord
-	if err := json.Unmarshal(kv.Value, &record); err != nil {
-		return err
-	}
-
-	if kv.Lease > 0 {
-		leaseID := clientv3.LeaseID(kv.Lease)
-
-		_, err := cli.Revoke(ctx, leaseID)
-		if err != nil {
-			return err
-		}
-	}
-	_, err = cli.Delete(ctx, etcdKey)
+	shouldDelete, err := shouldDeleteRecordForContainer(kv.Value, args.ContainerID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode dns record for key %q: %v", etcdKey, err)
+	}
+	if !shouldDelete {
+		return nil
 	}
 
-	return nil
+	// Revoke the lease first so the key is auto-deleted even if
+	// the explicit Delete below fails for some reason.
+	if kv.Lease > 0 {
+		_, _ = cli.Revoke(ctx, clientv3.LeaseID(kv.Lease))
+	}
+
+	_, err = cli.Delete(ctx, etcdKey)
+	return err
 }
 
 // ---------- TODO ----------
@@ -206,25 +205,87 @@ func main() {
 	}, version.All, "dns-register")
 }
 
-func getFQDN(hostname, namespace, domain string) string {
-	return fmt.Sprintf("%s.%s.%s", hostname, namespace, domain)
+// getFQDNFromAnnotation extracts and validates the FQDN from pod annotations.
+func getFQDNFromAnnotation(annotations map[string]string) (string, error) {
+	fqdn, ok := annotations[kAnnotationFQDN]
+	if !ok || fqdn == "" {
+		return "", fmt.Errorf("pod annotation %q is required but missing", kAnnotationFQDN)
+	}
+
+	if err := validateFQDN(fqdn); err != nil {
+		return "", fmt.Errorf("invalid FQDN %q: %w", fqdn, err)
+	}
+
+	return fqdn, nil
 }
 
-// use coredns
-func getEtcdKey(fqdn string) (string, error) {
-	// SkyDNS 风格 key: /skydns/local/cluster/<ns>/<hostname>
-	parts := strings.Split(fqdn, ".")
-	if len(parts) < 3 {
-		return "", fmt.Errorf("invalid FQDN: %s", fqdn)
+// validateFQDN checks that fqdn is a syntactically valid domain name.
+func validateFQDN(fqdn string) error {
+	// Strip optional trailing dot.
+	name := strings.TrimSuffix(fqdn, ".")
+	if name == "" {
+		return fmt.Errorf("empty name")
+	}
+	if len(name) > 253 {
+		return fmt.Errorf("exceeds 253 characters")
 	}
 
-	// 反转域名
-	var reversed []string
-	for i := len(parts) - 1; i >= 0; i-- {
-		if parts[i] != "" {
-			reversed = append(reversed, parts[i])
+	labels := strings.Split(name, ".")
+	if len(labels) < 2 {
+		return fmt.Errorf("must contain at least 2 labels")
+	}
+	for _, label := range labels {
+		if label == "" {
+			return fmt.Errorf("contains empty label")
+		}
+		if len(label) > 63 {
+			return fmt.Errorf("label %q exceeds 63 characters", label)
 		}
 	}
+	return nil
+}
 
-	return "/coredns/" + strings.Join(reversed, "/"), nil
+// fqdnToEtcdKey converts a FQDN to a CoreDNS etcd plugin key.
+// CoreDNS etcd plugin stores records under a reversed domain path,
+// e.g. "host.ns.cluster.local" → "/coredns/local/cluster/ns/host".
+func fqdnToEtcdKey(fqdn string) string {
+	name := strings.TrimSuffix(fqdn, ".")
+	parts := strings.Split(name, ".")
+
+	reversed := make([]string, len(parts))
+	for i, p := range parts {
+		reversed[len(parts)-1-i] = p
+	}
+
+	return "/coredns/" + strings.Join(reversed, "/")
+}
+
+func buildPutOptions(ctx context.Context, granter leaseGranter, leaseTTL int) ([]clientv3.OpOption, error) {
+	// leaseTTL <= 0 means permanent record (no lease attached).
+	if leaseTTL <= 0 {
+		return nil, nil
+	}
+
+	leaseResp, err := granter.Grant(ctx, int64(leaseTTL))
+	if err != nil {
+		return nil, err
+	}
+	return []clientv3.OpOption{clientv3.WithLease(leaseResp.ID)}, nil
+}
+
+func shouldDeleteRecordForContainer(recordValue []byte, containerID string) (bool, error) {
+	if containerID == "" {
+		return false, fmt.Errorf("container ID is empty")
+	}
+
+	var record DNSRecord
+	if err := json.Unmarshal(recordValue, &record); err != nil {
+		return false, err
+	}
+
+	// Strict check: only the owner who created this record can remove it.
+	if record.Owner == "" {
+		return false, nil
+	}
+	return record.Owner == containerID, nil
 }

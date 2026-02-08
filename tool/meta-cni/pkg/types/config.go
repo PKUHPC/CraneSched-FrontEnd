@@ -37,11 +37,10 @@ type MetaPluginConf struct {
 
 // DelegateEntry describes a child plugin invoked by this meta plugin.
 type DelegateEntry struct {
-	Name            string            `json:"name,omitempty"`
-	Type            string            `json:"type,omitempty"`
-	Conf            json.RawMessage   `json:"conf,omitempty"`
-	RuntimeOverride *RuntimeOverride  `json:"runtimeOverride,omitempty"`
-	Annotations     map[string]string `json:"annotations,omitempty"` // Reserved
+	Name            string           `json:"name,omitempty"`
+	Type            string           `json:"type,omitempty"`
+	Conf            json.RawMessage  `json:"conf,omitempty"`
+	RuntimeOverride *RuntimeOverride `json:"runtimeOverride,omitempty"`
 }
 
 // RuntimeOverride alters the runtime information passed to child plugins.
@@ -167,6 +166,6 @@ func (d *DelegateEntry) Identifier() string {
 
 // String returns a human-readable representation of DelegateEntry for logging.
 func (d DelegateEntry) String() string {
-	return fmt.Sprintf("{Name:%s Type:%s Conf:%s RuntimeOverride:%+v Annotations:%v}",
-		d.Name, d.Type, string(d.Conf), d.RuntimeOverride, d.Annotations)
+	return fmt.Sprintf("{Name:%s Type:%s Conf:%s RuntimeOverride:%+v}",
+		d.Name, d.Type, string(d.Conf), d.RuntimeOverride)
 }

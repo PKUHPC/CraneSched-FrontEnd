@@ -57,8 +57,6 @@ Each entry in `delegates` supports:
   `cniVersion`.
 - `runtimeOverride` (object, optional): Per-delegate override (takes precedence
   over the global override).
-- `annotations` (object, optional): Reserved for future use.
-
 When `conf` is provided, the meta plugin ensures `type` and `cniVersion` are
 set in the resulting delegate config if they are missing.
 
