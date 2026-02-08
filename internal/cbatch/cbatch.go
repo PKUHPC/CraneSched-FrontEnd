@@ -464,10 +464,10 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			podOpts.hostNet = val
 		case "--pod-dns":
 			servers := strings.Split(arg.val, ",")
-			for _, s := range servers {
-				s = strings.TrimSpace(s)
-				if err := util.CheckIpv4Format(s); err != nil {
-					return fmt.Errorf("invalid argument: %s dns server '%s' in script: %w", arg.name, s, err)
+			for i, s := range servers {
+				servers[i] = strings.TrimSpace(s)
+				if err := util.CheckIpv4Format(servers[i]); err != nil {
+					return fmt.Errorf("invalid argument: %s dns server '%s' in script: %w", arg.name, servers[i], err)
 				}
 			}
 			podOpts.dns = append(podOpts.dns, servers...)

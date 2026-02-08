@@ -196,9 +196,10 @@ func buildPodMeta(task *protos.TaskToCtld, podOpts *podOptions) (*protos.PodTask
 		podMeta.Namespace.Network = protos.PodTaskAdditionalMeta_NODE
 	}
 
-	for _, server := range podOpts.dns {
-		if err := util.CheckIpv4Format(server); err != nil {
-			return nil, fmt.Errorf("invalid dns server '%s': %w", server, err)
+	for i, server := range podOpts.dns {
+		podOpts.dns[i] = strings.TrimSpace(server)
+		if err := util.CheckIpv4Format(podOpts.dns[i]); err != nil {
+			return nil, fmt.Errorf("invalid dns server '%s': %w", podOpts.dns[i], err)
 		}
 	}
 	podMeta.DnsServers = podOpts.dns

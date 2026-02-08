@@ -616,9 +616,10 @@ func buildPodMeta(_ *cobra.Command, f *Flags, task *protos.TaskToCtld) (*protos.
 		}
 	}
 
-	for _, server := range f.Run.Dns {
-		if err := util.CheckIpv4Format(server); err != nil {
-			return nil, fmt.Errorf("invalid dns server '%s': %w", server, err)
+	for i, server := range f.Run.Dns {
+		f.Run.Dns[i] = strings.TrimSpace(server)
+		if err := util.CheckIpv4Format(f.Run.Dns[i]); err != nil {
+			return nil, fmt.Errorf("invalid dns server '%s': %w", f.Run.Dns[i], err)
 		}
 	}
 	podMeta.DnsServers = f.Run.Dns
