@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -22,19 +23,49 @@ const (
 
 	// kEtcdOpTimeout is the timeout for individual etcd operations.
 	kEtcdOpTimeout = 3 * time.Second
+
+	kMinTTL      = 1
+	kMaxTTL      = 86400
+	kMinLeaseTTL = 5
+	kMaxLeaseTTL = 86400
 )
 
 type DNSRegisterConfig struct {
 	types.NetConf
+
+	// TODO: Add TLS support for etcd connection
 	EtcdEndpoints []string `json:"etcdEndpoints"`
-	TTL           int      `json:"ttl"`
-	LeaseTTL      int      `json:"leaseTTL"`
+
+	// TTL is the DNS record TTL in seconds.
+	TTL int `json:"ttl"`
+
+	// LeaseTTL is the etcd lease TTL in seconds.
+	// 0 means no lease (record never expires automatically).
+	LeaseTTL int `json:"leaseTTL"`
 
 	// RuntimeConfig is populated by the container runtime (e.g., containerd)
 	// when the corresponding capabilities are declared in the CNI config.
 	RuntimeConfig struct {
 		PodAnnotations map[string]string `json:"io.kubernetes.cri.pod-annotations,omitempty"`
 	} `json:"runtimeConfig"`
+}
+
+func (c *DNSRegisterConfig) validate() error {
+	if len(c.EtcdEndpoints) == 0 {
+		return fmt.Errorf("etcdEndpoints must not be empty")
+	}
+	if c.TTL < kMinTTL || c.TTL > kMaxTTL {
+		return fmt.Errorf("ttl must be between %d and %d, got %d", kMinTTL, kMaxTTL, c.TTL)
+	}
+
+	// LeaseTTL <= 0 means no lease, so skip further checks.
+	if c.LeaseTTL > 0 && (c.LeaseTTL < kMinLeaseTTL || c.LeaseTTL > kMaxLeaseTTL) {
+		return fmt.Errorf("leaseTTL must be between %d and %d when set, got %d", kMinLeaseTTL, kMaxLeaseTTL, c.LeaseTTL)
+	}
+	if c.LeaseTTL > 0 && c.LeaseTTL < c.TTL {
+		return fmt.Errorf("leaseTTL (%d) should not be less than ttl (%d)", c.LeaseTTL, c.TTL)
+	}
+	return nil
 }
 
 // used in etcd
@@ -57,6 +88,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 	config := DNSRegisterConfig{}
 	if err := json.Unmarshal(args.StdinData, &config); err != nil {
 		return fmt.Errorf("failed to parse config: %v", err)
+	}
+
+	if err := config.validate(); err != nil {
+		return fmt.Errorf("invalid config: %v", err)
 	}
 
 	if err := version.ParsePrevResult(&config.NetConf); err != nil {
@@ -86,10 +121,6 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	etcdKey := fqdnToEtcdKey(fqdn)
 	uid := args.ContainerID
-
-	if len(config.EtcdEndpoints) == 0 {
-		return fmt.Errorf("no etcd endpoints configured")
-	}
 
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   config.EtcdEndpoints,
@@ -134,13 +165,20 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	if err := config.validate(); err != nil {
+		return fmt.Errorf("invalid config: %v", err)
+	}
+
 	if args.ContainerID == "" {
 		return fmt.Errorf("container ID is required for DEL")
 	}
 
 	fqdn, err := getFQDNFromAnnotation(config.RuntimeConfig.PodAnnotations)
 	if err != nil {
-		return err
+		// Idempotent: if we can't get a valid FQDN, there's nothing to delete.
+		// Log the error and return success.
+		log.Println(err)
+		return nil
 	}
 
 	etcdKey := fqdnToEtcdKey(fqdn)
@@ -202,6 +240,7 @@ func main() {
 	skel.PluginMainFuncs(skel.CNIFuncs{
 		Add: cmdAdd,
 		Del: cmdDel,
+		// TODO: Add other handlers after finished
 	}, version.All, "dns-register")
 }
 
@@ -261,7 +300,8 @@ func fqdnToEtcdKey(fqdn string) string {
 }
 
 func buildPutOptions(ctx context.Context, granter leaseGranter, leaseTTL int) ([]clientv3.OpOption, error) {
-	// leaseTTL <= 0 means permanent record (no lease attached).
+	// leaseTTL == 0 means permanent record (no lease attached).
+	// The record will persist until explicitly deleted via cmdDel.
 	if leaseTTL <= 0 {
 		return nil, nil
 	}
