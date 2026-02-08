@@ -671,8 +671,8 @@ func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []str
 
 // buildContainerStep creates a StepToCtld for a container step submission.
 func buildContainerStep(cmd *cobra.Command, f *Flags, jobId uint32, image string, command []string) (*protos.StepToCtld, error) {
-	if f.Run.User != "" || len(f.Run.Ports) > 0 || flagChanged(cmd, "userns") {
-		return nil, fmt.Errorf("user, userns, and port options are not supported when submitting container steps; pod configuration is inherited from the job")
+	if f.Run.User != "" || len(f.Run.Ports) > 0 || flagChanged(cmd, "userns") || flagChanged(cmd, "network") {
+		return nil, fmt.Errorf("user, userns, port, and network options are not supported when submitting container steps; pod configuration is inherited from the job")
 	}
 
 	step := &protos.StepToCtld{
