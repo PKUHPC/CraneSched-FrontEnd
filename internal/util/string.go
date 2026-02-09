@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"fmt"
 	"math"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -1697,4 +1698,12 @@ func ParseSignalParamString(input string) ([]*protos.Signal, error) {
 	}
 
 	return signals, nil
+}
+
+func CheckIpv4Format(ip string) error {
+	parsed := net.ParseIP(ip)
+	if parsed == nil || parsed.To4() == nil {
+		return fmt.Errorf("Invalid ipv4 format: %s", ip)
+	}
+	return nil
 }

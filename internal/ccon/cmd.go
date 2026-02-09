@@ -216,6 +216,7 @@ func InitializeCommandFlags() {
 	// e.g., ccon run ubuntu /bin/bash -c 'echo hello'
 	// Here -c is part of COMMAND, not a flag
 	RunCmd.Flags().SetInterspersed(false)
+	RunCmd.Flags().StringSliceVar(&f.Run.Dns, "dns", []string{}, "Configure DNS server(s) for pod (comma-separated or repeated)")
 
 	StopCmd.Flags().IntVarP(&f.Stop.Timeout, "timeout", "t", 10, "Seconds to wait for stop before killing it")
 

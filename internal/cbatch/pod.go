@@ -2,6 +2,7 @@ package cbatch
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"fmt"
 	"os"
 	"strconv"
@@ -25,6 +26,7 @@ type podOptions struct {
 	user    string
 	userns  bool
 	hostNet bool
+	dns     []string
 }
 
 const kPodGateFlag = "pod"
@@ -35,6 +37,7 @@ var kPodFlagMap = map[string]bool{
 	"pod-user":         true,
 	"pod-userns":       true,
 	"pod-host-network": true,
+	"pod-dns":          true,
 }
 
 func initPodFlags(cmd *cobra.Command) {
@@ -44,6 +47,7 @@ func initPodFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&FlagPodUser, "pod-user", "", "Run pod as UID[:GID] (default: current user when --pod-userns=false)")
 	cmd.Flags().BoolVar(&FlagPodUserns, "pod-userns", true, "Enable pod user namespace")
 	cmd.Flags().BoolVar(&FlagPodHostNet, "pod-host-network", false, "Use host network namespace for the pod")
+	cmd.Flags().StringSliceVar(&FlagDns, "pod-dns", []string{}, "Configure DNS server(s) for pod (comma-separated or repeated)")
 }
 
 func isPodJob(cmd *cobra.Command, args []CbatchArg) (bool, error) {
@@ -93,6 +97,9 @@ func overridePodFromFlags(cmd *cobra.Command, podOpts *podOptions) {
 	}
 	if cmd.Flags().Changed("pod-host-network") {
 		podOpts.hostNet = FlagPodHostNet
+	}
+	if cmd.Flags().Changed("pod-dns") {
+		podOpts.dns = FlagDns
 	}
 }
 
@@ -188,6 +195,14 @@ func buildPodMeta(task *protos.TaskToCtld, podOpts *podOptions) (*protos.PodTask
 	if podOpts.hostNet {
 		podMeta.Namespace.Network = protos.PodTaskAdditionalMeta_NODE
 	}
+
+	for i, server := range podOpts.dns {
+		podOpts.dns[i] = strings.TrimSpace(server)
+		if err := util.CheckIpv4Format(podOpts.dns[i]); err != nil {
+			return nil, fmt.Errorf("invalid dns server '%s': %w", podOpts.dns[i], err)
+		}
+	}
+	podMeta.DnsServers = podOpts.dns
 
 	if err := validatePodMeta(task, podMeta); err != nil {
 		return nil, err

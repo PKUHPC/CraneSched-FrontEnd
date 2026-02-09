@@ -68,6 +68,7 @@ type RunFlags struct {
 	Memory      string
 	Gpus        string
 	PullPolicy  string
+	Dns         []string
 }
 
 type StopFlags struct {
