@@ -1279,7 +1279,11 @@ func AddWckey(wckey *protos.WckeyInfo) util.ExitCode {
 }
 
 func DeleteWckey(name, userName string) util.ExitCode {
-	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, UserName: userName}
+	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, UserName: userName, Force: false}
+
+	if FlagForce {
+		req.Force = true
+	}
 
 	reply, err := stub.DeleteWckey(context.Background(), &req)
 	if err != nil {
