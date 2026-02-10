@@ -19,12 +19,13 @@ Cgroup:
 Database:
   Type: "influxdb"
   Influxdb:
-    Url: "YOUR_INFLUXDB_URL"
-    Token: "YOUR_INFLUXDB_TOKEN"
-    Org: "YOUR_INFLUXDB_ORG_NAME"
-    NodeBucket: "YOUR_NODE_BUCKET_NAME"
-    JobBucket: "YOUR_JOB_BUCKET_NAME"
-    ClusterBucket: "YOUR_CLUSTER_BUCKET_NAME"
+    Url: "http://localhost:8086"
+    Token: "your_token"
+    Org: "your_organization"
+    NodeBucket: "your_node_bucket_name"
+    JobBucket: "your_job_bucket_name"
+    ClusterBucket: "your_cluster_bucket_name"
+    TraceBucket: "your_trace_bucket_name"
     EventMeasurement: "NodeEvents"
     ResourceMeasurement: "ResourceUsage"
 

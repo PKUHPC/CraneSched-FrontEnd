@@ -51,6 +51,7 @@ type InfluxDBConfig struct {
 	NodeBucket          string `mapstructure:"NodeBucket"`
 	JobBucket           string `mapstructure:"JobBucket"`
 	ClusterBucket       string `mapstructure:"ClusterBucket"`
+	TraceBucket         string `mapstructure:"TraceBucket"`
 	EventMeasurement    string `mapstructure:"EventMeasurement"`
 	ResourceMeasurement string `mapstructure:"ResourceMeasurement"`
 }
@@ -85,6 +86,9 @@ func validateConfig(cfg *Config) error {
 			cfg.DB.InfluxDB.Org == "" || cfg.DB.InfluxDB.NodeBucket == "" ||
 			cfg.DB.InfluxDB.JobBucket == "" || cfg.DB.InfluxDB.ClusterBucket == "" {
 			return fmt.Errorf("incomplete influxdb configuration")
+		}
+		if cfg.DB.InfluxDB.TraceBucket == "" {
+			cfg.DB.InfluxDB.TraceBucket = "crane_trace"
 		}
 		if cfg.DB.InfluxDB.EventMeasurement == "" {
 			cfg.DB.InfluxDB.EventMeasurement = "NodeEvents"

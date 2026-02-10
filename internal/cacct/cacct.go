@@ -315,14 +315,17 @@ func ProcessReqCPUs(item *JobOrStep) string {
 func ProcessAllocCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
+		if item.stepInfo == nil || item.stepInfo.AllocatedResView == nil || item.stepInfo.AllocatedResView.AllocatableRes == nil {
+			return ""
+		}
 		cpuCores = item.stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
 	} else {
+		if item.task == nil || item.task.AllocatedResView == nil || item.task.AllocatedResView.AllocatableRes == nil {
+			return ""
+		}
 		cpuCores = item.task.AllocatedResView.AllocatableRes.CpuCoreLimit
 	}
-	if item.task.AllocatedResView != nil {
-		return strconv.FormatFloat(cpuCores, 'f', 2, 64)
-	}
-	return ""
+	return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 }
 
 // ElapsedTime (D)
