@@ -116,11 +116,11 @@ nfpms:
     # RPM-specific settings
     rpm:
       group: System Environment/Daemons
-      compression: xz
+      compression: zstd
 
     # DEB-specific settings
     deb:
-      compression: xz
+      compression: zstd
 
   # Plugin package: cranesched-plugin
   - id: cranesched-plugin
@@ -189,10 +189,10 @@ nfpms:
 
     rpm:
       group: System Environment/Daemons
-      compression: xz
+      compression: zstd
 
     deb:
-      compression: xz
+      compression: zstd
 
 # Output directory
 dist: build/dist
