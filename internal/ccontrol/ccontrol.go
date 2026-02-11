@@ -516,6 +516,35 @@ func DeleteReservation(ReservationName string) error {
 	return nil
 }
 
+func ResetNextTaskId(nextTaskId uint32, nextTaskDbId int64) error {
+	req := &protos.ResetNextTaskIdRequest{
+		Uid:          uint32(os.Getuid()),
+		NextTaskId:   nextTaskId,
+		NextTaskDbId: nextTaskDbId,
+	}
+
+	reply, err := stub.ResetNextTaskId(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to reset next task ID")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return nil
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Next task ID reset to %d (db_id=%d) successfully.\n", nextTaskId, nextTaskDbId)
+	} else {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to reset next task ID: %s.", reply.GetReason()))
+	}
+	return nil
+}
+
 func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	nodeNames, ok := util.ParseHostList(nodeRegex)
 	if !ok {

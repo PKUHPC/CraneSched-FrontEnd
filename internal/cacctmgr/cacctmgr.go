@@ -376,17 +376,21 @@ func AddLicenseResource(name string, server string, clusters string, operators m
 }
 
 func DeleteAccount(value string) util.ExitCode {
-	if FlagForce {
-		log.Warning("--force flag is ignored for delete operations")
-	}
-
 	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
+		log.Errorf("Invalid account list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
 
-	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList}
+	if slices.Contains(accountList, "ALL") {
+		if !FlagForce {
+			log.Errorf("To delete all accounts, you must set --force.")
+			return util.ErrorCmdArg
+		}
+		accountList = []string{"ALL"}
+	}
+
+	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList, Force: FlagForce}
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
@@ -458,16 +462,21 @@ func DeleteUser(value string, account string) util.ExitCode {
 }
 
 func DeleteQos(value string) util.ExitCode {
-	if FlagForce {
-		log.Warning("--force flag is ignored for delete operations")
-	}
-
 	qosList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
+		log.Errorf("Invalid QoS list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
-	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList}
+
+	if slices.Contains(qosList, "ALL") {
+		if !FlagForce {
+			log.Errorf("To delete all QoS, you must set --force.")
+			return util.ErrorCmdArg
+		}
+		qosList = []string{"ALL"}
+	}
+
+	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList, Force: FlagForce}
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {

@@ -293,6 +293,17 @@ message ModifyTasksExtraAttrsReply {
   repeated string not_modified_reasons = 3;
 }
 
+message ResetNextTaskIdRequest {
+  uint32 uid = 1;
+  uint32 next_task_id = 2;    // Reset to this value (0 = default to 1)
+  int64 next_task_db_id = 3;  // Reset to this value (0 = default to 1)
+}
+
+message ResetNextTaskIdReply {
+  bool ok = 1;
+  string reason = 2;
+}
+
 message ModifyCranedStateRequest {
   uint32 uid = 1;
   repeated string craned_ids = 2;
@@ -349,6 +360,7 @@ message AddWckeyReply {
 message DeleteAccountRequest {
   uint32 uid = 1;
   repeated string account_list = 2;
+  bool force = 3;
 }
 
 message DeleteAccountReply {
@@ -371,17 +383,12 @@ message DeleteUserReply {
 message DeleteQosRequest {
   uint32 uid = 1;
   repeated string qos_list = 2;
+  bool force = 3;
 }
 
 message DeleteQosReply {
   bool ok = 1;
   repeated RichError rich_error_list = 2;
-}
-
-message ModifyFieldOperation {
-  ModifyField modify_field = 1;    // modify item field
-  repeated string value_list = 2;  // new value
-  OperationType type = 3;
 }
 
 message DeleteWckeyRequest {
@@ -394,6 +401,12 @@ message DeleteWckeyRequest {
 message DeleteWckeyReply {
   bool ok = 1;
   RichError rich_error = 2;
+}
+
+message ModifyFieldOperation {
+  ModifyField modify_field = 1;    // modify item field
+  repeated string value_list = 2;  // new value
+  OperationType type = 3;
 }
 
 message ModifyAccountRequest {
@@ -436,7 +449,7 @@ message ModifyQosReply {
 message ModifyDefaultWckeyRequest {
   uint32 uid = 1;
   string name = 2;
-  string user_name = 3; 
+  string user_name = 3;
 }
 
 message ModifyDefaultWckeyReply {
@@ -609,8 +622,8 @@ message NodeEventInfo {
   string cluster_name = 1;
   string node_name = 2;
   uint64 uid = 3;
-  int64 start_time = 4;   // Unix timestamp in nanoseconds
-  int64 end_time = 5;     // Unix timestamp in nanoseconds
+  int64 start_time = 4;  // Unix timestamp in nanoseconds
+  int64 end_time = 5;    // Unix timestamp in nanoseconds
   string state = 6;
   string reason = 7;
 }
@@ -1132,6 +1145,16 @@ message QueryLicenseResourceReply {
   repeated LicenseResourceInfo license_resource_list = 3;
 }
 
+message UpdateNodeDrainStateRequest {
+  string craned_id = 1;
+  bool drain = 2;
+  string reason = 3;
+}
+
+message UpdateNodeDrainStateReply {
+  bool ok = 1;
+}
+
 // Todo: Divide service into two parts: one for Craned and one for Crun
 //  We need to distinguish the message sender
 //  and have some kind of authentication
@@ -1151,12 +1174,10 @@ service CraneCtld {
   rpc QueryLicensesInfo(QueryLicensesInfoRequest) returns (QueryLicensesInfoReply);
   rpc ModifyTask(ModifyTaskRequest) returns (ModifyTaskReply);
   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
-  rpc ModifyPartitionAcl(ModifyPartitionAclRequest)
-      returns (ModifyPartitionAclReply);
-  rpc EnableAutoPowerControl(EnableAutoPowerControlRequest)
-      returns (EnableAutoPowerControlReply);
-  rpc ModifyTasksExtraAttrs(ModifyTasksExtraAttrsRequest)
-      returns (ModifyTasksExtraAttrsReply);
+  rpc ModifyPartitionAcl(ModifyPartitionAclRequest) returns (ModifyPartitionAclReply);
+  rpc EnableAutoPowerControl(EnableAutoPowerControlRequest) returns (EnableAutoPowerControlReply);
+  rpc ModifyTasksExtraAttrs(ModifyTasksExtraAttrsRequest) returns (ModifyTasksExtraAttrsReply);
+  rpc ResetNextTaskId(ResetNextTaskIdRequest) returns (ResetNextTaskIdReply);
 
   /* RPCs called from cacctmgr */
   rpc AddAccount(AddAccountRequest) returns (AddAccountReply);
@@ -1179,16 +1200,14 @@ service CraneCtld {
   rpc ModifyQos(ModifyQosRequest) returns (ModifyQosReply);
   rpc ModifyDefaultWckey(ModifyDefaultWckeyRequest) returns (ModifyDefaultWckeyReply);
 
-  rpc BlockAccountOrUser(BlockAccountOrUserRequest)
-      returns (BlockAccountOrUserReply);
+  rpc BlockAccountOrUser(BlockAccountOrUserRequest) returns (BlockAccountOrUserReply);
 
-  rpc ResetUserCredential(ResetUserCredentialRequest)
-      returns (ResetUserCredentialReply);
+  rpc ResetUserCredential(ResetUserCredentialRequest) returns (ResetUserCredentialReply);
 
   rpc QueryTxnLog(QueryTxnLogRequest) returns (QueryTxnLogReply);
 
-  rpc AddOrModifyLicenseResource(AddOrModifyLicenseResourceRequest) returns (AddOrModifyLicenseResourceReply);
   rpc DeleteLicenseResource(DeleteLicenseResourceRequest) returns (DeleteLicenseResourceReply);
+  rpc AddOrModifyLicenseResource(AddOrModifyLicenseResourceRequest) returns (AddOrModifyLicenseResourceReply);
   rpc QueryLicenseResource(QueryLicenseResourceRequest) returns (QueryLicenseResourceReply);
 
   /* RPCs called from cinfo */
@@ -1196,17 +1215,14 @@ service CraneCtld {
 
   /* common RPCs */
   rpc QueryTasksInfo(QueryTasksInfoRequest) returns (QueryTasksInfoReply);
-  rpc CreateReservation(CreateReservationRequest)
-      returns (CreateReservationReply);
-  rpc DeleteReservation(DeleteReservationRequest)
-      returns (DeleteReservationReply);
+  rpc CreateReservation(CreateReservationRequest) returns (CreateReservationReply);
+  rpc DeleteReservation(DeleteReservationRequest) returns (DeleteReservationReply);
 
   /* RPC called form plugin */
   rpc PowerStateChange(PowerStateChangeRequest) returns (PowerStateChangeReply);
 
   /* RPCS called from PKI request */
-  rpc SignUserCertificate(SignUserCertificateRequest)
-      returns (SignUserCertificateResponse);
+  rpc SignUserCertificate(SignUserCertificateRequest) returns (SignUserCertificateResponse);
 
   /* RPCS called from ccon */
   rpc AttachContainerStep(AttachContainerStepRequest) returns (AttachContainerStepReply);
@@ -1221,18 +1237,19 @@ service PluginQueryService {
 service CraneCtldForInternal {
   /* RPCs called from Craned */
   rpc StepStatusChange(StepStatusChangeRequest) returns (StepStatusChangeReply);
-  rpc CranedTriggerReverseConn(CranedTriggerReverseConnRequest)
-      returns (google.protobuf.Empty);
+  rpc CranedTriggerReverseConn(CranedTriggerReverseConnRequest) returns (google.protobuf.Empty);
   rpc CranedRegister(CranedRegisterRequest) returns (CranedRegisterReply);
   rpc CranedPing(CranedPingRequest) returns (CranedPingReply);
+
+  rpc UpdateNodeDrainState(UpdateNodeDrainStateRequest) returns (UpdateNodeDrainStateReply);
+  rpc QueryCranedInfo(QueryCranedInfoRequest) returns (QueryCranedInfoReply);
 
   /* RPCs called from Cfored */
   rpc CforedStream(stream StreamCforedRequest) returns (stream StreamCtldReply);
 }
 
 service Craned {
-  /* ----------------------------------- Called from CraneCtld
-   * ---------------------------------------------------- */
+  /* ----------------------------------- Called from CraneCtld ---------------------------------------------------- */
   rpc Configure(ConfigureCranedRequest) returns (google.protobuf.Empty);
   rpc ExecuteSteps(ExecuteStepsRequest) returns (ExecuteStepsReply);
 
@@ -1242,15 +1259,13 @@ service Craned {
   rpc FreeJobs(FreeJobsRequest) returns (FreeJobsReply);
   /*
   If the task is an interactive task, the resource uuid is also revoked.
-   If there's no process in this interactive task, just deallocate all the
-  resources. If there are processes in this interactive task, kill all the
-  processes and deallocate resources. If the task is a batch task, just kill it.
+   If there's no process in this interactive task, just deallocate all the resources.
+   If there are processes in this interactive task, kill all the processes and deallocate resources.
+  If the task is a batch task, just kill it.
   */
   rpc TerminateSteps(TerminateStepsRequest) returns (TerminateStepsReply);
-  rpc TerminateOrphanedStep(TerminateOrphanedStepRequest)
-      returns (TerminateOrphanedStepReply);
-  rpc ChangeJobTimeLimit(ChangeJobTimeLimitRequest)
-      returns (ChangeJobTimeLimitReply);
+  rpc TerminateOrphanedStep(TerminateOrphanedStepRequest) returns (TerminateOrphanedStepReply);
+  rpc ChangeJobTimeLimit(ChangeJobTimeLimitRequest) returns (ChangeJobTimeLimitReply);
 
   /*
   Craned will proxy the following container-related RPCs to CRI Service.
@@ -1258,34 +1273,24 @@ service Craned {
   rpc AttachContainerStep(AttachContainerStepRequest) returns (AttachContainerStepReply);
   rpc ExecInContainerStep(ExecInContainerStepRequest) returns (ExecInContainerStepReply);
 
-  /* ----------------------------------- Called from Craned
-   * ------------------------------------------------------ */
-  rpc QueryStepFromPort(QueryStepFromPortRequest)
-      returns (QueryStepFromPortReply);
-  rpc QuerySshStepEnvVariables(QuerySshStepEnvVariablesRequest)
-      returns (QuerySshStepEnvVariablesReply);
-  /* ----------------------------------- Called from Supervisor
-   * --------------------------------------------------- */
+  /* ----------------------------------- Called from Craned  ------------------------------------------------------ */
+  rpc QueryStepFromPort(QueryStepFromPortRequest) returns (QueryStepFromPortReply);
+  rpc QuerySshStepEnvVariables(QuerySshStepEnvVariablesRequest) returns (QuerySshStepEnvVariablesReply);
+  /* ----------------------------------- Called from Supervisor  --------------------------------------------------- */
   rpc StepStatusChange(StepStatusChangeRequest) returns (StepStatusChangeReply);
 }
 
 service CranedForPam {
-  /* ----------------------------------- Called from Pam Module
-   * --------------------------------------------------- */
-  rpc QueryStepFromPortForward(QueryStepFromPortForwardRequest)
-      returns (QueryStepFromPortForwardReply);
-  rpc MigrateSshProcToCgroup(MigrateSshProcToCgroupRequest)
-      returns (MigrateSshProcToCgroupReply);
+  /* ----------------------------------- Called from Pam Module  --------------------------------------------------- */
+  rpc QueryStepFromPortForward(QueryStepFromPortForwardRequest) returns (QueryStepFromPortForwardReply);
+  rpc MigrateSshProcToCgroup(MigrateSshProcToCgroupRequest) returns (MigrateSshProcToCgroupReply);
   rpc QuerySshStepEnvVariablesForward(QuerySshStepEnvVariablesForwardRequest)
       returns (QuerySshStepEnvVariablesForwardReply);
 }
 
 service CraneForeD {
-  rpc CallocStream(stream StreamCallocRequest)
-      returns (stream StreamCallocReply);
+  rpc CallocStream(stream StreamCallocRequest) returns (stream StreamCallocReply);
   rpc CrunStream(stream StreamCrunRequest) returns (stream StreamCrunReply);
-  rpc TaskIOStream(stream StreamTaskIORequest)
-      returns (stream StreamTaskIOReply);
-  rpc QueryStepFromPort(QueryStepFromPortRequest)
-      returns (QueryStepFromPortReply);
+  rpc TaskIOStream(stream StreamTaskIORequest) returns (stream StreamTaskIOReply);
+  rpc QueryStepFromPort(QueryStepFromPortRequest) returns (QueryStepFromPortReply);
 }

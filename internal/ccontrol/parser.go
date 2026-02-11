@@ -70,18 +70,26 @@ type DeleteCommand struct {
 	ID     string      `parser:"( @String | @Ident | @Number )?"`
 }
 
+type ResetCommand struct {
+	Action string      `parser:"@'reset'"`
+	Entity *EntityType `parser:"@@"`
+	ID     string      `parser:"( @String | @Ident | @Number )?"`
+}
+
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
 	Value string `parser:"( '=' ( @String | @Ident | @Number ) | ( @String | @Ident | @Number ) )"`
 }
 
 type EntityType struct {
-	Node        bool `parser:"@'node'"`
-	Partition   bool `parser:"| @'partition'"`
-	Job         bool `parser:"| @'job'"`
-	Step        bool `parser:"| @'step'"`
-	Reservation bool `parser:"| @'reservation'"`
-	Lic         bool `parser:"| @'lic'"`
+	Node          bool `parser:"@'node'"`
+	Partition     bool `parser:"| @'partition'"`
+	Job           bool `parser:"| @'job'"`
+	Step          bool `parser:"| @'step'"`
+	Reservation   bool `parser:"| @'reservation'"`
+	Lic           bool `parser:"| @'lic'"`
+	NextTaskId    bool `parser:"| @'next-task-id'"`
+	NextTaskDbId  bool `parser:"| @'next-task-db-id'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -95,7 +103,7 @@ var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CControlParser = participle.MustBuild[CControlCommand](
 	participle.Lexer(CControlLexer),
 	participle.Elide("whitespace"),
-	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{}, CreateCommand{}, DeleteCommand{}),
+	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{}, CreateCommand{}, DeleteCommand{}, ResetCommand{}),
 )
 
 func ParseCControlCommand(input string) (*CControlCommand, error) {
@@ -116,6 +124,10 @@ func (e EntityType) String() string {
 		return "reservation"
 	case e.Lic:
 		return "lic"
+	case e.NextTaskId:
+		return "next-task-id"
+	case e.NextTaskDbId:
+		return "next-task-db-id"
 	default:
 		return ""
 	}
@@ -130,6 +142,8 @@ func (c *CControlCommand) GetAction() string {
 	case HoldCommand:
 		return cmd.Action
 	case ReleaseCommand:
+		return cmd.Action
+	case ResetCommand:
 		return cmd.Action
 	case CreateCommand:
 		return cmd.Action
@@ -154,6 +168,10 @@ func (c *CControlCommand) GetEntity() string {
 		if cmd.Entity != nil {
 			return cmd.Entity.String()
 		}
+	case ResetCommand:
+		if cmd.Entity != nil {
+			return cmd.Entity.String()
+		}
 	}
 	return ""
 }
@@ -169,6 +187,8 @@ func (c *CControlCommand) GetID() string {
 	case DeleteCommand:
 		return cmd.ID
 	case CreateCommand:
+		return cmd.ID
+	case ResetCommand:
 		return cmd.ID
 	}
 	return ""
