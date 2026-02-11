@@ -71,6 +71,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 		createdAt time.Time
 		status    protos.TaskStatus
 		name      string
+		nodeList  string
 	}
 
 	var rows []stepRow
@@ -109,6 +110,11 @@ func psExecute(cmd *cobra.Command, args []string) error {
 				row.createdAt = task.SubmitTime.AsTime()
 			}
 
+			row.nodeList = step.GetCranedList()
+			if row.nodeList == "" {
+				row.nodeList = task.GetCranedList()
+			}
+
 			rows = append(rows, row)
 		}
 	}
@@ -134,7 +140,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
-	table.SetHeader([]string{"CONTAINER", "IMAGE", "COMMAND", "CREATED", "STATUS", "NAME"})
+	table.SetHeader([]string{"CONTAINER", "IMAGE", "COMMAND", "CREATED", "STATUS", "NODELIST"})
 
 	for _, row := range rows {
 		createdStr := "-"
@@ -147,7 +153,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 			truncateCommand(row.command, 20),
 			createdStr,
 			strings.ToUpper(row.status.String()),
-			row.name,
+			row.nodeList,
 		})
 	}
 	table.Render()
