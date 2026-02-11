@@ -181,6 +181,9 @@ func showHelp() {
       Description=<desc>         Description of the QoS
       Priority=<priority>        Priority (higher value means higher priority)
       MaxJobsPerUser=<num>       Maximum number of jobs per user
+      MaxSubmitJobsPerUser=<num>  Maximum number of submit jobs per user
+      MaxJobsPerAccount=<num>     Maximum number of jobs per account
+      MaxSubmitJobsPerAccount=<num>  Maximum number of submit jobs per account
       MaxCpusPerUser=<num>       Maximum number of CPUs per user
       MaxTimeLimitPerTask=<seconds>  Maximum run time per task in seconds
       Name=<name1,name2,...>    List of QoS name for batch creation
@@ -240,6 +243,9 @@ func showHelp() {
       set Description=<desc>         Set description
       set MaxCpusPerUser=<num>        Set max CPUs per user
       set MaxJobsPerUser=<num> Set max jobs per user
+      set MaxSubmitJobsPerUser=<num>  Set max submit jobs per user
+      set MaxJobsPerAccount=<num>     Set max jobs per account
+      set MaxSubmitJobsPerAccount=<num>  Set max submit jobs per account
       set MaxTimeLimitPerTask=<sec>  Set max time per task (seconds)
       set Priority=<priority>        Set priority
     Wckey options:

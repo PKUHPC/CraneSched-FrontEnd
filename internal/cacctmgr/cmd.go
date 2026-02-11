@@ -86,7 +86,6 @@ var (
 	FlagPartitions          string
 	FlagQosList             string
 	FlagMaxCpu              string
-	FlagMaxJob              string
 	FlagMaxTimeLimit        string
 	FlagPriority            string
 	FlagAdminLevel          string
@@ -240,9 +239,12 @@ func executeAddUserCommand(command *CAcctMgrCommand) int {
 
 func executeAddQosCommand(command *CAcctMgrCommand) int {
 	FlagQos = protos.QosInfo{
-		MaxJobsPerUser:      math.MaxUint32,
-		MaxCpusPerUser:      math.MaxUint32,
-		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
+		MaxJobsPerUser:          math.MaxUint32,
+		MaxCpusPerUser:          math.MaxUint32,
+		MaxSubmitJobsPerUser:    math.MaxUint32,
+		MaxSubmitJobsPerAccount: math.MaxUint32,
+		MaxJobsPerAccount:       math.MaxUint32,
+		MaxTimeLimitPerTask:     util.MaxJobTimeLimit,
 	}
 	FlagQos.Name = command.GetID()
 
@@ -277,6 +279,24 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			}
 			maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
 			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
+		case "maxsubmitjobsperuser":
+			if err := validateUintValue(value, "maxSubmitJobsPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxSubmitJobsPerUser, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.MaxSubmitJobsPerUser = uint32(maxSubmitJobsPerUser)
+		case "maxsubmitjobsperaccount":
+			if err := validateUintValue(value, "maxSubmitJobsPerAccount", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxSubmitJobsPerAccount, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.MaxSubmitJobsPerAccount = uint32(maxSubmitJobsPerAccount)
+		case "maxjobsperaccount":
+			if err := validateUintValue(value, "maxJobsPerAccount", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			maxJobsPerAccount, _ := strconv.ParseUint(value, 10, 32)
+			FlagQos.MaxJobsPerAccount = uint32(maxJobsPerAccount)
 		default:
 			log.Errorf("unknown flag: %s", key)
 			return util.ErrorCmdArg
@@ -991,7 +1011,6 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 func executeModifyQosCommand(command *CAcctMgrCommand) int {
 	FlagEntityName = ""
 	FlagMaxCpu = ""
-	FlagMaxJob = ""
 	FlagMaxTimeLimit = ""
 	FlagPriority = ""
 	FlagDescription = ""
@@ -1039,10 +1058,33 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 			if err := validateUintValue(value, "maxJobsPerUser", 32); err != nil {
 				return util.ErrorCmdArg
 			}
-			FlagMaxJob = value
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxJobsPerUser,
-				NewValue:    FlagMaxJob,
+				NewValue:    value,
+			})
+		case "maxsubmitjobsperuser":
+			if err := validateUintValue(value, "maxSubmitJobsPerUser", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxSubmitJobsPerUser,
+				NewValue:    value,
+			})
+		case "maxjobsperaccount":
+			if err := validateUintValue(value, "maxJobsPerAccount", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxJobsPerAccount,
+				NewValue:    value,
+			})
+		case "maxsubmitjobsperaccount":
+			if err := validateUintValue(value, "maxSubmitJobsPerAccount", 32); err != nil {
+				return util.ErrorCmdArg
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxSubmitJobsPerAccount,
+				NewValue:    value,
 			})
 		case "maxtimelimitpertask":
 			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
