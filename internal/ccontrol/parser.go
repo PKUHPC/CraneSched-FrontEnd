@@ -90,6 +90,8 @@ type EntityType struct {
 	Lic           bool `parser:"| @'lic'"`
 	NextTaskId    bool `parser:"| @'next-task-id'"`
 	NextTaskDbId  bool `parser:"| @'next-task-db-id'"`
+	NextStepDbId  bool `parser:"| @'next-step-db-id'"`
+	PartitionAcl  bool `parser:"| @'partition-acl'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -128,6 +130,10 @@ func (e EntityType) String() string {
 		return "next-task-id"
 	case e.NextTaskDbId:
 		return "next-task-db-id"
+	case e.NextStepDbId:
+		return "next-step-db-id"
+	case e.PartitionAcl:
+		return "partition-acl"
 	default:
 		return ""
 	}
@@ -268,6 +274,8 @@ func preParseGlobalFlags(args []string) []string {
 			os.Exit(0)
 		case "-J", "--json":
 			FlagJson = true
+		case "--force":
+			FlagForce = true
 		case "-C", "--config":
 			if hasValueInSameArg {
 				FlagConfigFilePath = flagValue

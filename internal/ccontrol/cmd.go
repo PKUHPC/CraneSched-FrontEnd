@@ -43,6 +43,7 @@ var (
 	FlagHoldTime        string
 	FlagConfigFilePath  string = util.DefaultConfigPath
 	FlagJson            bool
+	FlagForce           bool
 	FlagReservationName string
 	FlagStartTime       string
 	FlagDuration        string
@@ -507,6 +508,18 @@ func executeResetCommand(command *CControlCommand) int {
 		return executeResetNextTaskIdCommand(command)
 	case "next-task-db-id":
 		return executeResetNextTaskDbIdCommand(command)
+	case "partition-acl":
+		if err := ResetPartitionAcl(); err != nil {
+			log.Errorf("reset partition-acl failed: %s", err)
+			return util.ErrorGeneric
+		}
+		return util.ErrorSuccess
+	case "next-step-db-id":
+		if err := ResetNextStepDbId(); err != nil {
+			log.Errorf("reset next-step-db-id failed: %s", err)
+			return util.ErrorGeneric
+		}
+		return util.ErrorSuccess
 	default:
 		log.Debugf("unknown entity type for reset: %s", entity)
 		return util.ErrorCmdArg
