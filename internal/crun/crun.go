@@ -1196,8 +1196,8 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.TaskToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
-			CmdLine: strings.Join(args, " "),
-			Cwd:     gVars.cwd,
+			CmdLine:    strings.Join(args, " "),
+			Cwd:        gVars.cwd,
 			Env:        make(map[string]string),
 			TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
@@ -1218,9 +1218,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveTaskAdditionalMeta{},
 			},
-			CmdLine: strings.Join(args, " "),
-			Cwd:     gVars.cwd,
-			Env:     make(map[string]string),
+			CmdLine:    strings.Join(args, " "),
+			Cwd:        gVars.cwd,
+			Env:        make(map[string]string),
 			TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
 		}
