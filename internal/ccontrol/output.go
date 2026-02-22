@@ -308,9 +308,11 @@ func printPartitionDetails(partition *protos.PartitionInfo) error {
 	memInfo := formatMemoryResources(partition)
 	gresInfo := formatGresResources(partition)
 
-	memLimits := fmt.Sprintf("DefaultMemPerCPU=%s MaxMemPerCPU=%s",
+	memLimits := fmt.Sprintf("DefaultMemPerCPU=%s MaxMemPerCPU=%s DefaultMemPerNode=%s MaxMemPerNode=%s",
 		util.FormatMemToMB(partition.DefaultMemPerCpu),
-		util.FormatMemToMB(partition.MaxMemPerCpu))
+		util.FormatMemToMB(partition.MaxMemPerCpu),
+		util.FormatMemToMB(partition.DefaultMemPerNode),
+		util.FormatMemToMB(partition.MaxMemPerNode))
 	fmt.Printf("PartitionName=%v State=%v\n"+
 		"\t%s\n"+
 		"\t%s\n"+

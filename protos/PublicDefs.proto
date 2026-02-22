@@ -666,6 +666,8 @@ message PartitionInfo {
 
   uint64 default_mem_per_cpu = 11;
   uint64 max_mem_per_cpu = 12;
+  uint64 default_mem_per_node = 13;
+  uint64 max_mem_per_node = 14;
 }
 
 message CranedInfo {
@@ -845,6 +847,7 @@ enum ErrCode {
   ERR_RESOURCE_ALREADY_EXIST = 96;
   ERR_MAX_JOB_COUNT_PER_ACCOUNT = 97;
   ERR_USER_HAS_TASK = 98;
+  ERR_INVALID_RESOURCE = 99;
 }
 
 enum EntityType {
