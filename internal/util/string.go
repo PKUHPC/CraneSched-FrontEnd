@@ -1307,7 +1307,7 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 	return result, nil
 }
 
-func ParseTres(tres string) *protos.ResourceView {
+func ParseTres(tres string) (*protos.ResourceView, error) {
 	result := &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
 			CpuCoreLimit:       math.MaxInt32 / 256,
@@ -1317,7 +1317,7 @@ func ParseTres(tres string) *protos.ResourceView {
 		DeviceMap: &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)},
 	}
 	if tres == "" {
-		return result
+		return result, nil
 	}
 	var gresStr string
 	items := strings.Split(tres, ",")
@@ -1331,39 +1331,36 @@ func ParseTres(tres string) *protos.ResourceView {
 				value := strings.TrimSpace(kv[1])
 				if key == "cpu" {
 					if value == "-1" {
-						continue
+						return nil, fmt.Errorf("invalid cpu value: %q", value)
 					}
 					count, err := strconv.ParseFloat(value, 64)
 					if err != nil {
-						log.Errorf("Error parsing cpu: %s\n", item)
-						continue
+						return nil, fmt.Errorf("invalid cpu value: %q", value)
 					}
 					if count > (math.MaxInt32 / 256) {
-						log.Errorf("CPU setting exceeds the limit: %s\n", item)
-						continue
+						return nil, fmt.Errorf("CPU setting %q exceeds the limit", value)
 					}
 					result.GetAllocatableRes().CpuCoreLimit = count
 				} else if key == "mem" {
 					if value == "-1" {
-						continue
+						return nil, fmt.Errorf("invalid mem value: %q", value)
 					}
 					membytes, err := ParseMemStringAsByte(value)
 					if err != nil {
-						log.Errorf("Error parsing mem: %s\n", item)
-						continue
+						return nil, fmt.Errorf("invalid mem value: %q", value)
 					}
 					result.GetAllocatableRes().MemoryLimitBytes = membytes
 					result.GetAllocatableRes().MemorySwLimitBytes = membytes
 				}
 			} else {
-				log.Errorf("Error parsing tres: %s\n", item)
+				return nil, fmt.Errorf("invalid item: %q", item)
 			}
 		}
 	}
 
 	result.DeviceMap = ParseGres(strings.TrimSuffix(gresStr, ","), true)
 
-	return result
+	return result, nil
 }
 
 func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
@@ -1861,6 +1858,10 @@ func ReadableMemory(memoryBytes uint64) string {
 
 func ResourceViewToTres(rv *protos.ResourceView) string {
 	var parts []string
+
+	if rv == nil {
+		return ""
+	}
 	if rv.AllocatableRes != nil {
 		if rv.AllocatableRes.CpuCoreLimit != (math.MaxInt32 / 256) {
 			cpu := strconv.FormatFloat(rv.AllocatableRes.CpuCoreLimit, 'f', -1, 64)
@@ -1888,22 +1889,18 @@ func ResourceViewToTres(rv *protos.ResourceView) string {
 
 func ParseFlags(s string) (uint32, error) {
 	var flags uint32 = 0
-	var result bool = false
 
-	if s == "" {
+	if strings.TrimSpace(s) == "" {
 		return 0, fmt.Errorf("empty flags")
 	}
-
 	items := strings.Split(s, ",")
 	for _, item := range items {
-		if val, ok := QoSFlagNameMap[item]; ok {
-			flags |= val
-			result = true
+		item = strings.ToLower(strings.TrimSpace(item))
+		val, ok := QoSFlagNameMap[item]
+		if !ok {
+			return 0, fmt.Errorf("invalid QoS flag: %s", item)
 		}
-	}
-
-	if !result {
-		return 0, fmt.Errorf("Invalid QoS flags: %s", s)
+		flags |= val
 	}
 
 	return flags, nil
