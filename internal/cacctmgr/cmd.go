@@ -1149,16 +1149,31 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 				NewValue:    value,
 			})
 		case "maxtresperuser":
+			_, err := util.ParseTres(value)
+			if err != nil {
+				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerUser", err)
+				return util.ErrorCmdArg
+			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTresPerUser,
 				NewValue:    value,
 			})
 		case "maxtresperaccount":
+			_, err := util.ParseTres(value)
+			if err != nil {
+				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerAccount", err)
+				return util.ErrorCmdArg
+			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTresPerAccount,
 				NewValue:    value,
 			})
 		case "maxtres":
+			_, err := util.ParseTres(value)
+			if err != nil {
+				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTres", err)
+				return util.ErrorCmdArg
+			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTres,
 				NewValue:    value,
