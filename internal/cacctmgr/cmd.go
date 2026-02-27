@@ -246,16 +246,17 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 		MaxSubmitJobsPerUser:    math.MaxUint32,
 		MaxSubmitJobsPerAccount: math.MaxUint32,
 		MaxJobsPerAccount:       math.MaxUint32,
-		MaxTresPerUser:          util.ParseTres(""),
-		MaxTresPerAccount:       util.ParseTres(""),
 		MaxJobs:                 math.MaxUint32,
 		MaxSubmitJobs:           math.MaxUint32,
-		MaxTres:                 util.ParseTres(""),
 		MaxWall:                 util.MaxJobTimeLimit,
 		MaxTimeLimitPerTask:     util.MaxJobTimeLimit,
 		Flags:                   0,
 	}
 	FlagQos.Name = command.GetID()
+
+	FlagQos.MaxTresPerUser, _ = util.ParseTres("")
+	FlagQos.MaxTresPerAccount, _ = util.ParseTres("")
+	FlagQos.MaxTres, _ = util.ParseTres("")
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
@@ -307,11 +308,26 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			maxJobsPerAccount, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobsPerAccount = uint32(maxJobsPerAccount)
 		case "maxtresperuser":
-			FlagQos.MaxTresPerUser = util.ParseTres(value)
+			var err error
+			FlagQos.MaxTresPerUser, err = util.ParseTres(value)
+			if err != nil {
+				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerUser", err)
+				return util.ErrorCmdArg
+			}
 		case "maxtresperaccount":
-			FlagQos.MaxTresPerAccount = util.ParseTres(value)
+			var err error
+			FlagQos.MaxTresPerAccount, err = util.ParseTres(value)
+			if err != nil {
+				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerAccount", err)
+				return util.ErrorCmdArg
+			}
 		case "maxtres":
-			FlagQos.MaxTres = util.ParseTres(value)
+			var err error
+			FlagQos.MaxTres, err = util.ParseTres(value)
+			if err != nil {
+				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTres", err)
+				return util.ErrorCmdArg
+			}
 		case "maxjobs":
 			if err := validateUintValue(value, "maxjobs", 32); err != nil {
 				return util.ErrorCmdArg
