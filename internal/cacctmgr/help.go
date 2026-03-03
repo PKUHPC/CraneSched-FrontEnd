@@ -182,9 +182,13 @@ func showHelp() {
       Priority=<priority>        Priority (higher value means higher priority)
       MaxJobsPerUser=<num>       Maximum number of jobs per user
       MaxSubmitJobsPerUser=<num>  Maximum number of submit jobs per user
+      MaxTresPerUser=<tres>       Maximum tres per user
       MaxJobsPerAccount=<num>     Maximum number of jobs per account
       MaxSubmitJobsPerAccount=<num>  Maximum number of submit jobs per account
-      MaxCpusPerUser=<num>       Maximum number of CPUs per user
+      MaxTresPerAccount=<tres>     Maximum tres per account
+      MaxCpusPerUser=<num>        Maximum number of CPUs per user
+      MaxTresPerUser=<tres>       Maximum tres per qos
+      MaxWall=<seconds>           Maximum all run time per qos
       MaxTimeLimitPerTask=<duration|seconds>  Maximum run time per task in seconds
       Name=<name1,name2,...>    List of QoS name for batch creation
   
@@ -240,14 +244,19 @@ func showHelp() {
       set AllowedQos=...             Set allowed QoS directly
     QoS options:
       where Name=<qos>
-      set Description=<desc>         Set description
-      set MaxCpusPerUser=<num>        Set max CPUs per user
-      set MaxJobsPerUser=<num> Set max jobs per user
-      set MaxSubmitJobsPerUser=<num>  Set max submit jobs per user
-      set MaxJobsPerAccount=<num>     Set max jobs per account
+      set Description=<desc>             Set description
+      set MaxCpusPerUser=<num>           Set max CPUs per user
+      set MaxJobsPerUser=<num>           Set max jobs per user
+      set MaxSubmitJobsPerUser=<num>     Set max submit jobs per user
+      set MaxTresPerUser=...             Set max Tres per user
+      set MaxJobsPerAccount=<num>        Set max jobs per account
       set MaxSubmitJobsPerAccount=<num>  Set max submit jobs per account
-      set MaxTimeLimitPerTask=<duration|sec>   Set the maximum time limit per job (format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds) (default 315576000000 seconds)"
-      set Priority=<priority>         Set priority
+      set MaxTresPerAccount=...          Set max Tres per account
+      set MaxJobs=<num>                  Set max jobs
+      set MaxTres=...                    Set max Tres
+      set MaxWall=<sec>                  Set max wall
+      set MaxTimeLimitPerTask=<duration|sec>      Set max time per task (seconds)
+      set Priority=<priority>            Set priority
     Wckey options:
       where user=<name> 
       set defaultwckey=<wckeyname>    Set default wckey for specific users
