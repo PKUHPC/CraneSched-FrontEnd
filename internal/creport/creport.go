@@ -132,7 +132,7 @@ func GetDefaultStartTime() string {
 	now := time.Now()
 	yesterday := now.AddDate(0, 0, -1)
 	zero := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, yesterday.Location())
-	return zero.Format("2006-01-02T15:04:05")
+	return zero.UTC().Format("2006-01-02T15:04:05")
 }
 
 func GetDefaultEndTime() string {
@@ -141,7 +141,7 @@ func GetDefaultEndTime() string {
 	endTime := time.Date(
 		yesterday.Year(), yesterday.Month(), yesterday.Day(),
 		23, 59, 59, 0, yesterday.Location())
-	return endTime.Format("2006-01-02T15:04:05")
+	return endTime.UTC().Format("2006-01-02T15:04:05")
 }
 
 func QueryUsersTopSummaryItem() error {
