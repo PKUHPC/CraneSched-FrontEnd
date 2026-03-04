@@ -572,6 +572,25 @@ func ResetNextStepDbId() error {
 	return nil
 }
 
+func PurgeTaskHistory() error {
+	req := &protos.PurgeTaskHistoryRequest{
+		Uid: uint32(os.Getuid()),
+	}
+
+	reply, err := stub.PurgeTaskHistory(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to purge task history")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if reply.GetOk() {
+		fmt.Println("Task history purged successfully.")
+	} else {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to purge task history: %s.", reply.GetReason()))
+	}
+	return nil
+}
+
 func ResetPartitionAcl() error {
 	req := &protos.ResetPartitionAclRequest{
 		Uid:              uint32(os.Getuid()),

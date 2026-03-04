@@ -92,6 +92,7 @@ type EntityType struct {
 	NextTaskDbId  bool `parser:"| @'next-task-db-id'"`
 	NextStepDbId  bool `parser:"| @'next-step-db-id'"`
 	PartitionAcl  bool `parser:"| @'partition-acl'"`
+	TaskHistory   bool `parser:"| @'task-history'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -134,6 +135,8 @@ func (e EntityType) String() string {
 		return "next-step-db-id"
 	case e.PartitionAcl:
 		return "partition-acl"
+	case e.TaskHistory:
+		return "task-history"
 	default:
 		return ""
 	}

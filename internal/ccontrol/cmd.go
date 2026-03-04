@@ -520,6 +520,12 @@ func executeResetCommand(command *CControlCommand) int {
 			return util.ErrorGeneric
 		}
 		return util.ErrorSuccess
+	case "task-history":
+		if err := PurgeTaskHistory(); err != nil {
+			log.Errorf("reset task-history failed: %s", err)
+			return util.ErrorGeneric
+		}
+		return util.ErrorSuccess
 	default:
 		log.Debugf("unknown entity type for reset: %s", entity)
 		return util.ErrorCmdArg
