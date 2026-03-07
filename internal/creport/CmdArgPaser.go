@@ -279,6 +279,14 @@ func init() {
 			"Specify nodes name to view (comma separated list), default is all")
 		jobCmd.AddCommand(sizesByAccountCmd)
 		jobCmd.AddCommand(sizesByWckeyCmd)
+		{
+			sizesByWckeyCmd.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
+				"Select wckeys to view (comma separated list)")
+		}
 		jobCmd.AddCommand(sizesByAccountAndWcKey)
+		{
+			sizesByAccountAndWcKey.Flags().StringVarP(&FlagFilterWckeys, "wckeys", "w", "",
+				"Select wckeys to view (comma separated list)")
+		}
 	}
 }
