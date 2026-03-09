@@ -244,7 +244,7 @@ func init() {
 
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterAccounts, "account", "A", "",
 				"Select accounts to view (comma separated list)")
-			wckeyUtilizationByUserCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
+			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 				"Select users to view (comma separated list)")
 			accountUtilizationByQosCmd.Flags().StringVarP(&FlagFilterQosList, "qos", "q",
 				"", "Select QoSs to view (comma separated list)")
