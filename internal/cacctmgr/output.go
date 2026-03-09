@@ -761,8 +761,8 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 				formatTableData[currentRow] = append(formatTableData[currentRow], maxWallStr)
 				currentRow++
 			}
-		case "flag":
-			tableOutputHeader[i] = "Flag"
+		case "flags":
+			tableOutputHeader[i] = "Flags"
 			for _, info := range qosList {
 				var qosFlagStr string
 				if info.Flags == 0 {
@@ -796,7 +796,7 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser",
 		"MaxJobsPerAccount", "MaxSubmitJobsPerUser", "MaxSubmitJobsPerAccount", "MaxTresPerUser", "MaxTresPerAccount",
-		"MaxTres", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxTimeLimitPerTask", "Flag"}
+		"MaxTres", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxTimeLimitPerTask", "Flags"}
 	tableCtx.tableData = make([][]string, 0, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
