@@ -1311,8 +1311,8 @@ func ParseTres(tres string) (*protos.ResourceView, error) {
 	result := &protos.ResourceView{
 		AllocatableRes: &protos.AllocatableResource{
 			CpuCoreLimit:       math.MaxInt32 / 256,
-			MemoryLimitBytes:   math.MaxUint64,
-			MemorySwLimitBytes: math.MaxUint64,
+			MemoryLimitBytes:   MaxJobMemoryBytes,
+			MemorySwLimitBytes: MaxJobMemoryBytes,
 		},
 		DeviceMap: &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)},
 	}
@@ -1347,6 +1347,9 @@ func ParseTres(tres string) (*protos.ResourceView, error) {
 					}
 					membytes, err := ParseMemStringAsByte(value)
 					if err != nil {
+						return nil, fmt.Errorf("invalid mem value: %q", value)
+					}
+					if membytes > MaxJobMemoryBytes {
 						return nil, fmt.Errorf("invalid mem value: %q", value)
 					}
 					result.GetAllocatableRes().MemoryLimitBytes = membytes
@@ -1867,7 +1870,7 @@ func ResourceViewToTres(rv *protos.ResourceView) string {
 			cpu := strconv.FormatFloat(rv.AllocatableRes.CpuCoreLimit, 'f', -1, 64)
 			parts = append(parts, "cpu="+cpu)
 		}
-		if rv.AllocatableRes.MemoryLimitBytes != math.MaxUint64 {
+		if rv.AllocatableRes.MemoryLimitBytes != MaxJobMemoryBytes {
 			mem := ReadableMemory(rv.AllocatableRes.MemoryLimitBytes)
 			parts = append(parts, "mem="+mem)
 		}
