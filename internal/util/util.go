@@ -118,6 +118,8 @@ const (
 	MaxJobTimeStamp = 253402300799 // 9999-12-31 23:59:59
 
 	MaxEntityNameLength = 30
+
+	MaxJobMemoryBytes = 10737418240000 // 10000GB
 )
 
 // Param Options
