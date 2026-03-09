@@ -263,19 +263,19 @@ func init() {
 	}
 	RootCmd.AddCommand(jobCmd)
 	{
-		jobCmd.Flags().StringVar(&FlagFilterGids, "gid", "",
+		jobCmd.PersistentFlags().StringVar(&FlagFilterGids, "gid", "",
 			"Select group id to view (comma separated list)")
-		jobCmd.Flags().StringVar(&FlagFilterGrouping, "grouping", "50,250,500,1000",
+		jobCmd.PersistentFlags().StringVar(&FlagFilterGrouping, "grouping", "50,250,500,1000",
 			"Comma separated list of size groupings "+
 				"(e.g. 50,100,150 would group job cpu count 1-49, 50-99, 100-149, > 150). "+
 				"grouping=individual will result in a single column for each job size found.")
-		jobCmd.Flags().StringVarP(&FlagFilterJobIDs, "jobs", "j", "",
+		jobCmd.PersistentFlags().StringVarP(&FlagFilterJobIDs, "jobs", "j", "",
 			"Select job ids to view (comma separated list), default is all")
-		jobCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
+		jobCmd.PersistentFlags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 			"Specify partitions to view (comma separated list), default is all")
-		jobCmd.Flags().BoolVar(&FlagPrintJobCount, "printjobcount", false,
+		jobCmd.PersistentFlags().BoolVar(&FlagPrintJobCount, "printjobcount", false,
 			"The report will print number of jobs range instead of time used")
-		jobCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
+		jobCmd.PersistentFlags().StringVarP(&FlagFilterNodeNames, "nodes", "n", "",
 			"Specify nodes name to view (comma separated list), default is all")
 		jobCmd.AddCommand(sizesByAccountCmd)
 		jobCmd.AddCommand(sizesByWckeyCmd)
