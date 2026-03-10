@@ -432,7 +432,7 @@ func FilterBadState(tableData [][]string) [][]string {
 	re := regexp.MustCompile(pattern)
 	for _, data := range tableData {
 		//FIXME: HARD CODE
-		if re.MatchString(data[3]) {
+		if re.MatchString(data[2]) {
 			new_table = append(new_table, data)
 		}
 	}
