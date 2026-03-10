@@ -224,14 +224,23 @@ func FormatData(reply *protos.QueryClusterInfoReply) (header []string, tableData
 	return formattedHeader, formattedData, nil
 }
 
-func GetInvalidMsg(partitionCraned *protos.TrimmedPartitionInfo) []string {
-	return []string{
-		"",
-		partitionCraned.Name,
-		strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
-		"0",
-		"n/a",
-		"",
+func GetInvalidMsg(partitionCraned *protos.TrimmedPartitionInfo, isSingleNode bool) []string {
+	if isSingleNode {
+		return []string{
+			partitionCraned.Name,
+			strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
+			"n/a",
+			"",
+			"",
+		}
+	} else {
+		return []string{
+			partitionCraned.Name,
+			strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
+			"0",
+			"n/a",
+			"",
+		}
 	}
 }
 
@@ -257,55 +266,70 @@ func BuildStateString(cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo)
 func CreateValidPartitionRow(partition *protos.TrimmedPartitionInfo, cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) []string {
 	stateStr := BuildStateString(cranedList)
 	return []string{
-		cranedList.StateReason,
 		partition.Name,
 		strings.ToLower(strings.TrimPrefix(partition.State.String(), "PARTITION_")),
 		strconv.FormatUint(uint64(cranedList.Count), 10),
 		stateStr,
 		cranedList.CranedListRegex,
 	}
+
 }
 
-func PartitionDeal(partitionCraned *protos.TrimmedPartitionInfo, tableData *[][]string) bool {
+func CreateValidPartitionRowWithSingleNode(partition *protos.TrimmedPartitionInfo, cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo, name string, reason string) []string {
+	stateStr := BuildStateString(cranedList)
+	return []string{
+		partition.Name,
+		strings.ToLower(strings.TrimPrefix(partition.State.String(), "PARTITION_")),
+		stateStr,
+		name,
+		reason,
+	}
+}
+
+func PartitionDeal(partitionCraned *protos.TrimmedPartitionInfo, tableData *[][]string, isSingleNode bool) bool {
 	hasValidCraned := false
 	for _, cranedList := range partitionCraned.CranedLists {
+
 		if cranedList.Count > 0 {
 			hasValidCraned = true
-			*tableData = append(*tableData, CreateValidPartitionRow(partitionCraned, cranedList))
+			if isSingleNode {
+				for _, node := range cranedList.NodeStateList {
+					*tableData = append(*tableData, CreateValidPartitionRowWithSingleNode(partitionCraned, cranedList, node.NodeName, node.StateReason))
+				}
+			} else {
+				*tableData = append(*tableData, CreateValidPartitionRow(partitionCraned, cranedList))
+			}
+
 		}
 	}
+
 	return hasValidCraned
 }
 
-func FindTableDataByReply(reply *protos.QueryClusterInfoReply) [][]string {
+func FindTableDataByReply(reply *protos.QueryClusterInfoReply, isSingleNode bool) [][]string {
 	var partitionInValid [][]string
 	var tableData [][]string
-
 	for _, partitionCraned := range reply.Partitions {
-		if hasValid := PartitionDeal(partitionCraned, &tableData); !hasValid {
-			partitionInValid = append(partitionInValid, GetInvalidMsg(partitionCraned))
+		if hasValid := PartitionDeal(partitionCraned, &tableData, isSingleNode); !hasValid {
+			partitionInValid = append(partitionInValid, GetInvalidMsg(partitionCraned, isSingleNode))
 		}
 	}
-
 	tableData = append(tableData, partitionInValid...)
+
 	return tableData
 }
 
 func FillTable(reply *protos.QueryClusterInfoReply, table *tablewriter.Table) error {
-	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
 	var err error
-	tableData := FindTableDataByReply(reply)
+	var tableData [][]string
+	var header []string
 	if FlagListReason {
-		header = append([]string{"REASON"}, header...)
+		header = []string{"PARTITION", "AVAIL", "STATE", "NODE", "REASON"}
+		tableData = FindTableDataByReply(reply, true)
 		tableData = FilterBadState(tableData)
 	} else {
-		for i := range tableData {
-			if len(tableData[i]) > 1 {
-				tableData[i] = tableData[i][1:]
-			} else {
-				tableData[i] = []string{}
-			}
-		}
+		header = []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
+		tableData = FindTableDataByReply(reply, false)
 	}
 
 	if FlagFormat != "" {
@@ -400,6 +424,7 @@ func JsonOutput(reply *protos.QueryClusterInfoReply) error {
 }
 
 func FilterBadState(tableData [][]string) [][]string {
+	//only used in single node
 	var new_table [][]string
 	//TODO: need to expand
 	pattern := `drain`
@@ -407,7 +432,7 @@ func FilterBadState(tableData [][]string) [][]string {
 	re := regexp.MustCompile(pattern)
 	for _, data := range tableData {
 		//FIXME: HARD CODE
-		if re.MatchString(data[4]) {
+		if re.MatchString(data[3]) {
 			new_table = append(new_table, data)
 		}
 	}
