@@ -82,17 +82,17 @@ type KeyValueParam struct {
 }
 
 type EntityType struct {
-	Node          bool `parser:"@'node'"`
-	Partition     bool `parser:"| @'partition'"`
-	Job           bool `parser:"| @'job'"`
-	Step          bool `parser:"| @'step'"`
-	Reservation   bool `parser:"| @'reservation'"`
-	Lic           bool `parser:"| @'lic'"`
-	NextTaskId    bool `parser:"| @'next-task-id'"`
-	NextTaskDbId  bool `parser:"| @'next-task-db-id'"`
-	NextStepDbId  bool `parser:"| @'next-step-db-id'"`
-	PartitionAcl  bool `parser:"| @'partition-acl'"`
-	TaskHistory   bool `parser:"| @'task-history'"`
+	Node         bool `parser:"@'node'"`
+	Partition    bool `parser:"| @'partition'"`
+	Job          bool `parser:"| @'job'"`
+	Step         bool `parser:"| @'step'"`
+	Reservation  bool `parser:"| @'reservation'"`
+	Lic          bool `parser:"| @'lic'"`
+	NextTaskId   bool `parser:"| @'next-task-id'"`
+	NextTaskDbId bool `parser:"| @'next-task-db-id'"`
+	NextStepDbId bool `parser:"| @'next-step-db-id'"`
+	PartitionAcl bool `parser:"| @'partition-acl'"`
+	TaskHistory  bool `parser:"| @'task-history'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
