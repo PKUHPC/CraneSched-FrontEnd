@@ -39,6 +39,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
@@ -66,6 +67,11 @@ To sum up, ccontrol, cacctmgr, cbatch, calloc, crun, ceff and creport are too co
 
 type SlurmWrapper struct {
 }
+
+var (
+	wrapCeffLeafRunEOnce    sync.Once
+	wrapCreportLeafRunEOnce sync.Once
+)
 
 func (w SlurmWrapper) Group() *cobra.Group {
 	return &cobra.Group{
@@ -473,6 +479,9 @@ func seff() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			wrapCeffLeafRunEOnce.Do(func() {
+				util.RunEWrapperForLeafCommand(ceff.RootCmd)
+			})
 			ceff.RootCmd.SetArgs(args)
 			return ceff.RootCmd.Execute()
 		},
@@ -717,13 +726,21 @@ func sreport() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			convertedArgs := make([]string, 0, len(args))
 			for _, arg := range args {
-				if strings.HasPrefix(arg, "-") || strings.Contains(arg, "=") {
+				if strings.Contains(arg, "=") && !strings.HasPrefix(arg, "-") {
+					log.Warningf("Slurm-style key=value argument %q is not supported in sreport wrapper. "+
+						"Please use creport with explicit flags, e.g. --start-time/--end-time.", arg)
+					os.Exit(util.ErrorCmdArg)
+				}
+				if strings.HasPrefix(arg, "-") {
 					convertedArgs = append(convertedArgs, arg)
 				} else {
 					convertedArgs = append(convertedArgs, strings.ToLower(arg))
 				}
 			}
 
+			wrapCreportLeafRunEOnce.Do(func() {
+				util.RunEWrapperForLeafCommand(creport.RootCmd)
+			})
 			creport.RootCmd.SetArgs(convertedArgs)
 			return creport.RootCmd.Execute()
 		},
