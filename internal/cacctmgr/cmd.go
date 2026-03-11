@@ -490,9 +490,12 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
 		return util.ErrorCmdArg
 	}
 
-	err := checkEmptyKVParams(KVParams, []string{"user"})
-	if err != util.ErrorSuccess {
-		return err
+	// When deleting ALL, user param is not required
+	if strings.ToUpper(FlagWckey.Name) != "ALL" {
+		err := checkEmptyKVParams(KVParams, []string{"user"})
+		if err != util.ErrorSuccess {
+			return err
+		}
 	}
 
 	for key, value := range KVParams {
@@ -516,9 +519,12 @@ func executeDeleteResourceCommand(command *CAcctMgrCommand) int {
 	}
 	KVParams := command.GetKVMaps()
 
-	err := checkEmptyKVParams(KVParams, []string{"server"})
-	if err != util.ErrorSuccess {
-		return err
+	// When deleting ALL, server param is not required
+	if strings.ToUpper(FlagEntityName) != "ALL" {
+		err := checkEmptyKVParams(KVParams, []string{"server"})
+		if err != util.ErrorSuccess {
+			return err
+		}
 	}
 
 	for key, value := range KVParams {

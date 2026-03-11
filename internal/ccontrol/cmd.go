@@ -43,6 +43,7 @@ var (
 	FlagHoldTime        string
 	FlagConfigFilePath  string = util.DefaultConfigPath
 	FlagJson            bool
+	FlagForce           bool
 	FlagReservationName string
 	FlagStartTime       string
 	FlagDuration        string
@@ -59,6 +60,7 @@ var actionToExecute = map[string]func(command *CControlCommand) int{
 	"release": executeReleaseCommand,
 	"create":  executeCreateCommand,
 	"delete":  executeDeleteCommand,
+	"reset":   executeResetCommand,
 }
 
 func ParseCmdArgs(args []string) {
@@ -494,6 +496,77 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 	err := DeleteReservation(name)
 	if err != nil {
 		log.Errorf("%s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeResetCommand(command *CControlCommand) int {
+	entity := command.GetEntity()
+	switch entity {
+	case "next-task-id":
+		return executeResetNextTaskIdCommand(command)
+	case "next-task-db-id":
+		return executeResetNextTaskDbIdCommand(command)
+	case "partition-acl":
+		if err := ResetPartitionAcl(); err != nil {
+			log.Errorf("reset partition-acl failed: %s", err)
+			return util.ErrorGeneric
+		}
+		return util.ErrorSuccess
+	case "next-step-db-id":
+		if err := ResetNextStepDbId(); err != nil {
+			log.Errorf("reset next-step-db-id failed: %s", err)
+			return util.ErrorGeneric
+		}
+		return util.ErrorSuccess
+	case "task-history":
+		if err := PurgeTaskHistory(); err != nil {
+			log.Errorf("reset task-history failed: %s", err)
+			return util.ErrorGeneric
+		}
+		return util.ErrorSuccess
+	default:
+		log.Debugf("unknown entity type for reset: %s", entity)
+		return util.ErrorCmdArg
+	}
+}
+
+func executeResetNextTaskIdCommand(command *CControlCommand) int {
+	var value uint32 = 1
+	if id := command.GetID(); id != "" {
+		v, err := strconv.ParseUint(id, 10, 32)
+		if err != nil || v == 0 {
+			log.Errorf("invalid value: %s (must be a positive integer)", id)
+			return util.ErrorCmdArg
+		}
+		value = uint32(v)
+	}
+
+	// next_task_id = value, next_task_db_id = 0 (don't change)
+	err := ResetNextTaskId(value, 0)
+	if err != nil {
+		log.Errorf("reset next-task-id failed: %s", err)
+		return util.ErrorGeneric
+	}
+	return util.ErrorSuccess
+}
+
+func executeResetNextTaskDbIdCommand(command *CControlCommand) int {
+	var value int64 = 1
+	if id := command.GetID(); id != "" {
+		v, err := strconv.ParseInt(id, 10, 64)
+		if err != nil || v <= 0 {
+			log.Errorf("invalid value: %s (must be a positive integer)", id)
+			return util.ErrorCmdArg
+		}
+		value = v
+	}
+
+	// next_task_id = 0 (don't change), next_task_db_id = value
+	err := ResetNextTaskId(0, value)
+	if err != nil {
+		log.Errorf("reset next-task-db-id failed: %s", err)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess
