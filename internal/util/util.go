@@ -129,10 +129,11 @@ const (
 )
 
 const (
-	QOSFlagDenyOnLimit uint32 = 1 << iota
+	QosFlagNone        uint32 = 0
+	QOSFlagDenyOnLimit uint32 = 1
 )
 
 var QoSFlagNameMap = map[string]uint32{
-	"none":        0,
+	"none":        QosFlagNone,
 	"denyonlimit": QOSFlagDenyOnLimit,
 }
