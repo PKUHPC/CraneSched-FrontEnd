@@ -1304,6 +1304,13 @@ func ParseGresForQosLimit(gres string) (*protos.DeviceMap, error) {
 		name := parts[0]
 		if len(parts) == 2 {
 			if parts[1] == "unlimited" {
+				if pair, exist := result.NameTypeMap[name]; exist {
+					if pair.TypeCountMap != nil && len(pair.TypeCountMap) > 0 {
+						delete(result.NameTypeMap, name)
+					} else {
+						result.NameTypeMap[name].Total = math.MaxUint32
+					}
+				}
 				continue
 			}
 			gresNameCount, err := strconv.ParseUint(parts[1], 10, 64)
@@ -1318,6 +1325,14 @@ func ParseGresForQosLimit(gres string) (*protos.DeviceMap, error) {
 		} else if len(parts) == 3 {
 			gresType := parts[1]
 			if parts[2] == "unlimited" {
+				if pair, exist := result.NameTypeMap[name]; exist {
+					if pair.TypeCountMap != nil {
+						delete(pair.TypeCountMap, gresType)
+					}
+					if pair.TypeCountMap == nil || len(pair.TypeCountMap) == 0 {
+						delete(result.NameTypeMap, name)
+					}
+				}
 				continue
 			}
 			count, err := strconv.ParseUint(parts[2], 10, 64)
@@ -1327,7 +1342,7 @@ func ParseGresForQosLimit(gres string) (*protos.DeviceMap, error) {
 			if _, exist := result.NameTypeMap[name]; !exist {
 				typeCountMap := make(map[string]uint64)
 				typeCountMap[gresType] = count
-				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: 0}
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: math.MaxUint32}
 			} else {
 				result.NameTypeMap[name].TypeCountMap[gresType] = count
 			}
