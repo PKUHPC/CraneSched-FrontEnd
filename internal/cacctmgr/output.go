@@ -753,7 +753,7 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 			tableOutputHeader[i] = "MaxWall"
 			for _, info := range qosList {
 				var maxWallStr string
-				if info.MaxWall >= util.MaxJobTimeLimit {
+				if info.MaxWall == 0 {
 					maxWallStr = "unlimited"
 				} else {
 					maxWallStr = util.SecondTimeFormat(int64(info.MaxWall))
@@ -848,7 +848,7 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 			maxSubmitJobsStr = strconv.FormatUint(uint64(info.MaxSubmitJobs), 10)
 		}
 		var maxWallStr string
-		if info.MaxWall >= util.MaxJobTimeLimit {
+		if info.MaxWall == 0 {
 			maxWallStr = "unlimited"
 		} else {
 			maxWallStr = util.SecondTimeFormat(int64(info.MaxWall))
