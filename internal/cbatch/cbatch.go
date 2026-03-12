@@ -76,10 +76,10 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 
 	// Set the payload
 	task.Payload = &protos.TaskToCtld_BatchMeta{
-		BatchMeta: &protos.BatchTaskAdditionalMeta{
-			ShScript: shScript,
-		},
+		BatchMeta: &protos.BatchTaskAdditionalMeta{},
 	}
+	task.IoMeta = &protos.IoMeta{}
+	task.ShScript = shScript
 
 	// Set default values
 	task.CpusPerTask = 1
@@ -123,7 +123,10 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("gres") {
-		gresMap := util.ParseGres(FlagGres)
+		gresMap, err := util.ParseGres(FlagGres)
+		if err != nil {
+			return nil, fmt.Errorf("invalid argument: invalid --gres value '%s': %w", FlagGres, err)
+		}
 		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
 			if setGpusPerNodeFlag {
 				return nil, fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
@@ -204,11 +207,14 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagExport != "" {
 		task.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
+	if FlagStdinPath != "" {
+		task.GetIoMeta().InputFilePattern = FlagStdinPath
+	}
 	if FlagStdoutPath != "" {
-		task.GetBatchMeta().OutputFilePattern = FlagStdoutPath
+		task.GetIoMeta().OutputFilePattern = FlagStdoutPath
 	}
 	if FlagStderrPath != "" {
-		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
+		task.GetIoMeta().ErrorFilePattern = FlagStderrPath
 	}
 	if FlagInterpreter != "" {
 		task.GetBatchMeta().Interpreter = FlagInterpreter
@@ -229,9 +235,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagOpenMode != "" {
 		switch FlagOpenMode {
 		case util.OpenModeAppend:
-			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
+			task.GetIoMeta().OpenModeAppend = proto.Bool(true)
 		case util.OpenModeTruncate:
-			task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
+			task.GetIoMeta().OpenModeAppend = proto.Bool(false)
 		default:
 			return nil, fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 		}
@@ -297,10 +303,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 
 	// Check the validity of the parameters
-	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
+	if err := util.CheckFileLength(task.GetIoMeta().InputFilePattern); err != nil {
+		return nil, fmt.Errorf("invalid argument: invalid input file path: %w", err)
+	}
+	if err := util.CheckFileLength(task.GetIoMeta().OutputFilePattern); err != nil {
 		return nil, fmt.Errorf("invalid argument: invalid output file path: %w", err)
 	}
-	if err := util.CheckFileLength(task.GetBatchMeta().ErrorFilePattern); err != nil {
+	if err := util.CheckFileLength(task.GetIoMeta().ErrorFilePattern); err != nil {
 		return nil, fmt.Errorf("invalid argument: invalid error file path: %w", err)
 	}
 	if err := util.CheckTaskArgs(task); err != nil {
@@ -326,7 +335,10 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			}
 			task.CpusPerTask = num
 		case "--gres":
-			gresMap := util.ParseGres(arg.val)
+			gresMap, err := util.ParseGres(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: invalid --gres value '%s' in script: %w", arg.val, err)
+			}
 			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
 				if setGpusPerNodeFlag {
 					return fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
@@ -409,9 +421,9 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 		case "--export":
 			task.Env["CRANE_EXPORT_ENV"] = arg.val
 		case "-o", "--output":
-			task.GetBatchMeta().OutputFilePattern = arg.val
+			task.GetIoMeta().OutputFilePattern = arg.val
 		case "-e", "--error":
-			task.GetBatchMeta().ErrorFilePattern = arg.val
+			task.GetIoMeta().ErrorFilePattern = arg.val
 		case "--interpreter":
 			task.GetBatchMeta().Interpreter = arg.val
 		case "--extra-attr":
@@ -425,9 +437,9 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 		case "--open-mode":
 			switch arg.val {
 			case util.OpenModeAppend:
-				task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
+				task.GetIoMeta().OpenModeAppend = proto.Bool(true)
 			case util.OpenModeTruncate:
-				task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
+				task.GetIoMeta().OpenModeAppend = proto.Bool(false)
 			default:
 				return fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			}
