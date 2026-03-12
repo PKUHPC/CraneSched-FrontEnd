@@ -249,9 +249,9 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 		MaxJobsPerAccount:       math.MaxUint32,
 		MaxJobs:                 math.MaxUint32,
 		MaxSubmitJobs:           math.MaxUint32,
-		MaxWall:                 util.MaxJobTimeLimit,
+		MaxWall:                 0,
 		MaxTimeLimitPerTask:     util.MaxJobTimeLimit,
-		Flags:                   0,
+		Flags:                   util.QosFlagNone,
 	}
 	FlagQos.Name = command.GetID()
 
