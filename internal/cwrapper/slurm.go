@@ -718,18 +718,18 @@ func squeueLoopedQuery(iterate uint64) util.ExitCode {
 
 func sreport() *cobra.Command {
 	sreportCommandTokens := map[string]struct{}{
-		"user":                      {},
-		"cluster":                   {},
-		"job":                       {},
-		"topusage":                  {},
-		"accountutilizationbyuser":  {},
-		"userutilizationbyaccount":  {},
-		"userutilizationbywckey":    {},
-		"wckeyutilizationbyuser":    {},
-		"accountutilizationbyqos":   {},
-		"sizesbyaccount":            {},
-		"sizesbywckey":              {},
-		"sizesbyaccountandwckey":    {},
+		"user":                     {},
+		"cluster":                  {},
+		"job":                      {},
+		"topusage":                 {},
+		"accountutilizationbyuser": {},
+		"userutilizationbyaccount": {},
+		"userutilizationbywckey":   {},
+		"wckeyutilizationbyuser":   {},
+		"accountutilizationbyqos":  {},
+		"sizesbyaccount":           {},
+		"sizesbywckey":             {},
+		"sizesbyaccountandwckey":   {},
 	}
 
 	cmd := &cobra.Command{
