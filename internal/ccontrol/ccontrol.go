@@ -488,9 +488,17 @@ func CreateReservation() error {
 }
 
 func DeleteReservation(ReservationName string) error {
+	if strings.ToUpper(ReservationName) == "ALL" {
+		if !FlagForce {
+			log.Errorf("To delete all reservations, you must set --force.")
+			return &util.CraneError{Code: util.ErrorCmdArg}
+		}
+	}
+
 	req := &protos.DeleteReservationRequest{
 		Uid:             uint32(os.Getuid()),
 		ReservationName: ReservationName,
+		Force:           FlagForce,
 	}
 	reply, err := stub.DeleteReservation(context.Background(), req)
 	if err != nil {
@@ -512,6 +520,93 @@ func DeleteReservation(ReservationName string) error {
 	} else {
 		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
 		return &util.CraneError{Code: util.ErrorBackend}
+	}
+	return nil
+}
+
+func ResetNextTaskId(nextTaskId uint32, nextTaskDbId int64) error {
+	req := &protos.ResetNextTaskIdRequest{
+		Uid:          uint32(os.Getuid()),
+		NextTaskId:   nextTaskId,
+		NextTaskDbId: nextTaskDbId,
+	}
+
+	reply, err := stub.ResetNextTaskId(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to reset next task ID")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return nil
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+
+	if reply.GetOk() {
+		fmt.Printf("Next task ID reset to %d (db_id=%d) successfully.\n", nextTaskId, nextTaskDbId)
+	} else {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to reset next task ID: %s.", reply.GetReason()))
+	}
+	return nil
+}
+
+func ResetNextStepDbId() error {
+	req := &protos.ResetNextStepDbIdRequest{
+		Uid: uint32(os.Getuid()),
+	}
+
+	reply, err := stub.ResetNextStepDbId(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to reset next step DB ID")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if reply.GetOk() {
+		fmt.Println("Step DB ID counters reset successfully.")
+	} else {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to reset step DB ID: %s.", reply.GetReason()))
+	}
+	return nil
+}
+
+func PurgeTaskHistory() error {
+	req := &protos.PurgeTaskHistoryRequest{
+		Uid: uint32(os.Getuid()),
+	}
+
+	reply, err := stub.PurgeTaskHistory(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to purge task history")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if reply.GetOk() {
+		fmt.Println("Task history purged successfully.")
+	} else {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to purge task history: %s.", reply.GetReason()))
+	}
+	return nil
+}
+
+func ResetPartitionAcl() error {
+	req := &protos.ResetPartitionAclRequest{
+		Uid:              uint32(os.Getuid()),
+		ReloadFromConfig: true,
+	}
+
+	reply, err := stub.ResetPartitionAcl(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to reset partition ACLs")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if reply.GetOk() {
+		fmt.Println("All partition ACLs reset successfully.")
+	} else {
+		return util.NewCraneErr(util.ErrorBackend, "Failed to reset partition ACLs.")
 	}
 	return nil
 }

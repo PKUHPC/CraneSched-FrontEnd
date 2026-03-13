@@ -31,6 +31,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
@@ -376,17 +377,21 @@ func AddLicenseResource(name string, server string, clusters string, operators m
 }
 
 func DeleteAccount(value string) util.ExitCode {
-	if FlagForce {
-		log.Warning("--force flag is ignored for delete operations")
-	}
-
 	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
+		log.Errorf("Invalid account list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
 
-	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList}
+	if slices.Contains(accountList, "ALL") {
+		if !FlagForce {
+			log.Errorf("To delete all accounts, you must set --force.")
+			return util.ErrorCmdArg
+		}
+		accountList = []string{"ALL"}
+	}
+
+	req := protos.DeleteAccountRequest{Uid: userUid, AccountList: accountList, Force: FlagForce}
 
 	reply, err := stub.DeleteAccount(context.Background(), &req)
 	if err != nil {
@@ -458,16 +463,21 @@ func DeleteUser(value string, account string) util.ExitCode {
 }
 
 func DeleteQos(value string) util.ExitCode {
-	if FlagForce {
-		log.Warning("--force flag is ignored for delete operations")
-	}
-
 	qosList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
-		log.Errorf("Invalid user list specified: %v.\n", err)
+		log.Errorf("Invalid QoS list specified: %v.\n", err)
 		return util.ErrorCmdArg
 	}
-	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList}
+
+	if slices.Contains(qosList, "ALL") {
+		if !FlagForce {
+			log.Errorf("To delete all QoS, you must set --force.")
+			return util.ErrorCmdArg
+		}
+		qosList = []string{"ALL"}
+	}
+
+	req := protos.DeleteQosRequest{Uid: userUid, QosList: qosList, Force: FlagForce}
 
 	reply, err := stub.DeleteQos(context.Background(), &req)
 	if err != nil {
@@ -496,8 +506,28 @@ func DeleteQos(value string) util.ExitCode {
 }
 
 func DeleteLicenseResource(name string, server string, clusters string) util.ExitCode {
-	if FlagForce {
-		log.Warning("--force flag is ignored for delete operations")
+	if strings.ToUpper(name) == "ALL" {
+		if !FlagForce {
+			log.Errorf("To delete all resources, you must set --force.")
+			return util.ErrorCmdArg
+		}
+		req := protos.DeleteLicenseResourceRequest{
+			Uid: userUid, ResourceName: "ALL", Force: FlagForce,
+		}
+		reply, err := stub.DeleteLicenseResource(context.Background(), &req)
+		if err != nil {
+			log.Errorf("Failed to delete all resources: %v", err)
+			return util.ErrorNetwork
+		}
+		if FlagJson {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
+		if reply.GetOk() {
+			fmt.Println("All resources deleted successfully.")
+			return util.ErrorSuccess
+		}
+		log.Errorf("Failed to delete all resources: %s", util.ErrMsg(reply.GetRichErr().GetCode()))
+		return util.ErrorBackend
 	}
 
 	var clusterList []string
@@ -1279,6 +1309,28 @@ func AddWckey(wckey *protos.WckeyInfo) util.ExitCode {
 }
 
 func DeleteWckey(name, userName string) util.ExitCode {
+	if strings.ToUpper(name) == "ALL" {
+		if !FlagForce {
+			log.Errorf("To delete all wckeys, you must set --force.")
+			return util.ErrorCmdArg
+		}
+		req := protos.DeleteWckeyRequest{Uid: userUid, Name: "ALL", Force: true}
+		reply, err := stub.DeleteWckey(context.Background(), &req)
+		if err != nil {
+			util.GrpcErrorPrintf(err, "Failed to delete all wckeys")
+			return util.ErrorNetwork
+		}
+		if FlagJson {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
+		if reply.GetOk() {
+			fmt.Println("All wckeys deleted successfully.")
+			return util.ErrorSuccess
+		}
+		log.Errorf("Failed to delete all wckeys: %s", util.ErrMsg(reply.GetRichError().GetCode()))
+		return util.ErrorBackend
+	}
+
 	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, UserName: userName, Force: false}
 
 	if FlagForce {
