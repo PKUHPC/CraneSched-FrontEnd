@@ -717,6 +717,21 @@ func squeueLoopedQuery(iterate uint64) util.ExitCode {
 }
 
 func sreport() *cobra.Command {
+	sreportCommandTokens := map[string]struct{}{
+		"user":                      {},
+		"cluster":                   {},
+		"job":                       {},
+		"topusage":                  {},
+		"accountutilizationbyuser":  {},
+		"userutilizationbyaccount":  {},
+		"userutilizationbywckey":    {},
+		"wckeyutilizationbyuser":    {},
+		"accountutilizationbyqos":   {},
+		"sizesbyaccount":            {},
+		"sizesbywckey":              {},
+		"sizesbyaccountandwckey":    {},
+	}
+
 	cmd := &cobra.Command{
 		Use:                "sreport",
 		Short:              "Wrapper of creport command",
@@ -725,6 +740,7 @@ func sreport() *cobra.Command {
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			convertedArgs := make([]string, 0, len(args))
+			normalizeCommandToken := true
 			for _, arg := range args {
 				if strings.Contains(arg, "=") && !strings.HasPrefix(arg, "-") {
 					log.Warningf("Slurm-style key=value argument %q is not supported in sreport wrapper. "+
@@ -732,9 +748,18 @@ func sreport() *cobra.Command {
 					os.Exit(util.ErrorCmdArg)
 				}
 				if strings.HasPrefix(arg, "-") {
+					normalizeCommandToken = false
 					convertedArgs = append(convertedArgs, arg)
 				} else {
-					convertedArgs = append(convertedArgs, strings.ToLower(arg))
+					lowerArg := strings.ToLower(arg)
+					if normalizeCommandToken {
+						if _, ok := sreportCommandTokens[lowerArg]; ok {
+							convertedArgs = append(convertedArgs, lowerArg)
+							continue
+						}
+						normalizeCommandToken = false
+					}
+					convertedArgs = append(convertedArgs, arg)
 				}
 			}
 
