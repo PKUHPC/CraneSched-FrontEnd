@@ -182,9 +182,16 @@ func showHelp() {
       Priority=<priority>        Priority (higher value means higher priority)
       MaxJobsPerUser=<num>       Maximum number of jobs per user
       MaxSubmitJobsPerUser=<num>  Maximum number of submit jobs per user
+      MaxTresPerUser=<tres>       Maximum tres per user (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
       MaxJobsPerAccount=<num>     Maximum number of jobs per account
       MaxSubmitJobsPerAccount=<num>  Maximum number of submit jobs per account
-      MaxCpusPerUser=<num>       Maximum number of CPUs per user
+      MaxTresPerAccount=<tres>    Maximum tres per account (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
+      MaxCpusPerUser=<num>        Maximum number of CPUs per user
+      MaxSubmitJobs=<num>         Maximum number of submit jobs per qos
+      MaxJobs=<num>               Maximum number of jobs per qos
+      MaxTres=<tres>              Maximum tres per qos (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
+      MaxWall=<seconds>           Maximum all run time per qos
+      Flags=<DenyOnLimit|None>    Qos Flags
       MaxTimeLimitPerTask=<seconds>  Maximum run time per task in seconds
       Name=<name1,name2,...>    List of QoS name for batch creation
   
@@ -240,14 +247,21 @@ func showHelp() {
       set AllowedQos=...             Set allowed QoS directly
     QoS options:
       where Name=<qos>
-      set Description=<desc>         Set description
-      set MaxCpusPerUser=<num>        Set max CPUs per user
-      set MaxJobsPerUser=<num> Set max jobs per user
-      set MaxSubmitJobsPerUser=<num>  Set max submit jobs per user
-      set MaxJobsPerAccount=<num>     Set max jobs per account
+      set Description=<desc>             Set description
+      set MaxCpusPerUser=<num>           Set max CPUs per user
+      set MaxJobsPerUser=<num>           Set max jobs per user
+      set MaxSubmitJobsPerUser=<num>     Set max submit jobs per user
+      set MaxTresPerUser=<tres>          Set max Tres per user (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
+      set MaxJobsPerAccount=<num>        Set max jobs per account
       set MaxSubmitJobsPerAccount=<num>  Set max submit jobs per account
-      set MaxTimeLimitPerTask=<sec>  Set max time per task (seconds)
-      set Priority=<priority>        Set priority
+      set MaxTresPerAccount=<tres>       Set max Tres per account (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
+      set MaxSubmitJobs=<num>            Set max submit jobs
+      set MaxJobs=<num>                  Set max jobs
+      set MaxTres=<tres>                 Set max Tres (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
+      set MaxWall=<sec>                  Set max wall
+      set Flags=<DenyOnLimit|None>       Set qos flags (default is None)
+      set MaxTimeLimitPerTask=<sec>      Set max time per task (seconds)
+      set Priority=<priority>            Set priority
     Wckey options:
       where user=<name> 
       set defaultwckey=<wckeyname>    Set default wckey for specific users
