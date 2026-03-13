@@ -304,7 +304,7 @@ message StepToCtld {
 
   string excludes = 34;
   string nodelist = 35;
-  
+
   optional uint64 mem_per_cpu = 36;
   string container = 26;
   string task_prolog = 27;
@@ -1046,4 +1046,4 @@ message JobSizeSummaryItem {
   uint32 cpus_alloc = 4;
   double total_cpu_time = 5;
   int64 total_count = 6;
-}
+ }
