@@ -26,8 +26,10 @@ import (
 	"CraneFrontEnd/internal/cbatch"
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/ccontrol"
+	"CraneFrontEnd/internal/ceff"
 	"CraneFrontEnd/internal/cinfo"
 	"CraneFrontEnd/internal/cqueue"
+	"CraneFrontEnd/internal/creport"
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
 	"errors"
@@ -37,6 +39,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
@@ -58,12 +61,17 @@ For the second, we directly call the original command, so the amount of code wil
  However, it requires a series of processing on the args, which is likely to lead to some corner cases
  not being properly handled.
 
-To sum up, ccontrol, cacctmgr, cbatch, calloc and crun are too complex or very same to their
+To sum up, ccontrol, cacctmgr, cbatch, calloc, crun, ceff and creport are too complex or very same to their
  slurm counterparts, so we choose the 2nd way. The rest of the commands follow the 1st approach.
 */
 
 type SlurmWrapper struct {
 }
+
+var (
+	wrapCeffLeafRunEOnce    sync.Once
+	wrapCreportLeafRunEOnce sync.Once
+)
 
 func (w SlurmWrapper) Group() *cobra.Group {
 	return &cobra.Group{
@@ -80,14 +88,19 @@ func (w SlurmWrapper) SubCommands() []*cobra.Command {
 		sbatch(),
 		scancel(),
 		scontrol(),
+		seff(),
 		sinfo(),
 		squeue(),
+		sreport(),
 		srun(),
 	}
 }
 
 func (w SlurmWrapper) HasCommand(cmd string) bool {
-	return slices.Contains([]string{"sacct", "sacctmgr", "sbatch", "scancel", "scontrol", "sinfo", "squeue"}, cmd)
+	return slices.Contains([]string{
+		"sacct", "sacctmgr", "salloc", "sbatch", "scancel",
+		"scontrol", "seff", "sinfo", "squeue", "sreport", "srun",
+	}, cmd)
 }
 
 func (w SlurmWrapper) Preprocess() error {
@@ -458,6 +471,25 @@ func scontrol() *cobra.Command {
 	return cmd
 }
 
+func seff() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "seff",
+		Short:              "Wrapper of ceff command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			wrapCeffLeafRunEOnce.Do(func() {
+				util.RunEWrapperForLeafCommand(ceff.RootCmd)
+			})
+			ceff.RootCmd.SetArgs(args)
+			return ceff.RootCmd.Execute()
+		},
+	}
+
+	return cmd
+}
+
 func sinfo() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sinfo",
@@ -682,6 +714,64 @@ func squeueLoopedQuery(iterate uint64) util.ExitCode {
 		time.Sleep(time.Duration(interval.Nanoseconds()))
 		fmt.Println()
 	}
+}
+
+func sreport() *cobra.Command {
+	sreportCommandTokens := map[string]struct{}{
+		"user":                     {},
+		"cluster":                  {},
+		"job":                      {},
+		"topusage":                 {},
+		"accountutilizationbyuser": {},
+		"userutilizationbyaccount": {},
+		"userutilizationbywckey":   {},
+		"wckeyutilizationbyuser":   {},
+		"accountutilizationbyqos":  {},
+		"sizesbyaccount":           {},
+		"sizesbywckey":             {},
+		"sizesbyaccountandwckey":   {},
+	}
+
+	cmd := &cobra.Command{
+		Use:                "sreport",
+		Short:              "Wrapper of creport command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			convertedArgs := make([]string, 0, len(args))
+			normalizeCommandToken := true
+			for _, arg := range args {
+				if strings.Contains(arg, "=") && !strings.HasPrefix(arg, "-") {
+					log.Warningf("Slurm-style key=value argument %q is not supported in sreport wrapper. "+
+						"Please use creport with explicit flags, e.g. --start-time/--end-time.", arg)
+					os.Exit(util.ErrorCmdArg)
+				}
+				if strings.HasPrefix(arg, "-") {
+					normalizeCommandToken = false
+					convertedArgs = append(convertedArgs, arg)
+				} else {
+					lowerArg := strings.ToLower(arg)
+					if normalizeCommandToken {
+						if _, ok := sreportCommandTokens[lowerArg]; ok {
+							convertedArgs = append(convertedArgs, lowerArg)
+							continue
+						}
+						normalizeCommandToken = false
+					}
+					convertedArgs = append(convertedArgs, arg)
+				}
+			}
+
+			wrapCreportLeafRunEOnce.Do(func() {
+				util.RunEWrapperForLeafCommand(creport.RootCmd)
+			})
+			creport.RootCmd.SetArgs(convertedArgs)
+			return creport.RootCmd.Execute()
+		},
+	}
+
+	return cmd
 }
 
 func srun() *cobra.Command {
