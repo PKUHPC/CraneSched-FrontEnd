@@ -214,3 +214,20 @@ func (pd *PluginDaemon) UpdateLicensesHook(ctx context.Context, req *protos.Upda
 
 	return reply, nil
 }
+
+func (pd *PluginDaemon) TraceHook(ctx context.Context, req *protos.TraceHookRequest) (*protos.TraceHookReply, error) {
+	// log.Tracef("TraceHook request received")
+	reply := &protos.TraceHookReply{}
+	hs := make([]api.PluginHandler, 0)
+
+	for _, p := range gPluginMap {
+		if handler, ok := p.Plugin.(api.TraceHooks); ok {
+			hs = append(hs, handler.TraceHook)
+		}
+	}
+
+	c := api.NewContext(ctx, req, api.TraceHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
