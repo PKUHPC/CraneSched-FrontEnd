@@ -586,6 +586,7 @@ func printJobDetails(task *protos.TaskInfo) error {
 			fmt.Printf("\tDependency=%s\n", depStatusStr)
 		}
 	}
+	fmt.Printf("\tSubmitNode=%v\n", task.SubmitHostname)
 
 	return nil
 }
