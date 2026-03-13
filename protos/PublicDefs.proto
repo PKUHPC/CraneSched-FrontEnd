@@ -304,6 +304,7 @@ message StepToCtld {
 
   string excludes = 34;
   string nodelist = 35;
+  
   optional uint64 mem_per_cpu = 36;
   string container = 26;
   string task_prolog = 27;
@@ -992,7 +993,6 @@ enum TxnAction {
   ModifyQos = 7;
   DeleteQos = 8;
 }
-
 
 message LicenseResourceInfo {
   string resource_name = 1;
