@@ -163,7 +163,7 @@ message DependencyStatus {
 
 message Signal {
   int32 signal_number = 1;
-  uint32 signal_time = 2;  // seconds_before_kill
+  uint32 signal_time = 2; // seconds_before_kill
   enum SignalFlag {
     NONE = 0;
     // (B) Send the signal only to the batch shell, not to other job steps.
@@ -203,7 +203,7 @@ message TaskToCtld {
     InteractiveTaskAdditionalMeta interactive_meta = 22;
   }
 
-  // cbatch --pod: Pod
+  // cbatch --container: Pod
   // ccon (standalone): Pod + Container
   // ccon (nested): Container (StepToCtld only)
   optional PodTaskAdditionalMeta pod_meta = 23;
@@ -305,6 +305,7 @@ message StepToCtld {
   string excludes = 34;
   string nodelist = 35;
   optional uint64 mem_per_cpu = 36;
+  string container = 26;
   string task_prolog = 27;
   string task_epilog = 28;
 }
@@ -529,10 +530,6 @@ message ContainerTaskAdditionalMeta {
   bool stdin_once = 18;
 
   map<string, string> mounts = 24;
-
-  // CDI fully-qualified names for devices allocated to this container.
-  // Populated by craned at step dispatch time; NOT persisted to database.
-  repeated string cdi_devices = 25;
 }
 
 message TaskInfo {
@@ -818,8 +815,8 @@ enum ErrCode {
   ERR_CRI_CONTAINER_NOT_READY = 82;  // Job/step is pending or container is not ready.
   ERR_CRI_MULTIPLE_NODES = 83;       // Requested CRI operation is not supported in multi-node steps.
 
-  ERR_INVALID_MEM_FORMAT = 84;  // Invalid mem format when parsing mem
-  ERR_STEP_RES_BEYOND = 85;     // Step resource request exceeds job resource.
+  ERR_INVALID_MEM_FORMAT = 84;       // Invalid mem format when parsing mem
+  ERR_STEP_RES_BEYOND = 85;          // Step resource request exceeds job resource.
 
   ERR_INVALID_WCKEY = 86;
   ERR_WCKEY_ALREADY_EXISTS = 87;
@@ -854,7 +851,7 @@ enum ModifyField {
   Partition = 0;
   Qos = 1;
   DefaultQos = 2;
-  Description = 3;  // account and qos
+  Description = 3; // account and qos
   // user
   AdminLevel = 4;
   DefaultAccount = 5;
@@ -972,6 +969,18 @@ message CranedRemoteMeta {
   uint32 config_crc = 9;
 }
 
+message LicenseInfo {
+  string name = 1;
+  uint32 total = 2;
+  uint32 used = 3;
+  uint32 free = 4;
+  uint32 reserved = 5;
+  bool remote = 6;
+  uint32 last_consumed = 7;
+  uint32 last_deficit = 8;
+  int64 last_update = 9;
+}
+
 enum TxnAction {
   AddAccount = 0;
   ModifyAccount = 1;
@@ -984,17 +993,6 @@ enum TxnAction {
   DeleteQos = 8;
 }
 
-message LicenseInfo {
-  string name = 1;
-  uint32 total = 2;
-  uint32 used = 3;
-  uint32 free = 4;
-  uint32 reserved = 5;
-  bool remote = 6;
-  uint32 last_consumed = 7;
-  uint32 last_deficit = 8;
-  int64 last_update = 9;
-}
 
 message LicenseResourceInfo {
   string resource_name = 1;
@@ -1010,7 +1008,7 @@ message LicenseResourceInfo {
 }
 
 message LicenseResource {
-  enum Type {
+  enum Type{
     NotSet = 0;
     License = 1;
   }
