@@ -401,7 +401,7 @@ func FilterBadState(tableData [][]string) [][]string {
 
 	var new_table [][]string
 	//TODO: need to expand
-	pattern := `drain`
+	pattern := `(drain|down)`
 
 	re := regexp.MustCompile(pattern)
 	for _, data := range tableData {
