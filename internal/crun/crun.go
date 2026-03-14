@@ -1342,7 +1342,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		gresMap := util.ParseGres(FlagGres)
 		if jobMode {
 			job.GresPerNode = gresMap
-			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+			if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 				setGresGpusFlag = true
 			}
 		} else {
@@ -1495,7 +1495,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if jobMode {
 			job.GresPerNode = gpuDeviceMap
 		} else {
-			if len(gpuDeviceMap.NameTypeMap) != 0 {
+			if len(gpuDeviceMap.NameGresMap) != 0 {
 				step.GresPerNode = gpuDeviceMap
 			}
 		}

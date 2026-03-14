@@ -21,12 +21,12 @@ func ProcessAccount(job *protos.JobInfo) string {
 
 // 'c' group
 func ProcessAllocCpus(job *protos.JobInfo) string {
-	return strconv.FormatFloat(job.AllocatedResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
+	return strconv.FormatFloat(job.AllocatedResView.CpuCount, 'f', 2, 64)
 }
 
 // 'C' group
 func ProcessReqCpuPerTask(job *protos.JobInfo) string {
-	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+	totalCpu := job.ReqTotalResView.CpuCount
 	if job.Ntasks > 0 {
 		return strconv.FormatFloat(totalCpu/float64(job.Ntasks), 'f', 2, 64)
 	}
@@ -81,13 +81,13 @@ func ProcessAllocMemPerNode(job *protos.JobInfo) string {
 	if job.NodeNum == 0 {
 		return "0"
 	}
-	return util.FormatMemToMB(job.AllocatedResView.AllocatableRes.MemoryLimitBytes /
+	return util.FormatMemToMB(job.AllocatedResView.MemoryBytes /
 		uint64(job.NodeNum))
 }
 
 // 'M' group
 func ProcessReqMemPerNode(job *protos.JobInfo) string {
-	totalMem := job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+	totalMem := job.ReqTotalResView.MemoryBytes
 	if job.NodeNum > 0 {
 		return util.FormatMemToMB(totalMem / uint64(job.NodeNum))
 	}
@@ -124,7 +124,7 @@ func ProcessQoS(job *protos.JobInfo) string {
 
 // 'Q' group
 func ProcessReqCPUs(job *protos.JobInfo) string {
-	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+	totalCpu := job.ReqTotalResView.CpuCount
 	return strconv.FormatFloat(totalCpu, 'f', 2, 64)
 }
 

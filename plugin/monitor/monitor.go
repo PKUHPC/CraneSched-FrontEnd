@@ -157,9 +157,9 @@ func (p MonitorPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 
 	log.Infof("CreateCgroupHook received for cgroup: %s", req.Cgroup)
 
-	requestCpu := req.Resource.AllocatableResInNode.CpuCoreLimit
-	requestMemory := req.Resource.AllocatableResInNode.MemoryLimitBytes
-	boundGPUs := getBoundGPUs(req.Resource.DedicatedResInNode, globalMonitor.config.Monitor.GPUType)
+	requestCpu := req.Resource.CpuCount
+	requestMemory := req.Resource.MemoryBytes
+	boundGPUs := getBoundGPUs(req.Resource.Gres, globalMonitor.config.Monitor.GPUType)
 	resourceRequest := monitor.ResourceRequest{
 		ReqCPU:    requestCpu,
 		ReqMemory: requestMemory,

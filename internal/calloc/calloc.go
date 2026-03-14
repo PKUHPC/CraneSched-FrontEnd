@@ -413,7 +413,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		job.GresPerNode = gresMap
-		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+		if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 			setGresGpusFlag = true
 		}
 	}
