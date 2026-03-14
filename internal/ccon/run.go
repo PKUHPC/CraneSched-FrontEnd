@@ -252,8 +252,8 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 		if err != nil {
 			return fmt.Errorf("invalid memory specification '%s': %v", memorySpec, err)
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memoryBytes
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memoryBytes
+		task.ReqResources.MemoryBytes = memoryBytes
+		task.ReqResources.MemorySwBytes = memoryBytes
 	}
 
 	// GPU allocation - prefer --gres over --gpus
@@ -265,8 +265,8 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	}
 
 	if gresSpec != "" {
-		// Set GPU resources via DeviceMap (like cbatch does)
-		task.ReqResources.DeviceMap = util.ParseGres(gresSpec)
+		// Set GPU resources via GresMap (like cbatch does)
+		task.ReqResources.GresMap = util.ParseGres(gresSpec)
 	}
 
 	return nil
@@ -274,13 +274,9 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 
 // applyStepResourceOptions applies optional resource overrides to a container step.
 func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToCtld) error {
-	ensureAlloc := func() {
+	ensureRes := func() {
 		if step.ReqResourcesPerTask == nil {
-			step.ReqResourcesPerTask = &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{},
-			}
-		} else if step.ReqResourcesPerTask.AllocatableRes == nil {
-			step.ReqResourcesPerTask.AllocatableRes = &protos.AllocatableResource{}
+			step.ReqResourcesPerTask = &protos.ResourceView{}
 		}
 	}
 
@@ -289,12 +285,12 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 		if f.Run.Cpus > 0 && f.Crane.CpusPerTask > 0 {
 			return fmt.Errorf("--cpus and --cpus-per-task are mutually exclusive")
 		}
-		ensureAlloc()
+		ensureRes()
 		if f.Crane.CpusPerTask > 0 {
-			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = f.Crane.CpusPerTask
+			step.ReqResourcesPerTask.CpuCount = f.Crane.CpusPerTask
 		} else if f.Run.Cpus > 0 {
 			log.Warn("--cpus is deprecated, please use --cpus-per-task instead")
-			step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = f.Run.Cpus
+			step.ReqResourcesPerTask.CpuCount = f.Run.Cpus
 		}
 	}
 
@@ -312,9 +308,9 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 			if err != nil {
 				return fmt.Errorf("invalid memory specification '%s': %v", memorySpec, err)
 			}
-			ensureAlloc()
-			step.ReqResourcesPerTask.AllocatableRes.MemoryLimitBytes = memoryBytes
-			step.ReqResourcesPerTask.AllocatableRes.MemorySwLimitBytes = memoryBytes
+			ensureRes()
+			step.ReqResourcesPerTask.MemoryBytes = memoryBytes
+			step.ReqResourcesPerTask.MemorySwBytes = memoryBytes
 		}
 	}
 
@@ -334,7 +330,7 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 			if step.ReqResourcesPerTask == nil {
 				step.ReqResourcesPerTask = &protos.ResourceView{}
 			}
-			step.ReqResourcesPerTask.DeviceMap = util.ParseGres(gresSpec)
+			step.ReqResourcesPerTask.GresMap = util.ParseGres(gresSpec)
 		}
 	}
 
@@ -633,11 +629,9 @@ func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []str
 		Type:      protos.TaskType_Container,
 		TimeLimit: util.InvalidDuration(),
 		ReqResources: &protos.ResourceView{
-			AllocatableRes: &protos.AllocatableResource{
-				CpuCoreLimit:       1,
-				MemoryLimitBytes:   0,
-				MemorySwLimitBytes: 0,
-			},
+			CpuCount:      1,
+			MemoryBytes:   0,
+			MemorySwBytes: 0,
 		},
 		NodeNum:       1,
 		NtasksPerNode: 1,

@@ -372,11 +372,9 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		TimeLimit:     util.InvalidDuration(),
 		PartitionName: "",
 		ReqResources: &protos.ResourceView{
-			AllocatableRes: &protos.AllocatableResource{
-				CpuCoreLimit:       1,
-				MemoryLimitBytes:   0,
-				MemorySwLimitBytes: 0,
-			},
+			CpuCount:      1,
+			MemoryBytes:   0,
+			MemorySwBytes: 0,
 		},
 		Type:            protos.TaskType_Interactive,
 		Uid:             uint32(uid),
@@ -401,8 +399,8 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	setGresGpusFlag := false
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
-		task.ReqResources.DeviceMap = gresMap
-		if _, exist := task.ReqResources.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
+		task.ReqResources.GresMap = gresMap
+		if _, exist := task.ReqResources.GresMap.NameGresMap[util.GresGpuName]; exist {
 			setGresGpusFlag = true
 		}
 	}
@@ -418,8 +416,8 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.ReqResources.MemoryBytes = memInByte
+		task.ReqResources.MemorySwBytes = memInByte
 	}
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
@@ -493,7 +491,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			}
 
 		}
-		task.ReqResources.DeviceMap = gpuDeviceMap
+		task.ReqResources.GresMap = gpuDeviceMap
 	}
 	if FlagDependency != "" {
 		err := util.SetTaskDependencies(task, FlagDependency)
@@ -540,7 +538,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 
 	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	task.ReqResources.CpuCount = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
 	if err := util.CheckTaskArgs(task); err != nil {

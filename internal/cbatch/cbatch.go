@@ -89,11 +89,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	task.Env = make(map[string]string)
 	task.TimeLimit = util.InvalidDuration()
 	task.ReqResources = &protos.ResourceView{
-		AllocatableRes: &protos.AllocatableResource{
-			CpuCoreLimit:       1,
-			MemoryLimitBytes:   0,
-			MemorySwLimitBytes: 0,
-		},
+		CpuCount:      1,
+		MemoryBytes:   0,
+		MemorySwBytes: 0,
 	}
 
 	structExtraFromScript := util.JobExtraAttrs{}
@@ -124,13 +122,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 	if cmd.Flags().Changed("gres") {
 		gresMap := util.ParseGres(FlagGres)
-		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+		if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 			if setGpusPerNodeFlag {
 				return nil, fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
 			}
 			setGresGpusFlag = true
 		}
-		task.ReqResources.DeviceMap = gresMap
+		task.ReqResources.GresMap = gresMap
 	}
 	if cmd.Flags().Changed("gpus-per-node") {
 		if setGresGpusFlag {
@@ -141,7 +139,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --gpus-per-node value '%s': %w", FlagGpusPerNode, err)
 		}
-		task.ReqResources.DeviceMap = gpuDeviceMap
+		task.ReqResources.GresMap = gpuDeviceMap
 	}
 	if cmd.Flags().Changed("wckey") {
 		task.Wckey = &FlagWckey
@@ -159,8 +157,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --mem value '%s': %w", FlagMem, err)
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		task.ReqResources.MemoryBytes = memInByte
+		task.ReqResources.MemorySwBytes = memInByte
 	}
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
@@ -281,7 +279,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	task.ExtraAttr = util.AmendJobExtraAttrs(extraFromScript, extraFromCli)
 
 	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	task.ReqResources.CpuCount = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Set the submit hostname
 	submitHostname, err := os.Hostname()
@@ -327,13 +325,13 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			task.CpusPerTask = num
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
-			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+			if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 				if setGpusPerNodeFlag {
 					return fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
 				}
 				setGresGpusFlag = true
 			}
-			task.ReqResources.DeviceMap = gresMap
+			task.ReqResources.GresMap = gresMap
 		case "--gpus-per-node":
 			if setGresGpusFlag {
 				return fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
@@ -343,7 +341,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.ReqResources.DeviceMap = gpuDeviceMap
+			task.ReqResources.GresMap = gpuDeviceMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -367,8 +365,8 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+			task.ReqResources.MemoryBytes = memInByte
+			task.ReqResources.MemorySwBytes = memInByte
 		case "--mem-per-cpu":
 			memInBytePerCpu, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {

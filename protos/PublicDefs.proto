@@ -68,9 +68,42 @@ message ResourceV2 {
   map<string /*craned id*/, ResourceInNode> each_node_res = 1;
 }
 
+// ==================== New Resource Types (V3) ====================
+
+// GresCount: tracks total count and per-type specified counts for a GRES
+// Example: {total: 8, specified: {"A100": 4, "H100": 4}}
+message GresCount {
+  uint64 total = 1;
+  map<string, uint64> specified = 2;  // type -> count
+}
+
+// GresMap: maps GRES name to its count info
+message GresMap {
+  map<string, GresCount> name_gres_map = 1;  // name -> GresCount
+}
+
+// ResourceView: scheduling phase resource tracking (quantities only, no slot IDs)
 message ResourceView {
-  AllocatableResource allocatable_res = 1;
-  DeviceMap device_map = 2;
+  double cpu_count = 1;
+  uint64 memory_bytes = 2;
+  uint64 memory_sw_bytes = 3;
+  GresMap gres_map = 4;
+}
+
+// ResourceInNodeV3: Execution phase resource tracking for a single node
+// Tracks actual hardware resources with specific slot IDs
+message ResourceInNodeV3 {
+  repeated uint32 cpu_ids = 1;           // CPU core IDs (valid for integer allocation)
+  double cpu_count = 2;                  // Total CPU amount (integer or fractional)
+  uint64 memory_bytes = 3;
+  uint64 memory_sw_bytes = 4;
+  DedicatedResourceInNode gres = 5;
+}
+
+// ResourceV3: Cluster-level execution phase resource tracking
+// Maps node IDs to their specific resource allocations
+message ResourceV3 {
+  map<string, ResourceInNodeV3> each_node_res_map = 1;
 }
 
 enum PartitionState {
@@ -163,7 +196,7 @@ message DependencyStatus {
 
 message Signal {
   int32 signal_number = 1;
-  uint32 signal_time = 2; // seconds_before_kill
+  uint32 signal_time = 2;  // seconds_before_kill
   enum SignalFlag {
     NONE = 0;
     // (B) Send the signal only to the batch shell, not to other job steps.
@@ -203,7 +236,7 @@ message TaskToCtld {
     InteractiveTaskAdditionalMeta interactive_meta = 22;
   }
 
-  // cbatch --container: Pod
+  // cbatch --pod: Pod
   // ccon (standalone): Pod + Container
   // ccon (nested): Container (StepToCtld only)
   optional PodTaskAdditionalMeta pod_meta = 23;
@@ -262,7 +295,7 @@ message RuntimeAttrOfTask {
   google.protobuf.Timestamp end_time = 17;
 
   bool held = 18;
-  ResourceV2 allocated_res = 19;
+  ResourceV3 allocated_res = 19;
   double cached_priority = 20;
 
   TaskStatus primary_step_status = 21;
@@ -304,9 +337,7 @@ message StepToCtld {
 
   string excludes = 34;
   string nodelist = 35;
-
   optional uint64 mem_per_cpu = 36;
-  string container = 26;
   string task_prolog = 27;
   string task_epilog = 28;
 }
@@ -319,7 +350,7 @@ message RuntimeAttrOfStep {
 
   // Fields that will change after this step is accepted.
   int32 requeue_count = 11;
-  ResourceV2 allocated_res = 12;
+  ResourceV3 allocated_res = 12;
 
   repeated string craned_ids = 15;
   repeated string execution_nodes = 16;
@@ -350,7 +381,7 @@ message StepInEmbeddedDb {
 message JobToD {
   uint32 job_id = 1;
   uint32 uid = 2;
-  ResourceInNode res = 4;
+  ResourceInNodeV3 res = 4;
 
   string partition = 5;
   string account = 6;
@@ -370,7 +401,7 @@ enum StepType {
 message StepToD {
   uint32 job_id = 1;
   uint32 step_id = 2;
-  ResourceInNode res = 3;
+  ResourceInNodeV3 res = 3;
   TaskType type = 4;
   StepType step_type = 5;
 
@@ -531,6 +562,10 @@ message ContainerTaskAdditionalMeta {
   bool stdin_once = 18;
 
   map<string, string> mounts = 24;
+
+  // CDI fully-qualified names for devices allocated to this container.
+  // Populated by craned at step dispatch time; NOT persisted to database.
+  repeated string cdi_devices = 25;
 }
 
 message TaskInfo {
@@ -662,9 +697,9 @@ message CranedInfo {
   CranedControlState control_state = 3;
   CranedPowerState power_state = 4;
 
-  ResourceInNode res_total = 5;
-  ResourceInNode res_avail = 6;
-  ResourceInNode res_alloc = 7;
+  ResourceInNodeV3 res_total = 5;
+  ResourceInNodeV3 res_avail = 6;
+  ResourceInNodeV3 res_alloc = 7;
 
   repeated string partition_names = 10;
   uint32 running_task_num = 11;
@@ -816,8 +851,8 @@ enum ErrCode {
   ERR_CRI_CONTAINER_NOT_READY = 82;  // Job/step is pending or container is not ready.
   ERR_CRI_MULTIPLE_NODES = 83;       // Requested CRI operation is not supported in multi-node steps.
 
-  ERR_INVALID_MEM_FORMAT = 84;       // Invalid mem format when parsing mem
-  ERR_STEP_RES_BEYOND = 85;          // Step resource request exceeds job resource.
+  ERR_INVALID_MEM_FORMAT = 84;  // Invalid mem format when parsing mem
+  ERR_STEP_RES_BEYOND = 85;     // Step resource request exceeds job resource.
 
   ERR_INVALID_WCKEY = 86;
   ERR_WCKEY_ALREADY_EXISTS = 87;
@@ -852,7 +887,7 @@ enum ModifyField {
   Partition = 0;
   Qos = 1;
   DefaultQos = 2;
-  Description = 3; // account and qos
+  Description = 3;  // account and qos
   // user
   AdminLevel = 4;
   DefaultAccount = 5;
@@ -1008,7 +1043,7 @@ message LicenseResourceInfo {
 }
 
 message LicenseResource {
-  enum Type{
+  enum Type {
     NotSet = 0;
     License = 1;
   }

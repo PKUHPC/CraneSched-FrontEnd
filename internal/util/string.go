@@ -676,8 +676,8 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if !CheckNodeList(task.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	if task.ReqResources.AllocatableRes.CpuCoreLimit > 1e6 {
-		return fmt.Errorf("requesting too many CPUs: %f", task.ReqResources.AllocatableRes.CpuCoreLimit)
+	if task.ReqResources.CpuCount > 1e6 {
+		return fmt.Errorf("requesting too many CPUs: %f", task.ReqResources.CpuCount)
 	}
 	if task.ExtraAttr != "" {
 		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
@@ -707,12 +707,11 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if err := CheckJobNameLength(step.Name); err != nil {
 		return err
 	}
-	if step.ReqResourcesPerTask != nil &&
-		step.ReqResourcesPerTask.AllocatableRes != nil {
-		if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit <= 0 {
+	if step.ReqResourcesPerTask != nil {
+		if step.ReqResourcesPerTask.CpuCount <= 0 {
 			return fmt.Errorf("--cpus-per-task must > 0")
-		} else if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit > 1e6 {
-			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit)
+		} else if step.ReqResourcesPerTask.CpuCount > 1e6 {
+			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.CpuCount)
 		}
 	}
 	if step.NtasksPerNode != nil && *step.NtasksPerNode <= 0 {
@@ -1120,8 +1119,8 @@ func RemoveBracketsWithoutDashOrComma(input string) string {
 	return output
 }
 
-func ParseGres(gres string) *protos.DeviceMap {
-	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+func ParseGres(gres string) *protos.GresMap {
+	result := &protos.GresMap{NameGresMap: make(map[string]*protos.GresCount)}
 	if gres == "" {
 		return result
 	}
@@ -1137,10 +1136,10 @@ func ParseGres(gres string) *protos.DeviceMap {
 			if gresNameCount == 0 {
 				continue
 			}
-			if _, exist := result.NameTypeMap[name]; !exist {
-				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: make(map[string]uint64), Total: gresNameCount}
+			if _, exist := result.NameGresMap[name]; !exist {
+				result.NameGresMap[name] = &protos.GresCount{Specified: make(map[string]uint64), Total: gresNameCount}
 			} else {
-				result.NameTypeMap[name].Total += gresNameCount
+				result.NameGresMap[name].Total += gresNameCount
 			}
 		} else if len(parts) == 3 {
 			gresType := parts[1]
@@ -1152,12 +1151,12 @@ func ParseGres(gres string) *protos.DeviceMap {
 			if count == 0 {
 				continue
 			}
-			if _, exist := result.NameTypeMap[name]; !exist {
-				typeCountMap := make(map[string]uint64)
-				typeCountMap[gresType] = count
-				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: 0}
+			if _, exist := result.NameGresMap[name]; !exist {
+				specified := make(map[string]uint64)
+				specified[gresType] = count
+				result.NameGresMap[name] = &protos.GresCount{Specified: specified, Total: 0}
 			} else {
-				result.NameTypeMap[name].TypeCountMap[gresType] = count
+				result.NameGresMap[name].Specified[gresType] = count
 			}
 		} else {
 			log.Errorf("Error parsing gres: %s\n", g)
@@ -1167,8 +1166,8 @@ func ParseGres(gres string) *protos.DeviceMap {
 	return result
 }
 
-func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
-	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.GresMap, error) {
+	result := &protos.GresMap{NameGresMap: make(map[string]*protos.GresCount)}
 	if strings.TrimSpace(gpuPerNodeStr) == "" {
 		return result, nil
 	}
@@ -1180,7 +1179,7 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 		ModeType  = 2
 	)
 	mode := ModeNone
-	typeCountMap := &protos.TypeCountMap{TypeCountMap: make(map[string]uint64)}
+	gresCount := &protos.GresCount{Specified: make(map[string]uint64)}
 
 	for index, gpuPerNodePart := range gpusPerNodeStrList {
 		gpuPerNodePart = strings.TrimSpace(gpuPerNodePart)
@@ -1201,7 +1200,7 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 			if err != nil || val == 0 {
 				return nil, fmt.Errorf("invalid number: %q", parts[0])
 			}
-			typeCountMap.Total = val
+			gresCount.Total = val
 		} else if len(parts) == 2 {
 			if mode == ModeNone {
 				mode = ModeType
@@ -1217,13 +1216,13 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 			if err != nil || val == 0 {
 				return nil, fmt.Errorf("invalid number for type %q: %q", gpuType, numStr)
 			}
-			typeCountMap.TypeCountMap[gpuType] = val
+			gresCount.Specified[gpuType] = val
 		} else {
 			return nil, fmt.Errorf("invalid input: %q (too many colons)", gpuPerNodePart)
 		}
 	}
 
-	result.NameTypeMap[GresGpuName] = typeCountMap
+	result.NameGresMap[GresGpuName] = gresCount
 	return result, nil
 }
 

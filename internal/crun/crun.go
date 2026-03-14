@@ -1220,11 +1220,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			TimeLimit:     util.InvalidDuration(),
 			PartitionName: "",
 			ReqResources: &protos.ResourceView{
-				AllocatableRes: &protos.AllocatableResource{
-					CpuCoreLimit:       1,
-					MemoryLimitBytes:   0,
-					MemorySwLimitBytes: 0,
-				},
+				CpuCount:      1,
+				MemoryBytes:   0,
+				MemorySwBytes: 0,
 			},
 			Type:            protos.TaskType_Interactive,
 			Uid:             uint32(os.Getuid()),
@@ -1294,10 +1292,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
 			if step.ReqResourcesPerTask == nil {
 				step.ReqResourcesPerTask = &protos.ResourceView{
-					AllocatableRes: &protos.AllocatableResource{CpuCoreLimit: FlagCpuPerTask},
+					CpuCount: FlagCpuPerTask,
 				}
 			} else {
-				step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit = FlagCpuPerTask
+				step.ReqResourcesPerTask.CpuCount = FlagCpuPerTask
 			}
 		}
 		step.Name = util.ExtractExecNameFromArgs(args)
@@ -1320,17 +1318,17 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
 		if jobMode {
-			job.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-			job.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+			job.ReqResources.MemoryBytes = memInByte
+			job.ReqResources.MemorySwBytes = memInByte
 		} else {
 			if step.ReqResourcesPerTask == nil {
 				step.ReqResourcesPerTask = &protos.ResourceView{
-					AllocatableRes: &protos.AllocatableResource{MemoryLimitBytes: memInByte,
-						MemorySwLimitBytes: memInByte},
+					MemoryBytes:   memInByte,
+					MemorySwBytes: memInByte,
 				}
 			} else {
-				step.ReqResourcesPerTask.AllocatableRes.MemoryLimitBytes = memInByte
-				step.ReqResourcesPerTask.AllocatableRes.MemorySwLimitBytes = memInByte
+				step.ReqResourcesPerTask.MemoryBytes = memInByte
+				step.ReqResourcesPerTask.MemorySwBytes = memInByte
 			}
 		}
 	}
@@ -1349,18 +1347,18 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
 		if jobMode {
-			job.ReqResources.DeviceMap = gresMap
-			if _, exist := job.ReqResources.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
+			job.ReqResources.GresMap = gresMap
+			if _, exist := job.ReqResources.GresMap.NameGresMap[util.GresGpuName]; exist {
 				setGresGpusFlag = true
 			}
 		} else {
-			if len(gresMap.NameTypeMap) != 0 {
+			if len(gresMap.NameGresMap) != 0 {
 				if step.ReqResourcesPerTask == nil {
 					step.ReqResourcesPerTask = &protos.ResourceView{
-						DeviceMap: gresMap,
+						GresMap: gresMap,
 					}
 				} else {
-					step.ReqResourcesPerTask.DeviceMap = gresMap
+					step.ReqResourcesPerTask.GresMap = gresMap
 				}
 			}
 		}
@@ -1509,15 +1507,15 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 		}
 		if jobMode {
-			job.ReqResources.DeviceMap = gpuDeviceMap
+			job.ReqResources.GresMap = gpuDeviceMap
 		} else {
-			if len(gpuDeviceMap.NameTypeMap) != 0 {
+			if len(gpuDeviceMap.NameGresMap) != 0 {
 				if step.ReqResourcesPerTask == nil {
 					step.ReqResourcesPerTask = &protos.ResourceView{
-						DeviceMap: gpuDeviceMap,
+						GresMap: gpuDeviceMap,
 					}
 				} else {
-					step.ReqResourcesPerTask.DeviceMap = gpuDeviceMap
+					step.ReqResourcesPerTask.GresMap = gpuDeviceMap
 				}
 			}
 		}
@@ -1552,7 +1550,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	// Set total limit of cpu cores
 	if jobMode {
-		job.ReqResources.AllocatableRes.CpuCoreLimit = job.CpusPerTask * float64(job.NtasksPerNode)
+		job.ReqResources.CpuCount = job.CpusPerTask * float64(job.NtasksPerNode)
 	}
 
 	// Check the validity of the parameters
