@@ -669,8 +669,8 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 }
 
 func printResourceRequests(task *protos.TaskInfo) {
-	totalCpu := task.ReqResView.AllocatableRes.CpuCoreLimit
-	totalMem := task.ReqResView.AllocatableRes.MemoryLimitBytes
+	totalCpu := task.ReqTotalResView.AllocatableRes.CpuCoreLimit
+	totalMem := task.ReqTotalResView.AllocatableRes.MemoryLimitBytes
 
 	var cpusPerTask float64
 	var memPerNode uint64
@@ -692,7 +692,7 @@ func printResourceRequests(task *protos.TaskInfo) {
 		task.NodeNum,
 		totalCpu,
 		util.FormatMemToMB(totalMem),
-		formatDeviceMap(task.ReqResView.DeviceMap))
+		formatDeviceMap(task.ReqTotalResView.DeviceMap))
 	// AllocRes
 	if task.Status == protos.TaskStatus_Running {
 		fmt.Printf("\tAllocRes:node=%d cpu=%.2f mem=%v gres=%s\n",
