@@ -77,31 +77,26 @@ func ShowConfig(path string) error {
 }
 
 // show Nodes
-func formatDeviceMap(data *protos.DeviceMap) string {
+func formatGresMap(data *protos.GresMap) string {
 	if data == nil {
 		return "None"
 	}
 	var kvStrings []string
-	for deviceName, typeCountMap := range data.NameTypeMap {
-		var typeCountPairs []string
-		for deviceType, count := range typeCountMap.TypeCountMap {
-			if count != 0 {
-				typeCountPairs = append(typeCountPairs, fmt.Sprintf("%s:%d", deviceType, count))
+	for gresName, gresCount := range data.NameGresMap {
+		if len(gresCount.Specified) > 0 {
+			for typeName, count := range gresCount.Specified {
+				if count != 0 {
+					kvStrings = append(kvStrings, fmt.Sprintf("%s:%s:%d", gresName, typeName, count))
+				}
 			}
-		}
-		if typeCountMap.Total != 0 {
-			typeCountPairs = append(typeCountPairs, strconv.FormatUint(typeCountMap.Total, 10))
-		}
-		for _, typeCountPair := range typeCountPairs {
-			kvStrings = append(kvStrings, fmt.Sprintf("%s:%s", deviceName, typeCountPair))
+		} else if gresCount.Total != 0 {
+			kvStrings = append(kvStrings, fmt.Sprintf("%s:%d", gresName, gresCount.Total))
 		}
 	}
 	if len(kvStrings) == 0 {
 		return "None"
 	}
-	kvString := strings.Join(kvStrings, ", ")
-
-	return kvString
+	return strings.Join(kvStrings, ", ")
 }
 func formatDedicatedResource(data *protos.DedicatedResourceInNode) string {
 	if data == nil {
@@ -229,27 +224,27 @@ func formatNodeState(node *protos.CranedInfo) string {
 // Cpu
 func formatCpuInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f",
-		node.ResTotal.AllocatableResInNode.CpuCoreLimit,
-		math.Abs(node.ResAlloc.AllocatableResInNode.CpuCoreLimit),
-		math.Abs(node.ResAvail.AllocatableResInNode.CpuCoreLimit),
+		node.ResTotal.CpuCount,
+		math.Abs(node.ResAlloc.CpuCount),
+		math.Abs(node.ResAvail.CpuCount),
 	)
 }
 
 // Mem
 func formatMemInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("RealMemory=%s AllocMem=%s FreeMem=%s",
-		util.FormatMemToMB(node.ResTotal.AllocatableResInNode.MemoryLimitBytes),
-		util.FormatMemToMB(node.ResAlloc.AllocatableResInNode.MemoryLimitBytes),
-		util.FormatMemToMB(node.ResAvail.AllocatableResInNode.MemoryLimitBytes),
+		util.FormatMemToMB(node.ResTotal.MemoryBytes),
+		util.FormatMemToMB(node.ResAlloc.MemoryBytes),
+		util.FormatMemToMB(node.ResAvail.MemoryBytes),
 	)
 }
 
 // Gres
 func formatGresInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("Gres=%s AllocGres=%s FreeGres=%s",
-		formatDedicatedResource(node.ResTotal.GetDedicatedResInNode()),
-		formatDedicatedResource(node.ResAlloc.GetDedicatedResInNode()),
-		formatDedicatedResource(node.ResAvail.GetDedicatedResInNode()),
+		formatDedicatedResource(node.ResTotal.GetGres()),
+		formatDedicatedResource(node.ResAlloc.GetGres()),
+		formatDedicatedResource(node.ResAvail.GetGres()),
 	)
 }
 
@@ -329,21 +324,21 @@ func formatAccountsInfo(partition *protos.PartitionInfo) string {
 }
 
 func formatCpuResources(partition *protos.PartitionInfo) string {
-	total := math.Abs(partition.ResTotal.AllocatableRes.CpuCoreLimit)
-	avail := math.Abs(partition.ResAvail.AllocatableRes.CpuCoreLimit)
-	alloc := math.Abs(partition.ResAlloc.AllocatableRes.CpuCoreLimit)
+	total := math.Abs(partition.ResTotal.CpuCount)
+	avail := math.Abs(partition.ResAvail.CpuCount)
+	alloc := math.Abs(partition.ResAlloc.CpuCount)
 	return fmt.Sprintf("TotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f", total, avail, alloc)
 }
 func formatMemoryResources(partition *protos.PartitionInfo) string {
-	total := util.FormatMemToMB(partition.ResTotal.AllocatableRes.MemoryLimitBytes)
-	avail := util.FormatMemToMB(partition.ResAvail.AllocatableRes.MemoryLimitBytes)
-	alloc := util.FormatMemToMB(partition.ResAlloc.AllocatableRes.MemoryLimitBytes)
+	total := util.FormatMemToMB(partition.ResTotal.MemoryBytes)
+	avail := util.FormatMemToMB(partition.ResAvail.MemoryBytes)
+	alloc := util.FormatMemToMB(partition.ResAlloc.MemoryBytes)
 	return fmt.Sprintf("TotalMem=%s AvailMem=%s AllocMem=%s", total, avail, alloc)
 }
 func formatGresResources(partition *protos.PartitionInfo) string {
-	total := formatDeviceMap(partition.ResTotal.GetDeviceMap())
-	avail := formatDeviceMap(partition.ResAvail.GetDeviceMap())
-	alloc := formatDeviceMap(partition.ResAlloc.GetDeviceMap())
+	total := formatGresMap(partition.ResTotal.GetGresMap())
+	avail := formatGresMap(partition.ResAvail.GetGresMap())
+	alloc := formatGresMap(partition.ResAlloc.GetGresMap())
 	return fmt.Sprintf("TotalGres=%s AvailGres=%s AllocGres=%s", total, avail, alloc)
 }
 
@@ -436,21 +431,21 @@ func formatReservationResources(res *protos.ReservationInfo) string {
 	var buf strings.Builder
 	// CPU
 	buf.WriteString(fmt.Sprintf("\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n",
-		math.Abs(res.ResTotal.AllocatableRes.CpuCoreLimit),
-		math.Abs(res.ResAvail.AllocatableRes.CpuCoreLimit),
-		math.Abs(res.ResAlloc.AllocatableRes.CpuCoreLimit)))
+		math.Abs(res.ResTotal.CpuCount),
+		math.Abs(res.ResAvail.CpuCount),
+		math.Abs(res.ResAlloc.CpuCount)))
 
 	// mem
 	buf.WriteString(fmt.Sprintf("\tTotalMem=%s AvailMem=%s AllocMem=%s\n",
-		util.FormatMemToMB(res.ResTotal.AllocatableRes.MemoryLimitBytes),
-		util.FormatMemToMB(res.ResAvail.AllocatableRes.MemoryLimitBytes),
-		util.FormatMemToMB(res.ResAlloc.AllocatableRes.MemoryLimitBytes)))
+		util.FormatMemToMB(res.ResTotal.MemoryBytes),
+		util.FormatMemToMB(res.ResAvail.MemoryBytes),
+		util.FormatMemToMB(res.ResAlloc.MemoryBytes)))
 
 	// Gres
 	buf.WriteString(fmt.Sprintf("\tTotalGres=%s AvailGres=%s AllocGres=%s\n",
-		formatDeviceMap(res.ResTotal.GetDeviceMap()),
-		formatDeviceMap(res.ResAvail.GetDeviceMap()),
-		formatDeviceMap(res.ResAlloc.GetDeviceMap())))
+		formatGresMap(res.ResTotal.GetGresMap()),
+		formatGresMap(res.ResAvail.GetGresMap()),
+		formatGresMap(res.ResAlloc.GetGresMap())))
 
 	return buf.String()
 }
@@ -658,8 +653,8 @@ func formatJobTimes(job *protos.JobInfo) jobTimeInfo {
 }
 
 func printResourceRequests(job *protos.JobInfo) {
-	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
-	totalMem := job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+	totalCpu := job.GetReqTotalResView().GetCpuCount()
+	totalMem := job.GetReqTotalResView().GetMemoryBytes()
 
 	var cpusPerTask float64
 	var memPerNode uint64
@@ -681,14 +676,14 @@ func printResourceRequests(job *protos.JobInfo) {
 		job.NodeNum,
 		totalCpu,
 		util.FormatMemToMB(totalMem),
-		formatDeviceMap(job.ReqTotalResView.DeviceMap))
+		formatGresMap(job.GetReqTotalResView().GetGresMap()))
 	// AllocRes
 	if job.Status == protos.JobStatus_Running {
 		fmt.Printf("\tAllocRes:node=%d cpu=%.2f mem=%v gres=%s\n",
 			job.NodeNum,
-			job.AllocatedResView.AllocatableRes.CpuCoreLimit,
-			util.FormatMemToMB(job.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-			formatDeviceMap(job.AllocatedResView.DeviceMap))
+			job.GetAllocatedResView().GetCpuCount(),
+			util.FormatMemToMB(job.GetAllocatedResView().GetMemoryBytes()),
+			formatGresMap(job.GetAllocatedResView().GetGresMap()))
 	}
 }
 
@@ -899,8 +894,8 @@ func ShowSteps(stepIds string, queryAll bool) error {
 			nodeListStr := formatNullStr(stepInfo.GetCranedList())
 
 			var cpusStr string
-			if stepInfo.AllocatedResView != nil && stepInfo.AllocatedResView.AllocatableRes != nil {
-				cpus := stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+			if stepInfo.AllocatedResView != nil {
+				cpus := stepInfo.GetAllocatedResView().GetCpuCount()
 				cpusStr = strconv.FormatInt(int64(cpus), 10)
 			} else {
 				cpusStr = "0"
@@ -911,14 +906,14 @@ func ShowSteps(stepIds string, queryAll bool) error {
 			nameStr := formatNullStr(stepInfo.Name)
 
 			var gresStr string
-			if stepInfo.AllocatedResView != nil && stepInfo.AllocatedResView.AllocatableRes != nil {
-				gres := stepInfo.AllocatedResView.AllocatableRes
+			if stepInfo.AllocatedResView != nil {
+				resView := stepInfo.GetAllocatedResView()
 				var gresParts []string
-				if gres.CpuCoreLimit > 0 {
-					gresParts = append(gresParts, fmt.Sprintf("cpu=%d", int64(gres.CpuCoreLimit)))
+				if resView.GetCpuCount() > 0 {
+					gresParts = append(gresParts, fmt.Sprintf("cpu=%d", int64(resView.GetCpuCount())))
 				}
-				if gres.MemoryLimitBytes > 0 {
-					gresParts = append(gresParts, fmt.Sprintf("mem=%s", util.FormatMemToMB(gres.MemoryLimitBytes)))
+				if resView.GetMemoryBytes() > 0 {
+					gresParts = append(gresParts, fmt.Sprintf("mem=%s", util.FormatMemToMB(resView.GetMemoryBytes())))
 				}
 				if stepInfo.NodeNum > 0 {
 					gresParts = append(gresParts, fmt.Sprintf("node=%d", stepInfo.NodeNum))

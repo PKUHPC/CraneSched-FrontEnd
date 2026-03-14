@@ -121,6 +121,16 @@ const (
 	MaxEntityNameLength = 30
 
 	MaxJobMemoryBytes = 10737418240000 // 10000GB
+
+	// UnlimitedCpuThreshold is used to detect "unlimited" CPU values from backend.
+	// Backend kUnlimitedCpu raw = (1<<53)-1, as double ≈ 3.5e13.
+	// Any value above 1e13 is treated as unlimited.
+	UnlimitedCpuThreshold float64 = 1e13
+
+	// UnlimitedCpuValue is the default "unlimited" CPU value sent to backend
+	// when creating QoS without specifying a CPU limit.
+	// Matches backend's kUnlimitedCpu: cpu_t::from_raw_value(1<<53).
+	UnlimitedCpuValue float64 = float64(int64(1)<<53) / 256.0
 )
 
 // Param Options
