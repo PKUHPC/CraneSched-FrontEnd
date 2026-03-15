@@ -92,6 +92,10 @@ nfpms:
         dst: /usr/bin/cqueue
         file_info:
           mode: 0755
+      - src: build/bin/creport
+        dst: /usr/bin/creport
+        file_info:
+          mode: 0755
       - src: build/bin/crun
         dst: /usr/bin/crun
         file_info:
