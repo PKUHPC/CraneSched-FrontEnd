@@ -218,6 +218,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_LUA_FAILED:                "Lua script validation failed",
 	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_ACCOUNT: "The number of tasks for the current account has reached its limit",
 	protos.ErrCode_ERR_USER_HAS_TASK:             "The user has jobs pending or running, cannot be deleted",
+	protos.ErrCode_ERR_INVALID_RESOURCE:          "Invalid resource specification for the partition",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
