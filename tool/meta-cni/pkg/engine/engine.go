@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"CraneFrontEnd/tool/meta-cni/pkg/result"
@@ -14,86 +18,517 @@ import (
 	"github.com/containernetworking/cni/pkg/invoke"
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	types100 "github.com/containernetworking/cni/pkg/types/100"
 	log "github.com/sirupsen/logrus"
 )
 
-// Action enumerates supported CNI verbs for delegate execution ordering.
+// Action enumerates supported CNI verbs.
 type Action string
 
 const (
-	ActionAdd   Action = "ADD"
-	ActionCheck Action = "CHECK"
-	ActionDel   Action = "DEL"
+	ActionAdd    Action = "ADD"
+	ActionCheck  Action = "CHECK"
+	ActionDel    Action = "DEL"
+	ActionStatus Action = "STATUS"
+
+	gresAnnotationPrefix = "cranesched.internal/meta-cni/gres/"
 )
 
-// Execute runs delegates for a single CNI action using the provided args.
+// ResolvedPipeline is an expanded pipeline ready for execution.
+type ResolvedPipeline struct {
+	metatypes.Pipeline
+	InstanceIndex int    // Template instance index, -1 for static pipelines
+	GRESDevice    string // GRES annotation value for this instance
+}
+
+// Execute runs pipelines for a single CNI action using the provided args.
 func Execute(conf *metatypes.MetaPluginConf, action Action, args *skel.CmdArgs) (cnitypes.Result, error) {
 	if conf == nil {
 		return nil, errors.New("meta-cni: config is nil")
 	}
-	if (action == ActionCheck || action == ActionDel) && conf.PrevResult == nil {
+	if action == ActionCheck && conf.PrevResult == nil {
 		return nil, fmt.Errorf("meta-cni: prevResult is required for %v", action)
 	}
 
 	ctx, cancel := contextWithTimeout(conf.TimeoutSeconds)
 	defer cancel()
 
-	delegates := inOrder(conf.Delegates, action)
-	var lastResult cnitypes.Result
-	var chainResult cnitypes.Result
+	switch action {
+	case ActionAdd:
+		return executeAdd(ctx, conf, args)
+	case ActionDel:
+		return executeDel(ctx, conf, args)
+	case ActionCheck:
+		return executeCheck(ctx, conf, args)
+	case ActionStatus:
+		return executeStatus(ctx, conf)
+	default:
+		return nil, fmt.Errorf("meta-cni: unsupported action %s", action)
+	}
+}
 
-	for idx, delegate := range delegates {
+// --- Pipeline resolution ---
+
+func resolvePipelines(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) ([]ResolvedPipeline, error) {
+	annotations := conf.Annotations()
+	cniArgs := utils.ParseArgs(args.Args)
+	var resolved []ResolvedPipeline
+
+	for i := range conf.Pipelines {
+		p := &conf.Pipelines[i]
+		if !p.IsTemplate() {
+			resolved = append(resolved, ResolvedPipeline{
+				Pipeline:      *p,
+				InstanceIndex: -1,
+			})
+			continue
+		}
+
+		instances := findGRESAnnotations(annotations, p.Name)
+		if len(instances) == 0 {
+			log.Infof("Pipeline %q skipped: no GRES annotations", p.Name)
+			continue
+		}
+
+		for _, inst := range instances {
+			rp, err := expandTemplate(p, inst.Index, inst.Device, cniArgs)
+			if err != nil {
+				return nil, fmt.Errorf("meta-cni: pipeline %q expand: %w", p.Name, err)
+			}
+			resolved = append(resolved, rp)
+		}
+	}
+
+	if err := validateUniqueIfNames(resolved); err != nil {
+		return nil, err
+	}
+	return resolved, nil
+}
+
+func resolvePipelinesForDel(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) ([]ResolvedPipeline, error) {
+	annotations := conf.Annotations()
+	cniArgs := utils.ParseArgs(args.Args)
+	var resolved []ResolvedPipeline
+
+	for i := range conf.Pipelines {
+		p := &conf.Pipelines[i]
+		if !p.IsTemplate() {
+			resolved = append(resolved, ResolvedPipeline{
+				Pipeline:      *p,
+				InstanceIndex: -1,
+			})
+			continue
+		}
+
+		instances := findGRESAnnotations(annotations, p.Name)
+		if len(instances) == 0 {
+			// Fallback: infer from prevResult
+			instances = inferFromPrevResult(conf.PrevResult, p.IfNamePrefix)
+		}
+
+		for _, inst := range instances {
+			rp, err := expandTemplate(p, inst.Index, inst.Device, cniArgs)
+			if err != nil {
+				return nil, fmt.Errorf("meta-cni: pipeline %q expand for DEL: %w", p.Name, err)
+			}
+			resolved = append(resolved, rp)
+		}
+	}
+
+	return resolved, nil
+}
+
+type gresInstance struct {
+	Index  int
+	Device string
+}
+
+func findGRESAnnotations(annotations map[string]string, pipelineName string) []gresInstance {
+	prefix := gresAnnotationPrefix + pipelineName + "/"
+	var instances []gresInstance
+
+	for key, value := range annotations {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		suffix := key[len(prefix):]
+		idx, err := strconv.Atoi(suffix)
+		if err != nil || idx < 0 {
+			log.Warnf("meta-cni: ignoring annotation %q: invalid index %q", key, suffix)
+			continue
+		}
+		instances = append(instances, gresInstance{Index: idx, Device: value})
+	}
+
+	sort.Slice(instances, func(i, j int) bool {
+		return instances[i].Index < instances[j].Index
+	})
+	return instances
+}
+
+var ifNameIndexRe = regexp.MustCompile(`^(.+?)(\d+)$`)
+
+func inferFromPrevResult(prevResult cnitypes.Result, ifNamePrefix string) []gresInstance {
+	if prevResult == nil {
+		return nil
+	}
+	result100, err := types100.NewResultFromResult(prevResult)
+	if err != nil {
+		log.Warnf("meta-cni: cannot convert prevResult for inference: %v", err)
+		return nil
+	}
+
+	var instances []gresInstance
+	for _, iface := range result100.Interfaces {
+		if iface == nil || iface.Sandbox == "" {
+			continue // skip host-side interfaces
+		}
+		matches := ifNameIndexRe.FindStringSubmatch(iface.Name)
+		if matches == nil || matches[1] != ifNamePrefix {
+			continue
+		}
+		idx, err := strconv.Atoi(matches[2])
+		if err != nil {
+			continue
+		}
+		instances = append(instances, gresInstance{Index: idx, Device: ""})
+	}
+
+	sort.Slice(instances, func(i, j int) bool {
+		return instances[i].Index < instances[j].Index
+	})
+	return instances
+}
+
+func expandTemplate(p *metatypes.Pipeline, index int, device string, cniArgs map[string]string) (ResolvedPipeline, error) {
+	// Deep copy delegates
+	delegates := make([]metatypes.DelegateEntry, len(p.Delegates))
+	for i, d := range p.Delegates {
+		delegates[i] = metatypes.DelegateEntry{
+			Name:            d.Name,
+			Type:            d.Type,
+			RuntimeOverride: d.RuntimeOverride,
+		}
+		if len(d.Conf) > 0 {
+			confCopy := make(json.RawMessage, len(d.Conf))
+			copy(confCopy, d.Conf)
+			delegates[i].Conf = confCopy
+		}
+		if len(d.ConfFromArgs) > 0 {
+			cfaCopy := make(map[string]string, len(d.ConfFromArgs))
+			for k, v := range d.ConfFromArgs {
+				cfaCopy[k] = v
+			}
+			delegates[i].ConfFromArgs = cfaCopy
+		}
+	}
+
+	idxStr := strconv.Itoa(index)
+	expanded := metatypes.Pipeline{
+		Name:            p.Name + "-" + idxStr,
+		IfName:          p.IfNamePrefix + idxStr,
+		RuntimeOverride: p.RuntimeOverride,
+		Delegates:       delegates,
+	}
+
+	// Build variable context
+	vars := map[string]string{
+		"$gres.device": device,
+		"$gres.index":  idxStr,
+	}
+	for k, v := range cniArgs {
+		argKey := "$args." + k
+		if _, exists := vars[argKey]; !exists {
+			vars[argKey] = v
+		}
+	}
+
+	// Resolve confFromArgs
+	for i := range expanded.Delegates {
+		d := &expanded.Delegates[i]
+		if len(d.ConfFromArgs) == 0 {
+			continue
+		}
+		for confKey, varRef := range d.ConfFromArgs {
+			value, ok := vars[varRef]
+			if !ok {
+				log.Warnf("meta-cni: pipeline %q delegate %s: variable %q not found for confKey %q",
+					expanded.Name, d.Identifier(), varRef, confKey)
+				continue
+			}
+			if err := injectIntoConf(&d.Conf, confKey, value); err != nil {
+				return ResolvedPipeline{}, fmt.Errorf("inject %q into delegate %s conf: %w",
+					confKey, d.Identifier(), err)
+			}
+		}
+	}
+
+	return ResolvedPipeline{
+		Pipeline:      expanded,
+		InstanceIndex: index,
+		GRESDevice:    device,
+	}, nil
+}
+
+func injectIntoConf(conf *json.RawMessage, key, value string) error {
+	var payload map[string]any
+	if len(*conf) == 0 {
+		payload = make(map[string]any)
+	} else {
+		if err := json.Unmarshal(*conf, &payload); err != nil {
+			return fmt.Errorf("decode conf: %w", err)
+		}
+	}
+	payload[key] = value
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encode conf: %w", err)
+	}
+	*conf = data
+	return nil
+}
+
+func validateUniqueIfNames(pipelines []ResolvedPipeline) error {
+	seen := make(map[string]string, len(pipelines)) // ifName → pipeline name
+	for _, rp := range pipelines {
+		if prev, exists := seen[rp.IfName]; exists {
+			return fmt.Errorf("meta-cni: duplicate ifName %q between pipelines %q and %q",
+				rp.IfName, prev, rp.Name)
+		}
+		seen[rp.IfName] = rp.Name
+	}
+	return nil
+}
+
+// --- ADD ---
+
+func executeAdd(ctx context.Context, conf *metatypes.MetaPluginConf, args *skel.CmdArgs) (cnitypes.Result, error) {
+	resolved, err := resolvePipelines(conf, args)
+	if err != nil {
+		return nil, err
+	}
+
+	var mergedResult cnitypes.Result
+	var successfulPipelines []ResolvedPipeline
+
+	for _, rp := range resolved {
+		logger := log.WithField("pipeline", rp.Name)
+		logger.Infof("ADD pipeline (ifName=%s)", rp.IfName)
+
+		pipelineResult, pErr := executePipelineAdd(ctx, &rp, conf, args)
+		if pErr != nil {
+			logger.Errorf("ADD pipeline failed: %v", pErr)
+			// Rollback successful pipelines
+			for i := len(successfulPipelines) - 1; i >= 0; i-- {
+				rollbackLogger := log.WithField("pipeline", successfulPipelines[i].Name)
+				rollbackLogger.Info("rolling back pipeline")
+				executePipelineDel(ctx, &successfulPipelines[i], conf, args)
+			}
+			return nil, fmt.Errorf("meta-cni: pipeline %q ADD failed: %w", rp.Name, pErr)
+		}
+
+		successfulPipelines = append(successfulPipelines, rp)
+		mergedResult, err = result.Merge(mergedResult, pipelineResult)
+		if err != nil {
+			return nil, fmt.Errorf("meta-cni: merge result from pipeline %q: %w", rp.Name, err)
+		}
+	}
+
+	return mergedResult, nil
+}
+
+type delegateSnapshot struct {
+	delegate *metatypes.DelegateEntry
+	env      map[string]string
+}
+
+func executePipelineAdd(ctx context.Context, rp *ResolvedPipeline, conf *metatypes.MetaPluginConf, args *skel.CmdArgs) (cnitypes.Result, error) {
+	var chainResult cnitypes.Result
+	var successful []delegateSnapshot
+
+	for i := range rp.Delegates {
+		delegate := &rp.Delegates[i]
 		logger := log.WithFields(log.Fields{
+			"pipeline": rp.Name,
 			"delegate": delegate.Identifier(),
-			"action":   string(action),
-			"index":    idx,
 		})
 
-		env, err := buildRuntimeEnv(args, conf.RuntimeOverride, delegate.RuntimeOverride)
+		env, err := buildRuntimeEnv(args, conf.RuntimeOverride, &rp.Pipeline, delegate)
 		if err != nil {
-			logger.Errorf("error in building runtime env: %v", err)
-			return nil, err
+			return nil, fmt.Errorf("delegate %s env: %w", delegate.Identifier(), err)
 		}
+
 		restore, err := utils.ApplyEnv(env)
 		if err != nil {
-			logger.Errorf("error in applying runtime env: %v", err)
-			return nil, fmt.Errorf("meta-cni: delegate %s env setup failed: %w", delegate.Identifier(), err)
+			return nil, fmt.Errorf("delegate %s apply env: %w", delegate.Identifier(), err)
 		}
 
-		logger.Debug("invoking delegate")
-
-		var (
-			callErr      error
-			latestResult cnitypes.Result
-		)
-		switch action {
-		case ActionAdd:
-			prevResult := prevResultForDelegate(conf.ResultMode, chainResult)
-			latestResult, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, prevResult, conf.RuntimeConfig)
-			if latestResult != nil {
-				lastResult = latestResult
-			}
-		default:
-			_, callErr = callDelegate(ctx, delegate, action, conf.CNIVersion, conf.PrevResult, conf.RuntimeConfig)
-		}
-
+		logger.Debug("invoking delegate ADD")
+		latestResult, callErr := callDelegate(ctx, delegate, ActionAdd, conf.CNIVersion, chainResult, conf.RuntimeConfig)
 		restore()
 
-		if callErr == nil && action == ActionAdd {
-			chainResult, callErr = updateChainResult(conf.ResultMode, chainResult, latestResult)
+		if callErr != nil {
+			logger.Errorf("delegate ADD failed: %v", callErr)
+			// Rollback successful delegates in this pipeline
+			for j := len(successful) - 1; j >= 0; j-- {
+				snap := successful[j]
+				rollRestore, _ := utils.ApplyEnv(snap.env)
+				_ = callDelegateDel(ctx, snap.delegate, conf.CNIVersion, chainResult, conf.RuntimeConfig)
+				if rollRestore != nil {
+					rollRestore()
+				}
+			}
+			return nil, fmt.Errorf("delegate %s: %w", delegate.Identifier(), callErr)
 		}
+
+		successful = append(successful, delegateSnapshot{delegate: delegate, env: env})
+		if latestResult != nil {
+			chainResult = latestResult
+		}
+	}
+
+	return chainResult, nil
+}
+
+// --- DEL ---
+
+func executeDel(ctx context.Context, conf *metatypes.MetaPluginConf, args *skel.CmdArgs) (cnitypes.Result, error) {
+	resolved, err := resolvePipelinesForDel(conf, args)
+	if err != nil {
+		return nil, err
+	}
+
+	var firstErr error
+	for i := len(resolved) - 1; i >= 0; i-- {
+		rp := &resolved[i]
+		logger := log.WithField("pipeline", rp.Name)
+		logger.Infof("DEL pipeline (ifName=%s)", rp.IfName)
+
+		if pErr := executePipelineDel(ctx, rp, conf, args); pErr != nil {
+			logger.Errorf("DEL pipeline failed: %v", pErr)
+			if firstErr == nil {
+				firstErr = pErr
+			}
+		}
+	}
+
+	return nil, firstErr
+}
+
+func executePipelineDel(ctx context.Context, rp *ResolvedPipeline, conf *metatypes.MetaPluginConf, args *skel.CmdArgs) error {
+	var firstErr error
+	for i := len(rp.Delegates) - 1; i >= 0; i-- {
+		delegate := &rp.Delegates[i]
+		logger := log.WithFields(log.Fields{
+			"pipeline": rp.Name,
+			"delegate": delegate.Identifier(),
+		})
+
+		env, err := buildRuntimeEnv(args, conf.RuntimeOverride, &rp.Pipeline, delegate)
+		if err != nil {
+			logger.Errorf("DEL env build failed: %v", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+
+		restore, err := utils.ApplyEnv(env)
+		if err != nil {
+			logger.Errorf("DEL apply env failed: %v", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+
+		logger.Debug("invoking delegate DEL")
+		callErr := callDelegateDel(ctx, delegate, conf.CNIVersion, conf.PrevResult, conf.RuntimeConfig)
+		restore()
 
 		if callErr != nil {
-			logger.Errorf("error in calling: %v", callErr)
-			return nil, fmt.Errorf("meta-cni: delegate %s failed: %w", delegate.Identifier(), callErr)
+			logger.Errorf("delegate DEL failed: %v", callErr)
+			if firstErr == nil {
+				firstErr = callErr
+			}
+		}
+	}
+	return firstErr
+}
+
+// --- CHECK ---
+
+func executeCheck(ctx context.Context, conf *metatypes.MetaPluginConf, args *skel.CmdArgs) (cnitypes.Result, error) {
+	resolved, err := resolvePipelines(conf, args)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rp := range resolved {
+		for i := range rp.Delegates {
+			delegate := &rp.Delegates[i]
+			logger := log.WithFields(log.Fields{
+				"pipeline": rp.Name,
+				"delegate": delegate.Identifier(),
+			})
+
+			env, err := buildRuntimeEnv(args, conf.RuntimeOverride, &rp.Pipeline, delegate)
+			if err != nil {
+				return nil, fmt.Errorf("delegate %s env: %w", delegate.Identifier(), err)
+			}
+
+			restore, err := utils.ApplyEnv(env)
+			if err != nil {
+				return nil, fmt.Errorf("delegate %s apply env: %w", delegate.Identifier(), err)
+			}
+
+			logger.Debug("invoking delegate CHECK")
+			_, callErr := callDelegate(ctx, delegate, ActionCheck, conf.CNIVersion, conf.PrevResult, conf.RuntimeConfig)
+			restore()
+
+			if callErr != nil {
+				return nil, fmt.Errorf("meta-cni: pipeline %q delegate %s CHECK failed: %w",
+					rp.Name, delegate.Identifier(), callErr)
+			}
 		}
 	}
 
-	if action == ActionAdd && conf.ResultMode == metatypes.ResultModeMerged && chainResult != nil {
-		return chainResult, nil
+	return nil, nil
+}
+
+// --- Common helpers ---
+
+func executeStatus(ctx context.Context, conf *metatypes.MetaPluginConf) (cnitypes.Result, error) {
+	seen := make(map[string]struct{})
+
+	for i := range conf.Pipelines {
+		p := &conf.Pipelines[i]
+		for j := range p.Delegates {
+			delegate := &p.Delegates[j]
+
+			_, pluginType, err := effectiveConf(delegate, conf.CNIVersion, nil, conf.RuntimeConfig)
+			if err != nil {
+				return nil, fmt.Errorf("meta-cni: pipeline %q delegate %s STATUS config: %w",
+					p.Name, delegate.Identifier(), err)
+			}
+			if _, ok := seen[pluginType]; ok {
+				continue
+			}
+			seen[pluginType] = struct{}{}
+
+			confBytes, _, err := effectiveConf(delegate, conf.CNIVersion, nil, conf.RuntimeConfig)
+			if err != nil {
+				return nil, fmt.Errorf("meta-cni: pipeline %q delegate %s STATUS config: %w",
+					p.Name, delegate.Identifier(), err)
+			}
+
+			if err := invoke.DelegateStatus(ctx, pluginType, confBytes, nil); err != nil {
+				return nil, fmt.Errorf("meta-cni: delegate type %q STATUS failed: %w", pluginType, err)
+			}
+		}
 	}
 
-	return lastResult, nil
+	return nil, nil
 }
 
 func contextWithTimeout(timeoutSeconds int) (context.Context, context.CancelFunc) {
@@ -103,26 +538,9 @@ func contextWithTimeout(timeoutSeconds int) (context.Context, context.CancelFunc
 	return context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
 }
 
-func inOrder(delegates []metatypes.DelegateEntry, action Action) []*metatypes.DelegateEntry {
-	if len(delegates) == 0 {
-		return nil
-	}
+func buildRuntimeEnv(args *skel.CmdArgs, globalOverride *metatypes.RuntimeOverride,
+	pipeline *metatypes.Pipeline, delegate *metatypes.DelegateEntry) (map[string]string, error) {
 
-	ordered := make([]*metatypes.DelegateEntry, 0, len(delegates))
-	if action == ActionDel {
-		for i := len(delegates) - 1; i >= 0; i-- {
-			ordered = append(ordered, &delegates[i])
-		}
-		return ordered
-	}
-
-	for i := range delegates {
-		ordered = append(ordered, &delegates[i])
-	}
-	return ordered
-}
-
-func buildRuntimeEnv(args *skel.CmdArgs, globalOverride, delegateOverride *metatypes.RuntimeOverride) (map[string]string, error) {
 	env := map[string]string{
 		"CNI_CONTAINERID": args.ContainerID,
 		"CNI_NETNS":       args.Netns,
@@ -162,18 +580,32 @@ func buildRuntimeEnv(args *skel.CmdArgs, globalOverride, delegateOverride *metat
 		return nil
 	}
 
-	// Global runtime override has lower precedence than delegate-specific override.
+	// Layer 1: global override
 	if err := apply(globalOverride); err != nil {
 		return nil, err
 	}
-	if err := apply(delegateOverride); err != nil {
+
+	// Layer 2: pipeline ifName
+	if pipeline.IfName != "" {
+		env["CNI_IFNAME"] = pipeline.IfName
+	}
+
+	// Layer 3: pipeline override
+	if err := apply(pipeline.RuntimeOverride); err != nil {
+		return nil, err
+	}
+
+	// Layer 4: delegate override
+	if err := apply(delegate.RuntimeOverride); err != nil {
 		return nil, err
 	}
 
 	return env, nil
 }
 
-func callDelegate(ctx context.Context, delegate *metatypes.DelegateEntry, action Action, cniVersion string, prevResult cnitypes.Result, runtimeConfig map[string]any) (cnitypes.Result, error) {
+func callDelegate(ctx context.Context, delegate *metatypes.DelegateEntry, action Action,
+	cniVersion string, prevResult cnitypes.Result, runtimeConfig map[string]any) (cnitypes.Result, error) {
+
 	confBytes, pluginType, err := effectiveConf(delegate, cniVersion, prevResult, runtimeConfig)
 	if err != nil {
 		return nil, err
@@ -193,7 +625,19 @@ func callDelegate(ctx context.Context, delegate *metatypes.DelegateEntry, action
 	}
 }
 
-func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prevResult cnitypes.Result, runtimeConfig map[string]any) ([]byte, string, error) {
+func callDelegateDel(ctx context.Context, delegate *metatypes.DelegateEntry,
+	cniVersion string, prevResult cnitypes.Result, runtimeConfig map[string]any) error {
+
+	confBytes, pluginType, err := effectiveConf(delegate, cniVersion, prevResult, runtimeConfig)
+	if err != nil {
+		return err
+	}
+	return invoke.DelegateDel(ctx, pluginType, confBytes, nil)
+}
+
+func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string,
+	prevResult cnitypes.Result, runtimeConfig map[string]any) ([]byte, string, error) {
+
 	if delegate == nil {
 		return nil, "", errors.New("delegate entry is nil")
 	}
@@ -239,16 +683,13 @@ func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prev
 		}
 	}
 
-	// Pass through runtimeConfig from the parent if delegate doesn't have its own
 	if len(runtimeConfig) > 0 {
 		if _, ok := payload["runtimeConfig"]; !ok {
 			payload["runtimeConfig"] = runtimeConfig
 		}
 	}
 
-	if payload != nil {
-		delete(payload, "prevResult")
-	}
+	delete(payload, "prevResult")
 
 	configVersion := ""
 	if rawVersion, ok := payload["cniVersion"].(string); ok {
@@ -272,27 +713,4 @@ func effectiveConf(delegate *metatypes.DelegateEntry, parentVersion string, prev
 	}
 
 	return confBytes, effectiveType, nil
-}
-
-func prevResultForDelegate(mode metatypes.ResultMode, chainResult cnitypes.Result) cnitypes.Result {
-	if mode == metatypes.ResultModeNone {
-		return nil
-	}
-	return chainResult
-}
-
-func updateChainResult(mode metatypes.ResultMode, current, latest cnitypes.Result) (cnitypes.Result, error) {
-	switch mode {
-	case metatypes.ResultModeNone:
-		return nil, nil
-	case metatypes.ResultModeChained:
-		if latest != nil {
-			return latest, nil
-		}
-		return current, nil
-	case metatypes.ResultModeMerged:
-		return result.Merge(current, latest)
-	default:
-		return current, nil
-	}
 }
