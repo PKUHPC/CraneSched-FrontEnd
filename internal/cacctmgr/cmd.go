@@ -21,6 +21,7 @@ package cacctmgr
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"math"
 	"os"
 	"strconv"
@@ -274,11 +275,15 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			maxCpus, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxCpusPerUser = uint32(maxCpus)
 		case "maxtimelimitpertask":
-			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
-				return util.ErrorCmdArg
+			if seconds, err := util.ParseDurationStrToSeconds(value); err != nil {
+				if err = validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+					return util.ErrorCmdArg
+				}
+				maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
+				FlagQos.MaxTimeLimitPerTask = maxTimeLimit
+			} else {
+				FlagQos.MaxTimeLimitPerTask = uint64(seconds)
 			}
-			maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
-			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
 		case "maxsubmitjobsperuser":
 			if err := validateUintValue(value, "maxSubmitJobsPerUser", 32); err != nil {
 				return util.ErrorCmdArg
@@ -1093,10 +1098,14 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 				NewValue:    value,
 			})
 		case "maxtimelimitpertask":
-			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
-				return util.ErrorCmdArg
+			if seconds, err := util.ParseDurationStrToSeconds(value); err != nil {
+				if err = validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+					return util.ErrorCmdArg
+				}
+				FlagMaxTimeLimit = value
+			} else {
+				FlagMaxTimeLimit = fmt.Sprint(seconds)
 			}
-			FlagMaxTimeLimit = value
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTimeLimitPerTask,
 				NewValue:    FlagMaxTimeLimit,

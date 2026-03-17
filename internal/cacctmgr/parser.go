@@ -107,7 +107,7 @@ type Flag struct {
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @Number) | (@String | @Ident | @Number) )?"`
+	Value string `parser:"( '=' (@String | @Ident | @Number | @Duration) | (@String | @Ident | @Number | @Duration) )?"`
 }
 
 type WhereParam struct {
@@ -123,7 +123,7 @@ type WhereClause struct {
 type SetParam struct {
 	Key   string `parser:"@Ident"`
 	Op    string `parser:"@AssignOp?"`
-	Value string `parser:"@(String | Ident | Number)"`
+	Value string `parser:"@(String | Ident | Number | Duration)"`
 }
 
 type SetClause struct {
@@ -138,6 +138,7 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "AssignOp", Pattern: `(\+=|\-=|=)`},
 	{Name: "String", Pattern: `("[^"]*"|'[^']*'|""|'')`},
 	{Name: "Time", Pattern: `(?:~)?[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:~)?`},
+	{Name: "Duration", Pattern: `\d+(?:-\d+(?::\d+){0,2}|(?::\d+){1,2})`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
 	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\.,:\[\]T]*`},
 	{Name: "Punct", Pattern: `[-,:]`},
