@@ -655,6 +655,9 @@ func CheckJobNameLength(name string) error {
 }
 
 func CheckTaskArgs(task *protos.TaskToCtld) error {
+	if task.MemPerNode != nil && task.MemPerCpu != nil {
+		return fmt.Errorf("--mem and --mem-per-cpu are mutually exclusive")
+	}
 	if task.NodeNum == 0 {
 		if task.Ntasks == 0 {
 			if task.NtasksPerNode == 0 {
@@ -733,6 +736,9 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 }
 
 func CheckStepArgs(step *protos.StepToCtld) error {
+	if step.MemPerNode != nil && step.MemPerCpu != nil {
+		return fmt.Errorf("--mem and --mem-per-cpu are mutually exclusive")
+	}
 	if step.NodeNum == 0 {
 		if step.Ntasks == 0 {
 			if step.NtasksPerNode == 0 {
