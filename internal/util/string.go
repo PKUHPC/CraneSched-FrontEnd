@@ -657,9 +657,17 @@ func CheckJobNameLength(name string) error {
 func CheckTaskArgs(task *protos.TaskToCtld) error {
 	if task.NodeNum == 0 {
 		if task.Ntasks == 0 {
-			task.Ntasks = 1
+			if task.NtasksPerNode == 0 {
+				task.Ntasks = 1
+			} else {
+				task.Ntasks = task.NtasksPerNode
+			}
 		}
-		task.NodeNum = task.Ntasks
+		if task.NtasksPerNode == 0 {
+			task.NodeNum = 1
+		} else {
+			task.NodeNum = (task.Ntasks-1)/task.NtasksPerNode + 1
+		}
 	}
 	if task.Ntasks == 0 {
 		if task.NtasksPerNode == 0 {
@@ -673,11 +681,7 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 		task.NodeNum = task.Ntasks
 	}
 	if task.NtasksPerNode > 0 && task.NtasksPerNode*task.NodeNum < task.Ntasks {
-		if task.NodeNum == 0 {
-			task.NodeNum = (task.Ntasks + task.NtasksPerNode - 1) / task.NtasksPerNode
-		} else {
-			return fmt.Errorf("invalid argument: NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
-		}
+		return fmt.Errorf("invalid argument: NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
 	}
 	if task.CpusPerTask != nil && *task.CpusPerTask <= 0 {
 		return fmt.Errorf("invalid --cpus-per-task")
@@ -731,9 +735,17 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 func CheckStepArgs(step *protos.StepToCtld) error {
 	if step.NodeNum == 0 {
 		if step.Ntasks == 0 {
-			step.Ntasks = 1
+			if step.NtasksPerNode == 0 {
+				step.Ntasks = 1
+			} else {
+				step.Ntasks = step.NtasksPerNode
+			}
 		}
-		step.NodeNum = step.Ntasks
+		if step.NtasksPerNode == 0 {
+			step.NodeNum = 1
+		} else {
+			step.NodeNum = (step.Ntasks-1)/step.NtasksPerNode + 1
+		}
 	}
 	if step.Ntasks == 0 {
 		if step.NtasksPerNode == 0 {
@@ -747,12 +759,8 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 		step.NodeNum = step.Ntasks
 	}
 	if step.NtasksPerNode > 0 && step.NtasksPerNode*step.NodeNum < step.Ntasks {
-		if step.NodeNum == 0 {
-			step.NodeNum = (step.Ntasks + step.NtasksPerNode - 1) / step.NtasksPerNode
-		} else {
-			log.Warnf("Warning: NtasksPerNode * NodeNum < Ntasks, ingnoring NtasksPerNode.")
-			step.NtasksPerNode = 0
-		}
+		log.Warnf("Warning: NtasksPerNode * NodeNum < Ntasks, ignoring NtasksPerNode.")
+		step.NtasksPerNode = 0
 	}
 	if step.CpusPerTask != nil && *step.CpusPerTask <= 0 {
 		return fmt.Errorf("invalid --cpus-per-task")
