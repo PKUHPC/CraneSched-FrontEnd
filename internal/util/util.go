@@ -20,6 +20,7 @@ package util
 
 import (
 	"CraneFrontEnd/api"
+	"time"
 )
 
 type Config struct {
@@ -124,4 +125,8 @@ const (
 const (
 	OpenModeAppend   = "append"
 	OpenModeTruncate = "truncate"
+)
+
+var (
+	InfiniteFuture = time.Unix(1<<63-1, 0)
 )

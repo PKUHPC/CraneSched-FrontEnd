@@ -53,7 +53,7 @@ func GenerateTableConfig() TableConfig {
 				"JobId", "JobName", "UserName", "Partition", "Account",
 				"NodeNum", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode",
 				"Status", "Time", "TimeLimit", "StartTime", "SubmitTime",
-				"Type", "Qos", "Exclusive", "Held", "Priority", "NodeList/Reason",
+				"Type", "Qos", "Exclusive", "Held", "Priority", "NodeList/Reason", "Deadline",
 			},
 			RowMapper: func(task *protos.TaskInfo) []string {
 				timeLimit := "-"
@@ -82,6 +82,7 @@ func GenerateTableConfig() TableConfig {
 					strconv.FormatBool(task.Held),
 					strconv.FormatUint(uint64(task.Priority), 10),
 					GetReasonInfo(task),
+					ProcessDeadline(task),
 				}
 			},
 		}
@@ -124,6 +125,12 @@ func AppendDynamicColumns(config *TableConfig, reply *protos.QueryTasksInfoReply
 		header = append(header, "QoS")
 		for i, task := range reply.TaskInfoList {
 			tableData[i] = append(tableData[i], task.Qos)
+		}
+	}
+	if FlagDeadlineTime {
+		header = append(header, "Deadline")
+		for i, task := range reply.TaskInfoList {
+			tableData[i] = append(tableData[i], ProcessDeadline(task))
 		}
 	}
 	if FlagFilterLicenses != "" {
