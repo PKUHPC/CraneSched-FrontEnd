@@ -387,12 +387,21 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	structExtraFromCli := &util.JobExtraAttrs{}
 
 	if cmd.Flags().Changed("nodes") {
+		if FlagNodes == 0 {
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --nodes must be > 0")
+		}
 		task.NodeNum = FlagNodes
 	}
 	if cmd.Flags().Changed("ntasks-per-node") {
+		if FlagNtasksPerNode == 0 {
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks-per-node must be > 0")
+		}
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("ntasks") {
+		if FlagNtasks == 0 {
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks must be > 0")
+		}
 		task.Ntasks = FlagNtasks
 	}
 	if cmd.Flags().Changed("cpus-per-task") {

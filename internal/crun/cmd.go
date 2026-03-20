@@ -120,7 +120,7 @@ func init() {
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, CpuPerTaskOptionStr, "c", 1, "Number of cpus required per task")
 	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per job,format: \"gpu:a100:1\" or \"gpu:1\"")
 	RootCmd.Flags().Uint32VarP(&FlagNtasks, NtasksOptionStr, "n", 0, "Total number of tasks")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, NtasksPerNodeOptionStr, 0, "Maximum number of tasks per node (0 for unlimited)")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, NtasksPerNodeOptionStr, 0, "Maximum number of tasks per node (default: unlimited)")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")

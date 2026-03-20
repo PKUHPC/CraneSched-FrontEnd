@@ -106,6 +106,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	// Set args from the command line flags
 	// Command line has a higher priority
 	if cmd.Flags().Changed("nodes") {
+		if FlagNodes == 0 {
+			return nil, fmt.Errorf("invalid argument: --nodes must be > 0")
+		}
 		task.NodeNum = FlagNodes
 	}
 	if cmd.Flags().Changed("cpus-per-task") {
@@ -114,9 +117,15 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	}
 
 	if cmd.Flags().Changed("ntasks-per-node") {
+		if FlagNtasksPerNode == 0 {
+			return nil, fmt.Errorf("invalid argument: --ntasks-per-node must be > 0")
+		}
 		task.NtasksPerNode = FlagNtasksPerNode
 	}
 	if cmd.Flags().Changed("ntasks") {
+		if FlagNtasks == 0 {
+			return nil, fmt.Errorf("invalid argument: --ntasks must be > 0")
+		}
 		task.Ntasks = FlagNtasks
 	}
 	if cmd.Flags().Changed("gres") {
@@ -311,6 +320,9 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
+			if num == 0 {
+				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
+			}
 			task.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
 			num, err := util.ParseFloatWithPrecision(arg.val, 10)
@@ -342,11 +354,17 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
+			if num == 0 {
+				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
+			}
 			task.NtasksPerNode = uint32(num)
 		case "--ntasks", "-n":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			if num == 0 {
+				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
 			}
 			task.Ntasks = uint32(num)
 		case "--time", "-t":

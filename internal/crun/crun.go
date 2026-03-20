@@ -1246,12 +1246,21 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	if jobMode {
 		if cmd.Flags().Changed(NodesOptionStr) {
+			if FlagNodes == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --nodes must be > 0")
+			}
 			job.NodeNum = FlagNodes
 		}
 		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
+			if FlagNtasksPerNode == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks-per-node must be > 0")
+			}
 			job.NtasksPerNode = FlagNtasksPerNode
 		}
 		if cmd.Flags().Changed(NtasksOptionStr) {
+			if FlagNtasks == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks must be > 0")
+			}
 			job.Ntasks = FlagNtasks
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
@@ -1271,12 +1280,21 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		job.SubmitHostname = submitHostname
 	} else {
 		if cmd.Flags().Changed(NodesOptionStr) {
+			if FlagNodes == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --nodes must be > 0")
+			}
 			step.NodeNum = FlagNodes
 		}
 		if cmd.Flags().Changed(NtasksPerNodeOptionStr) {
+			if FlagNtasksPerNode == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks-per-node must be > 0")
+			}
 			step.NtasksPerNode = FlagNtasksPerNode
 		}
 		if cmd.Flags().Changed(NtasksOptionStr) {
+			if FlagNtasks == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks must be > 0")
+			}
 			step.Ntasks = FlagNtasks
 		}
 		if cmd.Flags().Changed(CpuPerTaskOptionStr) {
