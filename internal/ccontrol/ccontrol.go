@@ -186,7 +186,22 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 	return SummarizeReply(reply)
 }
 
+// isCgroupV2 checks whether the system uses cgroup v2 (unified hierarchy).
+// Returns true if cgroup v2 is detected, false otherwise (v1 or hybrid).
+func isCgroupV2() bool {
+	// In cgroup v2 (unified hierarchy), the file "cgroup.controllers"
+	// exists at the root of the cgroup filesystem.
+	_, err := os.Stat("/sys/fs/cgroup/cgroup.controllers")
+	return err == nil
+}
+
 func SuspendJobs(jobs string) error {
+	if !isCgroupV2() {
+		return util.NewCraneErr(util.ErrorGeneric,
+			"Suspend is not supported under cgroup v1. "+
+				"Please upgrade to cgroup v2 (unified hierarchy) to use suspend/resume.")
+	}
+
 	jobList, err := util.ParseJobIdList(jobs, ",")
 	if err != nil {
 		log.Errorf("invalid job list: %s", err)
@@ -214,6 +229,12 @@ func SuspendJobs(jobs string) error {
 }
 
 func ResumeJobs(jobs string) error {
+	if !isCgroupV2() {
+		return util.NewCraneErr(util.ErrorGeneric,
+			"Resume is not supported under cgroup v1. "+
+				"Please upgrade to cgroup v2 (unified hierarchy) to use suspend/resume.")
+	}
+
 	jobList, err := util.ParseJobIdList(jobs, ",")
 	if err != nil {
 		log.Errorf("invalid job list: %s", err)
