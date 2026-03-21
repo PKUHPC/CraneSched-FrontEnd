@@ -312,7 +312,7 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 	memEfficiency := 0.0
 	mallocMemMbPerNode := float64(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
 		float64(taskInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
+	totalMallocMemMb := float64(taskInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
@@ -384,9 +384,9 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes) /
+	mallocMemMbPerNode := float64(taskInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes) /
 		float64(taskInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
+	totalMallocMemMb := float64(taskInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
