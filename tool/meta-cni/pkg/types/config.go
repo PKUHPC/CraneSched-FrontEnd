@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -130,7 +131,7 @@ func (conf *MetaPluginConf) Validate() error {
 	// Second pass: cross-check static ifNames vs template prefixes.
 	for ifName := range staticIfNames {
 		for prefix := range templatePrefixes {
-			if strings.HasPrefix(ifName, prefix) {
+			if _, ok := parseTemplateInstanceIndex(ifName, prefix); ok {
 				return fmt.Errorf("meta-cni: static ifName %q conflicts with template prefix %q", ifName, prefix)
 			}
 		}
@@ -142,7 +143,7 @@ func (conf *MetaPluginConf) Validate() error {
 			if left == right {
 				continue
 			}
-			if strings.HasPrefix(left, right) || strings.HasPrefix(right, left) {
+			if templatePrefixesCanConflict(left, right) {
 				return fmt.Errorf("meta-cni: template prefix %q conflicts with template prefix %q", left, right)
 			}
 		}
@@ -159,15 +160,66 @@ func (conf *MetaPluginConf) Validate() error {
 			if err := p.Delegates[j].validate(); err != nil {
 				return fmt.Errorf("meta-cni: pipeline %q delegate %d: %w", p.Name, j, err)
 			}
+			if p.Delegates[j].RuntimeOverride != nil && p.Delegates[j].RuntimeOverride.IfName != "" {
+				return fmt.Errorf("meta-cni: pipeline %q delegate %q: runtimeOverride.ifName is not allowed; use pipeline ifName/ifNamePrefix", p.Name, p.Delegates[j].Identifier())
+			}
 		}
 
 		if p.RuntimeOverride != nil && p.RuntimeOverride.IfName != "" {
-			log.Warnf("meta-cni: pipeline %q has runtimeOverride.ifName set; "+
-				"prefer using pipeline.ifName instead", p.Name)
+			return fmt.Errorf("meta-cni: pipeline %q: runtimeOverride.ifName is not allowed; use pipeline ifName/ifNamePrefix", p.Name)
 		}
 	}
 
 	return nil
+}
+
+func templatePrefixesCanConflict(left, right string) bool {
+	if left == right {
+		return true
+	}
+	if strings.HasPrefix(left, right) {
+		return numericRemainderCanCollide(left[len(right):])
+	}
+	if strings.HasPrefix(right, left) {
+		return numericRemainderCanCollide(right[len(left):])
+	}
+	return false
+}
+
+func numericRemainderCanCollide(remainder string) bool {
+	if remainder == "" {
+		return true
+	}
+	for i := 0; i < len(remainder); i++ {
+		if remainder[i] < '0' || remainder[i] > '9' {
+			return false
+		}
+	}
+	return remainder[0] != '0'
+}
+
+func parseTemplateInstanceIndex(ifName, ifNamePrefix string) (int, bool) {
+	if !strings.HasPrefix(ifName, ifNamePrefix) {
+		return 0, false
+	}
+
+	suffix := ifName[len(ifNamePrefix):]
+	if suffix == "" {
+		return 0, false
+	}
+	if len(suffix) > 1 && suffix[0] == '0' {
+		return 0, false
+	}
+
+	idx, err := strconv.Atoi(suffix)
+	if err != nil || idx < 0 {
+		return 0, false
+	}
+	if strconv.Itoa(idx) != suffix {
+		return 0, false
+	}
+
+	return idx, true
 }
 
 // Annotations extracts pod annotations from runtimeConfig.

@@ -1,13 +1,16 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	metatypes "CraneFrontEnd/tool/meta-cni/pkg/types"
 
 	"github.com/containernetworking/cni/pkg/skel"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	types100 "github.com/containernetworking/cni/pkg/types/100"
 )
 
@@ -147,6 +150,45 @@ func TestInferFromPrevResult(t *testing.T) {
 		got := inferFromPrevResult(prev, "roce")
 		if got != nil {
 			t.Errorf("expected nil, got %v", got)
+		}
+	})
+
+	t.Run("digit-suffixed prefix infers correct index", func(t *testing.T) {
+		t.Parallel()
+		prev := &types100.Result{
+			CNIVersion: "1.0.0",
+			Interfaces: []*types100.Interface{
+				{Name: "eth12", Sandbox: "/proc/123/ns/net"},
+				{Name: "eth101", Sandbox: "/proc/123/ns/net"},
+				{Name: "eth1001", Sandbox: "/proc/123/ns/net"},
+			},
+		}
+
+		got := inferFromPrevResult(prev, "eth1")
+		want := []gresInstance{
+			{Index: 2, Device: ""},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("inferFromPrevResult() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("non-canonical numeric suffix is ignored", func(t *testing.T) {
+		t.Parallel()
+		prev := &types100.Result{
+			CNIVersion: "1.0.0",
+			Interfaces: []*types100.Interface{
+				{Name: "eth101", Sandbox: "/proc/123/ns/net"},
+				{Name: "eth1001", Sandbox: "/proc/123/ns/net"},
+			},
+		}
+
+		got := inferFromPrevResult(prev, "eth10")
+		want := []gresInstance{
+			{Index: 1, Device: ""},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("inferFromPrevResult() = %v, want %v", got, want)
 		}
 	})
 }
@@ -663,6 +705,99 @@ func TestResolvePipelines(t *testing.T) {
 	})
 }
 
+func TestResolvePipelinesForDel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fallback fails when template requires gres.device", func(t *testing.T) {
+		t.Parallel()
+		conf := &metatypes.MetaPluginConf{
+			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{Name: "roce0", Sandbox: "/proc/123/ns/net"},
+				},
+			}},
+			Pipelines: []metatypes.Pipeline{
+				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
+					{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov"}`),
+						ConfFromArgs: map[string]string{"deviceID": "$gres.device"}},
+				}},
+			},
+		}
+
+		_, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
+		if err == nil {
+			t.Fatal("expected error when $gres.device cannot be recovered from prevResult")
+		}
+	})
+
+	t.Run("fallback succeeds when template does not require gres.device", func(t *testing.T) {
+		t.Parallel()
+		conf := &metatypes.MetaPluginConf{
+			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{Name: "roce0", Sandbox: "/proc/123/ns/net"},
+				},
+			}},
+			Pipelines: []metatypes.Pipeline{
+				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
+					{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov"}`),
+						ConfFromArgs: map[string]string{"queue": "$gres.index"}},
+				}},
+			},
+		}
+
+		resolved, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resolved) != 1 {
+			t.Fatalf("len(resolved) = %d, want 1", len(resolved))
+		}
+		if resolved[0].Name != "roce-0" || resolved[0].IfName != "roce0" {
+			t.Errorf("resolved pipeline: name=%q ifName=%q", resolved[0].Name, resolved[0].IfName)
+		}
+	})
+
+	t.Run("annotations take precedence and provide gres.device", func(t *testing.T) {
+		t.Parallel()
+		conf := &metatypes.MetaPluginConf{
+			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{{Name: "roce0", Sandbox: "/proc/123/ns/net"}},
+			}},
+			Pipelines: []metatypes.Pipeline{
+				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
+					{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov"}`),
+						ConfFromArgs: map[string]string{"deviceID": "$gres.device"}},
+				}},
+			},
+			RuntimeConfig: map[string]any{
+				"io.kubernetes.cri.pod-annotations": map[string]any{
+					"cranesched.internal/meta-cni/gres/roce/0": "0000:86:00.2",
+				},
+			},
+		}
+
+		resolved, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resolved) != 1 {
+			t.Fatalf("len(resolved) = %d, want 1", len(resolved))
+		}
+
+		var delegateConf map[string]any
+		if err := json.Unmarshal(resolved[0].Delegates[0].Conf, &delegateConf); err != nil {
+			t.Fatalf("unmarshal delegate conf: %v", err)
+		}
+		if delegateConf["deviceID"] != "0000:86:00.2" {
+			t.Errorf("deviceID = %v, want %q", delegateConf["deviceID"], "0000:86:00.2")
+		}
+	})
+}
+
 func TestContextWithTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -712,6 +847,48 @@ func TestExecutePrevResultRequirement(t *testing.T) {
 		_, err := Execute(conf, ActionDel, &skel.CmdArgs{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestRollbackPipelines(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty pipelines returns nil", func(t *testing.T) {
+		t.Parallel()
+		err := rollbackPipelines(context.Background(), &metatypes.MetaPluginConf{}, &skel.CmdArgs{}, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("returns first rollback error in reverse order", func(t *testing.T) {
+		t.Parallel()
+		pipelines := []ResolvedPipeline{
+			{Pipeline: metatypes.Pipeline{
+				Name: "p1",
+				Delegates: []metatypes.DelegateEntry{{
+					Name: "d1",
+					Type: "sriov",
+					Conf: json.RawMessage(`{invalid-json`),
+				}},
+			}},
+			{Pipeline: metatypes.Pipeline{
+				Name: "p2",
+				Delegates: []metatypes.DelegateEntry{{
+					Name: "d2",
+					Type: "sriov",
+					Conf: json.RawMessage(`{invalid-json`),
+				}},
+			}},
+		}
+
+		err := rollbackPipelines(context.Background(), &metatypes.MetaPluginConf{}, &skel.CmdArgs{}, pipelines)
+		if err == nil {
+			t.Fatal("expected rollback error")
+		}
+		if !strings.Contains(err.Error(), "d2") {
+			t.Fatalf("expected first rollback error from reverse order pipeline delegate d2, got: %v", err)
 		}
 	})
 }

@@ -156,6 +156,36 @@ func TestValidate(t *testing.T) {
 			expectErr: "conflicts with template prefix",
 		},
 		{
+			name: "static lexical overlap without numeric suffix is allowed",
+			conf: &MetaPluginConf{
+				Pipelines: []Pipeline{
+					{Name: "a", IfName: "roce-mgmt", Delegates: []DelegateEntry{validDelegate}},
+					{Name: "b", IfNamePrefix: "roce", Delegates: []DelegateEntry{validDelegate}},
+				},
+			},
+			expectErr: "",
+		},
+		{
+			name: "template prefixes lexical overlap without canonical collision is allowed",
+			conf: &MetaPluginConf{
+				Pipelines: []Pipeline{
+					{Name: "a", IfNamePrefix: "roce", Delegates: []DelegateEntry{validDelegate}},
+					{Name: "b", IfNamePrefix: "roce0", Delegates: []DelegateEntry{validDelegate}},
+				},
+			},
+			expectErr: "",
+		},
+		{
+			name: "static non-canonical numeric suffix does not conflict",
+			conf: &MetaPluginConf{
+				Pipelines: []Pipeline{
+					{Name: "a", IfName: "roce01", Delegates: []DelegateEntry{validDelegate}},
+					{Name: "b", IfNamePrefix: "roce", Delegates: []DelegateEntry{validDelegate}},
+				},
+			},
+			expectErr: "",
+		},
+		{
 			name: "no delegates",
 			conf: &MetaPluginConf{
 				Pipelines: []Pipeline{
@@ -181,6 +211,41 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			expectErr: "delegate name is required",
+		},
+		{
+			name: "pipeline runtimeOverride ifName is rejected",
+			conf: &MetaPluginConf{
+				Pipelines: []Pipeline{
+					{
+						Name:     "a",
+						IfName:   "eth0",
+						Delegates: []DelegateEntry{validDelegate},
+						RuntimeOverride: &RuntimeOverride{
+							IfName: "eth1",
+						},
+					},
+				},
+			},
+			expectErr: "runtimeOverride.ifName is not allowed",
+		},
+		{
+			name: "delegate runtimeOverride ifName is rejected",
+			conf: &MetaPluginConf{
+				Pipelines: []Pipeline{
+					{
+						Name:   "a",
+						IfName: "eth0",
+						Delegates: []DelegateEntry{{
+							Name: "d1",
+							Type: "bridge",
+							RuntimeOverride: &RuntimeOverride{
+								IfName: "eth1",
+							},
+						}},
+					},
+				},
+			},
+			expectErr: "runtimeOverride.ifName is not allowed",
 		},
 		{
 			name: "valid static pipeline",

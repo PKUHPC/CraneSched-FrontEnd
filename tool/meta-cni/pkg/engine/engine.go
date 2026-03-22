@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -125,6 +124,9 @@ func resolvePipelinesForDel(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) 
 		if len(instances) == 0 {
 			// Fallback: infer from prevResult
 			instances = inferFromPrevResult(conf.PrevResult, p.IfNamePrefix)
+			if len(instances) > 0 && templateRequiresGRESDevice(p) {
+				return nil, fmt.Errorf("meta-cni: pipeline %q DEL/CHECK fallback cannot recover $gres.device from prevResult; keep annotations or persist device mapping", p.Name)
+			}
 		}
 
 		for _, inst := range instances {
@@ -137,6 +139,23 @@ func resolvePipelinesForDel(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) 
 	}
 
 	return resolved, nil
+}
+
+func templateRequiresGRESDevice(p *metatypes.Pipeline) bool {
+	if p == nil || !p.IsTemplate() {
+		return false
+	}
+
+	for i := range p.Delegates {
+		d := &p.Delegates[i]
+		for _, varRef := range d.ConfFromArgs {
+			if varRef == "$gres.device" {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 type gresInstance struct {
@@ -167,8 +186,6 @@ func findGRESAnnotations(annotations map[string]string, pipelineName string) []g
 	return instances
 }
 
-var ifNameIndexRe = regexp.MustCompile(`^(.+?)(\d+)$`)
-
 func inferFromPrevResult(prevResult cnitypes.Result, ifNamePrefix string) []gresInstance {
 	if prevResult == nil {
 		return nil
@@ -184,12 +201,8 @@ func inferFromPrevResult(prevResult cnitypes.Result, ifNamePrefix string) []gres
 		if iface == nil || iface.Sandbox == "" {
 			continue // skip host-side interfaces
 		}
-		matches := ifNameIndexRe.FindStringSubmatch(iface.Name)
-		if matches == nil || matches[1] != ifNamePrefix {
-			continue
-		}
-		idx, err := strconv.Atoi(matches[2])
-		if err != nil {
+		idx, ok := parseTemplateInstanceIndex(iface.Name, ifNamePrefix)
+		if !ok {
 			continue
 		}
 		instances = append(instances, gresInstance{Index: idx, Device: ""})
@@ -199,6 +212,30 @@ func inferFromPrevResult(prevResult cnitypes.Result, ifNamePrefix string) []gres
 		return instances[i].Index < instances[j].Index
 	})
 	return instances
+}
+
+func parseTemplateInstanceIndex(ifName, ifNamePrefix string) (int, bool) {
+	if !strings.HasPrefix(ifName, ifNamePrefix) {
+		return 0, false
+	}
+
+	suffix := ifName[len(ifNamePrefix):]
+	if suffix == "" {
+		return 0, false
+	}
+	if len(suffix) > 1 && suffix[0] == '0' {
+		return 0, false
+	}
+
+	idx, err := strconv.Atoi(suffix)
+	if err != nil || idx < 0 {
+		return 0, false
+	}
+	if strconv.Itoa(idx) != suffix {
+		return 0, false
+	}
+
+	return idx, true
 }
 
 func expandTemplate(p *metatypes.Pipeline, index int, device string, cniArgs map[string]string) (ResolvedPipeline, error) {
@@ -317,11 +354,11 @@ func executeAdd(ctx context.Context, conf *metatypes.MetaPluginConf, args *skel.
 		pipelineResult, pErr := executePipelineAdd(ctx, &rp, conf, args)
 		if pErr != nil {
 			logger.Errorf("ADD pipeline failed: %v", pErr)
-			// Rollback successful pipelines
-			for i := len(successfulPipelines) - 1; i >= 0; i-- {
-				rollbackLogger := log.WithField("pipeline", successfulPipelines[i].Name)
-				rollbackLogger.Info("rolling back pipeline")
-				executePipelineDel(ctx, &successfulPipelines[i], conf, args)
+			if rollbackErr := rollbackPipelines(ctx, conf, args, successfulPipelines); rollbackErr != nil {
+				return nil, errors.Join(
+					fmt.Errorf("meta-cni: pipeline %q ADD failed: %w", rp.Name, pErr),
+					fmt.Errorf("meta-cni: rollback failed: %w", rollbackErr),
+				)
 			}
 			return nil, fmt.Errorf("meta-cni: pipeline %q ADD failed: %w", rp.Name, pErr)
 		}
@@ -329,11 +366,36 @@ func executeAdd(ctx context.Context, conf *metatypes.MetaPluginConf, args *skel.
 		successfulPipelines = append(successfulPipelines, rp)
 		mergedResult, err = result.Merge(mergedResult, pipelineResult)
 		if err != nil {
+			if rollbackErr := rollbackPipelines(ctx, conf, args, successfulPipelines); rollbackErr != nil {
+				return nil, errors.Join(
+					fmt.Errorf("meta-cni: merge result from pipeline %q: %w", rp.Name, err),
+					fmt.Errorf("meta-cni: rollback failed: %w", rollbackErr),
+				)
+			}
 			return nil, fmt.Errorf("meta-cni: merge result from pipeline %q: %w", rp.Name, err)
 		}
 	}
 
 	return mergedResult, nil
+}
+
+func rollbackPipelines(ctx context.Context, conf *metatypes.MetaPluginConf, args *skel.CmdArgs,
+	successfulPipelines []ResolvedPipeline) error {
+
+	var firstErr error
+	for i := len(successfulPipelines) - 1; i >= 0; i-- {
+		rp := &successfulPipelines[i]
+		rollbackLogger := log.WithField("pipeline", rp.Name)
+		rollbackLogger.Info("rolling back pipeline")
+		if err := executePipelineDel(ctx, rp, conf, args); err != nil {
+			rollbackLogger.Errorf("rollback pipeline failed: %v", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+
+	return firstErr
 }
 
 type delegateSnapshot struct {
@@ -458,7 +520,7 @@ func executePipelineDel(ctx context.Context, rp *ResolvedPipeline, conf *metatyp
 // --- CHECK ---
 
 func executeCheck(ctx context.Context, conf *metatypes.MetaPluginConf, args *skel.CmdArgs) (cnitypes.Result, error) {
-	resolved, err := resolvePipelines(conf, args)
+	resolved, err := resolvePipelinesForDel(conf, args)
 	if err != nil {
 		return nil, err
 	}
@@ -505,7 +567,7 @@ func executeStatus(ctx context.Context, conf *metatypes.MetaPluginConf) (cnitype
 		for j := range p.Delegates {
 			delegate := &p.Delegates[j]
 
-			_, pluginType, err := effectiveConf(delegate, conf.CNIVersion, nil, conf.RuntimeConfig)
+			confBytes, pluginType, err := effectiveConf(delegate, conf.CNIVersion, nil, conf.RuntimeConfig)
 			if err != nil {
 				return nil, fmt.Errorf("meta-cni: pipeline %q delegate %s STATUS config: %w",
 					p.Name, delegate.Identifier(), err)
@@ -514,12 +576,6 @@ func executeStatus(ctx context.Context, conf *metatypes.MetaPluginConf) (cnitype
 				continue
 			}
 			seen[pluginType] = struct{}{}
-
-			confBytes, _, err := effectiveConf(delegate, conf.CNIVersion, nil, conf.RuntimeConfig)
-			if err != nil {
-				return nil, fmt.Errorf("meta-cni: pipeline %q delegate %s STATUS config: %w",
-					p.Name, delegate.Identifier(), err)
-			}
 
 			if err := invoke.DelegateStatus(ctx, pluginType, confBytes, nil); err != nil {
 				return nil, fmt.Errorf("meta-cni: delegate type %q STATUS failed: %w", pluginType, err)
