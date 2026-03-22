@@ -217,8 +217,8 @@ func TestValidate(t *testing.T) {
 			conf: &MetaPluginConf{
 				Pipelines: []Pipeline{
 					{
-						Name:     "a",
-						IfName:   "eth0",
+						Name:      "a",
+						IfName:    "eth0",
 						Delegates: []DelegateEntry{validDelegate},
 						RuntimeOverride: &RuntimeOverride{
 							IfName: "eth1",
