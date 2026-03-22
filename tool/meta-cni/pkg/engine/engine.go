@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"sort"
 	"strconv"
@@ -216,9 +217,7 @@ func expandTemplate(p *metatypes.Pipeline, index int, device string, cniArgs map
 		}
 		if len(d.ConfFromArgs) > 0 {
 			cfaCopy := make(map[string]string, len(d.ConfFromArgs))
-			for k, v := range d.ConfFromArgs {
-				cfaCopy[k] = v
-			}
+			maps.Copy(cfaCopy, d.ConfFromArgs)
 			delegates[i].ConfFromArgs = cfaCopy
 		}
 	}
