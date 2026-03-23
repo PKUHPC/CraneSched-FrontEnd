@@ -308,9 +308,11 @@ func printPartitionDetails(partition *protos.PartitionInfo) error {
 	memInfo := formatMemoryResources(partition)
 	gresInfo := formatGresResources(partition)
 
-	memLimits := fmt.Sprintf("DefaultMemPerCPU=%s MaxMemPerCPU=%s",
+	memLimits := fmt.Sprintf("DefaultMemPerCPU=%s MaxMemPerCPU=%s DefaultMemPerNode=%s MaxMemPerNode=%s",
 		util.FormatMemToMB(partition.DefaultMemPerCpu),
-		util.FormatMemToMB(partition.MaxMemPerCpu))
+		util.FormatMemToMB(partition.MaxMemPerCpu),
+		util.FormatMemToMB(partition.DefaultMemPerNode),
+		util.FormatMemToMB(partition.MaxMemPerNode))
 	fmt.Printf("PartitionName=%v State=%v\n"+
 		"\t%s\n"+
 		"\t%s\n"+
@@ -667,17 +669,30 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 }
 
 func printResourceRequests(task *protos.TaskInfo) {
+	totalCpu := task.ReqTotalResView.AllocatableRes.CpuCoreLimit
+	totalMem := task.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+
+	var cpusPerTask float64
+	var memPerNode uint64
+
+	if task.Ntasks > 0 {
+		cpusPerTask = totalCpu / float64(task.Ntasks)
+	}
+	if task.NodeNum > 0 {
+		memPerNode = totalMem / uint64(task.NodeNum)
+	}
+
 	// Priority / QoS
 	fmt.Printf("\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n",
 		task.Priority, task.Qos,
-		task.ReqResView.AllocatableRes.CpuCoreLimit,
-		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes))
+		cpusPerTask,
+		util.FormatMemToMB(memPerNode))
 	// ReqRes
 	fmt.Printf("\tReqRes:node=%d cpu=%.2f mem=%v gres=%s\n",
 		task.NodeNum,
-		task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum),
-		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(task.NodeNum)),
-		formatDeviceMap(task.ReqResView.DeviceMap))
+		totalCpu,
+		util.FormatMemToMB(totalMem),
+		formatDeviceMap(task.ReqTotalResView.DeviceMap))
 	// AllocRes
 	if task.Status == protos.TaskStatus_Running {
 		fmt.Printf("\tAllocRes:node=%d cpu=%.2f mem=%v gres=%s\n",
