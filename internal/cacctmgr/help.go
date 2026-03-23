@@ -260,7 +260,7 @@ func showHelp() {
       set MaxTres=<tres>                 Set max Tres (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
       set MaxWall=<sec>                  Set max wall
       set Flags=<DenyOnLimit|None>       Set qos flags (default is None)
-      set MaxTimeLimitPerTask=<duration|sec>      Set max time per task (seconds)
+      set MaxTimeLimitPerTask=<duration|sec>   Set the maximum time limit per job (format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds) (default 315576000000 seconds)"
       set Priority=<priority>            Set priority
     Wckey options:
       where user=<name> 
