@@ -1,17 +1,24 @@
 # Meta CNI plugin for CraneSched
 
-This directory contains a CNI "meta" plugin that chains multiple CNI plugins
-and lets you adjust their runtime parameters (CNI_ARGS, environment, and basic
-runtime fields) before each delegate is invoked.
+This directory contains a CNI "meta" plugin that organizes CNI plugins into
+**pipelines**, where each pipeline manages a single network interface. It
+supports both static pipelines (always executed) and template pipelines
+(dynamically expanded based on GRES annotations from the CraneSched backend).
 
 ## What it does
 
-- Runs a list of delegate CNI plugins in order on ADD and CHECK.
-- Runs delegates in reverse order on DEL.
-- Applies a configurable runtime override (global, then per delegate) to the
+- **Static Pipelines**: Run a fixed chain of delegates for a named interface
+  (e.g., `eth0`) on every invocation.
+- **Template Pipelines**: Expand into 0..N instances at runtime based on
+  `cranesched.internal/meta-cni/gres/<pipeline-name>/<index>` Pod annotations.
+  Each instance gets a unique interface name (`ifNamePrefix` + index).
+- Applies configurable runtime overrides (global → pipeline → delegate) to the
   CNI runtime environment before invoking each delegate.
-- Returns the last non-nil result from ADD. If no delegate returns a result,
-  it emits an empty result for the configured cniVersion.
+- Pipeline-internal results are chained (`prevResult` passed along).
+  Cross-pipeline results are merged. The merged result is returned to the
+  container runtime.
+- ADD failures trigger two-level rollback (within pipeline, then across
+  pipelines). DEL uses best-effort execution.
 
 ## Build and install
 
@@ -39,15 +46,32 @@ fields below are in addition to standard CNI fields such as `cniVersion`,
 
 - `logLevel` (string): `trace`, `debug`, or `info`. Defaults to info.
 - `timeoutSeconds` (int): When > 0, a single timeout for the entire action
-  (ADD/CHECK/DEL) across all delegates.
-- `resultMode` (string): Controls whether delegate results are passed to the
-  next plugin. Supported values are `none` (default), `chained`, and `merged`.
-- `runtimeOverride` (object): Global runtime override applied to every delegate.
-- `delegates` (array, required): List of delegate plugins to invoke.
+  (ADD/CHECK/DEL) across all pipelines.
+- `capabilities` (object): Should include
+  `"io.kubernetes.cri.pod-annotations": true` to enable GRES annotation
+  passthrough from containerd.
+- `runtimeOverride` (object): Global runtime override applied to every
+  delegate across all pipelines.
+- `pipelines` (array, required): List of pipeline definitions.
+
+### Pipeline fields
+
+Each entry in `pipelines` supports:
+
+- `name` (string, required): Unique identifier. For template pipelines, also
+  used as the GRES annotation matching key.
+- `ifName` (string): Container interface name for static pipelines.
+  Mutually exclusive with `ifNamePrefix`.
+- `ifNamePrefix` (string): Interface name prefix for template pipelines.
+  Instances get `ifNamePrefix` + index (e.g., `roce0`, `roce1`).
+  Mutually exclusive with `ifName`.
+- `runtimeOverride` (object, optional): Pipeline-level runtime override.
+- `delegates` (array, required): List of delegate plugins to invoke in this
+  pipeline.
 
 ### Delegate fields
 
-Each entry in `delegates` supports:
+Each entry in a pipeline's `delegates` supports:
 
 - `name` (string, optional): Identifier, also used as a default `name` in
   generated delegate configs.
@@ -56,20 +80,35 @@ Each entry in `delegates` supports:
   meta plugin will build a minimal config using `type`, `name`, and the parent
   `cniVersion`.
 - `runtimeOverride` (object, optional): Per-delegate override (takes precedence
-  over the global override).
-When `conf` is provided, the meta plugin ensures `type` and `cniVersion` are
-set in the resulting delegate config if they are missing.
+  over pipeline and global overrides).
+- `confFromArgs` (map[string]string, optional): Injects runtime variables into
+  the delegate's JSON config. Keys are config field names; values are `$`-prefixed
+  variable references. Available variables:
+  - `$gres.device`: GRES annotation value (device ID) for template instances.
+  - `$gres.index`: Instance index string for template instances.
+  - `$args.<KEY>`: Value from CNI_ARGS.
+
+### GRES annotation convention
+
+The CraneSched backend communicates device information via Pod annotations:
+
+```
+cranesched.internal/meta-cni/gres/<pipeline-name>/<index> = <device-id>
+```
+
+The meta plugin scans these annotations at runtime to determine how many
+template pipeline instances to create and what device to assign to each.
 
 ## Runtime override
 
 Runtime overrides apply to the environment used for each delegate invocation.
-The base values come from the incoming CNI request:
+Override priority (lowest to highest):
 
-- `CNI_CONTAINERID`
-- `CNI_NETNS`
-- `CNI_IFNAME`
-- `CNI_ARGS`
-- `CNI_PATH`
+1. Incoming CNI request values
+2. Global `runtimeOverride`
+3. Pipeline `ifName` (sets `CNI_IFNAME`)
+4. Pipeline `runtimeOverride`
+5. Delegate `runtimeOverride`
 
 Override fields:
 
@@ -84,40 +123,8 @@ Manipulator expression syntax:
 - Delete: `-KEY`
 - Values may be single- or double-quoted to include spaces.
 
-Examples:
-
-```
-args: ["PodIP=10.0.0.10", "-IgnoreUnknown"]
-envs: ["NO_PROXY=svc.local", "A=''", "-HTTP_PROXY"]
-```
-
-`CNI_ARGS` is a semicolon-separated list of `key=value` pairs. The meta plugin
-merges overrides into the current `CNI_ARGS` and sorts keys in the final
-string. If all entries are removed, `CNI_ARGS` is cleared.
-
-Note: `A=''` produces an empty value. When applied, an empty value unsets that
-environment variable.
-
-## Execution model and results
-
-- ADD/CHECK: delegates run in list order.
-- DEL: delegates run in reverse order.
-- Each delegate is invoked with its own adjusted environment. The environment
-  is restored after the call.
-- `resultMode` controls how previous results are handled for ADD:
-  - `none`: no prevResult is passed to delegates.
-  - `chained`: the last delegate result is passed as prevResult to the next.
-  - `merged`: delegate results are merged and the merged result is passed on.
-- The last non-nil result from ADD is returned. In `merged` mode, the merged
-  result is returned instead. If every delegate returns nil, the plugin emits
-  an empty result with the configured cniVersion.
-
 ## Example
 
-See `tool/meta-cni/config/00-meta.example.conf` for a full configuration example with
-two delegates and runtime overrides. The key parts are:
-
-- Top-level `type` matching your installed binary name (example uses
-  `crane-meta`).
-- `delegates` list with a full config for the first delegate and a minimal
-  type-only config for the second.
+See `config/00-crane-calico.conf` for a single-pipeline Calico setup, and
+`config/00-meta.example.conf` for a multi-pipeline example with both static
+Ethernet and template RDMA pipelines.
