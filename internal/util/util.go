@@ -118,6 +118,8 @@ const (
 	MaxJobTimeStamp = 253402300799 // 9999-12-31 23:59:59
 
 	MaxEntityNameLength = 30
+
+	MaxJobMemoryBytes = 10737418240000 // 10000GB
 )
 
 // Param Options
@@ -125,3 +127,13 @@ const (
 	OpenModeAppend   = "append"
 	OpenModeTruncate = "truncate"
 )
+
+const (
+	QosFlagNone        uint32 = 0
+	QOSFlagDenyOnLimit uint32 = 1
+)
+
+var QoSFlagNameMap = map[string]uint32{
+	"none":        QosFlagNone,
+	"denyonlimit": QOSFlagDenyOnLimit,
+}

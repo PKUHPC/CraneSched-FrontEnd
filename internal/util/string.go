@@ -1292,6 +1292,136 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 	return result, nil
 }
 
+func ParseGresForQosLimit(gres string) (*protos.DeviceMap, error) {
+	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+	if gres == "" {
+		return result, nil
+	}
+
+	gresList := strings.Split(gres, ",")
+	for _, g := range gresList {
+		parts := strings.Split(g, ":")
+		name := parts[0]
+		if len(parts) == 2 {
+			if parts[1] == "unlimited" {
+				if pair, exist := result.NameTypeMap[name]; exist {
+					if pair.TypeCountMap != nil && len(pair.TypeCountMap) > 0 {
+						delete(result.NameTypeMap, name)
+					} else {
+						result.NameTypeMap[name].Total = math.MaxUint32
+					}
+				}
+				continue
+			}
+			gresNameCount, err := strconv.ParseUint(parts[1], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("Error parsing count for %s: %v\n", name, err)
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: make(map[string]uint64), Total: gresNameCount}
+			} else {
+				result.NameTypeMap[name].Total += gresNameCount
+			}
+		} else if len(parts) == 3 {
+			gresType := parts[1]
+			if parts[2] == "unlimited" {
+				if pair, exist := result.NameTypeMap[name]; exist {
+					if pair.TypeCountMap != nil {
+						delete(pair.TypeCountMap, gresType)
+					}
+					if pair.TypeCountMap == nil || len(pair.TypeCountMap) == 0 {
+						delete(result.NameTypeMap, name)
+					}
+				}
+				continue
+			}
+			count, err := strconv.ParseUint(parts[2], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("Error parsing count for %s: %v\n", name, err)
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				typeCountMap := make(map[string]uint64)
+				typeCountMap[gresType] = count
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: math.MaxUint32}
+			} else {
+				result.NameTypeMap[name].TypeCountMap[gresType] = count
+			}
+		} else {
+			return nil, fmt.Errorf("Error parsing gres: %s\n", g)
+		}
+	}
+
+	return result, nil
+}
+
+func ParseTres(tres string) (*protos.ResourceView, error) {
+	result := &protos.ResourceView{
+		AllocatableRes: &protos.AllocatableResource{
+			CpuCoreLimit:       math.MaxInt32 / 256,
+			MemoryLimitBytes:   MaxJobMemoryBytes,
+			MemorySwLimitBytes: MaxJobMemoryBytes,
+		},
+		DeviceMap: &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)},
+	}
+	if tres == "" {
+		return result, nil
+	}
+	var gresStr string
+	items := strings.Split(tres, ",")
+	for _, item := range items {
+		if strings.HasPrefix(item, "gres/") && len(item) > 5 {
+			gresStr += item[5:] + ","
+		} else {
+			kv := strings.SplitN(item, ":", 2)
+			if len(kv) == 2 {
+				key := strings.TrimSpace(kv[0])
+				value := strings.TrimSpace(kv[1])
+				if key == "cpu" {
+					if value == "unlimited" {
+						result.GetAllocatableRes().CpuCoreLimit = math.MaxInt32 / 256
+					} else {
+						count, err := strconv.ParseFloat(value, 64)
+						if err != nil {
+							return nil, fmt.Errorf("invalid cpu value: %q", value)
+						}
+						if count > (math.MaxInt32 / 256) {
+							return nil, fmt.Errorf("CPU setting %q exceeds the limit", value)
+						}
+						result.GetAllocatableRes().CpuCoreLimit = count
+					}
+				} else if key == "mem" {
+					if value == "unlimited" {
+						result.GetAllocatableRes().MemoryLimitBytes = MaxJobMemoryBytes
+						result.GetAllocatableRes().MemorySwLimitBytes = MaxJobMemoryBytes
+					} else {
+						membytes, err := ParseMemStringAsByte(value)
+						if err != nil {
+							return nil, fmt.Errorf("invalid mem value: %q", value)
+						}
+						if membytes > MaxJobMemoryBytes {
+							return nil, fmt.Errorf("invalid mem value: %q", value)
+						}
+						result.GetAllocatableRes().MemoryLimitBytes = membytes
+						result.GetAllocatableRes().MemorySwLimitBytes = membytes
+					}
+				} else {
+					return nil, fmt.Errorf("invalid tres name: %q", key)
+				}
+			} else {
+				return nil, fmt.Errorf("invalid item: %q", item)
+			}
+		}
+	}
+
+	var err error
+	result.DeviceMap, err = ParseGresForQosLimit(strings.TrimSuffix(gresStr, ","))
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
 	state = strings.ToLower(state)
 	switch state {
@@ -1771,4 +1901,66 @@ func CheckIpv4Format(ip string) error {
 		return fmt.Errorf("Invalid ipv4 format: %s", ip)
 	}
 	return nil
+}
+
+func ReadableMemory(memoryBytes uint64) string {
+	if memoryBytes < 1024 {
+		return fmt.Sprintf("%dB", memoryBytes)
+	} else if memoryBytes < 1024*1024 {
+		return fmt.Sprintf("%dK", memoryBytes/1024)
+	} else if memoryBytes < 1024*1024*1024 {
+		return fmt.Sprintf("%dM", memoryBytes/(1024*1024))
+	} else {
+		return fmt.Sprintf("%dG", memoryBytes/(1024*1024*1024))
+	}
+}
+
+func ResourceViewToTres(rv *protos.ResourceView) string {
+	var parts []string
+
+	if rv == nil {
+		return ""
+	}
+	if rv.AllocatableRes != nil {
+		if rv.AllocatableRes.CpuCoreLimit != (math.MaxInt32 / 256) {
+			cpu := strconv.FormatFloat(rv.AllocatableRes.CpuCoreLimit, 'f', -1, 64)
+			parts = append(parts, "cpu="+cpu)
+		}
+		if rv.AllocatableRes.MemoryLimitBytes != MaxJobMemoryBytes {
+			mem := ReadableMemory(rv.AllocatableRes.MemoryLimitBytes)
+			parts = append(parts, "mem="+mem)
+		}
+	}
+	if rv.DeviceMap != nil && len(rv.DeviceMap.NameTypeMap) > 0 {
+		for name, typeCount := range rv.DeviceMap.NameTypeMap {
+			for typ, count := range typeCount.TypeCountMap {
+				if count > 0 {
+					parts = append(parts, fmt.Sprintf("gres/%s:%s:%d", name, typ, count))
+				}
+			}
+			if typeCount.Total > 0 {
+				parts = append(parts, fmt.Sprintf("gres/%s:%d", name, typeCount.Total))
+			}
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+func ParseFlags(s string) (uint32, error) {
+	var flags uint32 = 0
+
+	if strings.TrimSpace(s) == "" {
+		return 0, fmt.Errorf("empty flags")
+	}
+	items := strings.Split(s, ",")
+	for _, item := range items {
+		item = strings.ToLower(strings.TrimSpace(item))
+		val, ok := QoSFlagNameMap[item]
+		if !ok {
+			return 0, fmt.Errorf("invalid QoS flag: %s", item)
+		}
+		flags |= val
+	}
+
+	return flags, nil
 }

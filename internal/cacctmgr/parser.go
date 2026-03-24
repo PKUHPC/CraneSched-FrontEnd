@@ -140,7 +140,7 @@ var CAcctMgrLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{Name: "Time", Pattern: `(?:~)?[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:~)?`},
 	{Name: "Duration", Pattern: `\d+(?:-\d+(?::\d+){0,2}|(?::\d+){1,2})`},
 	{Name: "Number", Pattern: `[-+]?\d+(\.\d+)?`},
-	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\.,:\[\]T]*`},
+	{Name: "Ident", Pattern: `[a-zA-Z0-9][a-zA-Z0-9_\@\.,:\[\]T/]*`},
 	{Name: "Punct", Pattern: `[-,:]`},
 })
 
