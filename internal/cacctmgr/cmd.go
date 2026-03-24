@@ -292,7 +292,7 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 			FlagQos.MaxCpusPerUser = uint32(maxCpus)
 		case "maxtimelimitpertask":
 			if err := validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
 			FlagQos.MaxTimeLimitPerTask = maxTimeLimit
@@ -303,18 +303,17 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 	return AddQos(&FlagQos)
 }
 
-func executeAddWckeyCommand(command *CAcctMgrCommand) int {
+func executeAddWckeyCommand(command *CAcctMgrCommand) error {
 	FlagWckey = protos.WckeyInfo{}
 	KVParams := command.GetKVMaps()
 
 	FlagWckey.Name = command.GetID()
 	if FlagWckey.Name == "" {
-		log.Errorf("Error: required entity wckey not set")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, "Error: required entity wckey not set")
 	}
 
 	err := checkEmptyKVParams(KVParams, []string{"user"})
-	if err != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -326,7 +325,71 @@ func executeAddWckeyCommand(command *CAcctMgrCommand) int {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
-	return AddQos(&FlagQos)
+
+	return AddWckey(&FlagWckey)
+}
+
+func executeAddResourceCommand(command *CAcctMgrCommand) error {
+	FlagOperators := make(map[protos.LicenseResource_Field]string, 0)
+
+	FlagResourceName = command.GetID()
+	KVParams := command.GetKVMaps()
+
+	err := checkEmptyKVParams(KVParams, []string{"server"})
+	if err != nil {
+		return err
+	}
+
+	hasCluster := false
+	hasAllowed := false
+
+	for key, value := range KVParams {
+		switch strings.ToLower(key) {
+		case "name":
+			FlagResourceName = value
+		case "server":
+			FlagServerName = value
+		case "count":
+			if err := validateUintValue(value, "count", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			FlagOperators[protos.LicenseResource_Count] = value
+			if value == "0" {
+				log.Warning("The total count of the license you entered is 0.")
+			}
+		case "description":
+			FlagOperators[protos.LicenseResource_Description] = value
+		case "lastconsumed":
+			if err := validateUintValue(value, "lastConsumed", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+
+			}
+			FlagOperators[protos.LicenseResource_LastConsumed] = value
+		case "servertype":
+			FlagOperators[protos.LicenseResource_ServerType] = value
+		case "type":
+			FlagOperators[protos.LicenseResource_ResourceType] = value
+		case "allowed":
+			if err := validateUintValue(value, "allowed", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			FlagOperators[protos.LicenseResource_Allowed] = value
+			hasAllowed = true
+		case "cluster":
+			FlagClusters = value
+			hasCluster = true
+		case "flags":
+			FlagOperators[protos.LicenseResource_Flags] = value
+		default:
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
+		}
+	}
+
+	if hasCluster != hasAllowed {
+		return util.NewCraneErr(util.ErrorCmdArg, "'allowed' and 'cluster' must be specified together")
+	}
+
+	return AddLicenseResource(FlagResourceName, FlagServerName, FlagClusters, FlagOperators)
 }
 
 func executeDeleteCommand(command *CAcctMgrCommand) error {
@@ -407,20 +470,19 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) error {
 	return DeleteQos(FlagEntityName)
 }
 
-func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
+func executeDeleteWckeyCommand(command *CAcctMgrCommand) error {
 	FlagWckey = protos.WckeyInfo{}
 	KVParams := command.GetKVMaps()
 
 	FlagWckey.Name = command.GetID()
 	if FlagWckey.Name == "" {
-		log.Errorf("Error: required entity wckey not set")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, "Error: required entity wckey not set")
 	}
 
 	// When deleting ALL, user param is not required
 	if strings.ToUpper(FlagWckey.Name) != "ALL" {
 		err := checkEmptyKVParams(KVParams, []string{"user"})
-		if err != util.ErrorSuccess {
+		if err != nil {
 			return err
 		}
 	}
@@ -430,86 +492,24 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
 		case "user":
 			FlagWckey.UserName = value
 		default:
-			log.Errorf("unknown flag: %s", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
 	}
 	return DeleteWckey(FlagWckey.Name, FlagWckey.UserName)
 }
 
-func executeDeleteResourceCommand(command *CAcctMgrCommand) int {
+func executeDeleteResourceCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = command.GetID()
 	FlagServer := ""
 	if FlagEntityName == "" {
-		log.Errorf("Error: required entity resource not set")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, "Error: required entity resource not set")
 	}
 	KVParams := command.GetKVMaps()
 
 	// When deleting ALL, server param is not required
 	if strings.ToUpper(FlagEntityName) != "ALL" {
 		err := checkEmptyKVParams(KVParams, []string{"server"})
-		if err != util.ErrorSuccess {
-			return err
-		}
-	}
-
-	for key, value := range KVParams {
-		switch strings.ToLower(key) {
-		case "name":
-			FlagEntityName = value
-		case "server":
-			FlagServer = value
-		case "cluster":
-			FlagClusters = value
-		}
-	}
-	return DeleteLicenseResource(FlagEntityName, FlagServer, FlagClusters)
-}
-
-func executeDeleteWckeyCommand(command *CAcctMgrCommand) int {
-	FlagWckey = protos.WckeyInfo{}
-	KVParams := command.GetKVMaps()
-
-	FlagWckey.Name = command.GetID()
-	if FlagWckey.Name == "" {
-		log.Errorf("Error: required entity wckey not set")
-		return util.ErrorCmdArg
-	}
-
-	// When deleting ALL, user param is not required
-	if strings.ToUpper(FlagWckey.Name) != "ALL" {
-		err := checkEmptyKVParams(KVParams, []string{"user"})
-		if err != util.ErrorSuccess {
-			return err
-		}
-	}
-
-	for key, value := range KVParams {
-		switch strings.ToLower(key) {
-		case "user":
-			FlagWckey.UserName = value
-		default:
-			log.Errorf("unknown flag: %s", key)
-			return util.ErrorCmdArg
-		}
-	}
-	return DeleteWckey(FlagWckey.Name, FlagWckey.UserName)
-}
-
-func executeDeleteResourceCommand(command *CAcctMgrCommand) int {
-	FlagEntityName = command.GetID()
-	FlagServer := ""
-	if FlagEntityName == "" {
-		log.Errorf("Error: required entity resource not set")
-		return util.ErrorCmdArg
-	}
-	KVParams := command.GetKVMaps()
-
-	// When deleting ALL, server param is not required
-	if strings.ToUpper(FlagEntityName) != "ALL" {
-		err := checkEmptyKVParams(KVParams, []string{"server"})
-		if err != util.ErrorSuccess {
+		if err != nil {
 			return err
 		}
 	}
@@ -931,19 +931,18 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 	return ModifyUser(params, FlagEntityName, FlagEntityAccount, FlagEntityPartitions)
 }
 
-func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
+func executeModifyWckeyCommand(command *CAcctMgrCommand) error {
 	FlagWckey = protos.WckeyInfo{}
 
 	WhereParams := command.GetWhereParams()
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		log.Errorf("Error: modify wckey command requires 'where' clause to specify which user to modify")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify wckey command requires 'where' clause to specify which user to modify")
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"user"})
-	if err != util.ErrorSuccess {
+	if err != nil {
 		return err
 	}
 
@@ -952,14 +951,12 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 		case "user":
 			FlagWckey.UserName = value
 		default:
-			log.Errorf("Error: unknown where parameter '%s' for wckey modification", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for wckey modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 || len(AddParams) != 0 || len(DeleteParams) != 0 {
-		log.Errorf("Error: modify wckey command requires only 'set' clause (add/delete not supported)")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify wckey command requires only 'set' clause (add/delete not supported)")
 	}
 
 	for key, value := range SetParams {
@@ -967,13 +964,11 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) int {
 		case "defaultwckey":
 			FlagWckey.Name = value
 		default:
-			log.Errorf("Error: unknown set parameter '%s' for wckey modification", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for wckey modification", key))
 		}
 	}
 	if FlagWckey.Name == "" {
-		log.Errorf("Error: modify wckey command requires non-empty 'defaultwckey'")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify wckey command requires non-empty 'defaultwckey'")
 	}
 	return ModifyDefaultWckey(FlagWckey.Name, FlagWckey.UserName)
 }
@@ -1031,7 +1026,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxsubmitjobsperuser":
 			if err := validateUintValue(value, "maxSubmitJobsPerUser", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxSubmitJobsPerUser,
@@ -1039,7 +1034,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxjobsperaccount":
 			if err := validateUintValue(value, "maxJobsPerAccount", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxJobsPerAccount,
@@ -1047,7 +1042,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxsubmitjobsperaccount":
 			if err := validateUintValue(value, "maxSubmitJobsPerAccount", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxSubmitJobsPerAccount,
@@ -1056,8 +1051,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 		case "maxtresperuser":
 			_, err := util.ParseTres(value)
 			if err != nil {
-				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerUser", err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for %s flag: %v", value, "MaxTresPerUser\n", err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTresPerUser,
@@ -1066,8 +1060,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 		case "maxtresperaccount":
 			_, err := util.ParseTres(value)
 			if err != nil {
-				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerAccount", err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for %s flag: %v", value, "MaxTresPerAccount\n", err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTresPerAccount,
@@ -1076,8 +1069,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 		case "maxtres":
 			_, err := util.ParseTres(value)
 			if err != nil {
-				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTres", err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for %s flag: %v", value, "MaxTres", err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTres,
@@ -1085,7 +1077,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxjobs":
 			if err := validateUintValue(value, "maxjobs", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxJobs,
@@ -1093,7 +1085,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxsubmitjobs":
 			if err := validateUintValue(value, "maxsubmitjobs", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxSubmitJobs,
@@ -1101,7 +1093,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwall":
 			if err := validateUintValue(value, "maxwall", 64); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxWall,
@@ -1110,7 +1102,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 		case "maxtimelimitpertask":
 			if seconds, err := util.ParseDurationStrToSeconds(value); err != nil {
 				if err = validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
-					return util.ErrorCmdArg
+					return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 				}
 				FlagMaxTimeLimit = value
 			} else {
@@ -1138,8 +1130,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 		case "flags":
 			var err error
 			if FlagQosFlags, err = util.ParseFlags(value); err != nil {
-				log.Errorf("invalid argument %s ,err: %v", value, err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s ,err: %v", value, err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_Flags,
@@ -1152,7 +1143,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 	return ModifyQos(params, FlagEntityName)
 }
 
-func executeModifyResourceCommand(command *CAcctMgrCommand) int {
+func executeModifyResourceCommand(command *CAcctMgrCommand) error {
 
 	FlagOperators := make(map[protos.LicenseResource_Field]string, 0)
 
@@ -1161,13 +1152,12 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 	SetParams, _, _ := command.GetSetParams()
 
 	if len(KvParams) == 0 && len(WhereParams) == 0 {
-		log.Errorf("Error: modify resource command requires 'where' clause to specify which resource to modify")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify resource command requires 'where' clause to specify which resource to modify")
 	}
 
 	if len(KvParams) > 0 {
 		err := checkEmptyKVParams(KvParams, []string{"name", "server"})
-		if err != util.ErrorSuccess {
+		if err != nil {
 			return err
 		}
 	}
@@ -1181,14 +1171,14 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 		case "cluster":
 			FlagClusters = value
 		default:
-			log.Errorf("Error: unknown where parameter '%s' for resource modification", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for resource modification\n", key))
+
 		}
 	}
 
 	if len(WhereParams) > 0 {
 		err := checkEmptyKVParams(WhereParams, []string{"name", "server"})
-		if err != util.ErrorSuccess {
+		if err != nil {
 			return err
 		}
 	}
@@ -1202,26 +1192,26 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 		case "cluster":
 			FlagClusters = value
 		default:
-			log.Errorf("Error: unknown where parameter '%s' for resource modification", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for resource modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 {
-		log.Errorf("Error: modify resource command requires 'set' clause to specify what to modify")
-		return util.ErrorCmdArg
+		return util.NewCraneErr(util.ErrorCmdArg, ("Error: modify resource command requires 'set' clause to specify what to modify"))
+
 	}
 
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "count":
 			if err := validateUintValue(value, "count", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%v\n", err)
+
 			}
 			FlagOperators[protos.LicenseResource_Count] = value
 		case "lastconsumed":
 			if err := validateUintValue(value, "lastConsumed", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%v\n", err)
 			}
 			FlagOperators[protos.LicenseResource_LastConsumed] = value
 		case "description":
@@ -1232,18 +1222,17 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) int {
 			FlagOperators[protos.LicenseResource_ResourceType] = value
 		case "allowed":
 			if len(FlagClusters) == 0 {
-				log.Errorf("Error: modify 'allowed' requires 'cluster' clause to specify which cluster resource to modify")
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: modify 'allowed' requires 'cluster' clause to specify which cluster resource to modify")
+
 			}
 			if err := validateUintValue(value, "allowed", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%v\n", err)
 			}
 			FlagOperators[protos.LicenseResource_Allowed] = value
 		case "servertype":
 			FlagOperators[protos.LicenseResource_ServerType] = value
 		default:
-			log.Errorf("Error: unknown set parameter '%s' for resource modification", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for resource modification\n", key))
 		}
 	}
 
@@ -1285,12 +1274,7 @@ func executeShowAccountCommand(command *CAcctMgrCommand) error {
 	return FindAccount(name)
 }
 
-func executeShowWckeyCommand(command *CAcctMgrCommand) int {
-	wckeyList := command.GetID()
-	return ShowWckey(wckeyList)
-}
-
-func executeShowWckeyCommand(command *CAcctMgrCommand) int {
+func executeShowWckeyCommand(command *CAcctMgrCommand) error {
 	wckeyList := command.GetID()
 	return ShowWckey(wckeyList)
 }
@@ -1305,7 +1289,7 @@ func executeShowUserCommand(command *CAcctMgrCommand) error {
 	return ShowUser(name, account)
 }
 
-func executeShowEventCommand(command *CAcctMgrCommand) int {
+func executeShowEventCommand(command *CAcctMgrCommand) error {
 	var FlagMaxLines int = 0
 	nodesStr := ""
 	maxLinesStr := ""
@@ -1321,8 +1305,7 @@ func executeShowEventCommand(command *CAcctMgrCommand) int {
 		case "nodes":
 			nodesStr = value
 		default:
-			log.Errorf("Error: unknown where parameter '%s' for show event", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for show event", key))
 		}
 	}
 
@@ -1330,41 +1313,7 @@ func executeShowEventCommand(command *CAcctMgrCommand) int {
 		var err error
 		FlagMaxLines, err = strconv.Atoi(maxLinesStr)
 		if err != nil || FlagMaxLines <= 0 {
-			log.Errorf("Error: invalid maxlines: '%s'", maxLinesStr)
-			return util.ErrorCmdArg
-		}
-	}
-
-	return QueryEventInfoByNodes(nodesStr, FlagMaxLines)
-}
-
-func executeShowEventCommand(command *CAcctMgrCommand) int {
-	var FlagMaxLines int = 0
-	nodesStr := ""
-	maxLinesStr := ""
-	updateMaxLines := false
-
-	WhereParams := command.GetWhereParams()
-
-	for key, value := range WhereParams {
-		switch strings.ToLower(key) {
-		case "maxlines":
-			maxLinesStr = value
-			updateMaxLines = true
-		case "nodes":
-			nodesStr = value
-		default:
-			log.Errorf("Error: unknown where parameter '%s' for show event", key)
-			return util.ErrorCmdArg
-		}
-	}
-
-	if updateMaxLines {
-		var err error
-		FlagMaxLines, err = strconv.Atoi(maxLinesStr)
-		if err != nil || FlagMaxLines <= 0 {
-			log.Errorf("Error: invalid maxlines: '%s'", maxLinesStr)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: invalid maxlines: '%s'\n", maxLinesStr))
 		}
 	}
 
@@ -1419,7 +1368,7 @@ func executeShowTxnLogCommand(command *CAcctMgrCommand) error {
 	return ShowTxn(FlagActor, FlagTarget, FlagAction, FlagInfo, FlagStartTime)
 }
 
-func executeShowResourceCommand(command *CAcctMgrCommand) int {
+func executeShowResourceCommand(command *CAcctMgrCommand) error {
 
 	FlagWithClusters := command.GetID()
 
@@ -1435,37 +1384,7 @@ func executeShowResourceCommand(command *CAcctMgrCommand) int {
 		case "cluster":
 			FlagClusters = value
 		default:
-			log.Errorf("Error: unknown where parameter '%s' for show resource", key)
-			return util.ErrorCmdArg
-		}
-	}
-
-	hasWithClusters := false
-	if strings.ToLower(FlagWithClusters) == "withclusters" {
-		hasWithClusters = true
-	}
-
-	return ShowLicenseResources(FlagEntityName, FlagServer, FlagClusters, hasWithClusters)
-}
-
-func executeShowResourceCommand(command *CAcctMgrCommand) int {
-
-	FlagWithClusters := command.GetID()
-
-	FlagServer := ""
-
-	WhereParams := command.GetWhereParams()
-	for key, value := range WhereParams {
-		switch strings.ToLower(key) {
-		case "name":
-			FlagEntityName = value
-		case "server":
-			FlagServer = value
-		case "cluster":
-			FlagClusters = value
-		default:
-			log.Errorf("Error: unknown where parameter '%s' for show resource", key)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for show resource\n", key))
 		}
 	}
 

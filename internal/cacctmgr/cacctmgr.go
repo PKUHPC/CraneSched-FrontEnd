@@ -308,13 +308,12 @@ func AddQos(qos *protos.QosInfo) error {
 	}
 }
 
-func AddLicenseResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) util.ExitCode {
+func AddLicenseResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) error {
 	if FlagForce {
 		log.Warning("The --force flag is ignored for add operations")
 	}
 	if err := util.CheckEntityName(name); err != nil {
-		log.Errorf("Failed to add Resource: invalid Resource name: %v", err)
-		return util.ErrorCmdArg
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to add Resource: invalid Resource name: %v\n", err)
 	}
 
 	var clusterList []string
@@ -322,8 +321,7 @@ func AddLicenseResource(name string, server string, clusters string, operators m
 		var err error
 		clusterList, err = util.ParseStringParamList(clusters, ",")
 		if err != nil {
-			log.Errorf("Invalid cluster list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid cluster list specified: %v.\n", err)
 		}
 	}
 
@@ -342,8 +340,7 @@ func AddLicenseResource(name string, server string, clusters string, operators m
 
 	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to add Resource: %v", err)
-		return util.ErrorNetwork
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to add Resource: %v\n", err)
 	}
 
 	if FlagJson {
@@ -357,18 +354,19 @@ func AddLicenseResource(name string, server string, clusters string, operators m
 	}
 	if reply.GetOk() {
 		fmt.Println("Resource added successfully.")
-		return util.ErrorSuccess
+		return nil
 	} else {
-		fmt.Printf("Failed to delete account: \n")
-		for _, richError := range reply.RichErrorList {
-			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+		msg := ""
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			msg = fmt.Sprintf("Failed to add Resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			msg = fmt.Sprintf("Failed to add Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
 		}
-
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 }
 
-func DeleteAccount(value string) util.ExitCode {
+func DeleteAccount(value string) error {
 	accountList, err := util.ParseStringParamList(value, ",")
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid user list specified: %v.\n", err)
@@ -376,8 +374,7 @@ func DeleteAccount(value string) util.ExitCode {
 
 	if slices.Contains(accountList, "ALL") {
 		if !FlagForce {
-			log.Errorf("To delete all accounts, you must set --force.")
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, "To delete all accounts, you must set --force.")
 		}
 		accountList = []string{"ALL"}
 	}
@@ -463,8 +460,7 @@ func DeleteQos(value string) error {
 
 	if slices.Contains(qosList, "ALL") {
 		if !FlagForce {
-			log.Errorf("To delete all QoS, you must set --force.")
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, "To delete all QoS, you must set --force.")
 		}
 		qosList = []string{"ALL"}
 	}
@@ -497,29 +493,26 @@ func DeleteQos(value string) error {
 	}
 }
 
-func DeleteLicenseResource(name string, server string, clusters string) util.ExitCode {
+func DeleteLicenseResource(name string, server string, clusters string) error {
 	if strings.ToUpper(name) == "ALL" {
 		if !FlagForce {
-			log.Errorf("To delete all resources, you must set --force.")
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, "To delete all resources, you must set --force.")
 		}
 		req := protos.DeleteLicenseResourceRequest{
 			Uid: userUid, ResourceName: "ALL", Force: FlagForce,
 		}
 		reply, err := stub.DeleteLicenseResource(context.Background(), &req)
 		if err != nil {
-			log.Errorf("Failed to delete all resources: %v", err)
-			return util.ErrorNetwork
+			return util.WrapCraneErr(util.ErrorNetwork, "Failed to delete all resources: %v", err)
 		}
 		if FlagJson {
 			fmt.Println(util.FmtJson.FormatReply(reply))
 		}
 		if reply.GetOk() {
 			fmt.Println("All resources deleted successfully.")
-			return util.ErrorSuccess
+			return nil
 		}
-		log.Errorf("Failed to delete all resources: %s", util.ErrMsg(reply.GetRichErr().GetCode()))
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete all resources: %s\n", util.ErrMsg(reply.GetRichErr().GetCode())))
 	}
 
 	var clusterList []string
@@ -527,8 +520,7 @@ func DeleteLicenseResource(name string, server string, clusters string) util.Exi
 		var err error
 		clusterList, err = util.ParseStringParamList(clusters, ",")
 		if err != nil {
-			log.Errorf("Invalid cluster list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid cluster list specified: %v.\n", err)
 		}
 	}
 
@@ -536,29 +528,30 @@ func DeleteLicenseResource(name string, server string, clusters string) util.Exi
 
 	reply, err := stub.DeleteLicenseResource(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to delete resource %s: %v", name, err)
-		return util.ErrorNetwork
+		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to delete resource %s: %v\n", name, err))
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(msg)
+			return nil
 		} else {
-			return util.ErrorBackend
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if reply.GetOk() {
 		fmt.Printf("Successfully deleted Resource '%s@%s'.\n", name, server)
-		return util.ErrorSuccess
+		return nil
 	} else {
+		msg := ""
 		if len(reply.GetRichErr().GetDescription()) > 0 {
-			fmt.Printf("Failed to delete Resource: %s.\n", reply.GetRichErr().GetDescription())
+			msg = fmt.Sprintf("Failed to delete Resource: %s.\n", reply.GetRichErr().GetDescription())
 		} else {
-			fmt.Printf("Failed to delete Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+			msg = fmt.Sprintf("Failed to delete Resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
 		}
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 }
 
@@ -577,19 +570,17 @@ func ModifyAccount(params []ModifyParam, name string) error {
 		if err != nil {
 			switch param.ModifyField {
 			case protos.ModifyField_Qos:
-				log.Errorf("Invalid qos list specified: %v.\n", err)
+				return util.WrapCraneErr(util.ErrorCmdArg, "Invalid qos list specified: %v.\n", err)
 			case protos.ModifyField_Partition:
-				log.Errorf("Invalid partition list specified: %v.\n", err)
+				return util.WrapCraneErr(util.ErrorCmdArg, "Invalid partition list specified: %v.\n", err)
 			default:
-				log.Errorf("Invalid value list specified: %v.\n", err)
+				return util.WrapCraneErr(util.ErrorCmdArg, "Invalid value list specified: %v.\n", err)
 			}
-			return util.ErrorCmdArg
 		}
 
 		if param.ModifyField == protos.ModifyField_DefaultQos || param.ModifyField == protos.ModifyField_Description {
 			if len(valueList) != 1 {
-				log.Errorf("Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid value specified! Modify Description and DefaultQos, please provide only one value.")
 			}
 		}
 
@@ -631,7 +622,7 @@ func ModifyAccount(params []ModifyParam, name string) error {
 	}
 }
 
-func ModifyUser(params []ModifyParam, name string, account string, partition string) util.ExitCode {
+func ModifyUser(params []ModifyParam, name string, account string, partition string) error {
 
 	req := protos.ModifyUserRequest{
 		Uid:       userUid,
@@ -644,8 +635,7 @@ func ModifyUser(params []ModifyParam, name string, account string, partition str
 	for _, param := range params {
 		if param.ModifyField == protos.ModifyField_AdminLevel {
 			if param.NewValue != "none" && param.NewValue != "operator" && param.NewValue != "admin" {
-				log.Errorf("Unknown admin level, valid values: none, operator, admin.")
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, "Unknown admin level, valid values: none, operator, admin.")
 			}
 		}
 
@@ -654,14 +644,12 @@ func ModifyUser(params []ModifyParam, name string, account string, partition str
 
 		valueList, err = util.ParseStringParamList(param.NewValue, ",")
 		if err != nil {
-			log.Errorf("Invalid value list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid value list specified: %v.\n", err)
 		}
 
 		if param.ModifyField == protos.ModifyField_AdminLevel || param.ModifyField == protos.ModifyField_DefaultQos || param.ModifyField == protos.ModifyField_DefaultAccount {
 			if len(valueList) != 1 {
-				log.Errorf("Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, "Invalid value specified! Modify AdminLevel, DefaultAccount and DefaultQos, please provide only one value.")
 			}
 		}
 
@@ -704,7 +692,7 @@ func ModifyUser(params []ModifyParam, name string, account string, partition str
 	}
 }
 
-func ModifyQos(params []ModifyParam, name string) util.ExitCode {
+func ModifyQos(params []ModifyParam, name string) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for QoS modify operations")
 	}
@@ -737,21 +725,21 @@ func ModifyQos(params []ModifyParam, name string) util.ExitCode {
 
 	if reply.GetOk() {
 		fmt.Println("Information was successfully modified.")
-		return util.ErrorSuccess
+		return nil
 	} else {
-		fmt.Printf("Failed to modify information:\n")
+		msg := fmt.Sprintln("Failed to modify information:\n")
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				fmt.Printf("%s \n", util.ErrMsg(richError.Code))
+				msg += fmt.Sprintf("%s \n", util.ErrMsg(richError.Code))
 			} else {
-				fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+				msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 			}
 		}
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 }
 
-func ModifyResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) util.ExitCode {
+func ModifyResource(name string, server string, clusters string, operators map[protos.LicenseResource_Field]string) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for Resource modify operations")
 	}
@@ -761,8 +749,7 @@ func ModifyResource(name string, server string, clusters string, operators map[p
 		var err error
 		clusterList, err = util.ParseStringParamList(clusters, ",")
 		if err != nil {
-			log.Errorf("Invalid cluster list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid cluster list specified: %v.\n", err)
 		}
 	}
 
@@ -781,29 +768,30 @@ func ModifyResource(name string, server string, clusters string, operators map[p
 
 	reply, err := stub.AddOrModifyLicenseResource(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to modify Resource: %v", err)
-		return util.ErrorNetwork
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to modify Resource: %v\n", err)
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(msg)
+			return nil
 		} else {
-			return util.ErrorBackend
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if reply.GetOk() {
 		fmt.Println("Information was successfully modified.")
-		return util.ErrorSuccess
+		return nil
 	} else {
+		msg := ""
 		if len(reply.GetRichErr().GetDescription()) > 0 {
-			fmt.Printf("Failed to modify information: %s.\n", reply.GetRichErr().GetDescription())
+			msg = fmt.Sprintf("Failed to modify information: %s.\n", reply.GetRichErr().GetDescription())
 		} else {
-			fmt.Printf("Failed to modify information: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+			msg = fmt.Sprintf("Failed to modify information: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
 		}
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 }
 
@@ -851,10 +839,10 @@ func FindAccount(value string) error {
 
 	PrintAccountList(reply.AccountList)
 
-	return util.ErrorSuccess
+	return nil
 }
 
-func ShowLicenseResources(name string, server string, clusters string, hasWithClusters bool) util.ExitCode {
+func ShowLicenseResources(name string, server string, clusters string, hasWithClusters bool) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for show operations")
 	}
@@ -863,39 +851,39 @@ func ShowLicenseResources(name string, server string, clusters string, hasWithCl
 		var err error
 		clusterList, err = util.ParseStringParamList(clusters, ",")
 		if err != nil {
-			log.Errorf("Invalid cluster list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid cluster list specified: %v.\n", err)
 		}
 	}
 
 	req := protos.QueryLicenseResourceRequest{Uid: userUid, ResourceName: name, Server: server, Clusters: clusterList}
 	reply, err := stub.QueryLicenseResource(context.Background(), &req)
 	if err != nil {
-		log.Errorf("Failed to show resource: %v", err)
-		return util.ErrorNetwork
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to show resource: %v\n", err)
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(msg)
+			return nil
 		} else {
-			return util.ErrorBackend
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if !reply.GetOk() {
+		msg := ""
 		if len(reply.GetRichErr().GetDescription()) > 0 {
-			fmt.Printf("Failed to show resource: %s.\n", reply.GetRichErr().GetDescription())
+			msg = fmt.Sprintf("Failed to show resource: %s.\n", reply.GetRichErr().GetDescription())
 		} else {
-			fmt.Printf("Failed to show resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+			msg = fmt.Sprintf("Failed to show resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
 		}
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 
 	PrintLicenseResource(reply.LicenseResourceList, hasWithClusters)
 
-	return util.ErrorSuccess
+	return nil
 }
 
 func BlockAccountOrUser(value string, entityType protos.EntityType, account string) error {
@@ -1094,7 +1082,7 @@ func SortNodeEventRecords(records []*protos.NodeEventInfo, maxLines int) ([]*pro
 	return filteredRecords, nil
 }
 
-func QueryEventInfoByNodes(nodeRegex string, maxLines int) util.ExitCode {
+func QueryEventInfoByNodes(nodeRegex string, maxLines int) error {
 	if FlagForce {
 		log.Warning("--force flag is ignored for query operations")
 	}
@@ -1105,10 +1093,8 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) util.ExitCode {
 	if len(nodeRegex) != 0 {
 		nodeNames, ok = util.ParseHostList(nodeRegex)
 		if !ok {
-			log.Errorf("Invalid node pattern: %s.\n", nodeRegex)
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.\n", nodeRegex))
 		}
-	}
 
 		// Validate nodes exist in configuration
 		missingList, err := MissingElements(config.CranedNodeList, nodeNames)
@@ -1124,22 +1110,19 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) util.ExitCode {
 	// Connect to cplugind
 	pluginClient, pluginConn, err := GetPlugindClient(config)
 	if err != nil {
-		log.Errorf("Failed to connect to cplugind: %v", err)
-		return util.ErrorNetwork
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to connect to cplugind: %v", err)
 	}
 	defer pluginConn.Close()
 
 	// Get current user for authorization
 	currentUser, err := user.Current()
 	if err != nil {
-		log.Errorf("Failed to get current user: %v", err)
-		return util.ErrorGeneric
+		return util.WrapCraneErr(util.ErrorGeneric, "Failed to get current user: %v", err)
 	}
 
 	uid, err := strconv.ParseUint(currentUser.Uid, 10, 32)
 	if err != nil {
-		log.Errorf("Failed to parse user ID: %v", err)
-		return util.ErrorGeneric
+		return util.WrapCraneErr(util.ErrorGeneric, "Failed to parse user ID: %v", err)
 	}
 
 	// Query events via RPC
@@ -1153,18 +1136,16 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) util.ExitCode {
 
 	reply, err := pluginClient.QueryNodeEvents(ctx, req)
 	if err != nil {
-		log.Errorf("Failed to query node events: %v", err)
-		return util.ErrorBackend
+		return util.WrapCraneErr(util.ErrorBackend, "Failed to query node events: %v", err)
 	}
 
 	if !reply.Ok {
-		log.Errorf("Query node events failed: %s", reply.ErrorMessage)
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Query node events failed: %s\n", reply.ErrorMessage))
 	}
 
 	if len(reply.EventInfoList) == 0 {
 		log.Info("No event data found")
-		return util.ErrorSuccess
+		return nil
 	}
 
 	eventInfoList, err := SortNodeEventRecords(reply.EventInfoList, maxLines)
@@ -1228,7 +1209,7 @@ func ResetUserCredential(value string) error {
 	var userList []string
 
 	if value == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("User is empty"))
+		return util.NewCraneErr(util.ErrorCmdArg, "User is empty")
 	}
 
 	if value != "all" {
@@ -1242,12 +1223,13 @@ func ResetUserCredential(value string) error {
 	req := protos.ResetUserCredentialRequest{Uid: userUid, UserList: userList}
 	reply, err := stub.ResetUserCredential(context.Background(), &req)
 	if err != nil {
-		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to reset user credential")
+		util.GrpcErrorPrintf(err, "Failed to reset user credential")
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			fmt.Print(msg)
+			fmt.Println(msg)
 			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, msg)
@@ -1261,14 +1243,14 @@ func ResetUserCredential(value string) error {
 		}
 		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
+
 	fmt.Printf("reset user %s credential succeeded.\n", value)
 	return nil
 }
 
-func AddWckey(wckey *protos.WckeyInfo) util.ExitCode {
+func AddWckey(wckey *protos.WckeyInfo) error {
 	if err := util.CheckEntityName(wckey.Name); err != nil {
-		log.Errorf("Failed to add wckey: invalid wckey name: %v", err)
-		return util.ErrorCmdArg
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to add wckey: invalid wckey name: %v", err)
 	}
 
 	req := new(protos.AddWckeyRequest)
@@ -1278,146 +1260,45 @@ func AddWckey(wckey *protos.WckeyInfo) util.ExitCode {
 	reply, err := stub.AddWckey(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to add wckey")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(msg)
+			return nil
 		} else {
-			return util.ErrorBackend
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Println("Wckey added successfully.")
-		return util.ErrorSuccess
+		return nil
 	} else {
-		log.Errorf("Failed to add wckey: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to add wckey: %s.\n", util.ErrMsg(reply.GetCode())))
 	}
 }
 
-func ResetUserCredential(value string) util.ExitCode {
-	var userList []string
-
-	if value == "" {
-		log.Errorf("User is empty")
-		return util.ErrorCmdArg
-	}
-
-	if value != "all" {
-		var err error
-		userList, err = util.ParseStringParamList(value, ",")
-		if err != nil {
-			util.GrpcErrorPrintf(err, "Failed to delete all wckeys")
-			return util.ErrorNetwork
-		}
-		if FlagJson {
-			fmt.Println(util.FmtJson.FormatReply(reply))
-		}
-		if reply.GetOk() {
-			fmt.Println("All wckeys deleted successfully.")
-			return util.ErrorSuccess
-		}
-		log.Errorf("Failed to delete all wckeys: %s", util.ErrMsg(reply.GetRichError().GetCode()))
-		return util.ErrorBackend
-	}
-
-	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, UserName: userName, Force: false}
-
-	if FlagForce {
-		req.Force = true
-	}
-
-	reply, err := stub.DeleteWckey(context.Background(), &req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete wckey %s, user %s", name, userName)
-		return util.ErrorNetwork
-	}
-
-	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
-			return util.ErrorSuccess
-		} else {
-			return util.ErrorBackend
-		}
-	}
-	if reply.GetOk() {
-		fmt.Printf("Successfully deleted wckey: %s, user: %s\n", name, userName)
-		return util.ErrorSuccess
-	} else {
-		log.Errorf("Failed to delete wckey: %s, user: %s: %s", name, userName, util.ErrMsg(reply.GetRichError().GetCode()))
-		return util.ErrorBackend
-	}
-}
-
-	if !reply.GetOk() {
-		for _, richError := range reply.RichErrorList {
-			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
-		}
-		return util.ErrorBackend
-	}
-
-	fmt.Printf("reset user %s credential succeeded.\n", value)
-	return util.ErrorSuccess
-}
-
-func AddWckey(wckey *protos.WckeyInfo) util.ExitCode {
-	if err := util.CheckEntityName(wckey.Name); err != nil {
-		log.Errorf("Failed to add wckey: invalid wckey name: %v", err)
-		return util.ErrorCmdArg
-	}
-
-	req := new(protos.AddWckeyRequest)
-	req.Uid = userUid
-	req.Wckey = wckey
-
-	reply, err := stub.AddWckey(context.Background(), req)
-	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add wckey")
-		return util.ErrorNetwork
-	}
-
-	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
-			return util.ErrorSuccess
-		} else {
-			return util.ErrorBackend
-		}
-	}
-	if reply.GetOk() {
-		fmt.Println("Wckey added successfully.")
-		return util.ErrorSuccess
-	} else {
-		log.Errorf("Failed to add wckey: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
-	}
-}
-
-func DeleteWckey(name, userName string) util.ExitCode {
+func DeleteWckey(name, userName string) error {
 	if strings.ToUpper(name) == "ALL" {
 		if !FlagForce {
-			log.Errorf("To delete all wckeys, you must set --force.")
-			return util.ErrorCmdArg
+			return util.NewCraneErr(util.ErrorCmdArg, "To delete all wckeys, you must set --force.")
 		}
 		req := protos.DeleteWckeyRequest{Uid: userUid, Name: "ALL", Force: true}
 		reply, err := stub.DeleteWckey(context.Background(), &req)
 		if err != nil {
 			util.GrpcErrorPrintf(err, "Failed to delete all wckeys")
-			return util.ErrorNetwork
+			return &util.CraneError{Code: util.ErrorNetwork}
 		}
 		if FlagJson {
 			fmt.Println(util.FmtJson.FormatReply(reply))
 		}
 		if reply.GetOk() {
 			fmt.Println("All wckeys deleted successfully.")
-			return util.ErrorSuccess
+			return nil
 		}
-		log.Errorf("Failed to delete all wckeys: %s", util.ErrMsg(reply.GetRichError().GetCode()))
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete all wckeys: %s", util.ErrMsg(reply.GetRichError().GetCode())))
 	}
 
 	req := protos.DeleteWckeyRequest{Uid: userUid, Name: name, UserName: userName, Force: false}
@@ -1429,27 +1310,27 @@ func DeleteWckey(name, userName string) util.ExitCode {
 	reply, err := stub.DeleteWckey(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to delete wckey %s, user %s", name, userName)
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(msg)
+			return nil
 		} else {
-			return util.ErrorBackend
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Printf("Successfully deleted wckey: %s, user: %s\n", name, userName)
-		return util.ErrorSuccess
+		return nil
 	} else {
-		log.Errorf("Failed to delete wckey: %s, user: %s: %s", name, userName, util.ErrMsg(reply.GetRichError().GetCode()))
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete wckey: %s, user: %s: %s", name, userName, util.ErrMsg(reply.GetRichError().GetCode())))
 	}
 }
 
-func ModifyDefaultWckey(name, userName string) util.ExitCode {
+func ModifyDefaultWckey(name, userName string) error {
 	req := protos.ModifyDefaultWckeyRequest{
 		Uid:      userUid,
 		Name:     name,
@@ -1459,22 +1340,22 @@ func ModifyDefaultWckey(name, userName string) util.ExitCode {
 	reply, err := stub.ModifyDefaultWckey(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to modify default wckey")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(msg)
+			return nil
 		} else {
-			return util.ErrorBackend
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 	if reply.GetOk() {
 		fmt.Println("Modify information succeeded.")
-		return util.ErrorSuccess
+		return nil
 	} else {
-		log.Errorf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode()))
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Modify information failed: %s.\n", util.ErrMsg(reply.GetCode())))
 	}
 }

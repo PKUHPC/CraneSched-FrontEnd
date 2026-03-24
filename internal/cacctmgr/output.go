@@ -977,38 +977,37 @@ func PrintWckeyList(wckeyList []*protos.QueryWckeyInfo) {
 	table.Render()
 }
 
-func ShowWckey(wckeyStr string) util.ExitCode {
+func ShowWckey(wckeyStr string) error {
 	var wckeyList []string
 	if wckeyStr != "" {
 		var err error
 		wckeyList, err = util.ParseStringParamList(wckeyStr, ",")
 		if err != nil {
-			log.Errorf("Invalid wckey list specified: %v.\n", err)
-			return util.ErrorCmdArg
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid wckey list specified: %v.\n", err)
 		}
 	}
 	req := protos.QueryWckeyInfoRequest{Uid: userUid, WckeyList: wckeyList}
 	reply, err := stub.QueryWckeyInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show the wckey")
-		return util.ErrorNetwork
+		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		msg := util.FmtJson.FormatReply(reply)
 		if reply.GetOk() {
-			return util.ErrorSuccess
+			fmt.Println(msg)
+			return nil
 		} else {
-			return util.ErrorBackend
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 	}
 
 	if !reply.GetOk() {
-		fmt.Printf("Show wckey err: %s \n", util.ErrMsg(reply.Code))
-		return util.ErrorBackend
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Show wckey err: %s \n", util.ErrMsg(reply.Code)))
 	}
 
 	PrintWckeyList(reply.WckeyList)
 
-	return util.ErrorSuccess
+	return nil
 }
