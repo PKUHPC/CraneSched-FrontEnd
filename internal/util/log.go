@@ -27,7 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-
 type CraneFormatter struct {
 	log.TextFormatter
 }

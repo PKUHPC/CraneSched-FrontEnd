@@ -152,7 +152,7 @@ func getCranedNodesReply(nodeName string) (*protos.QueryCranedInfoReply, error) 
 }
 func handleNodesEmptyResult(nodeName string, queryAll bool) error {
 	if queryAll {
-		fmt.Printf("No node is available.")
+		fmt.Println("No node is available.")
 		return nil
 	}
 	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Node %s not found.", nodeName))
