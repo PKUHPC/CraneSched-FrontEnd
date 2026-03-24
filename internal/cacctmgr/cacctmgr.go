@@ -727,7 +727,7 @@ func ModifyQos(params []ModifyParam, name string) error {
 		fmt.Println("Information was successfully modified.")
 		return nil
 	} else {
-		msg := fmt.Sprintln("Failed to modify information:\n")
+		msg := fmt.Sprintln("Failed to modify information:")
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
 				msg += fmt.Sprintf("%s \n", util.ErrMsg(richError.Code))
