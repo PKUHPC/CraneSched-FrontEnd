@@ -571,7 +571,7 @@ func printJobDetails(task *protos.TaskInfo) error {
 	fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n", task.CmdLine, task.Cwd)
 	// resource
 	printResourceRequests(task)
-	fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+	fmt.Printf("\tReqNodeList=%v ExcludeNodeList=%v\n"+
 		"\tExclusive=%v Comment=%v Wckey=%v\n",
 		formatHostNameStr(util.HostNameListToStr(task.GetReqNodes())),
 		formatHostNameStr(util.HostNameListToStr(task.GetExcludeNodes())),
