@@ -48,8 +48,8 @@ var (
 	FlagDependency         string
 
 	FlagInput       string
-	FlagOutput    string
-	FlagErr       string
+	FlagOutput      string
+	FlagErr         string
 	FlagPty         bool
 	FlagExclusive   bool
 	FlagWckey       string
