@@ -349,6 +349,20 @@ func ProcessElapsedTime(item *JobOrStep) string {
 			return util.SecondTimeFormat(item.task.ElapsedTime.Seconds)
 		}
 	} else if status == protos.TaskStatus_Completed {
+		// Use elapsed_time from backend if available.
+		// It includes total_suspended_duration so that suspension time
+		// is properly reflected even when kernel timers continue
+		// during SIGSTOP/cgroup v1 freeze.
+		if item.isStep {
+			if item.stepInfo.ElapsedTime != nil && item.stepInfo.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
+			}
+		} else {
+			if item.task.ElapsedTime != nil && item.task.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.task.ElapsedTime.Seconds)
+			}
+		}
+		// Fallback to computing from start/end time
 		if startTime.IsZero() || endTime.IsZero() {
 			return "-"
 		}

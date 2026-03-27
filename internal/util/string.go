@@ -1508,7 +1508,8 @@ func ParseInRamTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
 		if err != nil {
 			return nil, err
 		}
-		if state != protos.TaskStatus_Invalid && state != protos.TaskStatus_Pending && state != protos.TaskStatus_Running {
+		if state != protos.TaskStatus_Invalid && state != protos.TaskStatus_Pending &&
+			state != protos.TaskStatus_Running && state != protos.TaskStatus_Suspended {
 			return nil, fmt.Errorf("unsupported state: %s", filterStateList[i])
 		}
 		stateSet[state] = true
