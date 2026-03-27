@@ -37,7 +37,7 @@ var (
 
 	RootCmd = &cobra.Command{
 		Use:     "ccancel [flags] JOBID.STEPID[,JOBID.STEPID...]",
-		Short:   "Cancel pending or running jobs/steps",
+		Short:   "Cancel pending, running or suspended jobs/steps",
 		Long:    "",
 		Version: util.Version(),
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -92,14 +92,14 @@ func init() {
 		"Cancel jobs in the specified partition")
 	RootCmd.Flags().StringVarP(&FlagState, "state", "t", "",
 		"Cancel jobs of the specified states"+
-			"Valid job states are PENDING(P), RUNNING(R), ALL. "+
+			"Valid job states are PENDING(P), RUNNING(R), SUSPENDED(S), ALL. "+
 			"job states are case-insensitive")
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
 		"Cancel jobs under the specified account")
 	RootCmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
 		"Cancel jobs submitted by the specified user")
 	RootCmd.Flags().StringSliceVarP(&FlagNodes, "nodes", "w", nil,
-		"Cancel jobs running on the specified nodes")
+		"Cancel jobs running or suspended on the specified nodes")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
 	util.InitCraneLogger()
