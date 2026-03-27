@@ -349,6 +349,18 @@ func ProcessElapsedTime(item *JobOrStep) string {
 			return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
 		}
 	} else if status == protos.JobStatus_Completed {
+		// Prefer backend elapsed time (already excludes suspended duration).
+		if item.isStep {
+			if item.stepInfo.ElapsedTime != nil && item.stepInfo.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
+			}
+		} else {
+			if item.job.ElapsedTime != nil && item.job.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
+			}
+		}
+
+		// Fallback to derived duration if elapsed time is unavailable.
 		if startTime.IsZero() || endTime.IsZero() {
 			return "-"
 		}
