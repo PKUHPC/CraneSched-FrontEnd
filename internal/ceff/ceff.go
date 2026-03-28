@@ -384,7 +384,7 @@ func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord)
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(jobInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes) /
+	mallocMemMbPerNode := float64(jobInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
 		float64(jobInfo.NodeNum) / (1024 * 1024)
 	totalMallocMemMb := float64(jobInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
