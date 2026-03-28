@@ -35,8 +35,8 @@ var (
 	FlagPartitionName   string
 	FlagAllowedAccounts string
 	FlagDeniedAccounts  string
-	FlagTaskId          uint32
-	FlagTaskIds         string
+	FlagJobId          uint32
+	FlagJobIds         string
 	FlagQueryAll        bool
 	FlagTimeLimit       string
 	FlagPriority        float64
@@ -218,7 +218,7 @@ func executeUpdateCommand(command *CControlCommand) int {
 	for key := range kvParams {
 		lowerKey := strings.ToLower(key)
 		if lowerKey == "job" || lowerKey == "jobid" {
-			FlagTaskIds = kvParams[key]
+			FlagJobIds = kvParams[key]
 			return executeUpdateJobCommand(command)
 		}
 	}
@@ -310,24 +310,24 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 			lastErr = util.ErrorCmdArg
 		}
 		FlagPriority = priority
-		err = ChangeTaskPriority(FlagTaskIds, FlagPriority)
+		err = ChangeJobPriority(FlagJobIds, FlagPriority)
 		if err != nil {
-			log.Errorf("change task priority failed: %s", err)
+			log.Errorf("change job priority failed: %s", err)
 			lastErr = util.ErrorGeneric
 		}
 	}
 
 	if jobParamFlags&TimelimitTypeFlag != 0 {
 		FlagTimeLimit = jobParamValuesMap[TimelimitTypeFlag]
-		err := ChangeTaskTimeLimit(FlagTaskIds, FlagTimeLimit)
+		err := ChangeJobTimeLimit(FlagJobIds, FlagTimeLimit)
 		if err != nil {
-			log.Errorf("change task time limit failed: %s", err)
+			log.Errorf("change job time limit failed: %s", err)
 			lastErr = util.ErrorGeneric
 		}
 	}
 
 	if jobParamFlags&(CommentTypeFlag|MailUserTypeFlag|MailTypeTypeFlag) != 0 {
-		err := ChangeTaskExtraAttrs(FlagTaskIds, jobParamValuesMap)
+		err := ChangeJobExtraAttrs(FlagJobIds, jobParamValuesMap)
 		if err != nil {
 			log.Errorf("change job ExtraAttrs failed: %s", err)
 			lastErr = util.ErrorGeneric
@@ -504,10 +504,10 @@ func executeDeleteReservationCommand(command *CControlCommand) int {
 func executeResetCommand(command *CControlCommand) int {
 	entity := command.GetEntity()
 	switch entity {
-	case "next-task-id":
-		return executeResetNextTaskIdCommand(command)
-	case "next-task-db-id":
-		return executeResetNextTaskDbIdCommand(command)
+	case "next-job-id":
+		return executeResetNextJobIdCommand(command)
+	case "next-job-db-id":
+		return executeResetNextJobDbIdCommand(command)
 	case "partition-acl":
 		if err := ResetPartitionAcl(); err != nil {
 			log.Errorf("reset partition-acl failed: %s", err)
@@ -520,9 +520,9 @@ func executeResetCommand(command *CControlCommand) int {
 			return util.ErrorGeneric
 		}
 		return util.ErrorSuccess
-	case "task-history":
-		if err := PurgeTaskHistory(); err != nil {
-			log.Errorf("reset task-history failed: %s", err)
+	case "job-history":
+		if err := PurgeJobHistory(); err != nil {
+			log.Errorf("reset job-history failed: %s", err)
 			return util.ErrorGeneric
 		}
 		return util.ErrorSuccess
@@ -532,7 +532,7 @@ func executeResetCommand(command *CControlCommand) int {
 	}
 }
 
-func executeResetNextTaskIdCommand(command *CControlCommand) int {
+func executeResetNextJobIdCommand(command *CControlCommand) int {
 	var value uint32 = 1
 	if id := command.GetID(); id != "" {
 		v, err := strconv.ParseUint(id, 10, 32)
@@ -543,16 +543,16 @@ func executeResetNextTaskIdCommand(command *CControlCommand) int {
 		value = uint32(v)
 	}
 
-	// next_task_id = value, next_task_db_id = 0 (don't change)
-	err := ResetNextTaskId(value, 0)
+	// next_job_id = value, next_job_db_id = 0 (don't change)
+	err := ResetNextJobId(value, 0)
 	if err != nil {
-		log.Errorf("reset next-task-id failed: %s", err)
+		log.Errorf("reset next-job-id failed: %s", err)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess
 }
 
-func executeResetNextTaskDbIdCommand(command *CControlCommand) int {
+func executeResetNextJobDbIdCommand(command *CControlCommand) int {
 	var value int64 = 1
 	if id := command.GetID(); id != "" {
 		v, err := strconv.ParseInt(id, 10, 64)
@@ -563,10 +563,10 @@ func executeResetNextTaskDbIdCommand(command *CControlCommand) int {
 		value = v
 	}
 
-	// next_task_id = 0 (don't change), next_task_db_id = value
-	err := ResetNextTaskId(0, value)
+	// next_job_id = 0 (don't change), next_job_db_id = value
+	err := ResetNextJobId(0, value)
 	if err != nil {
-		log.Errorf("reset next-task-db-id failed: %s", err)
+		log.Errorf("reset next-job-db-id failed: %s", err)
 		return util.ErrorGeneric
 	}
 	return util.ErrorSuccess

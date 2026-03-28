@@ -44,7 +44,7 @@ const (
 
 type X11Session struct {
 	X11Id X11GlobalId
-	// Data from task, nil if eof, will close local connection, stop read/write
+	// Data from job, nil if eof, will close local connection, stop read/write
 	X11ToLocal      chan []byte
 	X11ToSupervisor chan *protos.StreamCrunRequest
 	Status          X11Status

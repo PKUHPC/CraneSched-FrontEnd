@@ -46,15 +46,15 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	f := GetFlags()
-	request := protos.QueryTasksInfoRequest{
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: f.Ps.All,
+	request := protos.QueryJobsInfoRequest{
+		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
+		OptionIncludeCompletedJobs: f.Ps.All,
 		FilterUsers:                 filterUsers,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container tasks")
+		util.GrpcErrorPrintf(err, "Failed to query container jobs")
 		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
@@ -69,21 +69,21 @@ func psExecute(cmd *cobra.Command, args []string) error {
 		image     string
 		command   string
 		createdAt time.Time
-		status    protos.TaskStatus
+		status    protos.JobStatus
 		name      string
 		nodeList  string
 	}
 
 	var rows []stepRow
-	for _, task := range reply.TaskInfoList {
-		for _, step := range task.StepInfoList {
+	for _, job := range reply.JobInfoList {
+		for _, step := range job.StepInfoList {
 			if step.StepId == 0 || step.ContainerMeta == nil {
 				// Skip pod step or non-container step
 				continue
 			}
 
 			row := stepRow{
-				jobId:  task.TaskId,
+				jobId:  job.JobId,
 				stepId: step.StepId,
 				name:   step.Name,
 				status: step.Status,
@@ -106,13 +106,13 @@ func psExecute(cmd *cobra.Command, args []string) error {
 			}
 			if step.SubmitTime != nil {
 				row.createdAt = step.SubmitTime.AsTime()
-			} else if task.SubmitTime != nil {
-				row.createdAt = task.SubmitTime.AsTime()
+			} else if job.SubmitTime != nil {
+				row.createdAt = job.SubmitTime.AsTime()
 			}
 
 			row.nodeList = step.GetCranedList()
 			if row.nodeList == "" {
-				row.nodeList = task.GetCranedList()
+				row.nodeList = job.GetCranedList()
 			}
 
 			rows = append(rows, row)
@@ -171,13 +171,13 @@ func podExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	f := GetFlags()
-	request := protos.QueryTasksInfoRequest{
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: f.Pod.All,
+	request := protos.QueryJobsInfoRequest{
+		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
+		OptionIncludeCompletedJobs: f.Pod.All,
 		FilterUsers:                 filterUsers,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container pods")
 		return util.NewCraneErr(util.ErrorNetwork, "")
@@ -187,18 +187,18 @@ func podExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
-	sort.Slice(reply.TaskInfoList, func(i, j int) bool {
-		return reply.TaskInfoList[i].TaskId > reply.TaskInfoList[j].TaskId
+	sort.Slice(reply.JobInfoList, func(i, j int) bool {
+		return reply.JobInfoList[i].JobId > reply.JobInfoList[j].JobId
 	})
 
 	if f.Global.Json {
-		outputJson("pods", "", f.Pod, reply.TaskInfoList)
+		outputJson("pods", "", f.Pod, reply.JobInfoList)
 		return nil
 	}
 
 	if f.Pod.Quiet {
-		for _, task := range reply.TaskInfoList {
-			fmt.Println(task.TaskId)
+		for _, job := range reply.JobInfoList {
+			fmt.Println(job.JobId)
 		}
 		return nil
 	}
@@ -207,21 +207,21 @@ func podExecute(cmd *cobra.Command, args []string) error {
 	util.SetBorderlessTable(table)
 	table.SetHeader([]string{"JOBID", "POD", "PARTITION", "CREATED", "STATUS", "PORTS"})
 
-	for _, task := range reply.TaskInfoList {
+	for _, job := range reply.JobInfoList {
 		createdStr := "-"
-		if task.SubmitTime != nil {
-			createdStr = formatDuration(time.Since(task.SubmitTime.AsTime())) + " ago"
+		if job.SubmitTime != nil {
+			createdStr = formatDuration(time.Since(job.SubmitTime.AsTime())) + " ago"
 		}
 
 		podName := "-"
-		if task.PodMeta != nil && task.PodMeta.Name != "" {
-			podName = task.PodMeta.Name
+		if job.PodMeta != nil && job.PodMeta.Name != "" {
+			podName = job.PodMeta.Name
 		}
 
 		var ports string
-		if task.PodMeta != nil && len(task.PodMeta.Ports) > 0 {
+		if job.PodMeta != nil && len(job.PodMeta.Ports) > 0 {
 			var portStrs []string
-			for _, port := range task.PodMeta.Ports {
+			for _, port := range job.PodMeta.Ports {
 				portStrs = append(portStrs, fmt.Sprintf("%d:%d", port.HostPort, port.ContainerPort))
 			}
 			ports = strings.Join(portStrs, ", ")
@@ -230,11 +230,11 @@ func podExecute(cmd *cobra.Command, args []string) error {
 		}
 
 		table.Append([]string{
-			strconv.FormatUint(uint64(task.TaskId), 10),
+			strconv.FormatUint(uint64(job.JobId), 10),
 			podName,
-			task.Partition,
+			job.Partition,
 			createdStr,
-			strings.ToUpper(task.Status.String()),
+			strings.ToUpper(job.Status.String()),
 			ports,
 		})
 	}
@@ -308,14 +308,14 @@ func inspectPodExecute(cmd *cobra.Command, args []string) error {
 
 	idFilter := map[uint32]*protos.JobStepIds{}
 	idFilter[uint32(jobID)] = &protos.JobStepIds{}
-	request := protos.QueryTasksInfoRequest{
+	request := protos.QueryJobsInfoRequest{
 		FilterIds:                   idFilter,
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: true,
+		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
+		OptionIncludeCompletedJobs: true,
 		FilterUsers:                 filterUsers,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container pod")
 		return util.NewCraneErr(util.ErrorNetwork, "")
@@ -325,12 +325,12 @@ func inspectPodExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
-	if len(reply.TaskInfoList) == 0 {
+	if len(reply.JobInfoList) == 0 {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container pod %s not found", jobIDStr))
 	}
 
-	task := reply.TaskInfoList[0]
-	jsonData, err := json.MarshalIndent(task, "", "  ")
+	job := reply.JobInfoList[0]
+	jsonData, err := json.MarshalIndent(job, "", "  ")
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorBackend, "failed to format data from backend: %v", err)
 	}
@@ -360,14 +360,14 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 
 	idFilter := map[uint32]*protos.JobStepIds{}
 	idFilter[jobID] = &protos.JobStepIds{Steps: []uint32{stepID}}
-	request := protos.QueryTasksInfoRequest{
+	request := protos.QueryJobsInfoRequest{
 		FilterIds:                   idFilter,
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: true,
+		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
+		OptionIncludeCompletedJobs: true,
 		FilterUsers:                 filterUsers,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container step")
 		return util.NewCraneErr(util.ErrorNetwork, "")
@@ -377,12 +377,12 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
-	if len(reply.TaskInfoList) == 0 {
+	if len(reply.JobInfoList) == 0 {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container step %d.%d not found", jobID, stepID))
 	}
 
 	var targetStep *protos.StepInfo
-	for _, step := range reply.TaskInfoList[0].StepInfoList {
+	for _, step := range reply.JobInfoList[0].StepInfoList {
 		if step.StepId == stepID {
 			targetStep = step
 			break
@@ -402,18 +402,18 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// GetContainerJob queries exact 1 specific container job and returns the task info.
-func GetContainerJob(jobId uint32, includeCompleted bool) (*protos.TaskInfo, error) {
+// GetContainerJob queries exact 1 specific container job and returns the job info.
+func GetContainerJob(jobId uint32, includeCompleted bool) (*protos.JobInfo, error) {
 	idFilter := map[uint32]*protos.JobStepIds{
 		jobId: {},
 	}
-	request := protos.QueryTasksInfoRequest{
+	request := protos.QueryJobsInfoRequest{
 		FilterIds:                   idFilter,
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: includeCompleted,
+		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
+		OptionIncludeCompletedJobs: includeCompleted,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container job")
 		return nil, util.NewCraneErr(util.ErrorNetwork, "")
@@ -421,25 +421,25 @@ func GetContainerJob(jobId uint32, includeCompleted bool) (*protos.TaskInfo, err
 	if !reply.GetOk() {
 		return nil, util.NewCraneErr(util.ErrorBackend, "")
 	}
-	if len(reply.TaskInfoList) == 0 {
+	if len(reply.JobInfoList) == 0 {
 		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container job %d not found", jobId))
 	}
 
-	return reply.TaskInfoList[0], nil
+	return reply.JobInfoList[0], nil
 }
 
-// GetContainerStep queries exact 1 specific container step and returns the task and step info.
-func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.TaskInfo, *protos.StepInfo, error) {
+// GetContainerStep queries exact 1 specific container step and returns the job and step info.
+func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.JobInfo, *protos.StepInfo, error) {
 	idFilter := map[uint32]*protos.JobStepIds{
 		jobID: {Steps: []uint32{stepID}},
 	}
-	req := protos.QueryTasksInfoRequest{
+	req := protos.QueryJobsInfoRequest{
 		FilterIds:                   idFilter,
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: includeCompleted,
+		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
+		OptionIncludeCompletedJobs: includeCompleted,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &req)
+	reply, err := stub.QueryJobsInfo(context.Background(), &req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query container step")
 		return nil, nil, util.NewCraneErr(util.ErrorNetwork, "")
@@ -448,13 +448,13 @@ func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.Task
 		return nil, nil, util.NewCraneErr(util.ErrorBackend, "")
 	}
 
-	if len(reply.TaskInfoList) == 0 {
+	if len(reply.JobInfoList) == 0 {
 		return nil, nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container %d.%d not found", jobID, stepID))
 	}
 
-	task := reply.TaskInfoList[0]
+	job := reply.JobInfoList[0]
 	var targetStep *protos.StepInfo
-	for _, step := range task.StepInfoList {
+	for _, step := range job.StepInfoList {
 		if step.StepId == stepID {
 			targetStep = step
 			break
@@ -465,5 +465,5 @@ func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.Task
 		return nil, nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container %d.%d not found", jobID, stepID))
 	}
 
-	return task, targetStep, nil
+	return job, targetStep, nil
 }

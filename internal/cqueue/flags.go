@@ -8,17 +8,17 @@ import (
 )
 
 type FilterProcessor interface {
-	Process(req *protos.QueryTasksInfoRequest) error
+	Process(req *protos.QueryJobsInfoRequest) error
 }
 
 // FlagFilterStates
 type StatesFilterProcessor struct{}
 
-func (p *StatesFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *StatesFilterProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterStates == "" {
 		return nil
 	}
-	stateList, err := util.ParseInRamTaskStatusList(FlagFilterStates)
+	stateList, err := util.ParseInRamJobStatusList(FlagFilterStates)
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
@@ -29,7 +29,7 @@ func (p *StatesFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error
 // FlagSelf
 type SelfProcessor struct{}
 
-func (p *SelfProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *SelfProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if !FlagSelf {
 		return nil
 	}
@@ -44,7 +44,7 @@ func (p *SelfProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 // FlagFilterJobNames
 type JobNamesProcessor struct{}
 
-func (p *JobNamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *JobNamesProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterJobNames == "" {
 		return nil
 	}
@@ -52,14 +52,14 @@ func (p *JobNamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job name list specified: %s.", err))
 	}
-	req.FilterTaskNames = filterJobNameList
+	req.FilterJobNames = filterJobNameList
 	return nil
 }
 
 // FlagFilterUsers
 type UserFilterProcessor struct{}
 
-func (p *UserFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *UserFilterProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterUsers == "" {
 		return nil
 	}
@@ -74,7 +74,7 @@ func (p *UserFilterProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 // FlagFilterQos
 type QosProcessor struct{}
 
-func (p *QosProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *QosProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterQos == "" {
 		return nil
 	}
@@ -89,7 +89,7 @@ func (p *QosProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 // FlagFilterAccounts
 type AccountProcessor struct{}
 
-func (p *AccountProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *AccountProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterAccounts == "" {
 		return nil
 	}
@@ -104,7 +104,7 @@ func (p *AccountProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 // FlagFilterPartitions
 type PartitionsProcessor struct{}
 
-func (p *PartitionsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *PartitionsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterPartitions == "" {
 		return nil
 	}
@@ -119,7 +119,7 @@ func (p *PartitionsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 // FlagFilterJobIDs
 type JobIDsProcessor struct{}
 
-func (p *JobIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *JobIDsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterJobIDs == "" {
 		return nil
 	}
@@ -142,7 +142,7 @@ func (p *JobIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 
 type StepIDsProcessor struct{}
 
-func (p *StepIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *StepIDsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterStepIDs == "" {
 		return nil
 	}
@@ -168,25 +168,25 @@ func (p *StepIDsProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 	return nil
 }
 
-// FlagFilterTaskTypes
-type TaskTypesProcessor struct{}
+// FlagFilterJobTypes
+type JobTypesProcessor struct{}
 
-func (p *TaskTypesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
-	if FlagFilterTaskTypes == "" {
+func (p *JobTypesProcessor) Process(req *protos.QueryJobsInfoRequest) error {
+	if FlagFilterJobTypes == "" {
 		return nil
 	}
-	filterTaskTypeList, err := util.ParseTaskTypeList(FlagFilterTaskTypes)
+	filterJobTypeList, err := util.ParseJobTypeList(FlagFilterJobTypes)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid task type list specified: %s.", err))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job type list specified: %s.", err))
 	}
-	req.FilterTaskTypes = filterTaskTypeList
+	req.FilterJobTypes = filterJobTypeList
 	return nil
 }
 
 // FlagFilterNodeNames
 type NodeNamesProcessor struct{}
 
-func (p *NodeNamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *NodeNamesProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterNodeNames == "" {
 		return nil
 	}
@@ -201,7 +201,7 @@ func (p *NodeNamesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
 // FlagFilterLicenses
 type LicensesProcessor struct{}
 
-func (p *LicensesProcessor) Process(req *protos.QueryTasksInfoRequest) error {
+func (p *LicensesProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterLicenses == "" {
 		return nil
 	}

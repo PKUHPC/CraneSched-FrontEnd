@@ -175,7 +175,7 @@ func showHelp() {
       (if name is 'all', all users will be reset.)
   
 	add qos <name> [Description=<desc>] [Priority=<priority>] 
-		[MaxJobsPerUser=<num>] [MaxCpusPerUser=<num>] [MaxTimeLimitPerTask=<duration|seconds>]
+		[MaxJobsPerUser=<num>] [MaxCpusPerUser=<num>] [MaxTimeLimitPerJob=<duration|seconds>]
     Create a new QoS with the specified attributes.
     Parameter details:
       Description=<desc>         Description of the QoS
@@ -192,7 +192,7 @@ func showHelp() {
       MaxTres=<tres>              Maximum tres per qos (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
       MaxWall=<seconds>           Maximum all run time per qos
       Flags=<DenyOnLimit|None>    Qos Flags
-      MaxTimeLimitPerTask=<duration|seconds>  Maximum run time per task in seconds
+      MaxTimeLimitPerJob=<duration|seconds>  Maximum run time per job in seconds
       Name=<name1,name2,...>    List of QoS name for batch creation
   
 	delete qos <name> [Name=<name1,name2,...>]
@@ -206,7 +206,7 @@ func showHelp() {
       Name=<name1,name2,...>    Show only these QoS (comma-separated)
       (If not specified, all QoS will be displayed)
       format=<Name,Description,Priority,MaxJobsPerUser,MaxCpusPerUser,MaxCpusPerUser,
-              MaxTimeLimitPerTask> (Spelling must be correct, case is not important)
+              MaxTimeLimitPerJob> (Spelling must be correct, case is not important)
       For Example: cacctmgr show qos format=name,MaxJobsPerUser,MaxCpusPerUser
 
     show transaction [Actor=<actor>] [Target=<target>] [Action=<action>] [Info=<info>] [StartTime=<start_time>]
@@ -260,7 +260,7 @@ func showHelp() {
       set MaxTres=<tres>                 Set max Tres (format: cpu:<num>,mem:<num>,gres/type[:name]:num)
       set MaxWall=<sec>                  Set max wall
       set Flags=<DenyOnLimit|None>       Set qos flags (default is None)
-      set MaxTimeLimitPerTask=<duration|sec>   Set the maximum time limit per job (format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds) (default 315576000000 seconds)"
+      set MaxTimeLimitPerJob=<duration|sec>   Set the maximum time limit per job (format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds) (default 315576000000 seconds)"
       set Priority=<priority>            Set priority
     Wckey options:
       where user=<name> 

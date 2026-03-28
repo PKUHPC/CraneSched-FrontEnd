@@ -41,7 +41,7 @@ var (
 	FlagFilterStates     string
 	FlagFilterUsers      string
 	FlagFilterAccounts   string
-	FlagFilterTaskTypes  string
+	FlagFilterJobTypes  string
 	FlagFilterLicenses   string
 	FlagFormat           string
 	FlagFilterNodeNames  string
@@ -106,8 +106,8 @@ func init() {
 		"Specify accounts to view (comma separated list), \ndefault is all accounts")
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"Specify partitions to view (comma separated list), \ndefault is all partitions")
-	RootCmd.Flags().StringVar(&FlagFilterTaskTypes, "type", "",
-		"Specify task types to view (comma separated list), \nvalid values are 'Interactive', 'Batch', 'Container', default is all types")
+	RootCmd.Flags().StringVar(&FlagFilterJobTypes, "type", "",
+		"Specify job types to view (comma separated list), \nvalid values are 'Interactive', 'Batch', 'Container', default is all types")
 	RootCmd.Flags().StringVarP(&FlagFilterLicenses, "licenses", "L", "",
 		"Specify licenses to view (comma separated list), default is all licenses")
 	RootCmd.Flags().Uint64VarP(&FlagIterate, "iterate", "i", 0,

@@ -72,7 +72,7 @@ var (
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return CancelTask(args)
+			return CancelJob(args)
 		},
 	}
 )

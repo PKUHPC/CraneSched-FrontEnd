@@ -39,7 +39,7 @@ ACTIONS:
 ENTITIES:
   node        - Compute nodes
   partition   - Node partitions
-  job         - Jobs/tasks
+  job         - Jobs
   reservation - Reservations
   lic         - Licenses
 

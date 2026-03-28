@@ -263,14 +263,14 @@ func (p PowerControlPlugin) StartHook(ctx *api.PluginContext) {
 		return
 	}
 
-	for _, task := range req.TaskInfoList {
-		taskID := strconv.FormatUint(uint64(task.TaskId), 10)
-		log.Debugf("Start hook for task %v", taskID)
-		log.Debugf("task.GetExecutionNode(): %v", task.GetExecutionNode())
-		nodes := task.GetExecutionNode()
+	for _, job := range req.JobInfoList {
+		jobID := strconv.FormatUint(uint64(job.JobId), 10)
+		log.Debugf("Start hook for job %v", jobID)
+		log.Debugf("job.GetExecutionNode(): %v", job.GetExecutionNode())
+		nodes := job.GetExecutionNode()
 
 		for _, node := range nodes {
-			manager.AddJobToNode(node, taskID)
+			manager.AddJobToNode(node, jobID)
 		}
 	}
 }
@@ -281,14 +281,14 @@ func (p PowerControlPlugin) EndHook(ctx *api.PluginContext) {
 		return
 	}
 
-	for _, task := range req.TaskInfoList {
-		taskID := strconv.FormatUint(uint64(task.TaskId), 10)
-		log.Debugf("End hook for task %v", taskID)
-		log.Debugf("task.GetExecutionNode(): %v", task.GetExecutionNode())
-		nodes := task.GetExecutionNode()
+	for _, job := range req.JobInfoList {
+		jobID := strconv.FormatUint(uint64(job.JobId), 10)
+		log.Debugf("End hook for job %v", jobID)
+		log.Debugf("job.GetExecutionNode(): %v", job.GetExecutionNode())
+		nodes := job.GetExecutionNode()
 
 		for _, node := range nodes {
-			manager.RemoveJobFromNode(node, taskID)
+			manager.RemoveJobFromNode(node, jobID)
 		}
 	}
 }

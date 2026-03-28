@@ -30,33 +30,33 @@ func NewQueryService(cfg *config.Config) *QueryService {
 	}
 }
 
-func (s *QueryService) QueryTaskEfficiency(ctx context.Context, req *protos.QueryTaskEfficiencyRequest) (*protos.QueryTaskEfficiencyReply, error) {
-	log.Infof("QueryService received QueryTaskEfficiency request from UID %d for tasks: %v", req.Uid, req.TaskIds)
+func (s *QueryService) QueryJobEfficiency(ctx context.Context, req *protos.QueryJobEfficiencyRequest) (*protos.QueryJobEfficiencyReply, error) {
+	log.Infof("QueryService received QueryJobEfficiency request from UID %d for jobs: %v", req.Uid, req.JobIds)
 
-	if len(req.TaskIds) == 0 {
-		return &protos.QueryTaskEfficiencyReply{
+	if len(req.JobIds) == 0 {
+		return &protos.QueryJobEfficiencyReply{
 			Ok:           false,
-			ErrorMessage: "No task IDs provided",
+			ErrorMessage: "No job IDs provided",
 		}, nil
 	}
 
-	efficiencyData, err := s.queryTaskEfficiencyData(ctx, req.TaskIds, req.Uid)
+	efficiencyData, err := s.queryJobEfficiencyData(ctx, req.JobIds, req.Uid)
 	if err != nil {
 		log.Errorf("QueryService failed to query efficiency data: %v", err)
-		return &protos.QueryTaskEfficiencyReply{
+		return &protos.QueryJobEfficiencyReply{
 			Ok:           false,
 			ErrorMessage: fmt.Sprintf("Failed to query efficiency data: %v", err),
 		}, nil
 	}
 
 	log.Infof("QueryService successfully returned %d efficiency records for user %d", len(efficiencyData), req.Uid)
-	return &protos.QueryTaskEfficiencyReply{
+	return &protos.QueryJobEfficiencyReply{
 		Ok:             true,
 		EfficiencyData: efficiencyData,
 	}, nil
 }
 
-func (s *QueryService) queryTaskEfficiencyData(ctx context.Context, taskIds []uint32, userID uint32) ([]*protos.TaskEfficiencyInfo, error) {
+func (s *QueryService) queryJobEfficiencyData(ctx context.Context, jobIds []uint32, userID uint32) ([]*protos.JobEfficiencyInfo, error) {
 	if s.config.DB.InfluxDB == nil {
 		return nil, fmt.Errorf("InfluxDB configuration not initialized")
 	}
@@ -72,25 +72,25 @@ func (s *QueryService) queryTaskEfficiencyData(ctx context.Context, taskIds []ui
 		}
 	}
 
-	taskInfos, err := s.getTaskInformation(ctx, taskIds)
+	jobInfos, err := s.getJobInformation(ctx, jobIds)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get task information: %w", err)
+		return nil, fmt.Errorf("failed to get job information: %w", err)
 	}
 
-	if err := s.authorizeEfficiencyQuery(taskInfos, taskIds, userID); err != nil {
+	if err := s.authorizeEfficiencyQuery(jobInfos, jobIds, userID); err != nil {
 		return nil, fmt.Errorf("authorization failed: %w", err)
 	}
 
-	if len(taskInfos) == 0 {
-		return nil, fmt.Errorf("no tasks found for the specified task IDs")
+	if len(jobInfos) == 0 {
+		return nil, fmt.Errorf("no jobs found for the specified job IDs")
 	}
 
-	nodeNames := s.extractNodeNames(taskInfos)
+	nodeNames := s.extractNodeNames(jobInfos)
 	if len(nodeNames) == 0 {
-		return nil, fmt.Errorf("no nodes found for the specified tasks")
+		return nil, fmt.Errorf("no nodes found for the specified jobs")
 	}
 
-	efficiencyData, err := s.queryInfluxDbDataByTags(taskIds, nodeNames)
+	efficiencyData, err := s.queryInfluxDbDataByTags(jobIds, nodeNames)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query InfluxDB: %w", err)
 	}
@@ -102,22 +102,22 @@ func (s *QueryService) queryTaskEfficiencyData(ctx context.Context, taskIds []ui
 	return efficiencyData, nil
 }
 
-func (s *QueryService) authorizeEfficiencyQuery(taskInfos []*protos.TaskInfo, taskIds []uint32, userID uint32) error {
-	for _, taskInfo := range taskInfos {
-		if taskInfo == nil {
+func (s *QueryService) authorizeEfficiencyQuery(jobInfos []*protos.JobInfo, jobIds []uint32, userID uint32) error {
+	for _, jobInfo := range jobInfos {
+		if jobInfo == nil {
 			continue
 		}
 
-		if taskInfo.Uid != userID {
-			return fmt.Errorf("user %d not authorized to access task %d (owned by user %d)", userID, taskInfo.TaskId, taskInfo.Uid)
+		if jobInfo.Uid != userID {
+			return fmt.Errorf("user %d not authorized to access job %d (owned by user %d)", userID, jobInfo.JobId, jobInfo.Uid)
 		}
 	}
 
-	log.Infof("User %d authorized to access tasks: %v", userID, taskIds)
+	log.Infof("User %d authorized to access jobs: %v", userID, jobIds)
 	return nil
 }
 
-func (s *QueryService) getTaskInformation(ctx context.Context, taskIds []uint32) ([]*protos.TaskInfo, error) {
+func (s *QueryService) getJobInformation(ctx context.Context, jobIds []uint32) ([]*protos.JobInfo, error) {
 	if s.craneConfig == nil {
 		return nil, fmt.Errorf("crane config not initialized")
 	}
@@ -125,36 +125,36 @@ func (s *QueryService) getTaskInformation(ctx context.Context, taskIds []uint32)
 	ctldClient := util.GetStubToCtldByConfig(s.craneConfig)
 
 	stepIds := make(map[uint32]*protos.JobStepIds)
-	for _, id := range taskIds {
+	for _, id := range jobIds {
 		stepIds[id] = &protos.JobStepIds{}
 	}
 
-	req := &protos.QueryTasksInfoRequest{
+	req := &protos.QueryJobsInfoRequest{
 		FilterIds:                   stepIds,
-		OptionIncludeCompletedTasks: true,
+		OptionIncludeCompletedJobs: true,
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	reply, err := ctldClient.QueryTasksInfo(timeoutCtx, req)
+	reply, err := ctldClient.QueryJobsInfo(timeoutCtx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query tasks info from CraneCtld: %w", err)
+		return nil, fmt.Errorf("failed to query jobs info from CraneCtld: %w", err)
 	}
 
-	return reply.TaskInfoList, nil
+	return reply.JobInfoList, nil
 }
 
-func (s *QueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []string {
+func (s *QueryService) extractNodeNames(jobInfos []*protos.JobInfo) []string {
 	var nodeNames []string
-	for _, taskInfo := range taskInfos {
-		if taskInfo == nil {
+	for _, jobInfo := range jobInfos {
+		if jobInfo == nil {
 			continue
 		}
 
-		nodes, ok := util.ParseHostList(taskInfo.GetCranedList())
+		nodes, ok := util.ParseHostList(jobInfo.GetCranedList())
 		if !ok {
-			log.Warnf("Failed to parse host list: %s", taskInfo.GetCranedList())
+			log.Warnf("Failed to parse host list: %s", jobInfo.GetCranedList())
 			continue
 		}
 		nodeNames = append(nodeNames, nodes...)
@@ -162,7 +162,7 @@ func (s *QueryService) extractNodeNames(taskInfos []*protos.TaskInfo) []string {
 	return nodeNames
 }
 
-func (s *QueryService) queryInfluxDbDataByTags(taskIds []uint32, hostNames []string) ([]*protos.TaskEfficiencyInfo, error) {
+func (s *QueryService) queryInfluxDbDataByTags(jobIds []uint32, hostNames []string) ([]*protos.JobEfficiencyInfo, error) {
 	influxCfg := s.config.DB.InfluxDB
 	client := influxdb2.NewClient(influxCfg.URL, influxCfg.Token)
 	defer client.Close()
@@ -179,8 +179,8 @@ func (s *QueryService) queryInfluxDbDataByTags(taskIds []uint32, hostNames []str
 		measurement = "ResourceUsage"
 	}
 
-	jobIDFilters := make([]string, len(taskIds))
-	for i, id := range taskIds {
+	jobIDFilters := make([]string, len(jobIds))
+	for i, id := range jobIds {
 		jobIDFilters[i] = fmt.Sprintf(`r["job_id"] == "%d"`, id)
 	}
 	jobIDCondition := strings.Join(jobIDFilters, " or ")
@@ -212,7 +212,7 @@ from(bucket: "%s")
 		return nil, fmt.Errorf("execute query failed: %w", err)
 	}
 
-	dataMap := make(map[string]*protos.TaskEfficiencyInfo)
+	dataMap := make(map[string]*protos.JobEfficiencyInfo)
 	for result.Next() {
 		record := result.Record()
 
@@ -234,8 +234,8 @@ from(bucket: "%s")
 
 		key := fmt.Sprintf("%d:%s", jobID, hostname)
 		if _, exists := dataMap[key]; !exists {
-			dataMap[key] = &protos.TaskEfficiencyInfo{
-				TaskId:    uint32(jobID),
+			dataMap[key] = &protos.JobEfficiencyInfo{
+				JobId:    uint32(jobID),
 				Hostname:  hostname,
 				Timestamp: timestamppb.New(record.Time()),
 			}
@@ -267,7 +267,7 @@ from(bucket: "%s")
 		return nil, fmt.Errorf("query parsing error: %w", result.Err())
 	}
 
-	var efficiencyData []*protos.TaskEfficiencyInfo
+	var efficiencyData []*protos.JobEfficiencyInfo
 	for _, data := range dataMap {
 		efficiencyData = append(efficiencyData, data)
 	}

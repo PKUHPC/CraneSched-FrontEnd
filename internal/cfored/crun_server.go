@@ -34,32 +34,32 @@ import (
 type StateOfCrunServer int
 
 const (
-	CrunWaitTaskIdAllocReq  StateOfCrunServer = 0
-	CrunWaitCtldAllocTaskId StateOfCrunServer = 1
+	CrunWaitJobIdAllocReq  StateOfCrunServer = 0
+	CrunWaitCtldAllocJobId StateOfCrunServer = 1
 	CrunWaitCtldAllocRes    StateOfCrunServer = 2
 	CrunWaitIOForward       StateOfCrunServer = 3
-	CrunWaitTaskComplete    StateOfCrunServer = 4
-	CrunWaitTaskCancel      StateOfCrunServer = 5
+	CrunWaitJobComplete    StateOfCrunServer = 4
+	CrunWaitJobCancel      StateOfCrunServer = 5
 	CrunWaitCtldAck         StateOfCrunServer = 6
-	CancelTaskOfDeadCrun    StateOfCrunServer = 7
+	CancelJobOfDeadCrun    StateOfCrunServer = 7
 )
 
-func HandleSupervisorRequest(jobId uint32, stepId uint32, taskMsg *protos.StreamTaskIORequest, reply **protos.StreamCrunReply) error {
-	switch taskMsg.Type {
+func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamTaskIORequest, reply **protos.StreamCrunReply) error {
+	switch jobMsg.Type {
 	case protos.StreamTaskIORequest_TASK_OUTPUT:
 		*reply = &protos.StreamCrunReply{
 			Type: protos.StreamCrunReply_TASK_IO_FORWARD,
 			Payload: &protos.StreamCrunReply_PayloadTaskIoForwardReply{
 				PayloadTaskIoForwardReply: &protos.StreamCrunReply_TaskIOForwardReply{
-					Msg: taskMsg.GetPayloadTaskOutputReq().Msg,
+					Msg: jobMsg.GetPayloadTaskOutputReq().Msg,
 				},
 			},
 		}
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding msg size[%d]",
-			jobId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
+			jobId, stepId, len(jobMsg.GetPayloadTaskOutputReq().GetMsg()))
 
 	case protos.StreamTaskIORequest_TASK_X11_CONN:
-		req := taskMsg.GetPayloadTaskX11FwdConnReq()
+		req := jobMsg.GetPayloadTaskX11FwdConnReq()
 		localId := req.LocalId
 		cranedId := req.CranedId
 		*reply = &protos.StreamCrunReply{
@@ -75,7 +75,7 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, taskMsg *protos.Stream
 			jobId, stepId, localId, cranedId)
 
 	case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
-		req := taskMsg.GetPayloadTaskX11OutputReq()
+		req := jobMsg.GetPayloadTaskX11OutputReq()
 		*reply = &protos.StreamCrunReply{
 			Type: protos.StreamCrunReply_TASK_X11_FORWARD,
 			Payload: &protos.StreamCrunReply_PayloadTaskX11ForwardReply{
@@ -87,10 +87,10 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, taskMsg *protos.Stream
 			},
 		}
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][X11 #%d] fowarding x11 msg from craned %s len: [%d]",
-			jobId, stepId, req.GetLocalId(), req.GetCranedId(), len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
+			jobId, stepId, req.GetLocalId(), req.GetCranedId(), len(jobMsg.GetPayloadTaskX11OutputReq().Msg))
 
 	case protos.StreamTaskIORequest_TASK_X11_EOF:
-		req := taskMsg.GetPayloadTaskX11EofReq()
+		req := jobMsg.GetPayloadTaskX11EofReq()
 		*reply = &protos.StreamCrunReply{
 			Type: protos.StreamCrunReply_TASK_X11_EOF,
 			Payload: &protos.StreamCrunReply_PayloadTaskX11EofReply{
@@ -104,7 +104,7 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, taskMsg *protos.Stream
 			jobId, stepId, req.GetLocalId(), req.GetCranedId())
 
 	case protos.StreamTaskIORequest_TASK_EXIT_STATUS:
-		req := taskMsg.GetPayloadTaskExitStatusReq()
+		req := jobMsg.GetPayloadTaskExitStatusReq()
 		*reply = &protos.StreamCrunReply{
 			Type: protos.StreamCrunReply_TASK_EXIT_STATUS,
 			Payload: &protos.StreamCrunReply_PayloadTaskExitStatusReply{
@@ -115,12 +115,12 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, taskMsg *protos.Stream
 				},
 			},
 		}
-		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][Task #%d] fowarding task exit msg ",
+		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][Task #%d] forwarding task exit msg ",
 			jobId, stepId, req.TaskId)
 	default:
 		log.Fatalf("[Supervisor->Cfored->Crun][Step #%d.%d] Expect Type TASK_OUTPUT or TASK_X11_OUTPUT or TASK_EXIT_STATUS.",
 			jobId, stepId)
-		return errors.New("Unexpected Task IO Message Type")
+		return errors.New("Unexpected Job IO Message Type")
 	}
 	return nil
 }
@@ -134,29 +134,29 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 
 	var execCranedIds []string
 	var crunPty bool
-	//Whether crun down before get taskid
-	crunDownWithoutTaskId := false
+	//Whether crun down before get jobid
+	crunDownWithoutJobId := false
 	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	TaskIoRequestChannel := make(chan *protos.StreamTaskIORequest, 2)
+	JobIoRequestChannel := make(chan *protos.StreamTaskIORequest, 2)
 	jobId = math.MaxUint32
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
 	forwardEstablished.Store(false)
 
-	state := CrunWaitTaskIdAllocReq
+	state := CrunWaitJobIdAllocReq
 
 CforedCrunStateMachineLoop:
 	for {
 		switch state {
-		case CrunWaitTaskIdAllocReq:
-			log.Infof("[Cfored<->Crun] Enter State WAIT_TASK_ID_ALLOC_REQ")
+		case CrunWaitJobIdAllocReq:
+			log.Infof("[Cfored<->Crun] Enter State WAIT_JOB_ID_ALLOC_REQ")
 
 			item := <-crunRequestChannel
 			crunRequest, err := item.message, item.err
-			// If crun down before req task id, do nothing
+			// If crun down before req job id, do nothing
 			if err != nil { // Failure Edge
 				switch err {
 				case io.EOF:
@@ -167,8 +167,8 @@ CforedCrunStateMachineLoop:
 				}
 			}
 
-			if crunRequest.Type != protos.StreamCrunRequest_TASK_REQUEST && crunRequest.Type != protos.StreamCrunRequest_STEP_REQUEST {
-				log.Fatalf("[Cfored<-Crun] Expect TASK_REQUEST or STEP_REQUEST but got %s", crunRequest.Type)
+			if crunRequest.Type != protos.StreamCrunRequest_JOB_REQUEST && crunRequest.Type != protos.StreamCrunRequest_STEP_REQUEST {
+				log.Fatalf("[Cfored<-Crun] Expect JOB_REQUEST or STEP_REQUEST but got %s", crunRequest.Type)
 				break
 			}
 
@@ -180,19 +180,19 @@ CforedCrunStateMachineLoop:
 				if auth, ok := p.AuthInfo.(*util.UnixPeerAuthInfo); ok {
 
 					var uid uint32
-					if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
-						uid = crunRequest.GetPayloadTaskReq().Task.Uid
+					if crunRequest.Type == protos.StreamCrunRequest_JOB_REQUEST {
+						uid = crunRequest.GetPayloadJobReq().Job.Uid
 					} else {
 						uid = crunRequest.GetPayloadStepReq().Step.Uid
 					}
 					if uid != auth.UID {
-						log.Warnf("Security: UID mismatch - peer UID %d does not match task UID %d", auth.UID, crunRequest.GetPayloadTaskReq().Task.Uid)
+						log.Warnf("Security: UID mismatch - peer UID %d does not match job UID %d", auth.UID, crunRequest.GetPayloadJobReq().Job.Uid)
 						reply = &protos.StreamCrunReply{
-							Type: protos.StreamCrunReply_TASK_ID_REPLY,
-							Payload: &protos.StreamCrunReply_PayloadTaskIdReply{
-								PayloadTaskIdReply: &protos.StreamCrunReply_TaskIdReply{
+							Type: protos.StreamCrunReply_JOB_ID_REPLY,
+							Payload: &protos.StreamCrunReply_PayloadJobIdReply{
+								PayloadJobIdReply: &protos.StreamCrunReply_JobIdReply{
 									Ok:            false,
-									FailureReason: "Permission denied: caller UID does not match task UID",
+									FailureReason: "Permission denied: caller UID does not match job UID",
 								},
 							},
 						}
@@ -208,9 +208,9 @@ CforedCrunStateMachineLoop:
 
 			if !gVars.ctldConnected.Load() {
 				reply = &protos.StreamCrunReply{
-					Type: protos.StreamCrunReply_TASK_ID_REPLY,
-					Payload: &protos.StreamCrunReply_PayloadTaskIdReply{
-						PayloadTaskIdReply: &protos.StreamCrunReply_TaskIdReply{
+					Type: protos.StreamCrunReply_JOB_ID_REPLY,
+					Payload: &protos.StreamCrunReply_PayloadJobIdReply{
+						PayloadJobIdReply: &protos.StreamCrunReply_JobIdReply{
 							Ok:            false,
 							FailureReason: "Cfored is not connected to CraneCtld.",
 						},
@@ -227,8 +227,8 @@ CforedCrunStateMachineLoop:
 				log.Infof("[Cfored<->Crun]Cfored not connected to CraneCtld")
 				break CforedCrunStateMachineLoop
 			} else {
-				if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
-					crunPid = crunRequest.GetPayloadTaskReq().CrunPid
+				if crunRequest.Type == protos.StreamCrunRequest_JOB_REQUEST {
+					crunPid = crunRequest.GetPayloadJobReq().CrunPid
 				} else {
 					crunPid = crunRequest.GetPayloadStepReq().CrunPid
 				}
@@ -236,23 +236,23 @@ CforedCrunStateMachineLoop:
 				gVars.ctldReplyChannelMapMtx.Lock()
 				gVars.ctldReplyChannelMapByPid[crunPid] = ctldReplyChannel
 				gVars.ctldReplyChannelMapMtx.Unlock()
-				var iaMeta *protos.InteractiveTaskAdditionalMeta
-				if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
-					iaMeta = crunRequest.GetPayloadTaskReq().Task.GetInteractiveMeta()
+				var iaMeta *protos.InteractiveJobAdditionalMeta
+				if crunRequest.Type == protos.StreamCrunRequest_JOB_REQUEST {
+					iaMeta = crunRequest.GetPayloadJobReq().Job.GetInteractiveMeta()
 				} else {
 					iaMeta = crunRequest.GetPayloadStepReq().Step.GetInteractiveMeta()
 				}
 				iaMeta.CforedName = gVars.hostName
 				crunPty = iaMeta.Pty
 				var cforedRequest *protos.StreamCforedRequest
-				if crunRequest.Type == protos.StreamCrunRequest_TASK_REQUEST {
+				if crunRequest.Type == protos.StreamCrunRequest_JOB_REQUEST {
 					cforedRequest = &protos.StreamCforedRequest{
-						Type: protos.StreamCforedRequest_TASK_REQUEST,
-						Payload: &protos.StreamCforedRequest_PayloadTaskReq{
-							PayloadTaskReq: &protos.StreamCforedRequest_TaskReq{
+						Type: protos.StreamCforedRequest_JOB_REQUEST,
+						Payload: &protos.StreamCforedRequest_PayloadJobReq{
+							PayloadJobReq: &protos.StreamCforedRequest_JobReq{
 								CforedName: gVars.hostName,
 								Pid:        crunPid,
-								Task:       crunRequest.GetPayloadTaskReq().Task,
+								Job:        crunRequest.GetPayloadJobReq().Job,
 							},
 						},
 					}
@@ -271,35 +271,35 @@ CforedCrunStateMachineLoop:
 
 				gVars.cforedRequestCtldChannel <- cforedRequest
 
-				state = CrunWaitCtldAllocTaskId
+				state = CrunWaitCtldAllocJobId
 			}
 
-		case CrunWaitCtldAllocTaskId:
-			log.Infof("[Cfored<->Crun][Pid #%d] Enter State WAIT_CTLD_ALLOC_TASK_ID", crunPid)
+		case CrunWaitCtldAllocJobId:
+			log.Infof("[Cfored<->Crun][Pid #%d] Enter State WAIT_CTLD_ALLOC_JOB_ID", crunPid)
 
 			select {
 			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
 				if err != nil {
 					// EOF meaning Crun closed, otherwise RPC error.
-					// Crun dead, cfored will cancel this task, keep waiting task id
-					crunDownWithoutTaskId = true
+					// Crun dead, cfored will cancel this job, keep waiting job id
+					crunDownWithoutJobId = true
 					log.Debug("[Crun->Cfored] Connection to crun was broken.")
-					//Will wait for ctldReplyChannel to get task id
+					//Will wait for ctldReplyChannel to get job id
 				} else if crunRequest != nil || err == nil {
 					log.Fatal("[Crun->Cfored] Expect only nil (crun connection broken) here!")
 				}
 
 			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_TASK_ID_REPLY {
-					log.Fatalf("[Ctld->Cfored->Crun][Pid#%d] Expect type TASK_ID_REPLY", crunPid)
+				if ctldReply.Type != protos.StreamCtldReply_JOB_ID_REPLY {
+					log.Fatalf("[Ctld->Cfored->Crun][Pid#%d] Expect type JOB_ID_REPLY", crunPid)
 				}
 
-				Ok := ctldReply.GetPayloadTaskIdReply().Ok
-				jobId = ctldReply.GetPayloadTaskIdReply().JobId
-				stepId = ctldReply.GetPayloadTaskIdReply().StepId
+				Ok := ctldReply.GetPayloadJobIdReply().Ok
+				jobId = ctldReply.GetPayloadJobIdReply().JobId
+				stepId = ctldReply.GetPayloadJobIdReply().StepId
 				step = StepIdentifier{JobId: jobId, StepId: stepId}
-				log.Tracef("[Ctld->Cfored->Crun][Pid#%d] Receive TaskIdReply, Ok: %v, JobId #%d, StepId #%d",
+				log.Tracef("[Ctld->Cfored->Crun][Pid#%d] Receive JobIdReply, Ok: %v, JobId #%d, StepId #%d",
 					crunPid, Ok, jobId, stepId)
 
 				gVars.ctldReplyChannelMapMtx.Lock()
@@ -309,40 +309,40 @@ CforedCrunStateMachineLoop:
 					gVars.pidStepMapMtx.Lock()
 					gVars.pidStepMap[crunPid] = step
 					gVars.pidStepMapMtx.Unlock()
-					gSupervisorChanKeeper.setRemoteIoToCrunChannel(jobId, stepId, TaskIoRequestChannel)
+					gSupervisorChanKeeper.setRemoteIoToCrunChannel(jobId, stepId, JobIoRequestChannel)
 				}
 
 				gVars.ctldReplyChannelMapMtx.Unlock()
-				if crunDownWithoutTaskId {
-					// Crun was down when CrunWaitCtldAllocTaskId, just cancel task.
-					state = CancelTaskOfDeadCrun
+				if crunDownWithoutJobId {
+					// Crun was down when CrunWaitCtldAllocJobId, just cancel job.
+					state = CancelJobOfDeadCrun
 					break
 				}
 
 				reply = &protos.StreamCrunReply{
-					Type: protos.StreamCrunReply_TASK_ID_REPLY,
-					Payload: &protos.StreamCrunReply_PayloadTaskIdReply{
-						PayloadTaskIdReply: &protos.StreamCrunReply_TaskIdReply{
+					Type: protos.StreamCrunReply_JOB_ID_REPLY,
+					Payload: &protos.StreamCrunReply_PayloadJobIdReply{
+						PayloadJobIdReply: &protos.StreamCrunReply_JobIdReply{
 							Ok:            Ok,
 							JobId:         jobId,
 							StepId:        stepId,
-							FailureReason: ctldReply.GetPayloadTaskIdReply().FailureReason,
+							FailureReason: ctldReply.GetPayloadJobIdReply().FailureReason,
 						},
 					},
 				}
 
 				if err := toCrunStream.Send(reply); err != nil {
 					log.Debugf("[Cfored<->Crun][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
-					state = CancelTaskOfDeadCrun
+					state = CancelJobOfDeadCrun
 					break
 				}
 
 				if Ok {
 					state = CrunWaitCtldAllocRes
 				} else {
-					// Crun task req failed
+					// Crun job req failed
 					// channel was already removed from gVars.ctldReplyChannelMapByPid
-					log.Infof("[Cfored<->Crun][Pid #%d] Task request failed", crunPid)
+					log.Infof("[Cfored<->Crun][Pid #%d] Job request failed", crunPid)
 					break CforedCrunStateMachineLoop
 				}
 
@@ -356,23 +356,23 @@ CforedCrunStateMachineLoop:
 				crunRequest, err := item.message, item.err
 				if err != nil {
 					log.Debugf("[Crun->Cfored][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
-					state = CancelTaskOfDeadCrun
+					state = CancelJobOfDeadCrun
 					break
 				}
 
 				if crunRequest != nil || err == nil {
-					if crunRequest.Type != protos.StreamCrunRequest_TASK_COMPLETION_REQUEST {
-						log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect TaskCompletionRequest here!", jobId, stepId)
+					if crunRequest.Type != protos.StreamCrunRequest_JOB_COMPLETION_REQUEST {
+						log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JobCompletionRequest here!", jobId, stepId)
 					} else {
-						log.Debugf("[Crun->Cfored][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
+						log.Debugf("[Crun->Cfored][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
 						toCtldRequest := &protos.StreamCforedRequest{
-							Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
-							Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
-								PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+							Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+							Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+								PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
 									CforedName:      gVars.hostName,
 									JobId:           jobId,
 									StepId:          stepId,
-									InteractiveType: protos.InteractiveTaskType_Crun,
+									InteractiveType: protos.InteractiveJobType_Crun,
 								},
 							},
 						}
@@ -383,12 +383,12 @@ CforedCrunStateMachineLoop:
 
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
-				case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
-					ctldPayload := ctldReply.GetPayloadTaskResAllocReply()
+				case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
+					ctldPayload := ctldReply.GetPayloadJobResAllocReply()
 					reply = &protos.StreamCrunReply{
-						Type: protos.StreamCrunReply_TASK_RES_ALLOC_REPLY,
-						Payload: &protos.StreamCrunReply_PayloadTaskAllocReply{
-							PayloadTaskAllocReply: &protos.StreamCrunReply_TaskResAllocatedReply{
+						Type: protos.StreamCrunReply_JOB_RES_ALLOC_REPLY,
+						Payload: &protos.StreamCrunReply_PayloadJobAllocReply{
+							PayloadJobAllocReply: &protos.StreamCrunReply_JobResAllocatedReply{
 								Ok:                   ctldPayload.Ok,
 								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
 								CranedIds:            ctldPayload.CranedIds,
@@ -403,23 +403,23 @@ CforedCrunStateMachineLoop:
 					} else {
 						execCranedIds = ctldPayload.GetCranedIds()
 					}
-					log.Tracef("[Ctld->Cfored->Crun][Step #%d.%d] Receive TaskResAllocReply with node %v",
+					log.Tracef("[Ctld->Cfored->Crun][Step #%d.%d] Receive JobResAllocReply with node %v",
 						jobId, stepId, execCranedIds)
 
 					if err := toCrunStream.Send(reply); err != nil {
 						log.Debug("[Cfored->Crun] Connection to crun was broken.")
-						state = CancelTaskOfDeadCrun
+						state = CancelJobOfDeadCrun
 					} else {
 						state = CrunWaitIOForward
 					}
 
-				case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
-					log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive TaskCancelRequest", jobId, stepId)
-					state = CrunWaitTaskCancel
+				case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
+					log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive JobCancelRequest", jobId, stepId)
+					state = CrunWaitJobCancel
 
 				default:
 					log.Fatalf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type "+
-						"TASK_RES_ALLOC_REPLY or TASK_CANCEL_REQUEST but got %s", jobId, stepId, ctldReply.Type)
+						"JOB_RES_ALLOC_REPLY or JOB_CANCEL_REQUEST but got %s", jobId, stepId, ctldReply.Type)
 				}
 			}
 
@@ -433,12 +433,12 @@ CforedCrunStateMachineLoop:
 
 			select {
 			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_TASK_CANCEL_REQUEST {
-					log.Fatalf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type TASK_CANCEL_REQUEST but got %s, ignored",
+				if ctldReply.Type != protos.StreamCtldReply_JOB_CANCEL_REQUEST {
+					log.Fatalf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type JOB_CANCEL_REQUEST but got %s, ignored",
 						jobId, stepId, ctldReply.Type)
 				} else {
-					log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive TaskCancelRequest", jobId, stepId)
-					state = CrunWaitTaskCancel
+					log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive JobCancelRequest", jobId, stepId)
+					state = CrunWaitJobCancel
 				}
 				stopWaiting.Store(true)
 
@@ -451,24 +451,24 @@ CforedCrunStateMachineLoop:
 					default:
 						log.Debugf("[Crun->Cfored][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
 						stopWaiting.Store(true)
-						state = CancelTaskOfDeadCrun
+						state = CancelJobOfDeadCrun
 					}
 					break
 				}
 
-				if crunRequest.Type != protos.StreamCrunRequest_TASK_COMPLETION_REQUEST {
-					log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect TASK_COMPLETION_REQUEST.", jobId, stepId)
+				if crunRequest.Type != protos.StreamCrunRequest_JOB_COMPLETION_REQUEST {
+					log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST.", jobId, stepId)
 				}
 
-				log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
+				log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
 				toCtldRequest := &protos.StreamCforedRequest{
-					Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
-					Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
-						PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+					Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+					Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+						PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
 							CforedName:      gVars.hostName,
 							JobId:           jobId,
 							StepId:          stepId,
-							InteractiveType: protos.InteractiveTaskType_Crun,
+							InteractiveType: protos.InteractiveJobType_Crun,
 						},
 					},
 				}
@@ -490,24 +490,24 @@ CforedCrunStateMachineLoop:
 				if err := toCrunStream.Send(reply); err != nil {
 					log.Debugf("[Cfored<->Crun][Step #%d.%d] Failed to send TASK_IO_FORWARD_READY to crun: %s. "+
 						"The connection to crun was broken.", jobId, stepId, err.Error())
-					state = CancelTaskOfDeadCrun
+					state = CancelJobOfDeadCrun
 				} else {
-					state = CrunWaitTaskComplete
+					state = CrunWaitJobComplete
 				}
 			}
 
-		case CrunWaitTaskComplete:
-			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State CRUN_WAIT_TASK_COMPLETE", jobId, stepId)
+		case CrunWaitJobComplete:
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State CRUN_WAIT_JOB_COMPLETE", jobId, stepId)
 		forwarding:
 			for {
 				select {
 				case ctldReply := <-ctldReplyChannel:
-					if ctldReply.Type != protos.StreamCtldReply_TASK_CANCEL_REQUEST {
-						log.Warningf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type TASK_CANCEL_REQUEST but got %s, ignored",
+					if ctldReply.Type != protos.StreamCtldReply_JOB_CANCEL_REQUEST {
+						log.Warningf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type JOB_CANCEL_REQUEST but got %s, ignored",
 							jobId, stepId, ctldReply.Type)
 					} else {
-						log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive TaskCancelRequest", jobId, stepId)
-						state = CrunWaitTaskCancel
+						log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive JobCancelRequest", jobId, stepId)
+						state = CrunWaitJobCancel
 						break forwarding
 					}
 
@@ -519,14 +519,14 @@ CforedCrunStateMachineLoop:
 							fallthrough
 						default:
 							log.Debugf("[Crun->Cfored][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
-							state = CancelTaskOfDeadCrun
+							state = CancelJobOfDeadCrun
 							break forwarding
 						}
 					} else {
 						switch crunRequest.Type {
 						case protos.StreamCrunRequest_TASK_IO_FORWARD:
 							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
-								" task, msg size[%d], EOF [%v]", jobId, stepId,
+								" job, msg size[%d], EOF [%v]", jobId, stepId,
 								len(crunRequest.GetPayloadTaskIoForwardReq().GetMsg()),
 								crunRequest.GetPayloadTaskIoForwardReq().Eof)
 							gSupervisorChanKeeper.forwardCrunRequestToSupervisor(jobId, stepId, crunRequest)
@@ -538,16 +538,16 @@ CforedCrunStateMachineLoop:
 								jobId, stepId, payload.GetLocalId(), payload.GetCranedId())
 							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
 
-						case protos.StreamCrunRequest_TASK_COMPLETION_REQUEST:
-							log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
+						case protos.StreamCrunRequest_JOB_COMPLETION_REQUEST:
+							log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
 							toCtldRequest := &protos.StreamCforedRequest{
-								Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
-								Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
-									PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+								Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+								Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+									PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
 										CforedName:      gVars.hostName,
 										JobId:           jobId,
 										StepId:          stepId,
-										InteractiveType: protos.InteractiveTaskType_Crun,
+										InteractiveType: protos.InteractiveJobType_Crun,
 									},
 								},
 							}
@@ -555,50 +555,50 @@ CforedCrunStateMachineLoop:
 							state = CrunWaitCtldAck
 							break forwarding
 						default:
-							log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect TASK_COMPLETION_REQUEST or TASK_IO_FORWARD",
+							log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST or TASK_IO_FORWARD",
 								jobId, stepId)
 							break forwarding
 						}
 					}
 
-				case taskMsg := <-TaskIoRequestChannel:
-					if taskMsg == nil {
-						log.Errorf("[Supervisor->Cfored->Crun][Step #%d.%d] One of Craneds [%v] down. Cancelling the task...",
+				case jobMsg := <-JobIoRequestChannel:
+					if jobMsg == nil {
+						log.Errorf("[Supervisor->Cfored->Crun][Step #%d.%d] One of Craneds [%v] down. Cancelling the job...",
 							jobId, stepId, execCranedIds)
 						// IO Channel from Craned was shut down unexpectedly.
-						state = CrunWaitTaskCancel
+						state = CrunWaitJobCancel
 						break forwarding
 					}
 
-					err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply)
+					err := HandleSupervisorRequest(jobId, stepId, jobMsg, &reply)
 					if err != nil {
 						break forwarding
 					}
 
 					if err = toCrunStream.Send(reply); err != nil {
 						log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send %s to crun: %s. "+
-							"The connection to crun was broken.", jobId, stepId, taskMsg.Type.String(), err.Error())
-						state = CancelTaskOfDeadCrun
+							"The connection to crun was broken.", jobId, stepId, jobMsg.Type.String(), err.Error())
+						state = CancelJobOfDeadCrun
 						break forwarding
 					}
 				}
 			}
 
-		case CrunWaitTaskCancel:
-			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CRUN_CANCEL. Sending TASK_CANCEL_REQUEST to Crun...",
+		case CrunWaitJobCancel:
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CRUN_CANCEL. Sending JOB_CANCEL_REQUEST to Crun...",
 				jobId, stepId)
 
 			reply = &protos.StreamCrunReply{
-				Type: protos.StreamCrunReply_TASK_CANCEL_REQUEST,
-				Payload: &protos.StreamCrunReply_PayloadTaskCancelRequest{
-					PayloadTaskCancelRequest: &protos.StreamCrunReply_TaskCancelRequest{},
+				Type: protos.StreamCrunReply_JOB_CANCEL_REQUEST,
+				Payload: &protos.StreamCrunReply_PayloadJobCancelRequest{
+					PayloadJobCancelRequest: &protos.StreamCrunReply_JobCancelRequest{},
 				},
 			}
 
 			if err := toCrunStream.Send(reply); err != nil {
 				log.Debugf("[Cfored->Crun][Step #%d.%d]  Failed to send CancelRequest to crun: %s. "+
 					"The connection to crun was broken.", jobId, stepId, err.Error())
-				state = CancelTaskOfDeadCrun
+				state = CancelJobOfDeadCrun
 				break
 			}
 
@@ -608,8 +608,8 @@ CforedCrunStateMachineLoop:
 				select {
 				//If we don't process the Task IO from supervisor here, it may block the TaskIO server forever dur to channel full,
 				// And supervisor unregister msg will not be processed, causing supervisor blocked.
-				case taskMsg := <-TaskIoRequestChannel:
-					if taskMsg == nil {
+				case jobMsg := <-JobIoRequestChannel:
+					if jobMsg == nil {
 						log.Errorf("[Supervisor->Cfored->Crun][Step #%d.%d] One of Craneds [%v] down during cancellation, ignored. ",
 							jobId, stepId, execCranedIds)
 						// IO Channel from Craned was shut down unexpectedly.
@@ -617,12 +617,12 @@ CforedCrunStateMachineLoop:
 					}
 
 					// During cancellation, just forward the IO messages from supervisor to crun, ignore errors
-					err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply)
+					err := HandleSupervisorRequest(jobId, stepId, jobMsg, &reply)
 
 					if err = toCrunStream.Send(reply); err != nil {
 						log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send %s to crun: %s. "+
-							"The connection to crun was broken.", jobId, stepId, taskMsg.Type.String(), err.Error())
-						state = CancelTaskOfDeadCrun
+							"The connection to crun was broken.", jobId, stepId, jobMsg.Type.String(), err.Error())
+						state = CancelJobOfDeadCrun
 						break waitingCompleteReq
 					}
 				case item := <-crunRequestChannel:
@@ -633,16 +633,16 @@ CforedCrunStateMachineLoop:
 							fallthrough
 						default:
 							log.Debugf("[Cfored<->Crun][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
-							state = CancelTaskOfDeadCrun
+							state = CancelJobOfDeadCrun
 							crunErr = true
 						}
 						break waitingCompleteReq
 					}
-					if crunRequest.Type != protos.StreamCrunRequest_TASK_COMPLETION_REQUEST {
-						log.Warningf("[Crun->Cfored][Step #%d.%d] Expect TASK_COMPLETION_REQUEST but %s received. Ignoring it...",
+					if crunRequest.Type != protos.StreamCrunRequest_JOB_COMPLETION_REQUEST {
+						log.Warningf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST but %s received. Ignoring it...",
 							jobId, stepId, crunRequest.Type)
 					} else {
-						log.Tracef("[Crun->Cfored][Step #%d.%d] TASK_COMPLETION_REQUEST received",
+						log.Tracef("[Crun->Cfored][Step #%d.%d] JOB_COMPLETION_REQUEST received",
 							jobId, stepId)
 						break waitingCompleteReq
 					}
@@ -652,16 +652,16 @@ CforedCrunStateMachineLoop:
 			if crunErr {
 				break
 			}
-			log.Debugf("[Crun->Cfored][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
+			log.Debugf("[Crun->Cfored][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
 
 			toCtldRequest := &protos.StreamCforedRequest{
-				Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
-				Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
-					PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+				Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+				Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+					PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
 						CforedName:      gVars.hostName,
 						JobId:           jobId,
 						StepId:          stepId,
-						InteractiveType: protos.InteractiveTaskType_Crun,
+						InteractiveType: protos.InteractiveJobType_Crun,
 					},
 				},
 			}
@@ -678,8 +678,8 @@ CforedCrunStateMachineLoop:
 				select {
 				//If we don't process the Task IO from supervisor here, it may block the TaskIO server forever dur to channel full,
 				// And supervisor unregister msg will not be processed, causing supervisor blocked.
-				case taskMsg := <-TaskIoRequestChannel:
-					if taskMsg == nil {
+				case jobMsg := <-JobIoRequestChannel:
+					if jobMsg == nil {
 						log.Errorf("[Supervisor->Cfored->Crun][Step #%d.%d] One of Craneds [%v] down during cancellation, ignored. ",
 							jobId, stepId, execCranedIds)
 						// IO Channel from Craned was shut down unexpectedly.
@@ -687,29 +687,29 @@ CforedCrunStateMachineLoop:
 					}
 
 					// During cancellation, just forward the IO messages from supervisor to crun, ignore errors
-					err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply)
+					err := HandleSupervisorRequest(jobId, stepId, jobMsg, &reply)
 
 					if err = toCrunStream.Send(reply); err != nil {
 						log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send %s to crun: %s. "+
-							"The connection to crun was broken.", jobId, stepId, taskMsg.Type.String(), err.Error())
+							"The connection to crun was broken.", jobId, stepId, jobMsg.Type.String(), err.Error())
 						gotReply = false
 						break waitingAck
 					}
 
 				case ctldReply := <-ctldReplyChannel:
-					if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-						log.Warningf("[Ctld->Cfored->Crun][Step #%d.%d]  Expect TASK_COMPLETION_ACK_REPLY, "+
+					if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+						log.Warningf("[Ctld->Cfored->Crun][Step #%d.%d]  Expect JOB_COMPLETION_ACK_REPLY, "+
 							"but %s received. Ignoring it...", jobId, stepId, ctldReply.Type)
 						break
 					} else {
-						log.Tracef("[Ctld->Cfored->Crun][Step #%d.%d]  TASK_COMPLETION_ACK_REPLY received",
+						log.Tracef("[Ctld->Cfored->Crun][Step #%d.%d]  JOB_COMPLETION_ACK_REPLY received",
 							jobId, stepId)
 					}
 
 					reply = &protos.StreamCrunReply{
-						Type: protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY,
-						Payload: &protos.StreamCrunReply_PayloadTaskCompletionAckReply{
-							PayloadTaskCompletionAckReply: &protos.StreamCrunReply_TaskCompletionAckReply{
+						Type: protos.StreamCrunReply_JOB_COMPLETION_ACK_REPLY,
+						Payload: &protos.StreamCrunReply_PayloadJobCompletionAckReply{
+							PayloadJobCompletionAckReply: &protos.StreamCrunReply_JobCompletionAckReply{
 								Ok: true,
 							},
 						},
@@ -721,13 +721,13 @@ CforedCrunStateMachineLoop:
 			gVars.ctldReplyChannelMapMtx.Lock()
 			delete(gVars.ctldReplyChannelMapByStep, step)
 			gVars.ctldReplyChannelMapMtx.Unlock()
-			gSupervisorChanKeeper.crunTaskStopAndRemoveChannel(jobId, stepId)
+			gSupervisorChanKeeper.crunJobStopAndRemoveChannel(jobId, stepId)
 			if gotReply {
 				if err := toCrunStream.Send(reply); err != nil {
 					log.Errorf("[Cfored->Crun][Step #%d.%d] Failed to send CompletionAck to crun: %s. "+
 						"The connection to crun was broken.", jobId, stepId, err.Error())
 				} else {
-					log.Debugf("[Cfored->Crun][Step #%d.%d] TASK_COMPLETION_ACK_REPLY sent to Crun", jobId, stepId)
+					log.Debugf("[Cfored->Crun][Step #%d.%d] JOB_COMPLETION_ACK_REPLY sent to Crun", jobId, stepId)
 				}
 			} else {
 				log.Debugf("[Cfored->Crun][Step #%d.%d] No need to send CompletionAck to crun as crun already down.", jobId, stepId)
@@ -736,17 +736,17 @@ CforedCrunStateMachineLoop:
 
 			break CforedCrunStateMachineLoop
 
-		case CancelTaskOfDeadCrun:
-			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State CANCEL_TASK_OF_DEAD_CRUN", jobId, stepId)
+		case CancelJobOfDeadCrun:
+			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State CANCEL_JOB_OF_DEAD_CRUN", jobId, stepId)
 
 			toCtldRequest := &protos.StreamCforedRequest{
-				Type: protos.StreamCforedRequest_TASK_COMPLETION_REQUEST,
-				Payload: &protos.StreamCforedRequest_PayloadTaskCompleteReq{
-					PayloadTaskCompleteReq: &protos.StreamCforedRequest_TaskCompleteReq{
+				Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+				Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+					PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
 						CforedName:      gVars.hostName,
 						JobId:           jobId,
 						StepId:          stepId,
-						InteractiveType: protos.InteractiveTaskType_Crun,
+						InteractiveType: protos.InteractiveJobType_Crun,
 					},
 				},
 			}
@@ -754,8 +754,8 @@ CforedCrunStateMachineLoop:
 
 			for {
 				ctldReply := <-ctldReplyChannel
-				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-					log.Tracef("[Cfored<->Crun] Expect TASK_COMPLETION_ACK_REPLY from Ctld, "+
+				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+					log.Tracef("[Cfored<->Crun] Expect JOB_COMPLETION_ACK_REPLY from Ctld, "+
 						"but %s received. Just ignore it...", ctldReply.Type.String())
 				} else {
 					break
@@ -770,9 +770,9 @@ CforedCrunStateMachineLoop:
 				delete(gVars.pidStepMap, crunPid)
 				gVars.pidStepMapMtx.Unlock()
 
-				gSupervisorChanKeeper.crunTaskStopAndRemoveChannel(jobId, stepId)
+				gSupervisorChanKeeper.crunJobStopAndRemoveChannel(jobId, stepId)
 			} else {
-				log.Fatal("Task id should not equal MaxUint32 in CancelTaskOfDeadCrun")
+				log.Fatal("Job id should not equal MaxUint32 in CancelJobOfDeadCrun")
 			}
 			gVars.ctldReplyChannelMapMtx.Unlock()
 

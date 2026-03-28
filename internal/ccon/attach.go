@@ -61,7 +61,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if the step is in a state that allows attaching
-	if step.Status != protos.TaskStatus_Running {
+	if step.Status != protos.JobStatus_Running {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot attach to container %d.%d in state: %s", jobID, stepID, step.Status.String()))
 	}
 
@@ -87,7 +87,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.AttachContainerStep(context.Background(), attachReq)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to attach to container task")
+		util.GrpcErrorPrintf(err, "Failed to attach to container job")
 		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 

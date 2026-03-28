@@ -194,7 +194,7 @@ func sacctmgr() *cobra.Command {
 						case "maxcpupu", "maxcpuperuser":
 							key = "maxcpusperuser"
 						case "maxwall", "maxwalldurationperjob":
-							key = "maxtimelimitpertask"
+							key = "maxtimelimitperjob"
 						case "maxsubmitjobsperuser":
 							key = "maxjobsperuser"
 						}
@@ -427,7 +427,7 @@ func scontrol() *cobra.Command {
 				}
 				convertedArgs = append([]string{"update", secondSubCmd}, convertedArgs...)
 			case "hold":
-				concatedTaskIds := ""
+				concatedJobIds := ""
 				for i := 0; i < len(convertedArgs); i++ {
 					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
 						// If not "job" or "jobid", it should be a job id list
@@ -437,12 +437,12 @@ func scontrol() *cobra.Command {
 							log.Errorf("Invalid job list specified: %v.\n", err)
 							os.Exit(util.ErrorCmdArg)
 						}
-						concatedTaskIds += "," + convertedArgs[i]
+						concatedJobIds += "," + convertedArgs[i]
 					}
 				}
-				convertedArgs = append([]string{"hold"}, strings.Trim(concatedTaskIds, ","))
+				convertedArgs = append([]string{"hold"}, strings.Trim(concatedJobIds, ","))
 			case "release":
-				concatedTaskIds := ""
+				concatedJobIds := ""
 				for i := 0; i < len(convertedArgs); i++ {
 					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
 						// If not "job" or "jobid", it should be a job id list
@@ -452,10 +452,10 @@ func scontrol() *cobra.Command {
 							log.Errorf("Invalid job list specified: %v.\n", err)
 							os.Exit(util.ErrorCmdArg)
 						}
-						concatedTaskIds += "," + convertedArgs[i]
+						concatedJobIds += "," + convertedArgs[i]
 					}
 				}
-				convertedArgs = append([]string{"release"}, strings.Trim(concatedTaskIds, ","))
+				convertedArgs = append([]string{"release"}, strings.Trim(concatedJobIds, ","))
 			default:
 				// If no subcommand is found, just fall back to ccontrol.
 				log.Debug("Unknown subcommand: ", firstSubCmd)
@@ -615,30 +615,30 @@ Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum w
 	return cmd
 }
 
-func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.ExitCode {
+func squeueQueryTableOutput(reply *protos.QueryJobsInfoReply) util.ExitCode {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	header := []string{"JOBID", "PARTITION", "NAME", "USER",
 		"ST", "TIME", "NODES", "NODELIST(REASON)"}
-	tableData := make([][]string, len(reply.TaskInfoList))
+	tableData := make([][]string, len(reply.JobInfoList))
 	i := 0
-	for _, jobInfo := range reply.TaskInfoList {
+	for _, jobInfo := range reply.JobInfoList {
 		var timeElapsedStr string
-		if jobInfo.Status == protos.TaskStatus_Running {
+		if jobInfo.Status == protos.JobStatus_Running {
 			timeElapsedStr = util.SecondTimeFormat(jobInfo.ElapsedTime.Seconds)
 		} else {
 			timeElapsedStr = "-"
 		}
 
 		var reasonOrListStr string
-		if jobInfo.Status == protos.TaskStatus_Pending {
+		if jobInfo.Status == protos.JobStatus_Pending {
 			reasonOrListStr = jobInfo.GetPendingReason()
 		} else {
 			reasonOrListStr = jobInfo.GetCranedList()
 		}
 
 		tableData[i] = []string{
-			strconv.FormatUint(uint64(jobInfo.TaskId), 10),
+			strconv.FormatUint(uint64(jobInfo.JobId), 10),
 			jobInfo.Partition,
 			jobInfo.Name,
 			jobInfo.Username,
@@ -654,7 +654,7 @@ func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.ExitCode {
 	if cqueue.FlagStartTime {
 		header = append(header, "StartTime")
 		i = 0
-		for _, jobInfo := range reply.TaskInfoList {
+		for _, jobInfo := range reply.JobInfoList {
 			startTime := jobInfo.StartTime
 			if startTime.Seconds != 0 {
 				tableData[i] = append(tableData[i],
@@ -669,7 +669,7 @@ func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.ExitCode {
 	if cqueue.FlagFilterQos != "" {
 		header = append(header, "QoS")
 		i = 0
-		for _, jobInfo := range reply.TaskInfoList {
+		for _, jobInfo := range reply.JobInfoList {
 			tableData[i] = append(tableData[i], jobInfo.Qos)
 			i += 1
 		}
@@ -685,7 +685,7 @@ func squeueQueryTableOutput(reply *protos.QueryTasksInfoReply) util.ExitCode {
 }
 
 func squeueQuery() util.ExitCode {
-	reply, err := cqueue.QueryTasksInfo()
+	reply, err := cqueue.QueryJobsInfo()
 	if err != nil {
 		var craneErr *util.CraneError
 		if errors.As(err, &craneErr) {

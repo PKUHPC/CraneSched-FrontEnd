@@ -55,7 +55,7 @@ var (
 			} else {
 				jobIds = args[0]
 			}
-			return QueryTasksInfoByIds(jobIds)
+			return QueryJobsInfoByIds(jobIds)
 		},
 	}
 )

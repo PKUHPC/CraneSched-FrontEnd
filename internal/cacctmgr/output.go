@@ -773,14 +773,14 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 				formatTableData[currentRow] = append(formatTableData[currentRow], qosFlagStr)
 				currentRow++
 			}
-		case "maxtimelimitpertask":
-			tableOutputHeader[i] = "MaxTimeLimitPerTask"
+		case "maxtimelimitperjob":
+			tableOutputHeader[i] = "MaxTimeLimitPerJob"
 			for _, info := range qosList {
 				var timeLimitStr string
-				if info.MaxTimeLimitPerTask >= util.MaxJobTimeLimit {
+				if info.MaxTimeLimitPerJob >= util.MaxJobTimeLimit {
 					timeLimitStr = "unlimited"
 				} else {
-					timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))
+					timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerJob))
 				}
 				formatTableData[currentRow] = append(formatTableData[currentRow], fmt.Sprint(timeLimitStr))
 				currentRow++
@@ -796,14 +796,14 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser",
 		"MaxJobsPerAccount", "MaxSubmitJobsPerUser", "MaxSubmitJobsPerAccount", "MaxTresPerUser", "MaxTresPerAccount",
-		"MaxTres", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxTimeLimitPerTask", "Flags"}
+		"MaxTres", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxTimeLimitPerJob", "Flags"}
 	tableCtx.tableData = make([][]string, 0, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
-		if info.MaxTimeLimitPerTask >= util.MaxJobTimeLimit {
+		if info.MaxTimeLimitPerJob >= util.MaxJobTimeLimit {
 			timeLimitStr = "unlimited"
 		} else {
-			timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerTask))
+			timeLimitStr = util.SecondTimeFormat(int64(info.MaxTimeLimitPerJob))
 		}
 		var jobsPerUserStr string
 		if info.MaxJobsPerUser == math.MaxUint32 {
