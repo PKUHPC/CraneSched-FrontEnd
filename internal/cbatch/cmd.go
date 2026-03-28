@@ -151,7 +151,7 @@ func init() {
 		util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, "Number of nodes requested")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
-	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per job,format: \"gpu:a100:1\" or \"gpu:1\"")
+	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per node,format: \"gpu:a100:1\" or \"gpu:1\"")
 	RootCmd.Flags().Uint32VarP(&FlagNtasks, "ntasks", "n", 0, "Total number of tasks")
 	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Maximum number of tasks per node (default: unlimited)")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
