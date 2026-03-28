@@ -33,7 +33,7 @@ const (
 )
 
 type waitStepStatus struct {
-	StepId uint32            `json:"step_id"`
+	StepId uint32           `json:"step_id"`
 	Status protos.JobStatus `json:"status"`
 }
 

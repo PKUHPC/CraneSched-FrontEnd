@@ -52,23 +52,23 @@ type ResourceUsageRecord struct {
 }
 
 type CeffJobInfo struct {
-	JobID              uint32            `json:"job_id"`
-	QoS                string            `json:"qos"`
-	UID                uint32            `json:"uid"`
-	UserName           string            `json:"user_name"`
-	GID                uint32            `json:"gid"`
-	GroupName          string            `json:"group_name"`
-	Account            string            `json:"account"`
+	JobID              uint32           `json:"job_id"`
+	QoS                string           `json:"qos"`
+	UID                uint32           `json:"uid"`
+	UserName           string           `json:"user_name"`
+	GID                uint32           `json:"gid"`
+	GroupName          string           `json:"group_name"`
+	Account            string           `json:"account"`
 	JobState           protos.JobStatus `json:"job_state"`
-	Nodes              uint32            `json:"nodes"`
-	CoresPerNode       float64           `json:"cores_per_node"`
-	CPUUtilizedStr     string            `json:"cpu_utilized_str"`
-	CPUEfficiency      float64           `json:"cpu_efficiency"`
-	RunTimeStr         string            `json:"run_time_str"`
-	TotalMemMB         float64           `json:"total_mem_mb"`
-	MemEfficiency      float64           `json:"mem_efficiency"`
-	TotalMallocMemMB   float64           `json:"total_malloc_mem_mb"`
-	MallocMemMBPerNode float64           `json:"malloc_mem_mb_per_node"`
+	Nodes              uint32           `json:"nodes"`
+	CoresPerNode       float64          `json:"cores_per_node"`
+	CPUUtilizedStr     string           `json:"cpu_utilized_str"`
+	CPUEfficiency      float64          `json:"cpu_efficiency"`
+	RunTimeStr         string           `json:"run_time_str"`
+	TotalMemMB         float64          `json:"total_mem_mb"`
+	MemEfficiency      float64          `json:"mem_efficiency"`
+	TotalMallocMemMB   float64          `json:"total_malloc_mem_mb"`
+	MallocMemMBPerNode float64          `json:"malloc_mem_mb_per_node"`
 }
 
 var isFirstCall = true //Used for multi-job print
@@ -147,8 +147,8 @@ func QueryEfficiencyDataViaPlugind(jobIds []uint32) ([]*ResourceUsageRecord, err
 
 	// Request efficiency data from cplugind
 	req := &protos.QueryJobEfficiencyRequest{
-		JobIds:  jobIds,
-		Uid:     uint32(uid),
+		JobIds: jobIds,
+		Uid:    uint32(uid),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -167,7 +167,7 @@ func QueryEfficiencyDataViaPlugind(jobIds []uint32) ([]*ResourceUsageRecord, err
 	var records []*ResourceUsageRecord
 	for _, effData := range reply.EfficiencyData {
 		record := &ResourceUsageRecord{
-			JobID:      int64(effData.JobId),
+			JobID:       int64(effData.JobId),
 			CPUUsage:    effData.CpuUsage,
 			MemoryUsage: effData.MemoryUsage,
 			ProcCount:   effData.ProcCount,
@@ -415,7 +415,7 @@ func QueryJobsInfoByIds(jobIds string) error {
 	}
 
 	req := &protos.QueryJobsInfoRequest{
-		FilterIds:                   stepIdList,
+		FilterIds:                  stepIdList,
 		OptionIncludeCompletedJobs: true,
 	}
 

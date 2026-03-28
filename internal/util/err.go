@@ -165,7 +165,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_SET_DEFAULT_QOS:                 "The Qos not allowed or is already the default qos",
 	protos.ErrCode_ERR_DEFAULT_QOS_MODIFICATION_DENIED: "The QoS is the default QoS for the current user/Account and cannot be modified. Ignoring this constraint with forced operation, the default QoS is randomly replaced with one of the items in the new QoS list",
 	protos.ErrCode_ERR_QOS_JOB_COUNT_EXCEEDED:          "The number of jobs has reached the limit of this QOS",
-	protos.ErrCode_ERR_TRES_PER_JOB_BEYOND:            "The tres of jobs has reached the limit of this QOS",
+	protos.ErrCode_ERR_TRES_PER_JOB_BEYOND:             "The tres of jobs has reached the limit of this QOS",
 	protos.ErrCode_ERR_MAX_TRES_PER_USER_BEYOND:        "The tres of jobs for the current user has reached the limit of this QOS",
 	protos.ErrCode_ERR_MAX_TRES_PER_ACCOUNT_BEYOND:     "The tres of jobs for the current account has reached the limit of this QOS",
 
@@ -183,7 +183,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_TIME_TIMIT_BEYOND:         "Time-limit reached the user's limit",
 	protos.ErrCode_ERR_CPUS_PER_TASK_BEYOND:      "cpus-per-task reached the user's limit",
 	protos.ErrCode_ERR_NO_ENOUGH_NODE:            "Nodes num not enough for job",
-	protos.ErrCode_ERR_BEYOND_JOB_ID:            "The number of pending jobs exceeded maximum value",
+	protos.ErrCode_ERR_BEYOND_JOB_ID:             "The number of pending jobs exceeded maximum value",
 	protos.ErrCode_ERR_CGROUP:                    "Error when manipulating cgroup",
 	protos.ErrCode_ERR_SYSTEM_ERR:                "Linux Error",
 	protos.ErrCode_ERR_RPC_FAILURE:               "RPC call failed",
@@ -221,7 +221,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_DB_INSERT_FAILED:          "Database insertion failed due to internal error",
 	protos.ErrCode_ERR_LUA_FAILED:                "Lua script validation failed",
 	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_ACCOUNT: "The number of jobs for the current account has reached its limit",
-	protos.ErrCode_ERR_USER_HAS_JOB:             "The user has jobs pending or running, cannot be deleted",
+	protos.ErrCode_ERR_USER_HAS_JOB:              "The user has jobs pending or running, cannot be deleted",
 	protos.ErrCode_ERR_INVALID_RESOURCE:          "Invalid resource specification for the partition",
 }
 

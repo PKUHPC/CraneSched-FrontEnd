@@ -130,7 +130,7 @@ func (s *QueryService) getJobInformation(ctx context.Context, jobIds []uint32) (
 	}
 
 	req := &protos.QueryJobsInfoRequest{
-		FilterIds:                   stepIds,
+		FilterIds:                  stepIds,
 		OptionIncludeCompletedJobs: true,
 	}
 
@@ -235,7 +235,7 @@ from(bucket: "%s")
 		key := fmt.Sprintf("%d:%s", jobID, hostname)
 		if _, exists := dataMap[key]; !exists {
 			dataMap[key] = &protos.JobEfficiencyInfo{
-				JobId:    uint32(jobID),
+				JobId:     uint32(jobID),
 				Hostname:  hostname,
 				Timestamp: timestamppb.New(record.Time()),
 			}

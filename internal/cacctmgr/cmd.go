@@ -34,8 +34,8 @@ var (
 	FlagAccount protos.AccountInfo
 	FlagUser    protos.UserInfo
 	FlagQos     = protos.QosInfo{
-		MaxJobsPerUser:      math.MaxUint32,
-		MaxCpusPerUser:      math.MaxUint32,
+		MaxJobsPerUser:     math.MaxUint32,
+		MaxCpusPerUser:     math.MaxUint32,
 		MaxTimeLimitPerJob: util.MaxJobTimeLimit,
 	}
 	FlagWckey protos.WckeyInfo
@@ -250,7 +250,7 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 		MaxJobs:                 math.MaxUint32,
 		MaxSubmitJobs:           math.MaxUint32,
 		MaxWall:                 0,
-		MaxTimeLimitPerJob:     util.MaxJobTimeLimit,
+		MaxTimeLimitPerJob:      util.MaxJobTimeLimit,
 		Flags:                   util.QosFlagNone,
 	}
 	FlagQos.Name = command.GetID()

@@ -53,7 +53,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	// First, query the job to verify it's a container job
 	queryReq := &protos.QueryJobsInfoRequest{
-		FilterIds:       idFilter,
+		FilterIds:      idFilter,
 		FilterJobTypes: []protos.JobType{protos.JobType_Container},
 	}
 

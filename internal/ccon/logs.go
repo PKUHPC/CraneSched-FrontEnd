@@ -59,7 +59,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	idFilter := map[uint32]*protos.JobStepIds{}
 	idFilter[uint32(jobID)] = &protos.JobStepIds{Steps: []uint32{uint32(stepID)}}
 	request := protos.QueryJobsInfoRequest{
-		FilterIds:                   idFilter,
+		FilterIds:                  idFilter,
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: true,
 	}

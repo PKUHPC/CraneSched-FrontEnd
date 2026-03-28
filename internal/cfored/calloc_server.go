@@ -16,10 +16,10 @@ type StateOfCallocServer int
 const (
 	WaitJobIdAllocReq     StateOfCallocServer = 0
 	WaitCtldAllocJobId    StateOfCallocServer = 1
-	WaitCtldAllocRes       StateOfCallocServer = 2
-	WaitCallocComplete     StateOfCallocServer = 3
-	WaitCallocCancel       StateOfCallocServer = 4
-	WaitCtldAck            StateOfCallocServer = 5
+	WaitCtldAllocRes      StateOfCallocServer = 2
+	WaitCallocComplete    StateOfCallocServer = 3
+	WaitCallocCancel      StateOfCallocServer = 4
+	WaitCtldAck           StateOfCallocServer = 5
 	CancelJobOfDeadCalloc StateOfCallocServer = 6
 )
 

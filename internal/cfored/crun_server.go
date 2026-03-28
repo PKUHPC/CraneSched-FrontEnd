@@ -36,11 +36,11 @@ type StateOfCrunServer int
 const (
 	CrunWaitJobIdAllocReq  StateOfCrunServer = 0
 	CrunWaitCtldAllocJobId StateOfCrunServer = 1
-	CrunWaitCtldAllocRes    StateOfCrunServer = 2
-	CrunWaitIOForward       StateOfCrunServer = 3
+	CrunWaitCtldAllocRes   StateOfCrunServer = 2
+	CrunWaitIOForward      StateOfCrunServer = 3
 	CrunWaitJobComplete    StateOfCrunServer = 4
 	CrunWaitJobCancel      StateOfCrunServer = 5
-	CrunWaitCtldAck         StateOfCrunServer = 6
+	CrunWaitCtldAck        StateOfCrunServer = 6
 	CancelJobOfDeadCrun    StateOfCrunServer = 7
 )
 

@@ -41,7 +41,7 @@ var (
 	FlagFilterStates     string
 	FlagFilterUsers      string
 	FlagFilterAccounts   string
-	FlagFilterJobTypes  string
+	FlagFilterJobTypes   string
 	FlagFilterLicenses   string
 	FlagFormat           string
 	FlagFilterNodeNames  string

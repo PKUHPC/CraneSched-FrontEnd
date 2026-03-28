@@ -49,7 +49,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	request := protos.QueryJobsInfoRequest{
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: f.Ps.All,
-		FilterUsers:                 filterUsers,
+		FilterUsers:                filterUsers,
 	}
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
@@ -174,7 +174,7 @@ func podExecute(cmd *cobra.Command, args []string) error {
 	request := protos.QueryJobsInfoRequest{
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: f.Pod.All,
-		FilterUsers:                 filterUsers,
+		FilterUsers:                filterUsers,
 	}
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
@@ -309,10 +309,10 @@ func inspectPodExecute(cmd *cobra.Command, args []string) error {
 	idFilter := map[uint32]*protos.JobStepIds{}
 	idFilter[uint32(jobID)] = &protos.JobStepIds{}
 	request := protos.QueryJobsInfoRequest{
-		FilterIds:                   idFilter,
+		FilterIds:                  idFilter,
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: true,
-		FilterUsers:                 filterUsers,
+		FilterUsers:                filterUsers,
 	}
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
@@ -361,10 +361,10 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 	idFilter := map[uint32]*protos.JobStepIds{}
 	idFilter[jobID] = &protos.JobStepIds{Steps: []uint32{stepID}}
 	request := protos.QueryJobsInfoRequest{
-		FilterIds:                   idFilter,
+		FilterIds:                  idFilter,
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: true,
-		FilterUsers:                 filterUsers,
+		FilterUsers:                filterUsers,
 	}
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
@@ -408,7 +408,7 @@ func GetContainerJob(jobId uint32, includeCompleted bool) (*protos.JobInfo, erro
 		jobId: {},
 	}
 	request := protos.QueryJobsInfoRequest{
-		FilterIds:                   idFilter,
+		FilterIds:                  idFilter,
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: includeCompleted,
 	}
@@ -434,7 +434,7 @@ func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.JobI
 		jobID: {Steps: []uint32{stepID}},
 	}
 	req := protos.QueryJobsInfoRequest{
-		FilterIds:                   idFilter,
+		FilterIds:                  idFilter,
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: includeCompleted,
 	}

@@ -52,10 +52,10 @@ type StateOfCalloc int
 
 const (
 	ConnectCfored StateOfCalloc = 0
-	ReqJobId     StateOfCalloc = 1
+	ReqJobId      StateOfCalloc = 1
 	WaitRes       StateOfCalloc = 2
-	JobRunning   StateOfCalloc = 3
-	JobKilling   StateOfCalloc = 4
+	JobRunning    StateOfCalloc = 3
+	JobKilling    StateOfCalloc = 4
 	WaitAck       StateOfCalloc = 5
 )
 

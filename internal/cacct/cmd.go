@@ -37,7 +37,7 @@ var (
 	FlagFilterStates     string
 	FlagFilterPartitions string
 	FlagFilterQos        string
-	FlagFilterJobTypes  string
+	FlagFilterJobTypes   string
 	FlagFilterNodeNames  string
 	FlagNumLimit         uint32
 	FlagNoHeader         bool

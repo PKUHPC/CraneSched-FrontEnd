@@ -35,8 +35,8 @@ var (
 	FlagPartitionName   string
 	FlagAllowedAccounts string
 	FlagDeniedAccounts  string
-	FlagJobId          uint32
-	FlagJobIds         string
+	FlagJobId           uint32
+	FlagJobIds          string
 	FlagQueryAll        bool
 	FlagTimeLimit       string
 	FlagPriority        float64

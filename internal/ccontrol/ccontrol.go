@@ -112,7 +112,7 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 
 	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:   jobIds,
+		JobIds:    jobIds,
 		Attribute: protos.ModifyJobRequest_TimeLimit,
 		Value: &protos.ModifyJobRequest_TimeLimitSeconds{
 			TimeLimitSeconds: seconds,
@@ -144,7 +144,7 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 
 	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:   jobList,
+		JobIds:    jobList,
 		Attribute: protos.ModifyJobRequest_Hold,
 	}
 	if hold {
@@ -206,7 +206,7 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 
 	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:   jobIds,
+		JobIds:    jobIds,
 		Attribute: protos.ModifyJobRequest_Priority,
 		Value: &protos.ModifyJobRequest_MandatedPriority{
 			MandatedPriority: rounded,
@@ -238,7 +238,7 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	}
 
 	req := &protos.QueryJobsInfoRequest{
-		FilterIds:                   stepIdList,
+		FilterIds:                  stepIdList,
 		OptionIncludeCompletedJobs: false,
 	}
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
@@ -526,9 +526,9 @@ func DeleteReservation(ReservationName string) error {
 
 func ResetNextJobId(nextJobId uint32, nextJobDbId int64) error {
 	req := &protos.ResetNextJobIdRequest{
-		Uid:          uint32(os.Getuid()),
-		NextJobId:    nextJobId,
-		NextJobDbId:  nextJobDbId,
+		Uid:         uint32(os.Getuid()),
+		NextJobId:   nextJobId,
+		NextJobDbId: nextJobDbId,
 	}
 
 	reply, err := stub.ResetNextJobId(context.Background(), req)

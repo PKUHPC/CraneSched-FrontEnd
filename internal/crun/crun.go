@@ -51,11 +51,11 @@ type StateOfCrun int
 
 const (
 	ConnectCfored StateOfCrun = 0
-	ReqJobId     StateOfCrun = 1
+	ReqJobId      StateOfCrun = 1
 	WaitRes       StateOfCrun = 2
 	WaitForward   StateOfCrun = 3
 	Forwarding    StateOfCrun = 4
-	JobKilling   StateOfCrun = 5
+	JobKilling    StateOfCrun = 5
 	WaitAck       StateOfCrun = 6
 	End           StateOfCrun = 7
 )
