@@ -25,7 +25,7 @@ func ProcessAllocCpus(job *protos.JobInfo) string {
 }
 
 // 'C' group
-func ProcessReqCpuPerNode(job *protos.JobInfo) string {
+func ProcessReqCpuPerTask(job *protos.JobInfo) string {
 	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
 	if job.Ntasks > 0 {
 		return strconv.FormatFloat(totalCpu/float64(job.Ntasks), 'f', 2, 64)
@@ -250,8 +250,8 @@ var fieldMap = map[string]FieldProcessor{
 	// 'q' group
 	"q":             {"QoS", ProcessQoS},
 	"qos":           {"QoS", ProcessQoS},
-	"Q":             {"ReqCpuPerNode", ProcessReqCpuPerNode},
-	"reqcpupernode": {"ReqCpuPerNode", ProcessReqCpuPerNode},
+	"Q":             {"ReqCpuPerTask", ProcessReqCpuPerTask},
+	"reqcpupertask": {"ReqCpuPerTask", ProcessReqCpuPerTask},
 
 	// 'r' group
 	"r":        {"ReqNodes", ProcessReqNodes},
