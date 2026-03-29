@@ -81,10 +81,7 @@ func QueryJob() error {
 	if FlagFilterJobIDs != "" {
 		filterStepList, err := util.ParseStepIdList(FlagFilterJobIDs, ",")
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid job list specified: %s.", err),
-			}
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 		}
 		request.FilterIds = filterStepList
 	}
@@ -108,10 +105,7 @@ func QueryJob() error {
 	if FlagFilterStates != "" {
 		stateList, err := util.ParseTaskStatusList(FlagFilterStates)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Failed to parse the state filter: %s.", err),
-			}
+			return util.WrapCraneErr(util.ErrorCmdArg, "Failed to parse the state filter: %s.", err)
 		}
 		request.FilterStates = stateList
 	}
