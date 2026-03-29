@@ -42,6 +42,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -115,8 +116,9 @@ type StateMachineOfCrun struct {
 	stopStepCtx context.Context
 	stopStepCb  context.CancelFunc
 	//stop step will stop reading from local stdin/file/x11
-	stopReadCtx             context.Context
-	stopWriteCtx            context.Context
+	stopReadCtx  context.Context
+	stopWriteCtx context.Context
+	writerWg     sync.WaitGroup
 	chanInputFromLocal      chan []byte
 	chanOutputFromRemote    chan []byte
 	chanErrOutputFromRemote chan []byte
@@ -868,25 +870,27 @@ func (m *StateMachineOfCrun) StdoutWriterRoutine() {
 writing:
 	for {
 		select {
-
 		case msg := <-m.chanOutputFromRemote:
-			_, err := writer.Write(msg)
-
-			if err != nil {
+			if _, err := writer.Write(msg); err != nil {
 				fmt.Printf("Failed to write to fd: %v\n", err)
 				break writing
 			}
-			err = writer.Flush()
-			if err != nil {
+			if err := writer.Flush(); err != nil {
 				fmt.Printf("Failed to flush to fd: %v\n", err)
 				break writing
 			}
 
 		case <-m.stopWriteCtx.Done():
-			for range m.chanOutputFromRemote {
-				log.Tracef("Drained 1 msg from chanOutputFromRemote after stopWriteCtx done")
+			// Drain remaining messages before exiting
+			for {
+				select {
+				case msg := <-m.chanOutputFromRemote:
+					writer.Write(msg)
+				default:
+					writer.Flush()
+					return
+				}
 			}
-			break writing
 		}
 	}
 }
@@ -899,8 +903,7 @@ writing:
 	for {
 		select {
 		case msg := <-m.chanErrOutputFromRemote:
-			_, err := writer.Write(msg)
-			if err != nil {
+			if _, err := writer.Write(msg); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to write to stderr: %v\n", err)
 				break writing
 			}
@@ -909,7 +912,16 @@ writing:
 				break writing
 			}
 		case <-m.stopWriteCtx.Done():
-			break writing
+			// Drain remaining messages before exiting
+			for {
+				select {
+				case msg := <-m.chanErrOutputFromRemote:
+					writer.Write(msg)
+				default:
+					writer.Flush()
+					return
+				}
+			}
 		}
 	}
 }
@@ -1254,7 +1266,9 @@ reading:
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
 	m.stopReadCtx = context.WithoutCancel(m.stopStepCtx)
-	m.stopWriteCtx = context.WithoutCancel(m.stopStepCtx)
+	// Writer goroutines listen on stopStepCtx so they drain and flush
+	// remaining output when the state machine ends (stopStepCb is called).
+	m.stopWriteCtx = m.stopStepCtx
 
 	m.chanInputFromLocal = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
@@ -1282,46 +1296,54 @@ func (m *StateMachineOfCrun) StartIOForward() {
 		}
 	}
 
+	startWriter := func(f func()) {
+		m.writerWg.Add(1)
+		go func() {
+			defer m.writerWg.Done()
+			f()
+		}()
+	}
+
 	if strings.ToLower(m.outputFlag) == FlagIOForwardALL {
 		log.Debugf("Output to stdout")
-		go m.StdoutWriterRoutine()
+		startWriter(m.StdoutWriterRoutine)
 	} else if strings.ToLower(m.outputFlag) == FlagIOForwardNONE {
 		log.Debugf("Output discarded")
-		go m.DiscardRoutine(m.chanOutputFromRemote, "stdout")
+		startWriter(func() { m.DiscardRoutine(m.chanOutputFromRemote, "stdout") })
 	} else {
 		taskId, err := strconv.ParseUint(m.outputFlag, 10, 32)
 		if err != nil {
 			log.Debugf("Output to file %s", m.outputFlag)
-			go m.StdoutFileWriterRoutine(m.outputFlag)
+			startWriter(func() { m.StdoutFileWriterRoutine(m.outputFlag) })
 		} else {
 			if taskId < uint64(m.ntasksTotal) {
 				log.Debugf("Output to stdout (filtered by sender task %d)", taskId)
-				go m.StdoutWriterRoutine()
+				startWriter(m.StdoutWriterRoutine)
 			} else {
 				log.Debugf("Output to file %s (task id %d >= ntasksTotal %d)", m.outputFlag, taskId, m.ntasksTotal)
-				go m.StdoutFileWriterRoutine(m.outputFlag)
+				startWriter(func() { m.StdoutFileWriterRoutine(m.outputFlag) })
 			}
 		}
 	}
 
 	if strings.ToLower(m.errorFlag) == FlagIOForwardALL {
 		log.Debugf("Stderr output to stderr")
-		go m.StderrWriterRoutine()
+		startWriter(m.StderrWriterRoutine)
 	} else if strings.EqualFold(m.errorFlag, "none") {
 		log.Debugf("Stderr output discarded")
-		go m.DiscardRoutine(m.chanErrOutputFromRemote, "stderr")
+		startWriter(func() { m.DiscardRoutine(m.chanErrOutputFromRemote, "stderr") })
 	} else {
 		taskId, err := strconv.ParseUint(m.errorFlag, 10, 32)
 		if err != nil {
 			log.Debugf("Stderr output to file %s", m.errorFlag)
-			go m.StderrFileWriterRoutine(m.errorFlag)
+			startWriter(func() { m.StderrFileWriterRoutine(m.errorFlag) })
 		} else {
 			if taskId < uint64(m.ntasksTotal) {
 				log.Debugf("Stderr output to stderr (filtered by sender task %d)", taskId)
-				go m.StderrWriterRoutine()
+				startWriter(m.StderrWriterRoutine)
 			} else {
 				log.Debugf("Stderr output to file %s (task id %d >= ntasksTotal %d)", m.errorFlag, taskId, m.ntasksTotal)
-				go m.StderrFileWriterRoutine(m.errorFlag)
+				startWriter(func() { m.StderrFileWriterRoutine(m.errorFlag) })
 			}
 		}
 	}
@@ -1876,6 +1898,10 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	m.Init(job, step)
 	m.Run()
+	// stopStepCb signals writer goroutines to drain remaining data.
+	// Wait for them to finish flushing to terminal before exiting.
+	m.stopStepCb()
+	m.writerWg.Wait()
 	defer m.Close()
 
 	if m.err == util.ErrorSuccess {
