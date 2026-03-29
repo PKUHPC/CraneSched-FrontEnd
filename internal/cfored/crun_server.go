@@ -25,6 +25,7 @@ import (
 	"io"
 	"math"
 	"sync/atomic"
+	"time"
 
 	"google.golang.org/grpc/peer"
 
@@ -327,6 +328,10 @@ CforedCrunStateMachineLoop:
 
 				gVars.ctldReplyChannelMapMtx.Unlock()
 				if crunDownWithoutTaskId {
+					if !Ok {
+						// Submit not successful, no need to cancel
+						break CforedCrunStateMachineLoop
+					}
 					// Crun was down when CrunWaitCtldAllocTaskId, just cancel task.
 					state = CancelTaskOfDeadCrun
 					break
@@ -648,9 +653,11 @@ CforedCrunStateMachineLoop:
 					}
 
 					// During cancellation, just forward the IO messages from supervisor to crun, ignore errors
-					err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply)
+					if err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply); err != nil {
+						break
+					}
 
-					if err = toCrunStream.Send(reply); err != nil {
+					if err := toCrunStream.Send(reply); err != nil {
 						log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send %s to crun: %s. "+
 							"The connection to crun was broken.", jobId, stepId, taskMsg.Type.String(), err.Error())
 						state = CancelTaskOfDeadCrun
@@ -718,9 +725,11 @@ CforedCrunStateMachineLoop:
 					}
 
 					// During cancellation, just forward the IO messages from supervisor to crun, ignore errors
-					err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply)
+					if err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply); err != nil {
+						break
+					}
 
-					if err = toCrunStream.Send(reply); err != nil {
+					if err := toCrunStream.Send(reply); err != nil {
 						log.Debugf("[Cfored->Crun][Step #%d.%d] Failed to send %s to crun: %s. "+
 							"The connection to crun was broken.", jobId, stepId, taskMsg.Type.String(), err.Error())
 						gotReply = false
@@ -749,6 +758,39 @@ CforedCrunStateMachineLoop:
 					break waitingAck
 				}
 			}
+			// After receiving CraneCtld ACK, drain remaining supervisor I/O
+			// (e.g. TASK_EXIT_STATUS) before sending ACK to crun. Wait until
+			// all supervisors have unregistered (stepDoneCh closed) or timeout.
+			if gotReply {
+				stepDoneCh := gSupervisorChanKeeper.getStepDoneChannel(jobId, stepId)
+				drainTimeout := time.After(5 * time.Second)
+			drainLoop:
+				for {
+					select {
+					case taskMsg := <-TaskIoRequestChannel:
+						if taskMsg == nil {
+							break drainLoop
+						}
+						if err := HandleSupervisorRequest(jobId, stepId, taskMsg, &reply); err != nil {
+							break
+						}
+						if err := toCrunStream.Send(reply); err != nil {
+							log.Debugf("[Cfored->Crun][Step #%d.%d] Drain: failed to send %s to crun: %s.",
+								jobId, stepId, taskMsg.Type.String(), err.Error())
+							break drainLoop
+						}
+					case <-stepDoneCh:
+						log.Debugf("[Cfored<->Crun][Step #%d.%d] All supervisors unregistered, drain complete.",
+							jobId, stepId)
+						break drainLoop
+					case <-drainTimeout:
+						log.Warningf("[Cfored<->Crun][Step #%d.%d] Drain timeout (5s), proceeding with cleanup.",
+							jobId, stepId)
+						break drainLoop
+					}
+				}
+			}
+
 			gVars.ctldReplyChannelMapMtx.Lock()
 			delete(gVars.ctldReplyChannelMapByStep, step)
 			gVars.ctldReplyChannelMapMtx.Unlock()
