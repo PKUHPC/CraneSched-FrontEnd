@@ -44,9 +44,9 @@ const (
 	CancelJobOfDeadCrun    StateOfCrunServer = 7
 )
 
-func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamTaskIORequest, reply **protos.StreamCrunReply) error {
+func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamStepIORequest, reply **protos.StreamCrunReply) error {
 	switch jobMsg.Type {
-	case protos.StreamTaskIORequest_TASK_OUTPUT:
+	case protos.StreamStepIORequest_TASK_OUTPUT:
 		*reply = &protos.StreamCrunReply{
 			Type: protos.StreamCrunReply_TASK_IO_FORWARD,
 			Payload: &protos.StreamCrunReply_PayloadTaskIoForwardReply{
@@ -58,14 +58,14 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamT
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] fowarding msg size[%d]",
 			jobId, stepId, len(jobMsg.GetPayloadTaskOutputReq().GetMsg()))
 
-	case protos.StreamTaskIORequest_TASK_X11_CONN:
-		req := jobMsg.GetPayloadTaskX11FwdConnReq()
+	case protos.StreamStepIORequest_STEP_X11_CONN:
+		req := jobMsg.GetPayloadStepX11FwdConnReq()
 		localId := req.LocalId
 		cranedId := req.CranedId
 		*reply = &protos.StreamCrunReply{
-			Type: protos.StreamCrunReply_TASK_X11_CONN,
-			Payload: &protos.StreamCrunReply_PayloadTaskX11ConnReply{
-				PayloadTaskX11ConnReply: &protos.StreamCrunReply_TaskX11ConnReply{
+			Type: protos.StreamCrunReply_STEP_X11_CONN,
+			Payload: &protos.StreamCrunReply_PayloadStepX11ConnReply{
+				PayloadStepX11ConnReply: &protos.StreamCrunReply_StepX11ConnReply{
 					LocalId:  localId,
 					CranedId: cranedId,
 				},
@@ -74,12 +74,12 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamT
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][X11 #%d] fowarding x11 conn request to craned %s",
 			jobId, stepId, localId, cranedId)
 
-	case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
-		req := jobMsg.GetPayloadTaskX11OutputReq()
+	case protos.StreamStepIORequest_STEP_X11_OUTPUT:
+		req := jobMsg.GetPayloadStepX11OutputReq()
 		*reply = &protos.StreamCrunReply{
-			Type: protos.StreamCrunReply_TASK_X11_FORWARD,
-			Payload: &protos.StreamCrunReply_PayloadTaskX11ForwardReply{
-				PayloadTaskX11ForwardReply: &protos.StreamCrunReply_TaskX11ForwardReply{
+			Type: protos.StreamCrunReply_STEP_X11_FORWARD,
+			Payload: &protos.StreamCrunReply_PayloadStepX11ForwardReply{
+				PayloadStepX11ForwardReply: &protos.StreamCrunReply_StepX11ForwardReply{
 					Msg:      req.Msg,
 					LocalId:  req.LocalId,
 					CranedId: req.CranedId,
@@ -87,14 +87,14 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamT
 			},
 		}
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][X11 #%d] fowarding x11 msg from craned %s len: [%d]",
-			jobId, stepId, req.GetLocalId(), req.GetCranedId(), len(jobMsg.GetPayloadTaskX11OutputReq().Msg))
+			jobId, stepId, req.GetLocalId(), req.GetCranedId(), len(jobMsg.GetPayloadStepX11OutputReq().Msg))
 
-	case protos.StreamTaskIORequest_TASK_X11_EOF:
-		req := jobMsg.GetPayloadTaskX11EofReq()
+	case protos.StreamStepIORequest_STEP_X11_EOF:
+		req := jobMsg.GetPayloadStepX11EofReq()
 		*reply = &protos.StreamCrunReply{
-			Type: protos.StreamCrunReply_TASK_X11_EOF,
-			Payload: &protos.StreamCrunReply_PayloadTaskX11EofReply{
-				PayloadTaskX11EofReply: &protos.StreamCrunReply_TaskX11EofReply{
+			Type: protos.StreamCrunReply_STEP_X11_EOF,
+			Payload: &protos.StreamCrunReply_PayloadStepX11EofReply{
+				PayloadStepX11EofReply: &protos.StreamCrunReply_StepX11EofReply{
 					LocalId:  req.LocalId,
 					CranedId: req.CranedId,
 				},
@@ -103,7 +103,7 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamT
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][X11 #%d] fowarding x11 eof from craned %s",
 			jobId, stepId, req.GetLocalId(), req.GetCranedId())
 
-	case protos.StreamTaskIORequest_TASK_EXIT_STATUS:
+	case protos.StreamStepIORequest_TASK_EXIT_STATUS:
 		req := jobMsg.GetPayloadTaskExitStatusReq()
 		*reply = &protos.StreamCrunReply{
 			Type: protos.StreamCrunReply_TASK_EXIT_STATUS,
@@ -118,7 +118,7 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, jobMsg *protos.StreamT
 		log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d][Task #%d] forwarding task exit msg ",
 			jobId, stepId, req.TaskId)
 	default:
-		log.Fatalf("[Supervisor->Cfored->Crun][Step #%d.%d] Expect Type TASK_OUTPUT or TASK_X11_OUTPUT or TASK_EXIT_STATUS.",
+		log.Fatalf("[Supervisor->Cfored->Crun][Step #%d.%d] Expect Type TASK_OUTPUT or STEP_X11_OUTPUT or TASK_EXIT_STATUS.",
 			jobId, stepId)
 		return errors.New("Unexpected Job IO Message Type")
 	}
@@ -140,7 +140,7 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	JobIoRequestChannel := make(chan *protos.StreamTaskIORequest, 2)
+	JobIoRequestChannel := make(chan *protos.StreamStepIORequest, 2)
 	jobId = math.MaxUint32
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
@@ -531,10 +531,10 @@ CforedCrunStateMachineLoop:
 								crunRequest.GetPayloadTaskIoForwardReq().Eof)
 							gSupervisorChanKeeper.forwardCrunRequestToSupervisor(jobId, stepId, crunRequest)
 
-						case protos.StreamCrunRequest_TASK_X11_FORWARD:
+						case protos.StreamCrunRequest_STEP_X11_FORWARD:
 
-							payload := crunRequest.GetPayloadTaskX11ForwardReq()
-							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d][X11 #%d] Receive Local TASK_X11_FORWARD to craned %s",
+							payload := crunRequest.GetPayloadStepX11ForwardReq()
+							log.Debugf("[Crun->Cfored->Supervisor][Step #%d.%d][X11 #%d] Receive Local STEP_X11_FORWARD to craned %s",
 								jobId, stepId, payload.GetLocalId(), payload.GetCranedId())
 							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
 

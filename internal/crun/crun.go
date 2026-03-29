@@ -578,11 +578,11 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				case protos.StreamCrunReply_TASK_IO_FORWARD:
 					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
 
-				case protos.StreamCrunReply_TASK_X11_CONN:
+				case protos.StreamCrunReply_STEP_X11_CONN:
 					fallthrough
-				case protos.StreamCrunReply_TASK_X11_FORWARD:
+				case protos.StreamCrunReply_STEP_X11_FORWARD:
 					fallthrough
-				case protos.StreamCrunReply_TASK_X11_EOF:
+				case protos.StreamCrunReply_STEP_X11_EOF:
 					m.X11SessionMgr.X11ReplyChan <- cforedReply
 
 				case protos.StreamCrunReply_TASK_EXIT_STATUS:
@@ -665,11 +665,11 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
 		return // Still in WaitAck state
 
-	case protos.StreamCrunReply_TASK_X11_CONN:
+	case protos.StreamCrunReply_STEP_X11_CONN:
 		fallthrough
-	case protos.StreamCrunReply_TASK_X11_FORWARD:
+	case protos.StreamCrunReply_STEP_X11_FORWARD:
 		fallthrough
-	case protos.StreamCrunReply_TASK_X11_EOF:
+	case protos.StreamCrunReply_STEP_X11_EOF:
 		m.X11SessionMgr.X11ReplyChan <- cforedReply
 		return // Still in WaitAck state
 
