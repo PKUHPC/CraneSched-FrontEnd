@@ -625,7 +625,12 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				case protos.StreamCrunReply_TASK_X11_FORWARD:
 					fallthrough
 				case protos.StreamCrunReply_TASK_X11_EOF:
-					m.X11SessionMgr.X11ReplyChan <- cforedReply
+					if m.X11SessionMgr != nil {
+						m.X11SessionMgr.X11ReplyChan <- cforedReply
+					} else {
+						log.Warningf("Received %s but X11 forwarding is not enabled, ignoring.",
+							cforedReply.Type.String())
+					}
 
 				case protos.StreamCrunReply_TASK_EXIT_STATUS:
 					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
@@ -721,7 +726,12 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 	case protos.StreamCrunReply_TASK_X11_FORWARD:
 		fallthrough
 	case protos.StreamCrunReply_TASK_X11_EOF:
-		m.X11SessionMgr.X11ReplyChan <- cforedReply
+		if m.X11SessionMgr != nil {
+			m.X11SessionMgr.X11ReplyChan <- cforedReply
+		} else {
+			log.Warningf("Received %s but X11 forwarding is not enabled, ignoring.",
+				cforedReply.Type.String())
+		}
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_TASK_EXIT_STATUS:
@@ -738,49 +748,14 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
-		log.Fatalf("Received TASK_CANCEL_REQUEST in WaitAck state.")
+		log.Fatalf("Received TASK_CANCEL_REQUEST in WaitAck state, ignored.")
+		return
 
 	case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
 		log.Debug("Task completed.")
 		m.state = End
-	}
-
-	switch cforedReply.Type {
-	case protos.StreamCrunReply_TASK_IO_FORWARD:
-		m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
-		return // Still in WaitAck state
-
-	case protos.StreamCrunReply_TASK_X11_CONN:
-		fallthrough
-	case protos.StreamCrunReply_TASK_X11_FORWARD:
-		fallthrough
-	case protos.StreamCrunReply_TASK_X11_EOF:
-		m.X11SessionMgr.X11ReplyChan <- cforedReply
-		return // Still in WaitAck state
-
-	case protos.StreamCrunReply_TASK_EXIT_STATUS:
-		exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
-		if exitStatus.ExitCode != 0 {
-			if exitStatus.Signaled {
-				fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
-			} else {
-				fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
-					exitStatus.TaskId, exitStatus.ExitCode)
-			}
-			m.err = int(exitStatus.ExitCode)
-		}
-		return // Still in WaitAck state
-
-	case protos.StreamCrunReply_TASK_CANCEL_REQUEST:
-		log.Fatalf("Received TASK_CANCEL_REQUEST in WaitAck state.")
-
-	case protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY:
-		log.Debug("Task completed.")
-		m.state = End
-	}
-
-	if cforedReply.Type != protos.StreamCrunReply_TASK_COMPLETION_ACK_REPLY {
-		log.Errorf("Expect TASK_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
+	default:
+		log.Errorf("Unexpected message type %s in WaitAck state.", cforedReply.Type.String())
 		m.err = util.ErrorBackend
 		m.state = End
 		return
