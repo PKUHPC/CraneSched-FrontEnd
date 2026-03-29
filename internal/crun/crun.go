@@ -118,6 +118,7 @@ type StateMachineOfCrun struct {
 	//stop step will stop reading from local stdin/file/x11
 	stopReadCtx  context.Context
 	stopWriteCtx context.Context
+	stopWriteCb  context.CancelFunc
 	writerWg     sync.WaitGroup
 	chanInputFromLocal      chan []byte
 	chanOutputFromRemote    chan []byte
@@ -1266,9 +1267,13 @@ reading:
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
 	m.stopReadCtx = context.WithoutCancel(m.stopStepCtx)
-	// Writer goroutines listen on stopStepCtx so they drain and flush
-	// remaining output when the state machine ends (stopStepCb is called).
-	m.stopWriteCtx = m.stopStepCtx
+	// stopWriteCtx is independent of stopStepCtx: it is only cancelled after
+	// Run() returns, at which point no more data will be written to the output
+	// channels.  This avoids a race where stopStepCtx is cancelled inside
+	// StateForwarding (e.g. by TASK_CANCEL_REQUEST) while stderr data is still
+	// sitting in the channel unread.  Writer goroutines drain the channel on
+	// Done and then exit, guaranteeing all forwarded output reaches the terminal.
+	m.stopWriteCtx, m.stopWriteCb = context.WithCancel(context.Background())
 
 	m.chanInputFromLocal = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
@@ -1898,9 +1903,11 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	m.Init(job, step)
 	m.Run()
-	// stopStepCb signals writer goroutines to drain remaining data.
-	// Wait for them to finish flushing to terminal before exiting.
-	m.stopStepCb()
+	// After Run() returns, no more data will be sent to output channels.
+	// Cancel stopWriteCtx to signal writer goroutines to drain and flush.
+	if m.stopWriteCb != nil {
+		m.stopWriteCb()
+	}
 	m.writerWg.Wait()
 	defer m.Close()
 
