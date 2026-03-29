@@ -212,6 +212,8 @@ func (keeper *SupervisorChannelKeeper) setRemoteIoToCrunChannel(taskId uint32, s
 	keeper.taskIORequestChannelMtx.Unlock()
 }
 
+// To identify if all supervisors have unregistered, and no more I/O message will arrive for the step.
+// Crun will drain the I/O channel.
 func (keeper *SupervisorChannelKeeper) getStepDoneChannel(taskId uint32, stepId uint32) chan struct{} {
 	step := StepIdentifier{JobId: taskId, StepId: stepId}
 	keeper.taskIORequestChannelMtx.Lock()
