@@ -36,7 +36,7 @@ import (
 )
 
 // parseUserSpec parses user specification in format "uid" or "uid:gid"
-func parseUserSpec(userSpec string, podMeta *protos.PodTaskAdditionalMeta) error {
+func parseUserSpec(userSpec string, podMeta *protos.PodJobAdditionalMeta) error {
 	parts := strings.SplitN(userSpec, ":", 2)
 
 	// Parse user (UID only)
@@ -77,11 +77,11 @@ func parseEnvVar(envVar string, envMap map[string]string) error {
 }
 
 // parsePortMapping parses port mapping in format "host:container" or "port"
-func parsePortMapping(portSpec string, portList *[]*protos.PodTaskAdditionalMeta_PortMapping) error {
+func parsePortMapping(portSpec string, portList *[]*protos.PodJobAdditionalMeta_PortMapping) error {
 	parts := strings.SplitN(portSpec, ":", 2)
 
-	mapping := &protos.PodTaskAdditionalMeta_PortMapping{
-		Protocol: protos.PodTaskAdditionalMeta_PortMapping_TCP,
+	mapping := &protos.PodJobAdditionalMeta_PortMapping{
+		Protocol: protos.PodJobAdditionalMeta_PortMapping_TCP,
 	}
 
 	if len(parts) == 1 {
@@ -190,21 +190,21 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		reply, errSubmit = submitContainerStep(step)
 	} else {
 		// Build the container job
-		task, err := buildContainerJob(cmd, f, image, command)
+		job, err := buildContainerJob(cmd, f, image, command)
 		if err != nil {
-			return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container task: %v", err)
+			return util.WrapCraneErr(util.ErrorCmdArg, "failed to build container job: %v", err)
 		}
 
-		// Check generic task arguments
-		if err := util.CheckTaskArgs(task); err != nil {
-			return util.WrapCraneErr(util.ErrorCmdArg, "invalid task arguments: %v", err)
+		// Check generic job arguments
+		if err := util.CheckJobArgs(job); err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid job arguments: %v", err)
 		}
 
-		if err := validateContainerJob(task); err != nil {
+		if err := validateContainerJob(job); err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "validation failed: %v", err)
 		}
 
-		reply, errSubmit = submitContainerJob(task)
+		reply, errSubmit = submitContainerJob(job)
 	}
 
 	if f.Global.Json {
@@ -222,8 +222,8 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// applyResourceOptions applies resource options to the task
-func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
+// applyResourceOptions applies resource options to the job
+func applyResourceOptions(f *Flags, job *protos.JobToCtld) error {
 	// Check mutally exclusive flags
 	if f.Run.Cpus > 0 && f.Crane.CpusPerTask > 0 {
 		return fmt.Errorf("--cpus and --cpus-per-task are mutually exclusive")
@@ -240,15 +240,15 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	// CPU allocation
 	if f.Crane.CpusPerTask > 0 {
 		cpuPerTask := float64(f.Crane.CpusPerTask)
-		task.CpusPerTask = &cpuPerTask
+		job.CpusPerTask = &cpuPerTask
 	} else if f.Run.Cpus > 0 {
 		log.Warn("--cpus is deprecated, please use --cpus-per-task instead")
 		cpuPerTask := float64(f.Run.Cpus)
-		task.CpusPerTask = &cpuPerTask
+		job.CpusPerTask = &cpuPerTask
 	} else {
 		// Default to 1 CPU if not specified
 		cpuPerTask := float64(1)
-		task.CpusPerTask = &cpuPerTask
+		job.CpusPerTask = &cpuPerTask
 	}
 
 	// Memory allocation - prefer --mem over --memory
@@ -265,7 +265,7 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 		if err != nil {
 			return fmt.Errorf("invalid memory specification '%s': %v", memorySpec, err)
 		}
-		task.MemPerNode = &memoryBytes
+		job.MemPerNode = &memoryBytes
 	}
 
 	// GPU allocation - prefer --gres over --gpus
@@ -277,7 +277,7 @@ func applyResourceOptions(f *Flags, task *protos.TaskToCtld) error {
 	}
 
 	if gresSpec != "" {
-		task.GresPerNode = util.ParseGres(gresSpec)
+		job.GresPerNode = util.ParseGres(gresSpec)
 	}
 
 	return nil
@@ -371,11 +371,11 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 	return nil
 }
 
-// applySchedulingOptions applies cluster scheduling options to the task
-func applySchedulingOptions(f *Flags, task *protos.TaskToCtld) error {
+// applySchedulingOptions applies cluster scheduling options to the job
+func applySchedulingOptions(f *Flags, job *protos.JobToCtld) error {
 	// Partition/queue assignment
 	if f.Crane.Partition != "" {
-		task.PartitionName = f.Crane.Partition
+		job.PartitionName = f.Crane.Partition
 	}
 
 	// Time limit
@@ -384,37 +384,37 @@ func applySchedulingOptions(f *Flags, task *protos.TaskToCtld) error {
 		if err != nil {
 			return fmt.Errorf("invalid time specification '%s': %v", f.Crane.Time, err)
 		}
-		task.TimeLimit.Seconds = seconds
+		job.TimeLimit.Seconds = seconds
 	}
 
 	// Account
 	if f.Crane.Account != "" {
-		task.Account = f.Crane.Account
+		job.Account = f.Crane.Account
 	}
 
 	// QoS
 	if f.Crane.Qos != "" {
-		task.Qos = f.Crane.Qos
+		job.Qos = f.Crane.Qos
 	}
 
 	// Node allocation - validate parameters
-	task.NodeNum = f.Crane.Nodes
-	task.NtasksPerNode = f.Crane.NtasksPerNode
-	task.Ntasks = f.Crane.Ntasks
+	job.NodeNum = f.Crane.Nodes
+	job.NtasksPerNode = f.Crane.NtasksPerNode
+	job.Ntasks = f.Crane.Ntasks
 
 	// Node list (specific nodes)
 	if f.Crane.Nodelist != "" {
-		task.Nodelist = f.Crane.Nodelist
+		job.Nodelist = f.Crane.Nodelist
 	}
 
 	// Exclude nodes
 	if f.Crane.Excludes != "" {
-		task.Excludes = f.Crane.Excludes
+		job.Excludes = f.Crane.Excludes
 	}
 
 	// Reservation
 	if f.Crane.Reservation != "" {
-		task.Reservation = f.Crane.Reservation
+		job.Reservation = f.Crane.Reservation
 	}
 
 	// Extra attributes - handle both individual flags and JSON like cbatch
@@ -438,30 +438,30 @@ func applySchedulingOptions(f *Flags, task *protos.TaskToCtld) error {
 	if err := structExtraFromCli.Marshal(&extraFromCli); err != nil {
 		return fmt.Errorf("invalid extra attributes: %v", err)
 	}
-	task.ExtraAttr = extraFromCli
+	job.ExtraAttr = extraFromCli
 
 	// Exclusive node allocation
-	task.Exclusive = f.Crane.Exclusive
+	job.Exclusive = f.Crane.Exclusive
 
 	// Hold job submission
-	task.Hold = f.Crane.Hold
+	job.Hold = f.Crane.Hold
 
 	return nil
 }
 
-// applyEnvironmentOptions applies environment-related options to the task
-func applyEnvironmentOptions(_ *Flags, task *protos.TaskToCtld) error {
+// applyEnvironmentOptions applies environment-related options to the job
+func applyEnvironmentOptions(_ *Flags, job *protos.JobToCtld) error {
 	// Set CWD if not already set
-	if task.Cwd == "" {
-		task.Cwd, _ = os.Getwd()
+	if job.Cwd == "" {
+		job.Cwd, _ = os.Getwd()
 	}
 
-	// Set UID/GID for task execution
-	task.Uid = uint32(os.Getuid())
-	task.Gid = uint32(os.Getgid())
+	// Set UID/GID for job execution
+	job.Uid = uint32(os.Getuid())
+	job.Gid = uint32(os.Getgid())
 
 	// Set command line for auditing
-	task.CmdLine = strings.Join(os.Args, " ")
+	job.CmdLine = strings.Join(os.Args, " ")
 
 	return nil
 }
@@ -496,7 +496,7 @@ func applyStepEnvironmentOptions(step *protos.StepToCtld) error {
 // | -di                | background | false |  true |      false | Background but retains persistent input capability; can attach -i later |
 // | -dt                | background |  true | false |      false | Background + TTY; no input |
 // | -dit               | background |  true |  true |      false | Background + TTY + persistent input capability; can attach -it later |
-func applyIOOptions(f *Flags, containerMeta *protos.ContainerTaskAdditionalMeta) {
+func applyIOOptions(f *Flags, containerMeta *protos.ContainerJobAdditionalMeta) {
 	// TTY allocation: directly use -t flag
 	containerMeta.Tty = f.Run.Tty
 
@@ -511,7 +511,7 @@ func applyIOOptions(f *Flags, containerMeta *protos.ContainerTaskAdditionalMeta)
 }
 
 // buildContainerMeta builds container-level settings shared by job and step submissions.
-func buildContainerMeta(f *Flags, image string, command []string) (*protos.ContainerTaskAdditionalMeta, error) {
+func buildContainerMeta(f *Flags, image string, command []string) (*protos.ContainerJobAdditionalMeta, error) {
 	imageRef, err := NormalizeImageRef(image)
 	if err != nil {
 		return nil, fmt.Errorf("invalid image reference '%s': %v", image, err)
@@ -523,8 +523,8 @@ func buildContainerMeta(f *Flags, image string, command []string) (*protos.Conta
 		username, password = "", ""
 	}
 
-	containerMeta := &protos.ContainerTaskAdditionalMeta{
-		Image: &protos.ContainerTaskAdditionalMeta_ImageInfo{
+	containerMeta := &protos.ContainerJobAdditionalMeta{
+		Image: &protos.ContainerJobAdditionalMeta_ImageInfo{
 			Image:         imageRef.Image,
 			Username:      username,
 			Password:      password,
@@ -571,20 +571,20 @@ func buildContainerMeta(f *Flags, image string, command []string) (*protos.Conta
 }
 
 // buildPodMeta constructs pod-level metadata for container jobs.
-func buildPodMeta(_ *cobra.Command, f *Flags, task *protos.TaskToCtld) (*protos.PodTaskAdditionalMeta, error) {
-	var networkMode protos.PodTaskAdditionalMeta_NamespaceMode
+func buildPodMeta(_ *cobra.Command, f *Flags, job *protos.JobToCtld) (*protos.PodJobAdditionalMeta, error) {
+	var networkMode protos.PodJobAdditionalMeta_NamespaceMode
 	switch f.Run.Network {
 	case "host": // NODE
-		networkMode = protos.PodTaskAdditionalMeta_NODE
+		networkMode = protos.PodJobAdditionalMeta_NODE
 	case "default": // POD
-		networkMode = protos.PodTaskAdditionalMeta_POD
+		networkMode = protos.PodJobAdditionalMeta_POD
 	default: // TARGET / CONTAINER is not support.
 		return nil, fmt.Errorf("invalid network specification '%s': only 'host' and 'default' are supported", f.Run.Network)
 	}
 
-	podMeta := &protos.PodTaskAdditionalMeta{
+	podMeta := &protos.PodJobAdditionalMeta{
 		Name: f.Run.Name,
-		Namespace: &protos.PodTaskAdditionalMeta_NamespaceOption{
+		Namespace: &protos.PodJobAdditionalMeta_NamespaceOption{
 			Network: networkMode,
 		},
 		Userns: f.Run.UserNS,
@@ -595,11 +595,11 @@ func buildPodMeta(_ *cobra.Command, f *Flags, task *protos.TaskToCtld) (*protos.
 			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
 		}
 	} else if !podMeta.Userns {
-		podMeta.RunAsUser = task.Uid
-		podMeta.RunAsGroup = task.Gid
+		podMeta.RunAsUser = job.Uid
+		podMeta.RunAsGroup = job.Gid
 	}
 
-	if networkMode == protos.PodTaskAdditionalMeta_NODE && len(f.Run.Ports) != 0 {
+	if networkMode == protos.PodJobAdditionalMeta_NODE && len(f.Run.Ports) != 0 {
 		// Port mapping not feasible in NODE mode.
 		return nil, fmt.Errorf("port mapping is not supported in 'host' network mode")
 	}
@@ -621,10 +621,10 @@ func buildPodMeta(_ *cobra.Command, f *Flags, task *protos.TaskToCtld) (*protos.
 	return podMeta, nil
 }
 
-// buildContainerJob creates a TaskToCtld with container metadata from command line arguments
-func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []string) (*protos.TaskToCtld, error) {
-	task := &protos.TaskToCtld{
-		Type:          protos.TaskType_Container,
+// buildContainerJob creates a JobToCtld with container metadata from command line arguments
+func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []string) (*protos.JobToCtld, error) {
+	job := &protos.JobToCtld{
+		Type:          protos.JobType_Container,
 		TimeLimit:     util.InvalidDuration(),
 		NodeNum:       0,
 		NtasksPerNode: 0,
@@ -633,15 +633,15 @@ func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []str
 		Env:           make(map[string]string),
 	}
 
-	if err := applyResourceOptions(f, task); err != nil {
+	if err := applyResourceOptions(f, job); err != nil {
 		return nil, fmt.Errorf("failed to apply resource options: %v", err)
 	}
 
-	if err := applySchedulingOptions(f, task); err != nil {
+	if err := applySchedulingOptions(f, job); err != nil {
 		return nil, fmt.Errorf("failed to apply scheduling options: %v", err)
 	}
 
-	if err := applyEnvironmentOptions(f, task); err != nil {
+	if err := applyEnvironmentOptions(f, job); err != nil {
 		return nil, fmt.Errorf("failed to apply environment options: %v", err)
 	}
 
@@ -650,18 +650,18 @@ func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []str
 		return nil, err
 	}
 
-	podMeta, err := buildPodMeta(cmd, f, task)
+	podMeta, err := buildPodMeta(cmd, f, job)
 	if err != nil {
 		return nil, err
 	}
 
 	if f.Run.Name != "" {
-		task.Name = f.Run.Name
+		job.Name = f.Run.Name
 	}
 
-	task.ContainerMeta = containerMeta
-	task.PodMeta = podMeta
-	return task, nil
+	job.ContainerMeta = containerMeta
+	job.PodMeta = podMeta
+	return job, nil
 }
 
 // buildContainerStep creates a StepToCtld for a container step submission.
@@ -673,7 +673,7 @@ func buildContainerStep(cmd *cobra.Command, f *Flags, jobId uint32, image string
 	step := &protos.StepToCtld{
 		TimeLimit:     util.InvalidDuration(),
 		JobId:         jobId,
-		Type:          protos.TaskType_Container,
+		Type:          protos.JobType_Container,
 		Env:           make(map[string]string),
 		Name:          f.Run.Name,
 		NodeNum:       0,
@@ -716,20 +716,20 @@ func buildContainerStep(cmd *cobra.Command, f *Flags, jobId uint32, image string
 }
 
 // validateContainerJob validates container-specific parameters
-func validateContainerJob(task *protos.TaskToCtld) error {
-	containerMeta := task.ContainerMeta
+func validateContainerJob(job *protos.JobToCtld) error {
+	containerMeta := job.ContainerMeta
 	if containerMeta == nil {
 		return fmt.Errorf("container metadata is missing")
 	}
-	if task.PodMeta == nil {
-		return fmt.Errorf("pod metadata is required for container tasks")
+	if job.PodMeta == nil {
+		return fmt.Errorf("pod metadata is required for container jobs")
 	}
-	if task.Type != protos.TaskType_Container {
-		return fmt.Errorf("task type must be Container")
+	if job.Type != protos.JobType_Container {
+		return fmt.Errorf("job type must be Container")
 	}
 
-	if task.Uid != 0 && !task.PodMeta.Userns {
-		if task.PodMeta.RunAsUser != task.Uid || task.PodMeta.RunAsGroup != task.Gid {
+	if job.Uid != 0 && !job.PodMeta.Userns {
+		if job.PodMeta.RunAsUser != job.Uid || job.PodMeta.RunAsGroup != job.Gid {
 			return fmt.Errorf("with --userns=false, only current user and accessible groups are allowed")
 		}
 	}
@@ -739,7 +739,7 @@ func validateContainerJob(task *protos.TaskToCtld) error {
 		return fmt.Errorf("container image is required")
 	}
 
-	for _, port := range task.PodMeta.Ports {
+	for _, port := range job.PodMeta.Ports {
 		if port.HostPort < 1 || port.HostPort > 65535 {
 			return fmt.Errorf("invalid host port %d: must be between 1 and 65535", port.HostPort)
 		}
@@ -779,7 +779,7 @@ func validateContainerStep(step *protos.StepToCtld) error {
 		return fmt.Errorf("job_id is required for container steps")
 	}
 
-	if step.Type != protos.TaskType_Container {
+	if step.Type != protos.JobType_Container {
 		return fmt.Errorf("step type must be Container")
 	}
 
@@ -813,20 +813,20 @@ func validateContainerStep(step *protos.StepToCtld) error {
 	return nil
 }
 
-// submitContainerJob submits a container task via gRPC
-func submitContainerJob(task *protos.TaskToCtld) (*protos.SubmitBatchTaskReply, error) {
-	req := &protos.SubmitBatchTaskRequest{Task: task}
+// submitContainerJob submits a container job via gRPC
+func submitContainerJob(job *protos.JobToCtld) (*protos.SubmitBatchJobReply, error) {
+	req := &protos.SubmitBatchJobRequest{Job: job}
 
-	reply, err := stub.SubmitBatchTask(context.Background(), req)
+	reply, err := stub.SubmitBatchJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to submit the container task")
+		util.GrpcErrorPrintf(err, "Failed to submit the container job")
 		return reply, util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if reply.GetOk() {
 		return reply, nil
 	} else {
-		return reply, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container task submission failed: %s", util.ErrMsg(reply.GetCode())))
+		return reply, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container job submission failed: %s", util.ErrMsg(reply.GetCode())))
 	}
 }
 
@@ -852,9 +852,9 @@ func submitContainerStep(step *protos.StepToCtld) (*protos.SubmitContainerStepRe
 func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 	var jobId, stepId uint32
 	switch r := reply.(type) {
-	case *protos.SubmitBatchTaskReply:
+	case *protos.SubmitBatchJobReply:
 		// Primary container step
-		jobId = r.GetTaskId()
+		jobId = r.GetJobId()
 		stepId = 1
 	case *protos.SubmitContainerStepReply:
 		// Specific container step

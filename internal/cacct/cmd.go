@@ -37,7 +37,7 @@ var (
 	FlagFilterStates     string
 	FlagFilterPartitions string
 	FlagFilterQos        string
-	FlagFilterTaskTypes  string
+	FlagFilterJobTypes   string
 	FlagFilterNodeNames  string
 	FlagNumLimit         uint32
 	FlagNoHeader         bool
@@ -105,8 +105,8 @@ func init() {
 			"pending(p), running(r), completed(c), failed(f), cancelled(x), time-limit-exceeded(t), all.")
 	RootCmd.Flags().StringVarP(&FlagFilterPartitions, "partition", "p", "",
 		"Specify partitions to view (comma separated list), default is all")
-	RootCmd.Flags().StringVar(&FlagFilterTaskTypes, "type", "",
-		"Specify task types to view (comma separated list), \nvalid values are 'Interactive', 'Batch', 'Container', default is all types")
+	RootCmd.Flags().StringVar(&FlagFilterJobTypes, "type", "",
+		"Specify job types to view (comma separated list), \nvalid values are 'Interactive', 'Batch', 'Container', default is all types")
 
 	RootCmd.Flags().StringVarP(&FlagFormat, "format", "o", "",
 		`Specify the output format.
@@ -160,7 +160,7 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 `)
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", util.MaxRepliedJobs,
-		"Limit the number of lines in the output, 0 means no limit") // See kDefaultQueryTaskNumLimit
+		"Limit the number of lines in the output, 0 means no limit") // See kDefaultQueryJobNumLimit
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	RootCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodelist", "w", "",
 		"Specify node names to view (comma separated list or patterns like node[1-10]), default is all")

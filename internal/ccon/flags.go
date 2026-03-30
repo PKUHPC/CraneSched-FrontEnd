@@ -155,8 +155,8 @@ func (f *Flags) InitializeCraneFlags() {
 	f.flagSetCrane = pflag.NewFlagSet("crane", pflag.ExitOnError)
 
 	f.flagSetCrane.StringVar(&f.Crane.Mem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
-	f.flagSetCrane.StringVar(&f.Crane.Gres, "gres", "", "Gres required per task, format: \"gpu:a100:1\" or \"gpu:1\"")
-	f.flagSetCrane.Float64VarP(&f.Crane.CpusPerTask, "cpus-per-task", "c", 1, "Number of cpus required per job")
+	f.flagSetCrane.StringVar(&f.Crane.Gres, "gres", "", "Gres required per node, format: \"gpu:a100:1\" or \"gpu:1\"")
+	f.flagSetCrane.Float64VarP(&f.Crane.CpusPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
 
 	f.flagSetCrane.StringVarP(&f.Crane.Partition, "partition", "p", "", "Partition for job scheduling")
 	f.flagSetCrane.StringVarP(&f.Crane.Nodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")

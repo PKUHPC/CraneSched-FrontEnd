@@ -32,25 +32,25 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// StepData holds both stepInfo and parent task for processing
+// StepData holds both stepInfo and parent job for processing
 type StepData struct {
 	stepInfo *protos.StepInfo
-	task     *protos.TaskInfo
+	job      *protos.JobInfo
 }
 
 // QueryStepsTableOutput displays step-level information in table format
 // Columns: STEPID, NAME, PARTITION, USER, TIME, NODELIST
-func QueryStepsTableOutput(reply *protos.QueryTasksInfoReply) error {
+func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 
-	// Collect all steps from all tasks
+	// Collect all steps from all jobs
 	var stepDataList []StepData
-	for _, task := range reply.TaskInfoList {
-		for _, stepInfo := range task.StepInfoList {
+	for _, job := range reply.JobInfoList {
+		for _, stepInfo := range job.StepInfoList {
 			stepDataList = append(stepDataList, StepData{
 				stepInfo: stepInfo,
-				task:     task,
+				job:      job,
 			})
 		}
 	}
@@ -79,18 +79,18 @@ func QueryStepsTableOutput(reply *protos.QueryTasksInfoReply) error {
 
 		for _, stepData := range stepDataList {
 			stepInfo := stepData.stepInfo
-			task := stepData.task
+			job := stepData.job
 
 			stepIdStr := fmt.Sprintf("%d.%d", stepInfo.JobId, stepInfo.StepId)
 
 			name := stepInfo.Name
 
-			partition := task.Partition
+			partition := job.Partition
 
-			user := task.Username
+			user := job.Username
 
 			var timeStr string
-			if stepInfo.Status == protos.TaskStatus_Running {
+			if stepInfo.Status == protos.JobStatus_Running {
 				if stepInfo.ElapsedTime != nil {
 					timeStr = util.SecondTimeFormat(stepInfo.ElapsedTime.Seconds)
 				} else {
@@ -136,11 +136,11 @@ func ProcessStepName(stepData StepData) string {
 }
 
 func ProcessStepPartition(stepData StepData) string {
-	return stepData.task.Partition
+	return stepData.job.Partition
 }
 
 func ProcessStepUser(stepData StepData) string {
-	return stepData.task.Username
+	return stepData.job.Username
 }
 
 func ProcessStepUid(stepData StepData) string {
@@ -148,7 +148,7 @@ func ProcessStepUid(stepData StepData) string {
 }
 
 func ProcessStepElapsedTime(stepData StepData) string {
-	if stepData.stepInfo.Status == protos.TaskStatus_Running {
+	if stepData.stepInfo.Status == protos.JobStatus_Running {
 		if stepData.stepInfo.ElapsedTime != nil {
 			return util.SecondTimeFormat(stepData.stepInfo.ElapsedTime.Seconds)
 		}
@@ -177,11 +177,11 @@ func ProcessStepNodeNum(stepData StepData) string {
 }
 
 func ProcessStepAccount(stepData StepData) string {
-	return stepData.task.Account
+	return stepData.job.Account
 }
 
 func ProcessStepQoS(stepData StepData) string {
-	return stepData.task.Qos
+	return stepData.job.Qos
 }
 
 func ProcessStepCommand(stepData StepData) string {

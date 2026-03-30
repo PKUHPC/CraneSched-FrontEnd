@@ -166,7 +166,7 @@ func (p MonitorPlugin) CreateCgroupHook(ctx *api.PluginContext) {
 		ReqGPUs:   boundGPUs,
 	}
 
-	globalMonitor.monitor.JobMonitor.Start(req.TaskId, req.Cgroup, resourceRequest)
+	globalMonitor.monitor.JobMonitor.Start(req.JobId, req.Cgroup, resourceRequest)
 }
 
 func (p MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
@@ -177,7 +177,7 @@ func (p MonitorPlugin) DestroyCgroupHook(ctx *api.PluginContext) {
 	}
 
 	log.Infof("DestroyCgroupHook received for cgroup: %s", req.Cgroup)
-	globalMonitor.monitor.JobMonitor.Stop(req.TaskId)
+	globalMonitor.monitor.JobMonitor.Stop(req.JobId)
 }
 
 func (p MonitorPlugin) NodeEventHook(ctx *api.PluginContext) {

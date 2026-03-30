@@ -34,9 +34,9 @@ var (
 	FlagAccount protos.AccountInfo
 	FlagUser    protos.UserInfo
 	FlagQos     = protos.QosInfo{
-		MaxJobsPerUser:      math.MaxUint32,
-		MaxCpusPerUser:      math.MaxUint32,
-		MaxTimeLimitPerTask: util.MaxJobTimeLimit,
+		MaxJobsPerUser:     math.MaxUint32,
+		MaxCpusPerUser:     math.MaxUint32,
+		MaxTimeLimitPerJob: util.MaxJobTimeLimit,
 	}
 	FlagWckey protos.WckeyInfo
 
@@ -250,7 +250,7 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 		MaxJobs:                 math.MaxUint32,
 		MaxSubmitJobs:           math.MaxUint32,
 		MaxWall:                 0,
-		MaxTimeLimitPerTask:     util.MaxJobTimeLimit,
+		MaxTimeLimitPerJob:      util.MaxJobTimeLimit,
 		Flags:                   util.QosFlagNone,
 	}
 	FlagQos.Name = command.GetID()
@@ -284,15 +284,15 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			}
 			maxCpus, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxCpusPerUser = uint32(maxCpus)
-		case "maxtimelimitpertask":
+		case "maxtimelimitperjob":
 			if seconds, err := util.ParseDurationStrToSeconds(value); err != nil {
-				if err = validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+				if err = validateUintValue(value, "maxTimeLimitPerJob", 64); err != nil {
 					return util.ErrorCmdArg
 				}
 				maxTimeLimit, _ := strconv.ParseUint(value, 10, 64)
-				FlagQos.MaxTimeLimitPerTask = maxTimeLimit
+				FlagQos.MaxTimeLimitPerJob = maxTimeLimit
 			} else {
-				FlagQos.MaxTimeLimitPerTask = uint64(seconds)
+				FlagQos.MaxTimeLimitPerJob = uint64(seconds)
 			}
 		case "maxsubmitjobsperuser":
 			if err := validateUintValue(value, "maxSubmitJobsPerUser", 32); err != nil {
@@ -1207,9 +1207,9 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 				ModifyField: protos.ModifyField_MaxWall,
 				NewValue:    value,
 			})
-		case "maxtimelimitpertask":
+		case "maxtimelimitperjob":
 			if seconds, err := util.ParseDurationStrToSeconds(value); err != nil {
-				if err = validateUintValue(value, "maxTimeLimitPerTask", 64); err != nil {
+				if err = validateUintValue(value, "maxTimeLimitPerJob", 64); err != nil {
 					return util.ErrorCmdArg
 				}
 				FlagMaxTimeLimit = value
@@ -1217,7 +1217,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) int {
 				FlagMaxTimeLimit = fmt.Sprint(seconds)
 			}
 			params = append(params, ModifyParam{
-				ModifyField: protos.ModifyField_MaxTimeLimitPerTask,
+				ModifyField: protos.ModifyField_MaxTimeLimitPerJob,
 				NewValue:    FlagMaxTimeLimit,
 			})
 		case "priority":

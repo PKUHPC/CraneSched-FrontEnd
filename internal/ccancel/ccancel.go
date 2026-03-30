@@ -30,13 +30,13 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func CancelTask(args []string) error {
-	req := &protos.CancelTaskRequest{
+func CancelJob(args []string) error {
+	req := &protos.CancelJobRequest{
 		OperatorUid: uint32(os.Getuid()),
 
 		FilterPartition: FlagPartition,
 		FilterAccount:   FlagAccount,
-		FilterState:     protos.TaskStatus_Invalid,
+		FilterState:     protos.JobStatus_Invalid,
 		FilterUsername:  FlagUserName,
 	}
 
@@ -44,7 +44,7 @@ func CancelTask(args []string) error {
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job name: %v.", err))
 	}
-	req.FilterTaskName = FlagJobName
+	req.FilterJobName = FlagJobName
 
 	if len(args) > 0 {
 		stepIds, err := util.ParseStepIdList(args[0], ",")
@@ -55,7 +55,7 @@ func CancelTask(args []string) error {
 	}
 
 	if FlagState != "" {
-		stateList, err := util.ParseInRamTaskStatusList(FlagState)
+		stateList, err := util.ParseInRamJobStatusList(FlagState)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 		}
@@ -66,24 +66,24 @@ func CancelTask(args []string) error {
 
 	req.FilterNodes = FlagNodes
 
-	reply, err := stub.CancelTask(context.Background(), req)
+	reply, err := stub.CancelJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to cancel tasks")
+		util.GrpcErrorPrintf(err, "Failed to cancel jobs")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotCancelledJobSteps) > 0 {
-			return util.NewCraneErr(util.ErrorBackend, "some tasks were not cancelled")
+			return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
 		} else {
 			return nil
 		}
 	}
 
 	if len(reply.CancelledSteps) > 0 {
-		cancelledTasksString := util.JobStepListToString(reply.CancelledSteps)
-		fmt.Printf("%s cancelled successfully.\n", cancelledTasksString)
+		cancelledJobsString := util.JobStepListToString(reply.CancelledSteps)
+		fmt.Printf("%s cancelled successfully.\n", cancelledJobsString)
 	}
 
 	if len(reply.NotCancelledJobSteps) > 0 {
@@ -92,12 +92,12 @@ func CancelTask(args []string) error {
 				fmt.Printf("Failed to cancel job: %d. Reason: %s.\n", jobId, stepErr.Reason)
 			} else {
 				for i := 0; i < len(stepErr.StepIds); i++ {
-					fmt.Printf("Failed to cancel job: %d-%d. Reason: %s.\n", jobId, stepErr.StepIds[i], stepErr.StepReasons[i])
+					fmt.Printf("Failed to cancel step: %d-%d. Reason: %s.\n", jobId, stepErr.StepIds[i], stepErr.StepReasons[i])
 
 				}
 			}
 		}
-		return util.NewCraneErr(util.ErrorBackend, "some tasks were not cancelled")
+		return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
 	}
 	return nil
 }

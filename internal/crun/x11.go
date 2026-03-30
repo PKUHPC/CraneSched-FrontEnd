@@ -44,7 +44,7 @@ const (
 
 type X11Session struct {
 	X11Id X11GlobalId
-	// Data from task, nil if eof, will close local connection, stop read/write
+	// Data from job, nil if eof, will close local connection, stop read/write
 	X11ToLocal      chan []byte
 	X11ToSupervisor chan *protos.StreamCrunRequest
 	Status          X11Status
@@ -90,9 +90,9 @@ func (session *X11Session) SendEofToSupervisor(data []byte) {
 	session.eofSent.Do(func() {
 		log.Debugf("[X11 %s:%d] Sending EOF to supervisor.", session.X11Id.CranedId, session.X11Id.LocalId)
 		req := &protos.StreamCrunRequest{
-			Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
-			Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
-				PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
+			Type: protos.StreamCrunRequest_STEP_X11_FORWARD,
+			Payload: &protos.StreamCrunRequest_PayloadStepX11ForwardReq{
+				PayloadStepX11ForwardReq: &protos.StreamCrunRequest_StepX11ForwardReq{
 					Msg:      data,
 					CranedId: session.X11Id.CranedId,
 					LocalId:  session.X11Id.LocalId,
@@ -157,9 +157,9 @@ func (session *X11Session) StatusForwarding() {
 			data := make([]byte, n)
 			copy(data, buffer[:n])
 			req := &protos.StreamCrunRequest{
-				Type: protos.StreamCrunRequest_TASK_X11_FORWARD,
-				Payload: &protos.StreamCrunRequest_PayloadTaskX11ForwardReq{
-					PayloadTaskX11ForwardReq: &protos.StreamCrunRequest_TaskX11ForwardReq{
+				Type: protos.StreamCrunRequest_STEP_X11_FORWARD,
+				Payload: &protos.StreamCrunRequest_PayloadStepX11ForwardReq{
+					PayloadStepX11ForwardReq: &protos.StreamCrunRequest_StepX11ForwardReq{
 						Msg:      data,
 						CranedId: session.X11Id.CranedId,
 						LocalId:  session.X11Id.LocalId,
@@ -242,8 +242,8 @@ func (sm *X11SessionMgr) SessionMgrRoutine() {
 		select {
 		case reply := <-sm.X11ReplyChan:
 			switch reply.Type {
-			case protos.StreamCrunReply_TASK_X11_CONN:
-				payload := reply.GetPayloadTaskX11ConnReply()
+			case protos.StreamCrunReply_STEP_X11_CONN:
+				payload := reply.GetPayloadStepX11ConnReply()
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
 				log.Tracef("X11 connection request from craned %s local id %d", cranedId, localId)
@@ -256,8 +256,8 @@ func (sm *X11SessionMgr) SessionMgrRoutine() {
 				go session.SessionRoutine()
 				sm.x11Sessions[globalId] = session
 				sm.sessionMutex.Unlock()
-			case protos.StreamCrunReply_TASK_X11_FORWARD:
-				payload := reply.GetPayloadTaskX11ForwardReply()
+			case protos.StreamCrunReply_STEP_X11_FORWARD:
+				payload := reply.GetPayloadStepX11ForwardReply()
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
 				data := payload.GetMsg()
@@ -274,8 +274,8 @@ func (sm *X11SessionMgr) SessionMgrRoutine() {
 					log.Warnf("[X11 %s:%d] Received X11 forward for non-existing session ", cranedId, localId)
 				}
 				sm.sessionMutex.Unlock()
-			case protos.StreamCrunReply_TASK_X11_EOF:
-				payload := reply.GetPayloadTaskX11EofReply()
+			case protos.StreamCrunReply_STEP_X11_EOF:
+				payload := reply.GetPayloadStepX11EofReply()
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
 				log.Tracef("[X11 %s:%d] X11 EOF", cranedId, localId)

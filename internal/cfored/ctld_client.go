@@ -181,8 +181,8 @@ CtldClientStateMachineLoop:
 
 					switch ctldReply.Type {
 
-					case protos.StreamCtldReply_TASK_ID_REPLY:
-						frontPid := ctldReply.GetPayloadTaskIdReply().Pid
+					case protos.StreamCtldReply_JOB_ID_REPLY:
+						frontPid := ctldReply.GetPayloadJobIdReply().Pid
 
 						gVars.ctldReplyChannelMapMtx.Lock()
 
@@ -196,21 +196,21 @@ CtldClientStateMachineLoop:
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
 
-					case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
+					case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
 						fallthrough
-					case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
+					case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
 						fallthrough
-					case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
+					case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
 						switch ctldReply.Type {
-						case protos.StreamCtldReply_TASK_RES_ALLOC_REPLY:
-							jobId = ctldReply.GetPayloadTaskResAllocReply().JobId
-							stepId = ctldReply.GetPayloadTaskResAllocReply().StepId
-						case protos.StreamCtldReply_TASK_CANCEL_REQUEST:
-							jobId = ctldReply.GetPayloadTaskCancelRequest().JobId
-							stepId = ctldReply.GetPayloadTaskCancelRequest().StepId
-						case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
-							jobId = ctldReply.GetPayloadTaskCompletionAck().JobId
-							stepId = ctldReply.GetPayloadTaskCompletionAck().StepId
+						case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
+							jobId = ctldReply.GetPayloadJobResAllocReply().JobId
+							stepId = ctldReply.GetPayloadJobResAllocReply().StepId
+						case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
+							jobId = ctldReply.GetPayloadJobCancelRequest().JobId
+							stepId = ctldReply.GetPayloadJobCancelRequest().StepId
+						case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
+							jobId = ctldReply.GetPayloadJobCompletionAck().JobId
+							stepId = ctldReply.GetPayloadJobCompletionAck().StepId
 						}
 
 						log.Tracef("[Cfored<->Ctld][Step #%d.%d] %s message received.", jobId, stepId, ctldReply.Type)
@@ -238,9 +238,9 @@ CtldClientStateMachineLoop:
 
 			for pid, c := range gVars.ctldReplyChannelMapByPid {
 				reply := &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_TASK_ID_REPLY,
-					Payload: &protos.StreamCtldReply_PayloadTaskIdReply{
-						PayloadTaskIdReply: &protos.StreamCtldReply_TaskIdReply{
+					Type: protos.StreamCtldReply_JOB_ID_REPLY,
+					Payload: &protos.StreamCtldReply_PayloadJobIdReply{
+						PayloadJobIdReply: &protos.StreamCtldReply_JobIdReply{
 							Pid:           pid,
 							Ok:            false,
 							FailureReason: "Cfored is not connected to CraneCtld.",
@@ -254,9 +254,9 @@ CtldClientStateMachineLoop:
 
 			for step, c := range gVars.ctldReplyChannelMapByStep {
 				reply := &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_TASK_CANCEL_REQUEST,
-					Payload: &protos.StreamCtldReply_PayloadTaskCancelRequest{
-						PayloadTaskCancelRequest: &protos.StreamCtldReply_TaskCancelRequest{
+					Type: protos.StreamCtldReply_JOB_CANCEL_REQUEST,
+					Payload: &protos.StreamCtldReply_PayloadJobCancelRequest{
+						PayloadJobCancelRequest: &protos.StreamCtldReply_JobCancelRequest{
 							JobId:  step.JobId,
 							StepId: step.StepId,
 						},
@@ -267,9 +267,9 @@ CtldClientStateMachineLoop:
 
 			for step, c := range gVars.ctldReplyChannelMapByStep {
 				reply := &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
-					Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
-						PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
+					Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
+					Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
+						PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
 							JobId:  step.JobId,
 							StepId: step.StepId,
 						},
@@ -283,22 +283,22 @@ CtldClientStateMachineLoop:
 
 			if num > 0 {
 				log.Debugf("[Cfored<->Ctld] Sending cancel request to %d front ends "+
-					"with task id allocated.", num)
+					"with job id allocated.", num)
 				for {
 					request = <-gVars.cforedRequestCtldChannel
-					if request.Type != protos.StreamCforedRequest_TASK_COMPLETION_REQUEST {
-						log.Fatal("[Cfored<->Ctld] Expect type TASK_COMPLETION_REQUEST")
+					if request.Type != protos.StreamCforedRequest_JOB_COMPLETION_REQUEST {
+						log.Fatal("[Cfored<->Ctld] Expect type JOB_COMPLETION_REQUEST")
 					}
 
-					jobId := request.GetPayloadTaskCompleteReq().JobId
-					stepId := request.GetPayloadTaskCompleteReq().StepId
+					jobId := request.GetPayloadJobCompleteReq().JobId
+					stepId := request.GetPayloadJobCompleteReq().StepId
 
 					toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
 					if ok {
 						toCallocCtlReplyChannel <- &protos.StreamCtldReply{
-							Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
-							Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
-								PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
+							Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
+							Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
+								PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
 									JobId:  jobId,
 									StepId: stepId,
 								},
@@ -309,7 +309,7 @@ CtldClientStateMachineLoop:
 					}
 
 					count += 1
-					log.Debugf("[Cfored<->Ctld][Step #%d.%d] Receive task completion request. %d/%d front ends is cancelled",
+					log.Debugf("[Cfored<->Ctld][Step #%d.%d] Receive job completion request. %d/%d front ends is cancelled",
 						jobId, stepId, count, num)
 
 					if count >= num {

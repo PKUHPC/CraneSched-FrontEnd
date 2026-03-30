@@ -54,7 +54,7 @@ func execExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if the step is in a state that allows exec
-	if step.Status != protos.TaskStatus_Running {
+	if step.Status != protos.JobStatus_Running {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Cannot exec into container %d.%d in state: %s", jobID, stepID, step.Status.String()))
 	}
 
@@ -87,7 +87,7 @@ func execExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.ExecInContainerStep(context.Background(), execReq)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to exec into container task")
+		util.GrpcErrorPrintf(err, "Failed to exec into container job")
 		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 

@@ -108,7 +108,7 @@ const (
 
 	DefaultWrappedJobName          = "Wrap"
 	GresGpuName                    = "gpu"
-	MaxRepliedJobs                 = 1000 // See kDefaultQueryTaskNumLimit for details
+	MaxRepliedJobs                 = 1000 // See kDefaultQueryJobNumLimit for details
 	MaxJobNameLength               = 60
 	MaxJobFileNameLength           = 127
 	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength

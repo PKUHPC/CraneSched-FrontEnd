@@ -47,7 +47,7 @@ type MailPlugin struct {
 	config
 }
 
-func (p *MailPlugin) parseExtraAttrInTask(t *protos.TaskInfo) (mailtype string, mailuser string, err error) {
+func (p *MailPlugin) parseExtraAttrInJob(t *protos.JobInfo) (mailtype string, mailuser string, err error) {
 	// We treat "" as a valid JSON string
 	if t.ExtraAttr != "" && !gjson.Valid(t.ExtraAttr) {
 		return "", "", fmt.Errorf("invalid JSON string")
@@ -59,24 +59,24 @@ func (p *MailPlugin) parseExtraAttrInTask(t *protos.TaskInfo) (mailtype string, 
 	return mailtype, mailuser, nil
 }
 
-func (p *MailPlugin) subject(t *protos.TaskInfo) string {
+func (p *MailPlugin) subject(t *protos.JobInfo) string {
 	mailtype := gjson.Get(t.ExtraAttr, "mail.type").String()
 
 	subject := fmt.Sprintf("[CraneSched] JobID=%v, Name=%v, MailType=%v, Status=%v",
-		t.TaskId, t.Name, mailtype, t.Status.String())
+		t.JobId, t.Name, mailtype, t.Status.String())
 
-	if t.Status != protos.TaskStatus_Running {
+	if t.Status != protos.JobStatus_Running {
 		subject += fmt.Sprintf(", ElapsedTime=%v, ExitCode=%v", t.ElapsedTime.AsDuration(), t.ExitCode)
 	}
 	return subject
 }
 
-func (p *MailPlugin) body(t *protos.TaskInfo) string {
+func (p *MailPlugin) body(t *protos.JobInfo) string {
 	body := fmt.Sprintf(
 		"Job ID: %v\nJob Name: %v\nState: %v\nWorking Dir: %v\nStart Time: %v\n",
-		t.TaskId, t.Name, t.Status.String(), t.Cwd, t.StartTime.AsTime().Local())
+		t.JobId, t.Name, t.Status.String(), t.Cwd, t.StartTime.AsTime().Local())
 
-	if t.Status != protos.TaskStatus_Running {
+	if t.Status != protos.JobStatus_Running {
 		body += fmt.Sprintf("End Time: %v\nElapsed Time: %v\nExit Code: %v\n",
 			t.EndTime.AsTime().Local(), t.ElapsedTime.AsDuration(), t.ExitCode)
 	}
@@ -151,22 +151,22 @@ func (p *MailPlugin) StartHook(ctx *api.PluginContext) {
 
 	subject := ""
 	body := ""
-	for _, task := range req.GetTaskInfoList() {
-		mailtype, mailuser, err := p.parseExtraAttrInTask(task)
+	for _, job := range req.GetJobInfoList() {
+		mailtype, mailuser, err := p.parseExtraAttrInJob(job)
 		if err != nil {
 			log.Tracef("Failed to parse extra attributes: %v", err)
 			continue
 		}
 
 		if mailtype == "" || mailuser == "" {
-			log.Tracef("Mail type or mail user not specified in job %v", task.TaskId)
+			log.Tracef("Mail type or mail user not specified in job %v", job.JobId)
 			continue
 		}
 
 		if mailtype == "ALL" || mailtype == "BEGIN" {
-			subject = p.subject(task)
+			subject = p.subject(job)
 			if !p.SubjectOnly {
-				body = p.body(task)
+				body = p.body(job)
 			}
 
 			if err := p.send(subject, body, mailuser, "", ""); err != nil {
@@ -185,25 +185,25 @@ func (p *MailPlugin) EndHook(ctx *api.PluginContext) {
 
 	subject := ""
 	body := ""
-	for _, task := range req.GetTaskInfoList() {
-		mailtype, mailuser, err := p.parseExtraAttrInTask(task)
+	for _, job := range req.GetJobInfoList() {
+		mailtype, mailuser, err := p.parseExtraAttrInJob(job)
 		if err != nil {
 			log.Tracef("Failed to parse extra attributes: %v", err)
 			continue
 		}
 
 		if mailtype == "" || mailuser == "" {
-			log.Tracef("Mail type or mail user not specified in job %v", task.TaskId)
+			log.Tracef("Mail type or mail user not specified in job %v", job.JobId)
 			continue
 		}
 
 		if mailtype == "ALL" || mailtype == "END" ||
-			(mailtype == "FAIL" && task.Status == protos.TaskStatus_Failed) ||
-			(mailtype == "TIMELIMIT" && task.Status == protos.TaskStatus_ExceedTimeLimit) ||
-			(mailtype == "OOM" && task.Status == protos.TaskStatus_OutOfMemory) {
-			subject = p.subject(task)
+			(mailtype == "FAIL" && job.Status == protos.JobStatus_Failed) ||
+			(mailtype == "TIMELIMIT" && job.Status == protos.JobStatus_ExceedTimeLimit) ||
+			(mailtype == "OOM" && job.Status == protos.JobStatus_OutOfMemory) {
+			subject = p.subject(job)
 			if !p.SubjectOnly {
-				body = p.body(task)
+				body = p.body(job)
 			}
 
 			if err := p.send(subject, body, mailuser, "", ""); err != nil {

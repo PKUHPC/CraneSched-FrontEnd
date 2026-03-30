@@ -37,7 +37,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NOTE: See ContainerInstance in TaskManager.h for log file structure details
+// NOTE: See ContainerInstance in JobManager.h for log file structure details
 const kLogDirPattern = "%d.out"
 const kLogFilename = "%v.%v.log"
 
@@ -58,15 +58,15 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 	idFilter := map[uint32]*protos.JobStepIds{}
 	idFilter[uint32(jobID)] = &protos.JobStepIds{Steps: []uint32{uint32(stepID)}}
-	request := protos.QueryTasksInfoRequest{
-		FilterIds:                   idFilter,
-		FilterTaskTypes:             []protos.TaskType{protos.TaskType_Container},
-		OptionIncludeCompletedTasks: true,
+	request := protos.QueryJobsInfoRequest{
+		FilterIds:                  idFilter,
+		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
+		OptionIncludeCompletedJobs: true,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), &request)
+	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container task")
+		util.GrpcErrorPrintf(err, "Failed to query container job")
 		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
@@ -74,14 +74,14 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorBackend, "")
 	}
 
-	if len(reply.TaskInfoList) == 0 {
+	if len(reply.JobInfoList) == 0 {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container %d.%d not found", jobID, stepID))
 	}
 
-	task := reply.TaskInfoList[0]
+	job := reply.JobInfoList[0]
 
 	var targetStep *protos.StepInfo
-	for _, step := range task.StepInfoList {
+	for _, step := range job.StepInfoList {
 		if step.StepId == stepID {
 			targetStep = step
 			break
@@ -96,11 +96,11 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 	cwd := targetStep.Cwd
 	if cwd == "" {
-		cwd = task.Cwd
+		cwd = job.Cwd
 	}
 
 	var nodeName string
-	if targetStep.Status == protos.TaskStatus_Running {
+	if targetStep.Status == protos.JobStatus_Running {
 		nodeName, err = resolveTargetNode(targetStep, f.Log.TargetNode)
 		if err != nil {
 			return err
