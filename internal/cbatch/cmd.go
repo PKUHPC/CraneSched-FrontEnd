@@ -72,10 +72,10 @@ var (
 	FlagHold      bool
 	FlagBeginTime string
 	FlagDns       []string
+	FlagArray     string
 
 	// not implement feature:
 	FlagNTasks          string
-	FlagArray           string
 	FlagNoRequeue       string
 	FlagParsable        string
 	FlagNTasksPerSocket string
@@ -131,7 +131,13 @@ var (
 				return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
 			}
 
-			if FlagRepeat == 1 {
+			if FlagArray != "" {
+				indices, err := ParseArrayExpr(FlagArray)
+				if err != nil {
+					return util.WrapCraneErr(util.ErrorCmdArg, "Invalid --array: %v", err)
+				}
+				return SendArrayRequests(task, indices)
+			} else if FlagRepeat == 1 {
 				return SendRequest(task)
 			} else {
 				return SendMultipleRequests(task, FlagRepeat)
@@ -187,6 +193,8 @@ func init() {
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
+	RootCmd.Flags().StringVarP(&FlagArray, "array", "a", "",
+		"Submit a job array, e.g. 0-31, 1-7:2, 1,3,5")
 
 	initPodFlags(RootCmd)
 }

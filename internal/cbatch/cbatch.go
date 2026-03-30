@@ -492,6 +492,10 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
 			}
+		case "--array", "-a":
+			if !cmd.Flags().Changed("array") {
+				FlagArray = arg.val
+			}
 		case "-s", "--signal":
 			signals, err := util.ParseSignalParamString(arg.val)
 			if err != nil {
@@ -574,6 +578,42 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) error {
 	return nil
 }
 
+func SendArrayRequests(task *protos.TaskToCtld, arrayIndices []uint32) error {
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub := util.GetStubToCtldByConfig(config)
+	req := &protos.SubmitBatchTasksRequest{
+		Task:         task,
+		ArrayTaskIds: arrayIndices,
+	}
+
+	reply, err := stub.SubmitBatchTasks(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to submit array tasks")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.GetCodeList()) > 0 {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+		return nil
+	}
+
+	if len(reply.TaskIdList) > 0 {
+		taskIdListString := util.ConvertSliceToString(reply.TaskIdList, ", ")
+		fmt.Printf("Job id allocated: %s.\n", taskIdListString)
+	}
+
+	if len(reply.GetCodeList()) > 0 {
+		for _, reason := range reply.GetCodeList() {
+			log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reason))
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+	return nil
+}
+
 // ParseCbatchScript Split the job script into two parts: the arguments and the shell script.
 func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 	file, err := os.Open(path)
@@ -635,8 +675,6 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	filteredArgs := make([]CbatchArg, 0, len(args))
 	unsupportedFlags := map[string]string{
-		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
-		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
 		"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
 		"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",

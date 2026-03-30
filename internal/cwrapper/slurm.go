@@ -900,9 +900,6 @@ func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagNTasks != "" {
 		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
 	}
-	if cbatch.FlagArray != "" {
-		fmt.Fprintln(os.Stderr, "The feature --array/-a is not yet supported by Crane, the use is ignored.")
-	}
 	if cbatch.FlagNoRequeue != "" {
 		fmt.Fprintln(os.Stderr, "The feature --no-requeue is not yet supported by Crane, the use is ignored.")
 	}
