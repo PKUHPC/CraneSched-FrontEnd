@@ -75,7 +75,6 @@ var (
 
 	// not implement feature:
 	FlagNTasks          string
-	FlagArray           string
 	FlagNoRequeue       string
 	FlagParsable        string
 	FlagNTasksPerSocket string
@@ -88,6 +87,8 @@ var (
 	FlagCoresPerSocket  string
 	FlagRequeue         string
 	FlagWait            string
+
+	FlagArray string
 
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
@@ -131,6 +132,23 @@ var (
 				return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
 			}
 
+			hasArray := job.ArrayIndexStart != nil || job.ArrayIndexEnd != nil
+			if hasArray {
+				if job.ArrayIndexStart == nil || job.ArrayIndexEnd == nil {
+					return util.NewCraneErr(util.ErrorCmdArg, "--array must include both start and end index")
+				}
+				if FlagRepeat > 1 {
+					return util.NewCraneErr(util.ErrorCmdArg, "--array and --repeat are mutually exclusive")
+				}
+
+				arrayCount := uint64(*job.ArrayIndexEnd) - uint64(*job.ArrayIndexStart) + 1
+				if arrayCount > uint64(^uint32(0)) {
+					return util.NewCraneErr(util.ErrorCmdArg, "--array range is too large")
+				}
+
+				return SendMultipleRequests(job, uint32(arrayCount))
+			}
+
 			if FlagRepeat == 1 {
 				return SendRequest(job)
 			} else {
@@ -163,6 +181,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
 	RootCmd.Flags().Uint32Var(&FlagRepeat, "repeat", 1, "Submit the job multiple times")
+	RootCmd.Flags().StringVarP(&FlagArray, "array", "a", "", "Submit an array job using index range start-end")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
@@ -185,6 +204,7 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus required per node, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")
 	RootCmd.Flags().StringVarP(&FlagMemPerCpu, "mem-per-cpu", "", "", "Maximum amount of real memory per CPU, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
+	RootCmd.MarkFlagsMutuallyExclusive("repeat", "array")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
 
