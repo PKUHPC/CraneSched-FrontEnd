@@ -44,9 +44,9 @@ const (
 	kCraneExitCodeBase     = 320
 )
 
-// QueryJob will query all pending, running and completed jobs
+// QueryJob will query all pending, running and completed tasks
 func QueryJob() error {
-	request := protos.QueryJobsInfoRequest{OptionIncludeCompletedJobs: true}
+	request := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: true}
 
 	if FlagFilterStartTime != "" {
 		request.FilterStartTimeInterval = &protos.TimeInterval{}
@@ -99,11 +99,11 @@ func QueryJob() error {
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job name list specified: %s.", err)
 		}
-		request.FilterJobNames = filterJobNameList
+		request.FilterTaskNames = filterJobNameList
 	}
 
 	if FlagFilterStates != "" {
-		stateList, err := util.ParseJobStatusList(FlagFilterStates)
+		stateList, err := util.ParseTaskStatusList(FlagFilterStates)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Failed to parse the state filter: %s.", err)
 		}
@@ -126,12 +126,12 @@ func QueryJob() error {
 		request.FilterPartitions = filterPartitionList
 	}
 
-	if FlagFilterJobTypes != "" {
-		filterJobTypeList, err := util.ParseJobTypeList(FlagFilterJobTypes)
+	if FlagFilterTaskTypes != "" {
+		filterTaskTypeList, err := util.ParseTaskTypeList(FlagFilterTaskTypes)
 		if err != nil {
-			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job type list specified: %s.", err)
+			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid task type list specified: %s.", err)
 		}
-		request.FilterJobTypes = filterJobTypeList
+		request.FilterTaskTypes = filterTaskTypeList
 	}
 
 	if FlagFilterNodeNames != "" {
@@ -146,9 +146,9 @@ func QueryJob() error {
 		request.NumLimit = FlagNumLimit
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := stub.QueryTasksInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show jobs")
+		util.GrpcErrorPrintf(err, "Failed to show tasks")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
@@ -161,10 +161,10 @@ func QueryJob() error {
 		}
 	}
 	items := make([]*JobOrStep, 0)
-	for _, job := range reply.JobInfoList {
-		items = append(items, &JobOrStep{job: job, stepInfo: nil, isStep: false})
-		for _, step := range job.StepInfoList {
-			items = append(items, &JobOrStep{job: job, stepInfo: step, isStep: true})
+	for _, task := range reply.TaskInfoList {
+		items = append(items, &JobOrStep{task: task, stepInfo: nil, isStep: false})
+		for _, step := range task.StepInfoList {
+			items = append(items, &JobOrStep{task: task, stepInfo: step, isStep: true})
 		}
 	}
 
@@ -180,8 +180,8 @@ func QueryJob() error {
 			tableData[i] = []string{
 				ProcessJobID(jobOrStep),
 				ProcessName(jobOrStep),
-				jobOrStep.job.Username,
-				jobOrStep.job.Partition,
+				jobOrStep.task.Username,
+				jobOrStep.task.Partition,
 				ProcessNodeNum(jobOrStep),
 				ProcessAccount(jobOrStep),
 				ProcessReqCPUs(jobOrStep),
@@ -193,13 +193,13 @@ func QueryJob() error {
 				ProcessStartTime(jobOrStep),
 				ProcessEndTime(jobOrStep),
 				ProcessSubmitTime(jobOrStep),
-				jobOrStep.job.Qos,
+				jobOrStep.task.Qos,
 				ProcessExclusive(jobOrStep),
 				ProcessHeld(jobOrStep),
-				strconv.FormatUint(uint64(jobOrStep.job.Priority), 10),
+				strconv.FormatUint(uint64(jobOrStep.task.Priority), 10),
 				ProcessNodeList(jobOrStep),
 				ProcessExitCode(jobOrStep),
-				jobOrStep.job.Wckey,
+				jobOrStep.task.Wckey,
 			}
 		}
 	} else {
@@ -280,9 +280,9 @@ func QueryJob() error {
 	return nil
 }
 
-// JobOrStep represents either a job (JobInfo) or a step (StepInfo)
+// JobOrStep represents either a job (TaskInfo) or a step (StepInfo)
 type JobOrStep struct {
-	job      *protos.JobInfo
+	task     *protos.TaskInfo
 	stepInfo *protos.StepInfo
 	isStep   bool
 }
@@ -294,7 +294,7 @@ type FieldProcessor struct {
 
 // Account (a)
 func ProcessAccount(item *JobOrStep) string {
-	return item.job.Account
+	return item.task.Account
 }
 
 // ReqCPUs (C)
@@ -303,7 +303,7 @@ func ProcessReqCPUs(item *JobOrStep) string {
 	if item.isStep {
 		cpuCores = item.stepInfo.ReqTotalResView.AllocatableRes.CpuCoreLimit
 	} else {
-		cpuCores = item.job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.task.ReqTotalResView.AllocatableRes.CpuCoreLimit
 	}
 	return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 }
@@ -314,9 +314,9 @@ func ProcessAllocCPUs(item *JobOrStep) string {
 	if item.isStep {
 		cpuCores = item.stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
 	} else {
-		cpuCores = item.job.AllocatedResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.task.AllocatedResView.AllocatableRes.CpuCoreLimit
 	}
-	if item.job.AllocatedResView != nil {
+	if item.task.AllocatedResView != nil {
 		return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 	}
 	return ""
@@ -324,7 +324,7 @@ func ProcessAllocCPUs(item *JobOrStep) string {
 
 // ElapsedTime (D)
 func ProcessElapsedTime(item *JobOrStep) string {
-	var status protos.JobStatus
+	var status protos.TaskStatus
 	var startTime, endTime time.Time
 	if item.isStep {
 		status = item.stepInfo.Status
@@ -334,21 +334,35 @@ func ProcessElapsedTime(item *JobOrStep) string {
 		startTime = item.stepInfo.StartTime.AsTime()
 		endTime = item.stepInfo.EndTime.AsTime()
 	} else {
-		status = item.job.Status
-		if item.job.StartTime == nil || item.job.EndTime == nil {
+		status = item.task.Status
+		if item.task.StartTime == nil || item.task.EndTime == nil {
 			return ""
 		}
-		startTime = item.job.StartTime.AsTime()
-		endTime = item.job.EndTime.AsTime()
+		startTime = item.task.StartTime.AsTime()
+		endTime = item.task.EndTime.AsTime()
 	}
 
-	if status == protos.JobStatus_Running {
+	if status == protos.TaskStatus_Running {
 		if item.isStep {
 			return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
 		} else {
-			return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
+			return util.SecondTimeFormat(item.task.ElapsedTime.Seconds)
 		}
-	} else if status == protos.JobStatus_Completed {
+	} else if status == protos.TaskStatus_Completed {
+		// Use elapsed_time from backend if available.
+		// It includes total_suspended_duration so that suspension time
+		// is properly reflected even when kernel timers continue
+		// during SIGSTOP/cgroup v1 freeze.
+		if item.isStep {
+			if item.stepInfo.ElapsedTime != nil && item.stepInfo.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
+			}
+		} else {
+			if item.task.ElapsedTime != nil && item.task.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.task.ElapsedTime.Seconds)
+			}
+		}
+		// Fallback to computing from start/end time
 		if startTime.IsZero() || endTime.IsZero() {
 			return "-"
 		}
@@ -363,7 +377,7 @@ func ProcessElapsedTime(item *JobOrStep) string {
 // EndTime (E)
 func ProcessEndTime(item *JobOrStep) string {
 	endTimeStr := "unknown"
-	var status protos.JobStatus
+	var status protos.TaskStatus
 	var startTime, endTime time.Time
 
 	if item.isStep {
@@ -371,11 +385,11 @@ func ProcessEndTime(item *JobOrStep) string {
 		startTime = item.stepInfo.StartTime.AsTime()
 		endTime = item.stepInfo.EndTime.AsTime()
 	} else {
-		status = item.job.Status
-		startTime = item.job.StartTime.AsTime()
-		endTime = item.job.EndTime.AsTime()
+		status = item.task.Status
+		startTime = item.task.StartTime.AsTime()
+		endTime = item.task.EndTime.AsTime()
 	}
-	if status != protos.JobStatus_Pending && status != protos.JobStatus_Running {
+	if status != protos.TaskStatus_Pending && status != protos.TaskStatus_Running {
 		if startTime.Before(time.Now()) && endTime.After(startTime) {
 			endTimeStr = endTime.In(time.Local).Format("2006-01-02 15:04:05")
 		}
@@ -391,7 +405,7 @@ func ProcessExitCode(item *JobOrStep) string {
 	if item.isStep {
 		code = item.stepInfo.ExitCode
 	} else {
-		code = item.job.ExitCode
+		code = item.task.ExitCode
 	}
 
 	if code >= kTerminationSignalBase {
@@ -407,7 +421,7 @@ func ProcessHeld(item *JobOrStep) string {
 	if item.isStep {
 		return strconv.FormatBool(item.stepInfo.Held)
 	}
-	return strconv.FormatBool(item.job.Held)
+	return strconv.FormatBool(item.task.Held)
 }
 
 // JobID (j)
@@ -415,7 +429,7 @@ func ProcessJobID(item *JobOrStep) string {
 	if item.isStep {
 		return fmt.Sprintf("%d.%d", item.stepInfo.JobId, item.stepInfo.StepId)
 	}
-	return strconv.FormatUint(uint64(item.job.JobId), 10)
+	return strconv.FormatUint(uint64(item.task.TaskId), 10)
 }
 
 // Wckey (K)
@@ -423,7 +437,7 @@ func ProcessWckey(item *JobOrStep) string {
 	if item.isStep {
 		return ""
 	}
-	return item.job.Wckey
+	return item.task.Wckey
 }
 
 // Comment (k)
@@ -432,7 +446,7 @@ func ProcessComment(item *JobOrStep) string {
 	if item.isStep {
 		extraAttr = item.stepInfo.ExtraAttr
 	} else {
-		extraAttr = item.job.ExtraAttr
+		extraAttr = item.task.ExtraAttr
 	}
 
 	if !gjson.Valid(extraAttr) {
@@ -450,7 +464,7 @@ func ProcessNodeList(item *JobOrStep) string {
 	if item.isStep {
 		return item.stepInfo.GetCranedList()
 	}
-	return item.job.GetCranedList()
+	return item.task.GetCranedList()
 }
 
 // TimeLimit (l)
@@ -459,7 +473,7 @@ func ProcessTimeLimit(item *JobOrStep) string {
 	if item.isStep {
 		seconds = item.stepInfo.TimeLimit.Seconds
 	} else {
-		seconds = item.job.TimeLimit.Seconds
+		seconds = item.task.TimeLimit.Seconds
 	}
 
 	if seconds >= util.InvalidDuration().Seconds {
@@ -476,8 +490,8 @@ func ProcessReqMemPerNode(item *JobOrStep) string {
 		totalMem = item.stepInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes
 		nodeNum = item.stepInfo.NodeNum
 	} else {
-		totalMem = item.job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
-		nodeNum = item.job.NodeNum
+		totalMem = item.task.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+		nodeNum = item.task.NodeNum
 	}
 	if nodeNum > 0 {
 		return util.FormatMemToMB(totalMem / uint64(nodeNum))
@@ -494,8 +508,8 @@ func ProcessAllocMemPerNode(item *JobOrStep) string {
 		nodeNum = item.stepInfo.NodeNum
 		allocMem = item.stepInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes
 	} else {
-		nodeNum = item.job.NodeNum
-		allocMem = item.job.AllocatedResView.AllocatableRes.MemoryLimitBytes
+		nodeNum = item.task.NodeNum
+		allocMem = item.task.AllocatedResView.AllocatableRes.MemoryLimitBytes
 	}
 	if nodeNum == 0 {
 		return "0"
@@ -509,7 +523,7 @@ func ProcessNodeNum(item *JobOrStep) string {
 	if item.isStep {
 		return strconv.FormatUint(uint64(item.stepInfo.NodeNum), 10)
 	}
-	return strconv.FormatUint(uint64(item.job.NodeNum), 10)
+	return strconv.FormatUint(uint64(item.task.NodeNum), 10)
 }
 
 // JobName (n)
@@ -517,7 +531,7 @@ func ProcessName(item *JobOrStep) string {
 	if item.isStep {
 		return item.stepInfo.Name
 	}
-	return item.job.Name
+	return item.task.Name
 }
 
 // Partition (P)
@@ -526,7 +540,7 @@ func ProcessPartition(item *JobOrStep) string {
 		// StepInfo doesn't have Partition field
 		return ""
 	}
-	return item.job.Partition
+	return item.task.Partition
 }
 
 // Priority (p)
@@ -535,7 +549,7 @@ func ProcessPriority(item *JobOrStep) string {
 		// StepInfo doesn't have Priority field
 		return ""
 	}
-	return strconv.FormatUint(uint64(item.job.Priority), 10)
+	return strconv.FormatUint(uint64(item.task.Priority), 10)
 }
 
 // Qos (q)
@@ -544,7 +558,7 @@ func ProcessQos(item *JobOrStep) string {
 		// StepInfo doesn't have Qos field
 		return ""
 	}
-	return item.job.Qos
+	return item.task.Qos
 }
 
 // Reason (R)
@@ -553,8 +567,8 @@ func ProcessReason(item *JobOrStep) string {
 		return ""
 	}
 
-	if item.job.Status == protos.JobStatus_Pending {
-		return item.job.GetPendingReason()
+	if item.task.Status == protos.TaskStatus_Pending {
+		return item.task.GetPendingReason()
 	}
 	return " "
 }
@@ -564,7 +578,7 @@ func ProcessReqNodes(item *JobOrStep) string {
 	if item.isStep {
 		return strings.Join(item.stepInfo.ReqNodes, ",")
 	}
-	return strings.Join(item.job.ReqNodes, ",")
+	return strings.Join(item.task.ReqNodes, ",")
 }
 
 // StartTime (S)
@@ -574,7 +588,7 @@ func ProcessStartTime(item *JobOrStep) string {
 	if item.isStep {
 		startTime = item.stepInfo.StartTime.AsTime()
 	} else {
-		startTime = item.job.StartTime.AsTime()
+		startTime = item.task.StartTime.AsTime()
 	}
 
 	if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) &&
@@ -591,7 +605,7 @@ func ProcessSubmitTime(item *JobOrStep) string {
 	if item.isStep {
 		submitTime = item.stepInfo.SubmitTime.AsTime()
 	} else {
-		submitTime = item.job.SubmitTime.AsTime()
+		submitTime = item.task.SubmitTime.AsTime()
 	}
 
 	if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
@@ -605,7 +619,7 @@ func ProcessJobType(item *JobOrStep) string {
 	if item.isStep {
 		return item.stepInfo.Type.String()
 	}
-	return item.job.Type.String()
+	return item.task.Type.String()
 }
 
 // State (t)
@@ -613,7 +627,7 @@ func ProcessState(item *JobOrStep) string {
 	if item.isStep {
 		return item.stepInfo.Status.String()
 	}
-	return item.job.Status.String()
+	return item.task.Status.String()
 }
 
 // UserName (U)
@@ -622,7 +636,7 @@ func ProcessUserName(item *JobOrStep) string {
 		// StepInfo doesn't have Username field
 		return ""
 	}
-	return item.job.Username
+	return item.task.Username
 }
 
 // Uid (u)
@@ -630,7 +644,7 @@ func ProcessUid(item *JobOrStep) string {
 	if item.isStep {
 		return strconv.FormatUint(uint64(item.stepInfo.Uid), 10)
 	}
-	return strconv.FormatUint(uint64(item.job.Uid), 10)
+	return strconv.FormatUint(uint64(item.task.Uid), 10)
 }
 
 // Exclusive (X)
@@ -639,7 +653,7 @@ func ProcessExclusive(item *JobOrStep) string {
 		// StepInfo doesn't have Exclusive field
 		return ""
 	}
-	return strconv.FormatBool(item.job.Exclusive)
+	return strconv.FormatBool(item.task.Exclusive)
 }
 
 // ExcludeNodes (x)
@@ -647,7 +661,7 @@ func ProcessExcludeNodes(item *JobOrStep) string {
 	if item.isStep {
 		return strings.Join(item.stepInfo.ExcludeNodes, ",")
 	}
-	return strings.Join(item.job.ExcludeNodes, ",")
+	return strings.Join(item.task.ExcludeNodes, ",")
 }
 
 var fieldProcessors = map[string]FieldProcessor{
@@ -768,7 +782,7 @@ var fieldProcessors = map[string]FieldProcessor{
 	"excludenodes": {"ExcludeNodes", ProcessExcludeNodes},
 }
 
-// FormatData formats job information according to a format string.
+// FormatData formats task information according to a format string.
 // Format: %[[.]size]type[suffix]
 // Examples:
 //   - %j      : JobID without width constraint, left-aligned
@@ -851,7 +865,7 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 		// Add header and process data
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(fieldProcessor.header))
 		for j, item := range items {
-			// Use unified processing for both jobs and steps
+			// Use unified processing for both tasks and steps
 			tableOutputCell[j] = append(tableOutputCell[j], fieldProcessor.process(item))
 		}
 	}
