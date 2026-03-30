@@ -50,7 +50,7 @@ var (
 	FlagMailUser   string
 	FlagComment    string
 	FlagDependency string
-	FlagMpi string
+	FlagMpi        string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string
