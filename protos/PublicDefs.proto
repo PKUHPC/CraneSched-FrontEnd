@@ -645,6 +645,13 @@ message JobInfo {
   string submit_hostname = 43;
   uint32 ntasks = 44;
   google.protobuf.Timestamp deadline_time = 45;
+
+  // Array metadata for query/display.
+  optional uint32 array_index_start = 46;
+  optional uint32 array_index_end = 47;
+  optional uint32 array_task_id = 48;
+  // For array children: the array parent/anchor job_id.
+  optional uint32 array_job_id = 49;
 }
 
 message StepInfo {

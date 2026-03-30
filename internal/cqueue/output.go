@@ -18,6 +18,124 @@ type TableConfig struct {
 	RowMapper func(*protos.JobInfo) []string
 }
 
+type arraySummaryInfo struct {
+	anchorJobId uint32
+	start       uint32
+	end         uint32
+	count       int
+	sample      *protos.JobInfo
+}
+
+func makeArraySummaryGroupKey(job *protos.JobInfo) (string, bool) {
+	if job.ArrayIndexStart == nil || job.ArrayIndexEnd == nil || job.ArrayTaskId == nil {
+		return "", false
+	}
+
+	return fmt.Sprintf("%s|%s|%s|%s|%d|%d|%d",
+		job.Account,
+		job.Username,
+		job.Partition,
+		job.CmdLine,
+		job.SubmitTime.GetSeconds(),
+		*job.ArrayIndexStart,
+		*job.ArrayIndexEnd,
+	), true
+}
+
+func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
+	row := make([]string, len(header))
+	summaryId := fmt.Sprintf("%d_[%d-%d]", info.anchorJobId, info.start, info.end)
+
+	for i, column := range header {
+		switch column {
+		case "JobId", "JOBID":
+			row[i] = summaryId
+		case "JobName", "Name":
+			row[i] = info.sample.Name
+		case "User", "UserName":
+			row[i] = info.sample.Username
+		case "Partition":
+			row[i] = info.sample.Partition
+		case "Account":
+			row[i] = info.sample.Account
+		case "Status", "State":
+			row[i] = "ArraySummary"
+		case "Type", "JobType":
+			row[i] = info.sample.Type.String()
+		case "Time", "ElapsedTime":
+			row[i] = "-"
+		case "TimeLimit":
+			row[i] = FormatTimeLimit(info.sample.TimeLimit.Seconds)
+		case "Nodes", "NodeNum":
+			row[i] = strconv.Itoa(info.count)
+		case "NodeList/Reason", "NodeList":
+			row[i] = fmt.Sprintf("ArrayTasks=%d", info.count)
+		case "QoS", "Qos":
+			row[i] = info.sample.Qos
+		case "StartTime":
+			row[i] = FormatTime(info.sample.StartTime, "unknown")
+		case "SubmitTime":
+			row[i] = FormatTime(info.sample.SubmitTime, "unknown")
+		default:
+			row[i] = "-"
+		}
+	}
+
+	return row
+}
+
+func insertArraySummaryRows(header []string, rows [][]string, jobs []*protos.JobInfo) [][]string {
+	if len(rows) != len(jobs) {
+		return rows
+	}
+
+	groupByKey := make(map[string]*arraySummaryInfo)
+	jobKeys := make([]string, len(jobs))
+
+	for i, job := range jobs {
+		key, ok := makeArraySummaryGroupKey(job)
+		if !ok {
+			continue
+		}
+		jobKeys[i] = key
+
+		if _, ok := groupByKey[key]; !ok {
+			groupByKey[key] = &arraySummaryInfo{
+				anchorJobId: job.JobId,
+				start:       *job.ArrayIndexStart,
+				end:         *job.ArrayIndexEnd,
+				count:       0,
+				sample:      job,
+			}
+		}
+
+		group := groupByKey[key]
+		group.count++
+		if job.JobId > group.anchorJobId {
+			group.anchorJobId = job.JobId
+		}
+	}
+
+	emitted := make(map[string]struct{})
+	merged := make([][]string, 0, len(rows)+len(groupByKey))
+
+	for i, row := range rows {
+		key := jobKeys[i]
+		if key != "" {
+			if _, ok := emitted[key]; !ok {
+				group := groupByKey[key]
+				if group.count > 1 {
+					merged = append(merged, buildArraySummaryRow(header, group))
+				}
+				emitted[key] = struct{}{}
+			}
+		}
+		merged = append(merged, row)
+	}
+
+	return merged
+}
+
 func FormatTime(t *timestamppb.Timestamp, fallback string) string {
 	if t == nil || t.AsTime().Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 		return fallback
@@ -61,7 +179,7 @@ func GenerateTableConfig() TableConfig {
 					timeLimit = FormatTimeLimit(job.TimeLimit.Seconds)
 				}
 				return []string{
-					strconv.FormatUint(uint64(job.JobId), 10),
+					formatJobIdForDisplay(job),
 					job.Name,
 					job.Username,
 					job.Partition,
@@ -94,7 +212,7 @@ func GenerateTableConfig() TableConfig {
 			},
 			RowMapper: func(job *protos.JobInfo) []string {
 				return []string{
-					strconv.FormatUint(uint64(job.JobId), 10),
+					formatJobIdForDisplay(job),
 					job.Partition,
 					job.Name,
 					job.Username,
@@ -169,6 +287,8 @@ func QueryTableOutput(reply *protos.QueryJobsInfoReply) error {
 		customHeader, customData := FormatData(reply)
 		header, tableData = customHeader, customData
 		table.SetAutoFormatHeaders(false)
+	} else {
+		tableData = insertArraySummaryRows(header, tableData, reply.JobInfoList)
 	}
 
 	if !FlagNoHeader {
