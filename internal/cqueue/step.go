@@ -21,7 +21,6 @@ package cqueue
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os"
 	"regexp"
 	"sort"
@@ -81,7 +80,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 			stepInfo := stepData.stepInfo
 			job := stepData.job
 
-			stepIdStr := fmt.Sprintf("%d.%d", stepInfo.JobId, stepInfo.StepId)
+			stepIdStr := formatStepIdForDisplay(stepInfo, job)
 
 			name := stepInfo.Name
 
@@ -128,7 +127,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 
 // Step field processors
 func ProcessStepId(stepData StepData) string {
-	return fmt.Sprintf("%d.%d", stepData.stepInfo.JobId, stepData.stepInfo.StepId)
+	return formatStepIdForDisplay(stepData.stepInfo, stepData.job)
 }
 
 func ProcessStepName(stepData StepData) string {
@@ -189,7 +188,7 @@ func ProcessStepCommand(stepData StepData) string {
 }
 
 func ProcessStepJobId(stepData StepData) string {
-	return strconv.FormatUint(uint64(stepData.stepInfo.JobId), 10)
+	return formatJobIdForDisplay(stepData.job)
 }
 
 type StepFieldProcessor struct {

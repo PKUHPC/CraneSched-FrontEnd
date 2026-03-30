@@ -611,6 +611,11 @@ message JobInfo {
   map<string, string> env = 42;
   string submit_hostname = 43;
   uint32 ntasks = 44;
+
+  // Array metadata for query/display.
+  optional uint32 array_index_start = 45;
+  optional uint32 array_index_end = 46;
+  optional uint32 array_task_id = 47;
 }
 
 message StepInfo {

@@ -79,11 +79,14 @@ func QueryJob() error {
 	}
 
 	if FlagFilterJobIDs != "" {
-		filterStepList, err := util.ParseStepIdList(FlagFilterJobIDs, ",")
+		selectors, err := util.ParseJobIdSelectorList(FlagFilterJobIDs, ",")
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 		}
-		request.FilterIds = filterStepList
+		configureJobIdSelectors(selectors)
+		request.FilterIds = buildFilterIdsFromSelectors()
+	} else {
+		resetJobIdSelectors()
 	}
 
 	if FlagFilterUsers != "" {
@@ -168,6 +171,25 @@ func QueryJob() error {
 		}
 	}
 
+	items = applyArrayAwareItemFilter(items)
+	sort.Slice(items, func(i, j int) bool {
+		left := buildSortKey(items[i])
+		right := buildSortKey(items[j])
+		if left.jobId != right.jobId {
+			return left.jobId > right.jobId
+		}
+		if left.arrayPresent != right.arrayPresent {
+			return left.arrayPresent
+		}
+		if left.arrayTaskId != right.arrayTaskId {
+			return left.arrayTaskId < right.arrayTaskId
+		}
+		if left.isStep != right.isStep {
+			return !left.isStep
+		}
+		return left.stepId < right.stepId
+	})
+
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	var header []string
@@ -245,30 +267,12 @@ func QueryJob() error {
 		}
 	}
 
+	if FlagFormat == "" {
+		tableData = insertArraySummaryRows(header, tableData, items)
+	}
+
 	if !FlagNoHeader {
 		table.SetHeader(header)
-	}
-
-	// Get index of "JobId" column
-	jobIdIdx := -1
-	for i, val := range header {
-		if val == "JobId" {
-			jobIdIdx = i
-			break
-		}
-	}
-
-	// If "JobId" column exists, sort all rows by descending order of "JobId".
-	if jobIdIdx != -1 {
-		less := func(i, j int) bool {
-			jobId1, stepId1, _ := util.ParseJobIdStepId(tableData[i][jobIdIdx])
-			jobId2, stepId2, _ := util.ParseJobIdStepId(tableData[j][jobIdIdx])
-			if jobId1 != jobId2 {
-				return jobId1 > jobId2
-			}
-			return stepId1 < stepId2
-		}
-		sort.Slice(tableData, less)
 	}
 
 	if !FlagFull && FlagFormat == "" {
@@ -287,9 +291,158 @@ type JobOrStep struct {
 	isStep   bool
 }
 
+type jobDisplaySortKey struct {
+	jobId        uint32
+	arrayPresent bool
+	arrayTaskId  uint32
+	isStep       bool
+	stepId       uint32
+}
+
+func buildSortKey(item *JobOrStep) jobDisplaySortKey {
+	key := jobDisplaySortKey{
+		jobId:  item.job.JobId,
+		isStep: item.isStep,
+	}
+
+	if item.job.ArrayTaskId != nil {
+		key.arrayPresent = true
+		key.arrayTaskId = *item.job.ArrayTaskId
+	}
+
+	if item.isStep {
+		key.stepId = item.stepInfo.StepId
+	}
+
+	return key
+}
+
 type FieldProcessor struct {
 	header  string
 	process func(item *JobOrStep) string
+}
+
+type arraySummaryInfo struct {
+	anchorJobId uint32
+	start       uint32
+	end         uint32
+	count       int
+	sample      *protos.JobInfo
+}
+
+func makeArraySummaryGroupKey(job *protos.JobInfo) (string, bool) {
+	if job.ArrayIndexStart == nil || job.ArrayIndexEnd == nil || job.ArrayTaskId == nil {
+		return "", false
+	}
+
+	return fmt.Sprintf("%s|%s|%s|%s|%d|%d|%d",
+		job.Account,
+		job.Username,
+		job.Partition,
+		job.CmdLine,
+		job.SubmitTime.GetSeconds(),
+		*job.ArrayIndexStart,
+		*job.ArrayIndexEnd,
+	), true
+}
+
+func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
+	row := make([]string, len(header))
+	summaryId := fmt.Sprintf("%d_[%d-%d]", info.anchorJobId, info.start, info.end)
+
+	for i, column := range header {
+		switch column {
+		case "JobId":
+			row[i] = summaryId
+		case "JobName", "Name":
+			row[i] = info.sample.Name
+		case "Partition":
+			row[i] = info.sample.Partition
+		case "Account":
+			row[i] = info.sample.Account
+		case "State", "Status":
+			row[i] = "ArraySummary"
+		case "ExitCode":
+			row[i] = "-"
+		case "UserName":
+			row[i] = info.sample.Username
+		case "Qos", "QoS":
+			row[i] = info.sample.Qos
+		case "TimeLimit":
+			row[i] = ProcessTimeLimit(&JobOrStep{job: info.sample})
+		case "StartTime":
+			row[i] = ProcessStartTime(&JobOrStep{job: info.sample})
+		case "EndTime":
+			row[i] = ProcessEndTime(&JobOrStep{job: info.sample})
+		case "SubmitTime":
+			row[i] = ProcessSubmitTime(&JobOrStep{job: info.sample})
+		case "NodeList":
+			row[i] = fmt.Sprintf("ArrayTasks=%d", info.count)
+		case "NodeNum":
+			row[i] = strconv.Itoa(info.count)
+		case "wckey":
+			row[i] = info.sample.Wckey
+		default:
+			row[i] = "-"
+		}
+	}
+
+	return row
+}
+
+func insertArraySummaryRows(header []string, rows [][]string, items []*JobOrStep) [][]string {
+	if len(rows) != len(items) {
+		return rows
+	}
+
+	groupByKey := make(map[string]*arraySummaryInfo)
+	itemKeys := make([]string, len(items))
+
+	for i, item := range items {
+		if item.isStep {
+			continue
+		}
+		key, ok := makeArraySummaryGroupKey(item.job)
+		if !ok {
+			continue
+		}
+		itemKeys[i] = key
+
+		if _, ok := groupByKey[key]; !ok {
+			groupByKey[key] = &arraySummaryInfo{
+				anchorJobId: item.job.JobId,
+				start:       *item.job.ArrayIndexStart,
+				end:         *item.job.ArrayIndexEnd,
+				count:       0,
+				sample:      item.job,
+			}
+		}
+
+		group := groupByKey[key]
+		group.count++
+		if item.job.JobId > group.anchorJobId {
+			group.anchorJobId = item.job.JobId
+		}
+	}
+
+	emitted := make(map[string]struct{})
+	merged := make([][]string, 0, len(rows)+len(groupByKey))
+
+	for i, row := range rows {
+		key := itemKeys[i]
+		if key != "" {
+			if _, ok := emitted[key]; !ok {
+				group := groupByKey[key]
+				if group.count > 1 {
+					merged = append(merged, buildArraySummaryRow(header, group))
+				}
+				emitted[key] = struct{}{}
+			}
+		}
+		merged = append(merged, row)
+	}
+
+	return merged
 }
 
 // Account (a)
@@ -413,9 +566,9 @@ func ProcessHeld(item *JobOrStep) string {
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
 	if item.isStep {
-		return fmt.Sprintf("%d.%d", item.stepInfo.JobId, item.stepInfo.StepId)
+		return util.FormatStepIdWithArray(item.stepInfo.JobId, item.job.ArrayTaskId, item.stepInfo.StepId)
 	}
-	return strconv.FormatUint(uint64(item.job.JobId), 10)
+	return util.FormatJobIdWithArray(item.job.JobId, item.job.ArrayTaskId)
 }
 
 // Wckey (K)

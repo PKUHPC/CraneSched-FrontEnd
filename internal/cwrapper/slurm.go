@@ -127,7 +127,7 @@ func sacct() *cobra.Command {
 	cmd.Flags().StringVarP(&cacct.FlagFilterAccounts, "account", "A", "",
 		"Displays jobs when a comma separated list of accounts are given as the argument.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterJobIDs, "jobs", "j", "",
-		"Displays information about the specified job or list of jobs.")
+		"Displays information about specified jobs. Supports jobid, jobid.stepid, jobid_arraytaskid, and jobid_arraytaskid.stepid.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterUsers, "user", "u", "",
 		"Use this comma separated list of user names to select jobs to display.")
 
@@ -557,7 +557,7 @@ func squeue() *cobra.Command {
 	cmd.Flags().StringVarP(&cqueue.FlagFilterPartitions, "partition", "p", "",
 		"Specify the partitions of the jobs or steps to view. Accepts a comma separated list of \npartition names.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterJobIDs, "jobs", "j", "",
-		"Specify a comma separated list of job IDs to display. Defaults to all jobs. ")
+		"Specify a comma separated list of job IDs to display (jobid or jobid_arraytaskid). Defaults to all jobs. ")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterJobNames, "name", "n", "",
 		"Request jobs or job steps having one of the specified names. The list consists of a comma \nseparated list of job names.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterQos, "qos", "q", "",
@@ -581,7 +581,7 @@ Supported format identifiers or string, string case insensitive:
 	%c/%AllocCpus          - Display the cpus allocated to the job.
 	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
 	%h/%Held               - Display the hold state of the job.
-	%j/%JobID              - Display the ID of the job.
+	%j/%JobID              - Display the ID of the job (array jobs use jobid_arraytaskid).
 	%k/%Comment            - Display the comment of the job.
 	%L/%NodeList           - Display the list of nodes the job is running on.
 	%l/%TimeLimit          - Display the time limit for the job.
