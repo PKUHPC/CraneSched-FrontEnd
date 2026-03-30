@@ -116,10 +116,10 @@ type StateMachineOfCrun struct {
 	stopStepCtx context.Context
 	stopStepCb  context.CancelFunc
 	//stop step will stop reading from local stdin/file/x11
-	stopReadCtx  context.Context
-	stopWriteCtx context.Context
-	stopWriteCb  context.CancelFunc
-	writerWg     sync.WaitGroup
+	stopReadCtx             context.Context
+	stopWriteCtx            context.Context
+	stopWriteCb             context.CancelFunc
+	writerWg                sync.WaitGroup
 	chanInputFromLocal      chan []byte
 	chanOutputFromRemote    chan []byte
 	chanErrOutputFromRemote chan []byte
