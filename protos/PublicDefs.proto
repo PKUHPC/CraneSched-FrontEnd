@@ -426,8 +426,12 @@ message StepToD {
   string task_epilog = 31;
   repeated Signal signals = 32;
 
-  IoMeta io_meta = 33;
-  string sh_script = 34;
+  // task_node_list[task_id] = index of the node in nodelist that owns this task.
+  // Size equals ntasks. Provides the authoritative task_id -> node_idx mapping.
+  repeated uint32 task_node_list = 34;
+
+  IoMeta io_meta = 35;
+  string sh_script = 36;
 }
 
 message JobStepsToD {
