@@ -315,13 +315,13 @@ func (m *StateMachineOfCrun) StateReqJobId() {
 			}
 		}
 
-		if cforedReply.Type != protos.StreamCrunReply_JOB_ID_REPLY {
+		if cforedReply.Type != protos.StreamCrunReply_STEP_ID_REPLY {
 			log.Errorln("Expect type JOB_ID_REPLY")
 			m.state = End
 			m.err = util.ErrorBackend
 			return
 		}
-		payload := cforedReply.GetPayloadJobIdReply()
+		payload := cforedReply.GetPayloadStepIdReply()
 
 		if payload.Ok {
 			m.jobId = payload.JobId
@@ -374,8 +374,8 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 		}
 
 		switch cforedReply.Type {
-		case protos.StreamCrunReply_JOB_RES_ALLOC_REPLY:
-			cforedPayload := cforedReply.GetPayloadJobAllocReply()
+		case protos.StreamCrunReply_STEP_RES_ALLOC_REPLY:
+			cforedPayload := cforedReply.GetPayloadStepAllocReply()
 			Ok := cforedPayload.Ok
 
 			if Ok {
@@ -390,7 +390,7 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 				m.err = util.ErrorBackend
 				return
 			}
-		case protos.StreamCrunReply_JOB_CANCEL_REQUEST:
+		case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
 			log.Tracef("Received Job Cancel Request when wait res")
 			m.state = JobKilling
 		}
@@ -439,9 +439,9 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 				m.err = util.ErrorBackend
 				return
 			}
-		case protos.StreamCrunReply_JOB_CANCEL_REQUEST:
+		case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
 			m.state = JobKilling
-		case protos.StreamCrunReply_JOB_COMPLETION_ACK_REPLY:
+		case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
 			// Job launch failed !
 			fmt.Println("Job failed ")
 			m.state = End
@@ -541,9 +541,9 @@ func (m *StateMachineOfCrun) StateForwarding() {
 		select {
 		case <-m.stopStepCtx.Done():
 			request = &protos.StreamCrunRequest{
-				Type: protos.StreamCrunRequest_JOB_COMPLETION_REQUEST,
-				Payload: &protos.StreamCrunRequest_PayloadJobCompleteReq{
-					PayloadJobCompleteReq: &protos.StreamCrunRequest_JobCompleteReq{
+				Type: protos.StreamCrunRequest_STEP_COMPLETION_REQUEST,
+				Payload: &protos.StreamCrunRequest_PayloadStepCompleteReq{
+					PayloadStepCompleteReq: &protos.StreamCrunRequest_StepCompleteReq{
 						Status: protos.JobStatus_Completed,
 					},
 				},
@@ -597,12 +597,12 @@ func (m *StateMachineOfCrun) StateForwarding() {
 						m.err = int(exitStatus.ExitCode)
 					}
 
-				case protos.StreamCrunReply_JOB_CANCEL_REQUEST:
+				case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
 					m.stopStepCb()
 					log.Trace("Received JOB_CANCEL_REQUEST")
 					m.state = JobKilling
 
-				case protos.StreamCrunReply_JOB_COMPLETION_ACK_REPLY:
+				case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
 					log.Debug("Job completed.")
 					m.state = End
 				}
@@ -614,9 +614,9 @@ func (m *StateMachineOfCrun) StateForwarding() {
 
 func (m *StateMachineOfCrun) StateJobKilling() {
 	request := &protos.StreamCrunRequest{
-		Type: protos.StreamCrunRequest_JOB_COMPLETION_REQUEST,
-		Payload: &protos.StreamCrunRequest_PayloadJobCompleteReq{
-			PayloadJobCompleteReq: &protos.StreamCrunRequest_JobCompleteReq{
+		Type: protos.StreamCrunRequest_STEP_COMPLETION_REQUEST,
+		Payload: &protos.StreamCrunRequest_PayloadStepCompleteReq{
+			PayloadStepCompleteReq: &protos.StreamCrunRequest_StepCompleteReq{
 				Status: protos.JobStatus_Cancelled,
 			},
 		},
@@ -686,22 +686,22 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		}
 		return // Still in WaitAck state
 
-	case protos.StreamCrunReply_JOB_CANCEL_REQUEST:
+	case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
 		log.Fatalf("Received JOB_CANCEL_REQUEST in WaitAck state.")
 
-	case protos.StreamCrunReply_JOB_COMPLETION_ACK_REPLY:
+	case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
 		log.Debug("Job completed.")
 		m.state = End
 	}
 
-	if cforedReply.Type != protos.StreamCrunReply_JOB_COMPLETION_ACK_REPLY {
+	if cforedReply.Type != protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY {
 		log.Errorf("Expect JOB_COMPLETION_ACK_REPLY. bug get %s\n", cforedReply.Type.String())
 		m.err = util.ErrorBackend
 		m.state = End
 		return
 	}
 
-	if cforedReply.GetPayloadJobCompletionAckReply().Ok {
+	if cforedReply.GetPayloadStepCompletionAckReply().Ok {
 		log.Debug("Job completed.")
 	} else {
 		log.Errorln("Failed to notify server of job completion")

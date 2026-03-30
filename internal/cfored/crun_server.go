@@ -188,9 +188,9 @@ CforedCrunStateMachineLoop:
 					if uid != auth.UID {
 						log.Warnf("Security: UID mismatch - peer UID %d does not match job UID %d", auth.UID, crunRequest.GetPayloadJobReq().Job.Uid)
 						reply = &protos.StreamCrunReply{
-							Type: protos.StreamCrunReply_JOB_ID_REPLY,
-							Payload: &protos.StreamCrunReply_PayloadJobIdReply{
-								PayloadJobIdReply: &protos.StreamCrunReply_JobIdReply{
+							Type: protos.StreamCrunReply_STEP_ID_REPLY,
+							Payload: &protos.StreamCrunReply_PayloadStepIdReply{
+								PayloadStepIdReply: &protos.StreamCrunReply_StepIdReply{
 									Ok:            false,
 									FailureReason: "Permission denied: caller UID does not match job UID",
 								},
@@ -208,9 +208,9 @@ CforedCrunStateMachineLoop:
 
 			if !gVars.ctldConnected.Load() {
 				reply = &protos.StreamCrunReply{
-					Type: protos.StreamCrunReply_JOB_ID_REPLY,
-					Payload: &protos.StreamCrunReply_PayloadJobIdReply{
-						PayloadJobIdReply: &protos.StreamCrunReply_JobIdReply{
+					Type: protos.StreamCrunReply_STEP_ID_REPLY,
+					Payload: &protos.StreamCrunReply_PayloadStepIdReply{
+						PayloadStepIdReply: &protos.StreamCrunReply_StepIdReply{
 							Ok:            false,
 							FailureReason: "Cfored is not connected to CraneCtld.",
 						},
@@ -320,9 +320,9 @@ CforedCrunStateMachineLoop:
 				}
 
 				reply = &protos.StreamCrunReply{
-					Type: protos.StreamCrunReply_JOB_ID_REPLY,
-					Payload: &protos.StreamCrunReply_PayloadJobIdReply{
-						PayloadJobIdReply: &protos.StreamCrunReply_JobIdReply{
+					Type: protos.StreamCrunReply_STEP_ID_REPLY,
+					Payload: &protos.StreamCrunReply_PayloadStepIdReply{
+						PayloadStepIdReply: &protos.StreamCrunReply_StepIdReply{
 							Ok:            Ok,
 							JobId:         jobId,
 							StepId:        stepId,
@@ -361,7 +361,7 @@ CforedCrunStateMachineLoop:
 				}
 
 				if crunRequest != nil || err == nil {
-					if crunRequest.Type != protos.StreamCrunRequest_JOB_COMPLETION_REQUEST {
+					if crunRequest.Type != protos.StreamCrunRequest_STEP_COMPLETION_REQUEST {
 						log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JobCompletionRequest here!", jobId, stepId)
 					} else {
 						log.Debugf("[Crun->Cfored][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
@@ -386,9 +386,9 @@ CforedCrunStateMachineLoop:
 				case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
 					ctldPayload := ctldReply.GetPayloadJobResAllocReply()
 					reply = &protos.StreamCrunReply{
-						Type: protos.StreamCrunReply_JOB_RES_ALLOC_REPLY,
-						Payload: &protos.StreamCrunReply_PayloadJobAllocReply{
-							PayloadJobAllocReply: &protos.StreamCrunReply_JobResAllocatedReply{
+						Type: protos.StreamCrunReply_STEP_RES_ALLOC_REPLY,
+						Payload: &protos.StreamCrunReply_PayloadStepAllocReply{
+							PayloadStepAllocReply: &protos.StreamCrunReply_StepResAllocatedReply{
 								Ok:                   ctldPayload.Ok,
 								AllocatedCranedRegex: ctldPayload.AllocatedCranedRegex,
 								CranedIds:            ctldPayload.CranedIds,
@@ -456,7 +456,7 @@ CforedCrunStateMachineLoop:
 					break
 				}
 
-				if crunRequest.Type != protos.StreamCrunRequest_JOB_COMPLETION_REQUEST {
+				if crunRequest.Type != protos.StreamCrunRequest_STEP_COMPLETION_REQUEST {
 					log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST.", jobId, stepId)
 				}
 
@@ -538,7 +538,7 @@ CforedCrunStateMachineLoop:
 								jobId, stepId, payload.GetLocalId(), payload.GetCranedId())
 							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
 
-						case protos.StreamCrunRequest_JOB_COMPLETION_REQUEST:
+						case protos.StreamCrunRequest_STEP_COMPLETION_REQUEST:
 							log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
 							toCtldRequest := &protos.StreamCforedRequest{
 								Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
@@ -589,9 +589,9 @@ CforedCrunStateMachineLoop:
 				jobId, stepId)
 
 			reply = &protos.StreamCrunReply{
-				Type: protos.StreamCrunReply_JOB_CANCEL_REQUEST,
-				Payload: &protos.StreamCrunReply_PayloadJobCancelRequest{
-					PayloadJobCancelRequest: &protos.StreamCrunReply_JobCancelRequest{},
+				Type: protos.StreamCrunReply_STEP_CANCEL_REQUEST,
+				Payload: &protos.StreamCrunReply_PayloadStepCancelRequest{
+					PayloadStepCancelRequest: &protos.StreamCrunReply_StepCancelRequest{},
 				},
 			}
 
@@ -638,7 +638,7 @@ CforedCrunStateMachineLoop:
 						}
 						break waitingCompleteReq
 					}
-					if crunRequest.Type != protos.StreamCrunRequest_JOB_COMPLETION_REQUEST {
+					if crunRequest.Type != protos.StreamCrunRequest_STEP_COMPLETION_REQUEST {
 						log.Warningf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST but %s received. Ignoring it...",
 							jobId, stepId, crunRequest.Type)
 					} else {
@@ -707,9 +707,9 @@ CforedCrunStateMachineLoop:
 					}
 
 					reply = &protos.StreamCrunReply{
-						Type: protos.StreamCrunReply_JOB_COMPLETION_ACK_REPLY,
-						Payload: &protos.StreamCrunReply_PayloadJobCompletionAckReply{
-							PayloadJobCompletionAckReply: &protos.StreamCrunReply_JobCompletionAckReply{
+						Type: protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY,
+						Payload: &protos.StreamCrunReply_PayloadStepCompletionAckReply{
+							PayloadStepCompletionAckReply: &protos.StreamCrunReply_StepCompletionAckReply{
 								Ok: true,
 							},
 						},
