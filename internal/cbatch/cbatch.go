@@ -128,6 +128,14 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 		}
 		job.Ntasks = FlagNtasks
 	}
+	if cmd.Flags().Changed("array") {
+		start, end, err := util.ParseArrayRangeSpec(FlagArray)
+		if err != nil {
+			return nil, err
+		}
+		job.ArrayIndexStart = &start
+		job.ArrayIndexEnd = &end
+	}
 	if cmd.Flags().Changed("gres") {
 		gresMap, err := util.ParseGres(FlagGres)
 		if err != nil {
@@ -386,6 +394,13 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
 			}
 			job.Ntasks = uint32(num)
+		case "--array", "-a":
+			start, end, err := util.ParseArrayRangeSpec(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			job.ArrayIndexStart = &start
+			job.ArrayIndexEnd = &end
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {
@@ -656,8 +671,6 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	filteredArgs := make([]CbatchArg, 0, len(args))
 	unsupportedFlags := map[string]string{
-		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
-		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
 		"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
 		"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",

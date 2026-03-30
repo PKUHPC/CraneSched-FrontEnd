@@ -246,6 +246,13 @@ message JobToCtld {
   optional double cpus_per_task = 50;
   optional uint64 mem_per_node = 51;
   optional GresMap gres_per_node = 52;
+
+  // Job array spec for this submission: [start-end:stride].
+  optional uint32 array_index_start = 53;  // inclusive
+  optional uint32 array_index_end = 54;    // inclusive
+  optional uint32 array_index_stride = 56;
+  // The concrete array task index of this job after expansion.
+  optional uint32 array_task_id = 55;
 }
 
 message JobInEmbeddedDb {
@@ -325,6 +332,8 @@ message StepToCtld {
   optional uint64 mem_per_node = 38;
   optional GresMap gres_per_node = 39;
   google.protobuf.Timestamp deadline_time = 40;
+
+  optional uint32 array_task_id = 41;
 }
 
 message RuntimeAttrOfStep {
@@ -437,6 +446,12 @@ message StepToD {
 
   IoMeta io_meta = 35;
   string sh_script = 36;
+
+  // Array metadata propagated for expanded array children and the
+  // parent-owned final task. array_job_id is the parent/anchor job ID of
+  // the whole array.
+  optional uint32 array_job_id = 37;
+  optional uint32 array_task_id = 38;
 }
 
 message JobStepsToD {

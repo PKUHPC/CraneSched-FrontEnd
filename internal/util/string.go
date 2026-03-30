@@ -200,6 +200,32 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	return seconds, nil
 }
 
+// ParseArrayRangeSpec parses the simplified array syntax: start-end.
+func ParseArrayRangeSpec(spec string) (uint32, uint32, error) {
+	cleaned := strings.TrimSpace(spec)
+	re := regexp.MustCompile(`^(\d+)-(\d+)$`)
+	result := re.FindStringSubmatch(cleaned)
+	if result == nil {
+		return 0, 0, fmt.Errorf("invalid --array value '%s': expected start-end", spec)
+	}
+
+	start, err := strconv.ParseUint(result[1], 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid --array start index '%s'", result[1])
+	}
+
+	end, err := strconv.ParseUint(result[2], 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid --array end index '%s'", result[2])
+	}
+
+	if start > end {
+		return 0, 0, fmt.Errorf("invalid --array value '%s': start index must be <= end index", spec)
+	}
+
+	return uint32(start), uint32(end), nil
+}
+
 func ParseRelativeTime(ts string) (int64, error) {
 	// handle compound duration like 1h2m30s, 1h30m, etc.
 	if regexp.MustCompile(`^(\d+[a-zA-Z]+)+$`).MatchString(ts) {
@@ -1306,7 +1332,7 @@ func ParseGresForQosLimit(gres string) (*protos.GresMap, error) {
 		if len(parts) == 2 {
 			if parts[1] == "unlimited" {
 				if pair, exist := result.NameGresMap[name]; exist {
-					if pair.Specified != nil && len(pair.Specified) > 0 {
+					if len(pair.Specified) > 0 {
 						delete(result.NameGresMap, name)
 					} else {
 						result.NameGresMap[name].Total = math.MaxUint32
@@ -1330,7 +1356,7 @@ func ParseGresForQosLimit(gres string) (*protos.GresMap, error) {
 					if pair.Specified != nil {
 						delete(pair.Specified, gresType)
 					}
-					if pair.Specified == nil || len(pair.Specified) == 0 {
+					if len(pair.Specified) == 0 {
 						delete(result.NameGresMap, name)
 					}
 				}

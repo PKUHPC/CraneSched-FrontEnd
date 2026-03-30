@@ -686,7 +686,6 @@ func sbatch() *cobra.Command {
 	}
 	// not implement feature:
 	cmd.Flags().StringVarP(&cbatch.FlagNTasks, "ntasks", "n", "", "")
-	cmd.Flags().StringVarP(&cbatch.FlagArray, "array", "a", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagNoRequeue, "no-requeue", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagParsable, "parsable", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagGpusPerNode, "gpus-per-node", "", "")
@@ -1343,9 +1342,6 @@ func PrintSallocIgnoreDummyArgsMessage() {
 func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagNTasks != "" {
 		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagArray != "" {
-		fmt.Fprintln(os.Stderr, "The feature --array/-a is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagNoRequeue != "" {
 		fmt.Fprintln(os.Stderr, "The feature --no-requeue is not yet supported by Crane, the use is ignored.")
