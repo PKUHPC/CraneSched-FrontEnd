@@ -45,6 +45,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type StateOfCrun int
@@ -1516,7 +1517,16 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-
+	if FlagDeadlineTime != "" {
+		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: --deadline: %s", err),
+			}
+		}
+		job.DeadlineTime = timestamppb.New(deadlineTime)
+	}
 	// Marshal extra attributes
 	if jobMode {
 		if err := structExtraFromCli.Marshal(&job.ExtraAttr); err != nil {

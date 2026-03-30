@@ -51,6 +51,7 @@ var (
 	FlagAccount         string
 	FlagUser            string
 	FlagNodeNum         uint32
+	FlagDeadlineTime    string
 )
 
 var actionToExecute = map[string]func(command *CControlCommand) int{
@@ -295,6 +296,9 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 			}
 			jobParamFlags |= MailTypeTypeFlag
 			jobParamValuesMap[MailTypeTypeFlag] = value
+		case "deadline":
+			jobParamFlags |= DeadlineTypeFlag
+			jobParamValuesMap[DeadlineTypeFlag] = value
 		case "jobid", "job":
 			continue
 		default:
@@ -330,6 +334,15 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 		err := ChangeJobExtraAttrs(FlagJobIds, jobParamValuesMap)
 		if err != nil {
 			log.Errorf("change job ExtraAttrs failed: %s", err)
+			lastErr = util.ErrorGeneric
+		}
+	}
+
+	if jobParamFlags&DeadlineTypeFlag != 0 {
+		FlagDeadlineTime = jobParamValuesMap[DeadlineTypeFlag]
+		err := ChangeDeadlineTime(FlagJobIds, FlagDeadlineTime)
+		if err != nil {
+			log.Errorf("change task deadline failed: %s", err)
 			lastErr = util.ErrorGeneric
 		}
 	}
