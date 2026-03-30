@@ -340,7 +340,7 @@ func executeUpdateJobCommand(command *CControlCommand) int {
 
 	if jobParamFlags&DeadlineTypeFlag != 0 {
 		FlagDeadlineTime = jobParamValuesMap[DeadlineTypeFlag]
-		err := ChangeDeadlineTime(FlagTaskIds, FlagDeadlineTime)
+		err := ChangeDeadlineTime(FlagJobIds, FlagDeadlineTime)
 		if err != nil {
 			log.Errorf("change task deadline failed: %s", err)
 			lastErr = util.ErrorGeneric

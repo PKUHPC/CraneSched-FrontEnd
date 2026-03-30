@@ -498,7 +498,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 				Message: fmt.Sprintf("Invalid argument: --deadline: %s", err),
 			}
 		}
-		task.DeadlineTime = timestamppb.New(deadlineTime)
+		job.DeadlineTime = timestamppb.New(deadlineTime)
 	}
 	if cmd.Flags().Changed("wckey") {
 		job.Wckey = &FlagWckey

@@ -369,7 +369,7 @@ func ProcessElapsedTime(item *JobOrStep) string {
 
 // Deadline (D)
 func ProcessDeadline(item *JobOrStep) string {
-	deadlineTime := item.task.DeadlineTime.AsTime()
+	deadlineTime := item.job.DeadlineTime.AsTime()
 	if !deadlineTime.Equal(util.InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
 	}

@@ -34,7 +34,7 @@ func ProcessReqCpuPerTask(job *protos.JobInfo) string {
 }
 
 // 'd' group
-func ProcessDeadline(task *protos.TaskInfo) string {
+func ProcessDeadline(task *protos.JobInfo) string {
 	deadlineTime := task.DeadlineTime.AsTime()
 	if !deadlineTime.Equal(util.InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")

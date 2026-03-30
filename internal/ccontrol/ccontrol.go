@@ -138,7 +138,7 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 	return SummarizeReply(reply)
 }
 
-func ChangeDeadlineTime(taskStr string, deadline string) error {
+func ChangeDeadlineTime(jobStr string, deadline string) error {
 	time, err := util.ParseTime(deadline)
 
 	if err != nil {
@@ -147,7 +147,7 @@ func ChangeDeadlineTime(taskStr string, deadline string) error {
 			Message: err.Error(),
 		}
 	}
-	taskIds, err := util.ParseJobIdList(taskStr, ",")
+	jobIds, err := util.ParseJobIdList(jobStr, ",")
 	if err != nil {
 		return &util.CraneError{
 			Code:    util.ErrorCmdArg,
@@ -155,16 +155,16 @@ func ChangeDeadlineTime(taskStr string, deadline string) error {
 		}
 	}
 
-	req := &protos.ModifyTaskRequest{
+	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		TaskIds:   taskIds,
-		Attribute: protos.ModifyTaskRequest_Deadline,
-		Value: &protos.ModifyTaskRequest_DeadlineTime{
+		JobIds:   jobIds,
+		Attribute: protos.ModifyJobRequest_Deadline,
+		Value: &protos.ModifyJobRequest_DeadlineTime{
 			DeadlineTime: timestamppb.New(time),
 		},
 	}
 
-	reply, err := stub.ModifyTask(context.Background(), req)
+	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to change task deadline")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -172,7 +172,7 @@ func ChangeDeadlineTime(taskStr string, deadline string) error {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.NotModifiedTasks) == 0 {
+		if len(reply.NotModifiedJobs) == 0 {
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
