@@ -312,8 +312,14 @@ func ProcessReqCPUs(item *JobOrStep) string {
 func ProcessAllocCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
+		if item.stepInfo == nil || item.stepInfo.AllocatedResView == nil || item.stepInfo.AllocatedResView.AllocatableRes == nil {
+			return ""
+		}
 		cpuCores = item.stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
 	} else {
+		if item.job == nil || item.job.AllocatedResView == nil || item.job.AllocatedResView.AllocatableRes == nil {
+			return ""
+		}
 		cpuCores = item.job.AllocatedResView.AllocatableRes.CpuCoreLimit
 	}
 	if item.job.AllocatedResView != nil {
