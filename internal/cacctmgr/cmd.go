@@ -302,19 +302,19 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 			}
 		case "maxsubmitjobsperuser":
 			if err := validateUintValue(value, "maxSubmitJobsPerUser", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxSubmitJobsPerUser, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxSubmitJobsPerUser = uint32(maxSubmitJobsPerUser)
 		case "maxsubmitjobsperaccount":
 			if err := validateUintValue(value, "maxSubmitJobsPerAccount", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxSubmitJobsPerAccount, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxSubmitJobsPerAccount = uint32(maxSubmitJobsPerAccount)
 		case "maxjobsperaccount":
 			if err := validateUintValue(value, "maxJobsPerAccount", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxJobsPerAccount, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobsPerAccount = uint32(maxJobsPerAccount)
@@ -322,46 +322,42 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 			var err error
 			FlagQos.MaxTresPerUser, err = util.ParseTres(value)
 			if err != nil {
-				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerUser", err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for %s flag: %v", value, "MaxTresPerUser", err))
 			}
 		case "maxtresperaccount":
 			var err error
 			FlagQos.MaxTresPerAccount, err = util.ParseTres(value)
 			if err != nil {
-				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTresPerAccount", err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for %s flag: %v", value, "MaxTresPerAccount", err))
 			}
 		case "maxtres":
 			var err error
 			FlagQos.MaxTres, err = util.ParseTres(value)
 			if err != nil {
-				log.Errorf("invalid argument %s for %s flag: %v", value, "MaxTres", err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for %s flag: %v", value, "MaxTres", err))
 			}
 		case "maxjobs":
 			if err := validateUintValue(value, "maxjobs", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxJobs, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobs = uint32(maxJobs)
 		case "maxsubmitjobs":
 			if err := validateUintValue(value, "maxsubmitjobs", 32); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxsubmitjobs, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxSubmitJobs = uint32(maxsubmitjobs)
 		case "maxwall":
 			if err := validateUintValue(value, "maxWall", 64); err != nil {
-				return util.ErrorCmdArg
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
 			}
 			maxWall, _ := strconv.ParseUint(value, 10, 64)
 			FlagQos.MaxWall = maxWall
 		case "flags":
 			var err error
 			if FlagQosFlags, err = util.ParseFlags(value); err != nil {
-				log.Errorf("invalid argument %s ,err: %v", value, err)
-				return util.ErrorCmdArg
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s ,err: %v", value, err))
 			}
 			FlagQos.Flags = FlagQosFlags
 		default:
