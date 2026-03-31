@@ -62,24 +62,24 @@ CforedCattachStateMachineLoop:
 				}
 			}
 
-			if cattachRequest.Type != protos.StreamCattachRequest_TASK_CONNECT_REQUEST {
-				log.Fatalf("[Cfored<-Cattach] Expect TASK_CONNECT_REQUEST but got %s", cattachRequest.Type)
-				break
-			}
+		if cattachRequest.Type != protos.StreamCattachRequest_STEP_CONNECT_REQUEST {
+			log.Fatalf("[Cfored<-Cattach] Expect STEP_CONNECT_REQUEST but got %s", cattachRequest.Type)
+			break
+		}
 
-			log.Debug("[Cfored<-Cattach] Receive TASK_CONNECT_REQUEST")
+		log.Debug("[Cfored<-Cattach] Receive STEP_CONNECT_REQUEST")
 
 			ctx := toCattachStream.Context()
 			p, ok := peer.FromContext(ctx)
 			if ok {
-				uid = cattachRequest.GetPayloadTaskConnectReq().GetUid()
+				uid = cattachRequest.GetPayloadStepConnectReq().GetUid()
 				if auth, ok := p.AuthInfo.(*util.UnixPeerAuthInfo); ok {
 					if uid != auth.UID {
 						log.Warnf("Security: UID mismatch - peer UID %d does not match task UID %d", auth.UID, uid)
 						reply = &protos.StreamCattachReply{
-							Type: protos.StreamCattachReply_TASK_CONNECT_REPLY,
-							Payload: &protos.StreamCattachReply_PayloadTaskConnectReply{
-								PayloadTaskConnectReply: &protos.StreamCattachReply_TaskConnectReply{
+							Type: protos.StreamCattachReply_STEP_CONNECT_REPLY,
+							Payload: &protos.StreamCattachReply_PayloadStepConnectReply{
+								PayloadStepConnectReply: &protos.StreamCattachReply_StepConnectReply{
 									Ok:            false,
 									FailureReason: "Permission denied: caller UID does not match task UID",
 								},
@@ -97,9 +97,9 @@ CforedCattachStateMachineLoop:
 
 			if !gVars.ctldConnected.Load() {
 				reply = &protos.StreamCattachReply{
-					Type: protos.StreamCattachReply_TASK_CONNECT_REPLY,
-					Payload: &protos.StreamCattachReply_PayloadTaskConnectReply{
-						PayloadTaskConnectReply: &protos.StreamCattachReply_TaskConnectReply{
+					Type: protos.StreamCattachReply_STEP_CONNECT_REPLY,
+					Payload: &protos.StreamCattachReply_PayloadStepConnectReply{
+						PayloadStepConnectReply: &protos.StreamCattachReply_StepConnectReply{
 							Ok:            false,
 							FailureReason: "Cfored is not connected to CraneCtld.",
 						},
@@ -116,9 +116,9 @@ CforedCattachStateMachineLoop:
 				log.Infof("[Cfored<->Cattach]Cfored not connected to CraneCtld")
 				break CforedCattachStateMachineLoop
 			} else {
-				cattachPid = cattachRequest.GetPayloadTaskConnectReq().CattachPid
-				jobId = cattachRequest.GetPayloadTaskConnectReq().GetTaskId()
-				stepId = cattachRequest.GetPayloadTaskConnectReq().GetStepdId()
+				cattachPid = cattachRequest.GetPayloadStepConnectReq().CattachPid
+				jobId = cattachRequest.GetPayloadStepConnectReq().GetJobId()
+				stepId = cattachRequest.GetPayloadStepConnectReq().GetStepId()
 
 				gVars.ctldReplyChannelMapMtx.Lock()
 				gVars.ctldReplyChannelMapByPid[cattachPid] = ctldReplyChannel
@@ -154,7 +154,7 @@ CforedCattachStateMachineLoop:
 
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
-				case protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY:
+				case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
 					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", jobId, stepId)
 					state = DeadCattach
 				case protos.StreamCtldReply_STEP_META_REPLY:
@@ -191,9 +191,9 @@ CforedCattachStateMachineLoop:
 					gVars.ctldReplyChannelMapMtx.Unlock()
 
 					reply = &protos.StreamCattachReply{
-						Type: protos.StreamCattachReply_TASK_CONNECT_REPLY,
-						Payload: &protos.StreamCattachReply_PayloadTaskConnectReply{
-							PayloadTaskConnectReply: &protos.StreamCattachReply_TaskConnectReply{
+						Type: protos.StreamCattachReply_STEP_CONNECT_REPLY,
+						Payload: &protos.StreamCattachReply_PayloadStepConnectReply{
+							PayloadStepConnectReply: &protos.StreamCattachReply_StepConnectReply{
 								Ok:            Ok,
 								Step:          step,
 								FailureReason: ctldReply.GetPayloadStepMetaReply().FailureReason,
@@ -227,11 +227,11 @@ CforedCattachStateMachineLoop:
 
 			select {
 			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-					log.Fatalf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type TASK_COMPLETION_ACK_REPLY but got %s, ignored",
+				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+					log.Fatalf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
 						jobId, stepId, ctldReply.Type)
 				} else {
-					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", jobId, stepId)
+					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY", jobId, stepId)
 					state = DeadCattach
 				}
 				stopWaiting.Store(true)
@@ -275,11 +275,11 @@ CforedCattachStateMachineLoop:
 			for {
 				select {
 				case ctldReply := <-ctldReplyChannel:
-					if ctldReply.Type != protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-						log.Warningf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type TASK_COMPLETION_ACK_REPLY but got %s, ignored",
+					if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+						log.Warningf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
 							jobId, stepId, ctldReply.Type)
 					} else {
-						log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive TASK_COMPLETION_ACK_REPLY", jobId, stepId)
+						log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY", jobId, stepId)
 						state = DeadCattach
 						break forwarding
 					}
@@ -304,17 +304,17 @@ CforedCattachStateMachineLoop:
 								cattachRequest.GetPayloadTaskIoForwardReq().Eof)
 							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
 
-						case protos.StreamCattachRequest_TASK_X11_FORWARD:
-							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive Local TASK_X11_FORWARD to remote task",
-								cattachRequest.GetPayloadTaskX11ForwardReq().GetTaskId(), stepId)
+						case protos.StreamCattachRequest_STEP_X11_FORWARD:
+							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive Local STEP_X11_FORWARD to remote task",
+								jobId, stepId)
 							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
 
-						case protos.StreamCattachRequest_TASK_COMPLETION_REQUEST:
-							log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive TaskCompletionRequest", jobId, stepId)
+						case protos.StreamCattachRequest_STEP_COMPLETION_REQUEST:
+							log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive StepCompletionRequest", jobId, stepId)
 							state = End
 							break forwarding
 						default:
-							log.Fatalf("[Cattach->Cfored][Step #%d.%d] Expect TASK_COMPLETION_REQUEST or TASK_IO_FORWARD",
+							log.Fatalf("[Cattach->Cfored][Step #%d.%d] Expect STEP_COMPLETION_REQUEST or TASK_IO_FORWARD",
 								jobId, stepId)
 							break forwarding
 						}
@@ -338,9 +338,9 @@ CforedCattachStateMachineLoop:
 		case DeadCattach:
 			log.Infof("[Cfored<->Cattach][Job #%d] Enter State DEAD_CATTACH", jobId)
 			reply = &protos.StreamCattachReply{
-				Type: protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY,
-				Payload: &protos.StreamCattachReply_PayloadTaskCompletionAckReply{
-					PayloadTaskCompletionAckReply: &protos.StreamCattachReply_TaskCompletionAckReply{
+				Type: protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY,
+				Payload: &protos.StreamCattachReply_PayloadStepCompletionAckReply{
+					PayloadStepCompletionAckReply: &protos.StreamCattachReply_StepCompletionAckReply{
 						Ok: true,
 					},
 				},
@@ -350,7 +350,7 @@ CforedCattachStateMachineLoop:
 				log.Errorf("[Cfored->Cattach] Failed to send CompletionAck to cattach: %s. "+
 					"The connection to cattach was broken.", err.Error())
 			} else {
-				log.Debug("[Cfored->Cattach] TASK_COMPLETION_ACK_REPLY sent to Cattach")
+				log.Debug("[Cfored->Cattach] STEP_COMPLETION_ACK_REPLY sent to Cattach")
 			}
 			state = End
 		case End:
@@ -402,9 +402,9 @@ func forwardTaskMsgToCattach(
 			taskId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
 	case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
 		reply = &protos.StreamCattachReply{
-			Type: protos.StreamCattachReply_TASK_X11_FORWARD,
-			Payload: &protos.StreamCattachReply_PayloadTaskX11ForwardReply{
-				PayloadTaskX11ForwardReply: &protos.StreamCattachReply_TaskX11ForwardReply{
+			Type: protos.StreamCattachReply_STEP_X11_FORWARD,
+			Payload: &protos.StreamCattachReply_PayloadStepX11ForwardReply{
+				PayloadStepX11ForwardReply: &protos.StreamCattachReply_StepX11ForwardReply{
 					Msg: taskMsg.GetPayloadTaskX11OutputReq().Msg,
 				},
 			},
