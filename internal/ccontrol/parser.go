@@ -88,11 +88,11 @@ type EntityType struct {
 	Step         bool `parser:"| @'step'"`
 	Reservation  bool `parser:"| @'reservation'"`
 	Lic          bool `parser:"| @'lic'"`
-	NextTaskId   bool `parser:"| @'next-task-id'"`
-	NextTaskDbId bool `parser:"| @'next-task-db-id'"`
+	NextJobId    bool `parser:"| @'next-job-id'"`
+	NextJobDbId  bool `parser:"| @'next-job-db-id'"`
 	NextStepDbId bool `parser:"| @'next-step-db-id'"`
 	PartitionAcl bool `parser:"| @'partition-acl'"`
-	TaskHistory  bool `parser:"| @'task-history'"`
+	JobHistory   bool `parser:"| @'job-history'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -127,16 +127,16 @@ func (e EntityType) String() string {
 		return "reservation"
 	case e.Lic:
 		return "lic"
-	case e.NextTaskId:
-		return "next-task-id"
-	case e.NextTaskDbId:
-		return "next-task-db-id"
+	case e.NextJobId:
+		return "next-job-id"
+	case e.NextJobDbId:
+		return "next-job-db-id"
 	case e.NextStepDbId:
 		return "next-step-db-id"
 	case e.PartitionAcl:
 		return "partition-acl"
-	case e.TaskHistory:
-		return "task-history"
+	case e.JobHistory:
+		return "job-history"
 	default:
 		return ""
 	}

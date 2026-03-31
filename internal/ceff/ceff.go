@@ -43,7 +43,7 @@ var (
 )
 
 type ResourceUsageRecord struct {
-	TaskID      int64
+	JobID       int64
 	CPUUsage    uint64
 	MemoryUsage uint64
 	ProcCount   uint64
@@ -51,24 +51,24 @@ type ResourceUsageRecord struct {
 	Timestamp   time.Time
 }
 
-type CeffTaskInfo struct {
-	JobID              uint32            `json:"job_id"`
-	QoS                string            `json:"qos"`
-	UID                uint32            `json:"uid"`
-	UserName           string            `json:"user_name"`
-	GID                uint32            `json:"gid"`
-	GroupName          string            `json:"group_name"`
-	Account            string            `json:"account"`
-	JobState           protos.TaskStatus `json:"job_state"`
-	Nodes              uint32            `json:"nodes"`
-	CoresPerNode       float64           `json:"cores_per_node"`
-	CPUUtilizedStr     string            `json:"cpu_utilized_str"`
-	CPUEfficiency      float64           `json:"cpu_efficiency"`
-	RunTimeStr         string            `json:"run_time_str"`
-	TotalMemMB         float64           `json:"total_mem_mb"`
-	MemEfficiency      float64           `json:"mem_efficiency"`
-	TotalMallocMemMB   float64           `json:"total_malloc_mem_mb"`
-	MallocMemMBPerNode float64           `json:"malloc_mem_mb_per_node"`
+type CeffJobInfo struct {
+	JobID              uint32           `json:"job_id"`
+	QoS                string           `json:"qos"`
+	UID                uint32           `json:"uid"`
+	UserName           string           `json:"user_name"`
+	GID                uint32           `json:"gid"`
+	GroupName          string           `json:"group_name"`
+	Account            string           `json:"account"`
+	JobState           protos.JobStatus `json:"job_state"`
+	Nodes              uint32           `json:"nodes"`
+	CoresPerNode       float64          `json:"cores_per_node"`
+	CPUUtilizedStr     string           `json:"cpu_utilized_str"`
+	CPUEfficiency      float64          `json:"cpu_efficiency"`
+	RunTimeStr         string           `json:"run_time_str"`
+	TotalMemMB         float64          `json:"total_mem_mb"`
+	MemEfficiency      float64          `json:"mem_efficiency"`
+	TotalMallocMemMB   float64          `json:"total_malloc_mem_mb"`
+	MallocMemMBPerNode float64          `json:"malloc_mem_mb_per_node"`
 }
 
 var isFirstCall = true //Used for multi-job print
@@ -129,7 +129,7 @@ func CleanupPlugindClient() {
 }
 
 // Query efficiency data through cplugind
-func QueryEfficiencyDataViaPlugind(taskIds []uint32) ([]*ResourceUsageRecord, error) {
+func QueryEfficiencyDataViaPlugind(jobIds []uint32) ([]*ResourceUsageRecord, error) {
 	if pluginClient == nil {
 		return nil, fmt.Errorf("plugind client not initialized")
 	}
@@ -146,15 +146,15 @@ func QueryEfficiencyDataViaPlugind(taskIds []uint32) ([]*ResourceUsageRecord, er
 	}
 
 	// Request efficiency data from cplugind
-	req := &protos.QueryTaskEfficiencyRequest{
-		TaskIds: taskIds,
-		Uid:     uint32(uid),
+	req := &protos.QueryJobEfficiencyRequest{
+		JobIds: jobIds,
+		Uid:    uint32(uid),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	reply, err := pluginClient.QueryTaskEfficiency(ctx, req)
+	reply, err := pluginClient.QueryJobEfficiency(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query efficiency data: %v", err)
 	}
@@ -167,7 +167,7 @@ func QueryEfficiencyDataViaPlugind(taskIds []uint32) ([]*ResourceUsageRecord, er
 	var records []*ResourceUsageRecord
 	for _, effData := range reply.EfficiencyData {
 		record := &ResourceUsageRecord{
-			TaskID:      int64(effData.TaskId),
+			JobID:       int64(effData.JobId),
 			CPUUsage:    effData.CpuUsage,
 			MemoryUsage: effData.MemoryUsage,
 			ProcCount:   effData.ProcCount,
@@ -184,7 +184,7 @@ func QueryEfficiencyDataViaPlugind(taskIds []uint32) ([]*ResourceUsageRecord, er
 func CalculateTotalUsagePtr(records []*ResourceUsageRecord, targetJobID int64) (float64, float64, error) {
 	var filteredRecords []*ResourceUsageRecord
 	for _, record := range records {
-		if record != nil && record.TaskID == targetJobID {
+		if record != nil && record.JobID == targetJobID {
 			filteredRecords = append(filteredRecords, record)
 		}
 	}
@@ -205,13 +205,13 @@ func CalculateTotalUsagePtr(records []*ResourceUsageRecord, targetJobID int64) (
 	return totalCPUUseS, totalMemMb, nil
 }
 
-func CalculateRunTime(taskInfo *protos.TaskInfo, cPUTotal float64) (uint64, string) {
-	if taskInfo.Status == protos.TaskStatus_Running {
-		duration := taskInfo.ElapsedTime.AsDuration()
+func CalculateRunTime(jobInfo *protos.JobInfo, cPUTotal float64) (uint64, string) {
+	if jobInfo.Status == protos.JobStatus_Running {
+		duration := jobInfo.ElapsedTime.AsDuration()
 		return uint64(duration.Seconds() * cPUTotal), FormatDuration(duration * time.Duration(cPUTotal))
 	}
-	start := taskInfo.StartTime.AsTime()
-	end := taskInfo.EndTime.AsTime()
+	start := jobInfo.StartTime.AsTime()
+	end := jobInfo.EndTime.AsTime()
 	if end.Before(start) {
 		log.Warnf("Invalid time range: end (%v) is before start (%v)", end, start)
 		return 0, "0-0:0:0"
@@ -243,21 +243,21 @@ func findNotFoundJobs(jobIdList []uint32, printed map[uint32]bool) []uint32 {
 	return notFoundJobs
 }
 
-func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) error {
-	// Filter task records
-	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
+func PrintJobInfo(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) error {
+	// Filter job records
+	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(jobInfo.JobId))
 	if err != nil {
-		return fmt.Errorf("print task %v info error: %w", taskInfo.TaskId, err)
+		return fmt.Errorf("print job %v info error: %w", jobInfo.JobId, err)
 	}
 
 	// Obtain user and group information
-	craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
+	craneUser, err := user.LookupId(strconv.Itoa(int(jobInfo.Uid)))
 	if err != nil {
-		return fmt.Errorf("failed to get username for UID %d: %w", taskInfo.Uid, err)
+		return fmt.Errorf("failed to get username for UID %d: %w", jobInfo.Uid, err)
 	}
-	group, err := user.LookupGroupId(strconv.Itoa(int(taskInfo.Gid)))
+	group, err := user.LookupGroupId(strconv.Itoa(int(jobInfo.Gid)))
 	if err != nil {
-		return fmt.Errorf("failed to get groupname for GID %d: %w", taskInfo.Gid, err)
+		return fmt.Errorf("failed to get groupname for GID %d: %w", jobInfo.Gid, err)
 	}
 	if !isFirstCall {
 		fmt.Printf("\n")
@@ -270,35 +270,35 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 			"Qos: %v\n"+
 			"User/Group: %s(%d)/%s(%d)\n"+
 			"Account: %v\n",
-		taskInfo.TaskId, taskInfo.Qos, craneUser.Username, taskInfo.Uid, group.Name, taskInfo.Gid,
-		taskInfo.Account)
+		jobInfo.JobId, jobInfo.Qos, craneUser.Username, jobInfo.Uid, group.Name, jobInfo.Gid,
+		jobInfo.Account)
 
-	if taskInfo.Status == protos.TaskStatus_Pending || taskInfo.Status == protos.TaskStatus_Running {
-		fmt.Printf("JobState: %v\n", taskInfo.Status.String())
+	if jobInfo.Status == protos.JobStatus_Pending || jobInfo.Status == protos.JobStatus_Running {
+		fmt.Printf("JobState: %v\n", jobInfo.Status.String())
 	} else {
-		fmt.Printf("JobState: %v (exit code %d)\n", taskInfo.Status.String(), taskInfo.ExitCode)
+		fmt.Printf("JobState: %v (exit code %d)\n", jobInfo.Status.String(), jobInfo.ExitCode)
 	}
 
-	if taskInfo.NodeNum == 0 {
+	if jobInfo.NodeNum == 0 {
 		return fmt.Errorf("the number of nodes is empty")
 	}
-	cpuTotal := taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+	cpuTotal := jobInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
 	if math.Abs(cpuTotal-1) < 1e-9 {
 		fmt.Printf("Cores: %.2f\n", cpuTotal)
 	} else {
 		fmt.Printf(
 			"Nodes: %v\n"+
 				"Cores per node: %.2f\n",
-			taskInfo.NodeNum, cpuTotal/float64(taskInfo.NodeNum))
+			jobInfo.NodeNum, cpuTotal/float64(jobInfo.NodeNum))
 	}
 
-	if taskInfo.Status == protos.TaskStatus_Pending {
+	if jobInfo.Status == protos.JobStatus_Pending {
 		fmt.Printf("Efficiency not available for jobs in the PENDING state.\n")
 		return nil
 	}
 
 	// Calculate running time
-	runTime, runTimeStr := CalculateRunTime(taskInfo, cpuTotal)
+	runTime, runTimeStr := CalculateRunTime(jobInfo, cpuTotal)
 
 	cPUUtilizedStr := "0-0:0:0"
 	cPUUtilizedStr = FormatDuration(time.Duration(totalCPUUseS) * time.Second)
@@ -310,9 +310,9 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(taskInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
-		float64(taskInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
+	mallocMemMbPerNode := float64(jobInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
+		float64(jobInfo.NodeNum) / (1024 * 1024)
+	totalMallocMemMb := float64(jobInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
@@ -326,54 +326,54 @@ func PrintTaskInfo(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) er
 		cPUUtilizedStr, cPUEfficiency, runTimeStr, runTimeStr, totalMemMb,
 		memEfficiency, totalMallocMemMb, mallocMemMbPerNode)
 
-	if taskInfo.Status == protos.TaskStatus_Running {
+	if jobInfo.Status == protos.JobStatus_Running {
 		fmt.Printf("WARNING: Efficiency statistics may be misleading for RUNNING jobs.\n")
 	}
 
 	return nil
 }
 
-func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageRecord) (*CeffTaskInfo, error) {
-	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(taskInfo.TaskId))
+func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) (*CeffJobInfo, error) {
+	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(jobInfo.JobId))
 	if err != nil {
-		return nil, fmt.Errorf("print task %v json info error: %w", taskInfo.TaskId, err)
+		return nil, fmt.Errorf("print job %v json info error: %w", jobInfo.JobId, err)
 	}
 
-	craneUser, err := user.LookupId(strconv.Itoa(int(taskInfo.Uid)))
+	craneUser, err := user.LookupId(strconv.Itoa(int(jobInfo.Uid)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get username for UID %d: %w", taskInfo.Uid, err)
+		return nil, fmt.Errorf("failed to get username for UID %d: %w", jobInfo.Uid, err)
 	}
-	group, err := user.LookupGroupId(strconv.Itoa(int(taskInfo.Gid)))
+	group, err := user.LookupGroupId(strconv.Itoa(int(jobInfo.Gid)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get groupname for GID %d: %w", taskInfo.Gid, err)
+		return nil, fmt.Errorf("failed to get groupname for GID %d: %w", jobInfo.Gid, err)
 	}
 
-	if taskInfo.NodeNum == 0 {
+	if jobInfo.NodeNum == 0 {
 		return nil, fmt.Errorf("the number of nodes is empty")
 	}
-	cpuTotal := taskInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
-	coresPerNode := cpuTotal / float64(taskInfo.NodeNum)
-	taskJsonInfo := &CeffTaskInfo{
-		JobID:        taskInfo.TaskId,
-		QoS:          taskInfo.Qos,
+	cpuTotal := jobInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+	coresPerNode := cpuTotal / float64(jobInfo.NodeNum)
+	jobJsonInfo := &CeffJobInfo{
+		JobID:        jobInfo.JobId,
+		QoS:          jobInfo.Qos,
 		UserName:     craneUser.Username,
-		UID:          taskInfo.Uid,
+		UID:          jobInfo.Uid,
 		GroupName:    group.Name,
-		GID:          taskInfo.Gid,
-		Account:      taskInfo.Account,
-		JobState:     taskInfo.Status,
-		Nodes:        taskInfo.NodeNum,
+		GID:          jobInfo.Gid,
+		Account:      jobInfo.Account,
+		JobState:     jobInfo.Status,
+		Nodes:        jobInfo.NodeNum,
 		CoresPerNode: coresPerNode,
 	}
 
-	if taskInfo.Status == protos.TaskStatus_Pending {
-		return taskJsonInfo, nil
+	if jobInfo.Status == protos.JobStatus_Pending {
+		return jobJsonInfo, nil
 	}
 
 	// Calculate running time
-	runTime, runTimeStr := CalculateRunTime(taskInfo, cpuTotal)
+	runTime, runTimeStr := CalculateRunTime(jobInfo, cpuTotal)
 
-	// Filter task records
+	// Filter job records
 	cPUUtilizedStr := "0-0:0:0"
 	cPUUtilizedStr = FormatDuration(time.Duration(totalCPUUseS) * time.Second)
 
@@ -384,24 +384,24 @@ func PrintTaskInfoInJson(taskInfo *protos.TaskInfo, records []*ResourceUsageReco
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes) /
-		float64(taskInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(taskInfo.ReqResView.AllocatableRes.MemoryLimitBytes)
+	mallocMemMbPerNode := float64(jobInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
+		float64(jobInfo.NodeNum) / (1024 * 1024)
+	totalMallocMemMb := float64(jobInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes)
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
-	taskJsonInfo.CPUUtilizedStr = cPUUtilizedStr
-	taskJsonInfo.CPUEfficiency = cPUEfficiency
-	taskJsonInfo.RunTimeStr = runTimeStr
-	taskJsonInfo.TotalMemMB = totalMemMb
-	taskJsonInfo.MemEfficiency = memEfficiency
-	taskJsonInfo.TotalMallocMemMB = totalMallocMemMb
-	taskJsonInfo.MallocMemMBPerNode = mallocMemMbPerNode
+	jobJsonInfo.CPUUtilizedStr = cPUUtilizedStr
+	jobJsonInfo.CPUEfficiency = cPUEfficiency
+	jobJsonInfo.RunTimeStr = runTimeStr
+	jobJsonInfo.TotalMemMB = totalMemMb
+	jobJsonInfo.MemEfficiency = memEfficiency
+	jobJsonInfo.TotalMallocMemMB = totalMallocMemMb
+	jobJsonInfo.MallocMemMBPerNode = mallocMemMbPerNode
 
-	return taskJsonInfo, nil
+	return jobJsonInfo, nil
 }
 
-func QueryTasksInfoByIds(jobIds string) error {
+func QueryJobsInfoByIds(jobIds string) error {
 	stepIdList, err := util.ParseStepIdList(jobIds, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s", err))
@@ -414,12 +414,12 @@ func QueryTasksInfoByIds(jobIds string) error {
 		stepIdList[jobId] = &protos.JobStepIds{Steps: make([]uint32, 0)}
 	}
 
-	req := &protos.QueryTasksInfoRequest{
-		FilterIds:                   stepIdList,
-		OptionIncludeCompletedTasks: true,
+	req := &protos.QueryJobsInfoRequest{
+		FilterIds:                  stepIdList,
+		OptionIncludeCompletedJobs: true,
 	}
 
-	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job info")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -432,18 +432,18 @@ func QueryTasksInfoByIds(jobIds string) error {
 	}
 
 	printed := map[uint32]bool{}
-	taskInfoList := []*CeffTaskInfo{}
+	jobInfoList := []*CeffJobInfo{}
 	if FlagJson {
-		for _, taskInfo := range reply.TaskInfoList {
-			if taskData, err := PrintTaskInfoInJson(taskInfo, result); err != nil {
+		for _, jobInfo := range reply.JobInfoList {
+			if jobData, err := PrintJobInfoInJson(jobInfo, result); err != nil {
 				log.Warnf("%v", err)
 			} else {
-				taskInfoList = append(taskInfoList, taskData)
-				printed[taskInfo.TaskId] = true
+				jobInfoList = append(jobInfoList, jobData)
+				printed[jobInfo.JobId] = true
 			}
 		}
 
-		jsonData, err := json.MarshalIndent(taskInfoList, "", "  ")
+		jsonData, err := json.MarshalIndent(jobInfoList, "", "  ")
 		if err != nil {
 			return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Error marshalling to JSON: %s", err))
 		}
@@ -457,11 +457,11 @@ func QueryTasksInfoByIds(jobIds string) error {
 		return nil
 	}
 
-	for _, taskInfo := range reply.TaskInfoList {
-		if err := PrintTaskInfo(taskInfo, result); err != nil {
+	for _, jobInfo := range reply.JobInfoList {
+		if err := PrintJobInfo(jobInfo, result); err != nil {
 			log.Warnf("%v", err)
 		} else {
-			printed[taskInfo.TaskId] = true
+			printed[jobInfo.JobId] = true
 		}
 	}
 

@@ -103,7 +103,7 @@ func overridePodFromFlags(cmd *cobra.Command, podOpts *podOptions) {
 	}
 }
 
-func parsePodUser(userSpec string, podMeta *protos.PodTaskAdditionalMeta) error {
+func parsePodUser(userSpec string, podMeta *protos.PodJobAdditionalMeta) error {
 	parts := strings.SplitN(userSpec, ":", 2)
 
 	uid, err := strconv.ParseUint(parts[0], 10, 32)
@@ -122,10 +122,10 @@ func parsePodUser(userSpec string, podMeta *protos.PodTaskAdditionalMeta) error 
 	return nil
 }
 
-func parsePodPortMapping(portSpec string, ports *[]*protos.PodTaskAdditionalMeta_PortMapping) error {
+func parsePodPortMapping(portSpec string, ports *[]*protos.PodJobAdditionalMeta_PortMapping) error {
 	parts := strings.SplitN(portSpec, ":", 2)
-	mapping := &protos.PodTaskAdditionalMeta_PortMapping{
-		Protocol: protos.PodTaskAdditionalMeta_PortMapping_TCP,
+	mapping := &protos.PodJobAdditionalMeta_PortMapping{
+		Protocol: protos.PodJobAdditionalMeta_PortMapping_TCP,
 	}
 
 	if len(parts) == 1 {
@@ -156,9 +156,9 @@ func parsePodPortMapping(portSpec string, ports *[]*protos.PodTaskAdditionalMeta
 	return nil
 }
 
-func validatePodMeta(task *protos.TaskToCtld, meta *protos.PodTaskAdditionalMeta) error {
-	if task.Uid != 0 && !meta.Userns {
-		if meta.RunAsUser != task.Uid || meta.RunAsGroup != task.Gid {
+func validatePodMeta(job *protos.JobToCtld, meta *protos.PodJobAdditionalMeta) error {
+	if job.Uid != 0 && !meta.Userns {
+		if meta.RunAsUser != job.Uid || meta.RunAsGroup != job.Gid {
 			return fmt.Errorf("with --pod-userns=false, only current user and accessible groups are allowed")
 		}
 	}
@@ -166,15 +166,15 @@ func validatePodMeta(task *protos.TaskToCtld, meta *protos.PodTaskAdditionalMeta
 	return nil
 }
 
-func buildPodMeta(task *protos.TaskToCtld, podOpts *podOptions) (*protos.PodTaskAdditionalMeta, error) {
-	podMeta := &protos.PodTaskAdditionalMeta{
+func buildPodMeta(job *protos.JobToCtld, podOpts *podOptions) (*protos.PodJobAdditionalMeta, error) {
+	podMeta := &protos.PodJobAdditionalMeta{
 		Name:      podOpts.name,
-		Namespace: &protos.PodTaskAdditionalMeta_NamespaceOption{},
+		Namespace: &protos.PodJobAdditionalMeta_NamespaceOption{},
 		Userns:    podOpts.userns,
 	}
 
 	if podMeta.Name == "" {
-		podMeta.Name = task.Name
+		podMeta.Name = job.Name
 	}
 
 	if podOpts.user != "" {
@@ -193,7 +193,7 @@ func buildPodMeta(task *protos.TaskToCtld, podOpts *podOptions) (*protos.PodTask
 	}
 
 	if podOpts.hostNet {
-		podMeta.Namespace.Network = protos.PodTaskAdditionalMeta_NODE
+		podMeta.Namespace.Network = protos.PodJobAdditionalMeta_NODE
 	}
 
 	for i, server := range podOpts.dns {
@@ -204,7 +204,7 @@ func buildPodMeta(task *protos.TaskToCtld, podOpts *podOptions) (*protos.PodTask
 	}
 	podMeta.DnsServers = podOpts.dns
 
-	if err := validatePodMeta(task, podMeta); err != nil {
+	if err := validatePodMeta(job, podMeta); err != nil {
 		return nil, err
 	}
 

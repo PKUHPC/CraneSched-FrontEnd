@@ -47,8 +47,8 @@ var (
 )
 
 // BuildCbatchJob reads flags and script file to build a job
-func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, error) {
-	task := new(protos.TaskToCtld)
+func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error) {
+	job := new(protos.JobToCtld)
 
 	// Parse the script file or use wrapped script
 	cbatchArgs := make([]CbatchArg, 0)
@@ -59,49 +59,42 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err := ParseCbatchScript(args[0], &cbatchArgs, &shLines); err != nil {
 			return nil, fmt.Errorf("invalid argument: failed to parse script: %w", err)
 		}
-		task.Name = filepath.Base(args[0])
+		job.Name = filepath.Base(args[0])
 		shScript = strings.Join(shLines, "\n")
 	} else {
-		task.Name = util.DefaultWrappedJobName
+		job.Name = util.DefaultWrappedJobName
 		shScript = FlagWrappedScript
 	}
 
 	if isPod, err := isPodJob(cmd, cbatchArgs); err != nil {
 		return nil, err
 	} else if isPod {
-		task.Type = protos.TaskType_Container
+		job.Type = protos.JobType_Container
 	} else {
-		task.Type = protos.TaskType_Batch
+		job.Type = protos.JobType_Batch
 	}
 
 	// Set the payload
-	task.Payload = &protos.TaskToCtld_BatchMeta{
-		BatchMeta: &protos.BatchTaskAdditionalMeta{
+	job.Payload = &protos.JobToCtld_BatchMeta{
+		BatchMeta: &protos.BatchJobAdditionalMeta{
 			ShScript: shScript,
 		},
 	}
 
 	// Set default values
-	task.CpusPerTask = 1
-	task.NtasksPerNode = 1
-	task.NodeNum = 1
-	task.GetUserEnv = false
-	task.Env = make(map[string]string)
-	task.TimeLimit = util.InvalidDuration()
-	task.ReqResources = &protos.ResourceView{
-		AllocatableRes: &protos.AllocatableResource{
-			CpuCoreLimit:       1,
-			MemoryLimitBytes:   0,
-			MemorySwLimitBytes: 0,
-		},
-	}
+	job.NtasksPerNode = 0
+	job.NodeNum = 0
+	job.Ntasks = 0
+	job.GetUserEnv = false
+	job.Env = make(map[string]string)
+	job.TimeLimit = util.InvalidDuration()
 
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
 	podOpts := podOptions{}
 
 	// Set args from the script
-	if err := applyScriptArgs(cmd, cbatchArgs, task, &structExtraFromScript, &podOpts); err != nil {
+	if err := applyScriptArgs(cmd, cbatchArgs, job, &structExtraFromScript, &podOpts); err != nil {
 		return nil, err
 	}
 
@@ -113,14 +106,27 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	// Set args from the command line flags
 	// Command line has a higher priority
 	if cmd.Flags().Changed("nodes") {
-		task.NodeNum = FlagNodes
+		if FlagNodes == 0 {
+			return nil, fmt.Errorf("invalid argument: --nodes must be > 0")
+		}
+		job.NodeNum = FlagNodes
 	}
 	if cmd.Flags().Changed("cpus-per-task") {
-		task.CpusPerTask = FlagCpuPerTask
+		cpuPerTask := float64(FlagCpuPerTask)
+		job.CpusPerTask = &cpuPerTask
 	}
 
 	if cmd.Flags().Changed("ntasks-per-node") {
-		task.NtasksPerNode = FlagNtasksPerNode
+		if FlagNtasksPerNode == 0 {
+			return nil, fmt.Errorf("invalid argument: --ntasks-per-node must be > 0")
+		}
+		job.NtasksPerNode = FlagNtasksPerNode
+	}
+	if cmd.Flags().Changed("ntasks") {
+		if FlagNtasks == 0 {
+			return nil, fmt.Errorf("invalid argument: --ntasks must be > 0")
+		}
+		job.Ntasks = FlagNtasks
 	}
 	if cmd.Flags().Changed("gres") {
 		gresMap := util.ParseGres(FlagGres)
@@ -130,7 +136,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			}
 			setGresGpusFlag = true
 		}
-		task.ReqResources.DeviceMap = gresMap
+		job.GresPerNode = gresMap
 	}
 	if cmd.Flags().Changed("gpus-per-node") {
 		if setGresGpusFlag {
@@ -141,10 +147,10 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --gpus-per-node value '%s': %w", FlagGpusPerNode, err)
 		}
-		task.ReqResources.DeviceMap = gpuDeviceMap
+		job.GresPerNode = gpuDeviceMap
 	}
 	if cmd.Flags().Changed("wckey") {
-		task.Wckey = &FlagWckey
+		job.Wckey = &FlagWckey
 	}
 
 	if FlagTime != "" {
@@ -152,66 +158,65 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --time value '%s': %w", FlagTime, err)
 		}
-		task.TimeLimit.Seconds = seconds
+		job.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --mem value '%s': %w", FlagMem, err)
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		job.MemPerNode = &memInByte
 	}
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --mem-per-cpu value '%s': %w", FlagMemPerCpu, err)
 		}
-		task.MemPerCpu = &memInBytePerCpu
+		job.MemPerCpu = &memInBytePerCpu
 	}
 	if FlagPartition != "" {
-		task.PartitionName = FlagPartition
+		job.PartitionName = FlagPartition
 	}
 	if FlagJob != "" {
-		task.Name = FlagJob
+		job.Name = FlagJob
 	}
 	if FlagQos != "" {
-		task.Qos = FlagQos
+		job.Qos = FlagQos
 	}
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --licenses value '%s': %w", FlagLicenses, err)
 		}
-		task.LicensesCount = licCount
-		task.IsLicensesOr = isLicenseOr
+		job.LicensesCount = licCount
+		job.IsLicensesOr = isLicenseOr
 	}
 	if FlagCwd != "" {
-		task.Cwd = FlagCwd
+		job.Cwd = FlagCwd
 	}
 	if FlagAccount != "" {
-		task.Account = FlagAccount
+		job.Account = FlagAccount
 	}
 	if FlagNodelist != "" {
-		task.Nodelist = FlagNodelist
+		job.Nodelist = FlagNodelist
 	}
 	if FlagExcludes != "" {
-		task.Excludes = FlagExcludes
+		job.Excludes = FlagExcludes
 	}
 	if FlagGetUserEnv {
-		task.GetUserEnv = true
+		job.GetUserEnv = true
 	}
 	if FlagExport != "" {
-		task.Env["CRANE_EXPORT_ENV"] = FlagExport
+		job.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
 	if FlagStdoutPath != "" {
-		task.GetBatchMeta().OutputFilePattern = FlagStdoutPath
+		job.GetBatchMeta().OutputFilePattern = FlagStdoutPath
 	}
 	if FlagStderrPath != "" {
-		task.GetBatchMeta().ErrorFilePattern = FlagStderrPath
+		job.GetBatchMeta().ErrorFilePattern = FlagStderrPath
 	}
 	if FlagInterpreter != "" {
-		task.GetBatchMeta().Interpreter = FlagInterpreter
+		job.GetBatchMeta().Interpreter = FlagInterpreter
 	}
 
 	if FlagExtraAttr != "" {
@@ -229,9 +234,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if FlagOpenMode != "" {
 		switch FlagOpenMode {
 		case util.OpenModeAppend:
-			task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
+			job.GetBatchMeta().OpenModeAppend = proto.Bool(true)
 		case util.OpenModeTruncate:
-			task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
+			job.GetBatchMeta().OpenModeAppend = proto.Bool(false)
 		default:
 			return nil, fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 		}
@@ -241,16 +246,16 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --begin value '%s': %w", FlagBeginTime, err)
 		}
-		task.BeginTime = timestamppb.New(beginTime)
+		job.BeginTime = timestamppb.New(beginTime)
 	}
 	if FlagExclusive {
-		task.Exclusive = true
+		job.Exclusive = true
 	}
 	if FlagHold {
-		task.Hold = true
+		job.Hold = true
 	}
 	if FlagReservation != "" {
-		task.Reservation = FlagReservation
+		job.Reservation = FlagReservation
 	}
 
 	if FlagSignal != "" {
@@ -259,18 +264,18 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 			return nil, fmt.Errorf("invalid argument: signal value '%s' : %w", FlagSignal, err)
 		}
 		for _, signal := range signals {
-			task.Signals = append(task.Signals, signal)
+			job.Signals = append(job.Signals, signal)
 		}
 	}
 
 	// Set pod meta if it's a container job
-	if task.Type == protos.TaskType_Container {
+	if job.Type == protos.JobType_Container {
 		overridePodFromFlags(cmd, &podOpts)
-		podMeta, err := buildPodMeta(task, &podOpts)
+		podMeta, err := buildPodMeta(job, &podOpts)
 		if err != nil {
 			return nil, fmt.Errorf("invalid container options: %v", err)
 		}
-		task.PodMeta = podMeta
+		job.PodMeta = podMeta
 	}
 
 	// Set and check the extra attributes
@@ -278,39 +283,36 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.TaskToCtld, erro
 	if err := structExtraFromCli.Marshal(&extraFromCli); err != nil {
 		return nil, fmt.Errorf("invalid argument: failed to marshal extra attributes from CLI: %w", err)
 	}
-	task.ExtraAttr = util.AmendJobExtraAttrs(extraFromScript, extraFromCli)
-
-	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
+	job.ExtraAttr = util.AmendJobExtraAttrs(extraFromScript, extraFromCli)
 
 	// Set the submit hostname
 	submitHostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get hostname of the submitting host: %v", err)
 	}
-	task.SubmitHostname = submitHostname
+	job.SubmitHostname = submitHostname
 	if FlagDependency != "" {
-		err := util.SetTaskDependencies(task, FlagDependency)
+		err := util.SetJobDependencies(job, FlagDependency)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
 		}
 	}
 
 	// Check the validity of the parameters
-	if err := util.CheckFileLength(task.GetBatchMeta().OutputFilePattern); err != nil {
+	if err := util.CheckFileLength(job.GetBatchMeta().OutputFilePattern); err != nil {
 		return nil, fmt.Errorf("invalid argument: invalid output file path: %w", err)
 	}
-	if err := util.CheckFileLength(task.GetBatchMeta().ErrorFilePattern); err != nil {
+	if err := util.CheckFileLength(job.GetBatchMeta().ErrorFilePattern); err != nil {
 		return nil, fmt.Errorf("invalid argument: invalid error file path: %w", err)
 	}
-	if err := util.CheckTaskArgs(task); err != nil {
+	if err := util.CheckJobArgs(job); err != nil {
 		return nil, fmt.Errorf("invalid argument: %w", err)
 	}
 
-	return task, nil
+	return job, nil
 }
 
-func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.TaskToCtld, extraFromScript *util.JobExtraAttrs, podOpts *podOptions) error {
+func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.JobToCtld, extraFromScript *util.JobExtraAttrs, podOpts *podOptions) error {
 	for _, arg := range cbatchArgs {
 		switch arg.name {
 		case "--nodes", "-N":
@@ -318,13 +320,16 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.NodeNum = uint32(num)
+			if num == 0 {
+				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
+			}
+			job.NodeNum = uint32(num)
 		case "--cpus-per-task", "-c":
 			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.CpusPerTask = num
+			job.CpusPerTask = &num
 		case "--gres":
 			gresMap := util.ParseGres(arg.val)
 			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
@@ -333,7 +338,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 				}
 				setGresGpusFlag = true
 			}
-			task.ReqResources.DeviceMap = gresMap
+			job.GresPerNode = gresMap
 		case "--gpus-per-node":
 			if setGresGpusFlag {
 				return fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
@@ -343,77 +348,88 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.ReqResources.DeviceMap = gpuDeviceMap
+			job.GresPerNode = gpuDeviceMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.NtasksPerNode = uint32(num)
+			if num == 0 {
+				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
+			}
+			job.NtasksPerNode = uint32(num)
+		case "--ntasks", "-n":
+			num, err := strconv.ParseUint(arg.val, 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			if num == 0 {
+				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
+			}
+			job.Ntasks = uint32(num)
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.TimeLimit.Seconds = seconds
+			job.TimeLimit.Seconds = seconds
 		case "--begin", "-b":
 			beginTime, err := util.ParseTime(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.BeginTime = timestamppb.New(beginTime)
+			job.BeginTime = timestamppb.New(beginTime)
 		case "--mem":
 			memInByte, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-			task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+			job.MemPerNode = &memInByte
 		case "--mem-per-cpu":
 			memInBytePerCpu, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.MemPerCpu = &memInBytePerCpu
+			job.MemPerCpu = &memInBytePerCpu
 		case "-p", "--partition":
-			task.PartitionName = arg.val
+			job.PartitionName = arg.val
 		case "-J", "--job-name":
-			task.Name = arg.val
+			job.Name = arg.val
 		case "-A", "--account":
-			task.Account = arg.val
+			job.Account = arg.val
 		case "--qos", "-Q":
-			task.Qos = arg.val
+			job.Qos = arg.val
 		case "--licenses", "-L":
 			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.LicensesCount = licCount
-			task.IsLicensesOr = isLicenseOr
+			job.LicensesCount = licCount
+			job.IsLicensesOr = isLicenseOr
 		case "--chdir":
-			task.Cwd = arg.val
+			job.Cwd = arg.val
 		case "--exclude", "-x":
-			task.Excludes = arg.val
+			job.Excludes = arg.val
 		case "--nodelist", "-w":
-			task.Nodelist = arg.val
+			job.Nodelist = arg.val
 		case "--get-user-env":
 			if arg.val == "" {
-				task.GetUserEnv = true
+				job.GetUserEnv = true
 			} else {
 				val, err := strconv.ParseBool(arg.val)
 				if err != nil {
 					return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 				}
-				task.GetUserEnv = val
+				job.GetUserEnv = val
 			}
 		case "--export":
-			task.Env["CRANE_EXPORT_ENV"] = arg.val
+			job.Env["CRANE_EXPORT_ENV"] = arg.val
 		case "-o", "--output":
-			task.GetBatchMeta().OutputFilePattern = arg.val
+			job.GetBatchMeta().OutputFilePattern = arg.val
 		case "-e", "--error":
-			task.GetBatchMeta().ErrorFilePattern = arg.val
+			job.GetBatchMeta().ErrorFilePattern = arg.val
 		case "--interpreter":
-			task.GetBatchMeta().Interpreter = arg.val
+			job.GetBatchMeta().Interpreter = arg.val
 		case "--extra-attr":
 			extraFromScript.ExtraAttr = arg.val
 		case "--mail-type":
@@ -425,23 +441,23 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 		case "--open-mode":
 			switch arg.val {
 			case util.OpenModeAppend:
-				task.GetBatchMeta().OpenModeAppend = proto.Bool(true)
+				job.GetBatchMeta().OpenModeAppend = proto.Bool(true)
 			case util.OpenModeTruncate:
-				task.GetBatchMeta().OpenModeAppend = proto.Bool(false)
+				job.GetBatchMeta().OpenModeAppend = proto.Bool(false)
 			default:
 				return fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			}
 		case "-r", "--reservation":
-			task.Reservation = arg.val
+			job.Reservation = arg.val
 		case "--exclusive":
 			val, err := strconv.ParseBool(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			task.Exclusive = val
+			job.Exclusive = val
 		case "--wckey":
 			wckey := arg.val
-			task.Wckey = &wckey
+			job.Wckey = &wckey
 		case "--pod":
 			// No need to process here, already handled in isPodJob
 		case "--pod-name":
@@ -472,7 +488,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 			}
 			podOpts.dns = append(podOpts.dns, servers...)
 		case "--dependency", "-d":
-			err := util.SetTaskDependencies(task, arg.val)
+			err := util.SetJobDependencies(job, arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
 			}
@@ -482,7 +498,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			for _, signal := range signals {
-				task.Signals = append(task.Signals, signal)
+				job.Signals = append(job.Signals, signal)
 			}
 		default:
 			return fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
@@ -492,12 +508,12 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, task *protos.Ta
 	return nil
 }
 
-func SendRequest(task *protos.TaskToCtld) error {
+func SendRequest(job *protos.JobToCtld) error {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
-	req := &protos.SubmitBatchTaskRequest{Task: task}
+	req := &protos.SubmitBatchJobRequest{Job: job}
 
-	reply, err := stub.SubmitBatchTask(context.Background(), req)
+	reply, err := stub.SubmitBatchJob(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to submit the job")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -512,7 +528,7 @@ func SendRequest(task *protos.TaskToCtld) error {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Job id allocated: %d.\n", reply.GetTaskId())
+		fmt.Printf("Job id allocated: %d.\n", reply.GetJobId())
 		return nil
 	} else {
 		if len(reply.GetReason()) > 0 {
@@ -523,14 +539,14 @@ func SendRequest(task *protos.TaskToCtld) error {
 	}
 }
 
-func SendMultipleRequests(task *protos.TaskToCtld, count uint32) error {
+func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub := util.GetStubToCtldByConfig(config)
-	req := &protos.SubmitBatchTasksRequest{Task: task, Count: count}
+	req := &protos.SubmitBatchJobsRequest{Job: job, Count: count}
 
-	reply, err := stub.SubmitBatchTasks(context.Background(), req)
+	reply, err := stub.SubmitBatchJobs(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to submit tasks")
+		util.GrpcErrorPrintf(err, "Failed to submit jobs")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 
@@ -543,9 +559,9 @@ func SendMultipleRequests(task *protos.TaskToCtld, count uint32) error {
 		}
 	}
 
-	if len(reply.TaskIdList) > 0 {
-		taskIdListString := util.ConvertSliceToString(reply.TaskIdList, ", ")
-		fmt.Printf("Job id allocated: %s.\n", taskIdListString)
+	if len(reply.JobIdList) > 0 {
+		jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
+		fmt.Printf("Job id allocated: %s.\n", jobIdListString)
 	}
 
 	if len(reply.GetCodeList()) > 0 {
@@ -619,8 +635,6 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	filteredArgs := make([]CbatchArg, 0, len(args))
 	unsupportedFlags := map[string]string{
-		"ntasks":            "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.",
-		"n":                 "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.",
 		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",

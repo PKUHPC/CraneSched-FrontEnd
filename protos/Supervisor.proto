@@ -81,9 +81,9 @@ message SupervisorReady {
   bool ok = 1;
 }
 
-message TaskExecutionRequest {}
+message StepExecutionRequest {}
 
-message TaskExecutionReply {
+message StepExecutionReply {
   ErrCode code = 1;
 }
 
@@ -100,26 +100,34 @@ message CheckStatusReply {
   uint32 job_id = 1;
   uint32 step_id = 2;
   int32 supervisor_pid = 3;
-  TaskStatus status = 4;
+  JobStatus status = 4;
   bool ok = 5;
 }
 
-message ChangeTaskTimeLimitRequest {
+message ChangeStepTimeLimitRequest {
   int64 time_limit_seconds = 1;
 }
 
-message ChangeTaskTimeLimitReply {
+message ChangeStepTimeLimitReply {
   bool ok = 1;
 }
 
-message TerminateTaskRequest {
+message TerminateStepRequest {
   bool mark_orphaned = 1;
   bool terminated_by_user = 2;
 }
 
-message TerminateTaskReply {
+message TerminateStepReply {
   bool ok = 1;
   string reason = 2;
+}
+
+message MigrateSshProcToCgroupRequest{
+  int32 pid = 1;
+}
+
+message MigrateSshProcToCgroupReply {
+  ErrCode err_code = 1;
 }
 
 message ShutdownSupervisorRequest {}
@@ -127,10 +135,11 @@ message ShutdownSupervisorRequest {}
 message ShutdownSupervisorReply {}
 
 service Supervisor {
-  rpc ExecuteTask(TaskExecutionRequest) returns (TaskExecutionReply);
+  rpc ExecuteStep(StepExecutionRequest) returns (StepExecutionReply);
   rpc QueryEnvMap(QueryStepEnvRequest) returns (QueryStepEnvReply);
   rpc CheckStatus(CheckStatusRequest) returns (CheckStatusReply);
-  rpc ChangeTaskTimeLimit(ChangeTaskTimeLimitRequest) returns (ChangeTaskTimeLimitReply);
-  rpc TerminateTask(TerminateTaskRequest) returns (TerminateTaskReply);
+  rpc ChangeStepTimeLimit(ChangeStepTimeLimitRequest) returns (ChangeStepTimeLimitReply);
+  rpc TerminateStep(TerminateStepRequest) returns (TerminateStepReply);
+  rpc MigrateSshProcToCgroup(MigrateSshProcToCgroupRequest) returns (MigrateSshProcToCgroupReply);
   rpc ShutdownSupervisor(ShutdownSupervisorRequest) returns (ShutdownSupervisorReply);
 }

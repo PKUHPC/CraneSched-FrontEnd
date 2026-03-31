@@ -33,8 +33,8 @@ const (
 )
 
 type waitStepStatus struct {
-	StepId uint32            `json:"step_id"`
-	Status protos.TaskStatus `json:"status"`
+	StepId uint32           `json:"step_id"`
+	Status protos.JobStatus `json:"status"`
 }
 
 type waitResult struct {
@@ -133,13 +133,13 @@ func checkContainerStepsDone(jobId uint32) (bool, waitResult, error) {
 	return allDone, result, nil
 }
 
-func isTerminalStatus(status protos.TaskStatus) bool {
+func isTerminalStatus(status protos.JobStatus) bool {
 	switch status {
-	case protos.TaskStatus_Pending,
-		protos.TaskStatus_Running,
-		protos.TaskStatus_Configuring,
-		protos.TaskStatus_Configured,
-		protos.TaskStatus_Completing:
+	case protos.JobStatus_Pending,
+		protos.JobStatus_Running,
+		protos.JobStatus_Configuring,
+		protos.JobStatus_Starting,
+		protos.JobStatus_Completing:
 		return false
 	default:
 		return true

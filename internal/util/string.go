@@ -571,7 +571,7 @@ func CheckMailType(mailtype string) bool {
 	return true
 }
 
-func ParseLicensesString(val string) ([]*protos.TaskToCtld_License, bool, error) {
+func ParseLicensesString(val string) ([]*protos.JobToCtld_License, bool, error) {
 	tmpStr := strings.ReplaceAll(val, " ", "")
 	var licenseVec []string
 
@@ -588,7 +588,7 @@ func ParseLicensesString(val string) ([]*protos.TaskToCtld_License, bool, error)
 		licenseVec = strings.Split(tmpStr, ",")
 	}
 
-	var licCount []*protos.TaskToCtld_License
+	var licCount []*protos.JobToCtld_License
 	pattern := regexp.MustCompile(`^([a-zA-Z]+(?:@[a-zA-Z0-9_]+)?):(\d+)$`)
 
 	for _, licenseCount := range licenseVec {
@@ -607,7 +607,7 @@ func ParseLicensesString(val string) ([]*protos.TaskToCtld_License, bool, error)
 		if count <= 0 {
 			return nil, hasPipe, fmt.Errorf("license count must > 0")
 		}
-		licCount = append(licCount, &protos.TaskToCtld_License{
+		licCount = append(licCount, &protos.JobToCtld_License{
 			Key:   name,
 			Count: uint32(count),
 		})
@@ -654,35 +654,68 @@ func CheckJobNameLength(name string) error {
 	return nil
 }
 
-func CheckTaskArgs(task *protos.TaskToCtld) error {
-	if err := CheckJobNameLength(task.Name); err != nil {
+func CheckJobArgs(job *protos.JobToCtld) error {
+	if job.MemPerNode != nil && job.MemPerCpu != nil {
+		return fmt.Errorf("--mem and --mem-per-cpu are mutually exclusive, " +
+			"please check your command line options, submission script, and environment variables")
+	}
+	if job.NodeNum == 0 {
+		if job.Ntasks == 0 {
+			if job.NtasksPerNode == 0 {
+				job.Ntasks = 1
+			} else {
+				job.Ntasks = job.NtasksPerNode
+			}
+		}
+		if job.NtasksPerNode == 0 {
+			job.NodeNum = 1
+		} else {
+			job.NodeNum = (job.Ntasks-1)/job.NtasksPerNode + 1
+		}
+	}
+	if job.Ntasks == 0 {
+		if job.NtasksPerNode == 0 {
+			job.Ntasks = job.NodeNum
+		} else {
+			job.Ntasks = job.NodeNum * job.NtasksPerNode
+		}
+	}
+	if job.NodeNum > job.Ntasks {
+		log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", job.Ntasks, job.NodeNum)
+		job.NodeNum = job.Ntasks
+	}
+	if job.NtasksPerNode > 0 && job.NtasksPerNode*job.NodeNum < job.Ntasks {
+		return fmt.Errorf("invalid argument: NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
+	}
+	if job.CpusPerTask != nil && *job.CpusPerTask <= 0 {
+		return fmt.Errorf("invalid --cpus-per-task")
+	}
+	if err := CheckJobNameLength(job.Name); err != nil {
 		return err
 	}
-	if task.CpusPerTask <= 0 {
-		return fmt.Errorf("--cpus-per-task must > 0")
-	}
-	if task.NtasksPerNode <= 0 {
-		return fmt.Errorf("--ntasks-per-node must > 0")
-	}
-	if task.NodeNum <= 0 {
+	if job.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
-	if task.TimeLimit.AsDuration() <= 0 {
+	if job.TimeLimit.AsDuration() <= 0 {
 		return fmt.Errorf("--time must > 0")
 	}
-	if !CheckNodeList(task.Nodelist) {
+	if !CheckNodeList(job.Nodelist) {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
-	if !CheckNodeList(task.Excludes) {
+	if !CheckNodeList(job.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	if task.ReqResources.AllocatableRes.CpuCoreLimit > 1e6 {
-		return fmt.Errorf("requesting too many CPUs: %f", task.ReqResources.AllocatableRes.CpuCoreLimit)
+	// Calculate total CPUs if cpus_per_task is specified
+	if job.CpusPerTask != nil && job.Ntasks > 0 {
+		CpusTotal := *job.CpusPerTask * float64(job.Ntasks)
+		if CpusTotal > 1e6 {
+			return fmt.Errorf("requesting too many CPUs: %f", CpusTotal)
+		}
 	}
-	if task.ExtraAttr != "" {
-		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
-		mailtype := gjson.Get(task.ExtraAttr, "mail.type")
-		mailuser := gjson.Get(task.ExtraAttr, "mail.user")
+	if job.ExtraAttr != "" {
+		// Check attrs in job.ExtraAttr, e.g., mail.type, mail.user
+		mailtype := gjson.Get(job.ExtraAttr, "mail.type")
+		mailuser := gjson.Get(job.ExtraAttr, "mail.user")
 		if mailtype.Exists() != mailuser.Exists() {
 			return fmt.Errorf("incomplete mail arguments")
 		}
@@ -690,13 +723,13 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 			return fmt.Errorf("invalid --mail-type")
 		}
 	}
-	if task.Dependencies != nil {
-		taskIds := make(map[uint32]bool)
-		for _, dep := range task.Dependencies.Deps {
-			if taskIds[dep.JobId] {
-				return fmt.Errorf("invalid argument: duplicate task %d in dependencies", dep.JobId)
+	if job.Dependencies != nil {
+		jobIds := make(map[uint32]bool)
+		for _, dep := range job.Dependencies.Deps {
+			if jobIds[dep.JobId] {
+				return fmt.Errorf("invalid argument: duplicate job %d in dependencies", dep.JobId)
 			}
-			taskIds[dep.JobId] = true
+			jobIds[dep.JobId] = true
 		}
 	}
 
@@ -704,21 +737,46 @@ func CheckTaskArgs(task *protos.TaskToCtld) error {
 }
 
 func CheckStepArgs(step *protos.StepToCtld) error {
+	if step.MemPerNode != nil && step.MemPerCpu != nil {
+		return fmt.Errorf("--mem and --mem-per-cpu are mutually exclusive, " +
+			"please check your command line options, submission script, and environment variables")
+	}
+	if step.NodeNum == 0 {
+		if step.Ntasks == 0 {
+			if step.NtasksPerNode == 0 {
+				step.Ntasks = 1
+			} else {
+				step.Ntasks = step.NtasksPerNode
+			}
+		}
+		if step.NtasksPerNode == 0 {
+			step.NodeNum = 1
+		} else {
+			step.NodeNum = (step.Ntasks-1)/step.NtasksPerNode + 1
+		}
+	}
+	if step.Ntasks == 0 {
+		if step.NtasksPerNode == 0 {
+			step.Ntasks = step.NodeNum
+		} else {
+			step.Ntasks = step.NodeNum * step.NtasksPerNode
+		}
+	}
+	if step.NodeNum > step.Ntasks {
+		log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", step.Ntasks, step.NodeNum)
+		step.NodeNum = step.Ntasks
+	}
+	if step.NtasksPerNode > 0 && step.NtasksPerNode*step.NodeNum < step.Ntasks {
+		log.Warnf("Warning: NtasksPerNode * NodeNum < Ntasks, ignoring NtasksPerNode.")
+		step.NtasksPerNode = 0
+	}
+	if step.CpusPerTask != nil && *step.CpusPerTask <= 0 {
+		return fmt.Errorf("invalid --cpus-per-task")
+	}
 	if err := CheckJobNameLength(step.Name); err != nil {
 		return err
 	}
-	if step.ReqResourcesPerTask != nil &&
-		step.ReqResourcesPerTask.AllocatableRes != nil {
-		if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit <= 0 {
-			return fmt.Errorf("--cpus-per-task must > 0")
-		} else if step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit > 1e6 {
-			return fmt.Errorf("requesting too many CPUs: %f", step.ReqResourcesPerTask.AllocatableRes.CpuCoreLimit)
-		}
-	}
-	if step.NtasksPerNode != nil && *step.NtasksPerNode <= 0 {
-		return fmt.Errorf("--ntasks-per-node must > 0")
-	}
-	if step.NodeNum != nil && *step.NodeNum <= 0 {
+	if step.NodeNum <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
 	if step.TimeLimit.AsDuration() <= 0 {
@@ -730,8 +788,15 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if !CheckNodeList(step.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
+	// Calculate total CPUs if cpus_per_task is specified
+	if step.CpusPerTask != nil && step.Ntasks > 0 {
+		CpusTotal := *step.CpusPerTask * float64(step.Ntasks)
+		if CpusTotal > 1e6 {
+			return fmt.Errorf("requesting too many CPUs: %f", CpusTotal)
+		}
+	}
 	if step.ExtraAttr != "" {
-		// Check attrs in task.ExtraAttr, e.g., mail.type, mail.user
+		// Check attrs in job.ExtraAttr, e.g., mail.type, mail.user
 		mailtype := gjson.Get(step.ExtraAttr, "mail.type")
 		mailuser := gjson.Get(step.ExtraAttr, "mail.user")
 		if mailtype.Exists() != mailuser.Exists() {
@@ -1227,105 +1292,235 @@ func ParseGpusPerNodeStr(gpuPerNodeStr string) (*protos.DeviceMap, error) {
 	return result, nil
 }
 
-func ParseTaskStatusName(state string) (protos.TaskStatus, error) {
+func ParseGresForQosLimit(gres string) (*protos.DeviceMap, error) {
+	result := &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)}
+	if gres == "" {
+		return result, nil
+	}
+
+	gresList := strings.Split(gres, ",")
+	for _, g := range gresList {
+		parts := strings.Split(g, ":")
+		name := parts[0]
+		if len(parts) == 2 {
+			if parts[1] == "unlimited" {
+				if pair, exist := result.NameTypeMap[name]; exist {
+					if pair.TypeCountMap != nil && len(pair.TypeCountMap) > 0 {
+						delete(result.NameTypeMap, name)
+					} else {
+						result.NameTypeMap[name].Total = math.MaxUint32
+					}
+				}
+				continue
+			}
+			gresNameCount, err := strconv.ParseUint(parts[1], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("Error parsing count for %s: %v\n", name, err)
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: make(map[string]uint64), Total: gresNameCount}
+			} else {
+				result.NameTypeMap[name].Total += gresNameCount
+			}
+		} else if len(parts) == 3 {
+			gresType := parts[1]
+			if parts[2] == "unlimited" {
+				if pair, exist := result.NameTypeMap[name]; exist {
+					if pair.TypeCountMap != nil {
+						delete(pair.TypeCountMap, gresType)
+					}
+					if pair.TypeCountMap == nil || len(pair.TypeCountMap) == 0 {
+						delete(result.NameTypeMap, name)
+					}
+				}
+				continue
+			}
+			count, err := strconv.ParseUint(parts[2], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("Error parsing count for %s: %v\n", name, err)
+			}
+			if _, exist := result.NameTypeMap[name]; !exist {
+				typeCountMap := make(map[string]uint64)
+				typeCountMap[gresType] = count
+				result.NameTypeMap[name] = &protos.TypeCountMap{TypeCountMap: typeCountMap, Total: math.MaxUint32}
+			} else {
+				result.NameTypeMap[name].TypeCountMap[gresType] = count
+			}
+		} else {
+			return nil, fmt.Errorf("Error parsing gres: %s\n", g)
+		}
+	}
+
+	return result, nil
+}
+
+func ParseTres(tres string) (*protos.ResourceView, error) {
+	result := &protos.ResourceView{
+		AllocatableRes: &protos.AllocatableResource{
+			CpuCoreLimit:       math.MaxInt32 / 256,
+			MemoryLimitBytes:   MaxJobMemoryBytes,
+			MemorySwLimitBytes: MaxJobMemoryBytes,
+		},
+		DeviceMap: &protos.DeviceMap{NameTypeMap: make(map[string]*protos.TypeCountMap)},
+	}
+	if tres == "" {
+		return result, nil
+	}
+	var gresStr string
+	items := strings.Split(tres, ",")
+	for _, item := range items {
+		if strings.HasPrefix(item, "gres/") && len(item) > 5 {
+			gresStr += item[5:] + ","
+		} else {
+			kv := strings.SplitN(item, ":", 2)
+			if len(kv) == 2 {
+				key := strings.TrimSpace(kv[0])
+				value := strings.TrimSpace(kv[1])
+				if key == "cpu" {
+					if value == "unlimited" {
+						result.GetAllocatableRes().CpuCoreLimit = math.MaxInt32 / 256
+					} else {
+						count, err := strconv.ParseFloat(value, 64)
+						if err != nil {
+							return nil, fmt.Errorf("invalid cpu value: %q", value)
+						}
+						if count > (math.MaxInt32 / 256) {
+							return nil, fmt.Errorf("CPU setting %q exceeds the limit", value)
+						}
+						result.GetAllocatableRes().CpuCoreLimit = count
+					}
+				} else if key == "mem" {
+					if value == "unlimited" {
+						result.GetAllocatableRes().MemoryLimitBytes = MaxJobMemoryBytes
+						result.GetAllocatableRes().MemorySwLimitBytes = MaxJobMemoryBytes
+					} else {
+						membytes, err := ParseMemStringAsByte(value)
+						if err != nil {
+							return nil, fmt.Errorf("invalid mem value: %q", value)
+						}
+						if membytes > MaxJobMemoryBytes {
+							return nil, fmt.Errorf("invalid mem value: %q", value)
+						}
+						result.GetAllocatableRes().MemoryLimitBytes = membytes
+						result.GetAllocatableRes().MemorySwLimitBytes = membytes
+					}
+				} else {
+					return nil, fmt.Errorf("invalid tres name: %q", key)
+				}
+			} else {
+				return nil, fmt.Errorf("invalid item: %q", item)
+			}
+		}
+	}
+
+	var err error
+	result.DeviceMap, err = ParseGresForQosLimit(strings.TrimSuffix(gresStr, ","))
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func ParseJobStatusName(state string) (protos.JobStatus, error) {
 	state = strings.ToLower(state)
 	switch state {
 	case "pending", "p":
-		return protos.TaskStatus_Pending, nil
+		return protos.JobStatus_Pending, nil
 	case "running", "r":
-		return protos.TaskStatus_Running, nil
+		return protos.JobStatus_Running, nil
 	case "completed", "c":
-		return protos.TaskStatus_Completed, nil
+		return protos.JobStatus_Completed, nil
 	case "failed", "f":
-		return protos.TaskStatus_Failed, nil
+		return protos.JobStatus_Failed, nil
 	case "tle", "time-limit-exceeded", "timelimitexceeded", "t":
-		return protos.TaskStatus_ExceedTimeLimit, nil
+		return protos.JobStatus_ExceedTimeLimit, nil
 	case "canceled", "cancelled", "x":
-		return protos.TaskStatus_Cancelled, nil
+		return protos.JobStatus_Cancelled, nil
 	case "oom", "out-of-memory", "outofmemory", "o":
-		return protos.TaskStatus_OutOfMemory, nil
+		return protos.JobStatus_OutOfMemory, nil
 	case "all":
-		return protos.TaskStatus_Invalid, nil
+		return protos.JobStatus_Invalid, nil
 	default:
-		return protos.TaskStatus_Invalid, fmt.Errorf("unknown state: %s", state)
+		return protos.JobStatus_Invalid, fmt.Errorf("unknown state: %s", state)
 	}
 }
 
-func ParseTaskTypeName(taskType string) (protos.TaskType, error) {
-	taskType = strings.ToLower(taskType)
-	switch taskType {
+func ParseJobTypeName(jobType string) (protos.JobType, error) {
+	jobType = strings.ToLower(jobType)
+	switch jobType {
 	case "interactive", "i":
-		return protos.TaskType_Interactive, nil
+		return protos.JobType_Interactive, nil
 	case "batch", "b":
-		return protos.TaskType_Batch, nil
+		return protos.JobType_Batch, nil
 	case "container", "c":
-		return protos.TaskType_Container, nil
+		return protos.JobType_Container, nil
 	default:
-		return protos.TaskType_Interactive, fmt.Errorf("unknown task type: %s", taskType)
+		return protos.JobType_Interactive, fmt.Errorf("unknown job type: %s", jobType)
 	}
 }
 
-func ParseTaskTypeList(taskTypesStr string) ([]protos.TaskType, error) {
-	var taskTypeSet = make(map[protos.TaskType]bool)
-	filterTaskTypeList := strings.Split(taskTypesStr, ",")
-	for i := 0; i < len(filterTaskTypeList); i++ {
-		taskType, err := ParseTaskTypeName(filterTaskTypeList[i])
+func ParseJobTypeList(jobTypesStr string) ([]protos.JobType, error) {
+	var jobTypeSet = make(map[protos.JobType]bool)
+	filterJobTypeList := strings.Split(jobTypesStr, ",")
+	for i := 0; i < len(filterJobTypeList); i++ {
+		jobType, err := ParseJobTypeName(filterJobTypeList[i])
 		if err != nil {
 			return nil, err
 		}
-		taskTypeSet[taskType] = true
+		jobTypeSet[jobType] = true
 	}
 
-	var taskTypeList []protos.TaskType
-	for taskType := range taskTypeSet {
-		taskTypeList = append(taskTypeList, taskType)
+	var jobTypeList []protos.JobType
+	for jobType := range jobTypeSet {
+		jobTypeList = append(jobTypeList, jobType)
 	}
-	return taskTypeList, nil
+	return jobTypeList, nil
 }
 
-func ParseTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
-	var stateSet = make(map[protos.TaskStatus]bool)
+func ParseJobStatusList(statesStr string) ([]protos.JobStatus, error) {
+	var stateSet = make(map[protos.JobStatus]bool)
 	filterStateList := strings.Split(statesStr, ",")
 	for i := 0; i < len(filterStateList); i++ {
-		state, err := ParseTaskStatusName(filterStateList[i])
+		state, err := ParseJobStatusName(filterStateList[i])
 		if err != nil {
 			return nil, err
 		}
 		stateSet[state] = true
 	}
-	if _, exists := stateSet[protos.TaskStatus_Invalid]; !exists && len(stateSet) < len(protos.TaskStatus_name)-1 {
-		var stateList []protos.TaskStatus
+	if _, exists := stateSet[protos.JobStatus_Invalid]; !exists && len(stateSet) < len(protos.JobStatus_name)-1 {
+		var stateList []protos.JobStatus
 		for state := range stateSet {
 			stateList = append(stateList, state)
 		}
 		return stateList, nil
 	}
-	return []protos.TaskStatus{}, nil
+	return []protos.JobStatus{}, nil
 }
 
-func ParseInRamTaskStatusList(statesStr string) ([]protos.TaskStatus, error) {
-	var stateSet = make(map[protos.TaskStatus]bool)
+func ParseInRamJobStatusList(statesStr string) ([]protos.JobStatus, error) {
+	var stateSet = make(map[protos.JobStatus]bool)
 	filterStateList := strings.Split(statesStr, ",")
 	for i := 0; i < len(filterStateList); i++ {
-		state, err := ParseTaskStatusName(filterStateList[i])
+		state, err := ParseJobStatusName(filterStateList[i])
 		if err != nil {
 			return nil, err
 		}
-		if state != protos.TaskStatus_Invalid && state != protos.TaskStatus_Pending && state != protos.TaskStatus_Running {
+		if state != protos.JobStatus_Invalid && state != protos.JobStatus_Pending && state != protos.JobStatus_Running {
 			return nil, fmt.Errorf("unsupported state: %s", filterStateList[i])
 		}
 		stateSet[state] = true
 	}
 	if len(stateSet) == 1 {
 		for state := range stateSet {
-			if state == protos.TaskStatus_Invalid {
-				return []protos.TaskStatus{}, nil
+			if state == protos.JobStatus_Invalid {
+				return []protos.JobStatus{}, nil
 			} else {
-				return []protos.TaskStatus{state}, nil
+				return []protos.JobStatus{state}, nil
 			}
 		}
 	}
-	return []protos.TaskStatus{}, nil
+	return []protos.JobStatus{}, nil
 }
 
 func ParseStringParamList(parameters string, splitStr string) ([]string, error) {
@@ -1560,7 +1755,7 @@ func StringToTxnAction(str string) (protos.TxnAction, bool) {
 
 	return 0, false
 }
-func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
+func SetJobDependencies(job *protos.JobToCtld, depStr string) error {
 	depStr = strings.TrimSpace(depStr)
 
 	hasComma := strings.Contains(depStr, ",")
@@ -1574,7 +1769,7 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 		sep = "?"
 	}
 
-	task.Dependencies = &protos.Dependencies{
+	job.Dependencies = &protos.Dependencies{
 		IsOr: hasQuestion,
 	}
 
@@ -1631,7 +1826,7 @@ func SetTaskDependencies(task *protos.TaskToCtld, depStr string) error {
 				delaySeconds = uint64(seconds)
 			}
 
-			task.Dependencies.Deps = append(task.Dependencies.Deps, &protos.DependencyCondition{
+			job.Dependencies.Deps = append(job.Dependencies.Deps, &protos.DependencyCondition{
 				JobId:        uint32(jobId),
 				Type:         depType,
 				DelaySeconds: delaySeconds,
@@ -1706,4 +1901,66 @@ func CheckIpv4Format(ip string) error {
 		return fmt.Errorf("Invalid ipv4 format: %s", ip)
 	}
 	return nil
+}
+
+func ReadableMemory(memoryBytes uint64) string {
+	if memoryBytes < 1024 {
+		return fmt.Sprintf("%dB", memoryBytes)
+	} else if memoryBytes < 1024*1024 {
+		return fmt.Sprintf("%dK", memoryBytes/1024)
+	} else if memoryBytes < 1024*1024*1024 {
+		return fmt.Sprintf("%dM", memoryBytes/(1024*1024))
+	} else {
+		return fmt.Sprintf("%dG", memoryBytes/(1024*1024*1024))
+	}
+}
+
+func ResourceViewToTres(rv *protos.ResourceView) string {
+	var parts []string
+
+	if rv == nil {
+		return ""
+	}
+	if rv.AllocatableRes != nil {
+		if rv.AllocatableRes.CpuCoreLimit != (math.MaxInt32 / 256) {
+			cpu := strconv.FormatFloat(rv.AllocatableRes.CpuCoreLimit, 'f', -1, 64)
+			parts = append(parts, "cpu="+cpu)
+		}
+		if rv.AllocatableRes.MemoryLimitBytes != MaxJobMemoryBytes {
+			mem := ReadableMemory(rv.AllocatableRes.MemoryLimitBytes)
+			parts = append(parts, "mem="+mem)
+		}
+	}
+	if rv.DeviceMap != nil && len(rv.DeviceMap.NameTypeMap) > 0 {
+		for name, typeCount := range rv.DeviceMap.NameTypeMap {
+			for typ, count := range typeCount.TypeCountMap {
+				if count > 0 {
+					parts = append(parts, fmt.Sprintf("gres/%s:%s:%d", name, typ, count))
+				}
+			}
+			if typeCount.Total > 0 {
+				parts = append(parts, fmt.Sprintf("gres/%s:%d", name, typeCount.Total))
+			}
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+func ParseFlags(s string) (uint32, error) {
+	var flags uint32 = 0
+
+	if strings.TrimSpace(s) == "" {
+		return 0, fmt.Errorf("empty flags")
+	}
+	items := strings.Split(s, ",")
+	for _, item := range items {
+		item = strings.ToLower(strings.TrimSpace(item))
+		val, ok := QoSFlagNameMap[item]
+		if !ok {
+			return 0, fmt.Errorf("invalid QoS flag: %s", item)
+		}
+		flags |= val
+	}
+
+	return flags, nil
 }

@@ -30,6 +30,7 @@ import (
 var (
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
+	FlagNtasks        uint32
 	FlagNtasksPerNode uint32
 	FlagTime          string
 	FlagMem           string
@@ -110,30 +111,30 @@ var (
 				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
 			}
 
-			task, err := BuildCbatchJob(cmd, args)
+			job, err := BuildCbatchJob(cmd, args)
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
 			}
 
-			task.Uid = uint32(os.Getuid())
-			task.Gid = uint32(os.Getgid())
-			task.CmdLine = strings.Join(os.Args, " ")
+			job.Uid = uint32(os.Getuid())
+			job.Gid = uint32(os.Getgid())
+			job.CmdLine = strings.Join(os.Args, " ")
 
 			// Process the content of --get-user-env
-			util.SetPropagatedEnviron(&task.Env, &task.GetUserEnv)
+			util.SetPropagatedEnviron(&job.Env, &job.GetUserEnv)
 
-			if task.Cwd == "" {
-				task.Cwd, _ = os.Getwd()
+			if job.Cwd == "" {
+				job.Cwd, _ = os.Getwd()
 			}
-			task.SubmitDir, err = os.Getwd()
+			job.SubmitDir, err = os.Getwd()
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
 			}
 
 			if FlagRepeat == 1 {
-				return SendRequest(task)
+				return SendRequest(job)
 			} else {
-				return SendMultipleRequests(task, FlagRepeat)
+				return SendMultipleRequests(job, FlagRepeat)
 			}
 		},
 	}
@@ -148,10 +149,11 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run (N = min[-max])")
-	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per job")
-	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, "Number of nodes requested")
+	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
+	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per node, format: \"gpu:a100:1\" or \"gpu:1\"")
+	RootCmd.Flags().Uint32VarP(&FlagNtasks, "ntasks", "n", 0, "Total number of tasks")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Maximum number of tasks per node (default: unlimited)")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")

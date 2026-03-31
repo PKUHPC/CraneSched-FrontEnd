@@ -15,7 +15,7 @@ import (
 
 type TableConfig struct {
 	Header    []string
-	RowMapper func(*protos.TaskInfo) []string
+	RowMapper func(*protos.JobInfo) []string
 }
 
 func FormatTime(t *timestamppb.Timestamp, fallback string) string {
@@ -25,18 +25,18 @@ func FormatTime(t *timestamppb.Timestamp, fallback string) string {
 	return t.AsTime().In(time.Local).Format("2006-01-02 15:04:05")
 }
 
-func GetElapsedTime(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Running && task.ElapsedTime != nil {
-		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
+func GetElapsedTime(job *protos.JobInfo) string {
+	if job.Status == protos.JobStatus_Running && job.ElapsedTime != nil {
+		return util.SecondTimeFormat(job.ElapsedTime.Seconds)
 	}
 	return "-"
 }
 
-func GetReasonInfo(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Pending {
-		return task.GetPendingReason()
+func GetReasonInfo(job *protos.JobInfo) string {
+	if job.Status == protos.JobStatus_Pending {
+		return job.GetPendingReason()
 	}
-	return task.GetCranedList()
+	return job.GetCranedList()
 }
 
 func FormatTimeLimit(seconds int64) string {
@@ -55,33 +55,33 @@ func GenerateTableConfig() TableConfig {
 				"Status", "Time", "TimeLimit", "StartTime", "SubmitTime",
 				"Type", "Qos", "Exclusive", "Held", "Priority", "NodeList/Reason",
 			},
-			RowMapper: func(task *protos.TaskInfo) []string {
+			RowMapper: func(job *protos.JobInfo) []string {
 				timeLimit := "-"
-				if task.TimeLimit != nil {
-					timeLimit = FormatTimeLimit(task.TimeLimit.Seconds)
+				if job.TimeLimit != nil {
+					timeLimit = FormatTimeLimit(job.TimeLimit.Seconds)
 				}
 				return []string{
-					strconv.FormatUint(uint64(task.TaskId), 10),
-					task.Name,
-					task.Username,
-					task.Partition,
-					task.Account,
-					strconv.FormatUint(uint64(task.NodeNum), 10),
-					ProcessReqCPUs(task),
-					ProcessReqMemPerNode(task),
-					ProcessAllocCpus(task),
-					ProcessAllocMemPerNode(task),
-					task.Status.String(),
-					GetElapsedTime(task),
+					strconv.FormatUint(uint64(job.JobId), 10),
+					job.Name,
+					job.Username,
+					job.Partition,
+					job.Account,
+					strconv.FormatUint(uint64(job.NodeNum), 10),
+					ProcessReqCPUs(job),
+					ProcessReqMemPerNode(job),
+					ProcessAllocCpus(job),
+					ProcessAllocMemPerNode(job),
+					job.Status.String(),
+					GetElapsedTime(job),
 					timeLimit,
-					FormatTime(task.StartTime, "unknown"),
-					FormatTime(task.SubmitTime, "unknown"),
-					task.Type.String(),
-					task.Qos,
-					strconv.FormatBool(task.Exclusive),
-					strconv.FormatBool(task.Held),
-					strconv.FormatUint(uint64(task.Priority), 10),
-					GetReasonInfo(task),
+					FormatTime(job.StartTime, "unknown"),
+					FormatTime(job.SubmitTime, "unknown"),
+					job.Type.String(),
+					job.Qos,
+					strconv.FormatBool(job.Exclusive),
+					strconv.FormatBool(job.Held),
+					strconv.FormatUint(uint64(job.Priority), 10),
+					GetReasonInfo(job),
 				}
 			},
 		}
@@ -91,46 +91,46 @@ func GenerateTableConfig() TableConfig {
 				"JobId", "Partition", "Name", "User", "Account",
 				"Status", "Type", "Time", "TimeLimit", "Nodes", "NodeList/Reason",
 			},
-			RowMapper: func(task *protos.TaskInfo) []string {
+			RowMapper: func(job *protos.JobInfo) []string {
 				return []string{
-					strconv.FormatUint(uint64(task.TaskId), 10),
-					task.Partition,
-					task.Name,
-					task.Username,
-					task.Account,
-					task.Status.String(),
-					task.Type.String(),
-					GetElapsedTime(task),
-					FormatTimeLimit(task.TimeLimit.Seconds),
-					strconv.FormatUint(uint64(task.NodeNum), 10),
-					GetReasonInfo(task),
+					strconv.FormatUint(uint64(job.JobId), 10),
+					job.Partition,
+					job.Name,
+					job.Username,
+					job.Account,
+					job.Status.String(),
+					job.Type.String(),
+					GetElapsedTime(job),
+					FormatTimeLimit(job.TimeLimit.Seconds),
+					strconv.FormatUint(uint64(job.NodeNum), 10),
+					GetReasonInfo(job),
 				}
 			},
 		}
 	}
 }
 
-func AppendDynamicColumns(config *TableConfig, reply *protos.QueryTasksInfoReply,
+func AppendDynamicColumns(config *TableConfig, reply *protos.QueryJobsInfoReply,
 	tableData [][]string) ([][]string, []string) {
 	header := config.Header
 	if FlagStartTime {
 		header = append(header, "StartTime")
-		for i, task := range reply.TaskInfoList {
-			cell := FormatTime(task.StartTime, "")
+		for i, job := range reply.JobInfoList {
+			cell := FormatTime(job.StartTime, "")
 			tableData[i] = append(tableData[i], cell)
 		}
 	}
 	if FlagFilterQos != "" {
 		header = append(header, "QoS")
-		for i, task := range reply.TaskInfoList {
-			tableData[i] = append(tableData[i], task.Qos)
+		for i, job := range reply.JobInfoList {
+			tableData[i] = append(tableData[i], job.Qos)
 		}
 	}
 	if FlagFilterLicenses != "" {
 		header = append(header, "Licenses")
-		for i, task := range reply.TaskInfoList {
+		for i, job := range reply.JobInfoList {
 			var parts []string
-			for name, count := range task.LicensesCount {
+			for name, count := range job.LicensesCount {
 				parts = append(parts, fmt.Sprintf("%s:%d", name, count))
 			}
 			licStr := strings.Join(parts, ",")
@@ -140,15 +140,15 @@ func AppendDynamicColumns(config *TableConfig, reply *protos.QueryTasksInfoReply
 	return tableData, header
 }
 
-func QueryTableOutput(reply *protos.QueryTasksInfoReply) error {
+func QueryTableOutput(reply *protos.QueryJobsInfoReply) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 
 	config := GenerateTableConfig()
-	tableData := make([][]string, len(reply.TaskInfoList))
+	tableData := make([][]string, len(reply.JobInfoList))
 
-	for i, task := range reply.TaskInfoList {
-		tableData[i] = config.RowMapper(task)
+	for i, job := range reply.JobInfoList {
+		tableData[i] = config.RowMapper(job)
 	}
 
 	var header []string
@@ -176,7 +176,7 @@ func QueryTableOutput(reply *protos.QueryTasksInfoReply) error {
 	return nil
 }
 
-func JsonOutput(reply *protos.QueryTasksInfoReply) error {
+func JsonOutput(reply *protos.QueryJobsInfoReply) error {
 	fmt.Println(util.FmtJson.FormatReply(reply))
 	if reply.GetOk() {
 		return nil

@@ -51,43 +51,43 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 		Steps: []uint32{uint32(stepId)},
 	}
 
-	// First, query the task to verify it's a container task
-	queryReq := &protos.QueryTasksInfoRequest{
-		FilterIds:       idFilter,
-		FilterTaskTypes: []protos.TaskType{protos.TaskType_Container},
+	// First, query the job to verify it's a container job
+	queryReq := &protos.QueryJobsInfoRequest{
+		FilterIds:      idFilter,
+		FilterJobTypes: []protos.JobType{protos.JobType_Container},
 	}
 
-	queryReply, err := stub.QueryTasksInfo(context.Background(), queryReq)
+	queryReply, err := stub.QueryJobsInfo(context.Background(), queryReq)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query task information")
+		util.GrpcErrorPrintf(err, "Failed to query job information")
 		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
 	if !queryReply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, "Failed to query task information")
+		return util.NewCraneErr(util.ErrorBackend, "Failed to query job information")
 	}
 
-	// Check if the task exists and is a container task
-	if len(queryReply.TaskInfoList) == 0 {
+	// Check if the job exists and is a container job
+	if len(queryReply.JobInfoList) == 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Step %d.%d not found or is not a container", jobId, stepId))
 	}
 
 	// Create cancel request
-	req := &protos.CancelTaskRequest{
+	req := &protos.CancelJobRequest{
 		OperatorUid:     uint32(os.Getuid()),
 		FilterIds:       idFilter,
 		FilterPartition: "",
 		FilterAccount:   "",
-		FilterState:     protos.TaskStatus_Invalid,
+		FilterState:     protos.JobStatus_Invalid,
 		FilterUsername:  "",
 		FilterNodes:     nil,
-		FilterTaskName:  "",
+		FilterJobName:   "",
 	}
 
 	// Send cancel request
-	reply, err := stub.CancelTask(context.Background(), req)
+	reply, err := stub.CancelJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to stop container task")
+		util.GrpcErrorPrintf(err, "Failed to stop container job")
 		return util.NewCraneErr(util.ErrorNetwork, "")
 	}
 
@@ -120,29 +120,29 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 func rmExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Error: 'rm' command is not supported in CraneSched.\n")
-	fmt.Printf("Container tasks are automatically cleaned up when they complete.\n")
-	fmt.Printf("Use 'ccon stop <task_id>' to cancel a running task.\n")
+	fmt.Printf("Container jobs are automatically cleaned up when they complete.\n")
+	fmt.Printf("Use 'ccon stop <job_id>' to cancel a running job.\n")
 
 	return util.NewCraneErr(util.ErrorGeneric, "")
 }
 
 func createExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Error: 'create' command is not supported in CraneSched.\n")
-	fmt.Printf("Use 'ccon run <image>' to submit a container task.\n")
+	fmt.Printf("Use 'ccon run <image>' to submit a container job.\n")
 
 	return util.NewCraneErr(util.ErrorGeneric, "")
 }
 
 func startExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Error: 'start' command is not supported in CraneSched.\n")
-	fmt.Printf("Use 'ccon run <image>' to submit a new container task.\n")
+	fmt.Printf("Use 'ccon run <image>' to submit a new container job.\n")
 
 	return util.NewCraneErr(util.ErrorGeneric, "")
 }
 
 func restartExecute(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Error: 'restart' command is not supported in CraneSched.\n")
-	fmt.Printf("Use 'ccon run <image>' to submit a new container task.\n")
+	fmt.Printf("Use 'ccon run <image>' to submit a new container job.\n")
 
 	return util.NewCraneErr(util.ErrorGeneric, "")
 }

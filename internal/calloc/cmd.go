@@ -27,6 +27,7 @@ import (
 var (
 	FlagNodes         uint32
 	FlagCpuPerTask    float64
+	FlagNtasks        uint32
 	FlagNtasksPerNode uint32
 	FlagTime          string
 	FlagMem           string
@@ -90,9 +91,10 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
 	RootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "",
 		"info", "Available debug level: trace, debug, info")
-	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 1, "Number of nodes on which to run")
+	RootCmd.Flags().Uint32VarP(&FlagNodes, "nodes", "N", 0, "Number of nodes requested")
 	RootCmd.Flags().Float64VarP(&FlagCpuPerTask, "cpus-per-task", "c", 1, "Number of cpus required per task")
-	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 1, "Number of tasks to invoke on each node")
+	RootCmd.Flags().Uint32VarP(&FlagNtasks, "ntasks", "n", 0, "Total number of tasks")
+	RootCmd.Flags().Uint32Var(&FlagNtasksPerNode, "ntasks-per-node", 0, "Maximum number of tasks per node (default: unlimited)")
 	RootCmd.Flags().StringVarP(&FlagTime, "time", "t", "", "Time limit, format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds")
 	RootCmd.Flags().StringVar(&FlagMem, "mem", "", "Maximum amount of real memory, support GB(G, g), MB(M, m), KB(K, k) and Bytes(B), default unit is MB")
 	RootCmd.Flags().StringVarP(&FlagPartition, "partition", "p", "", "Partition requested")
@@ -100,7 +102,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagAccount, "account", "A", "", "Account used for the job")
 	RootCmd.Flags().StringVarP(&FlagCwd, "chdir", "D", "", "Working directory of the job")
 	RootCmd.Flags().StringVarP(&FlagQos, "qos", "q", "", "QoS used for the job")
-	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per task,format: \"gpu:a100:1\" or \"gpu:1\"")
+	RootCmd.Flags().StringVar(&FlagGres, "gres", "", "Gres required per node, format: \"gpu:a100:1\" or \"gpu:1\"")
 	RootCmd.Flags().StringVarP(&FlagNodelist, "nodelist", "w", "", "Nodes to be allocated to the job (commas separated list)")
 	RootCmd.Flags().StringVarP(&FlagExcludes, "exclude", "x", "", "Exclude specific nodes from allocating (commas separated list)")
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")

@@ -55,13 +55,13 @@ type GlobalVariables struct {
 	ctldReplyChannelMapMtx sync.Mutex
 
 	// Used by Cfored <--> Ctld state machine to de-multiplex messages
-	// Used for calloc/crun with task id not allocated.
+	// Used for calloc/crun with job id not allocated.
 	// A calloc is identified by its pid.
 	ctldReplyChannelMapByPid map[int32]chan *protos.StreamCtldReply
 
 	// Used by Cfored <--> Ctld state machine to de-multiplex messages from CraneCtld.
 	// Cfored <--> Ctld state machine GUARANTEES that NO `nil` will be sent into these channels.
-	// Used for calloc/crun with task id allocated.
+	// Used for calloc/crun with job id allocated.
 	ctldReplyChannelMapByStep map[StepIdentifier]chan *protos.StreamCtldReply
 
 	// Used by Calloc/Crun <--> Cfored state machine to multiplex messages

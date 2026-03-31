@@ -52,10 +52,10 @@ type StateOfCalloc int
 
 const (
 	ConnectCfored StateOfCalloc = 0
-	ReqTaskId     StateOfCalloc = 1
+	ReqJobId      StateOfCalloc = 1
 	WaitRes       StateOfCalloc = 2
-	TaskRunning   StateOfCalloc = 3
-	TaskKilling   StateOfCalloc = 4
+	JobRunning    StateOfCalloc = 3
+	JobKilling    StateOfCalloc = 4
 	WaitAck       StateOfCalloc = 5
 )
 
@@ -83,7 +83,7 @@ func ReplyReceiveRoutine(stream protos.CraneForeD_CallocStreamClient,
 	}
 }
 
-func StartCallocStream(task *protos.TaskToCtld) error {
+func StartCallocStream(job *protos.JobToCtld) error {
 	config := util.ParseConfig(FlagConfigFilePath)
 
 	var opts []grpc.DialOption
@@ -133,25 +133,25 @@ CallocStateMachineLoop:
 			go ReplyReceiveRoutine(stream, replyChannel)
 
 			request = &protos.StreamCallocRequest{
-				Type: protos.StreamCallocRequest_TASK_REQUEST,
-				Payload: &protos.StreamCallocRequest_PayloadTaskReq{
-					PayloadTaskReq: &protos.StreamCallocRequest_TaskReq{
-						Task:      task,
+				Type: protos.StreamCallocRequest_JOB_REQUEST,
+				Payload: &protos.StreamCallocRequest_PayloadJobReq{
+					PayloadJobReq: &protos.StreamCallocRequest_JobReq{
+						Job:       job,
 						CallocPid: int32(os.Getpid()),
 					},
 				},
 			}
 
 			if err := stream.Send(request); err != nil {
-				log.Errorf("Failed to send Task Request to CallocStream: %s. "+
+				log.Errorf("Failed to send Job Request to CallocStream: %s. "+
 					"Connection to calloc is broken", err)
 				gVars.connectionBroken = true
 				break CallocStateMachineLoop
 			}
 
-			state = ReqTaskId
+			state = ReqJobId
 
-		case ReqTaskId:
+		case ReqJobId:
 			item := <-replyChannel
 			cforedReply, err := item.reply, item.err
 
@@ -161,26 +161,26 @@ CallocStateMachineLoop:
 					fallthrough
 				default:
 					log.Errorf("Connection to Cfored broken when requesting "+
-						"task id: %s. Exiting...", err)
+						"job id: %s. Exiting...", err)
 					gVars.connectionBroken = true
 					break CallocStateMachineLoop
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCallocReply_TASK_ID_REPLY {
-				return util.NewCraneErr(util.ErrorBackend, "Expect type TASK_ID_REPLY.")
+			if cforedReply.Type != protos.StreamCallocReply_JOB_ID_REPLY {
+				return util.NewCraneErr(util.ErrorBackend, "Expect type JOB_ID_REPLY.")
 			}
-			payload := cforedReply.GetPayloadTaskIdReply()
+			payload := cforedReply.GetPayloadJobIdReply()
 
 			if payload.Ok {
 				jobId = payload.JobId
 				stepId = payload.StepId
 				if !FlagQuiet {
-					fmt.Printf("Task id allocated: %d\n", jobId)
+					fmt.Printf("Job id allocated: %d\n", jobId)
 				}
 				state = WaitRes
 			} else {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate task id: %s.\n", payload.FailureReason)
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to allocate job id: %s.\n", payload.FailureReason)
 				break CallocStateMachineLoop
 			}
 
@@ -201,42 +201,42 @@ CallocStateMachineLoop:
 			}
 
 			switch cforedReply.Type {
-			case protos.StreamCallocReply_TASK_RES_ALLOC_REPLY:
-				cforedPayload := cforedReply.GetPayloadTaskAllocReply()
+			case protos.StreamCallocReply_JOB_RES_ALLOC_REPLY:
+				cforedPayload := cforedReply.GetPayloadJobAllocReply()
 				Ok := cforedPayload.Ok
 
 				if Ok {
 					if !FlagQuiet {
 						fmt.Printf("Allocated craned nodes: %s.\n", cforedPayload.AllocatedCranedRegex)
 					}
-					state = TaskRunning
+					state = JobRunning
 				} else {
 					fmt.Println("Failed to allocate job resource. Exiting...")
 					break CallocStateMachineLoop
 				}
 
-			case protos.StreamCallocReply_TASK_CANCEL_REQUEST:
+			case protos.StreamCallocReply_JOB_CANCEL_REQUEST:
 				log.Tracef("Receive cancel request when wait res")
-				state = TaskKilling
+				state = JobKilling
 			}
 
-		case TaskRunning:
+		case JobRunning:
 			go StartTerminal(gVars.shellPath, jobId, cancelRequestChannel, terminalExitChannel)
 
 			select {
 			case <-terminalExitChannel:
 				request = &protos.StreamCallocRequest{
-					Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
-					Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
-						PayloadTaskCompleteReq: &protos.StreamCallocRequest_TaskCompleteReq{
+					Type: protos.StreamCallocRequest_JOB_COMPLETION_REQUEST,
+					Payload: &protos.StreamCallocRequest_PayloadJobCompleteReq{
+						PayloadJobCompleteReq: &protos.StreamCallocRequest_JobCompleteReq{
 							JobId:  jobId,
 							StepId: stepId,
-							Status: protos.TaskStatus_Completed,
+							Status: protos.JobStatus_Completed,
 						},
 					},
 				}
 
-				log.Debug("Sending TASK_COMPLETION_REQUEST with COMPLETED state...")
+				log.Debug("Sending JOB_COMPLETION_REQUEST with COMPLETED state...")
 				if err := stream.Send(request); err != nil {
 					log.Errorf("The connection to Cfored was broken: %s. "+
 						"Exiting...", err)
@@ -254,36 +254,36 @@ CallocStateMachineLoop:
 						fallthrough
 					default:
 						log.Errorf("The connection to Cfored was broken: %s. "+
-							"Killing task...", err)
+							"Killing job...", err)
 						gVars.connectionBroken = true
-						state = TaskKilling
+						state = JobKilling
 					}
 				} else {
 					switch cforedReply.Type {
-					case protos.StreamCallocReply_TASK_CANCEL_REQUEST:
-						state = TaskKilling
+					case protos.StreamCallocReply_JOB_CANCEL_REQUEST:
+						state = JobKilling
 
-					case protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY:
+					case protos.StreamCallocReply_JOB_COMPLETION_ACK_REPLY:
 						fmt.Println("Job failed ")
 					}
 				}
 
 				cancelRequestChannel <- true
 				<-terminalExitChannel
-				if cforedReply.Type == protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
+				if cforedReply.Type == protos.StreamCallocReply_JOB_COMPLETION_ACK_REPLY {
 					break CallocStateMachineLoop
 				}
 			}
 
-		case TaskKilling:
+		case JobKilling:
 
 			request = &protos.StreamCallocRequest{
-				Type: protos.StreamCallocRequest_TASK_COMPLETION_REQUEST,
-				Payload: &protos.StreamCallocRequest_PayloadTaskCompleteReq{
-					PayloadTaskCompleteReq: &protos.StreamCallocRequest_TaskCompleteReq{
+				Type: protos.StreamCallocRequest_JOB_COMPLETION_REQUEST,
+				Payload: &protos.StreamCallocRequest_PayloadJobCompleteReq{
+					PayloadJobCompleteReq: &protos.StreamCallocRequest_JobCompleteReq{
 						JobId:  jobId,
 						StepId: stepId,
-						Status: protos.TaskStatus_Cancelled,
+						Status: protos.JobStatus_Cancelled,
 					},
 				},
 			}
@@ -292,7 +292,7 @@ CallocStateMachineLoop:
 				break CallocStateMachineLoop
 			}
 
-			log.Debug("Sending TASK_COMPLETION_REQUEST with CANCELLED state...")
+			log.Debug("Sending JOB_COMPLETION_REQUEST with CANCELLED state...")
 			if err := stream.Send(request); err != nil {
 				log.Errorf("The connection to Cfored was broken: %s. "+
 					"Exiting...", err)
@@ -318,15 +318,15 @@ CallocStateMachineLoop:
 				}
 			}
 
-			if cforedReply.Type != protos.StreamCallocReply_TASK_COMPLETION_ACK_REPLY {
+			if cforedReply.Type != protos.StreamCallocReply_JOB_COMPLETION_ACK_REPLY {
 				return util.NewCraneErr(util.ErrorBackend,
-					fmt.Sprintf("Expect type TASK_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String()))
+					fmt.Sprintf("Expect type JOB_COMPLETION_ACK_REPLY. Received: %s", cforedReply.Type.String()))
 			}
 
-			if cforedReply.GetPayloadTaskCompletionAckReply().Ok {
-				println("Task completed.")
+			if cforedReply.GetPayloadJobCompletionAckReply().Ok {
+				println("Job completed.")
 			} else {
-				return util.NewCraneErr(util.ErrorBackend, "Failed to notify server of task completion")
+				return util.NewCraneErr(util.ErrorBackend, "Failed to notify server of job completion")
 			}
 
 			break CallocStateMachineLoop
@@ -367,59 +367,70 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			gVars.user.Name, err))
 	}
 
-	task := &protos.TaskToCtld{
-		Name:          "Interactive",
-		TimeLimit:     util.InvalidDuration(),
-		PartitionName: "",
-		ReqResources: &protos.ResourceView{
-			AllocatableRes: &protos.AllocatableResource{
-				CpuCoreLimit:       1,
-				MemoryLimitBytes:   0,
-				MemorySwLimitBytes: 0,
-			},
-		},
-		Type:            protos.TaskType_Interactive,
+	job := &protos.JobToCtld{
+		Name:            "Interactive",
+		TimeLimit:       util.InvalidDuration(),
+		PartitionName:   "",
+		Type:            protos.JobType_Interactive,
 		Uid:             uint32(uid),
 		Gid:             uint32(gid),
-		NodeNum:         1,
-		NtasksPerNode:   1,
-		CpusPerTask:     1,
+		NodeNum:         0,
+		NtasksPerNode:   0,
+		Ntasks:          0,
 		RequeueIfFailed: false,
-		Payload:         &protos.TaskToCtld_InteractiveMeta{InteractiveMeta: nil},
+		Payload:         &protos.JobToCtld_InteractiveMeta{InteractiveMeta: nil},
 		CmdLine:         strings.Join(os.Args, " "),
 		Cwd:             gVars.cwd,
-
-		Env: make(map[string]string),
+		Env:             make(map[string]string),
 	}
 
 	structExtraFromCli := &util.JobExtraAttrs{}
 
-	task.NodeNum = FlagNodes
-	task.CpusPerTask = FlagCpuPerTask
-	task.NtasksPerNode = FlagNtasksPerNode
+	if cmd.Flags().Changed("nodes") {
+		if FlagNodes == 0 {
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --nodes must be > 0")
+		}
+		job.NodeNum = FlagNodes
+	}
+	if cmd.Flags().Changed("ntasks-per-node") {
+		if FlagNtasksPerNode == 0 {
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks-per-node must be > 0")
+		}
+		job.NtasksPerNode = FlagNtasksPerNode
+	}
+	if cmd.Flags().Changed("ntasks") {
+		if FlagNtasks == 0 {
+			return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --ntasks must be > 0")
+		}
+		job.Ntasks = FlagNtasks
+	}
+	if cmd.Flags().Changed("cpus-per-task") {
+		cpuPerTask := float64(FlagCpuPerTask)
+		job.CpusPerTask = &cpuPerTask
+	}
 
 	setGresGpusFlag := false
 	if FlagGres != "" {
 		gresMap := util.ParseGres(FlagGres)
-		task.ReqResources.DeviceMap = gresMap
-		if _, exist := task.ReqResources.DeviceMap.NameTypeMap[util.GresGpuName]; exist {
+		job.GresPerNode = gresMap
+		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
 			setGresGpusFlag = true
 		}
-	}
-	if FlagTime != "" {
-		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
-		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s", err))
-		}
-		task.TimeLimit.Seconds = seconds
 	}
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 		}
-		task.ReqResources.AllocatableRes.MemoryLimitBytes = memInByte
-		task.ReqResources.AllocatableRes.MemorySwLimitBytes = memInByte
+		job.MemPerNode = &memInByte
+	}
+
+	if FlagTime != "" {
+		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s", err))
+		}
+		job.TimeLimit.Seconds = seconds
 	}
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
@@ -427,37 +438,37 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			return util.NewCraneErr(util.ErrorCmdArg,
 				fmt.Sprintf("Invalid argument: invalid --mem-per-cpu value '%s': %v", FlagMemPerCpu, err))
 		}
-		task.MemPerCpu = &memInBytePerCpu
+		job.MemPerCpu = &memInBytePerCpu
 	}
 	if FlagPartition != "" {
-		task.PartitionName = FlagPartition
+		job.PartitionName = FlagPartition
 	}
 	if FlagJob != "" {
-		task.Name = FlagJob
+		job.Name = FlagJob
 	}
 	if FlagQos != "" {
-		task.Qos = FlagQos
+		job.Qos = FlagQos
 	}
 	if FlagCwd != "" {
-		task.Cwd = FlagCwd
+		job.Cwd = FlagCwd
 	}
 	if FlagAccount != "" {
-		task.Account = FlagAccount
+		job.Account = FlagAccount
 	}
 	if FlagNodelist != "" {
-		task.Nodelist = FlagNodelist
+		job.Nodelist = FlagNodelist
 	}
 	if FlagExcludes != "" {
-		task.Excludes = FlagExcludes
+		job.Excludes = FlagExcludes
 	}
 	if FlagGetUserEnv {
-		task.GetUserEnv = true
+		job.GetUserEnv = true
 	}
 	if FlagExport != "" {
-		task.Env["CRANE_EXPORT_ENV"] = FlagExport
+		job.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
 	if FlagReservation != "" {
-		task.Reservation = FlagReservation
+		job.Reservation = FlagReservation
 	}
 
 	if FlagExtraAttr != "" {
@@ -473,13 +484,13 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		structExtraFromCli.Comment = FlagComment
 	}
 	if FlagExclusive {
-		task.Exclusive = true
+		job.Exclusive = true
 	}
 	if FlagHold {
-		task.Hold = true
+		job.Hold = true
 	}
 	if cmd.Flags().Changed("wckey") {
-		task.Wckey = &FlagWckey
+		job.Wckey = &FlagWckey
 	}
 	if FlagGpusPerNode != "" {
 		if setGresGpusFlag {
@@ -493,10 +504,10 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			}
 
 		}
-		task.ReqResources.DeviceMap = gpuDeviceMap
+		job.GresPerNode = gpuDeviceMap
 	}
 	if FlagDependency != "" {
-		err := util.SetTaskDependencies(task, FlagDependency)
+		err := util.SetJobDependencies(job, FlagDependency)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid --dependency: %s", err)
 		}
@@ -507,16 +518,16 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid argument: %s", err)
 		}
-		task.LicensesCount = licCount
-		task.IsLicensesOr = isLicenseOr
+		job.LicensesCount = licCount
+		job.IsLicensesOr = isLicenseOr
 	}
 
-	task.SubmitDir, err = os.Getwd()
+	job.SubmitDir, err = os.Getwd()
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
 	}
 
-	task.SubmitHostname, err = os.Hostname()
+	job.SubmitHostname, err = os.Hostname()
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorSystem, "Get submit hostname err: %s.", err)
 	}
@@ -530,23 +541,20 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 			if signal.SignalFlag == protos.Signal_BATCH_ONLY {
 				return util.NewCraneErr(util.ErrorCmdArg, "Invalid --signal specification")
 			}
-			task.Signals = append(task.Signals, signal)
+			job.Signals = append(job.Signals, signal)
 		}
 	}
 
 	// Marshal extra attributes
-	if err := structExtraFromCli.Marshal(&task.ExtraAttr); err != nil {
+	if err := structExtraFromCli.Marshal(&job.ExtraAttr); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 	}
-
-	// Set total limit of cpu cores
-	task.ReqResources.AllocatableRes.CpuCoreLimit = task.CpusPerTask * float64(task.NtasksPerNode)
 
 	// Check the validity of the parameters
-	if err := util.CheckTaskArgs(task); err != nil {
+	if err := util.CheckJobArgs(job); err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
 	}
-	util.SetPropagatedEnviron(&task.Env, &task.GetUserEnv)
+	util.SetPropagatedEnviron(&job.Env, &job.GetUserEnv)
 
-	return StartCallocStream(task)
+	return StartCallocStream(job)
 }

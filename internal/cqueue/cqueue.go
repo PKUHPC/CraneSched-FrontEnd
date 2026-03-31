@@ -34,8 +34,8 @@ var (
 	stub protos.CraneCtldClient
 )
 
-func FillReqByCobraFlags() (*protos.QueryTasksInfoRequest, error) {
-	req := protos.QueryTasksInfoRequest{OptionIncludeCompletedTasks: false}
+func FillReqByCobraFlags() (*protos.QueryJobsInfoRequest, error) {
+	req := protos.QueryJobsInfoRequest{OptionIncludeCompletedJobs: false}
 
 	processors := []FilterProcessor{
 		&StatesFilterProcessor{},
@@ -64,20 +64,20 @@ func FillReqByCobraFlags() (*protos.QueryTasksInfoRequest, error) {
 	return &req, nil
 }
 
-func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
+func QueryJobsInfo() (*protos.QueryJobsInfoReply, error) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 
 	req, err := FillReqByCobraFlags()
 	if err != nil {
-		return &protos.QueryTasksInfoReply{}, err
+		return &protos.QueryJobsInfoReply{}, err
 	}
 
 	// set 10 seconds limit
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	reply, err := stub.QueryTasksInfo(ctx, req)
+	reply, err := stub.QueryJobsInfo(ctx, req)
 	if err != nil {
 		if rpcErr, ok := grpcstatus.FromError(err); ok {
 			switch rpcErr.Code() {
@@ -91,11 +91,11 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 				return nil, util.NewCraneErr(util.ErrorNetwork,
 					"Response too large for gRPC. Please reduce the query scope or avoid using -m with huge values.")
 			default:
-				util.GrpcErrorPrintf(err, "Failed to query task queue")
+				util.GrpcErrorPrintf(err, "Failed to query job queue")
 				return nil, &util.CraneError{Code: util.ErrorNetwork}
 			}
 		} else {
-			util.GrpcErrorPrintf(err, "Failed to query task queue, grpcstatus get error failed.")
+			util.GrpcErrorPrintf(err, "Failed to query job queue, grpcstatus get error failed.")
 			return nil, &util.CraneError{Code: util.ErrorNetwork}
 		}
 	}
@@ -103,7 +103,7 @@ func QueryTasksInfo() (*protos.QueryTasksInfoReply, error) {
 }
 
 func Query() error {
-	reply, err := QueryTasksInfo()
+	reply, err := QueryJobsInfo()
 	if err != nil {
 		return err
 	}

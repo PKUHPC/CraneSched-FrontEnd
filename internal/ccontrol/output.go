@@ -195,7 +195,7 @@ func printNodeDetails(node *protos.CranedInfo) error {
 		node.Hostname, stateStr, cpuInfo,
 		memInfo,
 		gresInfo,
-		strings.Join(node.PartitionNames, ","), node.RunningTaskNum, cranedVersion,
+		strings.Join(node.PartitionNames, ","), node.RunningJobNum, cranedVersion,
 		cranedOs,
 		timeInfo.bootTime, timeInfo.startTime, timeInfo.lastBusyTime,
 	)
@@ -308,9 +308,11 @@ func printPartitionDetails(partition *protos.PartitionInfo) error {
 	memInfo := formatMemoryResources(partition)
 	gresInfo := formatGresResources(partition)
 
-	memLimits := fmt.Sprintf("DefaultMemPerCPU=%s MaxMemPerCPU=%s",
+	memLimits := fmt.Sprintf("DefaultMemPerCPU=%s MaxMemPerCPU=%s DefaultMemPerNode=%s MaxMemPerNode=%s",
 		util.FormatMemToMB(partition.DefaultMemPerCpu),
-		util.FormatMemToMB(partition.MaxMemPerCpu))
+		util.FormatMemToMB(partition.MaxMemPerCpu),
+		util.FormatMemToMB(partition.DefaultMemPerNode),
+		util.FormatMemToMB(partition.MaxMemPerNode))
 	fmt.Printf("PartitionName=%v State=%v\n"+
 		"\t%s\n"+
 		"\t%s\n"+
@@ -504,14 +506,14 @@ func parseStepIds(jobIds string, queryAll bool) (map[uint32] /*Job Id*/ *protos.
 	return jobIdList, nil
 }
 
-func getTaskInfoReply(jobIdList []uint32) (*protos.QueryTasksInfoReply, error) {
+func getJobInfoReply(jobIdList []uint32) (*protos.QueryJobsInfoReply, error) {
 	idFilter := map[uint32]*protos.JobStepIds{}
 	for _, jobId := range jobIdList {
 		idFilter[jobId] = nil
 	}
 
-	req := &protos.QueryTasksInfoRequest{FilterIds: idFilter}
-	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	req := &protos.QueryJobsInfoRequest{FilterIds: idFilter}
+	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show jobs")
 		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show jobs")
@@ -534,59 +536,59 @@ func handleEmptyJobResult(jobIdList []uint32, queryAll bool) error {
 	return nil
 }
 
-func outputJobs(tasks []*protos.TaskInfo, requestedIds []uint32) error {
+func outputJobs(jobs []*protos.JobInfo, requestedIds []uint32) error {
 	// Track if any job requested is not returned
 	printed := make(map[uint32]bool)
-	for _, task := range tasks {
-		if err := printJobDetails(task); err != nil {
+	for _, job := range jobs {
+		if err := printJobDetails(job); err != nil {
 			return err
 		}
-		printed[task.TaskId] = true
+		printed[job.JobId] = true
 	}
 	return checkMissingJobs(requestedIds, printed)
 }
 
-func printJobDetails(task *protos.TaskInfo) error {
+func printJobDetails(job *protos.JobInfo) error {
 	// id/name
-	fmt.Printf("JobId=%v JobName=%v\n", task.TaskId, task.Name)
+	fmt.Printf("JobId=%v JobName=%v\n", job.JobId, job.Name)
 	// user / group
-	userInfo, err := getUserGroupInfo(task)
+	userInfo, err := getUserGroupInfo(job)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("\tUser=%s(%d) GroupId=%s(%d) Account=%v\n", userInfo.username, task.Uid, userInfo.groupname, task.Gid, task.Account)
+	fmt.Printf("\tUser=%s(%d) GroupId=%s(%d) Account=%v\n", userInfo.username, job.Uid, userInfo.groupname, job.Gid, job.Account)
 
 	// time
-	timeInfo := formatJobTimes(task)
+	timeInfo := formatJobTimes(job)
 	fmt.Printf("\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
 		"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n",
-		task.Status.String(), timeInfo.runTime, timeInfo.timeLimit, timeInfo.submitTime,
-		timeInfo.startTime, timeInfo.endTime, task.Partition,
-		formatHostNameStr(task.GetCranedList()),
-		formatHostNameStr(util.HostNameListToStr(task.GetExecutionNode())))
+		job.Status.String(), timeInfo.runTime, timeInfo.timeLimit, timeInfo.submitTime,
+		timeInfo.startTime, timeInfo.endTime, job.Partition,
+		formatHostNameStr(job.GetCranedList()),
+		formatHostNameStr(util.HostNameListToStr(job.GetExecutionNode())))
 
 	// cmd / work
-	fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n", task.CmdLine, task.Cwd)
+	fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n", job.CmdLine, job.Cwd)
 	// resource
-	printResourceRequests(task)
-	fmt.Printf("\tReqNodeList=%v ExecludeNodeList=%v\n"+
+	printResourceRequests(job)
+	fmt.Printf("\tReqNodeList=%v ExcludeNodeList=%v\n"+
 		"\tExclusive=%v Comment=%v Wckey=%v\n",
-		formatHostNameStr(util.HostNameListToStr(task.GetReqNodes())),
-		formatHostNameStr(util.HostNameListToStr(task.GetExcludeNodes())),
-		strconv.FormatBool(task.Exclusive), getJobExtraAttr(task.ExtraAttr, "comment"),
-		task.Wckey)
+		formatHostNameStr(util.HostNameListToStr(job.GetReqNodes())),
+		formatHostNameStr(util.HostNameListToStr(job.GetExcludeNodes())),
+		strconv.FormatBool(job.Exclusive), getJobExtraAttr(job.ExtraAttr, "comment"),
+		job.Wckey)
 
 	//  mail
-	printMailNotification(task.ExtraAttr)
+	printMailNotification(job.ExtraAttr)
 
 	// dependency
-	if task.DependencyStatus != nil {
-		depStatusStr := formatDependencyStatus(task.DependencyStatus)
+	if job.DependencyStatus != nil {
+		depStatusStr := formatDependencyStatus(job.DependencyStatus)
 		if depStatusStr != "" {
 			fmt.Printf("\tDependency=%s\n", depStatusStr)
 		}
 	}
-	fmt.Printf("\tSubmitNode=%v\n", task.SubmitHostname)
+	fmt.Printf("\tSubmitNode=%v\n", job.SubmitHostname)
 
 	return nil
 }
@@ -596,17 +598,17 @@ type userGroupInfo struct {
 	groupname string
 }
 
-func getUserGroupInfo(task *protos.TaskInfo) (userGroupInfo, error) {
-	craneUser, err := user.LookupId(strconv.Itoa(int(task.Uid)))
+func getUserGroupInfo(job *protos.JobInfo) (userGroupInfo, error) {
+	craneUser, err := user.LookupId(strconv.Itoa(int(job.Uid)))
 	if err != nil {
 		return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric,
-			fmt.Sprintf("Failed to get username for UID %d: %s", task.Uid, err))
+			fmt.Sprintf("Failed to get username for UID %d: %s", job.Uid, err))
 	}
 
-	group, err := user.LookupGroupId(strconv.Itoa(int(task.Gid)))
+	group, err := user.LookupGroupId(strconv.Itoa(int(job.Gid)))
 	if err != nil {
 		return userGroupInfo{}, util.NewCraneErr(util.ErrorGeneric,
-			fmt.Sprintf("Failed to get groupname for GID %d: %s", task.Gid, err))
+			fmt.Sprintf("Failed to get groupname for GID %d: %s", job.Gid, err))
 	}
 
 	return userGroupInfo{
@@ -623,14 +625,14 @@ type jobTimeInfo struct {
 	timeLimit  string
 }
 
-func GetElapsedTime(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Running && task.ElapsedTime != nil {
-		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
+func GetElapsedTime(job *protos.JobInfo) string {
+	if job.Status == protos.JobStatus_Running && job.ElapsedTime != nil {
+		return util.SecondTimeFormat(job.ElapsedTime.Seconds)
 	}
 	return "unknown"
 }
 
-func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
+func formatJobTimes(job *protos.JobInfo) jobTimeInfo {
 	// formatTime for submit and start
 	formatTime := func(t time.Time) string {
 		if t.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
@@ -639,23 +641,23 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 		return t.In(time.Local).Format("2006-01-02 15:04:05")
 	}
 	// submit time
-	submitTime := formatTime(task.SubmitTime.AsTime())
+	submitTime := formatTime(job.SubmitTime.AsTime())
 	// start time
-	startTime := formatTime(task.StartTime.AsTime())
+	startTime := formatTime(job.StartTime.AsTime())
 	// end time
 	endTime := "unknown"
-	timeEnd := task.EndTime.AsTime()
-	if !timeEnd.Before(task.StartTime.AsTime()) && timeEnd.Unix() < util.MaxJobTimeStamp {
+	timeEnd := job.EndTime.AsTime()
+	if !timeEnd.Before(job.StartTime.AsTime()) && timeEnd.Unix() < util.MaxJobTimeStamp {
 		endTime = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
 	}
 	// time limit
 	timeLimitStr := "unlimited"
-	if task.TimeLimit.Seconds < util.MaxJobTimeLimit {
-		timeLimitStr = util.SecondTimeFormat(task.TimeLimit.Seconds)
+	if job.TimeLimit.Seconds < util.MaxJobTimeLimit {
+		timeLimitStr = util.SecondTimeFormat(job.TimeLimit.Seconds)
 	}
 	// runTime
 	// runTimeStr := "unknown"
-	runTimeStr := GetElapsedTime(task)
+	runTimeStr := GetElapsedTime(job)
 
 	return jobTimeInfo{
 		submitTime: submitTime,
@@ -666,25 +668,38 @@ func formatJobTimes(task *protos.TaskInfo) jobTimeInfo {
 	}
 }
 
-func printResourceRequests(task *protos.TaskInfo) {
+func printResourceRequests(job *protos.JobInfo) {
+	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+	totalMem := job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+
+	var cpusPerTask float64
+	var memPerNode uint64
+
+	if job.Ntasks > 0 {
+		cpusPerTask = totalCpu / float64(job.Ntasks)
+	}
+	if job.NodeNum > 0 {
+		memPerNode = totalMem / uint64(job.NodeNum)
+	}
+
 	// Priority / QoS
 	fmt.Printf("\tPriority=%v Qos=%v CpusPerTask=%v MemPerNode=%v\n",
-		task.Priority, task.Qos,
-		task.ReqResView.AllocatableRes.CpuCoreLimit,
-		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes))
+		job.Priority, job.Qos,
+		cpusPerTask,
+		util.FormatMemToMB(memPerNode))
 	// ReqRes
 	fmt.Printf("\tReqRes:node=%d cpu=%.2f mem=%v gres=%s\n",
-		task.NodeNum,
-		task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum),
-		util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes*uint64(task.NodeNum)),
-		formatDeviceMap(task.ReqResView.DeviceMap))
+		job.NodeNum,
+		totalCpu,
+		util.FormatMemToMB(totalMem),
+		formatDeviceMap(job.ReqTotalResView.DeviceMap))
 	// AllocRes
-	if task.Status == protos.TaskStatus_Running {
+	if job.Status == protos.JobStatus_Running {
 		fmt.Printf("\tAllocRes:node=%d cpu=%.2f mem=%v gres=%s\n",
-			task.NodeNum,
-			task.AllocatedResView.AllocatableRes.CpuCoreLimit,
-			util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-			formatDeviceMap(task.AllocatedResView.DeviceMap))
+			job.NodeNum,
+			job.AllocatedResView.AllocatableRes.CpuCoreLimit,
+			util.FormatMemToMB(job.AllocatedResView.AllocatableRes.MemoryLimitBytes),
+			formatDeviceMap(job.AllocatedResView.DeviceMap))
 	}
 }
 
@@ -806,7 +821,7 @@ func ShowJobs(jobIds string, queryAll bool) error {
 	if err != nil {
 		return err
 	}
-	reply, err := getTaskInfoReply(jobIdList)
+	reply, err := getJobInfoReply(jobIdList)
 	if err != nil {
 		return err
 	}
@@ -814,14 +829,14 @@ func ShowJobs(jobIds string, queryAll bool) error {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		return nil
 	}
-	if len(reply.TaskInfoList) == 0 {
+	if len(reply.JobInfoList) == 0 {
 		return handleEmptyJobResult(jobIdList, queryAll)
 	}
-	return outputJobs(reply.TaskInfoList, jobIdList)
+	return outputJobs(reply.JobInfoList, jobIdList)
 }
 
 func ShowSteps(stepIds string, queryAll bool) error {
-	var req *protos.QueryTasksInfoRequest
+	var req *protos.QueryJobsInfoRequest
 	var err error
 
 	jobStepMap, err := parseStepIds(stepIds, queryAll)
@@ -829,8 +844,8 @@ func ShowSteps(stepIds string, queryAll bool) error {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid step list specified: %s.", err))
 	}
 
-	req = &protos.QueryTasksInfoRequest{FilterIds: jobStepMap}
-	reply, err := stub.QueryTasksInfo(context.Background(), req)
+	req = &protos.QueryJobsInfoRequest{FilterIds: jobStepMap}
+	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show steps")
 		return &util.CraneError{Code: util.ErrorNetwork}
@@ -847,7 +862,7 @@ func ShowSteps(stepIds string, queryAll bool) error {
 		return nil
 	}
 
-	if len(reply.TaskInfoList) == 0 {
+	if len(reply.JobInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No step is running.")
 		} else {
@@ -868,11 +883,11 @@ func ShowSteps(stepIds string, queryAll bool) error {
 	// Track if any step requested is not returned
 	printed := map[StepIdentifier]bool{}
 
-	for _, taskInfo := range reply.TaskInfoList {
-		// Iterate through all steps in this task
-		for _, stepInfo := range taskInfo.StepInfoList {
+	for _, jobInfo := range reply.JobInfoList {
+		// Iterate through all steps in this job
+		for _, stepInfo := range jobInfo.StepInfoList {
 			stepId := stepInfo.StepId
-			printed[StepIdentifier{JobId: taskInfo.TaskId, StepId: stepId}] = true
+			printed[StepIdentifier{JobId: jobInfo.JobId, StepId: stepId}] = true
 
 			var timeStartStr string
 			timeStart := stepInfo.StartTime.AsTime()
@@ -891,7 +906,7 @@ func ShowSteps(stepIds string, queryAll bool) error {
 
 			stateStr := strings.ToUpper(stepInfo.Status.String())
 
-			partitionStr := formatNullStr(taskInfo.Partition)
+			partitionStr := formatNullStr(jobInfo.Partition)
 
 			nodeListStr := formatNullStr(stepInfo.GetCranedList())
 

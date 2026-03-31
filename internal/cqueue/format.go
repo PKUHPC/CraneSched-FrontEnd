@@ -15,133 +15,142 @@ import (
 )
 
 // 'a' group
-func ProcessAccount(task *protos.TaskInfo) string {
-	return task.Account
+func ProcessAccount(job *protos.JobInfo) string {
+	return job.Account
 }
 
 // 'c' group
-func ProcessAllocCpus(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.AllocatedResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
+func ProcessAllocCpus(job *protos.JobInfo) string {
+	return strconv.FormatFloat(job.AllocatedResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
 }
 
 // 'C' group
-func ProcessReqCpuPerNode(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit, 'f', 2, 64)
+func ProcessReqCpuPerTask(job *protos.JobInfo) string {
+	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+	if job.Ntasks > 0 {
+		return strconv.FormatFloat(totalCpu/float64(job.Ntasks), 'f', 2, 64)
+	}
+	return strconv.FormatFloat(totalCpu, 'f', 2, 64)
 }
 
 // 'e' group
-func ProcessElapsedTime(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Running {
-		return util.SecondTimeFormat(task.ElapsedTime.Seconds)
+func ProcessElapsedTime(job *protos.JobInfo) string {
+	if job.Status == protos.JobStatus_Running {
+		return util.SecondTimeFormat(job.ElapsedTime.Seconds)
 	}
 	return "-"
 }
 
 // 'h' group
-func ProcessHeld(task *protos.TaskInfo) string {
-	return strconv.FormatBool(task.Held)
+func ProcessHeld(job *protos.JobInfo) string {
+	return strconv.FormatBool(job.Held)
 }
 
 // 'j' group
-func ProcessJobId(task *protos.TaskInfo) string {
-	return strconv.FormatUint(uint64(task.TaskId), 10)
+func ProcessJobId(job *protos.JobInfo) string {
+	return strconv.FormatUint(uint64(job.JobId), 10)
 }
 
 // 'k'wckey
-func ProcessWckey(task *protos.TaskInfo) string {
-	return task.Wckey
+func ProcessWckey(job *protos.JobInfo) string {
+	return job.Wckey
 }
 
 // 'k' group
-func ProcessComment(task *protos.TaskInfo) string {
-	if !gjson.Valid(task.ExtraAttr) {
+func ProcessComment(job *protos.JobInfo) string {
+	if !gjson.Valid(job.ExtraAttr) {
 		return ""
 	}
-	return gjson.Get(task.ExtraAttr, "comment").String()
+	return gjson.Get(job.ExtraAttr, "comment").String()
 }
 
 // 'l' group
-func ProcessTimeLimit(task *protos.TaskInfo) string {
-	if task.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
+func ProcessTimeLimit(job *protos.JobInfo) string {
+	if job.TimeLimit.Seconds >= util.InvalidDuration().Seconds {
 		return "unlimited"
 	}
-	return util.SecondTimeFormat(task.TimeLimit.Seconds)
+	return util.SecondTimeFormat(job.TimeLimit.Seconds)
 }
 
-func ProcessNodeList(task *protos.TaskInfo) string {
-	return task.GetCranedList()
+func ProcessNodeList(job *protos.JobInfo) string {
+	return job.GetCranedList()
 }
 
 // 'm' group
-func ProcessAllocMemPerNode(task *protos.TaskInfo) string {
-	if task.NodeNum == 0 {
+func ProcessAllocMemPerNode(job *protos.JobInfo) string {
+	if job.NodeNum == 0 {
 		return "0"
 	}
-	return util.FormatMemToMB(task.AllocatedResView.AllocatableRes.MemoryLimitBytes /
-		uint64(task.NodeNum))
+	return util.FormatMemToMB(job.AllocatedResView.AllocatableRes.MemoryLimitBytes /
+		uint64(job.NodeNum))
 }
 
 // 'M' group
-func ProcessReqMemPerNode(task *protos.TaskInfo) string {
-	return util.FormatMemToMB(task.ReqResView.AllocatableRes.MemoryLimitBytes)
+func ProcessReqMemPerNode(job *protos.JobInfo) string {
+	totalMem := job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+	if job.NodeNum > 0 {
+		return util.FormatMemToMB(totalMem / uint64(job.NodeNum))
+	}
+	return util.FormatMemToMB(totalMem)
 }
 
 // 'n' group
-func ProcessName(task *protos.TaskInfo) string {
-	return task.Name
+func ProcessName(job *protos.JobInfo) string {
+	return job.Name
 }
 
-func ProcessNodeNum(task *protos.TaskInfo) string {
-	return strconv.FormatUint(uint64(task.NodeNum), 10)
+func ProcessNodeNum(job *protos.JobInfo) string {
+	return strconv.FormatUint(uint64(job.NodeNum), 10)
 }
 
 // 'o' group
-func ProcessCommand(task *protos.TaskInfo) string {
-	return task.CmdLine
+func ProcessCommand(job *protos.JobInfo) string {
+	return job.CmdLine
 }
 
 // 'p' group
-func ProcessPriority(task *protos.TaskInfo) string {
-	return strconv.FormatUint(uint64(task.Priority), 10)
+func ProcessPriority(job *protos.JobInfo) string {
+	return strconv.FormatUint(uint64(job.Priority), 10)
 }
 
-func ProcessPartition(task *protos.TaskInfo) string {
-	return task.Partition
+func ProcessPartition(job *protos.JobInfo) string {
+	return job.Partition
 }
 
 // 'q' group
-func ProcessQoS(task *protos.TaskInfo) string {
-	return task.Qos
+func ProcessQoS(job *protos.JobInfo) string {
+	return job.Qos
 }
 
 // 'Q' group
-func ProcessReqCPUs(task *protos.TaskInfo) string {
-	return strconv.FormatFloat(task.ReqResView.AllocatableRes.CpuCoreLimit*float64(task.NodeNum), 'f', 2, 64)
+func ProcessReqCPUs(job *protos.JobInfo) string {
+	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+	return strconv.FormatFloat(totalCpu, 'f', 2, 64)
 }
 
 // 'r' group
-func ProcessReqNodes(task *protos.TaskInfo) string {
-	return strings.Join(task.ReqNodes, ",")
+func ProcessReqNodes(job *protos.JobInfo) string {
+	return strings.Join(job.ReqNodes, ",")
 }
 
-func ProcessReason(task *protos.TaskInfo) string {
-	if task.Status == protos.TaskStatus_Pending {
-		return task.GetPendingReason()
+func ProcessReason(job *protos.JobInfo) string {
+	if job.Status == protos.JobStatus_Pending {
+		return job.GetPendingReason()
 	}
 	return " "
 }
 
 // 's' group
-func ProcessSubmitTime(task *protos.TaskInfo) string {
-	submitTime := task.SubmitTime.AsTime()
+func ProcessSubmitTime(job *protos.JobInfo) string {
+	submitTime := job.SubmitTime.AsTime()
 	if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 		return submitTime.In(time.Local).Format("2006-01-02 15:04:05")
 	}
 	return "unknown"
 }
 
-func ProcessStartTime(task *protos.TaskInfo) string {
-	startTime := task.StartTime.AsTime()
+func ProcessStartTime(job *protos.JobInfo) string {
+	startTime := job.StartTime.AsTime()
 	if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) && startTime.Before(time.Now()) {
 		return startTime.In(time.Local).Format("2006-01-02 15:04:05")
 	}
@@ -149,36 +158,36 @@ func ProcessStartTime(task *protos.TaskInfo) string {
 }
 
 // 't' group
-func ProcessState(task *protos.TaskInfo) string {
-	return task.Status.String()
+func ProcessState(job *protos.JobInfo) string {
+	return job.Status.String()
 }
 
-func ProcessJobType(task *protos.TaskInfo) string {
-	return task.Type.String()
+func ProcessJobType(job *protos.JobInfo) string {
+	return job.Type.String()
 }
 
 // 'u' group
-func ProcessUser(task *protos.TaskInfo) string {
-	return task.Username
+func ProcessUser(job *protos.JobInfo) string {
+	return job.Username
 }
 
-func ProcessUid(task *protos.TaskInfo) string {
-	return strconv.FormatUint(uint64(task.Uid), 10)
+func ProcessUid(job *protos.JobInfo) string {
+	return strconv.FormatUint(uint64(job.Uid), 10)
 }
 
 // 'x' group
-func ProcessExcludeNodes(task *protos.TaskInfo) string {
-	return strings.Join(task.ExcludeNodes, ",")
+func ProcessExcludeNodes(job *protos.JobInfo) string {
+	return strings.Join(job.ExcludeNodes, ",")
 }
 
 // 'X' group
-func ProcessExclusive(task *protos.TaskInfo) string {
-	return strconv.FormatBool(task.Exclusive)
+func ProcessExclusive(job *protos.JobInfo) string {
+	return strconv.FormatBool(job.Exclusive)
 }
 
 type FieldProcessor struct {
 	header  string
-	process func(task *protos.TaskInfo) string
+	process func(job *protos.JobInfo) string
 }
 
 var fieldMap = map[string]FieldProcessor{
@@ -241,8 +250,8 @@ var fieldMap = map[string]FieldProcessor{
 	// 'q' group
 	"q":             {"QoS", ProcessQoS},
 	"qos":           {"QoS", ProcessQoS},
-	"Q":             {"ReqCpuPerNode", ProcessReqCpuPerNode},
-	"reqcpupernode": {"ReqCpuPerNode", ProcessReqCpuPerNode},
+	"Q":             {"ReqCpuPerTask", ProcessReqCpuPerTask},
+	"reqcpupertask": {"ReqCpuPerTask", ProcessReqCpuPerTask},
 
 	// 'r' group
 	"r":        {"ReqNodes", ProcessReqNodes},
@@ -302,7 +311,7 @@ func NewTableBuilder(rowCount int) *tableBuilder {
 	}
 }
 
-func BuildColumns(builder *tableBuilder, reply *protos.QueryTasksInfoReply, segments []formatSegment) error {
+func BuildColumns(builder *tableBuilder, reply *protos.QueryJobsInfoReply, segments []formatSegment) error {
 	for _, seg := range segments {
 		switch seg.segmentType {
 		case textSegment:
@@ -325,7 +334,7 @@ func AddTextColumn(builder *tableBuilder, text string) {
 	}
 }
 
-func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply, seg formatSegment) error {
+func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryJobsInfoReply, seg formatSegment) error {
 	key := seg.content
 	if len(key) > 1 {
 		key = strings.ToLower(key)
@@ -339,8 +348,8 @@ func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryTasksInfoReply
 	builder.rightAlign = append(builder.rightAlign, seg.rightAlign)
 	builder.headers = append(builder.headers, strings.ToUpper(processor.header))
 
-	for j, task := range reply.TaskInfoList {
-		builder.cells[j] = append(builder.cells[j], processor.process(task))
+	for j, job := range reply.JobInfoList {
+		builder.cells[j] = append(builder.cells[j], processor.process(job))
 	}
 	return nil
 }
@@ -436,7 +445,7 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 // ID:JOBID | Status:STATE   | user:USER
 // ID:44    | Status:Running | user:internthree
 // ID:45    | Status:Running | user:internthree
-func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [][]string) {
+func FormatData(reply *protos.QueryJobsInfoReply) (header []string, tableData [][]string) {
 	var formatSpecRegex = regexp.MustCompile(`%(\.)?(\d+)?([a-zA-Z]+)`)
 
 	segments, err := ParseFormatSegments(FlagFormat, formatSpecRegex)
@@ -445,7 +454,7 @@ func FormatData(reply *protos.QueryTasksInfoReply) (header []string, tableData [
 		os.Exit(util.ErrorInvalidFormat)
 	}
 
-	builder := NewTableBuilder(len(reply.TaskInfoList))
+	builder := NewTableBuilder(len(reply.JobInfoList))
 	if err := BuildColumns(builder, reply, segments); err != nil {
 		log.Errorln(err)
 		os.Exit(util.ErrorInvalidFormat)
