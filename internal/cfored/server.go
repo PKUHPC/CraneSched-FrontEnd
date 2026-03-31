@@ -612,10 +612,10 @@ CforedSupervisorStateMachineLoop:
 						msg := payload.GetMsg()
 						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding input len [%d] EOF[%v] to craned %s",
 							jobId, stepId, len(msg), payload.Eof, cranedId)
-						reply = &protos.StreamTaskIOReply{
-							Type: protos.StreamTaskIOReply_TASK_INPUT,
-							Payload: &protos.StreamTaskIOReply_PayloadTaskInputReq{
-								PayloadTaskInputReq: &protos.StreamTaskIOReply_TaskInputReq{
+						reply = &protos.StreamStepIOReply{
+							Type: protos.StreamStepIOReply_TASK_INPUT,
+							Payload: &protos.StreamStepIOReply_PayloadTaskInputReq{
+								PayloadTaskInputReq: &protos.StreamStepIOReply_TaskInputReq{
 									Msg: msg,
 									Eof: payload.Eof,
 								},
@@ -626,16 +626,18 @@ CforedSupervisorStateMachineLoop:
 								"on Craned %s was broken.", jobId, stepId, cranedId)
 							state = SupervisorUnReg
 						}
-					case protos.StreamCattachRequest_TASK_X11_FORWARD:
-						payload := cattachReq.GetPayloadTaskX11ForwardReq()
+					case protos.StreamCattachRequest_STEP_X11_FORWARD:
+						payload := cattachReq.GetPayloadStepX11ForwardReq()
 						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding len [%d] x11 to Suerpvisor "+
+						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding len [%d] x11 to Supervisor "+
 							"on Craned %s", jobId, stepId, len(msg), cranedId)
-						reply = &protos.StreamTaskIOReply{
-							Type: protos.StreamTaskIOReply_TASK_X11_INPUT,
-							Payload: &protos.StreamTaskIOReply_PayloadTaskX11InputReq{
-								PayloadTaskX11InputReq: &protos.StreamTaskIOReply_TaskX11InputReq{
-									Msg: msg,
+						reply = &protos.StreamStepIOReply{
+							Type: protos.StreamStepIOReply_STEP_X11_INPUT,
+							Payload: &protos.StreamStepIOReply_PayloadStepX11InputReq{
+								PayloadStepX11InputReq: &protos.StreamStepIOReply_StepX11InputReq{
+									Msg:     msg,
+									Eof:     payload.Eof,
+									LocalId: payload.LocalId,
 								},
 							},
 						}
@@ -645,7 +647,7 @@ CforedSupervisorStateMachineLoop:
 							state = SupervisorUnReg
 						}
 					default:
-						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from crun ",
+						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from cattach ",
 							jobId, stepId, cattachReq.Type.String())
 						break supervisorIOForwarding
 					}
