@@ -253,15 +253,15 @@ CtldClientStateMachineLoop:
 								gVars.cforedRequestCtldChannel <- toCtldRequest
 							}
 						}
-						// cattach only focus on TASK_COMPLETION_ACK_REPLY
-						if ctldReply.Type == protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY {
-							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
-							if ok {
-								for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
-									toCattachCtlReplyChannel <- ctldReply
-								}
+					// cattach only focus on JOB_COMPLETION_ACK_REPLY
+					if ctldReply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+						toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
+						if ok {
+							for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
+								toCattachCtlReplyChannel <- ctldReply
 							}
 						}
+					}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
 					}
@@ -361,9 +361,9 @@ CtldClientStateMachineLoop:
 			for step, toCattachCtlReplyChannelMap := range gVars.ctldReplyChannelMapForCattachByStep {
 				for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
 					toCattachCtlReplyChannel <- &protos.StreamCtldReply{
-						Type: protos.StreamCtldReply_TASK_COMPLETION_ACK_REPLY,
-						Payload: &protos.StreamCtldReply_PayloadTaskCompletionAck{
-							PayloadTaskCompletionAck: &protos.StreamCtldReply_TaskCompletionAckReply{
+						Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
+						Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
+							PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
 								JobId:  step.JobId,
 								StepId: step.StepId,
 							},
