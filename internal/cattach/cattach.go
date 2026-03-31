@@ -169,12 +169,12 @@ func (m *StateMachineOfCattach) StateConnectCfored() {
 	m.cforedReplyReceiver.StartReplyReceiveRoutine(m.stream)
 
 	request := &protos.StreamCattachRequest{
-		Type: protos.StreamCattachRequest_TASK_CONNECT_REQUEST,
-		Payload: &protos.StreamCattachRequest_PayloadTaskConnectReq{
-			PayloadTaskConnectReq: &protos.StreamCattachRequest_TaskConnectReq{
+		Type: protos.StreamCattachRequest_STEP_CONNECT_REQUEST,
+		Payload: &protos.StreamCattachRequest_PayloadStepConnectReq{
+			PayloadStepConnectReq: &protos.StreamCattachRequest_StepConnectReq{
 				CattachPid: int32(os.Getpid()),
-				TaskId:     m.jobId,
-				StepdId:    m.stepId,
+				JobId:      m.jobId,
+				StepId:     m.stepId,
 				Uid:        uint32(os.Getuid()),
 			},
 		},
@@ -211,8 +211,8 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 			}
 		}
 		switch cforedReply.Type {
-		case protos.StreamCattachReply_TASK_CONNECT_REPLY:
-			cforedReply := cforedReply.GetPayloadTaskConnectReply()
+		case protos.StreamCattachReply_STEP_CONNECT_REPLY:
+			cforedReply := cforedReply.GetPayloadStepConnectReply()
 			Ok := cforedReply.Ok
 			if Ok {
 				m.step = cforedReply.Step
@@ -223,7 +223,7 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 					return
 				}
 			} else {
-				log.Errorf("Failed to wait for task connect reply, reason: %s. Exiting...", cforedReply.FailureReason)
+				log.Errorf("Failed to wait for step connect reply, reason: %s. Exiting...", cforedReply.FailureReason)
 				m.state = End
 				m.err = util.ErrorBackend
 				return
@@ -241,8 +241,8 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 				m.err = util.ErrorBackend
 				return
 			}
-		case protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY:
-			// Task launch COMPLETION
+		case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
+			// Step COMPLETION
 			m.state = End
 			return
 		default:
@@ -296,14 +296,13 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					Type: protos.StreamCattachRequest_TASK_IO_FORWARD,
 					Payload: &protos.StreamCattachRequest_PayloadTaskIoForwardReq{
 						PayloadTaskIoForwardReq: &protos.StreamCattachRequest_TaskIOForwardReq{
-							TaskId: m.jobId,
-							Msg:    msg,
-							Eof:    msg == nil,
+							Msg: msg,
+							Eof: msg == nil,
 						},
 					},
 				}
 				if err := m.stream.Send(request); err != nil {
-					log.Errorf("Failed to send Task Request to CattachStream: %s. "+
+					log.Errorf("Failed to send Task IO Forward to CattachStream: %s. "+
 						"Connection to Cattach is broken", err)
 					gVars.connectionBroken = true
 					return
@@ -311,17 +310,16 @@ func (m *StateMachineOfCattach) StateForwarding() {
 
 			case msg := <-m.chanX11InputFromLocal:
 				request = &protos.StreamCattachRequest{
-					Type: protos.StreamCattachRequest_TASK_X11_FORWARD,
-					Payload: &protos.StreamCattachRequest_PayloadTaskX11ForwardReq{
-						PayloadTaskX11ForwardReq: &protos.StreamCattachRequest_TaskX11ForwardReq{
-							TaskId: m.jobId,
-							Msg:    msg,
+					Type: protos.StreamCattachRequest_STEP_X11_FORWARD,
+					Payload: &protos.StreamCattachRequest_PayloadStepX11ForwardReq{
+						PayloadStepX11ForwardReq: &protos.StreamCattachRequest_StepX11ForwardReq{
+							Msg: msg,
 						},
 					},
 				}
 				if err := m.stream.Send(request); err != nil {
-					log.Errorf("Failed to send Task X11 Input to CrunStream: %s. "+
-						"Connection to Crun is broken", err)
+					log.Errorf("Failed to send Step X11 Forward to CattachStream: %s. "+
+						"Connection to Cattach is broken", err)
 					gVars.connectionBroken = true
 					return
 				}
@@ -356,10 +354,10 @@ func (m *StateMachineOfCattach) StateForwarding() {
 				switch cforedReply.Type {
 				case protos.StreamCattachReply_TASK_IO_FORWARD:
 					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
-				case protos.StreamCattachReply_TASK_X11_FORWARD:
-					m.chanX11OutputFromRemote <- cforedReply.GetPayloadTaskX11ForwardReply().Msg
-				case protos.StreamCattachReply_TASK_COMPLETION_ACK_REPLY:
-					log.Debug("Task completed.")
+				case protos.StreamCattachReply_STEP_X11_FORWARD:
+					m.chanX11OutputFromRemote <- cforedReply.GetPayloadStepX11ForwardReply().Msg
+				case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
+					log.Debug("Step completed.")
 					m.state = End
 					return
 				}
