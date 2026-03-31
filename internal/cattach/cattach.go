@@ -356,6 +356,20 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
 				case protos.StreamCattachReply_STEP_X11_FORWARD:
 					m.chanX11OutputFromRemote <- cforedReply.GetPayloadStepX11ForwardReply().Msg
+				case protos.StreamCattachReply_TASK_EXIT_STATUS:
+					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
+					if exitStatus.ExitCode != 0 {
+						if exitStatus.Signaled {
+							fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+						} else {
+							fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+								exitStatus.TaskId, exitStatus.ExitCode)
+						}
+						m.err = int(exitStatus.ExitCode)
+					}
+				case protos.StreamCattachReply_STEP_CANCEL_REQUEST:
+					log.Trace("Received STEP_CANCEL_REQUEST, waiting for STEP_COMPLETION_ACK_REPLY.")
+					// cattach does not actively close the step, just wait for completion ack
 				case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
 					log.Debug("Step completed.")
 					m.state = End
