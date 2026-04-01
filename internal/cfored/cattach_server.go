@@ -37,7 +37,7 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 	go grpcStreamReceiver[protos.StreamCattachRequest](toCattachStream, RequestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	TaskIoRequestChannel := make(chan *protos.StreamTaskIORequest, 2)
+	TaskIoRequestChannel := make(chan *protos.StreamStepIORequest, 2)
 	jobId = math.MaxUint32
 	cattachPid = -1
 	forwardEstablished := atomic.Bool{}
@@ -383,13 +383,13 @@ CforedCattachStateMachineLoop:
 
 func forwardTaskMsgToCattach(
 	taskId, stepId uint32,
-	taskMsg *protos.StreamTaskIORequest,
+	taskMsg *protos.StreamStepIORequest,
 	toCattachStream protos.CraneForeD_CattachStreamServer,
 ) error {
 	var reply *protos.StreamCattachReply
 
 	switch taskMsg.Type {
-	case protos.StreamTaskIORequest_TASK_OUTPUT:
+	case protos.StreamStepIORequest_TASK_OUTPUT:
 		reply = &protos.StreamCattachReply{
 			Type: protos.StreamCattachReply_TASK_IO_FORWARD,
 			Payload: &protos.StreamCattachReply_PayloadTaskIoForwardReply{
@@ -400,19 +400,22 @@ func forwardTaskMsgToCattach(
 		}
 		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding msg size[%d]",
 			taskId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
-	case protos.StreamTaskIORequest_TASK_X11_OUTPUT:
+	case protos.StreamStepIORequest_STEP_X11_OUTPUT:
+		req := taskMsg.GetPayloadStepX11OutputReq()
 		reply = &protos.StreamCattachReply{
 			Type: protos.StreamCattachReply_STEP_X11_FORWARD,
 			Payload: &protos.StreamCattachReply_PayloadStepX11ForwardReply{
 				PayloadStepX11ForwardReply: &protos.StreamCattachReply_StepX11ForwardReply{
-					Msg: taskMsg.GetPayloadTaskX11OutputReq().Msg,
+					Msg:      req.Msg,
+					CranedId: req.CranedId,
+					LocalId:  req.LocalId,
 				},
 			},
 		}
 		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding x11 msg size[%d]",
-			taskId, stepId, len(taskMsg.GetPayloadTaskX11OutputReq().Msg))
+			taskId, stepId, len(req.Msg))
 	default:
-		log.Fatalf("[Supervisor->Cfored->Cattach][Step #%d.%d] Expect Type TASK_OUTPUT or TASK_X11_OUTPUT.",
+		log.Fatalf("[Supervisor->Cfored->Cattach][Step #%d.%d] Expect Type TASK_OUTPUT or STEP_X11_OUTPUT.",
 			taskId, stepId)
 		return errors.New("unexpected taskMsg.Type")
 	}
