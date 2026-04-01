@@ -756,12 +756,12 @@ message StreamCallocReply {
 
 message StreamCforedRequest {
   enum CforedRequestType {
-    CFORED_REGISTRATION     = 0;
-    TASK_REQUEST            = 1;
-    STEP_REQUEST            = 4;
-    TASK_COMPLETION_REQUEST = 2;
-    CFORED_GRACEFUL_EXIT    = 3;
-    STEP_META_REQUEST       = 5;
+    CFORED_REGISTRATION    = 0;
+    JOB_REQUEST            = 1;
+    STEP_REQUEST           = 4;
+    JOB_COMPLETION_REQUEST = 2;
+    CFORED_GRACEFUL_EXIT   = 3;
+    STEP_META_REQUEST      = 5;
   }
   CforedRequestType type = 1;
 

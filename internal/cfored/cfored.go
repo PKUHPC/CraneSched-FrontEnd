@@ -19,12 +19,10 @@
 package cfored
 
 import (
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
-	"path/filepath"
-
-	log "github.com/sirupsen/logrus"
-
 	"io"
 	"os"
 	"os/signal"
@@ -32,13 +30,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-
 	"syscall"
-
-	"gopkg.in/natefinch/lumberjack.v2"
-
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
