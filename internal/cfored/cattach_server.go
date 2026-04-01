@@ -40,8 +40,6 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 	TaskIoRequestChannel := make(chan *protos.StreamStepIORequest, 2)
 	jobId = math.MaxUint32
 	cattachPid = -1
-	forwardEstablished := atomic.Bool{}
-	forwardEstablished.Store(false)
 
 	state := CattachWaitConnectReq
 
@@ -220,6 +218,19 @@ CforedCattachStateMachineLoop:
 		case CattachWaitIOForward:
 			log.Infof("[Cfored<->Cattach][Step #%d.%d] Enter State WAIT_TASK_IO_FORWARD.", jobId, stepId)
 
+			// If the step owner (crun) has already completed its cleanup, the supervisor is
+			// gone and waitSupervisorChannelsReady would block forever. Detect this early by
+			// checking whether the crun channel still exists in ctldReplyChannelMapByStep.
+			gVars.ctldReplyChannelMapMtx.Lock()
+			_, crunActive := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
+			gVars.ctldReplyChannelMapMtx.Unlock()
+			if !crunActive {
+				log.Infof("[Cfored<->Cattach][Step #%d.%d] Step already completed (crun channel absent), "+
+					"transitioning to DEAD_CATTACH directly.", jobId, stepId)
+				state = DeadCattach
+				continue CforedCattachStateMachineLoop
+			}
+
 			stopWaiting := atomic.Bool{}
 			stopWaiting.Store(false)
 			readyChannel := make(chan bool, 1)
@@ -244,7 +255,6 @@ CforedCattachStateMachineLoop:
 						},
 					},
 				}
-				forwardEstablished.Store(true)
 
 				if err := toCattachStream.Send(reply); err != nil {
 					log.Debugf("[Cfored<->Cattach][Step #%d.%d] Failed to send TASK_IO_FORWARD_READY to cattach: %s. "+
@@ -271,6 +281,34 @@ CforedCattachStateMachineLoop:
 					break
 				}
 			}
+
+			if state != CattachWaitTaskComplete {
+				continue CforedCattachStateMachineLoop
+			}
+
+			select {
+			case ctldReply := <-ctldReplyChannel:
+				if ctldReply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY "+
+						"(pre-forwarding check)", jobId, stepId)
+					state = DeadCattach
+					continue CforedCattachStateMachineLoop
+				}
+				// Unexpected type: log and fall through to forwarding loop.
+				log.Warningf("[Ctld->Cfored->Cattach][Step #%d.%d] Unexpected pre-forwarding ctld reply type %s, ignored",
+					jobId, stepId, ctldReply.Type)
+			default:
+			}
+
+			gVars.ctldReplyChannelMapMtx.Lock()
+			_, crunStillActive := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
+			gVars.ctldReplyChannelMapMtx.Unlock()
+			if !crunStillActive {
+				log.Infof("[Cfored<->Cattach][Step #%d.%d] Step already completed", jobId, stepId)
+				state = DeadCattach
+				continue CforedCattachStateMachineLoop
+			}
+
 		forwarding:
 			for {
 				select {
