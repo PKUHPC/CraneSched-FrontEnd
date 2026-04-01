@@ -23,10 +23,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type X11GlobalId struct {
