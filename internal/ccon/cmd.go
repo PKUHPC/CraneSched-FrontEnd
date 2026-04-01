@@ -284,4 +284,5 @@ func init() {
 		cmd.Println("To use crane flags, place them between 'ccon' and 'run', e.g.,\n  ccon -p CPU run ...")
 		return nil
 	})
+	util.InitCraneLogger()
 }
