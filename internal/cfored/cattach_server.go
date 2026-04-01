@@ -414,9 +414,22 @@ func forwardTaskMsgToCattach(
 		}
 		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding x11 msg size[%d]",
 			taskId, stepId, len(req.Msg))
-	default:
-		log.Fatalf("[Supervisor->Cfored->Cattach][Step #%d.%d] Expect Type TASK_OUTPUT or STEP_X11_OUTPUT.",
+	case protos.StreamStepIORequest_TASK_EXIT_STATUS:
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Received TASK_EXIT_STATUS, "+
+			"skipping for cattach (completion is signaled via JOB_COMPLETION_ACK_REPLY).",
 			taskId, stepId)
+		return nil
+	case protos.StreamStepIORequest_STEP_X11_CONN:
+		fallthrough
+	case protos.StreamStepIORequest_STEP_X11_EOF:
+		// TODO: support
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Received %s, skipping for cattach.",
+			taskId, stepId, taskMsg.Type.String())
+		return nil
+	default:
+		// Use Errorf instead of Fatalf to avoid crashing cfored on unexpected message types.
+		log.Errorf("[Supervisor->Cfored->Cattach][Step #%d.%d] Unexpected message type %s, skipping.",
+			taskId, stepId, taskMsg.Type.String())
 		return errors.New("unexpected taskMsg.Type")
 	}
 
