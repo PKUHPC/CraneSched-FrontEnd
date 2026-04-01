@@ -19,8 +19,6 @@
 package cfored
 
 import (
-	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
 	"io"
@@ -31,6 +29,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
