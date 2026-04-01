@@ -218,19 +218,6 @@ CforedCattachStateMachineLoop:
 		case CattachWaitIOForward:
 			log.Infof("[Cfored<->Cattach][Step #%d.%d] Enter State WAIT_TASK_IO_FORWARD.", jobId, stepId)
 
-			// If the step owner (crun) has already completed its cleanup, the supervisor is
-			// gone and waitSupervisorChannelsReady would block forever. Detect this early by
-			// checking whether the crun channel still exists in ctldReplyChannelMapByStep.
-			gVars.ctldReplyChannelMapMtx.Lock()
-			_, crunActive := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
-			gVars.ctldReplyChannelMapMtx.Unlock()
-			if !crunActive {
-				log.Infof("[Cfored<->Cattach][Step #%d.%d] Step already completed (crun channel absent), "+
-					"transitioning to DEAD_CATTACH directly.", jobId, stepId)
-				state = DeadCattach
-				continue CforedCattachStateMachineLoop
-			}
-
 			stopWaiting := atomic.Bool{}
 			stopWaiting.Store(false)
 			readyChannel := make(chan bool, 1)
@@ -298,15 +285,6 @@ CforedCattachStateMachineLoop:
 				log.Warningf("[Ctld->Cfored->Cattach][Step #%d.%d] Unexpected pre-forwarding ctld reply type %s, ignored",
 					jobId, stepId, ctldReply.Type)
 			default:
-			}
-
-			gVars.ctldReplyChannelMapMtx.Lock()
-			_, crunStillActive := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
-			gVars.ctldReplyChannelMapMtx.Unlock()
-			if !crunStillActive {
-				log.Infof("[Cfored<->Cattach][Step #%d.%d] Step already completed", jobId, stepId)
-				state = DeadCattach
-				continue CforedCattachStateMachineLoop
 			}
 
 		forwarding:
@@ -428,16 +406,18 @@ func forwardTaskMsgToCattach(
 
 	switch taskMsg.Type {
 	case protos.StreamStepIORequest_TASK_OUTPUT:
+		outputReq := taskMsg.GetPayloadTaskOutputReq()
 		reply = &protos.StreamCattachReply{
 			Type: protos.StreamCattachReply_TASK_IO_FORWARD,
 			Payload: &protos.StreamCattachReply_PayloadTaskIoForwardReply{
 				PayloadTaskIoForwardReply: &protos.StreamCattachReply_TaskIOForwardReply{
-					Msg: taskMsg.GetPayloadTaskOutputReq().Msg,
+					Msg:    outputReq.Msg,
+					TaskId: outputReq.TaskId, // pass through task_id for --output-filter and --label
 				},
 			},
 		}
-		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding msg size[%d]",
-			taskId, stepId, len(taskMsg.GetPayloadTaskOutputReq().GetMsg()))
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding msg size[%d] task_id[%d]",
+			taskId, stepId, len(outputReq.GetMsg()), outputReq.TaskId)
 	case protos.StreamStepIORequest_STEP_X11_OUTPUT:
 		req := taskMsg.GetPayloadStepX11OutputReq()
 		reply = &protos.StreamCattachReply{

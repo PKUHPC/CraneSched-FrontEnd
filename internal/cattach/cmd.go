@@ -9,9 +9,9 @@ import (
 var (
 	FlagConfigFilePath string
 	FlagPty            bool
-	FlagErrorFilter    uint32
-	FlagInputFilter    uint32
-	FlagOutputFilter   uint32
+	FlagErrorFilter    int32 // -1 means "not set" (show all); >= 0 selects a specific task id
+	FlagInputFilter    int32 // -1 means "not set" (broadcast); >= 0 routes stdin to a specific task id
+	FlagOutputFilter   int32 // -1 means "not set" (show all); >= 0 selects a specific task id
 	FlagLabel          bool
 	FlagLayout         bool
 	FlagQuiet          bool
@@ -35,9 +35,9 @@ func ParseCmdArgs() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C", util.DefaultConfigPath, "Path to configuration file")
-	RootCmd.PersistentFlags().Uint32Var(&FlagErrorFilter, "error-filter", 0, "only print stderr from the specified task")
-	RootCmd.PersistentFlags().Uint32Var(&FlagOutputFilter, "output-filter", 0, "only print stdout from the specified task")
-	RootCmd.PersistentFlags().Uint32Var(&FlagInputFilter, "input-filter", 0, "send stdin to only the specified task")
+	RootCmd.PersistentFlags().Int32Var(&FlagErrorFilter, "error-filter", -1, "only print stderr from the specified task (0-based task id, default: show all)")
+	RootCmd.PersistentFlags().Int32Var(&FlagOutputFilter, "output-filter", -1, "only print stdout from the specified task (0-based task id, default: show all)")
+	RootCmd.PersistentFlags().Int32Var(&FlagInputFilter, "input-filter", -1, "send stdin to only the specified task (0-based task id, default: broadcast to all)")
 	RootCmd.PersistentFlags().BoolVar(&FlagLabel, "label", false, "prepend task number to lines of stdout & stderr")
 	RootCmd.PersistentFlags().BoolVar(&FlagLayout, "layout", false, "print task layout info and exit (does not attach to tasks)")
 	RootCmd.PersistentFlags().BoolVar(&FlagQuiet, "quiet", false, "quiet mode (suppress informational messages)")

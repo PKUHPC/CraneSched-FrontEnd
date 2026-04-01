@@ -521,21 +521,22 @@ CforedSupervisorStateMachineLoop:
 
 				case cattachReq := <-pendingCattachReqToSupervisorChannel:
 					switch cattachReq.Type {
-					case protos.StreamCattachRequest_TASK_IO_FORWARD:
-						payload := cattachReq.GetPayloadTaskIoForwardReq()
-						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding input len [%d] EOF[%v] to craned %s",
-							jobId, stepId, len(msg), payload.Eof, cranedId)
-						reply = &protos.StreamStepIOReply{
-							Type: protos.StreamStepIOReply_TASK_INPUT,
-							Payload: &protos.StreamStepIOReply_PayloadTaskInputReq{
-								PayloadTaskInputReq: &protos.StreamStepIOReply_TaskInputReq{
-									Msg: msg,
-									Eof: payload.Eof,
-								},
+				case protos.StreamCattachRequest_TASK_IO_FORWARD:
+					payload := cattachReq.GetPayloadTaskIoForwardReq()
+					msg := payload.GetMsg()
+					log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding input len [%d] EOF[%v] to craned %s",
+						jobId, stepId, len(msg), payload.Eof, cranedId)
+					reply = &protos.StreamStepIOReply{
+						Type: protos.StreamStepIOReply_TASK_INPUT,
+						Payload: &protos.StreamStepIOReply_PayloadTaskInputReq{
+							PayloadTaskInputReq: &protos.StreamStepIOReply_TaskInputReq{
+								Msg:    msg,
+								Eof:    payload.Eof,
+								TaskId: payload.TaskId, // pass through optional task_id for --input-filter
 							},
-						}
-						if err := toSupervisorStream.Send(reply); err != nil {
+						},
+					}
+					if err := toSupervisorStream.Send(reply); err != nil {
 							log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
 								"on Craned %s was broken.", jobId, stepId, cranedId)
 							state = SupervisorUnReg
