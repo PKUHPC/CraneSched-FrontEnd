@@ -44,6 +44,14 @@ type GlobalVariables struct {
 
 var gVars GlobalVariables
 
+// TaskOutputMsg wraps a task output message with its originating task id.
+// It is used to pass output data together with metadata through internal channels,
+// so that --label and --output-filter can work correctly.
+type TaskOutputMsg struct {
+	Data   []byte
+	TaskId uint32
+}
+
 type ReplyReceiveItem struct {
 	reply *protos.StreamCattachReply
 	err   error
@@ -106,7 +114,7 @@ type StateMachineOfCattach struct {
 	taskErrCtx              context.Context
 	taskErrCb               context.CancelFunc
 	chanInputFromTerm       chan []byte
-	chanOutputFromRemote    chan []byte
+	chanOutputFromRemote    chan TaskOutputMsg
 	chanX11InputFromLocal   chan []byte
 	chanX11OutputFromRemote chan []byte
 }
@@ -232,7 +240,9 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 			cforedPayload := cforedReply.GetPayloadTaskIoForwardReadyReply()
 			Ok := cforedPayload.Ok
 			if Ok {
-				fmt.Println("Task io forward ready, waiting input.")
+				if !FlagQuiet {
+					fmt.Println("Task io forward ready, waiting input.")
+				}
 				m.state = Forwarding
 				return
 			} else {
@@ -292,13 +302,20 @@ func (m *StateMachineOfCattach) StateForwarding() {
 		for {
 			select {
 			case msg := <-m.chanInputFromTerm:
+				ioFwdReq := &protos.StreamCattachRequest_TaskIOForwardReq{
+					Msg: msg,
+					Eof: msg == nil,
+				}
+				// --input-filter: direct stdin to the specified task only.
+				// FlagInputFilter == -1 means "not set" (broadcast to all tasks).
+				if FlagInputFilter >= 0 {
+					taskId := uint32(FlagInputFilter)
+					ioFwdReq.TaskId = &taskId
+				}
 				request = &protos.StreamCattachRequest{
 					Type: protos.StreamCattachRequest_TASK_IO_FORWARD,
 					Payload: &protos.StreamCattachRequest_PayloadTaskIoForwardReq{
-						PayloadTaskIoForwardReq: &protos.StreamCattachRequest_TaskIOForwardReq{
-							Msg: msg,
-							Eof: msg == nil,
-						},
+						PayloadTaskIoForwardReq: ioFwdReq,
 					},
 				}
 				if err := m.stream.Send(request); err != nil {
@@ -353,7 +370,11 @@ func (m *StateMachineOfCattach) StateForwarding() {
 			} else {
 			switch cforedReply.Type {
 			case protos.StreamCattachReply_TASK_IO_FORWARD:
-				m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
+				fwdReply := cforedReply.GetPayloadTaskIoForwardReply()
+				m.chanOutputFromRemote <- TaskOutputMsg{
+					Data:   fwdReply.Msg,
+					TaskId: fwdReply.TaskId,
+				}
 			case protos.StreamCattachReply_STEP_X11_FORWARD:
 				m.chanX11OutputFromRemote <- cforedReply.GetPayloadStepX11ForwardReply().Msg
 			case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
@@ -392,7 +413,7 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	m.taskErrCtx, m.taskErrCb = context.WithCancel(context.Background())
 
 	m.chanInputFromTerm = make(chan []byte, 100)
-	m.chanOutputFromRemote = make(chan []byte, 20)
+	m.chanOutputFromRemote = make(chan TaskOutputMsg, 20)
 
 	m.chanX11InputFromLocal = make(chan []byte, 100)
 	m.chanX11OutputFromRemote = make(chan []byte, 20)
@@ -707,6 +728,28 @@ loop:
 	}
 }
 
+// applyLabel processes raw output data for a given task, prepending "[task_id]: " to each
+// complete line. Incomplete trailing bytes (no terminating newline yet) are buffered in
+// labelBufs and flushed on the next call or when a newline is encountered.
+func applyLabel(taskId uint32, data []byte, labelBufs map[uint32][]byte) []byte {
+	prefix := fmt.Sprintf("%d: ", taskId)
+	buf := labelBufs[taskId]
+
+	var result []byte
+	for _, b := range data {
+		if b == '\n' {
+			result = append(result, []byte(prefix)...)
+			result = append(result, buf...)
+			result = append(result, '\n')
+			buf = buf[:0]
+		} else {
+			buf = append(buf, b)
+		}
+	}
+	labelBufs[taskId] = buf
+	return result
+}
+
 func (m *StateMachineOfCattach) StdoutWriterRoutine() {
 	file := os.NewFile(os.Stdout.Fd(), "stdout")
 	defer func(file *os.File) {
@@ -719,13 +762,32 @@ func (m *StateMachineOfCattach) StdoutWriterRoutine() {
 	log.Trace("Starting StdoutWriterRoutine")
 	writer := bufio.NewWriter(file)
 
+	// labelBufs holds per-task pending bytes that have not yet been terminated with '\n'.
+	// Only used when --label is set.
+	labelBufs := make(map[uint32][]byte)
+
 writing:
 	for {
 		select {
-
 		case msg := <-m.chanOutputFromRemote:
-			_, err := writer.Write(msg)
+			// --output-filter: skip output from tasks other than the specified one.
+			// FlagOutputFilter == -1 means "not set" (show all tasks).
+			if FlagOutputFilter >= 0 && msg.TaskId != uint32(FlagOutputFilter) {
+				continue writing
+			}
 
+			var data []byte
+			if FlagLabel {
+				data = applyLabel(msg.TaskId, msg.Data, labelBufs)
+			} else {
+				data = msg.Data
+			}
+
+			if len(data) == 0 {
+				continue writing
+			}
+
+			_, err := writer.Write(data)
 			if err != nil {
 				fmt.Printf("Failed to write to fd: %v\n", err)
 				break writing

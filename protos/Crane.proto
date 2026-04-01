@@ -971,6 +971,11 @@ message StreamCrunReply {
   }
 
   message TaskIOForwardReply {
+    bytes  msg     = 1;
+    uint32 task_id = 2;
+  }
+
+  message TaskIOErrOutputForwardReply {
     bytes msg = 1;
   }
 
@@ -1037,8 +1042,9 @@ message StreamCattachRequest {
   }
 
   message TaskIOForwardReq {
-    bytes msg = 1;
-    bool  eof = 2;
+    bytes           msg     = 1;
+    bool            eof     = 2;
+    optional uint32 task_id = 3;  // If set, forward stdin only to the specified task; otherwise broadcast.
   }
 
   message StepX11ForwardReq {
@@ -1088,7 +1094,8 @@ message StreamCattachReply {
   }
 
   message TaskIOForwardReply {
-    bytes msg = 1;
+    bytes  msg     = 1;
+    uint32 task_id = 2;
   }
 
   message StepX11ConnReply {
@@ -1147,6 +1154,11 @@ message StreamStepIORequest {
   }
 
   message TaskOutputReq {
+    bytes  msg     = 1;
+    uint32 task_id = 2; // The rank/id of the task that produced this output.
+  }
+
+  message TaskErrOutputReq {
     bytes msg = 1;
   }
 
@@ -1207,7 +1219,7 @@ message StreamStepIOReply {
   message TaskInputReq {
     bytes           msg     = 1;
     bool            eof     = 2;
-    optional uint32 task_id = 3;
+    optional uint32 task_id = 3;  // If set, deliver stdin only to the specified task; otherwise broadcast.
   }
 
   message SupervisorUnregisterReply {
