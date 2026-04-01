@@ -172,7 +172,7 @@ func (keeper *SupervisorChannelKeeper) SupervisorCrashAndRemoveAllChannel(jobId 
 
 	if exist {
 		for _, channel := range channelMap {
-			channel <- nil
+		channel <- nil
 		}
 	} else {
 		log.Warningf("[Supervisor->Cfored][Step #%d.%d] Supervisor on Craned %s"+
@@ -329,20 +329,6 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 	keeper.stepIORequestChannelMtx.Unlock()
 }
 
-// forwardRemoteIoToCrun forwards X11-related messages from Supervisor to all connected
-// front-end clients. Unlike forwardRemoteIoToFront, this does NOT push to the history buffer.
-func (keeper *SupervisorChannelKeeper) forwardRemoteIoToCrun(jobId uint32, stepId uint32, ioToCrun *protos.StreamStepIORequest) {
-	keeper.stepIORequestChannelMtx.Lock()
-	channelMap, exist := keeper.stepIORequestChannelMap[StepIdentifier{JobId: jobId, StepId: stepId}]
-	if exist {
-		for _, channel := range channelMap {
-			channel <- ioToCrun
-		}
-	} else {
-		log.Warningf("[Supervisor->Cfored->FrontEnd][Step #%d.%d]Trying forward to I/O to an unknown crun/cattach.", jobId, stepId)
-	}
-	keeper.stepIORequestChannelMtx.Unlock()
-}
 
 func (keeper *SupervisorChannelKeeper) crunStepStopAndRemoveChannel(jobId uint32, stepId uint32) {
 	step := StepIdentifier{JobId: jobId, StepId: stepId}
@@ -396,7 +382,7 @@ const (
 	SupervisorUnReg StateOfCranedServer = 2
 )
 
-// TODO:重新接上stream
+
 func (cforedServer *GrpcCforedServer) StepIOStream(toSupervisorStream protos.CraneForeD_StepIOStreamServer) error {
 	var cranedId string
 	var jobId uint32
@@ -495,7 +481,7 @@ CforedSupervisorStateMachineLoop:
 						fallthrough
 					case protos.StreamStepIORequest_STEP_X11_EOF:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote %s", jobId, stepId, supervisorReq.Type.String())
-						gSupervisorChanKeeper.forwardRemoteIoToCrun(jobId, stepId, supervisorReq)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
 
 					case protos.StreamStepIORequest_TASK_EXIT_STATUS:
 						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
@@ -568,6 +554,12 @@ CforedSupervisorStateMachineLoop:
 							jobId, stepId, crunReq.Type.String())
 						break supervisorIOForwarding
 					}
+					if err := toSupervisorStream.Send(reply); err != nil {
+						log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
+							"on Craned %s was broken.", jobId, stepId, cranedId)
+						state = SupervisorUnReg
+						break supervisorIOForwarding
+					}
 
 				case cattachReq := <-pendingCattachReqToSupervisorChannel:
 					switch cattachReq.Type {
@@ -614,11 +606,6 @@ CforedSupervisorStateMachineLoop:
 						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from cattach ",
 							jobId, stepId, cattachReq.Type.String())
 						break supervisorIOForwarding
-					}
-					if err := toSupervisorStream.Send(reply); err != nil {
-						log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
-							"on Craned %s was broken.", jobId, stepId, cranedId)
-						state = SupervisorUnReg
 					}
 				}
 			}
