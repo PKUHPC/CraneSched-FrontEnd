@@ -29,6 +29,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -165,20 +166,37 @@ func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []s
 	}
 }
 
+// broadcastStopWaiting wakes up any goroutine blocked in waitSupervisorChannelsReady
+// after stopWaiting has been set to true externally. Without this broadcast, the goroutine
+// would remain blocked in toSupervisorChannelCV.Wait() until the next supervisor registers.
+func (keeper *SupervisorChannelKeeper) broadcastStopWaiting() {
+	keeper.toSupervisorChannelMtx.Lock()
+	keeper.toSupervisorChannelCV.Broadcast()
+	keeper.toSupervisorChannelMtx.Unlock()
+}
+
 func (keeper *SupervisorChannelKeeper) SupervisorCrashAndRemoveAllChannel(jobId uint32, stepId uint32, cranedId string) {
 	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
 	keeper.stepIORequestChannelMtx.Lock()
 	channelMap, exist := keeper.stepIORequestChannelMap[stepIdentity]
-
+	// Collect channel references while holding the lock, then send outside the lock
+	// to avoid blocking other operations (e.g., setRemoteIoToFrontChannel,
+	// crunJobStopAndRemoveChannel) while waiting for slow consumers.
+	var channels []chan *protos.StreamStepIORequest
 	if exist {
 		for _, channel := range channelMap {
-		channel <- nil
+			channels = append(channels, channel)
 		}
 	} else {
 		log.Warningf("[Supervisor->Cfored][Step #%d.%d] Supervisor on Craned %s"+
 			" crashed but no crun/cattach found, skiping.", jobId, stepId, cranedId)
 	}
 	keeper.stepIORequestChannelMtx.Unlock()
+
+	// Send nil (crash signal) to all front-ends outside the lock.
+	for _, channel := range channels {
+		channel <- nil
+	}
 }
 
 func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(jobId uint32, stepId uint32, request *protos.StreamCrunRequest) {
@@ -313,12 +331,18 @@ func (keeper *SupervisorChannelKeeper) getRemoteHistory(taskId uint32, stepId ui
 // forwardRemoteIoToFront forwards TASK_OUTPUT / TASK_EXIT_STATUS from Supervisor to all
 // connected front-end clients (crun and cattach) and pushes to the history buffer so that
 // late-joining cattach clients can replay the output.
+//
+// The lock is released before performing the blocking channel sends to prevent
+// other operations (e.g., setRemoteIoToFrontChannel, crunJobStopAndRemoveChannel,
+// cattachStopAndRemoveChannel) from being blocked while waiting for slow consumers.
 func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, stepId uint32, ioToFront *protos.StreamStepIORequest) {
 	keeper.stepIORequestChannelMtx.Lock()
 	channelMap, exist := keeper.stepIORequestChannelMap[StepIdentifier{JobId: jobId, StepId: stepId}]
+	// Collect channel references and push to history buffer while holding the lock.
+	var channels []chan *protos.StreamStepIORequest
 	if exist {
 		for _, channel := range channelMap {
-			channel <- ioToFront
+			channels = append(channels, channel)
 		}
 		if buf := keeper.taskIOBufferMap[StepIdentifier{JobId: jobId, StepId: stepId}]; buf != nil {
 			buf.Push(ioToFront)
@@ -327,6 +351,11 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 		log.Warningf("[Supervisor->Cfored->FrontEnd][Step #%d.%d]Trying forward to I/O to an unknown crun/cattach.", jobId, stepId)
 	}
 	keeper.stepIORequestChannelMtx.Unlock()
+
+	// Send to all front-ends outside the lock to avoid blocking other lock holders.
+	for _, channel := range channels {
+		channel <- ioToFront
+	}
 }
 
 
@@ -404,20 +433,33 @@ CforedSupervisorStateMachineLoop:
 		switch state {
 		case SupervisorReg:
 			log.Debugf("[Cfored<->Supervisor][Step #%d.%d] Enter State SupervisorReg", jobId, stepId)
-			item := <-requestChannel
+			// Use a select so that a cfored shutdown (globalCtx cancelled) or a
+			// stream-level error (e.g. code=Canceled from GracefulStop) can be
+			// handled gracefully instead of calling log.Fatal / os.Exit(1).
+			var item grpcMessage[protos.StreamStepIORequest]
+			select {
+			case item = <-requestChannel:
+				// Proceed with normal registration handling below.
+			case <-gVars.globalCtx.Done():
+				log.Debugf("[Cfored<->Supervisor] Global context cancelled before supervisor registered, exiting.")
+				break CforedSupervisorStateMachineLoop
+			}
 			cranedReq, err := item.message, item.err
 			if err != nil { // Failure Edge
 				switch err {
 				case io.EOF:
 					fallthrough
 				default:
-					log.Fatal(err)
-					return nil
+					// Do not call log.Fatal here — the error is expected during shutdown
+					// (gRPC returns codes.Canceled when GracefulStop cancels the stream).
+					log.Errorf("[Supervisor->Cfored] Stream error before registration completed: %s", err)
+					break CforedSupervisorStateMachineLoop
 				}
 			}
 
 			if cranedReq.Type != protos.StreamStepIORequest_SUPERVISOR_REGISTER {
-				log.Fatal("[Supervisor->Cfored] Expect SUPERVISOR_REGISTER")
+				log.Errorf("[Supervisor->Cfored] Expect SUPERVISOR_REGISTER but got %s, exiting.", cranedReq.Type)
+				break CforedSupervisorStateMachineLoop
 			}
 
 			cranedId = cranedReq.GetPayloadRegisterReq().GetCranedId()
@@ -608,6 +650,15 @@ CforedSupervisorStateMachineLoop:
 							jobId, stepId, cattachReq.Type.String())
 						break supervisorIOForwarding
 					}
+
+				case <-gVars.globalCtx.Done():
+					// cfored is shutting down (SIGINT received).  Exit the forwarding loop
+					// immediately so that GracefulStop() can complete quickly without waiting
+					// for the supervisor to disconnect on its own.
+					log.Infof("[Cfored<->Supervisor][Step #%d.%d] Global context cancelled, "+
+						"exiting IO forwarding loop on Craned %s", jobId, stepId, cranedId)
+					state = SupervisorUnReg
+					break supervisorIOForwarding
 				}
 			}
 
@@ -720,8 +771,25 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 			switch sig {
 			case syscall.SIGINT:
 				gVars.globalCtxCancel()
-				unixServer.GracefulStop()
-				tcpServer.GracefulStop()
+				// GracefulStop waits for all active RPCs to finish, which can block
+				// indefinitely if any stream handler (e.g. CattachStream or CrunStream)
+				// is stuck.  Give it 30 s and then force-stop both servers so the
+				// process always terminates in a bounded time.
+				const gracefulStopTimeout = 5 * time.Second
+				done := make(chan struct{})
+				go func() {
+					unixServer.GracefulStop()
+					tcpServer.GracefulStop()
+					close(done)
+				}()
+				select {
+				case <-done:
+					log.Infof("Graceful stop completed.")
+				case <-time.After(gracefulStopTimeout):
+					log.Warningf("Graceful stop timed out after %s, forcing stop.", gracefulStopTimeout)
+					unixServer.Stop()
+					tcpServer.Stop()
+				}
 			case syscall.SIGTERM:
 				unixServer.Stop()
 				tcpServer.Stop()

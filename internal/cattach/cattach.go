@@ -350,9 +350,14 @@ func (m *StateMachineOfCattach) StateForwarding() {
 	for m.state == Forwarding {
 		select {
 		case <-m.taskFinishCtx.Done():
+			// taskFinishCb() was already called (e.g. by SIGINT handler or Ctrl+C in PTY mode).
+			// All IO goroutines observe taskFinishCtx.Done() and exit on their own.
 			m.state = End
 			return
 		case <-m.taskErrCtx.Done():
+			// taskErrCb() was triggered (e.g. by FileReaderRoutine on open error).
+			// Signal all IO goroutines to stop via taskFinishCb so they don't leak.
+			m.taskFinishCb()
 			m.state = End
 			return
 		case item := <-m.cforedReplyReceiver.replyChannel:
@@ -365,25 +370,30 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					log.Errorf("The connection to Cfored was broken: %s.", err)
 					gVars.connectionBroken = true
 					m.err = util.ErrorNetwork
+					// Signal all IO goroutines (StdinReaderRoutine, StdoutWriterRoutine,
+					// input-forward goroutine) to exit so they don't leak.
+					m.taskFinishCb()
 					m.state = End
 				}
 			} else {
-			switch cforedReply.Type {
-			case protos.StreamCattachReply_TASK_IO_FORWARD:
-				fwdReply := cforedReply.GetPayloadTaskIoForwardReply()
-				m.chanOutputFromRemote <- TaskOutputMsg{
-					Data:   fwdReply.Msg,
-					TaskId: fwdReply.TaskId,
+				switch cforedReply.Type {
+				case protos.StreamCattachReply_TASK_IO_FORWARD:
+					fwdReply := cforedReply.GetPayloadTaskIoForwardReply()
+					m.chanOutputFromRemote <- TaskOutputMsg{
+						Data:   fwdReply.Msg,
+						TaskId: fwdReply.TaskId,
+					}
+				case protos.StreamCattachReply_STEP_X11_FORWARD:
+					m.chanX11OutputFromRemote <- cforedReply.GetPayloadStepX11ForwardReply().Msg
+				case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
+					log.Debug("Step completed.")
+					// Signal all IO goroutines to exit cleanly before transitioning to End.
+					m.taskFinishCb()
+					m.state = End
+					return
+				default:
+					log.Warnf("[Cattach] Received unhandled msg type %s in Forwarding state", cforedReply.Type.String())
 				}
-			case protos.StreamCattachReply_STEP_X11_FORWARD:
-				m.chanX11OutputFromRemote <- cforedReply.GetPayloadStepX11ForwardReply().Msg
-			case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
-				log.Debug("Step completed.")
-				m.state = End
-				return
-			default:
-				log.Warnf("[Cattach] Received unhandled msg type %s in Forwarding state", cforedReply.Type.String())
-			}
 			}
 		}
 	}
