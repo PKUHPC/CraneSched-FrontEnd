@@ -472,6 +472,16 @@ CforedCrunStateMachineLoop:
 			// in toSupervisorChannelCV.Wait() so it can observe stopWaiting == true.
 			gSupervisorChanKeeper.broadcastStopWaiting()
 
+		case <-gVars.globalCtx.Done():
+			// cfored is shutting down (SIGINT). Exit immediately to CancelJobOfDeadCrun
+			// instead of waiting up to 30 s for ctld_client.WaitAllFrontEnd to deliver a
+			// synthetic JOB_CANCEL_REQUEST (a race that can fail to arrive in time).
+			log.Debugf("[Cfored<->Crun][Step #%d.%d] Global context cancelled in WAIT_TASK_IO_FORWARD, "+
+				"cancelling job.", jobId, stepId)
+			stopWaiting.Store(true)
+			gSupervisorChanKeeper.broadcastStopWaiting()
+			state = CancelJobOfDeadCrun
+
 		case item := <-crunRequestChannel:
 			crunRequest, err := item.message, item.err
 			if err != nil {

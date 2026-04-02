@@ -183,6 +183,12 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 
 	m.sigs = make(chan os.Signal, 1)
 	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
+
+	// Pre-initialize stopStepCtx/stopStepCb so that StateWaitAck (which is
+	// reachable via WaitForward→JobKilling without ever entering StateForwarding)
+	// can safely reference stopStepCtx.Done() without a nil-pointer dereference.
+	// StartIOForward() will replace these with a fresh cancellable context.
+	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
 }
 
 func (m *StateMachineOfCrun) Close() {
@@ -624,7 +630,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					case <-m.stopWriteCtx.Done():
 					}
 
-				case protos.StreamCrunReply_STEP_X11_CONN:
+			case protos.StreamCrunReply_STEP_X11_CONN:
 					fallthrough
 				case protos.StreamCrunReply_STEP_X11_FORWARD:
 					fallthrough
