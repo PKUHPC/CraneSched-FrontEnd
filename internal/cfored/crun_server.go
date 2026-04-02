@@ -458,50 +458,55 @@ CforedCrunStateMachineLoop:
 			readyChannel := make(chan bool, 1)
 			go gSupervisorChanKeeper.waitSupervisorChannelsReady(execCranedIds, readyChannel, &stopWaiting, jobId, stepId)
 
-			select {
-			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_JOB_CANCEL_REQUEST {
-					log.Fatalf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type JOB_CANCEL_REQUEST but got %s, ignored",
-						jobId, stepId, ctldReply.Type)
-				} else {
-					log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive JobCancelRequest", jobId, stepId)
-					state = CrunWaitJobCancel
-				}
-				stopWaiting.Store(true)
+		select {
+		case ctldReply := <-ctldReplyChannel:
+			if ctldReply.Type != protos.StreamCtldReply_JOB_CANCEL_REQUEST {
+				log.Fatalf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type JOB_CANCEL_REQUEST but got %s, ignored",
+					jobId, stepId, ctldReply.Type)
+			} else {
+				log.Debugf("[Ctld->Cfored->Crun][Step #%d.%d] Receive JobCancelRequest", jobId, stepId)
+				state = CrunWaitJobCancel
+			}
+			stopWaiting.Store(true)
+			// Wake up the goroutine in waitSupervisorChannelsReady that may be blocked
+			// in toSupervisorChannelCV.Wait() so it can observe stopWaiting == true.
+			gSupervisorChanKeeper.broadcastStopWaiting()
 
-			case item := <-crunRequestChannel:
-				crunRequest, err := item.message, item.err
-				if err != nil {
-					switch err {
-					case io.EOF:
-						fallthrough
-					default:
-						log.Debugf("[Crun->Cfored][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
-						stopWaiting.Store(true)
-						state = CancelJobOfDeadCrun
-					}
-					break
+		case item := <-crunRequestChannel:
+			crunRequest, err := item.message, item.err
+			if err != nil {
+				switch err {
+				case io.EOF:
+					fallthrough
+				default:
+					log.Debugf("[Crun->Cfored][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
+					stopWaiting.Store(true)
+					gSupervisorChanKeeper.broadcastStopWaiting()
+					state = CancelJobOfDeadCrun
 				}
+				break
+			}
 
-				if crunRequest.Type != protos.StreamCrunRequest_STEP_COMPLETION_REQUEST {
-					log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST.", jobId, stepId)
-				}
+			if crunRequest.Type != protos.StreamCrunRequest_STEP_COMPLETION_REQUEST {
+				log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST.", jobId, stepId)
+			}
 
-				log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
-				toCtldRequest := &protos.StreamCforedRequest{
-					Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
-					Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
-						PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
-							CforedName:      gVars.hostName,
-							JobId:           jobId,
-							StepId:          stepId,
-							InteractiveType: protos.InteractiveJobType_Crun,
-						},
+			log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
+			toCtldRequest := &protos.StreamCforedRequest{
+				Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+				Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+					PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
+						CforedName:      gVars.hostName,
+						JobId:           jobId,
+						StepId:          stepId,
+						InteractiveType: protos.InteractiveJobType_Crun,
 					},
-				}
-				gVars.cforedRequestCtldChannel <- toCtldRequest
-				stopWaiting.Store(true)
-				state = CrunWaitCtldAck
+				},
+			}
+			gVars.cforedRequestCtldChannel <- toCtldRequest
+			stopWaiting.Store(true)
+			gSupervisorChanKeeper.broadcastStopWaiting()
+			state = CrunWaitCtldAck
 
 			case <-readyChannel:
 				reply = &protos.StreamCrunReply{
