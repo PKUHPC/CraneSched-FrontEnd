@@ -348,7 +348,11 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 			buf.Push(ioToFront)
 		}
 	} else {
-		log.Warningf("[Supervisor->Cfored->FrontEnd][Step #%d.%d]Trying forward to I/O to an unknown crun/cattach.", jobId, stepId)
+		// No front-end is connected for this step any more.  This is normal during
+		// the brief window between crun exiting (which removes the IO channel) and
+		// the supervisor receiving the kill signal and stopping its output stream.
+		log.Debugf("[Supervisor->Cfored->FrontEnd][Step #%d.%d] No front-end connected, "+
+			"discarding supervisor IO (crun/cattach may have just exited).", jobId, stepId)
 	}
 	keeper.stepIORequestChannelMtx.Unlock()
 
