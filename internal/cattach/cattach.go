@@ -374,28 +374,28 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					m.state = End
 				}
 			} else {
-			switch cforedReply.Type {
-			case protos.StreamCattachReply_TASK_IO_FORWARD:
-				// Use a select so that taskFinishCtx.Done() (triggered by SIGINT
-				// or connection break) can interrupt the send when chanOutputFromRemote
-				// is full.  Without this guard a slow terminal fills the channel and
-				// permanently blocks the StateForwarding loop, preventing a clean exit.
-				fwdReply := cforedReply.GetPayloadTaskIoForwardReply()
-				select {
-				case m.chanOutputFromRemote <- TaskOutputMsg{
-					Data:   fwdReply.Msg,
-					TaskId: fwdReply.TaskId,
-				}:
-				case <-m.taskFinishCtx.Done():
-					// Discard remaining output and exit cleanly.
-					m.taskFinishCb() // idempotent - safe to call again
-					m.state = End
-					return
-				}
+				switch cforedReply.Type {
+				case protos.StreamCattachReply_TASK_IO_FORWARD:
+					// Use a select so that taskFinishCtx.Done() (triggered by SIGINT
+					// or connection break) can interrupt the send when chanOutputFromRemote
+					// is full.  Without this guard a slow terminal fills the channel and
+					// permanently blocks the StateForwarding loop, preventing a clean exit.
+					fwdReply := cforedReply.GetPayloadTaskIoForwardReply()
+					select {
+					case m.chanOutputFromRemote <- TaskOutputMsg{
+						Data:   fwdReply.Msg,
+						TaskId: fwdReply.TaskId,
+					}:
+					case <-m.taskFinishCtx.Done():
+						// Discard remaining output and exit cleanly.
+						m.taskFinishCb() // idempotent - safe to call again
+						m.state = End
+						return
+					}
 				case protos.StreamCattachReply_STEP_X11_CONN:
-				fallthrough
+					fallthrough
 				case protos.StreamCattachReply_STEP_X11_FORWARD:
-				fallthrough
+					fallthrough
 				case protos.StreamCattachReply_STEP_X11_EOF:
 					// Route all X11 messages to the session manager which handles
 					// per-session demultiplexing by (CranedId, LocalId).
