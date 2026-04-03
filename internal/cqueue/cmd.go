@@ -175,4 +175,5 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 	RootCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodelist", "w", "",
 		"Specify node names to view (comma separated list or patterns like node[1-10]), default is all")
 
+	util.InitCraneLogger()
 }
