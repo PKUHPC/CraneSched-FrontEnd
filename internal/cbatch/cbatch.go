@@ -596,8 +596,17 @@ func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 	}
 
 	if len(reply.JobIdList) > 0 {
-		jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
-		fmt.Printf("Job id allocated: %s.\n", jobIdListString)
+		if job.ArrayIndexStart != nil && job.ArrayIndexEnd != nil &&
+			len(reply.JobIdList) > 1 {
+			fmt.Printf("Array job submitted with parent job id %d, "+
+				"array range [%d-%d], allocated job ids: %s.\n",
+				reply.JobIdList[0],
+				*job.ArrayIndexStart, *job.ArrayIndexEnd,
+				util.ConvertSliceToString(reply.JobIdList, ", "))
+		} else {
+			jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
+			fmt.Printf("Job id allocated: %s.\n", jobIdListString)
+		}
 	}
 
 	if len(reply.GetCodeList()) > 0 {
