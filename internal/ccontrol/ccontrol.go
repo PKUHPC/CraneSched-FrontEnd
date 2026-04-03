@@ -127,12 +127,11 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedJobs) == 0 {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -177,12 +176,11 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedJobs) == 0 {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -222,12 +220,11 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedJobs) == 0 {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -310,12 +307,11 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(rep))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(rep.NotModifiedJobs) == 0 {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -364,12 +360,11 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedNodes) == 0 {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -393,12 +388,11 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) e
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -473,12 +467,11 @@ func CreateReservation() error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -509,12 +502,11 @@ func DeleteReservation(ReservationName string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -647,11 +639,10 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(reply.NotModifiedNodes) > 0 {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
-		fmt.Print(msg)
 		return nil
 	}
 

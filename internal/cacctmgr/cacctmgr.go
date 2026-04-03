@@ -200,15 +200,14 @@ func AddAccount(account *protos.AccountInfo) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
-
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Println("Account added successfully.")
 		return nil
@@ -258,14 +257,14 @@ func AddUser(user *protos.UserInfo, partition []string, level string, coordinato
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Println("User added successfully.")
 		return nil
@@ -292,14 +291,14 @@ func AddQos(qos *protos.QosInfo) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Println("QoS added successfully.")
 		return nil
@@ -344,14 +343,14 @@ func AddLicenseResource(name string, server string, clusters string, operators m
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Println("Resource added successfully.")
 		return nil
@@ -387,12 +386,11 @@ func DeleteAccount(value string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 	if reply.GetOk() {
@@ -428,12 +426,11 @@ func DeleteUser(value string, account string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 	if reply.GetOk() {
@@ -473,12 +470,11 @@ func DeleteQos(value string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 	if reply.GetOk() {
@@ -532,12 +528,11 @@ func DeleteLicenseResource(name string, server string, clusters string) error {
 	}
 
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -597,12 +592,11 @@ func ModifyAccount(params []ModifyParam, name string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -666,13 +660,11 @@ func ModifyUser(params []ModifyParam, name string, account string, partition str
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
-
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -714,12 +706,11 @@ func ModifyQos(params []ModifyParam, name string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -772,12 +763,11 @@ func ModifyResource(name string, server string, clusters string, operators map[p
 	}
 
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -815,13 +805,11 @@ func FindAccount(value string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
-
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -862,12 +850,11 @@ func ShowLicenseResources(name string, server string, clusters string, hasWithCl
 	}
 
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -907,14 +894,14 @@ func BlockAccountOrUser(value string, entityType protos.EntityType, account stri
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Printf("Block %s succeeded.\n", value)
 		return nil
@@ -952,14 +939,14 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Printf("Unblock %s succeeded.\n", value)
 		return nil
@@ -1227,12 +1214,11 @@ func ResetUserCredential(value string) error {
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -1264,14 +1250,14 @@ func AddWckey(wckey *protos.WckeyInfo) error {
 	}
 
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Println("Wckey added successfully.")
 		return nil
@@ -1314,14 +1300,14 @@ func DeleteWckey(name, userName string) error {
 	}
 
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Printf("Successfully deleted wckey: %s, user: %s\n", name, userName)
 		return nil
@@ -1344,14 +1330,14 @@ func ModifyDefaultWckey(name, userName string) error {
 	}
 
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if reply.GetOk() {
 		fmt.Println("Modify information succeeded.")
 		return nil

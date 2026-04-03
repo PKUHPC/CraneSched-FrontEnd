@@ -122,12 +122,11 @@ func ShowTxn(actor string, target string, actionValue string, info string, start
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -282,14 +281,14 @@ func ShowAccounts() error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if !reply.GetOk() {
 		msg := ""
 		for _, richError := range reply.RichErrorList {
@@ -589,14 +588,14 @@ func ShowUser(value string, account string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
+
 	if !reply.GetOk() {
 		msg := ""
 		for _, richError := range reply.RichErrorList {
@@ -927,12 +926,11 @@ func ShowQos(value string) error {
 	}
 
 	if FlagJson {
-		msg := fmt.Sprintln(util.FmtJson.FormatReply(reply))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Print(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
@@ -994,12 +992,11 @@ func ShowWckey(wckeyStr string) error {
 	}
 
 	if FlagJson {
-		msg := util.FmtJson.FormatReply(reply)
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
-			fmt.Println(msg)
 			return nil
 		} else {
-			return util.NewCraneErr(util.ErrorBackend, msg)
+			return &util.CraneError{Code: util.ErrorBackend}
 		}
 	}
 
