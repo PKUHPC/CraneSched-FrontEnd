@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/signal"
 	"os/user"
@@ -109,14 +108,15 @@ type StateMachineOfCattach struct {
 	cforedReplyReceiver *CforedReplyReceiver
 
 	// These fields are used under Forwarding State.
-	taskFinishCtx           context.Context
-	taskFinishCb            context.CancelFunc
-	taskErrCtx              context.Context
-	taskErrCb               context.CancelFunc
-	chanInputFromTerm       chan []byte
-	chanOutputFromRemote    chan TaskOutputMsg
-	chanX11InputFromLocal   chan []byte
-	chanX11OutputFromRemote chan []byte
+	taskFinishCtx        context.Context
+	taskFinishCb         context.CancelFunc
+	taskErrCtx           context.Context
+	taskErrCb            context.CancelFunc
+	chanInputFromTerm    chan []byte
+	chanOutputFromRemote chan TaskOutputMsg
+	// X11SessionMgr handles all X11 forwarding sessions (multi-session, multi-task).
+	// Nil when the step does not have X11 forwarding enabled.
+	X11SessionMgr *X11SessionMgr
 }
 
 func (m *StateMachineOfCattach) Init() {
@@ -297,7 +297,11 @@ func (m *StateMachineOfCattach) StateForwarding() {
 
 	m.StartIOForward()
 
-	// Forward Terminal input to Cfored.
+	// Forward terminal stdin and X11 data to cfored.
+	var x11ReqFromSessions chan *protos.StreamCattachRequest
+	if m.X11SessionMgr != nil {
+		x11ReqFromSessions = m.X11SessionMgr.X11RequestChan
+	}
 	go func() {
 		for {
 			select {
@@ -325,16 +329,10 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					return
 				}
 
-			case msg := <-m.chanX11InputFromLocal:
-				request = &protos.StreamCattachRequest{
-					Type: protos.StreamCattachRequest_STEP_X11_FORWARD,
-					Payload: &protos.StreamCattachRequest_PayloadStepX11ForwardReq{
-						PayloadStepX11ForwardReq: &protos.StreamCattachRequest_StepX11ForwardReq{
-							Msg: msg,
-						},
-					},
-				}
-				if err := m.stream.Send(request); err != nil {
+			case x11Req := <-x11ReqFromSessions:
+				// X11 data from a local session; CranedId and LocalId are already
+				// filled in by the session goroutine.
+				if err := m.stream.Send(x11Req); err != nil {
 					log.Errorf("Failed to send Step X11 Forward to CattachStream: %s. "+
 						"Connection to Cattach is broken", err)
 					gVars.connectionBroken = true
@@ -394,8 +392,19 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					m.state = End
 					return
 				}
+				case protos.StreamCattachReply_STEP_X11_CONN:
+				fallthrough
 				case protos.StreamCattachReply_STEP_X11_FORWARD:
-					m.chanX11OutputFromRemote <- cforedReply.GetPayloadStepX11ForwardReply().Msg
+				fallthrough
+				case protos.StreamCattachReply_STEP_X11_EOF:
+					// Route all X11 messages to the session manager which handles
+					// per-session demultiplexing by (CranedId, LocalId).
+					if m.X11SessionMgr != nil {
+						m.X11SessionMgr.X11ReplyChan <- cforedReply
+					} else {
+						log.Tracef("[Cattach] Received %s but X11 session manager is nil, skipping.",
+							cforedReply.Type.String())
+					}
 				case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
 					log.Debug("Step completed.")
 					// Signal all IO goroutines to exit cleanly before transitioning to End.
@@ -436,16 +445,18 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	m.chanInputFromTerm = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan TaskOutputMsg, 20)
 
-	m.chanX11InputFromLocal = make(chan []byte, 100)
-	m.chanX11OutputFromRemote = make(chan []byte, 20)
-
 	go m.forwardingSigHandlerRoutine()
 	go m.StdinReaderRoutine()
 	go m.StdoutWriterRoutine()
 
 	iaMeta := m.step.GetInteractiveMeta()
 	if iaMeta != nil && iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
-		go m.StartX11ReaderWriterRoutine()
+		// Create a session manager that mirrors crun's X11SessionMgr.
+		// It manages one local X11 connection per (CranedId, LocalId) pair,
+		// supporting multi-task X11 jobs where each task may open its own
+		// X11 sessions concurrently.
+		m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.taskFinishCtx)
+		go m.X11SessionMgr.SessionMgrRoutine()
 	}
 }
 
@@ -678,72 +689,6 @@ func (m *StateMachineOfCattach) forwardingSigHandlerRoutine() {
 				return
 			default:
 				log.Tracef("Ignored signal: %v", sig)
-			}
-		}
-	}
-}
-
-func (m *StateMachineOfCattach) StartX11ReaderWriterRoutine() {
-	var reader *bufio.Reader
-	var conn net.Conn
-	var err error
-
-	x11meta := m.step.GetInteractiveMeta().GetX11Meta()
-	if x11meta.Port == 0 { // Unix Socket
-		conn, err = net.Dial("unix", x11meta.Target)
-		if err != nil {
-			log.Errorf("Failed to connect to X11 display by unix: %v", err)
-			return
-		}
-	} else { // TCP socket
-		address := net.JoinHostPort(x11meta.Target, fmt.Sprintf("%d", x11meta.Port))
-		conn, err = net.Dial("tcp", address)
-		if err != nil {
-			log.Errorf("Failed to connect to X11 display by tcp: %v", err)
-			return
-		}
-	}
-	defer conn.Close()
-
-	go func() {
-		reader = bufio.NewReader(conn)
-		buffer := make([]byte, 4096)
-
-		for {
-			n, err := reader.Read(buffer)
-			if err != nil {
-				if err == io.EOF {
-					return
-				}
-				log.Tracef("X11 fd has been closed and stop reading: %v", err)
-				return
-			}
-			data := make([]byte, n)
-			copy(data, buffer[:n])
-			m.chanX11InputFromLocal <- data
-			log.Tracef("Received data from x11 fd (len %d)", len(data))
-		}
-	}()
-
-	writer := bufio.NewWriter(conn)
-loop:
-	for {
-		select {
-		case <-m.taskFinishCtx.Done():
-			break loop
-
-		case msg := <-m.chanX11OutputFromRemote:
-			log.Tracef("Writing to x11 fd.")
-			_, err := writer.Write(msg)
-			if err != nil {
-				log.Errorf("Failed to write to x11 fd: %v", err)
-				break loop
-			}
-
-			err = writer.Flush()
-			if err != nil {
-				log.Errorf("Failed to flush data to x11 fd: %v", err)
-				break loop
 			}
 		}
 	}

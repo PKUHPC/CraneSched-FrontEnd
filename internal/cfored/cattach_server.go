@@ -441,12 +441,31 @@ func forwardTaskMsgToCattach(
 			taskId, stepId)
 		return nil
 	case protos.StreamStepIORequest_STEP_X11_CONN:
-		fallthrough
+		req := taskMsg.GetPayloadStepX11FwdConnReq()
+		reply = &protos.StreamCattachReply{
+			Type: protos.StreamCattachReply_STEP_X11_CONN,
+			Payload: &protos.StreamCattachReply_PayloadStepX11ConnReply{
+				PayloadStepX11ConnReply: &protos.StreamCattachReply_StepX11ConnReply{
+					CranedId: req.CranedId,
+					LocalId:  req.LocalId,
+				},
+			},
+		}
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Forwarding STEP_X11_CONN craned=%s local_id=%d",
+			taskId, stepId, req.CranedId, req.LocalId)
 	case protos.StreamStepIORequest_STEP_X11_EOF:
-		// TODO: support
-		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Received %s, skipping for cattach.",
-			taskId, stepId, taskMsg.Type.String())
-		return nil
+		req := taskMsg.GetPayloadStepX11EofReq()
+		reply = &protos.StreamCattachReply{
+			Type: protos.StreamCattachReply_STEP_X11_EOF,
+			Payload: &protos.StreamCattachReply_PayloadStepX11EofReply{
+				PayloadStepX11EofReply: &protos.StreamCattachReply_StepX11EofReply{
+					CranedId: req.CranedId,
+					LocalId:  req.LocalId,
+				},
+			},
+		}
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Forwarding STEP_X11_EOF craned=%s local_id=%d",
+			taskId, stepId, req.CranedId, req.LocalId)
 	default:
 		// Use Errorf instead of Fatalf to avoid crashing cfored on unexpected message types.
 		log.Errorf("[Supervisor->Cfored->Cattach][Step #%d.%d] Unexpected message type %s, skipping.",
