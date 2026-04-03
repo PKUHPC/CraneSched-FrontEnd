@@ -47,11 +47,35 @@ func CancelJob(args []string) error {
 	req.FilterJobName = FlagJobName
 
 	if len(args) > 0 {
-		stepIds, err := util.ParseStepIdList(args[0], ",")
+		selectors, err := util.ParseJobIdSelectorList(args[0], ",")
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %v.\n", err))
 		}
-		req.FilterIds = stepIds
+
+		filterIds := make(map[uint32]*protos.JobStepIds)
+		filterArrayTaskIds := make(map[uint32]*protos.ArrayTaskIds)
+
+		for _, sel := range selectors {
+			if _, ok := filterIds[sel.JobId]; !ok {
+				filterIds[sel.JobId] = &protos.JobStepIds{}
+			}
+			if sel.StepId != nil {
+				filterIds[sel.JobId].Steps = append(filterIds[sel.JobId].Steps, *sel.StepId)
+			}
+
+			if sel.ArrayTaskId != nil {
+				if _, ok := filterArrayTaskIds[sel.JobId]; !ok {
+					filterArrayTaskIds[sel.JobId] = &protos.ArrayTaskIds{}
+				}
+				filterArrayTaskIds[sel.JobId].ArrayTaskIds = append(
+					filterArrayTaskIds[sel.JobId].ArrayTaskIds, *sel.ArrayTaskId)
+			}
+		}
+
+		req.FilterIds = filterIds
+		if len(filterArrayTaskIds) > 0 {
+			req.FilterArrayTaskIds = filterArrayTaskIds
+		}
 	}
 
 	if FlagState != "" {
