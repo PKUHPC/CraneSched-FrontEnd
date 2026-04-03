@@ -309,7 +309,7 @@ CforedCrunStateMachineLoop:
 					gVars.pidStepMapMtx.Lock()
 					gVars.pidStepMap[crunPid] = step
 					gVars.pidStepMapMtx.Unlock()
-					gSupervisorChanKeeper.setRemoteIoToCrunChannel(jobId, stepId, JobIoRequestChannel)
+					gSupervisorChanKeeper.setRemoteIoToFrontChannel(crunPid, jobId, stepId, JobIoRequestChannel)
 				}
 
 				gVars.ctldReplyChannelMapMtx.Unlock()
@@ -441,6 +441,19 @@ CforedCrunStateMachineLoop:
 					state = CrunWaitJobCancel
 				}
 				stopWaiting.Store(true)
+				// Wake up the goroutine in waitSupervisorChannelsReady that may be blocked
+				// in toSupervisorChannelCV.Wait() so it can observe stopWaiting == true.
+				gSupervisorChanKeeper.broadcastStopWaiting()
+
+			case <-gVars.globalCtx.Done():
+				// cfored is shutting down (SIGINT). Exit immediately to CancelJobOfDeadCrun
+				// instead of waiting up to 30 s for ctld_client.WaitAllFrontEnd to deliver a
+				// synthetic JOB_CANCEL_REQUEST (a race that can fail to arrive in time).
+				log.Debugf("[Cfored<->Crun][Step #%d.%d] Global context cancelled in WAIT_TASK_IO_FORWARD, "+
+					"cancelling job.", jobId, stepId)
+				stopWaiting.Store(true)
+				gSupervisorChanKeeper.broadcastStopWaiting()
+				state = CancelJobOfDeadCrun
 
 			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
@@ -451,6 +464,7 @@ CforedCrunStateMachineLoop:
 					default:
 						log.Debugf("[Crun->Cfored][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
 						stopWaiting.Store(true)
+						gSupervisorChanKeeper.broadcastStopWaiting()
 						state = CancelJobOfDeadCrun
 					}
 					break
@@ -474,6 +488,7 @@ CforedCrunStateMachineLoop:
 				}
 				gVars.cforedRequestCtldChannel <- toCtldRequest
 				stopWaiting.Store(true)
+				gSupervisorChanKeeper.broadcastStopWaiting()
 				state = CrunWaitCtldAck
 
 			case <-readyChannel:

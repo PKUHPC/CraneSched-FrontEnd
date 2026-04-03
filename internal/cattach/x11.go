@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package crun
+package cattach
 
 import (
 	"CraneFrontEnd/generated/protos"
@@ -30,6 +30,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// X11GlobalId uniquely identifies an X11 session by the craned node and the
+// local connection ID assigned by the supervisor.
 type X11GlobalId struct {
 	CranedId string
 	LocalId  uint32
@@ -43,24 +45,30 @@ const (
 	X11Ended           X11Status = 2
 )
 
+// X11Session represents a single X11 forwarding connection between a remote
+// X11 client (on the compute node) and the local X11 server.
 type X11Session struct {
 	X11Id X11GlobalId
-	// Data from job, nil if eof, will close local connection, stop read/write
+	// Data from the remote X11 client; nil signals EOF / close.
 	X11ToLocal      chan []byte
-	X11ToSupervisor chan *protos.StreamCrunRequest
+	X11ToSupervisor chan *protos.StreamCattachRequest
 	Status          X11Status
 	sessionMgr      *X11SessionMgr
 	stopReadWrite   *sync.Once
 	eofSent         *sync.Once
 	conn            net.Conn
 }
+
+// X11SessionMgr manages all concurrent X11 sessions for a single cattach
+// connection.  It mirrors the X11SessionMgr in internal/crun/x11.go but uses
+// the StreamCattachRequest / StreamCattachReply proto types.
 type X11SessionMgr struct {
 	sessionMutex sync.Mutex
 	x11Sessions  map[X11GlobalId]*X11Session
-	//All x11 reply from cfored
-	X11ReplyChan chan *protos.StreamCrunReply
-	//Any msg on chan close all x11 fwd session
-	X11RequestChan chan *protos.StreamCrunRequest
+	// All X11 reply messages from cfored (STEP_X11_CONN, STEP_X11_FORWARD, STEP_X11_EOF).
+	X11ReplyChan chan *protos.StreamCattachReply
+	// Outgoing X11 data from local sessions to cfored / supervisor.
+	X11RequestChan chan *protos.StreamCattachRequest
 	finishCtx      *context.Context
 
 	port   uint32
@@ -81,19 +89,20 @@ X11StatusMachine:
 			delete(session.sessionMgr.x11Sessions, session.X11Id)
 			session.sessionMgr.sessionMutex.Unlock()
 			log.Tracef("[X11 %s:%d] X11 session ended and removed.", session.X11Id.CranedId, session.X11Id.LocalId)
-
 			break X11StatusMachine
 		}
 	}
 }
 
+// SendEofToSupervisor sends a final (possibly empty) data packet to the
+// supervisor to signal that the local X11 connection has been closed.
 func (session *X11Session) SendEofToSupervisor(data []byte) {
 	session.eofSent.Do(func() {
 		log.Debugf("[X11 %s:%d] Sending EOF to supervisor.", session.X11Id.CranedId, session.X11Id.LocalId)
-		req := &protos.StreamCrunRequest{
-			Type: protos.StreamCrunRequest_STEP_X11_FORWARD,
-			Payload: &protos.StreamCrunRequest_PayloadStepX11ForwardReq{
-				PayloadStepX11ForwardReq: &protos.StreamCrunRequest_StepX11ForwardReq{
+		req := &protos.StreamCattachRequest{
+			Type: protos.StreamCattachRequest_STEP_X11_FORWARD,
+			Payload: &protos.StreamCattachRequest_PayloadStepX11ForwardReq{
+				PayloadStepX11ForwardReq: &protos.StreamCattachRequest_StepX11ForwardReq{
 					Msg:      data,
 					CranedId: session.X11Id.CranedId,
 					LocalId:  session.X11Id.LocalId,
@@ -104,18 +113,23 @@ func (session *X11Session) SendEofToSupervisor(data []byte) {
 	})
 }
 
+// StopLocalReadWrite signals the writer goroutine (via a nil sentinel) to
+// close the local X11 connection and stop reading/writing.
 func (session *X11Session) StopLocalReadWrite() {
 	session.stopReadWrite.Do(func() {
 		session.X11ToLocal <- nil
 	})
 }
 
+// StatusConnectingLocal dials the local X11 display and transitions the
+// session to X11Forwarding (or X11Ended on failure).
 func (session *X11Session) StatusConnectingLocal() {
 	var err error
-	if session.sessionMgr.port == 0 { // Unix Socket
+	if session.sessionMgr.port == 0 { // Unix socket
 		session.conn, err = net.Dial("unix", session.sessionMgr.target)
 		if err != nil {
-			log.Errorf("[X11 %s:%d] Failed to connect to X11 display by unix: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
+			log.Errorf("[X11 %s:%d] Failed to connect to X11 display by unix: %v",
+				session.X11Id.CranedId, session.X11Id.LocalId, err)
 			session.Status = X11Ended
 			session.SendEofToSupervisor(make([]byte, 0))
 			return
@@ -124,21 +138,25 @@ func (session *X11Session) StatusConnectingLocal() {
 		address := net.JoinHostPort(session.sessionMgr.target, fmt.Sprintf("%d", session.sessionMgr.port))
 		session.conn, err = net.Dial("tcp", address)
 		if err != nil {
-			log.Errorf("[X11 %s:%d] Failed to connect to X11 display by tcp: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
+			log.Errorf("[X11 %s:%d] Failed to connect to X11 display by tcp: %v",
+				session.X11Id.CranedId, session.X11Id.LocalId, err)
 			session.Status = X11Ended
 			session.SendEofToSupervisor(make([]byte, 0))
 			return
 		}
 	}
-	log.Debugf("[X11 %s:%d] X11 session connected local X11 server.", session.X11Id.CranedId, session.X11Id.LocalId)
+	log.Debugf("[X11 %s:%d] X11 session connected to local X11 server.",
+		session.X11Id.CranedId, session.X11Id.LocalId)
 	session.Status = X11Forwarding
-	return
 }
 
+// StatusForwarding runs the bidirectional data relay between the local X11
+// connection and the supervisor (via cfored).
 func (session *X11Session) StatusForwarding() {
-	//Reader
 	wg := sync.WaitGroup{}
 	wg.Add(2)
+
+	// Reader: local X11 server → supervisor
 	go func() {
 		reader := bufio.NewReader(session.conn)
 		buffer := make([]byte, 4096)
@@ -146,64 +164,75 @@ func (session *X11Session) StatusForwarding() {
 			n, err := reader.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
-					log.Tracef("[X11 %s:%d] X11 fd reached EOF, stop reading.", session.X11Id.CranedId, session.X11Id.LocalId)
+					log.Tracef("[X11 %s:%d] X11 fd reached EOF, stop reading.",
+						session.X11Id.CranedId, session.X11Id.LocalId)
 					data := make([]byte, n)
 					copy(data, buffer[:n])
 					session.SendEofToSupervisor(data)
 					break
 				}
-				log.Tracef("[X11 %s:%d] X11 fd has been closed and stop reading: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
+				log.Tracef("[X11 %s:%d] X11 fd closed, stop reading: %v",
+					session.X11Id.CranedId, session.X11Id.LocalId, err)
 				break
 			}
 			data := make([]byte, n)
 			copy(data, buffer[:n])
-			req := &protos.StreamCrunRequest{
-				Type: protos.StreamCrunRequest_STEP_X11_FORWARD,
-				Payload: &protos.StreamCrunRequest_PayloadStepX11ForwardReq{
-					PayloadStepX11ForwardReq: &protos.StreamCrunRequest_StepX11ForwardReq{
+			req := &protos.StreamCattachRequest{
+				Type: protos.StreamCattachRequest_STEP_X11_FORWARD,
+				Payload: &protos.StreamCattachRequest_PayloadStepX11ForwardReq{
+					PayloadStepX11ForwardReq: &protos.StreamCattachRequest_StepX11ForwardReq{
 						Msg:      data,
 						CranedId: session.X11Id.CranedId,
 						LocalId:  session.X11Id.LocalId,
 					},
 				},
 			}
-			log.Tracef("[X11 %s:%d] Received data from x11 fd (len %d)", session.X11Id.CranedId, session.X11Id.LocalId, len(data))
+			log.Tracef("[X11 %s:%d] Received data from x11 fd (len %d)",
+				session.X11Id.CranedId, session.X11Id.LocalId, len(data))
 			select {
-
 			case session.X11ToSupervisor <- req:
-				log.Tracef("[X11 %s:%d] Sent data to supervisor.", session.X11Id.CranedId, session.X11Id.LocalId)
+				log.Tracef("[X11 %s:%d] Sent data to supervisor.",
+					session.X11Id.CranedId, session.X11Id.LocalId)
 			default:
-				log.Errorf("[X11 %s:%d] X11 to supervisor channel full, dropping data.", session.X11Id.CranedId, session.X11Id.LocalId)
+				log.Errorf("[X11 %s:%d] X11 to supervisor channel full, dropping data.",
+					session.X11Id.CranedId, session.X11Id.LocalId)
 			}
-
 		}
-		log.Tracef("[X11 %s:%d] X11 session reader ended.", session.X11Id.CranedId, session.X11Id.LocalId)
+		log.Tracef("[X11 %s:%d] X11 session reader ended.",
+			session.X11Id.CranedId, session.X11Id.LocalId)
 		wg.Done()
 	}()
 
+	// Writer: supervisor → local X11 server
 	go func() {
 	loop:
 		for {
 			select {
 			case msg := <-session.X11ToLocal:
 				if msg == nil {
-					log.Tracef("[X11 %s:%d] X11 session received eof to local, stop writing.", session.X11Id.CranedId, session.X11Id.LocalId)
+					log.Tracef("[X11 %s:%d] X11 session received EOF to local, stop writing.",
+						session.X11Id.CranedId, session.X11Id.LocalId)
 					err := session.conn.Close()
-					log.Debugf("[X11 %s:%d] X11 session closed local connection.", session.X11Id.CranedId, session.X11Id.LocalId)
+					log.Debugf("[X11 %s:%d] X11 session closed local connection.",
+						session.X11Id.CranedId, session.X11Id.LocalId)
 					if err != nil {
-						log.Errorf("[X11 %s:%d] Error closing x11 connection: %v", session.X11Id.CranedId, session.X11Id.LocalId, err)
+						log.Errorf("[X11 %s:%d] Error closing x11 connection: %v",
+							session.X11Id.CranedId, session.X11Id.LocalId, err)
 					}
 					break loop
 				}
-				log.Tracef("[X11 %s:%d] Writing to x11 fd len[%d].", session.X11Id.CranedId, session.X11Id.LocalId, len(msg))
+				log.Tracef("[X11 %s:%d] Writing to x11 fd len[%d].",
+					session.X11Id.CranedId, session.X11Id.LocalId, len(msg))
 				_, err := session.conn.Write(msg)
 				if err != nil {
-					log.Errorf("[X11 %s:%d] Failed to write to x11 fd: %v, stop writing.", session.X11Id.CranedId, session.X11Id.LocalId, err)
+					log.Errorf("[X11 %s:%d] Failed to write to x11 fd: %v, stop writing.",
+						session.X11Id.CranedId, session.X11Id.LocalId, err)
 					break loop
 				}
 			}
 		}
-		log.Tracef("[X11 %s:%d] X11 session writer ended.", session.X11Id.CranedId, session.X11Id.LocalId)
+		log.Tracef("[X11 %s:%d] X11 session writer ended.",
+			session.X11Id.CranedId, session.X11Id.LocalId)
 		session.SendEofToSupervisor(make([]byte, 0))
 		wg.Done()
 	}()
@@ -212,13 +241,14 @@ func (session *X11Session) StatusForwarding() {
 	session.Status = X11Ended
 }
 
-func NewX11SessionMgr(meta *protos.X11Meta, stepFinishCtx *context.Context) *X11SessionMgr {
+// NewX11SessionMgr creates a new X11 session manager for a cattach connection.
+func NewX11SessionMgr(meta *protos.X11Meta, finishCtx *context.Context) *X11SessionMgr {
 	return &X11SessionMgr{
 		sessionMutex:   sync.Mutex{},
 		x11Sessions:    make(map[X11GlobalId]*X11Session),
-		X11ReplyChan:   make(chan *protos.StreamCrunReply, 64),
-		X11RequestChan: make(chan *protos.StreamCrunRequest, 64),
-		finishCtx:      stepFinishCtx,
+		X11ReplyChan:   make(chan *protos.StreamCattachReply, 64),
+		X11RequestChan: make(chan *protos.StreamCattachRequest, 64),
+		finishCtx:      finishCtx,
 		port:           meta.Port,
 		target:         meta.Target,
 	}
@@ -237,32 +267,35 @@ func (sm *X11SessionMgr) NewSession(id X11GlobalId) *X11Session {
 	}
 }
 
+// SessionMgrRoutine is the main event loop for the X11 session manager.
+// It routes incoming X11 messages from cfored to the correct session and
+// tears down all sessions when the task finishes.
 func (sm *X11SessionMgr) SessionMgrRoutine() {
-
 	for {
 		select {
 		case reply := <-sm.X11ReplyChan:
 			switch reply.Type {
-			case protos.StreamCrunReply_STEP_X11_CONN:
+			case protos.StreamCattachReply_STEP_X11_CONN:
 				payload := reply.GetPayloadStepX11ConnReply()
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
-				log.Tracef("X11 connection request from craned %s local id %d", cranedId, localId)
+				log.Tracef("[Cattach X11] New X11 connection from craned %s local id %d", cranedId, localId)
 				globalId := X11GlobalId{
 					CranedId: cranedId,
 					LocalId:  localId,
 				}
 				session := sm.NewSession(globalId)
 				sm.sessionMutex.Lock()
-				go session.SessionRoutine()
 				sm.x11Sessions[globalId] = session
+				go session.SessionRoutine()
 				sm.sessionMutex.Unlock()
-			case protos.StreamCrunReply_STEP_X11_FORWARD:
+
+			case protos.StreamCattachReply_STEP_X11_FORWARD:
 				payload := reply.GetPayloadStepX11ForwardReply()
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
 				data := payload.GetMsg()
-				log.Tracef("[X11 %s:%d] forward data len %d", cranedId, localId, len(data))
+				log.Tracef("[Cattach X11 %s:%d] Forward data len %d", cranedId, localId, len(data))
 				globalId := X11GlobalId{
 					CranedId: cranedId,
 					LocalId:  localId,
@@ -272,14 +305,16 @@ func (sm *X11SessionMgr) SessionMgrRoutine() {
 				if exists {
 					session.X11ToLocal <- data
 				} else {
-					log.Warnf("[X11 %s:%d] Received X11 forward for non-existing session ", cranedId, localId)
+					log.Warnf("[Cattach X11 %s:%d] Received STEP_X11_FORWARD for non-existing session",
+						cranedId, localId)
 				}
 				sm.sessionMutex.Unlock()
-			case protos.StreamCrunReply_STEP_X11_EOF:
+
+			case protos.StreamCattachReply_STEP_X11_EOF:
 				payload := reply.GetPayloadStepX11EofReply()
 				cranedId := payload.GetCranedId()
 				localId := payload.GetLocalId()
-				log.Tracef("[X11 %s:%d] X11 EOF", cranedId, localId)
+				log.Tracef("[Cattach X11 %s:%d] X11 EOF received", cranedId, localId)
 				globalId := X11GlobalId{
 					CranedId: cranedId,
 					LocalId:  localId,
@@ -288,17 +323,19 @@ func (sm *X11SessionMgr) SessionMgrRoutine() {
 				session, exists := sm.x11Sessions[globalId]
 				if exists {
 					session.X11ToLocal <- nil
-					log.Tracef("[X11 %s:%d] Removed X11 session ", cranedId, localId)
+					log.Tracef("[Cattach X11 %s:%d] Signalled session EOF", cranedId, localId)
 				} else {
-					log.Warnf("[X11 %s:%d] Received X11 EOF for non-existing session", cranedId, localId)
+					log.Warnf("[Cattach X11 %s:%d] Received STEP_X11_EOF for non-existing session",
+						cranedId, localId)
 				}
 				sm.sessionMutex.Unlock()
 			}
+
 		case <-(*sm.finishCtx).Done():
-			log.Tracef("Received X11 finish signal, terminating all X11 sessions")
+			log.Tracef("[Cattach X11] Received finish signal, terminating all X11 sessions")
 			sm.sessionMutex.Lock()
 			for id, session := range sm.x11Sessions {
-				log.Tracef("[X11 %s:%d] Stopping X11 session", id.CranedId, id.LocalId)
+				log.Tracef("[Cattach X11 %s:%d] Stopping X11 session", id.CranedId, id.LocalId)
 				session.StopLocalReadWrite()
 			}
 			sm.sessionMutex.Unlock()

@@ -22,9 +22,10 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
-	"google.golang.org/grpc"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -196,6 +197,19 @@ CtldClientStateMachineLoop:
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
 
+					case protos.StreamCtldReply_STEP_META_REPLY:
+						frontPid := ctldReply.GetPayloadStepMetaReply().CattachPid
+
+						gVars.ctldReplyChannelMapMtx.Lock()
+						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[frontPid]
+						if ok {
+							toFrontCtlReplyChannel <- ctldReply
+						} else {
+							log.Fatalf("[Cfored<->Ctld] Front pid %d shall exist "+
+								"in ctldReplyChannelMapByPid!", frontPid)
+						}
+						gVars.ctldReplyChannelMapMtx.Unlock()
+
 					case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
 						fallthrough
 					case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
@@ -223,6 +237,30 @@ CtldClientStateMachineLoop:
 						} else {
 							log.Warningf("[Cfored<->Ctld][Step #%d.%d] shall exist in "+
 								"ctldReplyChannelMapByStep!", jobId, stepId)
+							if ctldReply.Type == protos.StreamCtldReply_JOB_CANCEL_REQUEST {
+								log.Debugf("[Cfored<->Ctld] sending TASK_COMPLETION_REQUEST directly. Job Id #%d ", jobId)
+								toCtldRequest := &protos.StreamCforedRequest{
+									Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+									Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+										PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
+											CforedName:      gVars.hostName,
+											JobId:           jobId,
+											StepId:          stepId,
+											InteractiveType: protos.InteractiveJobType_Crun,
+										},
+									},
+								}
+								gVars.cforedRequestCtldChannel <- toCtldRequest
+							}
+						}
+						// cattach only focus on JOB_COMPLETION_ACK_REPLY
+						if ctldReply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
+							if ok {
+								for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
+									toCattachCtlReplyChannel <- ctldReply
+								}
+							}
 						}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
@@ -280,7 +318,6 @@ CtldClientStateMachineLoop:
 
 			num := len(gVars.ctldReplyChannelMapByStep)
 			count := 0
-
 			if num > 0 {
 				log.Debugf("[Cfored<->Ctld] Sending cancel request to %d front ends "+
 					"with job id allocated.", num)
@@ -319,6 +356,23 @@ CtldClientStateMachineLoop:
 			}
 
 			gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
+
+			// cancel all cattach term
+			for step, toCattachCtlReplyChannelMap := range gVars.ctldReplyChannelMapForCattachByStep {
+				for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
+					toCattachCtlReplyChannel <- &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
+						Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
+							PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
+								JobId:  step.JobId,
+								StepId: step.StepId,
+							},
+						},
+					}
+				}
+			}
+
+			gVars.ctldReplyChannelMapForCattachByStep = make(map[StepIdentifier]map[int32]chan *protos.StreamCtldReply)
 
 			gVars.ctldReplyChannelMapMtx.Unlock()
 

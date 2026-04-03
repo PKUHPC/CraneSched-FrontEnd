@@ -170,6 +170,12 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 
 	m.sigs = make(chan os.Signal, 1)
 	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
+
+	// Pre-initialize stopStepCtx/stopStepCb so that StateWaitAck (which is
+	// reachable via WaitForward→JobKilling without ever entering StateForwarding)
+	// can safely reference stopStepCtx.Done() without a nil-pointer dereference.
+	// StartIOForward() will replace these with a fresh cancellable context.
+	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
 }
 
 func (m *StateMachineOfCrun) Close() {
@@ -576,7 +582,20 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			} else {
 				switch cforedReply.Type {
 				case protos.StreamCrunReply_TASK_IO_FORWARD:
-					m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
+					// Use a select so that a pending Ctrl+C (stopStepCtx cancelled) can
+					// interrupt the send even when chanOutputFromRemote is full.
+					// Without this, a slow terminal can fill chanOutputFromRemote and
+					// block the entire StateForwarding loop, making stopStepCtx.Done()
+					// unreachable and rendering Ctrl+C ineffective.
+					msg := cforedReply.GetPayloadTaskIoForwardReply().Msg
+					select {
+					case m.chanOutputFromRemote <- msg:
+					case <-m.stopStepCtx.Done():
+						// Job is being cancelled (Ctrl+C pressed twice).
+						// Discard remaining output and proceed to send STEP_COMPLETION_REQUEST.
+						m.state = JobKilling
+						return
+					}
 
 				case protos.StreamCrunReply_STEP_X11_CONN:
 					fallthrough
@@ -662,7 +681,25 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 
 	switch cforedReply.Type {
 	case protos.StreamCrunReply_TASK_IO_FORWARD:
-		m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg
+		// Backpressure guard: when the terminal is too slow to display output
+		// (chanOutputFromRemote is full), we must NOT block here.
+		// - stopStepCtx is already cancelled when we reach WaitAck (the job is
+		//   being terminated), so we can safely drop surplus output messages
+		//   rather than blocking indefinitely waiting for terminal space.
+		// - globalCtx.Done() handles the cfored-shutdown case.
+		msg := cforedReply.GetPayloadTaskIoForwardReply().Msg
+		select {
+		case m.chanOutputFromRemote <- msg:
+			// Forwarded successfully; terminal still keeping up.
+		case <-m.stopStepCtx.Done():
+			// Job is being terminated and terminal is backed up.
+			// Drop this output message so we can keep draining replyChannel
+			// and eventually receive STEP_COMPLETION_ACK_REPLY.
+		case <-gVars.globalCtx.Done():
+			// cfored is shutting down or connection lost; discard output.
+			m.state = End
+			return
+		}
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_STEP_X11_CONN:
