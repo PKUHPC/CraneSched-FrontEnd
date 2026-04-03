@@ -15,12 +15,12 @@ import (
 type StateOfCattachServer int
 
 const (
-	CattachWaitConnectReq   StateOfCattachServer = 1
-	CattachWaitStepMeta     StateOfCattachServer = 2
-	CattachWaitIOForward    StateOfCattachServer = 3
-	CattachWaitJobComplete  StateOfCattachServer = 4
-	DeadCattach             StateOfCattachServer = 5
-	End                     StateOfCattachServer = 6
+	CattachWaitConnectReq  StateOfCattachServer = 1
+	CattachWaitStepMeta    StateOfCattachServer = 2
+	CattachWaitIOForward   StateOfCattachServer = 3
+	CattachWaitJobComplete StateOfCattachServer = 4
+	DeadCattach            StateOfCattachServer = 5
+	End                    StateOfCattachServer = 6
 )
 
 func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.CraneForeD_CattachStreamServer) error {
@@ -60,12 +60,12 @@ CforedCattachStateMachineLoop:
 				}
 			}
 
-		if cattachRequest.Type != protos.StreamCattachRequest_STEP_CONNECT_REQUEST {
-			log.Fatalf("[Cfored<-Cattach] Expect STEP_CONNECT_REQUEST but got %s", cattachRequest.Type)
-			break
-		}
+			if cattachRequest.Type != protos.StreamCattachRequest_STEP_CONNECT_REQUEST {
+				log.Fatalf("[Cfored<-Cattach] Expect STEP_CONNECT_REQUEST but got %s", cattachRequest.Type)
+				break
+			}
 
-		log.Debug("[Cfored<-Cattach] Receive STEP_CONNECT_REQUEST")
+			log.Debug("[Cfored<-Cattach] Receive STEP_CONNECT_REQUEST")
 
 			ctx := toCattachStream.Context()
 			p, ok := peer.FromContext(ctx)
@@ -223,19 +223,19 @@ CforedCattachStateMachineLoop:
 			readyChannel := make(chan bool, 1)
 			go gSupervisorChanKeeper.waitSupervisorChannelsReady(execCranedIds, readyChannel, &stopWaiting, jobId, stepId)
 
-		select {
-		case ctldReply := <-ctldReplyChannel:
-			if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
-				log.Fatalf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
-					jobId, stepId, ctldReply.Type)
-			} else {
-				log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY", jobId, stepId)
-				state = DeadCattach
-			}
-			stopWaiting.Store(true)
-			// Wake up the goroutine in waitSupervisorChannelsReady that may be blocked
-			// in toSupervisorChannelCV.Wait() so it can observe stopWaiting == true.
-			gSupervisorChanKeeper.broadcastStopWaiting()
+			select {
+			case ctldReply := <-ctldReplyChannel:
+				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+					log.Fatalf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
+						jobId, stepId, ctldReply.Type)
+				} else {
+					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY", jobId, stepId)
+					state = DeadCattach
+				}
+				stopWaiting.Store(true)
+				// Wake up the goroutine in waitSupervisorChannelsReady that may be blocked
+				// in toSupervisorChannelCV.Wait() so it can observe stopWaiting == true.
+				gSupervisorChanKeeper.broadcastStopWaiting()
 			case <-readyChannel:
 				reply = &protos.StreamCattachReply{
 					Type: protos.StreamCattachReply_TASK_IO_FORWARD_READY,

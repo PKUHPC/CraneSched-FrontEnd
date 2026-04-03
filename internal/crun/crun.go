@@ -580,24 +580,24 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					m.state = JobKilling
 				}
 			} else {
-			switch cforedReply.Type {
-			case protos.StreamCrunReply_TASK_IO_FORWARD:
-				// Use a select so that a pending Ctrl+C (stopStepCtx cancelled) can
-				// interrupt the send even when chanOutputFromRemote is full.
-				// Without this, a slow terminal can fill chanOutputFromRemote and
-				// block the entire StateForwarding loop, making stopStepCtx.Done()
-				// unreachable and rendering Ctrl+C ineffective.
-				msg := cforedReply.GetPayloadTaskIoForwardReply().Msg
-				select {
-				case m.chanOutputFromRemote <- msg:
-				case <-m.stopStepCtx.Done():
-					// Job is being cancelled (Ctrl+C pressed twice).
-					// Discard remaining output and proceed to send STEP_COMPLETION_REQUEST.
-					m.state = JobKilling
-					return
-				}
+				switch cforedReply.Type {
+				case protos.StreamCrunReply_TASK_IO_FORWARD:
+					// Use a select so that a pending Ctrl+C (stopStepCtx cancelled) can
+					// interrupt the send even when chanOutputFromRemote is full.
+					// Without this, a slow terminal can fill chanOutputFromRemote and
+					// block the entire StateForwarding loop, making stopStepCtx.Done()
+					// unreachable and rendering Ctrl+C ineffective.
+					msg := cforedReply.GetPayloadTaskIoForwardReply().Msg
+					select {
+					case m.chanOutputFromRemote <- msg:
+					case <-m.stopStepCtx.Done():
+						// Job is being cancelled (Ctrl+C pressed twice).
+						// Discard remaining output and proceed to send STEP_COMPLETION_REQUEST.
+						m.state = JobKilling
+						return
+					}
 
-			case protos.StreamCrunReply_STEP_X11_CONN:
+				case protos.StreamCrunReply_STEP_X11_CONN:
 					fallthrough
 				case protos.StreamCrunReply_STEP_X11_FORWARD:
 					fallthrough
