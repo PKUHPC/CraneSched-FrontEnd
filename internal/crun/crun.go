@@ -630,7 +630,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					case <-m.stopWriteCtx.Done():
 					}
 
-			case protos.StreamCrunReply_STEP_X11_CONN:
+				case protos.StreamCrunReply_STEP_X11_CONN:
 					fallthrough
 				case protos.StreamCrunReply_STEP_X11_FORWARD:
 					fallthrough

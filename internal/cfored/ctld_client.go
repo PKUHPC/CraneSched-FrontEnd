@@ -253,15 +253,15 @@ CtldClientStateMachineLoop:
 								gVars.cforedRequestCtldChannel <- toCtldRequest
 							}
 						}
-					// cattach only focus on JOB_COMPLETION_ACK_REPLY
-					if ctldReply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
-						toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
-						if ok {
-							for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
-								toCattachCtlReplyChannel <- ctldReply
+						// cattach only focus on JOB_COMPLETION_ACK_REPLY
+						if ctldReply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
+							if ok {
+								for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
+									toCattachCtlReplyChannel <- ctldReply
+								}
 							}
 						}
-					}
 
 						gVars.ctldReplyChannelMapMtx.Unlock()
 					}
