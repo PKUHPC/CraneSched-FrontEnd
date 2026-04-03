@@ -813,19 +813,18 @@ func FindAccount(value string) error {
 		}
 	}
 
+	PrintAccountList(reply.AccountList)
+
 	if !reply.GetOk() {
-		msg := ""
 		for _, richError := range reply.RichErrorList {
 			if richError.Description == "" {
-				msg += fmt.Sprintln(util.ErrMsg(richError.Code))
+				fmt.Println(util.ErrMsg(richError.Code))
 				break
 			}
-			msg += fmt.Sprintf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
+			fmt.Printf("%s: %s \n", richError.Description, util.ErrMsg(richError.Code))
 		}
-		return util.NewCraneErr(util.ErrorBackend, msg)
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
-
-	PrintAccountList(reply.AccountList)
 
 	return nil
 }
@@ -858,17 +857,16 @@ func ShowLicenseResources(name string, server string, clusters string, hasWithCl
 		}
 	}
 
-	if !reply.GetOk() {
-		msg := ""
-		if len(reply.GetRichErr().GetDescription()) > 0 {
-			msg = fmt.Sprintf("Failed to show resource: %s.\n", reply.GetRichErr().GetDescription())
-		} else {
-			msg = fmt.Sprintf("Failed to show resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
-		}
-		return util.NewCraneErr(util.ErrorBackend, msg)
-	}
-
 	PrintLicenseResource(reply.LicenseResourceList, hasWithClusters)
+
+	if !reply.GetOk() {
+		if len(reply.GetRichErr().GetDescription()) > 0 {
+			fmt.Printf("Failed to show resource: %s.\n", reply.GetRichErr().GetDescription())
+		} else {
+			fmt.Printf("Failed to show resource: %s.\n", util.ErrMsg(reply.GetRichErr().Code))
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
 
 	return nil
 }
