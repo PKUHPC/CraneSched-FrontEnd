@@ -109,6 +109,8 @@ message InitSupervisorRequest {
     uint64 max_output_size = 8;
   };
   JobLifecycleHookConfig job_lifecycle_hook_config = 30;
+
+  bool enable_slurm_compatible_env = 31;
 }
 
 message SupervisorReady {
@@ -148,7 +150,7 @@ message ChangeStepTimeConstraintReply {
 }
 
 message TerminateStepRequest {
-  bool mark_orphaned = 1;
+  reserved 1;  // was mark_orphaned
   bool terminated_by_user = 2;
 }
 
