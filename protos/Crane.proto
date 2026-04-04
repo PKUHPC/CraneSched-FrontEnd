@@ -33,6 +33,7 @@ message StepStatusChangeRequest {
   uint32 exit_code = 5;
   string reason = 6;
   google.protobuf.Timestamp timestamp = 7;
+  optional JobStatus final_status = 8;
 }
 
 message StepStatusChangeReply {
@@ -154,14 +155,6 @@ message TerminateStepsReply {
   string reason = 2;
 }
 
-message TerminateOrphanedStepRequest {
-  map<uint32, JobStepIds> job_step_ids_map = 1;
-}
-
-message TerminateOrphanedStepReply {
-  bool ok = 1;
-  string reason = 2;
-}
 
 message ChangeJobTimeConstraintRequest{
   uint32 job_id = 1;
@@ -1423,7 +1416,6 @@ service Craned {
   If the job is a batch job, just kill it.
   */
   rpc TerminateSteps(TerminateStepsRequest) returns (TerminateStepsReply);
-  rpc TerminateOrphanedStep(TerminateOrphanedStepRequest) returns (TerminateOrphanedStepReply);
   rpc ChangeJobTimeConstraint(ChangeJobTimeConstraintRequest) returns (ChangeJobTimeConstraintReply);
 
   /*
