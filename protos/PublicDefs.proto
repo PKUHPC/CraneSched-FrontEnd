@@ -117,6 +117,7 @@ enum JobStatus {
   Configuring = 7;
   Starting = 8;
   Completing = 9;
+  Suspended = 10;
 
   Invalid = 15;
 }

@@ -1439,6 +1439,8 @@ func ParseJobStatusName(state string) (protos.JobStatus, error) {
 		return protos.JobStatus_Cancelled, nil
 	case "oom", "out-of-memory", "outofmemory", "o":
 		return protos.JobStatus_OutOfMemory, nil
+	case "suspended", "suspend", "s":
+		return protos.JobStatus_Suspended, nil
 	case "all":
 		return protos.JobStatus_Invalid, nil
 	default:
@@ -1506,7 +1508,8 @@ func ParseInRamJobStatusList(statesStr string) ([]protos.JobStatus, error) {
 		if err != nil {
 			return nil, err
 		}
-		if state != protos.JobStatus_Invalid && state != protos.JobStatus_Pending && state != protos.JobStatus_Running {
+		if state != protos.JobStatus_Invalid && state != protos.JobStatus_Pending &&
+			state != protos.JobStatus_Running && state != protos.JobStatus_Suspended {
 			return nil, fmt.Errorf("unsupported state: %s", filterStateList[i])
 		}
 		stateSet[state] = true
