@@ -163,7 +163,7 @@ message DependencyStatus {
 
 message Signal {
   int32 signal_number = 1;
-  uint32 signal_time = 2; // seconds_before_kill
+  uint32 signal_time = 2;  // seconds_before_kill
   enum SignalFlag {
     NONE = 0;
     // (B) Send the signal only to the batch shell, not to other job steps.
@@ -240,6 +240,12 @@ message JobToCtld {
   optional double cpus_per_task = 50;
   optional uint64 mem_per_node = 51;
   optional DeviceMap gres_per_node = 52;
+
+  // Job array spec for this submission (inclusive range).
+  optional uint32 array_index_start = 53;
+  optional uint32 array_index_end = 54;
+  // The concrete index of this task after expansion.
+  optional uint32 array_task_id = 55;
 }
 
 message JobInEmbeddedDb {
@@ -270,6 +276,17 @@ message RuntimeAttrOfJob {
   JobStatus primary_step_status = 21;
   uint32 primary_step_exit_code = 22;
   map<string, uint32> actual_licenses = 23;
+
+  // For array children: the parent job's job_id.
+  // If set, this job is an expanded array task.
+  optional uint32 parent_job_id = 24;
+
+  // For array parents: the first child's pre-allocated job_id.
+  // Children IDs are sequential: first_child_job_id, first_child_job_id+1, ...
+  optional uint32 first_child_job_id = 25;
+
+  // For array parents: whether the array has been expanded into children.
+  optional bool array_expanded = 26;
 }
 
 message StepToCtld {
@@ -316,6 +333,8 @@ message StepToCtld {
   optional double cpus_per_task = 37;
   optional uint64 mem_per_node = 38;
   optional DeviceMap gres_per_node = 39;
+
+  optional uint32 array_task_id = 40;
 }
 
 message RuntimeAttrOfStep {
@@ -420,6 +439,12 @@ message StepToD {
   string task_prolog = 30;
   string task_epilog = 31;
   repeated Signal signals = 32;
+
+  optional uint32 array_task_id = 35;
+
+  // task_node_list[task_id] = index of the node in nodelist that owns this task.
+  // Size equals ntasks. Provides the authoritative task_id -> node_idx mapping.
+  repeated uint32 task_node_list = 34;
 }
 
 message JobStepsToD {
@@ -430,6 +455,10 @@ message JobStepsToD {
 
 message JobStepIds {
   repeated uint32 steps = 1;
+}
+
+message ArrayTaskIds {
+  repeated uint32 array_task_ids = 1;
 }
 
 message BatchJobAdditionalMeta {
@@ -540,6 +569,10 @@ message ContainerJobAdditionalMeta {
   bool stdin_once = 18;
 
   map<string, string> mounts = 24;
+
+  // CDI fully-qualified names for devices allocated to this container.
+  // Populated by craned at step dispatch time; NOT persisted to database.
+  repeated string cdi_devices = 25;
 }
 
 message JobInfo {
@@ -601,6 +634,14 @@ message JobInfo {
   map<string, string> env = 42;
   string submit_hostname = 43;
   uint32 ntasks = 44;
+
+  // Array metadata for query/display.
+  optional uint32 array_index_start = 45;
+  optional uint32 array_index_end = 46;
+  optional uint32 array_task_id = 47;
+
+  // For array children: parent job's job_id.
+  optional uint32 parent_job_id = 48;
 }
 
 message StepInfo {
@@ -829,8 +870,8 @@ enum ErrCode {
   ERR_CRI_CONTAINER_NOT_READY = 82;  // Job/step is pending or container is not ready.
   ERR_CRI_MULTIPLE_NODES = 83;       // Requested CRI operation is not supported in multi-node steps.
 
-  ERR_INVALID_MEM_FORMAT = 84;       // Invalid mem format when parsing mem
-  ERR_STEP_RES_BEYOND = 85;          // Step resource request exceeds job resource.
+  ERR_INVALID_MEM_FORMAT = 84;  // Invalid mem format when parsing mem
+  ERR_STEP_RES_BEYOND = 85;     // Step resource request exceeds job resource.
 
   ERR_INVALID_WCKEY = 86;
   ERR_WCKEY_ALREADY_EXISTS = 87;
@@ -872,7 +913,7 @@ enum ModifyField {
   Partition = 0;
   Qos = 1;
   DefaultQos = 2;
-  Description = 3; // account and qos
+  Description = 3;  // account and qos
   // user
   AdminLevel = 4;
   DefaultAccount = 5;
@@ -894,7 +935,6 @@ enum ModifyField {
 
   // wckey
   DefaultWckey = 40;
-
 }
 
 message AccountInfo {
@@ -1006,18 +1046,6 @@ message CranedRemoteMeta {
   uint32 config_crc = 9;
 }
 
-message LicenseInfo {
-  string name = 1;
-  uint32 total = 2;
-  uint32 used = 3;
-  uint32 free = 4;
-  uint32 reserved = 5;
-  bool remote = 6;
-  uint32 last_consumed = 7;
-  uint32 last_deficit = 8;
-  int64 last_update = 9;
-}
-
 enum TxnAction {
   AddAccount = 0;
   ModifyAccount = 1;
@@ -1028,6 +1056,18 @@ enum TxnAction {
   AddQos = 6;
   ModifyQos = 7;
   DeleteQos = 8;
+}
+
+message LicenseInfo {
+  string name = 1;
+  uint32 total = 2;
+  uint32 used = 3;
+  uint32 free = 4;
+  uint32 reserved = 5;
+  bool remote = 6;
+  uint32 last_consumed = 7;
+  uint32 last_deficit = 8;
+  int64 last_update = 9;
 }
 
 message LicenseResourceInfo {
@@ -1044,7 +1084,7 @@ message LicenseResourceInfo {
 }
 
 message LicenseResource {
-  enum Type{
+  enum Type {
     NotSet = 0;
     License = 1;
   }
@@ -1083,4 +1123,3 @@ message JobSizeSummaryItem {
   double total_cpu_time = 5;
   int64 total_count = 6;
 }
-

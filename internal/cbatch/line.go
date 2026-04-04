@@ -63,7 +63,8 @@ func (s *sLineProcessor) init() {
 		"--nodes": true, "-A": true, "--account": true, "-e": true, "--exclude": true, "--chdir": true,
 		"--export": true, "--mem": true, "-p": true, "--partition": true, "-o": true, "--output": true,
 		"--nodelist": true, "-w": true, "--get-user-env": true, "--time": true, "-t": true, "--ntasks-per-node": true,
-		"--ntasks": true, "-n": true, "--mail-type": true, "--mail-user": true, "--comment": true, "--open-mode": true,
+		"--ntasks": true, "-n": true, "--array": true, "-a": true, "--mail-type": true, "--mail-user": true,
+		"--comment": true, "--open-mode": true,
 		"--reservation": true, "-r": true, "--wrap": true, "--gres": true, "--exclusive": true, "--begin": true, "-b": true,
 	}
 }

@@ -183,6 +183,10 @@ message CancelJobRequest {
   string filter_job_name = 6;
   repeated string filter_nodes = 7;
   string filter_username = 8;
+
+  // Per-job array task ID filters. Key is job_id, value is list of
+  // array_task_ids to cancel.
+  map<uint32, ArrayTaskIds> filter_array_task_ids = 9;
 }
 
 message CancelJobReply {
@@ -274,6 +278,10 @@ message ModifyJobRequest {
     // If hold_seconds == MaxInt64, add a hold constraint without timer.
     int64 hold_seconds = 7;
   }
+
+  // Per-job array task ID filter for modifying specific array tasks.
+  // Key is parent job_id, value is list of array_task_ids to modify.
+  map<uint32, ArrayTaskIds> filter_array_task_ids = 8;
 }
 
 message ModifyJobReply {
@@ -604,6 +612,10 @@ message QueryJobsInfoRequest {
   repeated string filter_nodename_list = 14;
 
   bool option_include_completed_jobs = 15;
+
+  // Per-job array task ID filters for array job queries.
+  // Key is parent job_id, value is list of array_task_ids to return.
+  map<uint32, ArrayTaskIds> filter_array_task_ids = 16;
 }
 
 message QueryJobsInfoReply {
@@ -1258,7 +1270,7 @@ message QueryJobSummaryRequest {
 }
 
 message QueryJobSummaryReply {
-    repeated JobSummaryItem item_list = 1;
+  repeated JobSummaryItem item_list = 1;
 }
 
 message QueryJobSizeSummaryRequest {
@@ -1276,7 +1288,7 @@ message QueryJobSizeSummaryRequest {
 }
 
 message QueryJobSizeSummaryReply {
-    repeated JobSizeSummaryItem item_list = 1;
+  repeated JobSizeSummaryItem item_list = 1;
 }
 
 // Todo: Divide service into two parts: one for Craned and one for Crun
