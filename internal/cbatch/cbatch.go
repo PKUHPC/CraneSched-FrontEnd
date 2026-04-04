@@ -575,13 +575,12 @@ func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 	}
 
 	if len(reply.JobIdList) > 0 {
-		if job.ArrayIndexStart != nil && job.ArrayIndexEnd != nil &&
-			len(reply.JobIdList) > 1 {
-			fmt.Printf("Array job submitted with parent job id %d, "+
-				"array range [%d-%d], allocated job ids: %s.\n",
+		if job.ArrayIndexStart != nil && job.ArrayIndexEnd != nil {
+			// Array job: backend returns single parent job_id.
+			// Tasks will be expanded at scheduling time.
+			fmt.Printf("Submitted array job %d, array range [%d-%d].\n",
 				reply.JobIdList[0],
-				*job.ArrayIndexStart, *job.ArrayIndexEnd,
-				util.ConvertSliceToString(reply.JobIdList, ", "))
+				*job.ArrayIndexStart, *job.ArrayIndexEnd)
 		} else {
 			jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
 			fmt.Printf("Job id allocated: %s.\n", jobIdListString)
