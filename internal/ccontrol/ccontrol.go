@@ -38,6 +38,38 @@ var (
 	stub    protos.CraneCtldClient
 )
 
+// parseJobSelectorsForModify parses a job string supporting jobid_arrayid
+// format and returns job IDs and array task filters for ModifyJobRequest.
+func parseJobSelectorsForModify(jobStr string) (
+	[]uint32, map[uint32]*protos.ArrayTaskIds, error) {
+	selectors, err := util.ParseJobIdSelectorList(jobStr, ",")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Use a set to deduplicate job IDs (e.g., "123_1,123_2" should only
+	// send job_id=123 once, with both array_task_ids in the filter).
+	jobIdSet := make(map[uint32]struct{})
+	filterArrayTaskIds := make(map[uint32]*protos.ArrayTaskIds)
+	for _, sel := range selectors {
+		jobIdSet[sel.JobId] = struct{}{}
+		if sel.ArrayTaskId != nil {
+			if _, ok := filterArrayTaskIds[sel.JobId]; !ok {
+				filterArrayTaskIds[sel.JobId] = &protos.ArrayTaskIds{}
+			}
+			filterArrayTaskIds[sel.JobId].ArrayTaskIds = append(
+				filterArrayTaskIds[sel.JobId].ArrayTaskIds, *sel.ArrayTaskId)
+		}
+	}
+
+	var jobIds []uint32
+	for jobId := range jobIdSet {
+		jobIds = append(jobIds, jobId)
+	}
+
+	return jobIds, filterArrayTaskIds, nil
+}
+
 type UpdateJobParamFlags int
 
 const (
@@ -110,15 +142,16 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	jobIds, filterArrayTaskIds, err := parseJobSelectorsForModify(jobStr)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
 
 	req := &protos.ModifyJobRequest{
-		Uid:       uint32(os.Getuid()),
-		JobIds:    jobIds,
-		Attribute: protos.ModifyJobRequest_TimeLimit,
+		Uid:                uint32(os.Getuid()),
+		JobIds:             jobIds,
+		FilterArrayTaskIds: filterArrayTaskIds,
+		Attribute:          protos.ModifyJobRequest_TimeLimit,
 		Value: &protos.ModifyJobRequest_TimeLimitSeconds{
 			TimeLimitSeconds: seconds,
 		},
@@ -185,15 +218,16 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 }
 
 func HoldReleaseJobs(jobs string, hold bool) error {
-	jobList, err := util.ParseJobIdList(jobs, ",")
+	jobIds, filterArrayTaskIds, err := parseJobSelectorsForModify(jobs)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
 
 	req := &protos.ModifyJobRequest{
-		Uid:       uint32(os.Getuid()),
-		JobIds:    jobList,
-		Attribute: protos.ModifyJobRequest_Hold,
+		Uid:                uint32(os.Getuid()),
+		JobIds:             jobIds,
+		FilterArrayTaskIds: filterArrayTaskIds,
+		Attribute:          protos.ModifyJobRequest_Hold,
 	}
 	if hold {
 		// The default timer value for hold is unlimited.
@@ -300,7 +334,7 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "Priority must be greater than or equal to 0.")
 	}
 
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	jobIds, filterArrayTaskIds, err := parseJobSelectorsForModify(jobStr)
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
@@ -314,9 +348,10 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 	}
 
 	req := &protos.ModifyJobRequest{
-		Uid:       uint32(os.Getuid()),
-		JobIds:    jobIds,
-		Attribute: protos.ModifyJobRequest_Priority,
+		Uid:                uint32(os.Getuid()),
+		JobIds:             jobIds,
+		FilterArrayTaskIds: filterArrayTaskIds,
+		Attribute:          protos.ModifyJobRequest_Priority,
 		Value: &protos.ModifyJobRequest_MandatedPriority{
 			MandatedPriority: rounded,
 		},

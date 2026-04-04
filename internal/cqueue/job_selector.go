@@ -54,6 +54,21 @@ func buildFilterIdsFromJobSelectors() map[uint32]*protos.JobStepIds {
 	return filterIds
 }
 
+func buildFilterArrayTaskIdsFromJobSelectors() map[uint32]*protos.ArrayTaskIds {
+	if !hasArrayTaskSelectors {
+		return nil
+	}
+	result := make(map[uint32]*protos.ArrayTaskIds)
+	for jobId, taskSet := range arrayTaskIdSelections {
+		taskIds := &protos.ArrayTaskIds{}
+		for taskId := range taskSet {
+			taskIds.ArrayTaskIds = append(taskIds.ArrayTaskIds, taskId)
+		}
+		result[jobId] = taskIds
+	}
+	return result
+}
+
 func applyArrayAwareJobFilter(reply *protos.QueryJobsInfoReply) {
 	if !hasArrayTaskSelectors {
 		return
@@ -66,7 +81,13 @@ func applyArrayAwareJobFilter(reply *protos.QueryJobsInfoReply) {
 			continue
 		}
 
-		selectedTasks, ok := arrayTaskIdSelections[job.JobId]
+		// For array child tasks, use parent_job_id to look up selections
+		lookupId := job.JobId
+		if job.ParentJobId != nil {
+			lookupId = *job.ParentJobId
+		}
+
+		selectedTasks, ok := arrayTaskIdSelections[lookupId]
 		if !ok || job.ArrayTaskId == nil {
 			continue
 		}

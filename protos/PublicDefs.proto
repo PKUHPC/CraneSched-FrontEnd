@@ -283,6 +283,17 @@ message RuntimeAttrOfJob {
   JobStatus primary_step_status = 21;
   uint32 primary_step_exit_code = 22;
   map<string, uint32> actual_licenses = 23;
+
+  // For array children: the parent job's job_id.
+  // If set, this job is an expanded array task.
+  optional uint32 parent_job_id = 24;
+
+  // For array parents: the first child's pre-allocated job_id.
+  // Children IDs are sequential: first_child_job_id, first_child_job_id+1, ...
+  optional uint32 first_child_job_id = 25;
+
+  // For array parents: whether the array has been expanded into children.
+  optional bool array_expanded = 26;
 }
 
 message StepToCtld {
@@ -654,8 +665,9 @@ message JobInfo {
   optional uint32 array_index_start = 46;
   optional uint32 array_index_end = 47;
   optional uint32 array_task_id = 48;
-  // For array children: the array parent/anchor job_id.
-  optional uint32 array_job_id = 49;
+
+  // For array children: parent job's job_id.
+  optional uint32 parent_job_id = 49;
 }
 
 message StepInfo {
