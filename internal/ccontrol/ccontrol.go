@@ -207,6 +207,10 @@ func SuspendJobs(jobs string) error {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
+		// Check if there are any failures and return appropriate error code
+		if len(reply.NotModifiedJobs) > 0 {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
 		return nil
 	}
 
@@ -234,6 +238,10 @@ func ResumeJobs(jobs string) error {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
+		// Check if there are any failures and return appropriate error code
+		if len(reply.NotModifiedJobs) > 0 {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
 		return nil
 	}
 
