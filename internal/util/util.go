@@ -120,6 +120,11 @@ const (
 	MaxEntityNameLength = 30
 
 	MaxJobMemoryBytes = 10737418240000 // 10000GB
+
+	// UnlimitedCpuThreshold is used to detect "unlimited" CPU values from backend.
+	// Backend sends INT64_MAX/256.0 ≈ 3.6e16 for unlimited; any value > 1e15
+	// is treated as unlimited since no real cluster has that many CPUs.
+	UnlimitedCpuThreshold = 1e15
 )
 
 // Param Options

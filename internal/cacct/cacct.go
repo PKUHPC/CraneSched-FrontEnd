@@ -301,9 +301,9 @@ func ProcessAccount(item *JobOrStep) string {
 func ProcessReqCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
-		cpuCores = item.stepInfo.ReqTotalResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.stepInfo.ReqTotalResView.CpuCount
 	} else {
-		cpuCores = item.job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.job.ReqTotalResView.CpuCount
 	}
 	return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 }
@@ -312,9 +312,9 @@ func ProcessReqCPUs(item *JobOrStep) string {
 func ProcessAllocCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
-		cpuCores = item.stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.stepInfo.AllocatedResView.CpuCount
 	} else {
-		cpuCores = item.job.AllocatedResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.job.AllocatedResView.CpuCount
 	}
 	if item.job.AllocatedResView != nil {
 		return strconv.FormatFloat(cpuCores, 'f', 2, 64)
@@ -473,10 +473,10 @@ func ProcessReqMemPerNode(item *JobOrStep) string {
 	var totalMem uint64
 	var nodeNum uint32
 	if item.isStep {
-		totalMem = item.stepInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+		totalMem = item.stepInfo.ReqTotalResView.MemoryBytes
 		nodeNum = item.stepInfo.NodeNum
 	} else {
-		totalMem = item.job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+		totalMem = item.job.ReqTotalResView.MemoryBytes
 		nodeNum = item.job.NodeNum
 	}
 	if nodeNum > 0 {
@@ -492,10 +492,10 @@ func ProcessAllocMemPerNode(item *JobOrStep) string {
 
 	if item.isStep {
 		nodeNum = item.stepInfo.NodeNum
-		allocMem = item.stepInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes
+		allocMem = item.stepInfo.AllocatedResView.MemoryBytes
 	} else {
 		nodeNum = item.job.NodeNum
-		allocMem = item.job.AllocatedResView.AllocatableRes.MemoryLimitBytes
+		allocMem = item.job.AllocatedResView.MemoryBytes
 	}
 	if nodeNum == 0 {
 		return "0"
