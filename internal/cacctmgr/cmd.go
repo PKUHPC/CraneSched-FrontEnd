@@ -279,11 +279,12 @@ func executeAddQosCommand(command *CAcctMgrCommand) int {
 			maxJobs, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobsPerUser = uint32(maxJobs)
 		case "maxcpusperuser":
-			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
+			maxCpus, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				log.Errorf("Invalid value for maxCpusPerUser: %s\n", value)
 				return util.ErrorCmdArg
 			}
-			maxCpus, _ := strconv.ParseUint(value, 10, 32)
-			FlagQos.MaxCpusPerUser = uint32(maxCpus)
+			FlagQos.MaxCpusPerUser = maxCpus
 		case "maxtimelimitperjob":
 			if seconds, err := util.ParseDurationStrToSeconds(value); err != nil {
 				if err = validateUintValue(value, "maxTimeLimitPerJob", 64); err != nil {

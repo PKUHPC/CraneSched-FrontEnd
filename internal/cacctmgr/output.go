@@ -666,7 +666,7 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 				if info.MaxCpusPerUser == math.MaxUint32 {
 					cpusPerUserStr = "unlimited"
 				} else {
-					cpusPerUserStr = strconv.FormatUint(uint64(info.MaxCpusPerUser), 10)
+					cpusPerUserStr = strconv.FormatFloat(info.MaxCpusPerUser, 'f', -1, 64)
 				}
 				formatTableData[currentRow] = append(formatTableData[currentRow], fmt.Sprint(cpusPerUserStr))
 				currentRow++
@@ -815,7 +815,7 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 		if info.MaxCpusPerUser == math.MaxUint32 {
 			cpusPerUserStr = "unlimited"
 		} else {
-			cpusPerUserStr = strconv.FormatUint(uint64(info.MaxCpusPerUser), 10)
+			cpusPerUserStr = strconv.FormatFloat(info.MaxCpusPerUser, 'f', -1, 64)
 		}
 		var jobsPerAccountStr string
 		if info.MaxJobsPerAccount == math.MaxUint32 {
