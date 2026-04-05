@@ -46,6 +46,28 @@ message InitSupervisorRequest {
     string temp_dir = 1;
     string runtime_endpoint = 2;
     string image_endpoint = 3;
+
+    message BindFsConfig {
+      string bindfs_binary = 1;
+      string fusermount_binary = 2;
+      string mount_base_dir = 3;
+    }
+    BindFsConfig bindfs = 4;
+
+    message SubIdConfig {
+      bool managed = 1;
+      uint64 range_size = 2;
+      uint64 base_offset = 3;
+    }
+    SubIdConfig subid = 5;
+
+    message DnsConfig {
+      string cluster_domain = 1;
+      repeated string servers = 2;
+      repeated string searches = 3;
+      repeated string options = 4;
+    }
+    DnsConfig dns_config = 6;
   }
   ContainerConfig container_config = 15;
 
@@ -75,6 +97,20 @@ message InitSupervisorRequest {
   CforedListenConf cfored_listen_conf = 25;
   uint64 max_log_file_size = 26;
   uint64 max_log_file_num = 27;
+
+  message JobLifecycleHookConfig {
+    repeated string task_prologs = 1;
+    repeated string task_epilogs = 2;
+    repeated string prologs = 3;
+    repeated string epilogs = 4;
+    uint32 prolog_timeout = 5;
+    uint32 epilog_timeout = 6;
+    uint32 prolog_epilog_timeout = 7;
+    uint64 max_output_size = 8;
+  };
+  JobLifecycleHookConfig job_lifecycle_hook_config = 30;
+
+  bool enable_slurm_compatible_env = 31;
 }
 
 message SupervisorReady {
@@ -113,7 +149,7 @@ message ChangeStepTimeLimitReply {
 }
 
 message TerminateStepRequest {
-  bool mark_orphaned = 1;
+  reserved 1;  // was mark_orphaned
   bool terminated_by_user = 2;
 }
 
@@ -122,7 +158,7 @@ message TerminateStepReply {
   string reason = 2;
 }
 
-message MigrateSshProcToCgroupRequest{
+message MigrateSshProcToCgroupRequest {
   int32 pid = 1;
 }
 
