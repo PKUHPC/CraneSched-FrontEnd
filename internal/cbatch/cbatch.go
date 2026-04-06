@@ -129,12 +129,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 		job.Ntasks = FlagNtasks
 	}
 	if cmd.Flags().Changed("array") {
-		start, end, err := util.ParseArrayRangeSpec(FlagArray)
+		start, end, stride, err := util.ParseArrayRangeSpec(FlagArray)
 		if err != nil {
 			return nil, err
 		}
 		job.ArrayIndexStart = &start
 		job.ArrayIndexEnd = &end
+		job.ArrayIndexStride = &stride
 	}
 	if cmd.Flags().Changed("gres") {
 		gresMap, err := util.ParseGres(FlagGres)
@@ -395,12 +396,13 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			}
 			job.Ntasks = uint32(num)
 		case "--array", "-a":
-			start, end, err := util.ParseArrayRangeSpec(arg.val)
+			start, end, stride, err := util.ParseArrayRangeSpec(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
 			job.ArrayIndexStart = &start
 			job.ArrayIndexEnd = &end
+			job.ArrayIndexStride = &stride
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {
@@ -599,9 +601,15 @@ func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 		if job.ArrayIndexStart != nil && job.ArrayIndexEnd != nil {
 			// Array job: backend returns single parent job_id.
 			// Tasks will be expanded at scheduling time.
-			fmt.Printf("Submitted array job %d, array range [%d-%d].\n",
-				reply.JobIdList[0],
-				*job.ArrayIndexStart, *job.ArrayIndexEnd)
+			if job.ArrayIndexStride != nil && *job.ArrayIndexStride > 1 {
+				fmt.Printf("Submitted array job %d, array range [%d-%d:%d].\n",
+					reply.JobIdList[0],
+					*job.ArrayIndexStart, *job.ArrayIndexEnd, *job.ArrayIndexStride)
+			} else {
+				fmt.Printf("Submitted array job %d, array range [%d-%d].\n",
+					reply.JobIdList[0],
+					*job.ArrayIndexStart, *job.ArrayIndexEnd)
+			}
 		} else {
 			jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
 			fmt.Printf("Job id allocated: %s.\n", jobIdListString)

@@ -200,30 +200,43 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	return seconds, nil
 }
 
-// ParseArrayRangeSpec parses the simplified array syntax: start-end.
-func ParseArrayRangeSpec(spec string) (uint32, uint32, error) {
+// ParseArrayRangeSpec parses the array syntax: start-end or start-end:stride.
+func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 	cleaned := strings.TrimSpace(spec)
-	re := regexp.MustCompile(`^(\d+)-(\d+)$`)
+	// Match start-end or start-end:stride
+	re := regexp.MustCompile(`^(\d+)-(\d+)(?::(\d+))?$`)
 	result := re.FindStringSubmatch(cleaned)
 	if result == nil {
-		return 0, 0, fmt.Errorf("invalid --array value '%s': expected start-end", spec)
+		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': expected start-end or start-end:stride", spec)
 	}
 
 	start, err := strconv.ParseUint(result[1], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("invalid --array start index '%s'", result[1])
+		return 0, 0, 0, fmt.Errorf("invalid --array start index '%s'", result[1])
 	}
 
 	end, err := strconv.ParseUint(result[2], 10, 32)
 	if err != nil {
-		return 0, 0, fmt.Errorf("invalid --array end index '%s'", result[2])
+		return 0, 0, 0, fmt.Errorf("invalid --array end index '%s'", result[2])
 	}
 
 	if start > end {
-		return 0, 0, fmt.Errorf("invalid --array value '%s': start index must be <= end index", spec)
+		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': start index must be <= end index", spec)
 	}
 
-	return uint32(start), uint32(end), nil
+	stride := uint32(1)
+	if result[3] != "" {
+		strideVal, err := strconv.ParseUint(result[3], 10, 32)
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("invalid --array stride '%s'", result[3])
+		}
+		if strideVal == 0 {
+			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride must be > 0", spec)
+		}
+		stride = uint32(strideVal)
+	}
+
+	return uint32(start), uint32(end), stride, nil
 }
 
 func ParseRelativeTime(ts string) (int64, error) {

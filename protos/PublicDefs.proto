@@ -291,9 +291,6 @@ message RuntimeAttrOfJob {
   // For array parents: the first child's pre-allocated job_id.
   // Children IDs are sequential: first_child_job_id, first_child_job_id+1, ...
   optional uint32 first_child_job_id = 25;
-
-  // For array parents: whether the array has been expanded into children.
-  optional bool array_expanded = 26;
 }
 
 message StepToCtld {
