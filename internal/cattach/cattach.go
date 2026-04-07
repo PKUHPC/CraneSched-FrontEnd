@@ -114,9 +114,6 @@ type StateMachineOfCattach struct {
 	taskErrCb            context.CancelFunc
 	chanInputFromTerm    chan []byte
 	chanOutputFromRemote chan TaskOutputMsg
-	// X11SessionMgr handles all X11 forwarding sessions (multi-session, multi-task).
-	// Nil when the step does not have X11 forwarding enabled.
-	X11SessionMgr *X11SessionMgr
 }
 
 func (m *StateMachineOfCattach) Init() {
@@ -297,11 +294,7 @@ func (m *StateMachineOfCattach) StateForwarding() {
 
 	m.StartIOForward()
 
-	// Forward terminal stdin and X11 data to cfored.
-	var x11ReqFromSessions chan *protos.StreamCattachRequest
-	if m.X11SessionMgr != nil {
-		x11ReqFromSessions = m.X11SessionMgr.X11RequestChan
-	}
+	// Forward terminal stdin to cfored.
 	go func() {
 		for {
 			select {
@@ -324,16 +317,6 @@ func (m *StateMachineOfCattach) StateForwarding() {
 				}
 				if err := m.stream.Send(request); err != nil {
 					log.Errorf("Failed to send Task IO Forward to CattachStream: %s. "+
-						"Connection to Cattach is broken", err)
-					gVars.connectionBroken = true
-					return
-				}
-
-			case x11Req := <-x11ReqFromSessions:
-				// X11 data from a local session; CranedId and LocalId are already
-				// filled in by the session goroutine.
-				if err := m.stream.Send(x11Req); err != nil {
-					log.Errorf("Failed to send Step X11 Forward to CattachStream: %s. "+
 						"Connection to Cattach is broken", err)
 					gVars.connectionBroken = true
 					return
@@ -392,19 +375,6 @@ func (m *StateMachineOfCattach) StateForwarding() {
 						m.state = End
 						return
 					}
-				case protos.StreamCattachReply_STEP_X11_CONN:
-					fallthrough
-				case protos.StreamCattachReply_STEP_X11_FORWARD:
-					fallthrough
-				case protos.StreamCattachReply_STEP_X11_EOF:
-					// Route all X11 messages to the session manager which handles
-					// per-session demultiplexing by (CranedId, LocalId).
-					if m.X11SessionMgr != nil {
-						m.X11SessionMgr.X11ReplyChan <- cforedReply
-					} else {
-						log.Tracef("[Cattach] Received %s but X11 session manager is nil, skipping.",
-							cforedReply.Type.String())
-					}
 				case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
 					log.Debug("Step completed.")
 					// Signal all IO goroutines to exit cleanly before transitioning to End.
@@ -448,16 +418,6 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	go m.forwardingSigHandlerRoutine()
 	go m.StdinReaderRoutine()
 	go m.StdoutWriterRoutine()
-
-	iaMeta := m.step.GetInteractiveMeta()
-	if iaMeta != nil && iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
-		// Create a session manager that mirrors crun's X11SessionMgr.
-		// It manages one local X11 connection per (CranedId, LocalId) pair,
-		// supporting multi-task X11 jobs where each task may open its own
-		// X11 sessions concurrently.
-		m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.taskFinishCtx)
-		go m.X11SessionMgr.SessionMgrRoutine()
-	}
 }
 
 func (m *StateMachineOfCattach) StdinReaderRoutine() {
