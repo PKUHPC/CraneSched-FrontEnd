@@ -316,19 +316,14 @@ CforedCattachStateMachineLoop:
 						}
 					} else {
 						switch cattachRequest.Type {
-						case protos.StreamCattachRequest_TASK_IO_FORWARD:
-							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
-								" task, msg size[%d], EOF [%v]", jobId, stepId,
-								len(cattachRequest.GetPayloadTaskIoForwardReq().GetMsg()),
-								cattachRequest.GetPayloadTaskIoForwardReq().Eof)
-							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
+					case protos.StreamCattachRequest_TASK_IO_FORWARD:
+						log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
+							" task, msg size[%d], EOF [%v]", jobId, stepId,
+							len(cattachRequest.GetPayloadTaskIoForwardReq().GetMsg()),
+							cattachRequest.GetPayloadTaskIoForwardReq().Eof)
+						gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
 
-						case protos.StreamCattachRequest_STEP_X11_FORWARD:
-							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive Local STEP_X11_FORWARD to remote task",
-								jobId, stepId)
-							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
-
-						case protos.StreamCattachRequest_STEP_COMPLETION_REQUEST:
+					case protos.StreamCattachRequest_STEP_COMPLETION_REQUEST:
 							log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive StepCompletionRequest", jobId, stepId)
 							state = End
 							break forwarding
@@ -421,51 +416,11 @@ func forwardTaskMsgToCattach(
 		}
 		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding msg size[%d] task_id[%d]",
 			taskId, stepId, len(outputReq.GetMsg()), outputReq.TaskId)
-	case protos.StreamStepIORequest_STEP_X11_OUTPUT:
-		req := taskMsg.GetPayloadStepX11OutputReq()
-		reply = &protos.StreamCattachReply{
-			Type: protos.StreamCattachReply_STEP_X11_FORWARD,
-			Payload: &protos.StreamCattachReply_PayloadStepX11ForwardReply{
-				PayloadStepX11ForwardReply: &protos.StreamCattachReply_StepX11ForwardReply{
-					Msg:      req.Msg,
-					CranedId: req.CranedId,
-					LocalId:  req.LocalId,
-				},
-			},
-		}
-		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding x11 msg size[%d]",
-			taskId, stepId, len(req.Msg))
 	case protos.StreamStepIORequest_TASK_EXIT_STATUS:
 		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Received TASK_EXIT_STATUS, "+
 			"skipping for cattach (completion is signaled via JOB_COMPLETION_ACK_REPLY).",
 			taskId, stepId)
 		return nil
-	case protos.StreamStepIORequest_STEP_X11_CONN:
-		req := taskMsg.GetPayloadStepX11FwdConnReq()
-		reply = &protos.StreamCattachReply{
-			Type: protos.StreamCattachReply_STEP_X11_CONN,
-			Payload: &protos.StreamCattachReply_PayloadStepX11ConnReply{
-				PayloadStepX11ConnReply: &protos.StreamCattachReply_StepX11ConnReply{
-					CranedId: req.CranedId,
-					LocalId:  req.LocalId,
-				},
-			},
-		}
-		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Forwarding STEP_X11_CONN craned=%s local_id=%d",
-			taskId, stepId, req.CranedId, req.LocalId)
-	case protos.StreamStepIORequest_STEP_X11_EOF:
-		req := taskMsg.GetPayloadStepX11EofReq()
-		reply = &protos.StreamCattachReply{
-			Type: protos.StreamCattachReply_STEP_X11_EOF,
-			Payload: &protos.StreamCattachReply_PayloadStepX11EofReply{
-				PayloadStepX11EofReply: &protos.StreamCattachReply_StepX11EofReply{
-					CranedId: req.CranedId,
-					LocalId:  req.LocalId,
-				},
-			},
-		}
-		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Forwarding STEP_X11_EOF craned=%s local_id=%d",
-			taskId, stepId, req.CranedId, req.LocalId)
 	default:
 		// Use Errorf instead of Fatalf to avoid crashing cfored on unexpected message types.
 		log.Errorf("[Supervisor->Cfored->Cattach][Step #%d.%d] Unexpected message type %s, skipping.",
