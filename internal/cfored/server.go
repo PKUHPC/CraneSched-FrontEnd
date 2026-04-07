@@ -646,26 +646,6 @@ CforedSupervisorStateMachineLoop:
 								"on Craned %s was broken.", jobId, stepId, cranedId)
 							state = SupervisorUnReg
 						}
-					case protos.StreamCattachRequest_STEP_X11_FORWARD:
-						payload := cattachReq.GetPayloadStepX11ForwardReq()
-						msg := payload.GetMsg()
-						log.Debugf("[Cfored->Supervisor][Step #%d.%d] forwarding len [%d] x11 to Supervisor "+
-							"on Craned %s", jobId, stepId, len(msg), cranedId)
-						reply = &protos.StreamStepIOReply{
-							Type: protos.StreamStepIOReply_STEP_X11_INPUT,
-							Payload: &protos.StreamStepIOReply_PayloadStepX11InputReq{
-								PayloadStepX11InputReq: &protos.StreamStepIOReply_StepX11InputReq{
-									Msg:     msg,
-									Eof:     payload.Eof,
-									LocalId: payload.LocalId,
-								},
-							},
-						}
-						if err := toSupervisorStream.Send(reply); err != nil {
-							log.Debugf("[Cfored->Supervisor][Step #%d.%d] Connection to Supervisor "+
-								"on Craned %s was broken.", jobId, stepId, cranedId)
-							state = SupervisorUnReg
-						}
 					default:
 						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from cattach ",
 							jobId, stepId, cattachReq.Type.String())
