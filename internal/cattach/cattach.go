@@ -108,12 +108,13 @@ type StateMachineOfCattach struct {
 	cforedReplyReceiver *CforedReplyReceiver
 
 	// These fields are used under Forwarding State.
-	taskFinishCtx        context.Context
-	taskFinishCb         context.CancelFunc
-	taskErrCtx           context.Context
-	taskErrCb            context.CancelFunc
-	chanInputFromTerm    chan []byte
-	chanOutputFromRemote chan TaskOutputMsg
+	taskFinishCtx          context.Context
+	taskFinishCb           context.CancelFunc
+	taskErrCtx             context.Context
+	taskErrCb              context.CancelFunc
+	chanInputFromTerm      chan []byte
+	chanOutputFromRemote   chan TaskOutputMsg
+	chanErrOutputFromRemote chan []byte
 }
 
 func (m *StateMachineOfCattach) Init() {
@@ -375,6 +376,14 @@ func (m *StateMachineOfCattach) StateForwarding() {
 						m.state = End
 						return
 					}
+				case protos.StreamCattachReply_TASK_ERR_OUTPUT_FORWARD:
+					select {
+					case m.chanErrOutputFromRemote <- cforedReply.GetPayloadTaskIoErrOutputForwardReply().Msg:
+					case <-m.taskFinishCtx.Done():
+						m.taskFinishCb()
+						m.state = End
+						return
+					}
 				case protos.StreamCattachReply_STEP_COMPLETION_ACK_REPLY:
 					log.Debug("Step completed.")
 					// Signal all IO goroutines to exit cleanly before transitioning to End.
@@ -414,10 +423,12 @@ func (m *StateMachineOfCattach) StartIOForward() {
 
 	m.chanInputFromTerm = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan TaskOutputMsg, 20)
+	m.chanErrOutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigHandlerRoutine()
 	go m.StdinReaderRoutine()
 	go m.StdoutWriterRoutine()
+	go m.StderrWriterRoutine()
 }
 
 func (m *StateMachineOfCattach) StdinReaderRoutine() {
@@ -726,6 +737,37 @@ writing:
 
 		case <-m.taskFinishCtx.Done():
 			break writing
+		}
+	}
+}
+
+func (m *StateMachineOfCattach) StderrWriterRoutine() {
+	log.Trace("Starting StderrWriterRoutine")
+	writer := bufio.NewWriter(os.Stderr)
+
+writing:
+	for {
+		select {
+		case msg := <-m.chanErrOutputFromRemote:
+			if _, err := writer.Write(msg); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to write to stderr: %v\n", err)
+				break writing
+			}
+			if err := writer.Flush(); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to flush to stderr: %v\n", err)
+				break writing
+			}
+		case <-m.taskFinishCtx.Done():
+			// Drain remaining messages before exiting.
+			for {
+				select {
+				case msg := <-m.chanErrOutputFromRemote:
+					writer.Write(msg)
+				default:
+					writer.Flush()
+					return
+				}
+			}
 		}
 	}
 }
