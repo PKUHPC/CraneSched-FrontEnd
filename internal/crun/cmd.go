@@ -68,9 +68,9 @@ var (
 
 	FlagReservation string
 
-	FlagHold          bool
+	FlagHold         bool
 	FlagDeadlineTime string
-	FlagQuiet bool
+	FlagQuiet        bool
 
 	FlagLicenses string
 	// not implement feature:

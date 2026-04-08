@@ -159,7 +159,7 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 
 	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:   jobIds,
+		JobIds:    jobIds,
 		Attribute: protos.ModifyJobRequest_Deadline,
 		Value: &protos.ModifyJobRequest_DeadlineTime{
 			DeadlineTime: timestamppb.New(time),

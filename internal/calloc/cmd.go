@@ -57,8 +57,8 @@ var (
 	FlagReservation string
 	FlagSignal      string
 
-	FlagHold          bool
-	FlagQuiet bool
+	FlagHold         bool
+	FlagQuiet        bool
 	FlagDeadlineTime string
 
 	FlagLicenses string
