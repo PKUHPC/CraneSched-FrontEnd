@@ -27,6 +27,7 @@ type InfluxDB struct {
 	nodeBucket          string
 	jobBucket           string
 	clusterBucket       string
+	traceBucket         string
 	eventMeasurement    string
 	resourceMeasurement string
 	enabled             *config.Enabled
@@ -62,6 +63,7 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 		nodeBucket:          config.DB.InfluxDB.NodeBucket,
 		jobBucket:           config.DB.InfluxDB.JobBucket,
 		clusterBucket:       config.DB.InfluxDB.ClusterBucket,
+		traceBucket:         config.DB.InfluxDB.TraceBucket,
 		eventMeasurement:    config.DB.InfluxDB.EventMeasurement,
 		resourceMeasurement: config.DB.InfluxDB.ResourceMeasurement,
 		enabled:             &config.Monitor.Enabled,
@@ -80,6 +82,11 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 	if err := db.createBucketIfNotExists(db.clusterBucket); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to create cluster bucket: %v", err)
+	}
+
+	if err := db.createBucketIfNotExists(db.traceBucket); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("failed to create trace bucket: %v", err)
 	}
 
 	return db, nil
@@ -310,6 +317,45 @@ func (db *InfluxDB) SaveLicenseUsage(licenses []*protos.LicenseInfo) error {
 		log.Tracef("License info: %v, total: %v, used: %v, free: %v, ts=%v", license.Name, license.Total, license.Used, license.Free, point.Time())
 	}
 
+	return nil
+}
+
+func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
+	if len(spans) == 0 {
+		return nil
+	}
+	writeAPI := db.client.WriteAPIBlocking(db.org, db.traceBucket)
+	ctx := context.Background()
+
+	for _, span := range spans {
+		tags := map[string]string{
+			"trace_id": span.TraceId,
+			"span_id":  span.SpanId,
+			"name":     span.Name,
+		}
+		if span.ParentSpanId != "" {
+			tags["parent_span_id"] = span.ParentSpanId
+		}
+
+		fields := map[string]interface{}{}
+		// Calculate duration in microseconds
+		startTime := span.StartTime.AsTime()
+		endTime := span.EndTime.AsTime()
+		duration := endTime.Sub(startTime).Microseconds()
+
+		fields["duration_us"] = duration
+
+		// Add custom attributes
+		for k, v := range span.Attributes {
+			fields[k] = v
+		}
+
+		point := influxdb2.NewPoint("spans", tags, fields, endTime)
+		if err := writeAPI.WritePoint(ctx, point); err != nil {
+			log.Errorf("Failed to write span to InfluxDB: %v", err)
+			return fmt.Errorf("failed to write span: %v", err)
+		}
+	}
 	return nil
 }
 
