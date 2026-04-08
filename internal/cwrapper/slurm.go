@@ -124,6 +124,7 @@ func sacct() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
 	cmd.Flags().StringVarP(&cacct.FlagFilterAccounts, "account", "A", "",
 		"Displays jobs when a comma separated list of accounts are given as the argument.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterJobIDs, "jobs", "j", "",
@@ -280,6 +281,7 @@ func scancel() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &ccancel.FlagConfigFilePath)
 	cmd.Flags().BoolP("help", "", false, "Help for this command.")
 
 	cmd.Flags().StringVarP(&ccancel.FlagAccount, "account", "A", "",
@@ -502,6 +504,7 @@ func sinfo() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
 	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
 	// 	"List only a partition state summary with no node state details.")
 	// cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
@@ -548,6 +551,7 @@ func squeue() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cqueue.FlagConfigFilePath)
 	// As --noheader will use -h, we need to add the help flag manually
 	cmd.Flags().BoolP("help", "", false, "Help for this command.")
 
