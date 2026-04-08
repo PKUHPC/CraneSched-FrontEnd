@@ -191,4 +191,5 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
 
 	initPodFlags(RootCmd)
+	util.InitCraneLogger()
 }

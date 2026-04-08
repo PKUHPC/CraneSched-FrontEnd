@@ -64,10 +64,11 @@ func SummarizeReply(proto interface{}) error {
 			fmt.Printf("Jobs %s modified successfully.\n", modifiedJobsString)
 		}
 		if len(reply.NotModifiedJobs) > 0 {
+			msg := ""
 			for i := 0; i < len(reply.NotModifiedJobs); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedJobs[i], reply.NotModifiedReasons[i])
+				msg += fmt.Sprintf("Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedJobs[i], reply.NotModifiedReasons[i])
 			}
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
 	case *protos.ModifyCranedStateReply:
@@ -76,10 +77,11 @@ func SummarizeReply(proto interface{}) error {
 			fmt.Printf("Nodes %s modified successfully, please wait for a few minutes for the node state to fully update.\n", nodeListString)
 		}
 		if len(reply.NotModifiedNodes) > 0 {
+			msg := ""
 			for i := 0; i < len(reply.NotModifiedNodes); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
+				msg += fmt.Sprintf("Failed to modify node: %s. Reason: %s.\n", reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 			}
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
 	case *protos.ModifyJobsExtraAttrsReply:
@@ -88,14 +90,15 @@ func SummarizeReply(proto interface{}) error {
 			fmt.Printf("Jobs %s modified successfully.\n", modifiedJobsString)
 		}
 		if len(reply.NotModifiedJobs) > 0 {
+			msg := ""
 			for i := 0; i < len(reply.NotModifiedJobs); i++ {
-				_, _ = fmt.Fprintf(os.Stderr, "Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedJobs[i], reply.NotModifiedReasons[i])
+				msg += fmt.Sprintf("Failed to modify job: %d. Reason: %s.\n", reply.NotModifiedJobs[i], reply.NotModifiedReasons[i])
 			}
-			return &util.CraneError{Code: util.ErrorBackend}
+			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
 	default:
-		return &util.CraneError{Code: util.ErrorGeneric}
+		return util.NewCraneErr(util.ErrorGeneric, "Unknown reply.")
 	}
 }
 
@@ -107,7 +110,7 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 
 	jobIds, err := util.ParseJobIdList(jobStr, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
 
 	req := &protos.ModifyJobRequest{
@@ -120,8 +123,7 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 	}
 	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change job time limit")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to change job time limit")
 	}
 
 	if FlagJson {
@@ -139,7 +141,7 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 func HoldReleaseJobs(jobs string, hold bool) error {
 	jobList, err := util.ParseJobIdList(jobs, ",")
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.\n", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
 
 	req := &protos.ModifyJobRequest{
@@ -170,8 +172,7 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 
 	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify the job")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to modify the job")
 	}
 
 	if FlagJson {
@@ -215,8 +216,7 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 
 	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change job priority")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to change job priority")
 	}
 
 	if FlagJson {
@@ -243,7 +243,7 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	}
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorNetwork, fmt.Sprintf("Failed to query job information: %s", err))
+		return util.WrapCraneErr(util.ErrorNetwork, "Failed to query job information: %s", err)
 	}
 
 	if !reply.GetOk() {
@@ -279,7 +279,7 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	for _, jobInfo := range reply.JobInfoList {
 		newJsonStr, err := updateJobExtraAttr(jobInfo.ExtraAttr, valueMap)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to set extra attributes JSON: %s", err))
+			return util.WrapCraneErr(util.ErrorCmdArg, "Failed to set extra attributes JSON: %s", err)
 		}
 		pdOrRJobMap[jobInfo.JobId] = newJsonStr
 		validJobList[jobInfo.JobId] = true
@@ -303,12 +303,11 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 
 	rep, err := stub.ModifyJobsExtraAttrs(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change job extra attrs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to change job extra attrs")
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(rep))
+		fmt.Println(util.FmtJson.FormatReply(reply))
 		if len(rep.NotModifiedJobs) == 0 {
 			return nil
 		} else {
@@ -357,8 +356,7 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 
 	reply, err := stub.ModifyNode(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify node state")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to modify node state")
 	}
 
 	if FlagJson {
@@ -386,8 +384,7 @@ func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) e
 
 	reply, err := stub.ModifyPartitionAcl(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Faild to modify partition %s", partition)
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to modify partition %s", partition)
 	}
 
 	if FlagJson {
@@ -466,8 +463,7 @@ func CreateReservation() error {
 
 	reply, err := stub.CreateReservation(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to create reservation")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to create reservation")
 	}
 
 	if FlagJson {
@@ -481,10 +477,10 @@ func CreateReservation() error {
 
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s created successfully.\n", FlagReservationName)
+		return nil
 	} else {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to create reservation: %s.", reply.GetReason()))
 	}
-	return nil
 }
 
 func DeleteReservation(ReservationName string) error {
@@ -502,8 +498,7 @@ func DeleteReservation(ReservationName string) error {
 	}
 	reply, err := stub.DeleteReservation(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete reservation")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to delete reservation")
 	}
 
 	if FlagJson {
@@ -517,11 +512,11 @@ func DeleteReservation(ReservationName string) error {
 
 	if reply.GetOk() {
 		fmt.Printf("Reservation %s deleted successfully.\n", ReservationName)
+		return nil
 	} else {
-		log.Errorf("Failed to delete reservation: %s.\n", reply.GetReason())
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete reservation: %s.\n", reply.GetReason()))
 	}
-	return nil
+
 }
 
 func ResetNextJobId(nextJobId uint32, nextJobDbId int64) error {
@@ -640,8 +635,7 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 
 	reply, err := stub.EnableAutoPowerControl(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify node power control setting")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to modify node power control setting")
 	}
 
 	if FlagJson {
@@ -662,11 +656,12 @@ func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	}
 
 	if len(reply.NotModifiedNodes) > 0 {
+		msg := ""
 		for i := 0; i < len(reply.NotModifiedNodes); i++ {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to modify node: %s. Reason: %s.\n",
+			msg += fmt.Sprintf("Failed to modify node: %s. Reason: %s.\n",
 				reply.NotModifiedNodes[i], reply.NotModifiedReasons[i])
 		}
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend, msg)
 	}
 
 	return nil
