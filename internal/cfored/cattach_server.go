@@ -316,14 +316,14 @@ CforedCattachStateMachineLoop:
 						}
 					} else {
 						switch cattachRequest.Type {
-					case protos.StreamCattachRequest_TASK_IO_FORWARD:
-						log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
-							" task, msg size[%d], EOF [%v]", jobId, stepId,
-							len(cattachRequest.GetPayloadTaskIoForwardReq().GetMsg()),
-							cattachRequest.GetPayloadTaskIoForwardReq().Eof)
-						gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
+						case protos.StreamCattachRequest_TASK_IO_FORWARD:
+							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
+								" task, msg size[%d], EOF [%v]", jobId, stepId,
+								len(cattachRequest.GetPayloadTaskIoForwardReq().GetMsg()),
+								cattachRequest.GetPayloadTaskIoForwardReq().Eof)
+							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
 
-					case protos.StreamCattachRequest_STEP_COMPLETION_REQUEST:
+						case protos.StreamCattachRequest_STEP_COMPLETION_REQUEST:
 							log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive StepCompletionRequest", jobId, stepId)
 							state = End
 							break forwarding
