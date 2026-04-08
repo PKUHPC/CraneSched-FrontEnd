@@ -420,6 +420,10 @@ func executeSuspendCommand(command *CControlCommand) error {
 
 	err := SuspendJobs(jobIds)
 	if err != nil {
+		var craneErr *util.CraneError
+		if FlagJson && errors.As(err, &craneErr) && craneErr != nil && craneErr.Message == "" {
+			return craneErr
+		}
 		return util.WrapCraneErr(util.ErrorGeneric, "suspend jobs failed: %s\n", err)
 	}
 	return nil
@@ -433,6 +437,10 @@ func executeResumeCommand(command *CControlCommand) error {
 
 	err := ResumeJobs(jobIds)
 	if err != nil {
+		var craneErr *util.CraneError
+		if FlagJson && errors.As(err, &craneErr) && craneErr != nil && craneErr.Message == "" {
+			return craneErr
+		}
 		return util.WrapCraneErr(util.ErrorGeneric, "resume jobs failed: %s\n", err)
 	}
 	return nil
