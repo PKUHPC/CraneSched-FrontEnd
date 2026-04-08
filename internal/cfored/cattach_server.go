@@ -416,6 +416,18 @@ func forwardTaskMsgToCattach(
 		}
 		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding msg size[%d] task_id[%d]",
 			taskId, stepId, len(outputReq.GetMsg()), outputReq.TaskId)
+	case protos.StreamStepIORequest_TASK_ERR_OUTPUT:
+		errOutputReq := taskMsg.GetPayloadTaskErrOutputReq()
+		reply = &protos.StreamCattachReply{
+			Type: protos.StreamCattachReply_TASK_ERR_OUTPUT_FORWARD,
+			Payload: &protos.StreamCattachReply_PayloadTaskIoErrOutputForwardReply{
+				PayloadTaskIoErrOutputForwardReply: &protos.StreamCattachReply_TaskIOErrOutputForwardReply{
+					Msg: errOutputReq.Msg,
+				},
+			},
+		}
+		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] forwarding err msg size[%d]",
+			taskId, stepId, len(errOutputReq.GetMsg()))
 	case protos.StreamStepIORequest_TASK_EXIT_STATUS:
 		log.Tracef("[Supervisor->Cfored->Cattach][Step #%d.%d] Received TASK_EXIT_STATUS, "+
 			"skipping for cattach (completion is signaled via JOB_COMPLETION_ACK_REPLY).",

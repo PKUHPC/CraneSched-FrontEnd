@@ -1078,6 +1078,7 @@ message StreamCattachReply {
     TASK_EXIT_STATUS          = 6;
     STEP_X11_CONN             = 7;
     STEP_X11_EOF              = 8;
+    TASK_ERR_OUTPUT_FORWARD   = 9;
   }
 
   message StepConnectReply {
@@ -1123,18 +1124,23 @@ message StreamCattachReply {
     bool   signaled  = 3;
   }
 
+  message TaskIOErrOutputForwardReply {
+    bytes msg = 1;
+  }
+
   CforedCattachReplyType type = 1;
 
   oneof payload {
-    StepConnectReply        payload_step_connect_reply          = 2;
-    StepCancelRequest       payload_step_cancel_request         = 3;
-    StepCompletionAckReply  payload_step_completion_ack_reply   = 4;
-    TaskIOForwardReadyReply payload_task_io_forward_ready_reply = 5;
-    TaskIOForwardReply      payload_task_io_forward_reply       = 6;
-    StepX11ForwardReply     payload_step_x11_forward_reply      = 7;
-    TaskExitStatusReply     payload_task_exit_status_reply      = 8;
-    StepX11ConnReply        payload_step_x11_conn_reply         = 9;
-    StepX11EofReply         payload_step_x11_eof_reply          = 10;
+    StepConnectReply            payload_step_connect_reply               = 2;
+    StepCancelRequest           payload_step_cancel_request              = 3;
+    StepCompletionAckReply      payload_step_completion_ack_reply        = 4;
+    TaskIOForwardReadyReply     payload_task_io_forward_ready_reply      = 5;
+    TaskIOForwardReply          payload_task_io_forward_reply            = 6;
+    StepX11ForwardReply         payload_step_x11_forward_reply           = 7;
+    TaskExitStatusReply         payload_task_exit_status_reply           = 8;
+    StepX11ConnReply            payload_step_x11_conn_reply              = 9;
+    StepX11EofReply             payload_step_x11_eof_reply               = 10;
+    TaskIOErrOutputForwardReply payload_task_io_err_output_forward_reply = 11;
   }
 }
 
