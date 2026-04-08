@@ -986,10 +986,6 @@ message StreamCrunReply {
     bytes msg = 1;
   }
 
-  message TaskIOErrOutputForwardReply {
-    bytes msg = 1;
-  }
-
   message StepX11ConnReply {
     string craned_id = 1;
     uint32 local_id  = 2;
@@ -1163,10 +1159,6 @@ message StreamStepIORequest {
   message TaskOutputReq {
     bytes  msg     = 1;
     uint32 task_id = 2; // The rank/id of the task that produced this output.
-  }
-
-  message TaskErrOutputReq {
-    bytes msg = 1;
   }
 
   message TaskErrOutputReq {
