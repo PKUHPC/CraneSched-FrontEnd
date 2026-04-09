@@ -15,6 +15,10 @@ var (
 	FlagLabel          bool
 	FlagLayout         bool
 	FlagQuiet          bool
+	// FlagReadOnly is set automatically when the attached step has exclusive stdin routing
+	// (i.e., crun was started with --input=<task_id>).  In read-only mode cattach displays
+	// output but does not forward any stdin to the running tasks.
+	FlagReadOnly bool
 	RootCmd            = &cobra.Command{
 		Use:     "cattach [flags] jobid.stepid",
 		Short:   "Attach to a crane job step",

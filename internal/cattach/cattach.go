@@ -223,6 +223,18 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 			if Ok {
 				m.step = cforedReply.Step
 				FlagPty = m.step.GetInteractiveMeta().Pty
+				// If the step has exclusive stdin routing to a specific task
+				// (crun --input=<task_id>), enter read-only mode: display output
+				// but do not forward any stdin from the cattach terminal.
+				// PTY mode is excluded because PTY always uses task-0-only routing
+				// internally yet requires full interactive control.
+				// IoMeta.InputTaskId is *uint32 (optional proto field); non-nil means
+				// crun stored an explicit task id — use direct pointer comparison.
+				ioMeta := m.step.GetIoMeta()
+				FlagReadOnly = ioMeta != nil && ioMeta.InputTaskId != nil && !FlagPty
+				if FlagReadOnly {
+					log.Debug("Step has exclusive stdin to one task; cattach entering read-only mode (output only)")
+				}
 				if FlagLayout {
 					m.PrintStepLayout()
 					m.state = End
@@ -296,38 +308,42 @@ func (m *StateMachineOfCattach) StateForwarding() {
 	m.StartIOForward()
 
 	// Forward terminal stdin to cfored.
-	go func() {
-		for {
-			select {
-			case msg := <-m.chanInputFromTerm:
-				ioFwdReq := &protos.StreamCattachRequest_TaskIOForwardReq{
-					Msg: msg,
-					Eof: msg == nil,
-				}
-				// --input-filter: direct stdin to the specified task only.
-				// FlagInputFilter == -1 means "not set" (broadcast to all tasks).
-				if FlagInputFilter >= 0 {
-					taskId := uint32(FlagInputFilter)
-					ioFwdReq.TaskId = &taskId
-				}
-				request = &protos.StreamCattachRequest{
-					Type: protos.StreamCattachRequest_TASK_IO_FORWARD,
-					Payload: &protos.StreamCattachRequest_PayloadTaskIoForwardReq{
-						PayloadTaskIoForwardReq: ioFwdReq,
-					},
-				}
-				if err := m.stream.Send(request); err != nil {
-					log.Errorf("Failed to send Task IO Forward to CattachStream: %s. "+
-						"Connection to Cattach is broken", err)
-					gVars.connectionBroken = true
+	// Skipped in read-only mode (FlagReadOnly=true, set when the step has
+	// exclusive stdin routing via crun --input=<task_id>).
+	if !FlagReadOnly {
+		go func() {
+			for {
+				select {
+				case msg := <-m.chanInputFromTerm:
+					ioFwdReq := &protos.StreamCattachRequest_TaskIOForwardReq{
+						Msg: msg,
+						Eof: msg == nil,
+					}
+					// --input-filter: direct stdin to the specified task only.
+					// FlagInputFilter == -1 means "not set" (broadcast to all tasks).
+					if FlagInputFilter >= 0 {
+						taskId := uint32(FlagInputFilter)
+						ioFwdReq.TaskId = &taskId
+					}
+					request = &protos.StreamCattachRequest{
+						Type: protos.StreamCattachRequest_TASK_IO_FORWARD,
+						Payload: &protos.StreamCattachRequest_PayloadTaskIoForwardReq{
+							PayloadTaskIoForwardReq: ioFwdReq,
+						},
+					}
+					if err := m.stream.Send(request); err != nil {
+						log.Errorf("Failed to send Task IO Forward to CattachStream: %s. "+
+							"Connection to Cattach is broken", err)
+						gVars.connectionBroken = true
+						return
+					}
+
+				case <-m.taskFinishCtx.Done():
 					return
 				}
-
-			case <-m.taskFinishCtx.Done():
-				return
 			}
-		}
-	}()
+		}()
+	}
 
 	for m.state == Forwarding {
 		select {
@@ -426,7 +442,11 @@ func (m *StateMachineOfCattach) StartIOForward() {
 	m.chanErrOutputFromRemote = make(chan []byte, 20)
 
 	go m.forwardingSigHandlerRoutine()
-	go m.StdinReaderRoutine()
+	// In read-only mode (step has exclusive stdin, e.g. crun --input=<task_id>),
+	// do not read from the local terminal — only display task output.
+	if !FlagReadOnly {
+		go m.StdinReaderRoutine()
+	}
 	go m.StdoutWriterRoutine()
 	go m.StderrWriterRoutine()
 }

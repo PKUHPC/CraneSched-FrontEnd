@@ -166,6 +166,35 @@ func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []s
 	}
 }
 
+// waitAnySupervisorReady waits until at least one supervisor from cranedIds is currently
+// registered for the given step.  Unlike waitSupervisorChannelsReady (which requires ALL
+// nodes), this returns as soon as ANY one of the requested nodes is found.
+//
+// This is used by CattachWaitIOForward: when crun uses --input=<task_id>, tasks on nodes
+// that receive no stdin exit almost immediately (bash/shell gets EOF), so their supervisors
+// unregister before cattach can connect.  Requiring ALL nodes would block forever.
+func (keeper *SupervisorChannelKeeper) waitAnySupervisorReady(
+	cranedIds []string, readyChan chan bool,
+	stopWaiting *atomic.Bool, jobId uint32, stepId uint32) {
+
+	log.Tracef("[Cfored<->Cattach][Step #%d.%d] Waiting for any active craned from [%v]", jobId, stepId, cranedIds)
+	keeper.toSupervisorChannelMtx.Lock()
+	defer keeper.toSupervisorChannelMtx.Unlock()
+	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
+
+	for !stopWaiting.Load() {
+		for _, node := range cranedIds {
+			if _, exists := keeper.toSupervisorChannels[stepIdentity][node]; exists {
+				log.Debugf("[Cfored<->Cattach][Step #%d.%d] Found active supervisor on Craned %s, proceeding",
+					jobId, stepId, node)
+				readyChan <- true
+				return
+			}
+		}
+		keeper.toSupervisorChannelCV.Wait()
+	}
+}
+
 // broadcastStopWaiting wakes up any goroutine blocked in waitSupervisorChannelsReady
 // after stopWaiting has been set to true externally. Without this broadcast, the goroutine
 // would remain blocked in toSupervisorChannelCV.Wait() until the next supervisor registers.
