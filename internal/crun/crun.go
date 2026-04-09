@@ -623,11 +623,17 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					select {
 					case m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg:
 					case <-m.stopWriteCtx.Done():
+					case <-m.stopStepCtx.Done():
+						m.state = JobKilling
+						return
 					}
 				case protos.StreamCrunReply_TASK_ERR_OUTPUT_FORWARD:
 					select {
 					case m.chanErrOutputFromRemote <- cforedReply.GetPayloadTaskIoErrOutputForwardReply().Msg:
 					case <-m.stopWriteCtx.Done():
+					case <-m.stopStepCtx.Done():
+						m.state = JobKilling
+						return
 					}
 
 				case protos.StreamCrunReply_STEP_X11_CONN:
@@ -722,12 +728,28 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		select {
 		case m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg:
 		case <-m.stopWriteCtx.Done():
+		case <-m.stopStepCtx.Done():
+			// Job is being terminated and terminal is backed up.
+			// Drop this output message so we can keep draining replyChannel
+			// and eventually receive STEP_COMPLETION_ACK_REPLY.
+		case <-gVars.globalCtx.Done():
+			// cfored is shutting down or connection lost; discard output.
+			m.state = End
+			return
 		}
 		return // Still in WaitAck state
 	case protos.StreamCrunReply_TASK_ERR_OUTPUT_FORWARD:
 		select {
 		case m.chanErrOutputFromRemote <- cforedReply.GetPayloadTaskIoErrOutputForwardReply().Msg:
 		case <-m.stopWriteCtx.Done():
+		case <-m.stopStepCtx.Done():
+			// Job is being terminated and terminal is backed up.
+			// Drop this output message so we can keep draining replyChannel
+			// and eventually receive STEP_COMPLETION_ACK_REPLY.
+		case <-gVars.globalCtx.Done():
+			// cfored is shutting down or connection lost; discard output.
+			m.state = End
+			return
 		}
 		return
 
