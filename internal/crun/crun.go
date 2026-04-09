@@ -1938,6 +1938,12 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	ioMeta.InputFilePattern = m.inputFlag
 	ioMeta.OutputFilePattern = m.outputFlag
 	ioMeta.ErrorFilePattern = m.errorFlag
+	// If --input specifies a numeric task ID (not "all", "none", or a file path),
+	// store it so that cattach can detect exclusive-stdin mode and become read-only.
+	if parsedId, parseErr := strconv.ParseUint(m.inputFlag, 10, 32); parseErr == nil {
+		id := uint32(parsedId)
+		ioMeta.InputTaskId = &id
+	}
 
 	m.Init(job, step)
 	m.Run()
