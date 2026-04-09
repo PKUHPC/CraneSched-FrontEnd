@@ -175,7 +175,7 @@ func QueryJob() error {
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey", "Deadline"}
 		for i, jobOrStep := range items {
 			tableData[i] = []string{
 				ProcessJobID(jobOrStep),
@@ -242,6 +242,13 @@ func QueryJob() error {
 			for i := 0; i < len(tableData); i++ {
 				tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
 			}
+		}
+	}
+
+	if FlagDeadlineTime {
+		header = append(header, "Deadline")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
 		}
 	}
 
@@ -358,6 +365,15 @@ func ProcessElapsedTime(item *JobOrStep) string {
 		}
 	}
 	return ""
+}
+
+// Deadline (D)
+func ProcessDeadline(item *JobOrStep) string {
+	deadlineTime := item.job.DeadlineTime.AsTime()
+	if !deadlineTime.Equal(util.InfiniteFuture) {
+		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
 }
 
 // EndTime (E)
@@ -666,6 +682,7 @@ var fieldProcessors = map[string]FieldProcessor{
 	// Group D
 	"D":           {"ElapsedTime", ProcessElapsedTime},
 	"elapsedtime": {"ElapsedTime", ProcessElapsedTime},
+	"deadline":    {"Deadline", ProcessDeadline},
 
 	// Group E
 	"E":       {"EndTime", ProcessEndTime},
@@ -842,7 +859,7 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, C/ReqCpus, c/AllocCPUs, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
+				"a/Account, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
 				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
 				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
 			os.Exit(util.ErrorInvalidFormat)
