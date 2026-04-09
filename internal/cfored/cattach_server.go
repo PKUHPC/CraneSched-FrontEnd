@@ -221,7 +221,11 @@ CforedCattachStateMachineLoop:
 			stopWaiting := atomic.Bool{}
 			stopWaiting.Store(false)
 			readyChannel := make(chan bool, 1)
-			go gSupervisorChanKeeper.waitSupervisorChannelsReady(execCranedIds, readyChannel, &stopWaiting, jobId, stepId)
+			// Use waitAnySupervisorReady instead of waitSupervisorChannelsReady:
+			// with --input=<task_id>, tasks on nodes that receive no stdin exit early
+			// and their supervisors unregister before cattach connects.  Requiring ALL
+			// nodes would block forever; ANY active supervisor is enough to start I/O.
+			go gSupervisorChanKeeper.waitAnySupervisorReady(execCranedIds, readyChannel, &stopWaiting, jobId, stepId)
 
 			select {
 			case ctldReply := <-ctldReplyChannel:
