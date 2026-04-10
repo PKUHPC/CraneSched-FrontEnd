@@ -162,23 +162,31 @@ CforedCattachStateMachineLoop:
 				case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
 					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", jobId, stepId)
 					state = DeadCattach
-				case protos.StreamCtldReply_STEP_META_REPLY:
-					Ok := ctldReply.GetPayloadStepMetaReply().Ok
-					log.Tracef("[Ctld->Cfored->Cattach][Pid#%d] Receive StepMeta, Ok: %v", cattachPid, Ok)
+			case protos.StreamCtldReply_STEP_META_REPLY:
+				Ok := ctldReply.GetPayloadStepMetaReply().Ok
+				failureReason := ctldReply.GetPayloadStepMetaReply().FailureReason
+				log.Tracef("[Ctld->Cfored->Cattach][Pid#%d] Receive StepMeta, Ok: %v", cattachPid, Ok)
 
-					gVars.ctldReplyChannelMapMtx.Lock()
-					delete(gVars.ctldReplyChannelMapByPid, cattachPid)
-					var step *protos.StepToCtld
-					if Ok {
-						// node[03-04]
-						var ok bool
-						execCranedIds, ok = util.ParseHostList(ctldReply.GetPayloadStepMetaReply().Step.GetNodelist())
-						if !ok {
-							state = DeadCattach
-							break
-						}
+				gVars.ctldReplyChannelMapMtx.Lock()
+				delete(gVars.ctldReplyChannelMapByPid, cattachPid)
+				var step *protos.StepToCtld
+				if Ok {
+					// node[03-04]
+					var ok bool
+					execCranedIds, ok = util.ParseHostList(ctldReply.GetPayloadStepMetaReply().Step.GetNodelist())
+					if !ok {
+						state = DeadCattach
+						break
+					}
+					interactiveMeta := ctldReply.GetPayloadStepMetaReply().Step.GetInteractiveMeta()
+					if interactiveMeta == nil {
+						// Job is not interactive (e.g. batch job); cattach is not supported.
+						log.Warnf("[Ctld->Cfored->Cattach][Step #%d.%d] Job has no interactive metadata, cattach rejected.", jobId, stepId)
+						Ok = false
+						failureReason = "Job is not interactive, cattach is not supported"
+					} else {
 						step = ctldReply.GetPayloadStepMetaReply().Step
-						cattachPty = ctldReply.GetPayloadStepMetaReply().Step.GetInteractiveMeta().Pty
+						cattachPty = interactiveMeta.Pty
 						if cattachPty {
 							// For crun with pty, only execute on first node
 							execCranedIds = []string{execCranedIds[0]}
@@ -192,19 +200,20 @@ CforedCattachStateMachineLoop:
 						gVars.pidStepMapMtx.Unlock()
 						gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
 					}
+				}
 
-					gVars.ctldReplyChannelMapMtx.Unlock()
+				gVars.ctldReplyChannelMapMtx.Unlock()
 
-					reply = &protos.StreamCattachReply{
-						Type: protos.StreamCattachReply_STEP_CONNECT_REPLY,
-						Payload: &protos.StreamCattachReply_PayloadStepConnectReply{
-							PayloadStepConnectReply: &protos.StreamCattachReply_StepConnectReply{
-								Ok:            Ok,
-								Step:          step,
-								FailureReason: ctldReply.GetPayloadStepMetaReply().FailureReason,
-							},
+				reply = &protos.StreamCattachReply{
+					Type: protos.StreamCattachReply_STEP_CONNECT_REPLY,
+					Payload: &protos.StreamCattachReply_PayloadStepConnectReply{
+						PayloadStepConnectReply: &protos.StreamCattachReply_StepConnectReply{
+							Ok:            Ok,
+							Step:          step,
+							FailureReason: failureReason,
 						},
-					}
+					},
+				}
 
 					if err := toCattachStream.Send(reply); err != nil {
 						log.Debugf("[Cfored<->Cattach][Step #%d.%d] Connection to cattach was broken.", jobId, stepId)
