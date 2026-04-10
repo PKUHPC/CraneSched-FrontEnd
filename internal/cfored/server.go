@@ -377,7 +377,8 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 	keeper.stepIORequestChannelMtx.Unlock()
 
 	// Send to each front-end channel outside the lock.
-	
+	// Use a non-blocking select with a default branch so that a slow or
+	// already-exited front-end consumer never blocks the Supervisor IO stream.
 	for _, channel := range channels {
 		select {
 		case channel <- ioToFront:
@@ -385,6 +386,11 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 		case <-gVars.globalCtx.Done():
 			// cfored is shutting down; stop forwarding.
 			return
+		default:
+			// Front-end IO channel is full (slow consumer or already exited).
+			// Drop the message to prevent blocking the supervisor IO stream.
+			log.Warningf("[Supervisor->Cfored->FrontEnd][Step #%d.%d] "+
+				"Front-end IO channel is full, discarding message to prevent cfored from blocking.", jobId, stepId)
 		}
 	}
 }
