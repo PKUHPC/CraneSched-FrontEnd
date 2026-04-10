@@ -84,7 +84,7 @@ type SupervisorChannelKeeper struct {
 	// Closed when all supervisors for a step have normally unregistered,
 	// signaling that no more I/O messages will arrive for that step.
 	stepDoneChannelMap map[StepIdentifier]chan struct{}
-	taskIOBufferMap         map[StepIdentifier]*TaskIOBuffer
+	taskIOBufferMap    map[StepIdentifier]*TaskIOBuffer
 }
 
 var gSupervisorChanKeeper *SupervisorChannelKeeper
@@ -111,34 +111,38 @@ func (keeper *SupervisorChannelKeeper) supervisorUpAndSetMsgToSupervisorChannel(
 }
 
 func (keeper *SupervisorChannelKeeper) supervisorDownAndRemoveChannelToSupervisor(jobId uint32, stepId uint32, cranedId string) {
-	keeper.toSupervisorChannelMtx.Lock()
 	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
+	allGone := false
+
+	keeper.toSupervisorChannelMtx.Lock()
 	if _, exist := keeper.toSupervisorChannels[stepIdentity]; !exist {
 		log.Errorf("Trying to remove a non-exist crun channel")
 		keeper.toSupervisorChannelMtx.Unlock()
 		return
-	} else {
-		if _, exist := keeper.toSupervisorChannels[stepIdentity][cranedId]; !exist {
-			log.Errorf("Trying to remove a non-exist crun channel")
-			keeper.toSupervisorChannelMtx.Unlock()
-			return
-		} else {
-			delete(keeper.toSupervisorChannels[stepIdentity], cranedId)
-		}
-		if len(keeper.toSupervisorChannels[stepIdentity]) == 0 {
-			delete(keeper.toSupervisorChannels, stepIdentity)
-
-			// All supervisors for this step have unregistered.
-			// Close the done channel to signal that no more I/O
-			// messages will arrive for this step.
-			keeper.stepIORequestChannelMtx.Lock()
-			if ch, ok := keeper.stepDoneChannelMap[stepIdentity]; ok {
-				close(ch)
-			}
-			keeper.stepIORequestChannelMtx.Unlock()
-		}
+	}
+	if _, exist := keeper.toSupervisorChannels[stepIdentity][cranedId]; !exist {
+		log.Errorf("Trying to remove a non-exist crun channel")
+		keeper.toSupervisorChannelMtx.Unlock()
+		return
+	}
+	delete(keeper.toSupervisorChannels[stepIdentity], cranedId)
+	if len(keeper.toSupervisorChannels[stepIdentity]) == 0 {
+		delete(keeper.toSupervisorChannels, stepIdentity)
+		allGone = true
 	}
 	keeper.toSupervisorChannelMtx.Unlock()
+
+	// Close the step-done channel AFTER releasing toSupervisorChannelMtx to
+	// avoid the nested lock order: toSupervisorChannelMtx → stepIORequestChannelMtx.
+	// Closing from outside the outer mutex is safe: the done channel reference is
+	// stable (only created once in setRemoteIoToFrontChannel, never reassigned).
+	if allGone {
+		keeper.stepIORequestChannelMtx.Lock()
+		if ch, ok := keeper.stepDoneChannelMap[stepIdentity]; ok {
+			close(ch)
+		}
+		keeper.stepIORequestChannelMtx.Unlock()
+	}
 }
 
 func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []string, readyChan chan bool, stopWaiting *atomic.Bool, jobId uint32, stepId uint32) {
@@ -395,7 +399,6 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 	}
 }
 
-
 func (keeper *SupervisorChannelKeeper) crunStepStopAndRemoveChannel(jobId uint32, stepId uint32) {
 	step := StepIdentifier{JobId: jobId, StepId: stepId}
 	keeper.stepIORequestChannelMtx.Lock()
@@ -555,47 +558,47 @@ CforedSupervisorStateMachineLoop:
 					}
 
 					log.Tracef("[Supervisor->Cfored][Step #%d.%d] Receive type %s", jobId, stepId, supervisorReq.Type.String())
-				switch supervisorReq.Type {
-				case protos.StreamStepIORequest_TASK_OUTPUT:
-					log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote output", jobId, stepId)
-					gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
-				case protos.StreamStepIORequest_TASK_ERR_OUTPUT:
-					log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote err output", jobId, stepId)
-					gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
-				case protos.StreamStepIORequest_STEP_X11_CONN:
-					fallthrough
-				case protos.StreamStepIORequest_STEP_X11_OUTPUT:
-					fallthrough
-				case protos.StreamStepIORequest_STEP_X11_EOF:
-					log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote %s", jobId, stepId, supervisorReq.Type.String())
-					gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
-				case protos.StreamStepIORequest_TASK_EXIT_STATUS:
-					log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
-					gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
-				case protos.StreamStepIORequest_SUPERVISOR_UNREGISTER:
-					log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorUnReg from Craned %s",
-						jobId, stepId, cranedId)
-					reply = &protos.StreamStepIOReply{
-						Type: protos.StreamStepIOReply_SUPERVISOR_UNREGISTER_REPLY,
-						Payload: &protos.StreamStepIOReply_PayloadSupervisorUnregisterReply{
-							PayloadSupervisorUnregisterReply: &protos.StreamStepIOReply_SupervisorUnregisterReply{
-								Ok: true,
+					switch supervisorReq.Type {
+					case protos.StreamStepIORequest_TASK_OUTPUT:
+						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote output", jobId, stepId)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
+					case protos.StreamStepIORequest_TASK_ERR_OUTPUT:
+						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote err output", jobId, stepId)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
+					case protos.StreamStepIORequest_STEP_X11_CONN:
+						fallthrough
+					case protos.StreamStepIORequest_STEP_X11_OUTPUT:
+						fallthrough
+					case protos.StreamStepIORequest_STEP_X11_EOF:
+						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote %s", jobId, stepId, supervisorReq.Type.String())
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
+					case protos.StreamStepIORequest_TASK_EXIT_STATUS:
+						log.Tracef("[Supervisor->Cfored][Step #%d.%d] Forwarding remote exit status", jobId, stepId)
+						gSupervisorChanKeeper.forwardRemoteIoToFront(jobId, stepId, supervisorReq)
+					case protos.StreamStepIORequest_SUPERVISOR_UNREGISTER:
+						log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorUnReg from Craned %s",
+							jobId, stepId, cranedId)
+						reply = &protos.StreamStepIOReply{
+							Type: protos.StreamStepIOReply_SUPERVISOR_UNREGISTER_REPLY,
+							Payload: &protos.StreamStepIOReply_PayloadSupervisorUnregisterReply{
+								PayloadSupervisorUnregisterReply: &protos.StreamStepIOReply_SupervisorUnregisterReply{
+									Ok: true,
+								},
 							},
-						},
+						}
+						state = SupervisorUnReg
+						valid.Store(false)
+						err := toSupervisorStream.Send(reply)
+						if err != nil {
+							log.Debug("[Cfored->Supervisor] Connection to Supervisor was broken.")
+						}
+						break supervisorIOForwarding
+					default:
+						log.Fatalf("[Supervisor->Cfored][Step #%d.%d] Receive Unexpected %s",
+							jobId, stepId, supervisorReq.Type.String())
+						state = SupervisorUnReg
+						break supervisorIOForwarding
 					}
-					state = SupervisorUnReg
-					valid.Store(false)
-					err := toSupervisorStream.Send(reply)
-					if err != nil {
-						log.Debug("[Cfored->Supervisor] Connection to Supervisor was broken.")
-					}
-					break supervisorIOForwarding
-				default:
-					log.Fatalf("[Supervisor->Cfored][Step #%d.%d] Receive Unexpected %s",
-						jobId, stepId, supervisorReq.Type.String())
-					state = SupervisorUnReg
-					break supervisorIOForwarding
-				}
 
 				case crunReq := <-pendingCrunReqToSupervisorChannel:
 					// Msg from crun to craned

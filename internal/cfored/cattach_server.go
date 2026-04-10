@@ -36,8 +36,13 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 	RequestChannel := make(chan grpcMessage[protos.StreamCattachRequest], 8)
 	go grpcStreamReceiver[protos.StreamCattachRequest](toCattachStream, RequestChannel)
 
-	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	TaskIoRequestChannel := make(chan *protos.StreamStepIORequest, 2)
+	// Use capacity 8 for ctldReplyChannel: WaitAllFrontEnd may pre-send
+	// JOB_COMPLETION_ACK_REPLY while there may already be a message in it.
+	// Use capacity 64 for TaskIoRequestChannel to reduce the drop rate in
+	// forwardRemoteIoToFront when the supervisor produces output faster than
+	// cattach consumes it.
+	ctldReplyChannel := make(chan *protos.StreamCtldReply, 8)
+	TaskIoRequestChannel := make(chan *protos.StreamStepIORequest, 64)
 	jobId = math.MaxUint32
 	cattachPid = -1
 
@@ -119,7 +124,10 @@ CforedCattachStateMachineLoop:
 				stepId = cattachRequest.GetPayloadStepConnectReq().GetStepId()
 
 				gVars.ctldReplyChannelMapMtx.Lock()
-				gVars.ctldReplyChannelMapByPid[cattachPid] = ctldReplyChannel
+				// Use the dedicated cattach-by-pid map so WaitAllFrontEnd can
+				// send the correct termination message type (JOB_COMPLETION_ACK_REPLY)
+				// instead of the crun/calloc-specific JOB_ID_REPLY.
+				gVars.ctldReplyChannelMapForCattachByPid[cattachPid] = ctldReplyChannel
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
 				cforedRequest := &protos.StreamCforedRequest{
@@ -148,72 +156,78 @@ CforedCattachStateMachineLoop:
 				} else if cattachRequest != nil || err == nil {
 					log.Fatal("[Cattach->Cfored] Expect only nil (cattach connection broken) here!")
 				}
-				// ctld has not yet replied, so ctldReplyChannelMapByPid still holds
-				// the channel registered in CattachWaitConnectReq. Remove it here to
-				// avoid a permanent leak (the normal removal path is inside the
+				// ctld has not yet replied, so ctldReplyChannelMapForCattachByPid still
+				// holds the channel registered in CattachWaitConnectReq. Remove it here
+				// to avoid a permanent leak (the normal removal path is inside the
 				// STEP_META_REPLY branch below, which we will never reach).
 				gVars.ctldReplyChannelMapMtx.Lock()
-				delete(gVars.ctldReplyChannelMapByPid, cattachPid)
+				delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
 				gVars.ctldReplyChannelMapMtx.Unlock()
 				state = DeadCattach
 
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
 				case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
-					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive COMPLETION_ACK_REPLY", jobId, stepId)
+					// This happens when WaitAllFrontEnd terminates all cattach sessions
+					// (ctld connection broke while we're waiting for STEP_META_REPLY).
+					// Clean up the pre-registration entry so no resource is leaked.
+					log.Debugf("[Ctld->Cfored->Cattach][Pid #%d] Receive JOB_COMPLETION_ACK_REPLY in WaitStepMeta, terminating.", cattachPid)
+					gVars.ctldReplyChannelMapMtx.Lock()
+					delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
+					gVars.ctldReplyChannelMapMtx.Unlock()
 					state = DeadCattach
-			case protos.StreamCtldReply_STEP_META_REPLY:
-				Ok := ctldReply.GetPayloadStepMetaReply().Ok
-				failureReason := ctldReply.GetPayloadStepMetaReply().FailureReason
-				log.Tracef("[Ctld->Cfored->Cattach][Pid#%d] Receive StepMeta, Ok: %v", cattachPid, Ok)
+				case protos.StreamCtldReply_STEP_META_REPLY:
+					Ok := ctldReply.GetPayloadStepMetaReply().Ok
+					failureReason := ctldReply.GetPayloadStepMetaReply().FailureReason
+					log.Tracef("[Ctld->Cfored->Cattach][Pid#%d] Receive StepMeta, Ok: %v", cattachPid, Ok)
 
-				gVars.ctldReplyChannelMapMtx.Lock()
-				delete(gVars.ctldReplyChannelMapByPid, cattachPid)
-				var step *protos.StepToCtld
-				if Ok {
-					// node[03-04]
-					var ok bool
-					execCranedIds, ok = util.ParseHostList(ctldReply.GetPayloadStepMetaReply().Step.GetNodelist())
-					if !ok {
-						state = DeadCattach
-						break
-					}
-					interactiveMeta := ctldReply.GetPayloadStepMetaReply().Step.GetInteractiveMeta()
-					if interactiveMeta == nil {
-						// Job is not interactive (e.g. batch job); cattach is not supported.
-						log.Warnf("[Ctld->Cfored->Cattach][Step #%d.%d] Job has no interactive metadata, cattach rejected.", jobId, stepId)
-						Ok = false
-						failureReason = "Job is not interactive, cattach is not supported"
-					} else {
-						step = ctldReply.GetPayloadStepMetaReply().Step
-						cattachPty = interactiveMeta.Pty
-						if cattachPty {
-							// For crun with pty, only execute on first node
-							execCranedIds = []string{execCranedIds[0]}
+					gVars.ctldReplyChannelMapMtx.Lock()
+					delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
+					var step *protos.StepToCtld
+					if Ok {
+						// node[03-04]
+						var ok bool
+						execCranedIds, ok = util.ParseHostList(ctldReply.GetPayloadStepMetaReply().Step.GetNodelist())
+						if !ok {
+							state = DeadCattach
+							break
 						}
-						if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] == nil {
-							gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] = make(map[int32]chan *protos.StreamCtldReply)
+						interactiveMeta := ctldReply.GetPayloadStepMetaReply().Step.GetInteractiveMeta()
+						if interactiveMeta == nil {
+							// Job is not interactive (e.g. batch job); cattach is not supported.
+							log.Warnf("[Ctld->Cfored->Cattach][Step #%d.%d] Job has no interactive metadata, cattach rejected.", jobId, stepId)
+							Ok = false
+							failureReason = "Job is not interactive, cattach is not supported"
+						} else {
+							step = ctldReply.GetPayloadStepMetaReply().Step
+							cattachPty = interactiveMeta.Pty
+							if cattachPty {
+								// For crun with pty, only execute on first node
+								execCranedIds = []string{execCranedIds[0]}
+							}
+							if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] == nil {
+								gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] = make(map[int32]chan *protos.StreamCtldReply)
+							}
+							gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}][cattachPid] = ctldReplyChannel
+							gVars.pidStepMapMtx.Lock()
+							gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: jobId, StepId: stepId}
+							gVars.pidStepMapMtx.Unlock()
+							gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
 						}
-						gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}][cattachPid] = ctldReplyChannel
-						gVars.pidStepMapMtx.Lock()
-						gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: jobId, StepId: stepId}
-						gVars.pidStepMapMtx.Unlock()
-						gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
 					}
-				}
 
-				gVars.ctldReplyChannelMapMtx.Unlock()
+					gVars.ctldReplyChannelMapMtx.Unlock()
 
-				reply = &protos.StreamCattachReply{
-					Type: protos.StreamCattachReply_STEP_CONNECT_REPLY,
-					Payload: &protos.StreamCattachReply_PayloadStepConnectReply{
-						PayloadStepConnectReply: &protos.StreamCattachReply_StepConnectReply{
-							Ok:            Ok,
-							Step:          step,
-							FailureReason: failureReason,
+					reply = &protos.StreamCattachReply{
+						Type: protos.StreamCattachReply_STEP_CONNECT_REPLY,
+						Payload: &protos.StreamCattachReply_PayloadStepConnectReply{
+							PayloadStepConnectReply: &protos.StreamCattachReply_StepConnectReply{
+								Ok:            Ok,
+								Step:          step,
+								FailureReason: failureReason,
+							},
 						},
-					},
-				}
+					}
 
 					if err := toCattachStream.Send(reply); err != nil {
 						log.Debugf("[Cfored<->Cattach][Step #%d.%d] Connection to cattach was broken.", jobId, stepId)
@@ -225,10 +239,20 @@ CforedCattachStateMachineLoop:
 						state = CattachWaitIOForward
 					} else {
 						// Cattach task req failed
-						// channel was already removed from gVars.ctldReplyChannelMapByPid
+						// channel was already removed from ctldReplyChannelMapForCattachByPid
 						log.Infof("[Cfored<->Cattach][Pid #%d] Task connect failed", cattachPid)
 						break CforedCattachStateMachineLoop
 					}
+				default:
+					// Unexpected message type while waiting for STEP_META_REPLY.
+					// Clean up the pre-registration entry and terminate gracefully to
+					// avoid a goroutine leak (no other code path would clean this up).
+					log.Warnf("[Ctld->Cfored->Cattach][Pid #%d] Unexpected reply type %s in WaitStepMeta, terminating.",
+						cattachPid, ctldReply.Type.String())
+					gVars.ctldReplyChannelMapMtx.Lock()
+					delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
+					gVars.ctldReplyChannelMapMtx.Unlock()
+					state = DeadCattach
 				}
 			}
 		case CattachWaitIOForward:

@@ -153,8 +153,14 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
-	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, 2)
+	// Use larger buffers to reduce the chance of blocking:
+	// - ctldReplyChannel: WaitAllFrontEnd pre-sends JOB_CANCEL_REQUEST +
+	//   JOB_COMPLETION_ACK_REPLY (2 messages); a small pre-existing payload from
+	//   ctld before the disconnect would overflow capacity=2.
+	// - StepIoRequestChannel: supervisor output may arrive faster than crun
+	//   consumes it; a larger buffer reduces the drop rate in forwardRemoteIoToFront.
+	ctldReplyChannel := make(chan *protos.StreamCtldReply, 8)
+	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, 64)
 	jobId = math.MaxUint32
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
@@ -840,13 +846,30 @@ CforedCrunStateMachineLoop:
 			}
 			gVars.cforedRequestCtldChannel <- toCtldRequest
 
+			// Drain StepIoRequestChannel concurrently while waiting for the ACK.
+			// This prevents forwardRemoteIoToFront from dropping supervisor output
+			// due to a full channel, and mirrors the same pattern used by
+			// CrunWaitCtldAck and CrunWaitJobCancel.
+		waitForDeadCrunAck:
 			for {
-				ctldReply := <-ctldReplyChannel
-				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
-					log.Tracef("[Cfored<->Crun] Expect JOB_COMPLETION_ACK_REPLY from Ctld, "+
-						"but %s received. Just ignore it...", ctldReply.Type.String())
-				} else {
-					break
+				select {
+				case jobMsg := <-StepIoRequestChannel:
+					if jobMsg == nil {
+						log.Errorf("[Supervisor->Cfored->Crun][Step #%d.%d] Craned down during CancelJobOfDeadCrun, ignored.",
+							jobId, stepId)
+						break
+					}
+					// Discard IO messages during cancellation; crun is already gone.
+					log.Tracef("[Supervisor->Cfored->Crun][Step #%d.%d] Discarding supervisor IO during CancelJobOfDeadCrun.",
+						jobId, stepId)
+
+				case ctldReply := <-ctldReplyChannel:
+					if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+						log.Tracef("[Cfored<->Crun] Expect JOB_COMPLETION_ACK_REPLY from Ctld, "+
+							"but %s received. Just ignore it...", ctldReply.Type.String())
+					} else {
+						break waitForDeadCrunAck
+					}
 				}
 			}
 
@@ -860,7 +883,8 @@ CforedCrunStateMachineLoop:
 
 				gSupervisorChanKeeper.crunStepStopAndRemoveChannel(jobId, stepId)
 			} else {
-				log.Fatal("Job id should not equal MaxUint32 in CancelJobOfDeadCrun")
+				log.Errorf("[Cfored<->Crun][Step #%d.%d] BUG: Job id is MaxUint32 in CancelJobOfDeadCrun, "+
+					"this should never happen. Skipping cleanup.", jobId, stepId)
 			}
 			gVars.ctldReplyChannelMapMtx.Unlock()
 
