@@ -377,13 +377,7 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 	keeper.stepIORequestChannelMtx.Unlock()
 
 	// Send to each front-end channel outside the lock.
-	// Use a non-blocking select so that a slow consumer (e.g. a terminal that
-	// cannot display output fast enough) cannot block the supervisor IO stream
-	// and cause a deadlock where the supervisor stream, cfored forwarding loop,
-	// and crun/cattach all wait on each other indefinitely.
-	// Dropping a message here means the front-end may miss some output lines,
-	// which is acceptable for interactive monitoring tools (crun/cattach).
-	// If the consumer is keeping up, the non-blocking path succeeds immediately.
+	
 	for _, channel := range channels {
 		select {
 		case channel <- ioToFront:
@@ -391,11 +385,6 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 		case <-gVars.globalCtx.Done():
 			// cfored is shutting down; stop forwarding.
 			return
-		default:
-			// Channel is full: the front-end consumer is backed up.
-			// Drop this message to keep the supervisor stream flowing.
-			log.Tracef("[Supervisor->Cfored->FrontEnd][Step #%d.%d] Dropped IO message (front-end channel full).",
-				jobId, stepId)
 		}
 	}
 }
@@ -412,8 +401,18 @@ func (keeper *SupervisorChannelKeeper) crunStepStopAndRemoveChannel(jobId uint32
 
 func (keeper *SupervisorChannelKeeper) cattachStopAndRemoveChannel(taskId uint32, stepId uint32, cattachPid int32) {
 	keeper.stepIORequestChannelMtx.Lock()
-	if keeper.stepIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}] != nil {
-		delete(keeper.stepIORequestChannelMap[StepIdentifier{JobId: taskId, StepId: stepId}], cattachPid)
+	step := StepIdentifier{JobId: taskId, StepId: stepId}
+	if keeper.stepIORequestChannelMap[step] != nil {
+		delete(keeper.stepIORequestChannelMap[step], cattachPid)
+		// When the last cattach disconnects, remove the outer map entry so that
+		// forwardRemoteIoToFront correctly detects "no front-end connected" and
+		// logs/discards incoming supervisor IO instead of silently dropping it
+		// while iterating over an empty channel map.
+		// NOTE: taskIOBufferMap is intentionally kept so that a reconnecting
+		// cattach can replay the buffered history output.
+		if len(keeper.stepIORequestChannelMap[step]) == 0 {
+			delete(keeper.stepIORequestChannelMap, step)
+		}
 	}
 	keeper.stepIORequestChannelMtx.Unlock()
 }

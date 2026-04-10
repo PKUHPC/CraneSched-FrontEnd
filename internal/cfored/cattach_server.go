@@ -148,6 +148,13 @@ CforedCattachStateMachineLoop:
 				} else if cattachRequest != nil || err == nil {
 					log.Fatal("[Cattach->Cfored] Expect only nil (cattach connection broken) here!")
 				}
+				// ctld has not yet replied, so ctldReplyChannelMapByPid still holds
+				// the channel registered in CattachWaitConnectReq. Remove it here to
+				// avoid a permanent leak (the normal removal path is inside the
+				// STEP_META_REPLY branch below, which we will never reach).
+				gVars.ctldReplyChannelMapMtx.Lock()
+				delete(gVars.ctldReplyChannelMapByPid, cattachPid)
+				gVars.ctldReplyChannelMapMtx.Unlock()
 				state = DeadCattach
 
 			case ctldReply := <-ctldReplyChannel:
