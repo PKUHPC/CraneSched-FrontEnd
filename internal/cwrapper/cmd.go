@@ -61,3 +61,7 @@ func ParseCmdArgs() {
 
 	util.RunAndHandleExit(rootCmd)
 }
+
+func addConfigPathFlag(cmd *cobra.Command, target *string) {
+	cmd.Flags().StringVar(target, "config", util.DefaultConfigPath, "Path to configuration file")
+}

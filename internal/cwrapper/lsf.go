@@ -130,6 +130,7 @@ func bacct() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
 	cmd.Flags().StringVar(&cacct.FlagFilterUsers, "u", "", "Displays accounting statistics for jobs that are submitted by the specified users")
 	cmd.Flags().StringVar(&cacct.FlagFilterStartTime, "D", "", "Displays accounting statistics for jobs that are dispatched during the specified time interval")
 	cmd.Flags().StringVar(&cacct.FlagFilterEndTime, "C", "", "Displays accounting statistics for jobs that completed or exited during the specified time interval")
@@ -182,6 +183,7 @@ func bsub() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cbatch.FlagConfigFilePath)
 	cmd.Flags().StringVar(&cbatch.FlagJob, "J", "", "Assigns the specified name to the job")
 	cmd.Flags().StringVar(&cbatch.FlagStdoutPath, "o", "", "Appends the standard output of the job to the specified file path")
 	cmd.Flags().StringVar(&cbatch.FlagStderrPath, "e", "", "Appends the standard error output of the job to the specified file path")
@@ -223,6 +225,7 @@ func bjobs() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cqueue.FlagConfigFilePath)
 	cmd.Flags().StringVar(&cqueue.FlagFilterJobNames, "J", "", "Displays information about jobs with the specified job name")
 	cmd.Flags().BoolVar(&cqueue.FlagNoHeader, "noheader", false, "Removes the column headings from the output")
 
@@ -245,6 +248,7 @@ func bqueues() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
 	cmd.Flags().StringSliceVar(&cinfo.FlagFilterNodes, "m", nil, "Displays the queues that can run jobs on the specified host")
 
 	return cmd
@@ -289,6 +293,7 @@ func bkill() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &ccancel.FlagConfigFilePath)
 	cmd.Flags().StringVar(&ccancel.FlagJobName, "J", "", "Operates only on jobs with the specified job name")
 	cmd.Flags().StringVar(&ccancel.FlagUserName, "u", "", "Operates only on jobs that are submitted by the specified user")
 	cmd.Flags().StringVar(&ccancel.FlagPartition, "q", "", "Operates only on jobs in the specified queue (partition)")
