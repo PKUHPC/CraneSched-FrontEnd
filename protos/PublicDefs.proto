@@ -32,9 +32,20 @@ message CranedId {
   uint32 craned_index = 2;
 }
 
-message Slots {
-  repeated string slots = 1;
+message AllocatableResource {
+  double cpu_core_limit = 1;
+  uint64 memory_limit_bytes = 2;
+  uint64 memory_sw_limit_bytes = 3;
 }
+
+message TypeCountMap {
+  map<string /*Type*/, uint64> type_count_map = 1;
+  uint64 total = 2;
+}
+
+message DeviceMap { map<string /*name*/, TypeCountMap> name_type_map = 1; }
+
+message Slots { repeated string slots = 1; }
 
 message DeviceTypeSlotsMap {
   map<string /*Type*/, Slots /*index of slot*/> type_slots_map = 1;
@@ -169,7 +180,8 @@ message Signal {
     NONE = 0;
     // (B) Send the signal only to the batch shell, not to other job steps.
     BATCH_ONLY = 1;
-    // (R) Allow this job to overlap with a reservation that has MaxStartDelay set
+    // (R) Allow this job to overlap with a reservation that has MaxStartDelay
+    // set
     RESERVATION_OVERLAP = 2;
   }
   SignalFlag signal_flag = 3;
@@ -284,13 +296,12 @@ message RuntimeAttrOfJob {
   uint32 primary_step_exit_code = 22;
   map<string, uint32> actual_licenses = 23;
 
-  // For array children: the parent job's job_id.
+  // For array children: the array parent/anchor job_id.
   // If set, this job is an expanded array task.
-  optional uint32 parent_job_id = 24;
+  optional uint32 array_job_id = 24;
 
-  // For array parents: the first child's pre-allocated job_id.
-  // Children IDs are sequential: first_child_job_id, first_child_job_id+1, ...
-  optional uint32 first_child_job_id = 25;
+  // For array parents: whether child jobs have been materialized.
+  optional bool array_children_expanded = 27;
 }
 
 message StepToCtld {
@@ -391,6 +402,15 @@ message JobToD {
   StepToD daemon_step = 8;
 
   string name = 9;
+
+  // Array metadata propagated only for expanded array children.
+  // array_job_id is the parent/anchor job ID of the whole array.
+  optional uint32 array_job_id = 10;
+  optional uint32 array_task_id = 11;
+  optional uint32 array_task_count = 12;
+  optional uint32 array_task_min = 13;
+  optional uint32 array_task_max = 14;
+  optional uint32 array_task_step = 15;
 }
 
 enum StepType {
@@ -420,8 +440,10 @@ message StepToD {
   // If this step is PENDING, start_time is either not set (default constructed)
   // or an estimated start time.
   // If this step is RUNNING, start_time is the actual starting time.
-  google.protobuf.Timestamp start_time = 14;   // Currently Only used in CraneCtld
-  google.protobuf.Timestamp submit_time = 15;  // Currently Only used in CraneCtld
+  google.protobuf.Timestamp start_time =
+      14;  // Currently Only used in CraneCtld
+  google.protobuf.Timestamp submit_time =
+      15;  // Currently Only used in CraneCtld
   google.protobuf.Duration time_limit = 16;
 
   map<string, string> env = 17;
@@ -448,8 +470,9 @@ message StepToD {
   repeated Signal signals = 32;
   google.protobuf.Timestamp deadline_time = 33;
 
-  // task_node_list[task_id] = index of the node in nodelist that owns this task.
-  // Size equals ntasks. Provides the authoritative task_id -> node_idx mapping.
+  // task_node_list[task_id] = index of the node in nodelist that owns this
+  // task. Size equals ntasks. Provides the authoritative task_id -> node_idx
+  // mapping.
   repeated uint32 task_node_list = 34;
 
   IoMeta io_meta = 35;
@@ -468,13 +491,9 @@ message JobStepsToD {
   map<uint32, JobStatus> step_status = 3;
 }
 
-message JobStepIds {
-  repeated uint32 steps = 1;
-}
+message JobStepIds { repeated uint32 steps = 1; }
 
-message ArrayTaskIds {
-  repeated uint32 array_task_ids = 1;
-}
+message ArrayTaskIds { repeated uint32 array_task_ids = 1; }
 
 message IoMeta {
   // Append mode for output and error files
@@ -644,10 +663,11 @@ message JobInfo {
     string craned_list = 36;
   }
 
-  // The time of different nodes across the whole cluster might not always be synchronized.
-  // If the time on the front end node is more than several seconds ahead of the CraneCtld node,
-  // a negative elapsed time might occur.
-  // To avoid this, the elapsed time of a job is calculated on the CraneCtld side.
+  // The time of different nodes across the whole cluster might not always be
+  // synchronized. If the time on the front end node is more than several
+  // seconds ahead of the CraneCtld node, a negative elapsed time might occur.
+  // To avoid this, the elapsed time of a job is calculated on the CraneCtld
+  // side.
   google.protobuf.Duration elapsed_time = 37;
   repeated string execution_node = 38;
   bool exclusive = 39;
@@ -659,12 +679,9 @@ message JobInfo {
   google.protobuf.Timestamp deadline_time = 45;
 
   // Array metadata for query/display.
-  optional uint32 array_index_start = 46;
-  optional uint32 array_index_end = 47;
   optional uint32 array_task_id = 48;
-
-  // For array children: parent job's job_id.
-  optional uint32 parent_job_id = 49;
+  // For array children: the specific array task index.
+  optional uint32 array_job_id = 49;
 }
 
 message StepInfo {
@@ -703,10 +720,11 @@ message StepInfo {
   uint32 exit_code = 33;
   string craned_list = 36;
 
-  // The time of different nodes across the whole cluster might not always be synchronized.
-  // If the time on the front end node is more than several seconds ahead of the CraneCtld node,
-  // a negative elapsed time might occur.
-  // To avoid this, the elapsed time of a step is calculated on the CraneCtld side.
+  // The time of different nodes across the whole cluster might not always be
+  // synchronized. If the time on the front end node is more than several
+  // seconds ahead of the CraneCtld node, a negative elapsed time might occur.
+  // To avoid this, the elapsed time of a step is calculated on the CraneCtld
+  // side.
   google.protobuf.Duration elapsed_time = 37;
   repeated string execution_node = 38;
   ResourceView allocated_res_view = 40;
@@ -903,10 +921,13 @@ enum ErrCode {
   ERR_LICENSE_LEGAL_FAILED = 78;
   ERR_INVALID_JOB_ID = 79;
 
-  ERR_CRI_GENERIC = 80;              // CRI runtime returns error. For other errors in Crane, use ERR_GENERIC_FAILURE.
-  ERR_CRI_DISABLED = 81;             // CRI support is disabled in the cluster.
-  ERR_CRI_CONTAINER_NOT_READY = 82;  // Job/step is pending or container is not ready.
-  ERR_CRI_MULTIPLE_NODES = 83;       // Requested CRI operation is not supported in multi-node steps.
+  ERR_CRI_GENERIC = 80;   // CRI runtime returns error. For other errors in
+                          // Crane, use ERR_GENERIC_FAILURE.
+  ERR_CRI_DISABLED = 81;  // CRI support is disabled in the cluster.
+  ERR_CRI_CONTAINER_NOT_READY =
+      82;  // Job/step is pending or container is not ready.
+  ERR_CRI_MULTIPLE_NODES =
+      83;  // Requested CRI operation is not supported in multi-node steps.
 
   ERR_INVALID_MEM_FORMAT = 84;  // Invalid mem format when parsing mem
   ERR_STEP_RES_BEYOND = 85;     // Step resource request exceeds job resource.
@@ -1078,9 +1099,7 @@ message CranedRemoteMeta {
   string craned_version = 3;
   google.protobuf.Timestamp craned_start_time = 4;
   google.protobuf.Timestamp system_boot_time = 5;
-  message Steps {
-    repeated uint32 steps = 1;
-  }
+  message Steps { repeated uint32 steps = 1; }
   map<uint32, Steps> lost_steps = 6;
   repeated uint32 lost_jobs = 7;
   repeated NetworkInterface network_interfaces = 8;

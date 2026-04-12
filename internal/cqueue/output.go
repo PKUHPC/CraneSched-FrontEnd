@@ -27,19 +27,11 @@ type arraySummaryInfo struct {
 }
 
 func makeArraySummaryGroupKey(job *protos.JobInfo) (string, bool) {
-	if job.ArrayIndexStart == nil || job.ArrayIndexEnd == nil || job.ArrayTaskId == nil {
+	if job.ArrayJobId == nil || job.ArrayTaskId == nil {
 		return "", false
 	}
 
-	return fmt.Sprintf("%s|%s|%s|%s|%d|%d|%d",
-		job.Account,
-		job.Username,
-		job.Partition,
-		job.CmdLine,
-		job.SubmitTime.GetSeconds(),
-		*job.ArrayIndexStart,
-		*job.ArrayIndexEnd,
-	), true
+	return strconv.FormatUint(uint64(*job.ArrayJobId), 10), true
 }
 
 func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
@@ -101,9 +93,9 @@ func insertArraySummaryRows(header []string, rows [][]string, jobs []*protos.Job
 
 		if _, ok := groupByKey[key]; !ok {
 			groupByKey[key] = &arraySummaryInfo{
-				anchorJobId: job.JobId,
-				start:       *job.ArrayIndexStart,
-				end:         *job.ArrayIndexEnd,
+				anchorJobId: util.ResolveArrayJobId(job.JobId, job.ArrayJobId),
+				start:       *job.ArrayTaskId,
+				end:         *job.ArrayTaskId,
 				count:       0,
 				sample:      job,
 			}
@@ -111,8 +103,11 @@ func insertArraySummaryRows(header []string, rows [][]string, jobs []*protos.Job
 
 		group := groupByKey[key]
 		group.count++
-		if job.JobId > group.anchorJobId {
-			group.anchorJobId = job.JobId
+		if *job.ArrayTaskId < group.start {
+			group.start = *job.ArrayTaskId
+		}
+		if *job.ArrayTaskId > group.end {
+			group.end = *job.ArrayTaskId
 		}
 	}
 

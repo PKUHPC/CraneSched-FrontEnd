@@ -599,7 +599,7 @@ func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 
 	if len(reply.JobIdList) > 0 {
 		if job.ArrayIndexStart != nil && job.ArrayIndexEnd != nil {
-			// Array job: backend returns single parent job_id.
+			// Array job: backend returns a single array_job_id.
 			// Tasks will be expanded at scheduling time.
 			if job.ArrayIndexStride != nil && *job.ArrayIndexStride > 1 {
 				fmt.Printf("Submitted array job %d, array range [%d-%d:%d].\n",

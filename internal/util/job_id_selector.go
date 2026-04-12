@@ -17,6 +17,13 @@ type JobIdSelector struct {
 	StepId      *uint32
 }
 
+func ResolveArrayJobId(jobId uint32, arrayJobId *uint32) uint32 {
+	if arrayJobId != nil {
+		return *arrayJobId
+	}
+	return jobId
+}
+
 func FormatJobIdWithArray(jobId uint32, arrayTaskId *uint32) string {
 	if arrayTaskId != nil {
 		return fmt.Sprintf("%d_%d", jobId, *arrayTaskId)

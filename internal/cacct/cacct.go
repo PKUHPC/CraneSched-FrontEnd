@@ -308,7 +308,7 @@ type jobDisplaySortKey struct {
 
 func buildSortKey(item *JobOrStep) jobDisplaySortKey {
 	key := jobDisplaySortKey{
-		jobId:  item.job.JobId,
+		jobId:  util.ResolveArrayJobId(item.job.JobId, item.job.ArrayJobId),
 		isStep: item.isStep,
 	}
 
@@ -338,19 +338,11 @@ type arraySummaryInfo struct {
 }
 
 func makeArraySummaryGroupKey(job *protos.JobInfo) (string, bool) {
-	if job.ArrayIndexStart == nil || job.ArrayIndexEnd == nil || job.ArrayTaskId == nil {
+	if job.ArrayJobId == nil || job.ArrayTaskId == nil {
 		return "", false
 	}
 
-	return fmt.Sprintf("%s|%s|%s|%s|%d|%d|%d",
-		job.Account,
-		job.Username,
-		job.Partition,
-		job.CmdLine,
-		job.SubmitTime.GetSeconds(),
-		*job.ArrayIndexStart,
-		*job.ArrayIndexEnd,
-	), true
+	return strconv.FormatUint(uint64(*job.ArrayJobId), 10), true
 }
 
 func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
@@ -417,9 +409,9 @@ func insertArraySummaryRows(header []string, rows [][]string, items []*JobOrStep
 
 		if _, ok := groupByKey[key]; !ok {
 			groupByKey[key] = &arraySummaryInfo{
-				anchorJobId: item.job.JobId,
-				start:       *item.job.ArrayIndexStart,
-				end:         *item.job.ArrayIndexEnd,
+				anchorJobId: util.ResolveArrayJobId(item.job.JobId, item.job.ArrayJobId),
+				start:       *item.job.ArrayTaskId,
+				end:         *item.job.ArrayTaskId,
 				count:       0,
 				sample:      item.job,
 			}
@@ -427,8 +419,11 @@ func insertArraySummaryRows(header []string, rows [][]string, items []*JobOrStep
 
 		group := groupByKey[key]
 		group.count++
-		if item.job.JobId > group.anchorJobId {
-			group.anchorJobId = item.job.JobId
+		if *item.job.ArrayTaskId < group.start {
+			group.start = *item.job.ArrayTaskId
+		}
+		if *item.job.ArrayTaskId > group.end {
+			group.end = *item.job.ArrayTaskId
 		}
 	}
 
@@ -594,9 +589,16 @@ func ProcessHeld(item *JobOrStep) string {
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
 	if item.isStep {
-		return util.FormatStepIdWithArray(item.stepInfo.JobId, item.job.ArrayTaskId, item.stepInfo.StepId)
+		return util.FormatStepIdWithArray(
+			util.ResolveArrayJobId(item.stepInfo.JobId, item.job.ArrayJobId),
+			item.job.ArrayTaskId,
+			item.stepInfo.StepId,
+		)
 	}
-	return util.FormatJobIdWithArray(item.job.JobId, item.job.ArrayTaskId)
+	return util.FormatJobIdWithArray(
+		util.ResolveArrayJobId(item.job.JobId, item.job.ArrayJobId),
+		item.job.ArrayTaskId,
+	)
 }
 
 // Wckey (K)

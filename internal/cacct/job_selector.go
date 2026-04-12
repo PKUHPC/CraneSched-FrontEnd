@@ -82,7 +82,8 @@ func applyArrayAwareItemFilter(items []*JobOrStep) []*JobOrStep {
 
 		matched := false
 		for _, selector := range jobIdSelectors {
-			if item.job.JobId != selector.JobId {
+			logicalJobId := util.ResolveArrayJobId(item.job.JobId, item.job.ArrayJobId)
+			if logicalJobId != selector.JobId {
 				continue
 			}
 

@@ -76,18 +76,13 @@ func applyArrayAwareJobFilter(reply *protos.QueryJobsInfoReply) {
 
 	filtered := make([]*protos.JobInfo, 0, len(reply.JobInfoList))
 	for _, job := range reply.JobInfoList {
-		if _, ok := allJobSelections[job.JobId]; ok {
+		logicalJobId := util.ResolveArrayJobId(job.JobId, job.ArrayJobId)
+		if _, ok := allJobSelections[logicalJobId]; ok {
 			filtered = append(filtered, job)
 			continue
 		}
 
-		// For array child tasks, use parent_job_id to look up selections
-		lookupId := job.JobId
-		if job.ParentJobId != nil {
-			lookupId = *job.ParentJobId
-		}
-
-		selectedTasks, ok := arrayTaskIdSelections[lookupId]
+		selectedTasks, ok := arrayTaskIdSelections[logicalJobId]
 		if !ok || job.ArrayTaskId == nil {
 			continue
 		}
@@ -101,9 +96,14 @@ func applyArrayAwareJobFilter(reply *protos.QueryJobsInfoReply) {
 }
 
 func formatJobIdForDisplay(job *protos.JobInfo) string {
-	return util.FormatJobIdWithArray(job.JobId, job.ArrayTaskId)
+	return util.FormatJobIdWithArray(
+		util.ResolveArrayJobId(job.JobId, job.ArrayJobId), job.ArrayTaskId)
 }
 
 func formatStepIdForDisplay(stepInfo *protos.StepInfo, parentJob *protos.JobInfo) string {
-	return util.FormatStepIdWithArray(stepInfo.JobId, parentJob.ArrayTaskId, stepInfo.StepId)
+	return util.FormatStepIdWithArray(
+		util.ResolveArrayJobId(stepInfo.JobId, parentJob.ArrayJobId),
+		parentJob.ArrayTaskId,
+		stepInfo.StepId,
+	)
 }
