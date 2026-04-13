@@ -118,8 +118,8 @@ enum JobStatus {
   Starting = 8;
   Completing = 9;
   Suspended = 10;
+  Deadline = 11;
 
-  Deadline = 10;
   Invalid = 15;
 }
 
