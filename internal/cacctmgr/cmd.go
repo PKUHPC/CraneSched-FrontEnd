@@ -36,7 +36,7 @@ var (
 	FlagUser    protos.UserInfo
 	FlagQos     = protos.QosInfo{
 		MaxJobsPerUser:     math.MaxUint32,
-		MaxCpusPerUser:     math.MaxUint32,
+		MaxCpusPerUser:     util.UnlimitedCpuValue,
 		MaxTimeLimitPerJob: util.MaxJobTimeLimit,
 	}
 	FlagWckey protos.WckeyInfo
@@ -249,7 +249,7 @@ func executeAddUserCommand(command *CAcctMgrCommand) error {
 func executeAddQosCommand(command *CAcctMgrCommand) error {
 	FlagQos = protos.QosInfo{
 		MaxJobsPerUser:          math.MaxUint32,
-		MaxCpusPerUser:          math.MaxUint32,
+		MaxCpusPerUser:          util.UnlimitedCpuValue,
 		MaxSubmitJobsPerUser:    math.MaxUint32,
 		MaxSubmitJobsPerAccount: math.MaxUint32,
 		MaxJobsPerAccount:       math.MaxUint32,
@@ -285,11 +285,12 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 			maxJobs, _ := strconv.ParseUint(value, 10, 32)
 			FlagQos.MaxJobsPerUser = uint32(maxJobs)
 		case "maxcpusperuser":
-			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
-				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			maxCpus, err := strconv.ParseFloat(value, 64)
+			if err != nil || maxCpus < 0 || maxCpus > util.UnlimitedCpuThreshold {
+				log.Errorf("Invalid value for maxCpusPerUser: %s\n", value)
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid value for maxCpusPerUser: %s", value))
 			}
-			maxCpus, _ := strconv.ParseUint(value, 10, 32)
-			FlagQos.MaxCpusPerUser = uint32(maxCpus)
+			FlagQos.MaxCpusPerUser = maxCpus
 		case "maxtimelimitperjob":
 			if seconds, err := util.ParseDurationStrToSeconds(value); err != nil {
 				if err = validateUintValue(value, "maxTimeLimitPerJob", 64); err != nil {
@@ -1072,8 +1073,9 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 	for key, value := range SetParams {
 		switch strings.ToLower(key) {
 		case "maxcpusperuser":
-			if err := validateUintValue(value, "maxCpusPerUser", 32); err != nil {
-				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			maxCpus, err := strconv.ParseFloat(value, 64)
+			if err != nil || maxCpus < 0 || maxCpus > util.UnlimitedCpuThreshold {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid value for maxCpusPerUser: %s", value))
 			}
 			FlagMaxCpu = value
 			params = append(params, ModifyParam{
