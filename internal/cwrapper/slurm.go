@@ -109,35 +109,47 @@ func (w SlurmWrapper) Preprocess() error {
 
 func sacct() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "sacct",
-		Short:   "Wrapper of cacct command",
-		Long:    "",
-		GroupID: "slurm",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cacct.RootCmd.PersistentPreRun(cmd, args)
-			if err := Validate(cacct.RootCmd, args); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
+		Use:                "sacct",
+		Short:              "Wrapper of cacct command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			convertedArgs := make([]string, 0, len(args))
+			for _, arg := range args {
+				switch arg {
+				case "--jobs":
+					convertedArgs = append(convertedArgs, "--job")
+				case "--starttime":
+					convertedArgs = append(convertedArgs, "--start-time")
+				case "--endtime":
+					convertedArgs = append(convertedArgs, "--end-time")
+				case "-n":
+					convertedArgs = append(convertedArgs, "-N")
+				default:
+					convertedArgs = append(convertedArgs, arg)
+				}
 			}
-			return cacct.RootCmd.RunE(cmd, args)
+			cacct.RootCmd.SetArgs(convertedArgs)
+			err := cacct.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorSuccess)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
 		},
 	}
 
 	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
 	cmd.Flags().StringVarP(&cacct.FlagFilterAccounts, "account", "A", "",
 		"Displays jobs when a comma separated list of accounts are given as the argument.")
-	cmd.Flags().StringVarP(&cacct.FlagFilterJobIDs, "jobs", "j", "",
-		"Displays information about the specified job or list of jobs.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterUsers, "user", "u", "",
 		"Use this comma separated list of user names to select jobs to display.")
-
-	cmd.Flags().StringVarP(&cacct.FlagFilterStartTime, "starttime", "S", "",
-		"Select jobs in any state after the specified time.")
-	cmd.Flags().StringVarP(&cacct.FlagFilterEndTime, "endtime", "E", "",
-		"Select jobs in any state before the specified time.")
-
-	cmd.Flags().BoolVarP(&cacct.FlagNoHeader, "noheader", "n", false,
-		"No heading will be added to the output. The default action is to display a header.")
 
 	return cmd
 }
@@ -566,29 +578,40 @@ func salloc() *cobra.Command {
 
 func scancel() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "scancel",
-		Short:   "Wrapper of ccancel command",
-		Long:    "",
-		GroupID: "slurm",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Use:                "scancel",
+		Short:              "Wrapper of ccancel command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
 			// scancel uses spaced arguments,
 			// we need to convert it into a comma-separated list.
-			if len(args) > 0 {
-				args = []string{strings.Join(args, ",")}
+			convertedArgs := make([]string, 0, len(args)+1)
+			convertedArgs = append(convertedArgs, "--wrapper")
+			for _, arg := range args {
+				switch arg {
+				case "--nodelist":
+					convertedArgs = append(convertedArgs, " --nodes")
+				default:
+					convertedArgs = append(convertedArgs, arg)
+				}
 			}
-
-			ccancel.RootCmd.PersistentPreRun(cmd, args)
-			if err := Validate(ccancel.RootCmd, args); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
+			ccancel.RootCmd.SetArgs(convertedArgs)
+			err := ccancel.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorSuccess)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
 			}
-			return ccancel.RootCmd.RunE(cmd, args)
 		},
 	}
 
 	addConfigPathFlag(cmd, &ccancel.FlagConfigFilePath)
-	cmd.Flags().BoolP("help", "", false, "Help for this command.")
-
 	cmd.Flags().StringVarP(&ccancel.FlagAccount, "account", "A", "",
 		"Restrict the scancel operation to jobs under this charge account.")
 	cmd.Flags().StringVarP(&ccancel.FlagJobName, "name", "n", "",
@@ -916,46 +939,51 @@ func sinfo() *cobra.Command {
 
 func squeue() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "squeue",
-		Short:   "Wrapper of cqueue command",
-		Long:    "",
-		GroupID: "slurm",
+		Use:                "squeue",
+		Short:              "Wrapper of cqueue command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			cqueue.RootCmd.PersistentPreRun(cmd, args)
-			// Validate the arguments
-			if err := Validate(cqueue.RootCmd, args); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
+			convertedArgs := make([]string, 0, len(args))
+			for _, arg := range args {
+				switch arg {
+				case "-h":
+					convertedArgs = append(convertedArgs, "-N")
+				case "--jobs":
+					convertedArgs = append(convertedArgs, "--job")
+				case "--states":
+					convertedArgs = append(convertedArgs, "--state")
+				default:
+					convertedArgs = append(convertedArgs, arg)
+				}
 			}
-
-			err := util.ErrorSuccess
-			if cqueue.FlagIterate != 0 {
-				err = squeueLoopedQuery(cqueue.FlagIterate)
+			cqueue.RootCmd.SetArgs(convertedArgs)
+			err := cqueue.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorSuccess)
+				}
 			} else {
-				err = squeueQuery()
+				os.Exit(util.ErrorSuccess)
 			}
-			os.Exit(err)
 		},
 	}
 
 	addConfigPathFlag(cmd, &cqueue.FlagConfigFilePath)
 	// As --noheader will use -h, we need to add the help flag manually
 	cmd.Flags().BoolP("help", "", false, "Help for this command.")
-
-	cmd.Flags().BoolVarP(&cqueue.FlagNoHeader, "noheader", "h", false,
-		"Do not print a header on the output.")
 	cmd.Flags().BoolVarP(&cqueue.FlagStartTime, "start", "S", false,
 		"Report the expected start time and resources to be allocated for pending jobs in order of \nincreasing start time.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterPartitions, "partition", "p", "",
 		"Specify the partitions of the jobs or steps to view. Accepts a comma separated list of \npartition names.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterJobIDs, "jobs", "j", "",
-		"Specify a comma separated list of job IDs to display. Defaults to all jobs. ")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterJobNames, "name", "n", "",
 		"Request jobs or job steps having one of the specified names. The list consists of a comma \nseparated list of job names.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterQos, "qos", "q", "",
 		"Specify the qos(s) of the jobs or steps to view. Accepts a comma separated list of qos's.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterStates, "states", "t", "",
-		"Specify the states of jobs to view. Accepts a comma separated list of state names or \"all\".")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterUsers, "user", "u", "",
 		"Request jobs or job steps from a comma separated list of users.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterAccounts, "account", "A", "",
