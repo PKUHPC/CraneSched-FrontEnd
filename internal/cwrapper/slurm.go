@@ -591,7 +591,7 @@ func scancel() *cobra.Command {
 			for _, arg := range args {
 				switch arg {
 				case "--nodelist":
-					convertedArgs = append(convertedArgs, " --nodes")
+					convertedArgs = append(convertedArgs, "--nodes")
 				default:
 					convertedArgs = append(convertedArgs, arg)
 				}
@@ -616,8 +616,6 @@ func scancel() *cobra.Command {
 		"Restrict the scancel operation to jobs under this charge account.")
 	cmd.Flags().StringVarP(&ccancel.FlagJobName, "name", "n", "",
 		"Restrict the scancel operation to jobs with this job name.") // TODO: Alias --jobname
-	cmd.Flags().StringSliceVarP(&ccancel.FlagNodes, "nodelist", "w", nil,
-		"Cancel any jobs using any of the given hosts. (comma-separated list of hosts)") // TODO: Read from file
 	cmd.Flags().StringVarP(&ccancel.FlagPartition, "partition", "p", "",
 		"Restrict the scancel operation to jobs in this partition.")
 	cmd.Flags().StringVarP(&ccancel.FlagState, "state", "t", "",
