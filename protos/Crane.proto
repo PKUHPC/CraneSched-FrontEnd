@@ -260,6 +260,8 @@ message ModifyJobRequest {
     Priority = 1;
     Hold = 2;
     Deadline = 3;
+    Suspend = 4;
+    Resume = 5;
   }
 
   uint32 uid = 1;

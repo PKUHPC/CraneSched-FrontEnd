@@ -233,6 +233,68 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 	return SummarizeReply(reply)
 }
 
+func SuspendJobs(jobs string) error {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		log.Errorf("invalid job list: %s", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
+	}
+
+	req := &protos.ModifyJobRequest{
+		Uid:       uint32(os.Getuid()),
+		JobIds:    jobList,
+		Attribute: protos.ModifyJobRequest_Suspend,
+	}
+
+	reply, err := stub.ModifyJob(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to suspend jobs")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		// Check if there are any failures and return appropriate error code
+		if len(reply.NotModifiedJobs) > 0 {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+		return nil
+	}
+
+	return SummarizeReply(reply)
+}
+
+func ResumeJobs(jobs string) error {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		log.Errorf("invalid job list: %s", err)
+		return &util.CraneError{Code: util.ErrorCmdArg}
+	}
+
+	req := &protos.ModifyJobRequest{
+		Uid:       uint32(os.Getuid()),
+		JobIds:    jobList,
+		Attribute: protos.ModifyJobRequest_Resume,
+	}
+
+	reply, err := stub.ModifyJob(context.Background(), req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to resume jobs")
+		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		// Check if there are any failures and return appropriate error code
+		if len(reply.NotModifiedJobs) > 0 {
+			return &util.CraneError{Code: util.ErrorBackend}
+		}
+		return nil
+	}
+
+	return SummarizeReply(reply)
+}
+
 func ChangeJobPriority(jobStr string, priority float64) error {
 	if priority < 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, "Priority must be greater than or equal to 0.")

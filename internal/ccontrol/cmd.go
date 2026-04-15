@@ -61,6 +61,8 @@ var actionToExecute = map[string]func(command *CControlCommand) error{
 	"update":  executeUpdateCommand,
 	"hold":    executeHoldCommand,
 	"release": executeReleaseCommand,
+	"suspend": executeSuspendCommand,
+	"resume":  executeResumeCommand,
 	"create":  executeCreateCommand,
 	"delete":  executeDeleteCommand,
 	"reset":   executeResetCommand,
@@ -406,6 +408,38 @@ func executeReleaseCommand(command *CControlCommand) error {
 	err := HoldReleaseJobs(jobIds, false)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "release jobs failed: %s\n", err)
+	}
+	return nil
+}
+
+func executeSuspendCommand(command *CControlCommand) error {
+	jobIds := command.GetID()
+	if jobIds == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no job id specified"))
+	}
+
+	err := SuspendJobs(jobIds)
+	if err != nil {
+		if FlagJson {
+			return err
+		}
+		return util.WrapCraneErr(util.ErrorGeneric, "suspend jobs failed: %s\n", err)
+	}
+	return nil
+}
+
+func executeResumeCommand(command *CControlCommand) error {
+	jobIds := command.GetID()
+	if jobIds == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no job id specified"))
+	}
+
+	err := ResumeJobs(jobIds)
+	if err != nil {
+		if FlagJson {
+			return err
+		}
+		return util.WrapCraneErr(util.ErrorGeneric, "resume jobs failed: %s\n", err)
 	}
 	return nil
 }

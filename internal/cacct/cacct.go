@@ -308,9 +308,9 @@ func ProcessAccount(item *JobOrStep) string {
 func ProcessReqCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
-		cpuCores = item.stepInfo.ReqTotalResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.stepInfo.GetReqTotalResView().GetCpuCount()
 	} else {
-		cpuCores = item.job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.job.GetReqTotalResView().GetCpuCount()
 	}
 	return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 }
@@ -319,11 +319,11 @@ func ProcessReqCPUs(item *JobOrStep) string {
 func ProcessAllocCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
-		cpuCores = item.stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.stepInfo.GetAllocatedResView().GetCpuCount()
 	} else {
-		cpuCores = item.job.AllocatedResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.job.GetAllocatedResView().GetCpuCount()
 	}
-	if item.job.AllocatedResView != nil {
+	if item.job.GetAllocatedResView() != nil {
 		return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 	}
 	return ""
@@ -356,6 +356,18 @@ func ProcessElapsedTime(item *JobOrStep) string {
 			return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
 		}
 	} else if status == protos.JobStatus_Completed {
+		// Prefer backend elapsed time (already excludes suspended duration).
+		if item.isStep {
+			if item.stepInfo.ElapsedTime != nil && item.stepInfo.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
+			}
+		} else {
+			if item.job.ElapsedTime != nil && item.job.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
+			}
+		}
+
+		// Fallback to derived duration if elapsed time is unavailable.
 		if startTime.IsZero() || endTime.IsZero() {
 			return "-"
 		}
@@ -489,10 +501,10 @@ func ProcessReqMemPerNode(item *JobOrStep) string {
 	var totalMem uint64
 	var nodeNum uint32
 	if item.isStep {
-		totalMem = item.stepInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+		totalMem = item.stepInfo.GetReqTotalResView().GetMemoryBytes()
 		nodeNum = item.stepInfo.NodeNum
 	} else {
-		totalMem = item.job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+		totalMem = item.job.GetReqTotalResView().GetMemoryBytes()
 		nodeNum = item.job.NodeNum
 	}
 	if nodeNum > 0 {
@@ -508,10 +520,10 @@ func ProcessAllocMemPerNode(item *JobOrStep) string {
 
 	if item.isStep {
 		nodeNum = item.stepInfo.NodeNum
-		allocMem = item.stepInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes
+		allocMem = item.stepInfo.GetAllocatedResView().GetMemoryBytes()
 	} else {
 		nodeNum = item.job.NodeNum
-		allocMem = item.job.AllocatedResView.AllocatableRes.MemoryLimitBytes
+		allocMem = item.job.GetAllocatedResView().GetMemoryBytes()
 	}
 	if nodeNum == 0 {
 		return "0"

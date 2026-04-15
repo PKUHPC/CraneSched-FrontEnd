@@ -133,7 +133,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 		if err != nil {
 			return nil, err
 		}
-		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+		if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 			if setGpusPerNodeFlag {
 				return nil, fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
 			}
@@ -351,7 +351,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+			if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 				if setGpusPerNodeFlag {
 					return fmt.Errorf("invalid argument: cannot specify both --gres gpus and --gpus-per-node flags simultaneously")
 				}
