@@ -239,7 +239,6 @@ message JobToCtld {
   bool hold = 38;
   google.protobuf.Timestamp begin_time = 39;
 
-
   message License {
     string key = 1;
     uint32 count = 2;
@@ -255,7 +254,6 @@ message JobToCtld {
   string task_epilog = 47;
   repeated Signal signals = 48;
   google.protobuf.Timestamp deadline_time = 49;
-
   optional double cpus_per_task = 50;
   optional uint64 mem_per_node = 51;
   optional GresMap gres_per_node = 52;
@@ -347,6 +345,7 @@ message StepToCtld {
 
   string excludes = 34;
   string nodelist = 35;
+
   optional uint64 mem_per_cpu = 36;
   optional double cpus_per_task = 37;
   optional uint64 mem_per_node = 38;
@@ -672,6 +671,8 @@ message JobInfo {
   string submit_hostname = 43;
   uint32 ntasks = 44;
   google.protobuf.Timestamp deadline_time = 45;
+  int32 requeue_count = 46;
+  bool requeue_if_failed = 47;
 
   ArraySpec array_spec = 50;
   ArrayTaskIdentity array_task = 51;
