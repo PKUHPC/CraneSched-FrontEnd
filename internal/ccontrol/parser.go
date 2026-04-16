@@ -69,6 +69,12 @@ type ResumeCommand struct {
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
+type RequeueCommand struct {
+	Action        string           `parser:"@'requeue'"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+}
+
 type CreateCommand struct {
 	Action        string           `parser:"@'create'"`
 	Entity        *EntityType      `parser:"@@"`
@@ -118,7 +124,8 @@ var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CControlParser = participle.MustBuild[CControlCommand](
 	participle.Lexer(CControlLexer),
 	participle.Elide("whitespace"),
-	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{}, SuspendCommand{}, ResumeCommand{}, CreateCommand{}, DeleteCommand{}, ResetCommand{}),
+	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{},
+		SuspendCommand{}, ResumeCommand{}, RequeueCommand{}, CreateCommand{}, DeleteCommand{}, ResetCommand{}),
 )
 
 func ParseCControlCommand(input string) (*CControlCommand, error) {
@@ -168,6 +175,8 @@ func (c *CControlCommand) GetAction() string {
 		return cmd.Action
 	case ResumeCommand:
 		return cmd.Action
+	case RequeueCommand:
+		return cmd.Action
 	case ResetCommand:
 		return cmd.Action
 	case CreateCommand:
@@ -213,6 +222,8 @@ func (c *CControlCommand) GetID() string {
 		return cmd.ID
 	case ResumeCommand:
 		return cmd.ID
+	case RequeueCommand:
+		return cmd.ID
 	case DeleteCommand:
 		return cmd.ID
 	case CreateCommand:
@@ -235,6 +246,8 @@ func (c *CControlCommand) GetKVParamValue(key string) string {
 	case SuspendCommand:
 		params = cmd.KeyValueParam
 	case ResumeCommand:
+		params = cmd.KeyValueParam
+	case RequeueCommand:
 		params = cmd.KeyValueParam
 	case CreateCommand:
 		params = cmd.KeyValueParam
