@@ -21,7 +21,6 @@ package ccancel
 import (
 	"CraneFrontEnd/internal/util"
 	"regexp"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -35,7 +34,6 @@ var (
 	FlagNodes          []string
 	FlagConfigFilePath string
 	FlagJson           bool
-	FlagWrapper        bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ccancel [flags] JOBID.STEPID[,JOBID.STEPID...]",
@@ -43,6 +41,10 @@ var (
 		Long:    "",
 		Version: util.Version(),
 		Args: func(cmd *cobra.Command, args []string) error {
+			err := cobra.MaximumNArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
 
 			if len(args) == 0 &&
 				FlagJobName == "" &&
@@ -54,18 +56,14 @@ var (
 				return util.NewCraneErr(util.ErrorCmdArg, "at least one condition should be given.")
 			}
 
-			if len(args) > 1 && !FlagWrapper {
-				return util.NewCraneErr(util.ErrorCmdArg, "job id list must follow the format "+
-					"<job_id> or '<job_id>,<job_id>,<job_id>...'")
-			}
-
-			if len(args) > 0 && !FlagWrapper {
+			if len(args) > 0 {
 				matched, _ := regexp.MatchString(`^([1-9][0-9]*(\.[1-9][0-9]*)?)(,[1-9][0-9]*(\.[1-9][0-9]*)?)*$`, args[0])
 				if !matched {
 					return util.NewCraneErr(util.ErrorCmdArg, "job id list must follow the format "+
 						"<job_id> or '<job_id>,<job_id>,<job_id>...'")
 				}
 			}
+
 			return nil
 		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -74,9 +72,6 @@ var (
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if FlagWrapper && len(args) > 0 {
-				args = []string{strings.Join(args, ",")}
-			}
 			return CancelJob(args)
 		},
 	}
@@ -107,7 +102,5 @@ func init() {
 		"Cancel jobs running or suspended on the specified nodes")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
-	RootCmd.Flags().BoolVar(&FlagWrapper, "wrapper", false, "Internal flag")
-	RootCmd.Flags().MarkHidden("wrapper")
 	util.InitCraneLogger()
 }

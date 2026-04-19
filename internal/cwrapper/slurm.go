@@ -137,7 +137,7 @@ func sacct() *cobra.Command {
 				case *util.CraneError:
 					os.Exit(e.Code)
 				default:
-					os.Exit(util.ErrorSuccess)
+					os.Exit(util.ErrorGeneric)
 				}
 			} else {
 				os.Exit(util.ErrorSuccess)
@@ -577,52 +577,86 @@ func salloc() *cobra.Command {
 }
 
 func scancel() *cobra.Command {
+	var (
+		FlagJobName        string
+		FlagPartition      string
+		FlagState          string
+		FlagAccount        string
+		FlagUserName       string
+		FlagNodeList       []string
+		FlagConfigFilePath string
+		FlagJson           bool
+	)
 	cmd := &cobra.Command{
-		Use:                "scancel",
-		Short:              "Wrapper of ccancel command",
-		Long:               "",
-		GroupID:            "slurm",
-		DisableFlagParsing: true,
+		Use:     "scancel",
+		Short:   "Wrapper of ccancel command",
+		Long:    "",
+		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
 			// scancel uses spaced arguments,
 			// we need to convert it into a comma-separated list.
-			convertedArgs := make([]string, 0, len(args)+1)
-			convertedArgs = append(convertedArgs, "--wrapper")
-			for _, arg := range args {
-				switch arg {
-				case "--nodelist":
-					convertedArgs = append(convertedArgs, "--nodes")
-				default:
-					convertedArgs = append(convertedArgs, arg)
+			ccancelArgs := make([]string, 0)
+			if FlagJobName != "" {
+				ccancelArgs = append(ccancelArgs, "--name", FlagJobName)
+			}
+			if FlagPartition != "" {
+				ccancelArgs = append(ccancelArgs, "--partition", FlagPartition)
+			}
+			if FlagState != "" {
+				ccancelArgs = append(ccancelArgs, "--state", FlagState)
+			}
+			if FlagAccount != "" {
+				ccancelArgs = append(ccancelArgs, "--account", FlagAccount)
+			}
+			if FlagUserName != "" {
+				ccancelArgs = append(ccancelArgs, "--user", FlagUserName)
+			}
+			if len(FlagNodeList) > 0 {
+				ccancelArgs = append(ccancelArgs, "--nodes")
+				for _, node := range FlagNodeList {
+					ccancelArgs = append(ccancelArgs, node)
 				}
 			}
-			ccancel.RootCmd.SetArgs(convertedArgs)
+			if FlagConfigFilePath != "" {
+				ccancelArgs = append(ccancelArgs, "--config", FlagConfigFilePath)
+			}
+			if FlagJson {
+				ccancelArgs = append(ccancelArgs, "--json")
+			}
+			if len(args) > 0 {
+				ccancelArgs = append(ccancelArgs, strings.Join(args, ","))
+			}
+			ccancel.RootCmd.SetArgs(ccancelArgs)
 			err := ccancel.RootCmd.Execute()
 			if err != nil {
 				switch e := err.(type) {
 				case *util.CraneError:
 					os.Exit(e.Code)
 				default:
-					os.Exit(util.ErrorSuccess)
+					os.Exit(util.ErrorGeneric)
 				}
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
 		},
 	}
-
-	addConfigPathFlag(cmd, &ccancel.FlagConfigFilePath)
-	cmd.Flags().StringVarP(&ccancel.FlagAccount, "account", "A", "",
-		"Restrict the scancel operation to jobs under this charge account.")
-	cmd.Flags().StringVarP(&ccancel.FlagJobName, "name", "n", "",
-		"Restrict the scancel operation to jobs with this job name.") // TODO: Alias --jobname
-	cmd.Flags().StringVarP(&ccancel.FlagPartition, "partition", "p", "",
-		"Restrict the scancel operation to jobs in this partition.")
-	cmd.Flags().StringVarP(&ccancel.FlagState, "state", "t", "",
-		`Restrict the scancel operation to jobs in this state.`) // TODO: Give hints on valid state strings
-	cmd.Flags().StringVarP(&ccancel.FlagUserName, "user", "u", "",
-		"Restrict the scancel operation to jobs owned by the given user.")
-
+	addConfigPathFlag(cmd, &FlagConfigFilePath)
+	cmd.Flags().StringVarP(&FlagJobName, "name", "n", "",
+		"Cancel jobs with the specified job name")
+	cmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
+		"Cancel jobs in the specified partition")
+	cmd.Flags().StringVarP(&FlagState, "state", "t", "",
+		"Cancel jobs of the specified states"+
+			"Valid job states are PENDING(P), RUNNING(R), SUSPENDED(S), ALL. "+
+			"job states are case-insensitive")
+	cmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
+		"Cancel jobs under the specified account")
+	cmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
+		"Cancel jobs submitted by the specified user")
+	cmd.Flags().StringSliceVarP(&FlagNodeList, "nodelist", "w", nil,
+		"Cancel jobs running or suspended on the specified nodes")
+	cmd.Flags().BoolVar(&FlagJson, "json", false,
+		"Output in JSON format")
 	return cmd
 }
 
@@ -963,7 +997,7 @@ func squeue() *cobra.Command {
 				case *util.CraneError:
 					os.Exit(e.Code)
 				default:
-					os.Exit(util.ErrorSuccess)
+					os.Exit(util.ErrorGeneric)
 				}
 			} else {
 				os.Exit(util.ErrorSuccess)
