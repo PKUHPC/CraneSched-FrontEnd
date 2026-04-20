@@ -106,93 +106,6 @@ func TestFindGRESAnnotations(t *testing.T) {
 	}
 }
 
-func TestInferFromPrevResult(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil prevResult", func(t *testing.T) {
-		t.Parallel()
-		got := inferFromPrevResult(nil, "roce")
-		if got != nil {
-			t.Errorf("expected nil, got %v", got)
-		}
-	})
-
-	t.Run("matches container interfaces", func(t *testing.T) {
-		t.Parallel()
-		prev := &types100.Result{
-			CNIVersion: "1.0.0",
-			Interfaces: []*types100.Interface{
-				{Name: "eth0", Sandbox: "/proc/123/ns/net"},  // static, skip
-				{Name: "roce0", Sandbox: "/proc/123/ns/net"}, // match
-				{Name: "roce1", Sandbox: "/proc/123/ns/net"}, // match
-				{Name: "veth1234", Sandbox: ""},              // host-side, skip
-				{Name: "ib0", Sandbox: "/proc/123/ns/net"},   // different prefix, skip
-			},
-		}
-		got := inferFromPrevResult(prev, "roce")
-		want := []gresInstance{
-			{Index: 0, Device: ""},
-			{Index: 1, Device: ""},
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("inferFromPrevResult() = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("no matching interfaces", func(t *testing.T) {
-		t.Parallel()
-		prev := &types100.Result{
-			CNIVersion: "1.0.0",
-			Interfaces: []*types100.Interface{
-				{Name: "eth0", Sandbox: "/proc/123/ns/net"},
-			},
-		}
-		got := inferFromPrevResult(prev, "roce")
-		if got != nil {
-			t.Errorf("expected nil, got %v", got)
-		}
-	})
-
-	t.Run("digit-suffixed prefix infers correct index", func(t *testing.T) {
-		t.Parallel()
-		prev := &types100.Result{
-			CNIVersion: "1.0.0",
-			Interfaces: []*types100.Interface{
-				{Name: "eth12", Sandbox: "/proc/123/ns/net"},
-				{Name: "eth101", Sandbox: "/proc/123/ns/net"},
-				{Name: "eth1001", Sandbox: "/proc/123/ns/net"},
-			},
-		}
-
-		got := inferFromPrevResult(prev, "eth1")
-		want := []gresInstance{
-			{Index: 2, Device: ""},
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("inferFromPrevResult() = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("non-canonical numeric suffix is ignored", func(t *testing.T) {
-		t.Parallel()
-		prev := &types100.Result{
-			CNIVersion: "1.0.0",
-			Interfaces: []*types100.Interface{
-				{Name: "eth101", Sandbox: "/proc/123/ns/net"},
-				{Name: "eth1001", Sandbox: "/proc/123/ns/net"},
-			},
-		}
-
-		got := inferFromPrevResult(prev, "eth10")
-		want := []gresInstance{
-			{Index: 1, Device: ""},
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("inferFromPrevResult() = %v, want %v", got, want)
-		}
-	})
-}
-
 func TestExpandTemplate(t *testing.T) {
 	t.Parallel()
 
@@ -203,19 +116,14 @@ func TestExpandTemplate(t *testing.T) {
 			{
 				Name: "sriov",
 				Type: "sriov",
-				Conf: json.RawMessage(`{"type": "sriov", "vlan": 0}`),
-				ConfFromArgs: map[string]string{
-					"deviceID": "$gres.device",
-				},
+				Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`),
 			},
 		},
 	}
 
-	cniArgs := map[string]string{"FOO": "bar"}
-
-	rp, err := expandTemplate(pipeline, 0, "0000:86:00.2", cniArgs)
+	rp, err := expandTemplate(pipeline, 0, "0000:86:00.2", map[string]string{"FOO": "bar"})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("expandTemplate() error = %v", err)
 	}
 
 	if rp.Name != "roce-0" {
@@ -231,15 +139,13 @@ func TestExpandTemplate(t *testing.T) {
 		t.Errorf("gresDevice = %q, want %q", rp.GRESDevice, "0000:86:00.2")
 	}
 
-	// Check conf injection
 	var conf map[string]any
 	if err := json.Unmarshal(rp.Delegates[0].Conf, &conf); err != nil {
 		t.Fatalf("unmarshal conf: %v", err)
 	}
 	if conf["deviceID"] != "0000:86:00.2" {
-		t.Errorf("deviceID = %v, want %q", conf["deviceID"], "0000:86:00.2")
+		t.Fatalf("deviceID = %v, want %q", conf["deviceID"], "0000:86:00.2")
 	}
-	// Original fields preserved
 	if conf["type"] != "sriov" {
 		t.Errorf("type = %v, want %q", conf["type"], "sriov")
 	}
@@ -255,10 +161,7 @@ func TestExpandTemplateWithArgsVar(t *testing.T) {
 			{
 				Name: "plug",
 				Type: "plug",
-				Conf: json.RawMessage(`{"type": "plug"}`),
-				ConfFromArgs: map[string]string{
-					"customField": "$args.MY_KEY",
-				},
+				Conf: json.RawMessage(`{"type":"plug","customField":"{{.ARGS.MY_KEY}}"}`),
 			},
 		},
 	}
@@ -287,15 +190,11 @@ func TestExpandTemplateDeepCopy(t *testing.T) {
 			{
 				Name: "sriov",
 				Type: "sriov",
-				Conf: json.RawMessage(`{"type": "sriov"}`),
-				ConfFromArgs: map[string]string{
-					"deviceID": "$gres.device",
-				},
+				Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`),
 			},
 		},
 	}
 
-	// Expand twice with different devices
 	rp0, err := expandTemplate(original, 0, "dev0", nil)
 	if err != nil {
 		t.Fatalf("expand 0: %v", err)
@@ -305,7 +204,6 @@ func TestExpandTemplateDeepCopy(t *testing.T) {
 		t.Fatalf("expand 1: %v", err)
 	}
 
-	// Verify they don't share the same conf slice
 	var conf0, conf1 map[string]any
 	json.Unmarshal(rp0.Delegates[0].Conf, &conf0)
 	json.Unmarshal(rp1.Delegates[0].Conf, &conf1)
@@ -317,54 +215,12 @@ func TestExpandTemplateDeepCopy(t *testing.T) {
 		t.Errorf("instance 1 deviceID = %v, want dev1", conf1["deviceID"])
 	}
 
-	// Original should not be mutated
+	// Original Conf should still contain the template placeholder.
 	var origConf map[string]any
 	json.Unmarshal(original.Delegates[0].Conf, &origConf)
-	if _, ok := origConf["deviceID"]; ok {
-		t.Error("original conf was mutated by expandTemplate")
+	if origConf["deviceID"] != "{{.GRES.device}}" {
+		t.Errorf("original conf was mutated by expandTemplate: %v", origConf["deviceID"])
 	}
-}
-
-func TestInjectIntoConf(t *testing.T) {
-	t.Parallel()
-
-	t.Run("inject into existing conf", func(t *testing.T) {
-		t.Parallel()
-		conf := json.RawMessage(`{"type": "sriov", "vlan": 0}`)
-		if err := injectIntoConf(&conf, "deviceID", "0000:86:00.2"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		var payload map[string]any
-		json.Unmarshal(conf, &payload)
-		if payload["deviceID"] != "0000:86:00.2" {
-			t.Errorf("deviceID = %v, want %q", payload["deviceID"], "0000:86:00.2")
-		}
-		if payload["type"] != "sriov" {
-			t.Errorf("type = %v, want sriov (should be preserved)", payload["type"])
-		}
-	})
-
-	t.Run("inject into empty conf", func(t *testing.T) {
-		t.Parallel()
-		conf := json.RawMessage(nil)
-		if err := injectIntoConf(&conf, "key", "value"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		var payload map[string]any
-		json.Unmarshal(conf, &payload)
-		if payload["key"] != "value" {
-			t.Errorf("key = %v, want %q", payload["key"], "value")
-		}
-	})
-
-	t.Run("invalid conf returns error", func(t *testing.T) {
-		t.Parallel()
-		conf := json.RawMessage(`{invalid`)
-		err := injectIntoConf(&conf, "key", "value")
-		if err == nil {
-			t.Fatal("expected error for invalid JSON")
-		}
-	})
 }
 
 func TestValidateUniqueIfNames(t *testing.T) {
@@ -463,7 +319,6 @@ func TestBuildRuntimeEnv(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// delegate override (layer 4) should win
 		if env["CNI_IFNAME"] != "delegate-override" {
 			t.Errorf("CNI_IFNAME = %q, want %q", env["CNI_IFNAME"], "delegate-override")
 		}
@@ -610,8 +465,8 @@ func TestResolvePipelines(t *testing.T) {
 		conf := &metatypes.MetaPluginConf{
 			Pipelines: []metatypes.Pipeline{
 				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
-					{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov"}`),
-						ConfFromArgs: map[string]string{"deviceID": "$gres.device"}},
+					{Name: "sriov", Type: "sriov",
+						Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`)},
 				}},
 			},
 			RuntimeConfig: map[string]any{
@@ -636,7 +491,6 @@ func TestResolvePipelines(t *testing.T) {
 			t.Errorf("instance 1: name=%q ifName=%q", resolved[1].Name, resolved[1].IfName)
 		}
 
-		// Verify conf injection
 		var conf0 map[string]any
 		json.Unmarshal(resolved[0].Delegates[0].Conf, &conf0)
 		if conf0["deviceID"] != "0000:86:00.2" {
@@ -644,7 +498,7 @@ func TestResolvePipelines(t *testing.T) {
 		}
 	})
 
-	t.Run("template without annotations is skipped", func(t *testing.T) {
+	t.Run("template without annotations fails", func(t *testing.T) {
 		t.Parallel()
 		conf := &metatypes.MetaPluginConf{
 			Pipelines: []metatypes.Pipeline{
@@ -653,15 +507,9 @@ func TestResolvePipelines(t *testing.T) {
 			},
 		}
 		args := &skel.CmdArgs{}
-		resolved, err := resolvePipelines(conf, args)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(resolved) != 1 {
-			t.Fatalf("len(resolved) = %d, want 1 (template should be skipped)", len(resolved))
-		}
-		if resolved[0].Name != "eth" {
-			t.Errorf("only eth pipeline should remain, got %q", resolved[0].Name)
+		_, err := resolvePipelines(conf, args)
+		if err == nil {
+			t.Fatal("expected error when template pipeline has no GRES annotations")
 		}
 	})
 
@@ -690,7 +538,6 @@ func TestResolvePipelines(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// eth(static) + roce-0 + ib-0 + ib-1
 		if len(resolved) != 4 {
 			t.Fatalf("len(resolved) = %d, want 4", len(resolved))
 		}
@@ -708,8 +555,9 @@ func TestResolvePipelines(t *testing.T) {
 func TestResolvePipelinesForDel(t *testing.T) {
 	t.Parallel()
 
-	t.Run("fallback fails when template requires gres.device", func(t *testing.T) {
+	t.Run("template pipeline without annotations fails even if prevResult exists", func(t *testing.T) {
 		t.Parallel()
+
 		conf := &metatypes.MetaPluginConf{
 			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
 				CNIVersion: "1.0.0",
@@ -718,49 +566,27 @@ func TestResolvePipelinesForDel(t *testing.T) {
 				},
 			}},
 			Pipelines: []metatypes.Pipeline{
-				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
-					{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov"}`),
-						ConfFromArgs: map[string]string{"deviceID": "$gres.device"}},
-				}},
+				{
+					Name:         "roce",
+					IfNamePrefix: "roce",
+					Delegates: []metatypes.DelegateEntry{
+						{
+							Name: "sriov",
+							Type: "sriov",
+							Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`),
+						},
+					},
+				},
 			},
 		}
 
 		_, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
 		if err == nil {
-			t.Fatal("expected error when $gres.device cannot be recovered from prevResult")
+			t.Fatal("expected error when template pipeline has no GRES annotations")
 		}
 	})
 
-	t.Run("fallback succeeds when template does not require gres.device", func(t *testing.T) {
-		t.Parallel()
-		conf := &metatypes.MetaPluginConf{
-			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
-				CNIVersion: "1.0.0",
-				Interfaces: []*types100.Interface{
-					{Name: "roce0", Sandbox: "/proc/123/ns/net"},
-				},
-			}},
-			Pipelines: []metatypes.Pipeline{
-				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
-					{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov"}`),
-						ConfFromArgs: map[string]string{"queue": "$gres.index"}},
-				}},
-			},
-		}
-
-		resolved, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(resolved) != 1 {
-			t.Fatalf("len(resolved) = %d, want 1", len(resolved))
-		}
-		if resolved[0].Name != "roce-0" || resolved[0].IfName != "roce0" {
-			t.Errorf("resolved pipeline: name=%q ifName=%q", resolved[0].Name, resolved[0].IfName)
-		}
-	})
-
-	t.Run("annotations take precedence and provide gres.device", func(t *testing.T) {
+	t.Run("annotations allow DEL resolution", func(t *testing.T) {
 		t.Parallel()
 		conf := &metatypes.MetaPluginConf{
 			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
@@ -769,8 +595,8 @@ func TestResolvePipelinesForDel(t *testing.T) {
 			}},
 			Pipelines: []metatypes.Pipeline{
 				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
-					{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov"}`),
-						ConfFromArgs: map[string]string{"deviceID": "$gres.device"}},
+					{Name: "sriov", Type: "sriov",
+						Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`)},
 				}},
 			},
 			RuntimeConfig: map[string]any{
