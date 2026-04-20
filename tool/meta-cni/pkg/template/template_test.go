@@ -99,6 +99,49 @@ func TestRenderAllowsBuiltInTemplateSyntax(t *testing.T) {
 	}
 }
 
+func TestRenderMissingDirectKeyUsesZeroValue(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"missingArg":"{{.ARGS.MISSING}}",
+		"missingGRES":"{{.GRES.missing}}"
+	}`)
+
+	out, err := Render(raw, BuildVars("dev0", "7", map[string]string{}))
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	var got map[string]string
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if got["missingArg"] != "" {
+		t.Fatalf("missingArg = %q, want empty string", got["missingArg"])
+	}
+	if got["missingGRES"] != "" {
+		t.Fatalf("missingGRES = %q, want empty string", got["missingGRES"])
+	}
+}
+
+func TestRenderMissingIndexedKeyUsesZeroValue(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"missingDashed":"{{index .ARGS \"MISSING-DASH\"}}"}`)
+	out, err := Render(raw, BuildVars("", "", map[string]string{}))
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	var got map[string]string
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if got["missingDashed"] != "" {
+		t.Fatalf("missingDashed = %q, want empty string", got["missingDashed"])
+	}
+}
+
 func TestRenderKeepsOutputValidJSON(t *testing.T) {
 	t.Parallel()
 

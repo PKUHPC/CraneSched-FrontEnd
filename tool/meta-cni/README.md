@@ -100,8 +100,8 @@ Conditional example:
 
 ```json
 "conf": {
-  "type": "plugin",
-  "alias": "{{if .ARGS.ALIAS}}{{.ARGS.ALIAS}}{{else}}rdma{{.GRES.index}}{{end}}"
+  "type": "macvlan",
+  "master": "{{if .ARGS.MASTER}}{{.ARGS.MASTER}}{{else}}eno1{{end}}"
 }
 ```
 
@@ -116,9 +116,10 @@ Rules and limitations:
 
 1. Templates are rendered only inside JSON string values in `conf`.
 2. The renderer uses standard Go `text/template` behavior.
-3. Template parse errors and execution errors fail the pipeline.
-4. Rendered fields stay strings; this feature does not generate JSON numbers, booleans, objects, or arrays.
-5. Template pipelines require matching GRES annotations for all actions.
+3. Invalid template syntax and template execution errors fail the pipeline.
+4. Missing `.GRES` / `.ARGS` keys follow Go template zero-value semantics and render as empty strings. Template authors are responsible for ensuring missing data does not produce an invalid delegate config.
+5. Rendered fields stay strings; this feature does not generate JSON numbers, booleans, objects, or arrays.
+6. Template pipelines require matching GRES annotations for all actions.
 
 ### GRES annotation convention
 
