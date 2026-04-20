@@ -612,10 +612,7 @@ func scancel() *cobra.Command {
 				ccancelArgs = append(ccancelArgs, "--user", FlagUserName)
 			}
 			if len(FlagNodeList) > 0 {
-				ccancelArgs = append(ccancelArgs, "--nodes")
-				for _, node := range FlagNodeList {
-					ccancelArgs = append(ccancelArgs, node)
-				}
+				ccancelArgs = append(ccancelArgs, "--nodes", strings.Join(FlagNodeList, ","))
 			}
 			if FlagConfigFilePath != "" {
 				ccancelArgs = append(ccancelArgs, "--config", FlagConfigFilePath)
