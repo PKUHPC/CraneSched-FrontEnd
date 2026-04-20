@@ -70,9 +70,10 @@ var (
 	FlagReservation string
 	FlagSignal      string
 
-	FlagHold      bool
-	FlagBeginTime string
-	FlagDns       []string
+	FlagHold         bool
+	FlagBeginTime    string
+	FlagDns          []string
+	FlagDeadlineTime string
 
 	// not implement feature:
 	FlagNTasks          string
@@ -89,7 +90,6 @@ var (
 	FlagCoresPerSocket  string
 	FlagRequeue         string
 	FlagWait            string
-	FlagDeadlineTime    string
 
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
