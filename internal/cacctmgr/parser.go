@@ -395,6 +395,8 @@ func preParseGlobalFlags(args []string) []string {
 			}
 		case "--force", "-f":
 			FlagForce = true
+		case "--show-partition", "-P":
+			FlagShowPartitionLimit = true
 		default:
 			remainingArgs = append(remainingArgs, arg)
 		}
