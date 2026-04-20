@@ -78,15 +78,47 @@ Each entry in a pipeline's `delegates` supports:
 - `type` (string, optional): Delegate plugin type (binary name).
 - `conf` (object, optional): Delegate plugin configuration. If omitted, the
   meta plugin will build a minimal config using `type`, `name`, and the parent
-  `cniVersion`.
+  `cniVersion`. String values inside `conf` may contain Go template expressions
+  that are rendered at runtime using `.GRES` and `.ARGS`.
 - `runtimeOverride` (object, optional): Per-delegate override (takes precedence
   over pipeline and global overrides).
-- `confFromArgs` (map[string]string, optional): Injects runtime variables into
-  the delegate's JSON config. Keys are config field names; values are `$`-prefixed
-  variable references. Available variables:
-  - `$gres.device`: GRES annotation value (device ID) for template instances.
-  - `$gres.index`: Instance index string for template instances.
-  - `$args.<KEY>`: Value from CNI_ARGS.
+
+### Runtime variables in conf
+
+Template expressions run inside string values in `delegates[].conf`.
+
+Simple example:
+
+```json
+"conf": {
+  "type": "sriov",
+  "deviceID": "{{.GRES.device}}"
+}
+```
+
+Conditional example:
+
+```json
+"conf": {
+  "type": "plugin",
+  "alias": "{{if .ARGS.ALIAS}}{{.ARGS.ALIAS}}{{else}}rdma{{.GRES.index}}{{end}}"
+}
+```
+
+Available runtime data:
+
+- `.GRES.device` - the device annotation value for the current template-pipeline instance
+- `.GRES.index` - the template instance index as a string
+- `.ARGS.<KEY>` - a CNI_ARGS entry whose key is a valid Go identifier
+- `index .ARGS "KEY-WITH-DASH"` - access for keys that are not valid Go identifiers
+
+Rules and limitations:
+
+1. Templates are rendered only inside JSON string values in `conf`.
+2. The renderer uses standard Go `text/template` behavior.
+3. Template parse errors and execution errors fail the pipeline.
+4. Rendered fields stay strings; this feature does not generate JSON numbers, booleans, objects, or arrays.
+5. Template pipelines require matching GRES annotations for all actions.
 
 ### GRES annotation convention
 
