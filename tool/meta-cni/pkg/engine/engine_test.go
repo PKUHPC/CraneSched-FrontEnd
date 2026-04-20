@@ -116,7 +116,7 @@ func TestExpandTemplate(t *testing.T) {
 			{
 				Name: "sriov",
 				Type: "sriov",
-				Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`),
+				Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.Gres.Device}}"}`),
 			},
 		},
 	}
@@ -161,7 +161,7 @@ func TestExpandTemplateWithArgsVar(t *testing.T) {
 			{
 				Name: "plug",
 				Type: "plug",
-				Conf: json.RawMessage(`{"type":"plug","customField":"{{.ARGS.MY_KEY}}"}`),
+				Conf: json.RawMessage(`{"type":"plug","customField":"{{.Args.MY_KEY}}"}`),
 			},
 		},
 	}
@@ -190,7 +190,7 @@ func TestExpandTemplateDeepCopy(t *testing.T) {
 			{
 				Name: "sriov",
 				Type: "sriov",
-				Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`),
+				Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.Gres.Device}}"}`),
 			},
 		},
 	}
@@ -218,7 +218,7 @@ func TestExpandTemplateDeepCopy(t *testing.T) {
 	// Original Conf should still contain the template placeholder.
 	var origConf map[string]any
 	json.Unmarshal(original.Delegates[0].Conf, &origConf)
-	if origConf["deviceID"] != "{{.GRES.device}}" {
+	if origConf["deviceID"] != "{{.Gres.Device}}" {
 		t.Errorf("original conf was mutated by expandTemplate: %v", origConf["deviceID"])
 	}
 }
@@ -466,7 +466,7 @@ func TestResolvePipelines(t *testing.T) {
 			Pipelines: []metatypes.Pipeline{
 				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
 					{Name: "sriov", Type: "sriov",
-						Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`)},
+						Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.Gres.Device}}"}`)},
 				}},
 			},
 			RuntimeConfig: map[string]any{
@@ -573,7 +573,7 @@ func TestResolvePipelinesForDel(t *testing.T) {
 						{
 							Name: "sriov",
 							Type: "sriov",
-							Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`),
+							Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.Gres.Device}}"}`),
 						},
 					},
 				},
@@ -596,7 +596,7 @@ func TestResolvePipelinesForDel(t *testing.T) {
 			Pipelines: []metatypes.Pipeline{
 				{Name: "roce", IfNamePrefix: "roce", Delegates: []metatypes.DelegateEntry{
 					{Name: "sriov", Type: "sriov",
-						Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`)},
+						Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.Gres.Device}}"}`)},
 				}},
 			},
 			RuntimeConfig: map[string]any{

@@ -4,12 +4,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	gotemplate "text/template"
 )
 
 type Vars struct {
-	GRES map[string]string
-	ARGS map[string]string
+	Gres GresVars
+	Args map[string]string
+}
+
+type GresVars struct {
+	Device string
+	Index  string
 }
 
 func BuildVars(gresDevice, gresIndex string, cniArgs map[string]string) Vars {
@@ -19,11 +25,11 @@ func BuildVars(gresDevice, gresIndex string, cniArgs map[string]string) Vars {
 	}
 
 	return Vars{
-		GRES: map[string]string{
-			"device": gresDevice,
-			"index":  gresIndex,
+		Gres: GresVars{
+			Device: gresDevice,
+			Index:  gresIndex,
 		},
-		ARGS: argsCopy,
+		Args: argsCopy,
 	}
 }
 
@@ -33,7 +39,16 @@ func Render(raw []byte, vars Vars) ([]byte, error) {
 	}
 
 	var payload any
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if err := dec.Decode(&payload); err != nil {
+		return nil, fmt.Errorf("decode conf: %w", err)
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("decode conf: trailing data after JSON value")
+		}
 		return nil, fmt.Errorf("decode conf: %w", err)
 	}
 

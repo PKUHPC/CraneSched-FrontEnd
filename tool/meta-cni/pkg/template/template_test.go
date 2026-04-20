@@ -1,6 +1,7 @@
 package template
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -12,21 +13,21 @@ func TestBuildVars(t *testing.T) {
 		"MY_KEY": "my_value",
 	})
 
-	if vars.GRES["device"] != "0000:86:00.2" {
-		t.Fatalf("GRES.device = %q, want %q", vars.GRES["device"], "0000:86:00.2")
+	if vars.Gres.Device != "0000:86:00.2" {
+		t.Fatalf("Gres.Device = %q, want %q", vars.Gres.Device, "0000:86:00.2")
 	}
-	if vars.GRES["index"] != "3" {
-		t.Fatalf("GRES.index = %q, want %q", vars.GRES["index"], "3")
+	if vars.Gres.Index != "3" {
+		t.Fatalf("Gres.Index = %q, want %q", vars.Gres.Index, "3")
 	}
-	if vars.ARGS["MY_KEY"] != "my_value" {
-		t.Fatalf("ARGS.MY_KEY = %q, want %q", vars.ARGS["MY_KEY"], "my_value")
+	if vars.Args["MY_KEY"] != "my_value" {
+		t.Fatalf("Args.MY_KEY = %q, want %q", vars.Args["MY_KEY"], "my_value")
 	}
 }
 
 func TestRenderSimple(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"type":"sriov","deviceID":"{{.GRES.device}}"}`)
+	raw := []byte(`{"type":"sriov","deviceID":"{{.Gres.Device}}"}`)
 	out, err := Render(raw, BuildVars("0000:86:00.2", "0", nil))
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -42,12 +43,12 @@ func TestRenderSimple(t *testing.T) {
 }
 
 func TestRenderNestedValues(t *testing.T) {
-	t.Parallel()
+		t.Parallel()
 
 	raw := []byte(`{
 		"type":"plugin",
-		"labels":["{{.GRES.index}}","fixed"],
-		"nested":{"alias":"{{.ARGS.ALIAS}}"}
+		"labels":["{{.Gres.Index}}","fixed"],
+		"nested":{"alias":"{{.Args.ALIAS}}"}
 	}`)
 
 	out, err := Render(raw, BuildVars("dev0", "2", map[string]string{
@@ -76,8 +77,8 @@ func TestRenderAllowsBuiltInTemplateSyntax(t *testing.T) {
 	t.Parallel()
 
 	raw := []byte(`{
-		"alias":"{{if .ARGS.ALIAS}}{{.ARGS.ALIAS}}{{else}}rdma{{.GRES.index}}{{end}}",
-		"dashed":"{{index .ARGS \"KEY-WITH-DASH\"}}"
+		"alias":"{{if .Args.ALIAS}}{{.Args.ALIAS}}{{else}}rdma{{.Gres.Index}}{{end}}",
+		"dashed":"{{index .Args \"KEY-WITH-DASH\"}}"
 	}`)
 
 	out, err := Render(raw, BuildVars("dev0", "7", map[string]string{
@@ -99,13 +100,10 @@ func TestRenderAllowsBuiltInTemplateSyntax(t *testing.T) {
 	}
 }
 
-func TestRenderMissingDirectKeyUsesZeroValue(t *testing.T) {
+func TestRenderMissingDirectArgKeyUsesZeroValue(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{
-		"missingArg":"{{.ARGS.MISSING}}",
-		"missingGRES":"{{.GRES.missing}}"
-	}`)
+	raw := []byte(`{"missingArg":"{{.Args.MISSING}}"}`)
 
 	out, err := Render(raw, BuildVars("dev0", "7", map[string]string{}))
 	if err != nil {
@@ -119,15 +117,12 @@ func TestRenderMissingDirectKeyUsesZeroValue(t *testing.T) {
 	if got["missingArg"] != "" {
 		t.Fatalf("missingArg = %q, want empty string", got["missingArg"])
 	}
-	if got["missingGRES"] != "" {
-		t.Fatalf("missingGRES = %q, want empty string", got["missingGRES"])
-	}
 }
 
 func TestRenderMissingIndexedKeyUsesZeroValue(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"missingDashed":"{{index .ARGS \"MISSING-DASH\"}}"}`)
+	raw := []byte(`{"missingDashed":"{{index .Args \"MISSING-DASH\"}}"}`)
 	out, err := Render(raw, BuildVars("", "", map[string]string{}))
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -142,10 +137,20 @@ func TestRenderMissingIndexedKeyUsesZeroValue(t *testing.T) {
 	}
 }
 
+func TestRenderUnknownGresFieldErrors(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"missingGres":"{{.Gres.Missing}}"}`)
+	_, err := Render(raw, BuildVars("dev0", "7", map[string]string{}))
+	if err == nil {
+		t.Fatal("expected error for unknown .Gres field")
+	}
+}
+
 func TestRenderKeepsOutputValidJSON(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"note":"{{.ARGS.TEXT}}"}`)
+	raw := []byte(`{"note":"{{.Args.TEXT}}"}`)
 	out, err := Render(raw, BuildVars("", "", map[string]string{
 		"TEXT": `a"b\c`,
 	}))
@@ -162,10 +167,53 @@ func TestRenderKeepsOutputValidJSON(t *testing.T) {
 	}
 }
 
+func TestRenderPreservesLargeJSONNumbers(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"type":"plugin",
+		"big":9007199254740993,
+		"nested":{"huge":18446744073709551615}
+	}`)
+
+	out, err := Render(raw, BuildVars("", "", nil))
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(out))
+	dec.UseNumber()
+
+	var got map[string]any
+	if err := dec.Decode(&got); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+
+	big, ok := got["big"].(json.Number)
+	if !ok {
+		t.Fatalf("big has type %T, want json.Number", got["big"])
+	}
+	if big.String() != "9007199254740993" {
+		t.Fatalf("big = %q, want %q", big.String(), "9007199254740993")
+	}
+
+	nested, ok := got["nested"].(map[string]any)
+	if !ok {
+		t.Fatalf("nested has type %T, want map[string]any", got["nested"])
+	}
+	huge, ok := nested["huge"].(json.Number)
+	if !ok {
+		t.Fatalf("nested.huge has type %T, want json.Number", nested["huge"])
+	}
+	if huge.String() != "18446744073709551615" {
+		t.Fatalf("nested.huge = %q, want %q", huge.String(), "18446744073709551615")
+	}
+}
+
 func TestRenderBadTemplateErrors(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"note":"{{if .GRES.device}}"}`)
+	raw := []byte(`{"note":"{{if .Gres.Device}}"}`)
 	_, err := Render(raw, BuildVars("dev0", "0", nil))
 	if err == nil {
 		t.Fatal("expected parse error")
