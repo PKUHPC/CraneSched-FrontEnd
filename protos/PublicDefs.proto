@@ -300,12 +300,17 @@ message RuntimeAttrOfJob {
   uint32 primary_step_exit_code = 22;
   map<string, uint32> actual_licenses = 23;
 
+  // Wall-clock time when the job was suspended.
+  // Used to extend end_time upon resume so that suspended time
+  // does not count toward the execution timeout.
+  google.protobuf.Timestamp suspend_time = 24;
+
   // For array children: the array parent/anchor job_id.
   // If set, this job is an expanded array task.
-  optional uint32 array_job_id = 24;
+  optional uint32 array_job_id = 25;
 
   // For array parents: whether child jobs have been materialized.
-  optional bool array_children_expanded = 27;
+  optional bool array_children_expanded = 28;
 }
 
 message StepToCtld {
@@ -1092,6 +1097,12 @@ message CranedRemoteMeta {
   repeated uint32 lost_jobs = 7;
   repeated NetworkInterface network_interfaces = 8;
   uint32 config_crc = 9;
+}
+
+enum TerminateSource {
+  TERMINATE_SOURCE_USER_CANCEL = 0;
+  TERMINATE_SOURCE_NORMAL_COMPLETION = 1;
+  TERMINATE_SOURCE_FRONTEND_DISCONNECT = 2;
 }
 
 enum TxnAction {

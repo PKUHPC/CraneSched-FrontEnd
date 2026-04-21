@@ -1582,28 +1582,17 @@ func ParseStepIdList(jobStepIdListStr string, splitStr string) (map[uint32]*prot
 	stepIds := make(map[uint32]*protos.JobStepIds)
 
 	for stepIdStr := range strings.SplitSeq(jobStepIdListStr, splitStr) {
-		stepIdPair := strings.Split(stepIdStr, ".")
-		if len(stepIdPair) > 2 {
-			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStr)
+		selector, err := ParseJobIdSelector(stepIdStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid step id \"%s\": %w", stepIdStr, err)
 		}
-		jobId, err := strconv.ParseUint(stepIdPair[0], 10, 32)
-		if err != nil || jobId == 0 {
-			return nil, fmt.Errorf("invalid job id \"%s\"", stepIdStr)
+		jobId := selector.JobId
+		if _, exists := stepIds[jobId]; !exists {
+			stepIds[jobId] = &protos.JobStepIds{Steps: []uint32{}}
 		}
-		if len(stepIdPair) == 1 {
-			if _, exists := stepIds[uint32(jobId)]; !exists {
-				stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
-			}
-			continue
+		if selector.StepId != nil {
+			stepIds[jobId].Steps = append(stepIds[jobId].Steps, *selector.StepId)
 		}
-		stepId, err := strconv.ParseUint(stepIdPair[1], 10, 32)
-		if err != nil || stepId == 0 {
-			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStr)
-		}
-		if _, exists := stepIds[uint32(jobId)]; !exists {
-			stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
-		}
-		stepIds[uint32(jobId)].Steps = append(stepIds[uint32(jobId)].Steps, uint32(stepId))
 	}
 
 	return stepIds, nil

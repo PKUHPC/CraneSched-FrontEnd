@@ -861,7 +861,7 @@ func collectScontrolJobIDs(args []string, idx int, firstValue string) (string, i
 	}
 
 	concatedJobIDs := strings.Join(jobIDs, ",")
-	if _, err := util.ParseJobIdList(concatedJobIDs, ","); err != nil {
+	if _, err := util.ParseJobIdSelectorList(concatedJobIDs, ","); err != nil {
 		return "", idx, err
 	}
 	return concatedJobIDs, idx, nil
@@ -1089,7 +1089,7 @@ func squeueQueryTableOutput(reply *protos.QueryJobsInfoReply) util.ExitCode {
 		}
 
 		tableData[i] = []string{
-			strconv.FormatUint(uint64(jobInfo.JobId), 10),
+			util.FormatJobIdWithArray(util.ResolveArrayJobId(jobInfo.JobId, jobInfo.ArrayJobId), jobInfo.ArrayTaskId),
 			jobInfo.Partition,
 			jobInfo.Name,
 			jobInfo.Username,

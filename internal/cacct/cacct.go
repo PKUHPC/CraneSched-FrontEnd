@@ -245,29 +245,31 @@ func QueryJob() error {
 			table.SetAutoFormatHeaders(false)
 		}
 
-		if FlagFilterStartTime != "" {
-			header = append(header, "StartTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessStartTime(items[i]))
+		if FlagFormat == "" {
+			if FlagFilterStartTime != "" {
+				header = append(header, "StartTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessStartTime(items[i]))
+				}
 			}
-		}
 
-		if FlagFilterEndTime != "" {
-			header = append(header, "EndTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessEndTime(items[i]))
+			if FlagFilterEndTime != "" {
+				header = append(header, "EndTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessEndTime(items[i]))
+				}
 			}
-		}
 
-		if FlagFilterSubmitTime != "" {
-			header = append(header, "SubmitTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
+			if FlagFilterSubmitTime != "" {
+				header = append(header, "SubmitTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
+				}
 			}
 		}
 	}
 
-	if FlagDeadlineTime {
+	if FlagFormat == "" && FlagDeadlineTime {
 		header = append(header, "Deadline")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
@@ -529,6 +531,9 @@ func ProcessElapsedTime(item *JobOrStep) string {
 
 // Deadline (D)
 func ProcessDeadline(item *JobOrStep) string {
+	if item.job.DeadlineTime == nil {
+		return "unknown"
+	}
 	deadlineTime := item.job.DeadlineTime.AsTime()
 	if !deadlineTime.Equal(util.InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")

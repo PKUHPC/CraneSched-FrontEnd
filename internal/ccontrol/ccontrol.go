@@ -182,18 +182,16 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 			Message: err.Error(),
 		}
 	}
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	jobIds, filterArrayTaskIds, err := parseJobSelectorsForModify(jobStr)
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid job list specified: %s.\n", err),
-		}
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
 
 	req := &protos.ModifyJobRequest{
-		Uid:       uint32(os.Getuid()),
-		JobIds:    jobIds,
-		Attribute: protos.ModifyJobRequest_Deadline,
+		Uid:                uint32(os.Getuid()),
+		JobIds:             jobIds,
+		FilterArrayTaskIds: filterArrayTaskIds,
+		Attribute:          protos.ModifyJobRequest_Deadline,
 		Value: &protos.ModifyJobRequest_DeadlineTime{
 			DeadlineTime: timestamppb.New(time),
 		},
@@ -268,16 +266,17 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 }
 
 func SuspendJobs(jobs string) error {
-	jobList, err := util.ParseJobIdList(jobs, ",")
+	jobIds, filterArrayTaskIds, err := parseJobSelectorsForModify(jobs)
 	if err != nil {
 		log.Errorf("invalid job list: %s", err)
 		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	req := &protos.ModifyJobRequest{
-		Uid:       uint32(os.Getuid()),
-		JobIds:    jobList,
-		Attribute: protos.ModifyJobRequest_Suspend,
+		Uid:                uint32(os.Getuid()),
+		JobIds:             jobIds,
+		FilterArrayTaskIds: filterArrayTaskIds,
+		Attribute:          protos.ModifyJobRequest_Suspend,
 	}
 
 	reply, err := stub.ModifyJob(context.Background(), req)
@@ -299,16 +298,17 @@ func SuspendJobs(jobs string) error {
 }
 
 func ResumeJobs(jobs string) error {
-	jobList, err := util.ParseJobIdList(jobs, ",")
+	jobIds, filterArrayTaskIds, err := parseJobSelectorsForModify(jobs)
 	if err != nil {
 		log.Errorf("invalid job list: %s", err)
 		return &util.CraneError{Code: util.ErrorCmdArg}
 	}
 
 	req := &protos.ModifyJobRequest{
-		Uid:       uint32(os.Getuid()),
-		JobIds:    jobList,
-		Attribute: protos.ModifyJobRequest_Resume,
+		Uid:                uint32(os.Getuid()),
+		JobIds:             jobIds,
+		FilterArrayTaskIds: filterArrayTaskIds,
+		Attribute:          protos.ModifyJobRequest_Resume,
 	}
 
 	reply, err := stub.ModifyJob(context.Background(), req)
