@@ -43,7 +43,7 @@ func TestRenderSimple(t *testing.T) {
 }
 
 func TestRenderNestedValues(t *testing.T) {
-		t.Parallel()
+	t.Parallel()
 
 	raw := []byte(`{
 		"type":"plugin",
