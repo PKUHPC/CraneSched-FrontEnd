@@ -200,50 +200,114 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	return seconds, nil
 }
 
-// ParseArrayRangeSpec parses the array syntax: start-end or start-end:stride.
+// ParseArrayRangeSpec parses the array syntax, supporting compound formats:
+// single range: "start-end" or "start-end:stride"
+// single index: "10"
+// compound: "1-5,10,20-30:2" (comma-separated ranges and individual numbers)
+// The merged indices must form a regular arithmetic sequence (start-end:stride)
+// since the backend proto only supports a single range.
 func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 	cleaned := strings.TrimSpace(spec)
-	// Match start-end or start-end:stride
-	re := regexp.MustCompile(`^(\d+)-(\d+)(?::(\d+))?$`)
-	result := re.FindStringSubmatch(cleaned)
-	if result == nil {
-		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': expected start-end or start-end:stride", spec)
+	if cleaned == "" {
+		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty specification", spec)
 	}
 
-	start, err := strconv.ParseUint(result[1], 10, 32)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("invalid --array start index '%s'", result[1])
-	}
+	segRe := regexp.MustCompile(`^(\d+)(?:-(\d+))?(?::(\d+))?$`)
 
-	end, err := strconv.ParseUint(result[2], 10, 32)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("invalid --array end index '%s'", result[2])
-	}
+	// Expand all segments into individual indices
+	var indices []uint64
+	segments := strings.Split(cleaned, ",")
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty segment", spec)
+		}
+		result := segRe.FindStringSubmatch(seg)
+		if result == nil {
+			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': invalid segment '%s'", spec, seg)
+		}
 
-	if start > end {
-		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': start index must be <= end index", spec)
-	}
-
-	stride := uint32(1)
-	if result[3] != "" {
-		strideVal, err := strconv.ParseUint(result[3], 10, 32)
+		startVal, err := strconv.ParseUint(result[1], 10, 32)
 		if err != nil {
-			return 0, 0, 0, fmt.Errorf("invalid --array stride '%s'", result[3])
+			return 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[1])
 		}
-		if strideVal == 0 {
-			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride must be > 0", spec)
+
+		if result[2] == "" {
+			// Single index, e.g. "10"
+			if result[3] != "" {
+				return 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride without range in segment '%s'", spec, seg)
+			}
+			indices = append(indices, startVal)
+			continue
 		}
-		stride = uint32(strideVal)
+
+		endVal, err := strconv.ParseUint(result[2], 10, 32)
+		if err != nil {
+			return 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[2])
+		}
+		if startVal > endVal {
+			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': start > end in segment '%s'", spec, seg)
+		}
+
+		segStride := uint64(1)
+		if result[3] != "" {
+			sv, err := strconv.ParseUint(result[3], 10, 32)
+			if err != nil {
+				return 0, 0, 0, fmt.Errorf("invalid --array stride '%s'", result[3])
+			}
+			if sv == 0 {
+				return 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride must be > 0", spec)
+			}
+			segStride = sv
+		}
+
+		for i := startVal; i <= endVal; i += segStride {
+			indices = append(indices, i)
+		}
 	}
 
-	taskCount := (end-start)/uint64(stride) + 1
-	if taskCount == 0 || taskCount > MaxArrayTaskCount {
+	if len(indices) == 0 {
+		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': no indices specified", spec)
+	}
+
+	// Sort and deduplicate
+	sort.Slice(indices, func(i, j int) bool { return indices[i] < indices[j] })
+	deduped := []uint64{indices[0]}
+	for i := 1; i < len(indices); i++ {
+		if indices[i] != indices[i-1] {
+			deduped = append(deduped, indices[i])
+		}
+	}
+	indices = deduped
+
+	taskCount := uint64(len(indices))
+	if taskCount > MaxArrayTaskCount {
 		return 0, 0, 0, fmt.Errorf(
 			"invalid --array value '%s': task count %d exceeds limit %d",
 			spec, taskCount, MaxArrayTaskCount)
 	}
 
-	return uint32(start), uint32(end), stride, nil
+	start := indices[0]
+	end := indices[len(indices)-1]
+
+	// Determine stride from the merged index list
+	stride := uint64(1)
+	if len(indices) > 1 {
+		stride = indices[1] - indices[0]
+		if stride == 0 {
+			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': duplicate indices", spec)
+		}
+		// Verify all indices form a regular arithmetic sequence
+		for i := 2; i < len(indices); i++ {
+			if indices[i]-indices[i-1] != stride {
+				return 0, 0, 0, fmt.Errorf(
+					"invalid --array value '%s': compound spec does not form a regular arithmetic sequence (required by backend)",
+					spec)
+			}
+		}
+	}
+
+	return uint32(start), uint32(end), uint32(stride), nil
 }
 
 func ParseRelativeTime(ts string) (int64, error) {
