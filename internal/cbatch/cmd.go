@@ -143,8 +143,12 @@ var (
 					return util.NewCraneErr(util.ErrorCmdArg, "--array and --repeat are mutually exclusive")
 				}
 
-				arrayCount := uint64(*job.ArrayIndexEnd) - uint64(*job.ArrayIndexStart) + 1
-				if arrayCount > uint64(^uint32(0)) {
+				stride := uint64(1)
+				if job.ArrayIndexStride != nil && *job.ArrayIndexStride != 0 {
+					stride = uint64(*job.ArrayIndexStride)
+				}
+				arrayCount := (uint64(*job.ArrayIndexEnd)-uint64(*job.ArrayIndexStart))/stride + 1
+				if arrayCount == 0 || arrayCount > uint64(util.MaxArrayTaskCount) {
 					return util.NewCraneErr(util.ErrorCmdArg, "--array range is too large")
 				}
 

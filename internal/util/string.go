@@ -236,6 +236,13 @@ func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 		stride = uint32(strideVal)
 	}
 
+	taskCount := (end-start)/uint64(stride) + 1
+	if taskCount == 0 || taskCount > MaxArrayTaskCount {
+		return 0, 0, 0, fmt.Errorf(
+			"invalid --array value '%s': task count %d exceeds limit %d",
+			spec, taskCount, MaxArrayTaskCount)
+	}
+
 	return uint32(start), uint32(end), stride, nil
 }
 
