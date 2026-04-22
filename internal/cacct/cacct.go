@@ -41,7 +41,6 @@ var (
 
 const (
 	kTerminationSignalBase = 256
-	kCraneExitCodeBase     = 320
 )
 
 // QueryJob will query all pending, running and completed jobs
@@ -331,58 +330,44 @@ type FieldProcessor struct {
 	process func(item *JobOrStep) string
 }
 
-type arraySummaryInfo struct {
-	anchorJobId uint32
-	start       uint32
-	end         uint32
-	count       int
-	sample      *protos.JobInfo
-}
-
-func makeArraySummaryGroupKey(job *protos.JobInfo) (string, bool) {
-	if job.ArrayJobId == nil || job.ArrayTaskId == nil {
-		return "", false
-	}
-
-	return strconv.FormatUint(uint64(*job.ArrayJobId), 10), true
-}
+type arraySummaryInfo = util.ArraySummaryInfo
 
 func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
 	row := make([]string, len(header))
-	summaryId := fmt.Sprintf("%d_[%d-%d]", info.anchorJobId, info.start, info.end)
+	summaryId := fmt.Sprintf("%d_[%d-%d]", info.AnchorJobId, info.Start, info.End)
 
 	for i, column := range header {
 		switch column {
 		case "JobId":
 			row[i] = summaryId
 		case "JobName", "Name":
-			row[i] = info.sample.Name
+			row[i] = info.Sample.Name
 		case "Partition":
-			row[i] = info.sample.Partition
+			row[i] = info.Sample.Partition
 		case "Account":
-			row[i] = info.sample.Account
+			row[i] = info.Sample.Account
 		case "State", "Status":
 			row[i] = "ArraySummary"
 		case "ExitCode":
 			row[i] = "-"
 		case "UserName":
-			row[i] = info.sample.Username
+			row[i] = info.Sample.Username
 		case "Qos", "QoS":
-			row[i] = info.sample.Qos
+			row[i] = info.Sample.Qos
 		case "TimeLimit":
-			row[i] = ProcessTimeLimit(&JobOrStep{job: info.sample})
+			row[i] = ProcessTimeLimit(&JobOrStep{job: info.Sample})
 		case "StartTime":
-			row[i] = ProcessStartTime(&JobOrStep{job: info.sample})
+			row[i] = ProcessStartTime(&JobOrStep{job: info.Sample})
 		case "EndTime":
-			row[i] = ProcessEndTime(&JobOrStep{job: info.sample})
+			row[i] = ProcessEndTime(&JobOrStep{job: info.Sample})
 		case "SubmitTime":
-			row[i] = ProcessSubmitTime(&JobOrStep{job: info.sample})
+			row[i] = ProcessSubmitTime(&JobOrStep{job: info.Sample})
 		case "NodeList":
-			row[i] = fmt.Sprintf("ArrayTasks=%d", info.count)
+			row[i] = fmt.Sprintf("ArrayTasks=%d", info.Count)
 		case "NodeNum":
-			row[i] = strconv.Itoa(info.count)
+			row[i] = strconv.Itoa(info.Count)
 		case "wckey":
-			row[i] = info.sample.Wckey
+			row[i] = info.Sample.Wckey
 		default:
 			row[i] = "-"
 		}
@@ -392,61 +377,15 @@ func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
 }
 
 func insertArraySummaryRows(header []string, rows [][]string, items []*JobOrStep) [][]string {
-	if len(rows) != len(items) {
-		return rows
-	}
-
-	groupByKey := make(map[string]*arraySummaryInfo)
-	itemKeys := make([]string, len(items))
-
-	for i, item := range items {
-		if item.isStep {
-			continue
-		}
-		key, ok := makeArraySummaryGroupKey(item.job)
-		if !ok {
-			continue
-		}
-		itemKeys[i] = key
-
-		if _, ok := groupByKey[key]; !ok {
-			groupByKey[key] = &arraySummaryInfo{
-				anchorJobId: util.ResolveArrayJobId(item.job.JobId, item.job.ArrayJobId),
-				start:       *item.job.ArrayTaskId,
-				end:         *item.job.ArrayTaskId,
-				count:       0,
-				sample:      item.job,
+	return util.BuildArraySummaryRows(header, rows, items,
+		func(item *JobOrStep) *protos.JobInfo {
+			if item.isStep {
+				return nil
 			}
-		}
-
-		group := groupByKey[key]
-		group.count++
-		if *item.job.ArrayTaskId < group.start {
-			group.start = *item.job.ArrayTaskId
-		}
-		if *item.job.ArrayTaskId > group.end {
-			group.end = *item.job.ArrayTaskId
-		}
-	}
-
-	emitted := make(map[string]struct{})
-	merged := make([][]string, 0, len(rows)+len(groupByKey))
-
-	for i, row := range rows {
-		key := itemKeys[i]
-		if key != "" {
-			if _, ok := emitted[key]; !ok {
-				group := groupByKey[key]
-				if group.count > 1 {
-					merged = append(merged, buildArraySummaryRow(header, group))
-				}
-				emitted[key] = struct{}{}
-			}
-		}
-		merged = append(merged, row)
-	}
-
-	return merged
+			return item.job
+		},
+		buildArraySummaryRow,
+	)
 }
 
 // Account (a)

@@ -607,38 +607,6 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 	return math.Floor(num*shift) / shift, nil
 }
 
-func ParseJobId(jobId string) (int64, error) {
-	parts := strings.Split(jobId, ".")
-	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || jobId64 <= 0 {
-		return 0, fmt.Errorf("invalid job id")
-	}
-	return jobId64, nil
-}
-
-// ParseJobIdStepId parses a job step id string in the format "jobid" or "jobid.stepid".
-// Returns jobid, stepid, error. -1 if not present.
-func ParseJobIdStepId(jobStepId string) (int64, int64, error) {
-	parts := strings.Split(jobStepId, ".")
-	if len(parts) == 0 || len(parts) > 2 {
-		return -1, -1, fmt.Errorf("invalid job or step id format")
-	}
-	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || jobId64 <= 0 {
-		return -1, -1, fmt.Errorf("invalid job id")
-	}
-	var stepId64 int64
-	if len(parts) == 2 {
-		stepId64, err = strconv.ParseInt(parts[1], 10, 64)
-		if err != nil || stepId64 < 0 {
-			return -1, -1, fmt.Errorf("invalid step id")
-		}
-		return jobId64, stepId64, nil
-	}
-
-	return jobId64, -1, nil
-}
-
 // ParseJobIdStepIdStrict parses a step id string in the format "jobid.stepid".
 // Returns jobid, stepid, error. If stepId is not present, return an error.
 func ParseJobIdStepIdStrict(jobStepId string) (uint32, uint32, error) {
