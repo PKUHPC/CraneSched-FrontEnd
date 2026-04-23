@@ -71,6 +71,7 @@ func showHelp() {
       format=<Name,Description,AllowedPartition,Users,DefaultQos,AllowedQosList,
               Coordinators,Blocked> (Spelling must be correct, case is not important)
               For Example: cacctmgr show account format=name,users,coordinators
+      --partition-limit, -P      Also display partition resource limits for each account
   
 	add user <name> Account=<account> [Coordinator=true|false] [Level=<level>] 
 		[Partition=<part1,part2,...>] [Name=<name1,name2,...>]
@@ -98,6 +99,7 @@ func showHelp() {
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
               AdminLevel,Blocked> (Spelling must be correct, case is not important)
               For Example: cacctmgr show user format=account,defaultqos,adminlevel
+      --partition-limit, -P      Also display partition resource limits for each user
 
 	add wckey <name> user=<user>
     Create a new wckey and bind it to the user
@@ -234,6 +236,14 @@ func showHelp() {
       set AllowedQos-=<qos1,qos2,...>        Delete allowed QoS
       set AllowedPartition=<part1,part2,...>      Set allowed partitions directly
       set AllowedQos=<qos1,qos2,...>              Set allowed QoS directly
+    Account partition resource limit options (partition must be specified in where clause):
+      where Name=<account> Partition=<partition>
+      set MaxJobs=<num>              Set max running jobs for the account in the partition
+      set MaxSubmitJobs=<num>        Set max submit jobs for the account in the partition
+      set MaxTres=<tres>             Set max Tres for the account in the partition (format: cpu:<num>,mem:<num>)
+      set MaxTresPerJob=<tres>       Set max Tres per job for the account in the partition
+      set MaxWall=<sec>              Set max wall time for the account in the partition (seconds)
+      set MaxWallPerJob=<sec>        Set max wall time per job for the account in the partition (seconds)
     User options:
       where Name=<user> [Account=<account>] [Partition=<part1,part2,...>]
       set AdminLevel=<level>         Set user admin level
@@ -245,6 +255,14 @@ func showHelp() {
       set AllowedQos-=...       Delete allowed QoS
       set AllowedPartition=...       Set allowed partitions directly
       set AllowedQos=...             Set allowed QoS directly
+    User partition resource limit options (partition must be specified in where clause):
+      where Name=<user> [Account=<account>] Partition=<partition>
+      set MaxJobs=<num>              Set max running jobs for the user in the partition
+      set MaxSubmitJobs=<num>        Set max submit jobs for the user in the partition
+      set MaxTres=<tres>             Set max Tres for the user in the partition (format: cpu:<num>,mem:<num>)
+      set MaxTresPerJob=<tres>       Set max Tres per job for the user in the partition
+      set MaxWall=<sec>              Set max wall time for the user in the partition (seconds)
+      set MaxWallPerJob=<sec>        Set max wall time per job for the user in the partition (seconds)
     QoS options:
       where Name=<qos>
       set Description=<desc>             Set description
@@ -276,11 +294,12 @@ func showHelp() {
       set Allowed=<num>              Set amount allowed for the cluster (cluster must be specified)
 
   GLOBAL OPTIONS:
-	--help, -h     Display this help message
-	--config, -C   Specify config file path (default: /etc/crane/config.yaml)
-	--json, -J     Format output as JSON
-	--version, -v  Display program version
-	--force, -f    Force operation without confirmation
+	--help, -h              Display this help message
+	--config, -C            Specify config file path (default: /etc/crane/config.yaml)
+	--json, -J              Format output as JSON
+	--version, -v           Display program version
+	--force, -f             Force operation without confirmation
+	--partition-limit, -P   Display partition resource limits (for show account/user)
 
   NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.
   `
