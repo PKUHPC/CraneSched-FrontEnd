@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path"
 	"runtime"
+	"strings"
 
 	nested "github.com/antonfisher/nested-logrus-formatter"
 	log "github.com/sirupsen/logrus"
@@ -33,7 +34,10 @@ type CraneFormatter struct {
 
 func (f *CraneFormatter) Format(entry *log.Entry) ([]byte, error) {
 	msg := entry.Message
-	return []byte(msg), nil
+	if strings.HasSuffix(msg, "\n") {
+		return []byte(msg), nil
+	}
+	return append([]byte(msg), '\n'), nil
 }
 
 func InitCraneLogger() {
