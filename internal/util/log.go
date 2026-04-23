@@ -40,17 +40,28 @@ func (f *CraneFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return append([]byte(msg), '\n'), nil
 }
 
+// A simple formatter that only outputs the message,
+// without any timestamp, level or caller info.
+// It's used for normal output of simple commands (excluding cfored/cplugind and ccon/crun...)
 func InitCraneLogger() {
 	log.SetFormatter(&CraneFormatter{})
 }
 
-func SetupLogger(level string) {
-	SetLoggerLevel(level)
-	if level == "debug" || level == "trace" {
+func InitDiagLogger(level string) {
+	lv, err := log.ParseLevel(level)
+	if err != nil {
+		log.Warnf("Invalid log level %s, using info level", level)
+		lv = log.InfoLevel
+	}
+	if lv > log.InfoLevel {
+		// DEBUG/TRACE
 		log.SetReportCaller(true)
 	} else {
+		// INFO/WARN/ERROR/FATAL/PANIC
 		log.SetReportCaller(false)
 	}
+
+	log.SetLevel(lv)
 	log.SetFormatter(&nested.Formatter{
 		HideKeys:    false,
 		CallerFirst: true,
@@ -59,18 +70,4 @@ func SetupLogger(level string) {
 			return fmt.Sprintf(" %s:%d", path.Base(frame.File), frame.Line)
 		},
 	})
-}
-
-func SetLoggerLevel(level string) {
-	switch level {
-	case "trace":
-		log.SetLevel(log.TraceLevel)
-	case "debug":
-		log.SetLevel(log.DebugLevel)
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	default:
-		log.Warnf("Invalid log level %s, using info level", level)
-		log.SetLevel(log.InfoLevel)
-	}
 }
