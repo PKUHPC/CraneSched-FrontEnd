@@ -204,12 +204,28 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 // single range: "start-end" or "start-end:stride"
 // single index: "10"
 // compound: "1-5,10,20-30:2" (comma-separated ranges and individual numbers)
+// concurrency limit: "0-15%4" (max 4 concurrent tasks)
 // The merged indices must form a regular arithmetic sequence (start-end:stride)
 // since the backend proto only supports a single range.
-func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
+func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, uint32, error) {
 	cleaned := strings.TrimSpace(spec)
 	if cleaned == "" {
-		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty specification", spec)
+		return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty specification", spec)
+	}
+
+	// Split off %N concurrency suffix
+	var maxConcurrent uint32
+	if idx := strings.LastIndex(cleaned, "%"); idx >= 0 {
+		concStr := cleaned[idx+1:]
+		cleaned = cleaned[:idx]
+		if concStr == "" {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': missing number after '%%'", spec)
+		}
+		concVal, err := strconv.ParseUint(concStr, 10, 32)
+		if err != nil || concVal == 0 {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': concurrency limit must be a positive integer", spec)
+		}
+		maxConcurrent = uint32(concVal)
 	}
 
 	segRe := regexp.MustCompile(`^(\d+)(?:-(\d+))?(?::(\d+))?$`)
@@ -220,22 +236,22 @@ func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 	for _, seg := range segments {
 		seg = strings.TrimSpace(seg)
 		if seg == "" {
-			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty segment", spec)
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty segment", spec)
 		}
 		result := segRe.FindStringSubmatch(seg)
 		if result == nil {
-			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': invalid segment '%s'", spec, seg)
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': invalid segment '%s'", spec, seg)
 		}
 
 		startVal, err := strconv.ParseUint(result[1], 10, 32)
 		if err != nil {
-			return 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[1])
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[1])
 		}
 
 		if result[2] == "" {
 			// Single index, e.g. "10"
 			if result[3] != "" {
-				return 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride without range in segment '%s'", spec, seg)
+				return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride without range in segment '%s'", spec, seg)
 			}
 			indices = append(indices, startVal)
 			continue
@@ -243,20 +259,20 @@ func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 
 		endVal, err := strconv.ParseUint(result[2], 10, 32)
 		if err != nil {
-			return 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[2])
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[2])
 		}
 		if startVal > endVal {
-			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': start > end in segment '%s'", spec, seg)
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': start > end in segment '%s'", spec, seg)
 		}
 
 		segStride := uint64(1)
 		if result[3] != "" {
 			sv, err := strconv.ParseUint(result[3], 10, 32)
 			if err != nil {
-				return 0, 0, 0, fmt.Errorf("invalid --array stride '%s'", result[3])
+				return 0, 0, 0, 0, fmt.Errorf("invalid --array stride '%s'", result[3])
 			}
 			if sv == 0 {
-				return 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride must be > 0", spec)
+				return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride must be > 0", spec)
 			}
 			segStride = sv
 		}
@@ -267,7 +283,7 @@ func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 	}
 
 	if len(indices) == 0 {
-		return 0, 0, 0, fmt.Errorf("invalid --array value '%s': no indices specified", spec)
+		return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': no indices specified", spec)
 	}
 
 	// Sort and deduplicate
@@ -282,7 +298,7 @@ func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 
 	taskCount := uint64(len(indices))
 	if taskCount > MaxArrayTaskCount {
-		return 0, 0, 0, fmt.Errorf(
+		return 0, 0, 0, 0, fmt.Errorf(
 			"invalid --array value '%s': task count %d exceeds limit %d",
 			spec, taskCount, MaxArrayTaskCount)
 	}
@@ -295,19 +311,19 @@ func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, error) {
 	if len(indices) > 1 {
 		stride = indices[1] - indices[0]
 		if stride == 0 {
-			return 0, 0, 0, fmt.Errorf("invalid --array value '%s': duplicate indices", spec)
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': duplicate indices", spec)
 		}
 		// Verify all indices form a regular arithmetic sequence
 		for i := 2; i < len(indices); i++ {
 			if indices[i]-indices[i-1] != stride {
-				return 0, 0, 0, fmt.Errorf(
+				return 0, 0, 0, 0, fmt.Errorf(
 					"invalid --array value '%s': compound spec does not form a regular arithmetic sequence (required by backend)",
 					spec)
 			}
 		}
 	}
 
-	return uint32(start), uint32(end), uint32(stride), nil
+	return uint32(start), uint32(end), uint32(stride), maxConcurrent, nil
 }
 
 func ParseRelativeTime(ts string) (int64, error) {
