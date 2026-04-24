@@ -485,6 +485,8 @@ message InteractiveJobAdditionalMeta {
 
   // Task ID to forward crun input to
   optional uint32 input_task_id = 8;
+
+  string mpi = 9;
 }
 
 message PodJobAdditionalMeta {

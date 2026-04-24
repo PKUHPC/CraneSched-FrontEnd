@@ -68,6 +68,8 @@ const (
 const (
 	FlagIOForwardALL  string = "all"
 	FlagIOForwardNONE string = "none"
+
+	MpiTypePmix string = "pmix"
 )
 
 type GlobalVariables struct {
@@ -1876,6 +1878,12 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)
 	}
+
+	if FlagMpi != MpiTypePmix {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: unsupported MPI type %s.", FlagMpi))
+	}
+
+	iaMeta.Mpi = FlagMpi
 
 	termEnv, exits := syscall.Getenv("TERM")
 	if exits {
