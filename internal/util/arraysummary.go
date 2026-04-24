@@ -17,10 +17,11 @@ type ArraySummaryInfo struct {
 // MakeArraySummaryGroupKey returns a grouping key for array tasks.
 // Returns ("", false) if the job is not an array child.
 func MakeArraySummaryGroupKey(job *protos.JobInfo) (string, bool) {
-	if job.ArrayJobId == nil || job.ArrayTaskId == nil {
+	arrayJobId := JobArrayJobId(job)
+	if arrayJobId == nil {
 		return "", false
 	}
-	return strconv.FormatUint(uint64(*job.ArrayJobId), 10), true
+	return strconv.FormatUint(uint64(*arrayJobId), 10), true
 }
 
 // BuildArraySummaryRows inserts summary rows for array task groups into the
@@ -52,22 +53,30 @@ func BuildArraySummaryRows[T any](
 		itemKeys[i] = key
 
 		if _, ok := groupByKey[key]; !ok {
+			arrayTaskId := JobArrayTaskId(job)
+			if arrayTaskId == nil {
+				continue
+			}
 			groupByKey[key] = &ArraySummaryInfo{
-				AnchorJobId: ResolveArrayJobId(job.JobId, job.ArrayJobId),
-				Start:       *job.ArrayTaskId,
-				End:         *job.ArrayTaskId,
+				AnchorJobId: ResolveArrayJobId(job.JobId, JobArrayJobId(job)),
+				Start:       *arrayTaskId,
+				End:         *arrayTaskId,
 				Count:       0,
 				Sample:      job,
 			}
 		}
 
 		group := groupByKey[key]
-		group.Count++
-		if *job.ArrayTaskId < group.Start {
-			group.Start = *job.ArrayTaskId
+		arrayTaskId := JobArrayTaskId(job)
+		if arrayTaskId == nil {
+			continue
 		}
-		if *job.ArrayTaskId > group.End {
-			group.End = *job.ArrayTaskId
+		group.Count++
+		if *arrayTaskId < group.Start {
+			group.Start = *arrayTaskId
+		}
+		if *arrayTaskId > group.End {
+			group.End = *arrayTaskId
 		}
 	}
 

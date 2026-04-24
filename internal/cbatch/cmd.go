@@ -134,25 +134,22 @@ var (
 				return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
 			}
 
-			hasArray := job.ArrayIndexStart != nil || job.ArrayIndexEnd != nil
+			hasArray := job.ArraySpec != nil
 			if hasArray {
-				if job.ArrayIndexStart == nil || job.ArrayIndexEnd == nil {
-					return util.NewCraneErr(util.ErrorCmdArg, "--array must include both start and end index")
-				}
 				if FlagRepeat > 1 {
 					return util.NewCraneErr(util.ErrorCmdArg, "--array and --repeat are mutually exclusive")
 				}
 
 				stride := uint64(1)
-				if job.ArrayIndexStride != nil && *job.ArrayIndexStride != 0 {
-					stride = uint64(*job.ArrayIndexStride)
+				if job.ArraySpec.Stride != nil && *job.ArraySpec.Stride != 0 {
+					stride = uint64(*job.ArraySpec.Stride)
 				}
-				arrayCount := (uint64(*job.ArrayIndexEnd)-uint64(*job.ArrayIndexStart))/stride + 1
+				arrayCount := (uint64(job.ArraySpec.End)-uint64(job.ArraySpec.Start))/stride + 1
 				if arrayCount == 0 || arrayCount > uint64(util.MaxArrayTaskCount) {
 					return util.NewCraneErr(util.ErrorCmdArg, "--array range is too large")
 				}
 
-				return SendMultipleRequests(job, uint32(arrayCount))
+				return SendMultipleRequests(job, 1)
 			}
 
 			if FlagRepeat == 1 {

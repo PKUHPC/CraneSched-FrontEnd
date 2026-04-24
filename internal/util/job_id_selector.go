@@ -1,6 +1,7 @@
 package util
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -22,6 +23,27 @@ func ResolveArrayJobId(jobId uint32, arrayJobId *uint32) uint32 {
 		return *arrayJobId
 	}
 	return jobId
+}
+
+func JobArrayIdentity(job *protos.JobInfo) *protos.ArrayTaskIdentity {
+	if job == nil {
+		return nil
+	}
+	return job.ArrayTask
+}
+
+func JobArrayJobId(job *protos.JobInfo) *uint32 {
+	if identity := JobArrayIdentity(job); identity != nil {
+		return &identity.ArrayJobId
+	}
+	return nil
+}
+
+func JobArrayTaskId(job *protos.JobInfo) *uint32 {
+	if identity := JobArrayIdentity(job); identity != nil {
+		return &identity.TaskId
+	}
+	return nil
 }
 
 func FormatJobIdWithArray(jobId uint32, arrayTaskId *uint32) string {

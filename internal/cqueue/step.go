@@ -56,9 +56,9 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 
 	less := func(i, j int) bool {
 		jobId1 := util.ResolveArrayJobId(
-			stepDataList[i].stepInfo.JobId, stepDataList[i].job.ArrayJobId)
+			stepDataList[i].stepInfo.JobId, util.JobArrayJobId(stepDataList[i].job))
 		jobId2 := util.ResolveArrayJobId(
-			stepDataList[j].stepInfo.JobId, stepDataList[j].job.ArrayJobId)
+			stepDataList[j].stepInfo.JobId, util.JobArrayJobId(stepDataList[j].job))
 		stepId1, stepId2 := stepDataList[i].stepInfo.StepId, stepDataList[j].stepInfo.StepId
 		if jobId1 != jobId2 {
 			return jobId1 > jobId2

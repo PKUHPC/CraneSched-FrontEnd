@@ -133,11 +133,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 		if err != nil {
 			return nil, err
 		}
-		job.ArrayIndexStart = &start
-		job.ArrayIndexEnd = &end
-		job.ArrayIndexStride = &stride
+		job.ArraySpec = &protos.ArraySpec{
+			Start:  start,
+			End:    end,
+			Stride: &stride,
+		}
 		if maxConc > 0 {
-			job.ArrayMaxConcurrent = &maxConc
+			job.ArraySpec.MaxConcurrent = &maxConc
 		}
 	}
 	if cmd.Flags().Changed("gres") {
@@ -403,11 +405,13 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			job.ArrayIndexStart = &start
-			job.ArrayIndexEnd = &end
-			job.ArrayIndexStride = &stride
+			job.ArraySpec = &protos.ArraySpec{
+				Start:  start,
+				End:    end,
+				Stride: &stride,
+			}
 			if maxConc > 0 {
-				job.ArrayMaxConcurrent = &maxConc
+				job.ArraySpec.MaxConcurrent = &maxConc
 			}
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
@@ -604,22 +608,22 @@ func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 	}
 
 	if len(reply.JobIdList) > 0 {
-		if job.ArrayIndexStart != nil && job.ArrayIndexEnd != nil {
+		if job.ArraySpec != nil {
 			// Array job: backend returns a single array_job_id.
 			// Tasks will be expanded at scheduling time.
 			concSuffix := ""
-			if job.ArrayMaxConcurrent != nil && *job.ArrayMaxConcurrent > 0 {
-				concSuffix = fmt.Sprintf(", concurrency %%%d", *job.ArrayMaxConcurrent)
+			if job.ArraySpec.MaxConcurrent != nil && *job.ArraySpec.MaxConcurrent > 0 {
+				concSuffix = fmt.Sprintf(", concurrency %%%d", *job.ArraySpec.MaxConcurrent)
 			}
-			if job.ArrayIndexStride != nil && *job.ArrayIndexStride > 1 {
+			if job.ArraySpec.Stride != nil && *job.ArraySpec.Stride > 1 {
 				fmt.Printf("Submitted array job %d, array range [%d-%d:%d]%s.\n",
 					reply.JobIdList[0],
-					*job.ArrayIndexStart, *job.ArrayIndexEnd, *job.ArrayIndexStride,
+					job.ArraySpec.Start, job.ArraySpec.End, *job.ArraySpec.Stride,
 					concSuffix)
 			} else {
 				fmt.Printf("Submitted array job %d, array range [%d-%d]%s.\n",
 					reply.JobIdList[0],
-					*job.ArrayIndexStart, *job.ArrayIndexEnd, concSuffix)
+					job.ArraySpec.Start, job.ArraySpec.End, concSuffix)
 			}
 		} else {
 			jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")

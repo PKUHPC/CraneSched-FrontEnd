@@ -308,14 +308,16 @@ type jobDisplaySortKey struct {
 }
 
 func buildSortKey(item *JobOrStep) jobDisplaySortKey {
+	arrayJobId := util.JobArrayJobId(item.job)
+	arrayTaskId := util.JobArrayTaskId(item.job)
 	key := jobDisplaySortKey{
-		jobId:  util.ResolveArrayJobId(item.job.JobId, item.job.ArrayJobId),
+		jobId:  util.ResolveArrayJobId(item.job.JobId, arrayJobId),
 		isStep: item.isStep,
 	}
 
-	if item.job.ArrayTaskId != nil {
+	if arrayTaskId != nil {
 		key.arrayPresent = true
-		key.arrayTaskId = *item.job.ArrayTaskId
+		key.arrayTaskId = *arrayTaskId
 	}
 
 	if item.isStep {
@@ -532,16 +534,18 @@ func ProcessHeld(item *JobOrStep) string {
 
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
+	arrayJobId := util.JobArrayJobId(item.job)
+	arrayTaskId := util.JobArrayTaskId(item.job)
 	if item.isStep {
 		return util.FormatStepIdWithArray(
-			util.ResolveArrayJobId(item.stepInfo.JobId, item.job.ArrayJobId),
-			item.job.ArrayTaskId,
+			util.ResolveArrayJobId(item.stepInfo.JobId, arrayJobId),
+			arrayTaskId,
 			item.stepInfo.StepId,
 		)
 	}
 	return util.FormatJobIdWithArray(
-		util.ResolveArrayJobId(item.job.JobId, item.job.ArrayJobId),
-		item.job.ArrayTaskId,
+		util.ResolveArrayJobId(item.job.JobId, arrayJobId),
+		arrayTaskId,
 	)
 }
 
