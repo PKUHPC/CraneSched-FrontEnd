@@ -148,6 +148,8 @@ func sacct() *cobra.Command {
 	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
 	cmd.Flags().StringVarP(&cacct.FlagFilterAccounts, "account", "A", "",
 		"Displays jobs when a comma separated list of accounts are given as the argument.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterJobIDs, "jobs", "j", "",
+		"Displays information about specified jobs. Supports jobid, jobid.stepid, jobid_arraytaskid, and jobid_arraytaskid.stepid.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterUsers, "user", "u", "",
 		"Use this comma separated list of user names to select jobs to display.")
 
@@ -686,7 +688,6 @@ func sbatch() *cobra.Command {
 	}
 	// not implement feature:
 	cmd.Flags().StringVarP(&cbatch.FlagNTasks, "ntasks", "n", "", "")
-	cmd.Flags().StringVarP(&cbatch.FlagArray, "array", "a", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagNoRequeue, "no-requeue", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagParsable, "parsable", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagGpusPerNode, "gpus-per-node", "", "")
@@ -860,7 +861,7 @@ func collectScontrolJobIDs(args []string, idx int, firstValue string) (string, i
 	}
 
 	concatedJobIDs := strings.Join(jobIDs, ",")
-	if _, err := util.ParseJobIdList(concatedJobIDs, ","); err != nil {
+	if _, err := util.ParseJobIdSelectorList(concatedJobIDs, ","); err != nil {
 		return "", idx, err
 	}
 	return concatedJobIDs, idx, nil
@@ -1009,6 +1010,8 @@ func squeue() *cobra.Command {
 		"Report the expected start time and resources to be allocated for pending jobs in order of \nincreasing start time.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterPartitions, "partition", "p", "",
 		"Specify the partitions of the jobs or steps to view. Accepts a comma separated list of \npartition names.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterJobIDs, "jobs", "j", "",
+		"Specify a comma separated list of job IDs to display (jobid or jobid_arraytaskid). Defaults to all jobs. ")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterJobNames, "name", "n", "",
 		"Request jobs or job steps having one of the specified names. The list consists of a comma \nseparated list of job names.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterQos, "qos", "q", "",
@@ -1030,7 +1033,7 @@ Supported format identifiers or string, string case insensitive:
 	%c/%AllocCpus          - Display the cpus allocated to the job.
 	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
 	%h/%Held               - Display the hold state of the job.
-	%j/%JobID              - Display the ID of the job.
+	%j/%JobID              - Display the ID of the job (array jobs use jobid_arraytaskid).
 	%k/%Comment            - Display the comment of the job.
 	%L/%NodeList           - Display the list of nodes the job is running on.
 	%l/%TimeLimit          - Display the time limit for the job.
@@ -1086,7 +1089,10 @@ func squeueQueryTableOutput(reply *protos.QueryJobsInfoReply) util.ExitCode {
 		}
 
 		tableData[i] = []string{
-			strconv.FormatUint(uint64(jobInfo.JobId), 10),
+			util.FormatJobIdWithArray(
+				util.ResolveArrayJobId(jobInfo.JobId, util.JobArrayJobId(jobInfo)),
+				util.JobArrayTaskId(jobInfo),
+			),
 			jobInfo.Partition,
 			jobInfo.Name,
 			jobInfo.Username,
@@ -1343,9 +1349,6 @@ func PrintSallocIgnoreDummyArgsMessage() {
 func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagNTasks != "" {
 		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagArray != "" {
-		fmt.Fprintln(os.Stderr, "The feature --array/-a is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagNoRequeue != "" {
 		fmt.Fprintln(os.Stderr, "The feature --no-requeue is not yet supported by Crane, the use is ignored.")

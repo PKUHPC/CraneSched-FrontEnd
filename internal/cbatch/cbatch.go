@@ -128,6 +128,20 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 		}
 		job.Ntasks = FlagNtasks
 	}
+	if cmd.Flags().Changed("array") {
+		start, end, stride, maxConc, err := util.ParseArrayRangeSpec(FlagArray)
+		if err != nil {
+			return nil, err
+		}
+		job.ArraySpec = &protos.ArraySpec{
+			Start:  start,
+			End:    end,
+			Stride: &stride,
+		}
+		if maxConc > 0 {
+			job.ArraySpec.MaxConcurrent = &maxConc
+		}
+	}
 	if cmd.Flags().Changed("gres") {
 		gresMap, err := util.ParseGres(FlagGres)
 		if err != nil {
@@ -386,6 +400,19 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
 			}
 			job.Ntasks = uint32(num)
+		case "--array", "-a":
+			start, end, stride, maxConc, err := util.ParseArrayRangeSpec(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			job.ArraySpec = &protos.ArraySpec{
+				Start:  start,
+				End:    end,
+				Stride: &stride,
+			}
+			if maxConc > 0 {
+				job.ArraySpec.MaxConcurrent = &maxConc
+			}
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {
@@ -581,8 +608,27 @@ func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 	}
 
 	if len(reply.JobIdList) > 0 {
-		jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
-		fmt.Printf("Job id allocated: %s.\n", jobIdListString)
+		if job.ArraySpec != nil {
+			// Array job: backend returns a single array_job_id.
+			// Tasks will be expanded at scheduling time.
+			concSuffix := ""
+			if job.ArraySpec.MaxConcurrent != nil && *job.ArraySpec.MaxConcurrent > 0 {
+				concSuffix = fmt.Sprintf(", concurrency %%%d", *job.ArraySpec.MaxConcurrent)
+			}
+			if job.ArraySpec.Stride != nil && *job.ArraySpec.Stride > 1 {
+				fmt.Printf("Submitted array job %d, array range [%d-%d:%d]%s.\n",
+					reply.JobIdList[0],
+					job.ArraySpec.Start, job.ArraySpec.End, *job.ArraySpec.Stride,
+					concSuffix)
+			} else {
+				fmt.Printf("Submitted array job %d, array range [%d-%d]%s.\n",
+					reply.JobIdList[0],
+					job.ArraySpec.Start, job.ArraySpec.End, concSuffix)
+			}
+		} else {
+			jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
+			fmt.Printf("Job id allocated: %s.\n", jobIdListString)
+		}
 	}
 
 	if len(reply.GetCodeList()) > 0 {
@@ -656,8 +702,6 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	filteredArgs := make([]CbatchArg, 0, len(args))
 	unsupportedFlags := map[string]string{
-		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
-		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
 		"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
 		"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",

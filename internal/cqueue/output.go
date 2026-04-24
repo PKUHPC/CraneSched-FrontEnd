@@ -18,6 +18,55 @@ type TableConfig struct {
 	RowMapper func(*protos.JobInfo) []string
 }
 
+func buildArraySummaryRow(header []string, info *util.ArraySummaryInfo) []string {
+	row := make([]string, len(header))
+	summaryId := fmt.Sprintf("%d_[%d-%d]", info.AnchorJobId, info.Start, info.End)
+
+	for i, column := range header {
+		switch column {
+		case "JobId", "JOBID":
+			row[i] = summaryId
+		case "JobName", "Name":
+			row[i] = info.Sample.Name
+		case "User", "UserName":
+			row[i] = info.Sample.Username
+		case "Partition":
+			row[i] = info.Sample.Partition
+		case "Account":
+			row[i] = info.Sample.Account
+		case "Status", "State":
+			row[i] = "ArraySummary"
+		case "Type", "JobType":
+			row[i] = info.Sample.Type.String()
+		case "Time", "ElapsedTime":
+			row[i] = "-"
+		case "TimeLimit":
+			row[i] = FormatTimeLimit(info.Sample.TimeLimit.Seconds)
+		case "Nodes", "NodeNum":
+			row[i] = strconv.Itoa(info.Count)
+		case "NodeList/Reason", "NodeList":
+			row[i] = fmt.Sprintf("ArrayTasks=%d", info.Count)
+		case "QoS", "Qos":
+			row[i] = info.Sample.Qos
+		case "StartTime":
+			row[i] = FormatTime(info.Sample.StartTime, "unknown")
+		case "SubmitTime":
+			row[i] = FormatTime(info.Sample.SubmitTime, "unknown")
+		default:
+			row[i] = "-"
+		}
+	}
+
+	return row
+}
+
+func insertArraySummaryRows(header []string, rows [][]string, jobs []*protos.JobInfo) [][]string {
+	return util.BuildArraySummaryRows(header, rows, jobs,
+		func(job *protos.JobInfo) *protos.JobInfo { return job },
+		buildArraySummaryRow,
+	)
+}
+
 func FormatTime(t *timestamppb.Timestamp, fallback string) string {
 	if t == nil || t.AsTime().Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
 		return fallback
@@ -61,7 +110,7 @@ func GenerateTableConfig() TableConfig {
 					timeLimit = FormatTimeLimit(job.TimeLimit.Seconds)
 				}
 				return []string{
-					strconv.FormatUint(uint64(job.JobId), 10),
+					formatJobIdForDisplay(job),
 					job.Name,
 					job.Username,
 					job.Partition,
@@ -94,7 +143,7 @@ func GenerateTableConfig() TableConfig {
 			},
 			RowMapper: func(job *protos.JobInfo) []string {
 				return []string{
-					strconv.FormatUint(uint64(job.JobId), 10),
+					formatJobIdForDisplay(job),
 					job.Partition,
 					job.Name,
 					job.Username,
@@ -169,6 +218,8 @@ func QueryTableOutput(reply *protos.QueryJobsInfoReply) error {
 		customHeader, customData := FormatData(reply)
 		header, tableData = customHeader, customData
 		table.SetAutoFormatHeaders(false)
+	} else {
+		tableData = insertArraySummaryRows(header, tableData, reply.JobInfoList)
 	}
 
 	if !FlagNoHeader {
