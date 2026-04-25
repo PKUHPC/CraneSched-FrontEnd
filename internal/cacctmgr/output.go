@@ -788,6 +788,22 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) error {
 				formatTableData[currentRow] = append(formatTableData[currentRow], fmt.Sprint(timeLimitStr))
 				currentRow++
 			}
+		case "preempt":
+			tableOutputHeader[i] = "Preempt"
+			for _, info := range qosList {
+				preemptStr := "-"
+				if len(info.Preempt) > 0 {
+					preemptStr = strings.Join(info.Preempt, ",")
+				}
+				formatTableData[currentRow] = append(formatTableData[currentRow], preemptStr)
+				currentRow++
+			}
+		case "preemptmode":
+			tableOutputHeader[i] = "PreemptMode"
+			for _, info := range qosList {
+				formatTableData[currentRow] = append(formatTableData[currentRow], formatPreemptMode(info.PreemptMode))
+				currentRow++
+			}
 		default:
 			return util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf("Invalid format. You entered: '%s'", formatReq[i]))
 		}
@@ -799,7 +815,7 @@ func QosFormatOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) error {
 func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 	tableCtx.header = []string{"Name", "Description", "Priority", "MaxJobsPerUser", "MaxCpusPerUser",
 		"MaxJobsPerAccount", "MaxSubmitJobsPerUser", "MaxSubmitJobsPerAccount", "MaxTresPerUser", "MaxTresPerAccount",
-		"MaxTres", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxTimeLimitPerJob", "Flags"}
+		"MaxTres", "MaxJobs", "MaxSubmitJobs", "MaxWall", "MaxTimeLimitPerJob", "Flags", "Preempt", "PreemptMode"}
 	tableCtx.tableData = make([][]string, 0, len(qosList))
 	for _, info := range qosList {
 		var timeLimitStr string
@@ -864,6 +880,12 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 			qosFlagStr = "DenyOnLimit"
 		}
 
+		preemptStr := "-"
+		if len(info.Preempt) > 0 {
+			preemptStr = strings.Join(info.Preempt, ",")
+		}
+		preemptModeStr := formatPreemptMode(info.PreemptMode)
+
 		tableCtx.tableData = append(tableCtx.tableData, []string{
 			info.Name,
 			info.Description,
@@ -880,7 +902,27 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 			maxSubmitJobsStr,
 			maxWallStr,
 			fmt.Sprint(timeLimitStr),
-			qosFlagStr})
+			qosFlagStr,
+			preemptStr,
+			preemptModeStr})
+	}
+}
+
+// formatPreemptMode renders the PreemptMode enum back to the short user-facing
+// name accepted by cacctmgr / the yaml config. Unknown values fall back to
+// "OFF" to keep the table print safe.
+func formatPreemptMode(m protos.PreemptMode) string {
+	switch m {
+	case protos.PreemptMode_PREEMPT_MODE_OFF:
+		return "OFF"
+	case protos.PreemptMode_PREEMPT_MODE_CANCEL:
+		return "CANCEL"
+	case protos.PreemptMode_PREEMPT_MODE_REQUEUE:
+		return "REQUEUE"
+	case protos.PreemptMode_PREEMPT_MODE_SUSPEND:
+		return "SUSPEND"
+	default:
+		return "OFF"
 	}
 }
 

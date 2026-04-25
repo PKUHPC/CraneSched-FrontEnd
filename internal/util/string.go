@@ -1538,6 +1538,13 @@ func ParseStringParamList(parameters string, splitStr string) ([]string, error) 
 	return parameterList, nil
 }
 
+func ParseStringParamListAllowEmpty(parameters string, splitStr string) ([]string, error) {
+	if strings.TrimSpace(parameters) == "" {
+		return nil, nil
+	}
+	return ParseStringParamList(parameters, splitStr)
+}
+
 // Parse a list of jobid.stepid strings into map[uint32]*protos.JobStepIds
 func ParseStepIdList(jobStepIdListStr string, splitStr string) (map[uint32]*protos.JobStepIds, error) {
 	stepIds := make(map[uint32]*protos.JobStepIds)

@@ -694,9 +694,24 @@ func ModifyQos(params []ModifyParam, name string) error {
 	}
 
 	for _, param := range params {
+		// ModifyField_Preempt is the only QoS field that carries a list of
+		// names. Other fields always travel as a single-element ValueList so
+		// the backend side can index value_list[0] unconditionally. An empty
+		// NewValue clears the preempt set (sent as an empty ValueList).
+		var valueList []string
+		if param.ModifyField == protos.ModifyField_Preempt {
+			list, err := util.ParseStringParamListAllowEmpty(param.NewValue, ",")
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg,
+					fmt.Sprintf("invalid preempt list %q: %v\n", param.NewValue, err))
+			}
+			valueList = list
+		} else {
+			valueList = []string{param.NewValue}
+		}
 		req.Operations = append(req.Operations, &protos.ModifyFieldOperation{
 			ModifyField: param.ModifyField,
-			ValueList:   []string{param.NewValue},
+			ValueList:   valueList,
 		})
 	}
 
