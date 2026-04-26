@@ -119,7 +119,7 @@ Rules and limitations:
 3. Invalid template syntax and template execution errors fail the pipeline.
 4. Missing `.Args` keys follow Go template zero-value semantics and render as empty strings. `.Gres` only exposes `Device` and `Index`; other `.Gres` fields are invalid.
 5. Rendered fields stay strings; this feature does not generate JSON numbers, booleans, objects, or arrays.
-6. Template pipelines require matching GRES annotations for all actions.
+6. On `ADD`, `DEL`, and `CHECK`, template pipelines with no matching GRES annotations are skipped.
 
 ### GRES annotation convention
 

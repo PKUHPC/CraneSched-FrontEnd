@@ -498,7 +498,7 @@ func TestResolvePipelines(t *testing.T) {
 		}
 	})
 
-	t.Run("template without annotations fails", func(t *testing.T) {
+	t.Run("template without annotations is skipped", func(t *testing.T) {
 		t.Parallel()
 		conf := &metatypes.MetaPluginConf{
 			Pipelines: []metatypes.Pipeline{
@@ -507,9 +507,43 @@ func TestResolvePipelines(t *testing.T) {
 			},
 		}
 		args := &skel.CmdArgs{}
-		_, err := resolvePipelines(conf, args)
-		if err == nil {
-			t.Fatal("expected error when template pipeline has no GRES annotations")
+		resolved, err := resolvePipelines(conf, args)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resolved) != 1 {
+			t.Fatalf("len(resolved) = %d, want 1 (template should be skipped)", len(resolved))
+		}
+		if resolved[0].Name != "eth" {
+			t.Errorf("only eth pipeline should remain, got %q", resolved[0].Name)
+		}
+	})
+
+	t.Run("template without annotations is not expanded", func(t *testing.T) {
+		t.Parallel()
+		conf := &metatypes.MetaPluginConf{
+			Pipelines: []metatypes.Pipeline{
+				{
+					Name:         "roce",
+					IfNamePrefix: "roce",
+					Delegates: []metatypes.DelegateEntry{
+						{
+							Name: "sriov",
+							Type: "sriov",
+							// If template expansion were attempted, this would fail.
+							Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{if .Gres.Device}}"}`),
+						},
+					},
+				},
+			},
+		}
+		args := &skel.CmdArgs{}
+		resolved, err := resolvePipelines(conf, args)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resolved) != 0 {
+			t.Fatalf("len(resolved) = %d, want 0", len(resolved))
 		}
 	})
 
@@ -555,7 +589,7 @@ func TestResolvePipelines(t *testing.T) {
 func TestResolvePipelinesForDel(t *testing.T) {
 	t.Parallel()
 
-	t.Run("template pipeline without annotations fails even if prevResult exists", func(t *testing.T) {
+	t.Run("template pipeline without annotations is skipped even if prevResult exists", func(t *testing.T) {
 		t.Parallel()
 
 		conf := &metatypes.MetaPluginConf{
@@ -580,9 +614,81 @@ func TestResolvePipelinesForDel(t *testing.T) {
 			},
 		}
 
-		_, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
-		if err == nil {
-			t.Fatal("expected error when template pipeline has no GRES annotations")
+		resolved, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resolved) != 0 {
+			t.Fatalf("len(resolved) = %d, want 0", len(resolved))
+		}
+	})
+
+	t.Run("template pipeline without annotations is not expanded on DEL/CHECK", func(t *testing.T) {
+		t.Parallel()
+
+		conf := &metatypes.MetaPluginConf{
+			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{Name: "roce0", Sandbox: "/proc/123/ns/net"},
+				},
+			}},
+			Pipelines: []metatypes.Pipeline{
+				{
+					Name:         "roce",
+					IfNamePrefix: "roce",
+					Delegates: []metatypes.DelegateEntry{
+						{
+							Name: "sriov",
+							Type: "sriov",
+							// If template expansion were attempted, this would fail.
+							Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{if .Gres.Device}}"}`),
+						},
+					},
+				},
+			},
+		}
+
+		resolved, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resolved) != 0 {
+			t.Fatalf("len(resolved) = %d, want 0", len(resolved))
+		}
+	})
+
+	t.Run("static pipeline still resolves when template pipeline is skipped", func(t *testing.T) {
+		t.Parallel()
+
+		conf := &metatypes.MetaPluginConf{
+			PluginConf: cnitypes.PluginConf{PrevResult: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{Name: "eth0", Sandbox: "/proc/123/ns/net"},
+				},
+			}},
+			Pipelines: []metatypes.Pipeline{
+				{Name: "eth", IfName: "eth0", Delegates: []metatypes.DelegateEntry{{Name: "bridge", Type: "bridge"}}},
+				{
+					Name:         "roce",
+					IfNamePrefix: "roce",
+					Delegates: []metatypes.DelegateEntry{
+						{Name: "sriov", Type: "sriov", Conf: json.RawMessage(`{"type":"sriov","deviceID":"{{.Gres.Device}}"}`)},
+					},
+				},
+			},
+		}
+
+		resolved, err := resolvePipelinesForDel(conf, &skel.CmdArgs{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(resolved) != 1 {
+			t.Fatalf("len(resolved) = %d, want 1", len(resolved))
+		}
+		if resolved[0].Name != "eth" || resolved[0].IfName != "eth0" {
+			t.Fatalf("resolved[0] = name=%q ifName=%q, want eth/eth0", resolved[0].Name, resolved[0].IfName)
 		}
 	})
 

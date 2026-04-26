@@ -85,7 +85,8 @@ func resolvePipelines(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) ([]Res
 
 		instances := findGRESAnnotations(annotations, p.Name)
 		if len(instances) == 0 {
-			return nil, fmt.Errorf("meta-cni: pipeline %q requires GRES annotations but none were found", p.Name)
+			// No GRES allocated for this container: skip template pipeline on ADD.
+			continue
 		}
 
 		for _, inst := range instances {
@@ -120,7 +121,8 @@ func resolvePipelinesForDel(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) 
 
 		instances := findGRESAnnotations(annotations, p.Name)
 		if len(instances) == 0 {
-			return nil, fmt.Errorf("meta-cni: pipeline %q requires GRES annotations but none were found", p.Name)
+			// No GRES allocated for this container: skip template pipeline on DEL/CHECK.
+			continue
 		}
 
 		for _, inst := range instances {
