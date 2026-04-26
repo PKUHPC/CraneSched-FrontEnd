@@ -3,6 +3,7 @@ package template
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -217,5 +218,37 @@ func TestRenderBadTemplateErrors(t *testing.T) {
 	_, err := Render(raw, BuildVars("dev0", "0", nil))
 	if err == nil {
 		t.Fatal("expected parse error")
+	}
+}
+
+func TestRenderParseErrorDoesNotLeakTemplateValue(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"note":"token=super-secret {{if .Gres.Device}}"}`)
+	_, err := Render(raw, BuildVars("dev0", "0", nil))
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	if !strings.Contains(err.Error(), `$["note"]`) {
+		t.Fatalf("error %q does not include JSON path", err)
+	}
+	if strings.Contains(err.Error(), "super-secret") {
+		t.Fatalf("error %q leaked raw template value", err)
+	}
+}
+
+func TestRenderExecuteErrorDoesNotLeakTemplateValue(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"note":"token=super-secret {{.Gres.Missing}}"}`)
+	_, err := Render(raw, BuildVars("dev0", "0", nil))
+	if err == nil {
+		t.Fatal("expected execute error")
+	}
+	if !strings.Contains(err.Error(), `$["note"]`) {
+		t.Fatalf("error %q does not include JSON path", err)
+	}
+	if strings.Contains(err.Error(), "super-secret") {
+		t.Fatalf("error %q leaked raw template value", err)
 	}
 }

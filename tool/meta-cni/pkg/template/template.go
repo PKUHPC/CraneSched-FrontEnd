@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	gotemplate "text/template"
 )
 
@@ -65,11 +66,15 @@ func Render(raw []byte, vars Vars) ([]byte, error) {
 }
 
 func renderValue(v any, vars Vars) (any, error) {
+	return renderValueAt(v, vars, "$")
+}
+
+func renderValueAt(v any, vars Vars, path string) (any, error) {
 	switch typed := v.(type) {
 	case map[string]any:
 		out := make(map[string]any, len(typed))
 		for k, child := range typed {
-			rendered, err := renderValue(child, vars)
+			rendered, err := renderValueAt(child, vars, jsonObjectPath(path, k))
 			if err != nil {
 				return nil, err
 			}
@@ -79,7 +84,7 @@ func renderValue(v any, vars Vars) (any, error) {
 	case []any:
 		out := make([]any, len(typed))
 		for i, child := range typed {
-			rendered, err := renderValue(child, vars)
+			rendered, err := renderValueAt(child, vars, jsonArrayPath(path, i))
 			if err != nil {
 				return nil, err
 			}
@@ -87,21 +92,29 @@ func renderValue(v any, vars Vars) (any, error) {
 		}
 		return out, nil
 	case string:
-		return renderString(typed, vars)
+		return renderString(typed, vars, path)
 	default:
 		return v, nil
 	}
 }
 
-func renderString(raw string, vars Vars) (string, error) {
+func renderString(raw string, vars Vars, path string) (string, error) {
 	tmpl, err := gotemplate.New("conf-string").Option("missingkey=zero").Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("parse template string %q: %w", raw, err)
+		return "", fmt.Errorf("parse template string at %s: %w", path, err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, vars); err != nil {
-		return "", fmt.Errorf("execute template string %q: %w", raw, err)
+		return "", fmt.Errorf("execute template string at %s: %w", path, err)
 	}
 	return buf.String(), nil
+}
+
+func jsonObjectPath(path, key string) string {
+	return path + "[" + strconv.Quote(key) + "]"
+}
+
+func jsonArrayPath(path string, index int) string {
+	return path + "[" + strconv.Itoa(index) + "]"
 }
