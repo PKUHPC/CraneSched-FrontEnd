@@ -1425,7 +1425,7 @@ func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
 }
 
 func MainCrun(cmd *cobra.Command, args []string) error {
-	util.SetupLogger(FlagDebugLevel)
+	util.InitDiagLogger(FlagDebugLevel)
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
 

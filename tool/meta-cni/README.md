@@ -78,15 +78,48 @@ Each entry in a pipeline's `delegates` supports:
 - `type` (string, optional): Delegate plugin type (binary name).
 - `conf` (object, optional): Delegate plugin configuration. If omitted, the
   meta plugin will build a minimal config using `type`, `name`, and the parent
-  `cniVersion`.
+  `cniVersion`. String values inside `conf` may contain Go template expressions
+  that are rendered at runtime using `.Gres` and `.Args`.
 - `runtimeOverride` (object, optional): Per-delegate override (takes precedence
   over pipeline and global overrides).
-- `confFromArgs` (map[string]string, optional): Injects runtime variables into
-  the delegate's JSON config. Keys are config field names; values are `$`-prefixed
-  variable references. Available variables:
-  - `$gres.device`: GRES annotation value (device ID) for template instances.
-  - `$gres.index`: Instance index string for template instances.
-  - `$args.<KEY>`: Value from CNI_ARGS.
+
+### Runtime variables in conf
+
+Template expressions run inside string values in `delegates[].conf`.
+
+Simple example:
+
+```json
+"conf": {
+  "type": "sriov",
+  "deviceID": "{{.Gres.Device}}"
+}
+```
+
+Conditional example:
+
+```json
+"conf": {
+  "type": "macvlan",
+  "master": "{{if .Args.MASTER}}{{.Args.MASTER}}{{else}}eno1{{end}}"
+}
+```
+
+Available runtime data:
+
+- `.Gres.Device` - the device annotation value for the current template-pipeline instance
+- `.Gres.Index` - the template instance index as a string
+- `.Args.<KEY>` - a CNI_ARGS entry whose key is a valid Go identifier
+- `index .Args "KEY-WITH-DASH"` - access for keys that are not valid Go identifiers
+
+Rules and limitations:
+
+1. Templates are rendered only inside JSON string values in `conf`.
+2. The renderer uses standard Go `text/template` behavior.
+3. Invalid template syntax and template execution errors fail the pipeline.
+4. Missing `.Args` keys follow Go template zero-value semantics and render as empty strings. `.Gres` only exposes `Device` and `Index`; other `.Gres` fields are invalid.
+5. Rendered fields stay strings; this feature does not generate JSON numbers, booleans, objects, or arrays.
+6. On `ADD`, `DEL`, and `CHECK`, template pipelines with no matching GRES annotations are skipped.
 
 ### GRES annotation convention
 
