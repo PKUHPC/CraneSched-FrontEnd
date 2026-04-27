@@ -174,8 +174,9 @@ func showHelp() {
       name 					    Name of the user to reset
       (if name is 'all', all users will be reset.)
   
-	add qos <name> [Description=<desc>] [Priority=<priority>] 
+	add qos <name> [Description=<desc>] [Priority=<priority>]
 		[MaxJobsPerUser=<num>] [MaxCpusPerUser=<num>] [MaxTimeLimitPerJob=<duration|seconds>]
+		[Preempt=<qos1,qos2,...>] [PreemptMode=<OFF|CANCEL>]
     Create a new QoS with the specified attributes.
     Parameter details:
       Description=<desc>         Description of the QoS
@@ -193,6 +194,8 @@ func showHelp() {
       MaxWall=<seconds>           Maximum all run time per qos
       Flags=<DenyOnLimit|None>    Qos Flags
       MaxTimeLimitPerJob=<duration|seconds>  Maximum run time per job in seconds
+      Preempt=<qos1,qos2,...>   Comma-separated QoS names this QoS may preempt. Self-reference is rejected.
+      PreemptMode=<mode>        Preemption handling (OFF, CANCEL). Default OFF. REQUEUE/SUSPEND are reserved for future versions.
       Name=<name1,name2,...>    List of QoS name for batch creation
   
 	delete qos <name> [Name=<name1,name2,...>]
@@ -205,9 +208,11 @@ func showHelp() {
     Parameter details:
       Name=<name1,name2,...>    Show only these QoS (comma-separated)
       (If not specified, all QoS will be displayed)
-      format=<Name,Description,Priority,MaxJobsPerUser,MaxCpusPerUser,MaxCpusPerUser,
-              MaxTimeLimitPerJob> (Spelling must be correct, case is not important)
-      For Example: cacctmgr show qos format=name,MaxJobsPerUser,MaxCpusPerUser
+      format=<Name,Description,Priority,MaxJobsPerUser,MaxCpusPerUser,MaxJobsPerAccount,
+              MaxSubmitJobsPerUser,MaxSubmitJobsPerAccount,MaxTresPerUser,MaxTresPerAccount,
+              MaxTres,MaxJobs,MaxSubmitJobs,MaxWall,Flags,MaxTimeLimitPerJob,Preempt,PreemptMode>
+              (Spelling must be correct, case is not important)
+      For Example: cacctmgr show qos format=name,Priority,Preempt,PreemptMode
 
     show transaction [Actor=<actor>] [Target=<target>] [Action=<action>] [Info=<info>] [StartTime=<start_time>]
     Display transaction log records.
@@ -262,6 +267,8 @@ func showHelp() {
       set Flags=<DenyOnLimit|None>       Set qos flags (default is None)
       set MaxTimeLimitPerJob=<duration|sec>   Set the maximum time limit per job (format: \"day-hours:minutes:seconds\" 5-0:0:1 for 5 days, 1 second or \"hours:minutes:seconds\" 10:1:2 for 10 hours, 1 minute, 2 seconds) (default 315576000000 seconds)"
       set Priority=<priority>            Set priority
+      set Preempt=<qos1,qos2,...>       Replace the preemptible QoS list (use empty value to clear)
+      set PreemptMode=<mode>            Set preemption mode (OFF, CANCEL; default OFF)
     Wckey options:
       where user=<name> 
       set defaultwckey=<wckeyname>    Set default wckey for specific users

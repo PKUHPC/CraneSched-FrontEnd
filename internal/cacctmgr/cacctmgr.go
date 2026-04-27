@@ -694,9 +694,20 @@ func ModifyQos(params []ModifyParam, name string) error {
 	}
 
 	for _, param := range params {
+		var valueList []string
+		if param.ModifyField == protos.ModifyField_Preempt {
+			list, err := util.ParseStringParamListAllowEmpty(param.NewValue, ",")
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg,
+					fmt.Sprintf("invalid preempt list %q: %v\n", param.NewValue, err))
+			}
+			valueList = list
+		} else {
+			valueList = []string{param.NewValue}
+		}
 		req.Operations = append(req.Operations, &protos.ModifyFieldOperation{
 			ModifyField: param.ModifyField,
-			ValueList:   []string{param.NewValue},
+			ValueList:   valueList,
 		})
 	}
 
