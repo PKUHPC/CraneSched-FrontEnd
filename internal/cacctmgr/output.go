@@ -199,6 +199,7 @@ func PrintAccountPartitionTable(accountList []*protos.AccountInfo) {
 				}
 				var maxWallStr string
 				if partitionResourceLimit.MaxWall == 0 {
+					// MaxWall == 0 means no total wall time limit (ZeroDuration on backend)
 					maxWallStr = "unlimited"
 				} else {
 					maxWallStr = util.SecondTimeFormat(int64(partitionResourceLimit.MaxWall))
@@ -420,6 +421,7 @@ func PrintUserPartitionLimit(userList []*protos.UserInfo) {
 						}
 						var maxWallStr string
 						if partitionResourceLimit.MaxWall == 0 {
+							// MaxWall == 0 means no total wall time limit (ZeroDuration on backend)
 							maxWallStr = "unlimited"
 						} else {
 							maxWallStr = util.SecondTimeFormat(int64(partitionResourceLimit.MaxWall))
