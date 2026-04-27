@@ -183,12 +183,6 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 
 	m.sigs = make(chan os.Signal, 1)
 	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
-
-	// Pre-initialize stopStepCtx/stopStepCb so that StateWaitAck (which is
-	// reachable via WaitForward→JobKilling without ever entering StateForwarding)
-	// can safely reference stopStepCtx.Done() without a nil-pointer dereference.
-	// StartIOForward() will replace these with a fresh cancellable context.
-	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
 }
 
 func (m *StateMachineOfCrun) Close() {
@@ -623,17 +617,11 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					select {
 					case m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg:
 					case <-m.stopWriteCtx.Done():
-					case <-m.stopStepCtx.Done():
-						m.state = JobKilling
-						return
 					}
 				case protos.StreamCrunReply_TASK_ERR_OUTPUT_FORWARD:
 					select {
 					case m.chanErrOutputFromRemote <- cforedReply.GetPayloadTaskIoErrOutputForwardReply().Msg:
 					case <-m.stopWriteCtx.Done():
-					case <-m.stopStepCtx.Done():
-						m.state = JobKilling
-						return
 					}
 
 				case protos.StreamCrunReply_STEP_X11_CONN:
@@ -672,7 +660,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			}
 		}
 	}
-	
+
 }
 
 func (m *StateMachineOfCrun) StateJobKilling() {
@@ -728,28 +716,12 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		select {
 		case m.chanOutputFromRemote <- cforedReply.GetPayloadTaskIoForwardReply().Msg:
 		case <-m.stopWriteCtx.Done():
-		case <-m.stopStepCtx.Done():
-			// Job is being terminated and terminal is backed up.
-			// Drop this output message so we can keep draining replyChannel
-			// and eventually receive STEP_COMPLETION_ACK_REPLY.
-		case <-gVars.globalCtx.Done():
-			// cfored is shutting down or connection lost; discard output.
-			m.state = End
-			return
 		}
 		return // Still in WaitAck state
 	case protos.StreamCrunReply_TASK_ERR_OUTPUT_FORWARD:
 		select {
 		case m.chanErrOutputFromRemote <- cforedReply.GetPayloadTaskIoErrOutputForwardReply().Msg:
 		case <-m.stopWriteCtx.Done():
-		case <-m.stopStepCtx.Done():
-			// Job is being terminated and terminal is backed up.
-			// Drop this output message so we can keep draining replyChannel
-			// and eventually receive STEP_COMPLETION_ACK_REPLY.
-		case <-gVars.globalCtx.Done():
-			// cfored is shutting down or connection lost; discard output.
-			m.state = End
-			return
 		}
 		return
 
@@ -1938,12 +1910,6 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	ioMeta.InputFilePattern = m.inputFlag
 	ioMeta.OutputFilePattern = m.outputFlag
 	ioMeta.ErrorFilePattern = m.errorFlag
-	// If --input specifies a numeric task ID (not "all", "none", or a file path),
-	// store it so that cattach can detect exclusive-stdin mode and become read-only.
-	if parsedId, parseErr := strconv.ParseUint(m.inputFlag, 10, 32); parseErr == nil {
-		id := uint32(parsedId)
-		ioMeta.InputTaskId = &id
-	}
 
 	m.Init(job, step)
 	m.Run()
