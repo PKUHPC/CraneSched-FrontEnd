@@ -318,7 +318,12 @@ func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, 
 		keeper.stepIORequestChannelMap[step] = make(map[int32]chan *protos.StreamStepIORequest)
 	}
 	keeper.stepIORequestChannelMap[step][frontId] = ioToCrunChannel
-	keeper.stepDoneChannelMap[step] = make(chan struct{})
+	// Only create the done channel when the step is first registered (crun sets it up).
+	// Subsequent calls from cattach must NOT overwrite it — crun is already waiting on
+	// the original channel and would leak forever if a new channel were substituted.
+	if keeper.stepDoneChannelMap[step] == nil {
+		keeper.stepDoneChannelMap[step] = make(chan struct{})
+	}
 	if keeper.taskIOBufferMap[step] == nil {
 		keeper.taskIOBufferMap[step] = &TaskIOBuffer{
 			data:     make([]*protos.StreamStepIORequest, 10),
@@ -368,7 +373,13 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 		for _, channel := range channelMap {
 			channels = append(channels, channel)
 		}
-		if buf := keeper.taskIOBufferMap[StepIdentifier{JobId: jobId, StepId: stepId}]; buf != nil {
+		// Only buffer TASK_OUTPUT and TASK_ERR_OUTPUT for history replay.
+		// X11 messages (STEP_X11_CONN/OUTPUT/EOF) and TASK_EXIT_STATUS are not
+		// replayed to cattach: X11 is not supported by cattach, and exit status
+		// is signaled via JOB_COMPLETION_ACK_REPLY instead.
+		if buf := keeper.taskIOBufferMap[StepIdentifier{JobId: jobId, StepId: stepId}]; buf != nil &&
+			(ioToFront.Type == protos.StreamStepIORequest_TASK_OUTPUT ||
+				ioToFront.Type == protos.StreamStepIORequest_TASK_ERR_OUTPUT) {
 			buf.Push(ioToFront)
 		}
 	} else {
@@ -670,7 +681,7 @@ CforedSupervisorStateMachineLoop:
 							state = SupervisorUnReg
 						}
 					default:
-						log.Fatalf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from cattach ",
+						log.Errorf("[Cfored<->Supervisor][Step #%d.%d] Receive Unexpected %s from cattach, ignoring.",
 							jobId, stepId, cattachReq.Type.String())
 						break supervisorIOForwarding
 					}
@@ -797,7 +808,7 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 				gVars.globalCtxCancel()
 				// GracefulStop waits for all active RPCs to finish, which can block
 				// indefinitely if any stream handler (e.g. CattachStream or CrunStream)
-				// is stuck.  Give it 30 s and then force-stop both servers so the
+				// is stuck.  Give it 5 s and then force-stop both servers so the
 				// process always terminates in a bounded time.
 				const gracefulStopTimeout = 5 * time.Second
 				done := make(chan struct{})

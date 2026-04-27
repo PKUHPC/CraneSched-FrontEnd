@@ -1,3 +1,21 @@
+/**
+ * Copyright (c) 2026 Peking University and Peking University
+ * Changsha Institute for Computing and Digital Economy
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package cattach
 
 import (
@@ -773,6 +791,11 @@ writing:
 func (m *StateMachineOfCattach) StderrWriterRoutine() {
 	log.Trace("Starting StderrWriterRoutine")
 	writer := bufio.NewWriter(os.Stderr)
+	// NOTE: --error-filter (FlagErrorFilter) is currently a no-op here because
+	// the TaskErrOutputReq proto message does not carry a task_id field.
+	// Per-task stderr filtering would require adding task_id to TaskErrOutputReq
+	// in the protocol (Crane.proto) and propagating it through cfored/supervisor.
+	// TODO: implement --error-filter once task_id is added to TaskErrOutputReq.
 
 writing:
 	for {
@@ -850,8 +873,12 @@ func MainCattach(args []string) error {
 	}
 
 	m.Init()
-	m.Run()
+	// defer m.Close() is placed before m.Run() so that resources are released
+	// even if Run() panics. In Go, defer is executed when the enclosing function
+	// returns (not when the defer statement is reached), so Close() will still
+	// run after Run() completes normally.
 	defer m.Close()
+	m.Run()
 
 	if m.err == util.ErrorSuccess {
 		return nil
