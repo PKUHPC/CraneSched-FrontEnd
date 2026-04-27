@@ -908,9 +908,6 @@ func QosDefaultOutput(tableCtx *Tableoutput, qosList []*protos.QosInfo) {
 	}
 }
 
-// formatPreemptMode renders the PreemptMode enum back to the short user-facing
-// name accepted by cacctmgr / the yaml config. Unknown values fall back to
-// "OFF" to keep the table print safe.
 func formatPreemptMode(m protos.PreemptMode) string {
 	switch m {
 	case protos.PreemptMode_PREEMPT_MODE_OFF:
