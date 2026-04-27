@@ -823,7 +823,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxsubmitjobs":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxSubmitJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -835,7 +835,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxjobs":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -847,10 +847,10 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtres":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v", value, err))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v\n", value, err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTres,
@@ -859,10 +859,10 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtresperjob":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v", value, err))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v\n", value, err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTresPerJob,
@@ -871,7 +871,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwall":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWall", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -883,7 +883,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwallperjob":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWallPerJob", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1025,7 +1025,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxsubmitjobs":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxSubmitJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1037,7 +1037,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxjobs":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1049,10 +1049,10 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtres":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v", value, err))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v\n", value, err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTres,
@@ -1061,10 +1061,10 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtresperjob":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v", value, err))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v\n", value, err))
 			}
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_MaxTresPerJob,
@@ -1073,7 +1073,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwall":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWall", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1085,7 +1085,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwallperjob":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.")
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWallPerJob", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
