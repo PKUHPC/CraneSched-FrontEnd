@@ -108,12 +108,12 @@ type StateMachineOfCattach struct {
 	cforedReplyReceiver *CforedReplyReceiver
 
 	// These fields are used under Forwarding State.
-	taskFinishCtx          context.Context
-	taskFinishCb           context.CancelFunc
-	taskErrCtx             context.Context
-	taskErrCb              context.CancelFunc
-	chanInputFromTerm      chan []byte
-	chanOutputFromRemote   chan TaskOutputMsg
+	taskFinishCtx           context.Context
+	taskFinishCb            context.CancelFunc
+	taskErrCtx              context.Context
+	taskErrCb               context.CancelFunc
+	chanInputFromTerm       chan []byte
+	chanOutputFromRemote    chan TaskOutputMsg
 	chanErrOutputFromRemote chan []byte
 }
 
@@ -126,6 +126,9 @@ func (m *StateMachineOfCattach) Init() {
 }
 
 func (m *StateMachineOfCattach) Close() {
+	if m.conn == nil {
+		return
+	}
 	err := m.conn.Close()
 	if err != nil {
 		log.Errorf("Failed to close grpc conn: %s", err)
@@ -541,7 +544,9 @@ reading:
 					}
 				}
 
-				m.chanInputFromTerm <- buf[:nr]
+				data := make([]byte, nr)
+				copy(data, buf[:nr])
+				m.chanInputFromTerm <- data
 				log.Tracef("Sent %d bytes to channel", nr)
 			}
 		}
@@ -573,7 +578,7 @@ func (m *StateMachineOfCattach) ParseFilePattern(pattern string) (string, error)
 		// job id
 		"%j": fmt.Sprintf("%d", m.jobId),
 		// step id
-		"%s": "0",
+		"%s": fmt.Sprintf("%d", m.stepId),
 		//short hostname
 		//"%N": "node1",
 		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
@@ -654,14 +659,18 @@ reading:
 			n, err := reader.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
-					m.chanInputFromTerm <- buffer[:n]
+					eofData := make([]byte, n)
+					copy(eofData, buffer[:n])
+					m.chanInputFromTerm <- eofData
 					m.chanInputFromTerm <- nil
 					break reading
 				}
 				log.Errorf("Failed to read from fd: %v", err)
 				break reading
 			}
-			m.chanInputFromTerm <- buffer[:n]
+			copyData := make([]byte, n)
+			copy(copyData, buffer[:n])
+			m.chanInputFromTerm <- copyData
 		}
 	}
 }
