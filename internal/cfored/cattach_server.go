@@ -56,18 +56,14 @@ CforedCattachStateMachineLoop:
 			item := <-RequestChannel
 			cattachRequest, err := item.message, item.err
 			if err != nil { // Failure Edge
-				switch err {
-				case io.EOF:
-					fallthrough
-				default:
-					log.Fatal(err)
-					return nil
-				}
+				log.Errorf("[Cfored<-Cattach] Stream error in WaitConnectReq: %s", err)
+				break CforedCattachStateMachineLoop
 			}
 
 			if cattachRequest.Type != protos.StreamCattachRequest_STEP_CONNECT_REQUEST {
-				log.Fatalf("[Cfored<-Cattach] Expect STEP_CONNECT_REQUEST but got %s", cattachRequest.Type)
-				break
+				log.Errorf("[Cfored<-Cattach] Expect STEP_CONNECT_REQUEST but got %s, closing stream",
+					cattachRequest.Type)
+				break CforedCattachStateMachineLoop
 			}
 
 			log.Debug("[Cfored<-Cattach] Receive STEP_CONNECT_REQUEST")
@@ -273,7 +269,7 @@ CforedCattachStateMachineLoop:
 			select {
 			case ctldReply := <-ctldReplyChannel:
 				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
-					log.Fatalf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
+					log.Errorf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
 						jobId, stepId, ctldReply.Type)
 				} else {
 					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY", jobId, stepId)
@@ -375,8 +371,9 @@ CforedCattachStateMachineLoop:
 							state = End
 							break forwarding
 						default:
-							log.Fatalf("[Cattach->Cfored][Step #%d.%d] Expect STEP_COMPLETION_REQUEST or TASK_IO_FORWARD",
-								jobId, stepId)
+							log.Errorf("[Cattach->Cfored][Step #%d.%d] Unexpected request type %s, closing session.",
+								jobId, stepId, cattachRequest.Type)
+							state = End
 							break forwarding
 						}
 					}
