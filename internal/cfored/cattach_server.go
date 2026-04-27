@@ -153,17 +153,20 @@ CforedCattachStateMachineLoop:
 				cattachRequest, err := item.message, item.err
 				if err != nil {
 					log.Debug("[Cattach->Cfored] Connection to cattach was broken.")
-				} else if cattachRequest != nil || err == nil {
-					log.Fatal("[Cattach->Cfored] Expect only nil (cattach connection broken) here!")
+					// ctld has not yet replied, so ctldReplyChannelMapForCattachByPid still
+					// holds the channel registered in CattachWaitConnectReq. Remove it here
+					// to avoid a permanent leak (the normal removal path is inside the
+					// STEP_META_REPLY branch below, which we will never reach).
+					gVars.ctldReplyChannelMapMtx.Lock()
+					delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
+					gVars.ctldReplyChannelMapMtx.Unlock()
+					state = DeadCattach
+				} else if cattachRequest != nil {
+					// Unexpected message received while waiting for STEP_META_REPLY.
+					// This should not happen in normal operation; log a warning and keep waiting.
+					log.Warnf("[Cattach->Cfored] Unexpected message %s while waiting for step meta, ignoring.",
+						cattachRequest.Type)
 				}
-				// ctld has not yet replied, so ctldReplyChannelMapForCattachByPid still
-				// holds the channel registered in CattachWaitConnectReq. Remove it here
-				// to avoid a permanent leak (the normal removal path is inside the
-				// STEP_META_REPLY branch below, which we will never reach).
-				gVars.ctldReplyChannelMapMtx.Lock()
-				delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
-				gVars.ctldReplyChannelMapMtx.Unlock()
-				state = DeadCattach
 
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
