@@ -122,12 +122,7 @@ func validateUintValue(value string, fieldName string, bitSize int) error {
 	return nil
 }
 
-// parsePreemptMode maps a user-provided preempt-mode string (case-insensitive)
-// to the proto enum. Keep the accepted names in sync with the backend's
-// ParseConfig switch and AccountManager::ModifyQos validation.
-//
-// TODO(preempt): expose REQUEUE and SUSPEND once the scheduler supports them.
-// The proto already carries both enum values so wire compatibility is safe.
+// TODO(preempt): expose REQUEUE and SUSPEND once supported.
 func parsePreemptMode(value string) (protos.PreemptMode, error) {
 	switch strings.ToUpper(value) {
 	case "OFF":
@@ -1233,9 +1228,6 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 				NewValue:    strconv.FormatUint(uint64(FlagQosFlags), 10),
 			})
 		case "preempt":
-			// Validate the list format early. ModifyQos will split NewValue
-			// again so the backend receives the actual list. Empty value
-			// means "clear the preempt set" and is accepted.
 			if _, err := util.ParseStringParamListAllowEmpty(value, ","); err != nil {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid preempt list %q: %v\n", value, err))
 			}
