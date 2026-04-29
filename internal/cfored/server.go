@@ -311,9 +311,32 @@ func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(taskId 
 	}
 }
 
-func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, jobId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamStepIORequest) {
+// setRemoteIoToFrontChannel registers ioToCrunChannel to receive live I/O for
+// the given step and returns a snapshot of the history buffer taken *before*
+// the channel is registered.
+//
+// Taking the snapshot and registering the channel under the same lock guarantees
+// that every message falls into exactly one of two categories:
+//   - Arrived before registration → present in the returned snapshot, NOT sent
+//     to ioToCrunChannel (channel was not yet in the map when forwardRemoteIoToFront ran).
+//   - Arrived after registration  → sent to ioToCrunChannel, NOT in the snapshot.
+//
+// Callers that replay history (cattach) must use the returned slice rather than
+// calling getRemoteHistory later; doing so would race with live delivery and
+// cause the overlap window to be sent twice.
+func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, jobId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamStepIORequest) []*protos.StreamStepIORequest {
 	step := StepIdentifier{JobId: jobId, StepId: stepId}
 	keeper.stepIORequestChannelMtx.Lock()
+	defer keeper.stepIORequestChannelMtx.Unlock()
+
+	// Snapshot the history BEFORE registering the channel.  Any message that
+	// arrives from this point on will be delivered directly to ioToCrunChannel
+	// and must NOT be replayed from this snapshot (doing so would duplicate output).
+	var preReadyHistory []*protos.StreamStepIORequest
+	if buf := keeper.taskIOBufferMap[step]; buf != nil {
+		preReadyHistory = buf.GetHistory()
+	}
+
 	if keeper.stepIORequestChannelMap[step] == nil {
 		keeper.stepIORequestChannelMap[step] = make(map[int32]chan *protos.StreamStepIORequest)
 	}
@@ -333,7 +356,7 @@ func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, 
 		}
 	}
 
-	keeper.stepIORequestChannelMtx.Unlock()
+	return preReadyHistory
 }
 
 // To identify if all supervisors have unregistered, and no more I/O message will arrive for the step.

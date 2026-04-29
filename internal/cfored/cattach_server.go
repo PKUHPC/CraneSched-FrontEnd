@@ -50,6 +50,10 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 
 	var execCranedIds []string
 	var cattachPty bool
+	// Pre-ready history: output that arrived before TaskIoRequestChannel was
+	// registered.  Captured atomically with channel registration in
+	// setRemoteIoToFrontChannel to guarantee no overlap with live delivery.
+	var cattachPreReadyHistory []*protos.StreamStepIORequest
 
 	RequestChannel := make(chan grpcMessage[protos.StreamCattachRequest], 8)
 	go grpcStreamReceiver[protos.StreamCattachRequest](toCattachStream, RequestChannel)
@@ -230,7 +234,7 @@ CforedCattachStateMachineLoop:
 							gVars.pidStepMapMtx.Lock()
 							gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: jobId, StepId: stepId}
 							gVars.pidStepMapMtx.Unlock()
-							gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
+							cattachPreReadyHistory = gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
 						}
 					}
 
@@ -318,7 +322,7 @@ CforedCattachStateMachineLoop:
 			}
 		case CattachWaitJobComplete:
 			log.Debugf("[Cfored<->Cattach][Job #%d] Enter State Cattach_Wait_Step_Complete", jobId)
-			history := gSupervisorChanKeeper.getRemoteHistory(jobId, stepId)
+			history := cattachPreReadyHistory
 			for _, taskMsg := range history {
 				if taskMsg == nil {
 					log.Errorf("[Supervisor->Cfored->Cattach][Step #%d.%d] One of Craneds [%v] down. Exit....",
