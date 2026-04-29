@@ -335,10 +335,15 @@ func (m *StateMachineOfCattach) StateForwarding() {
 		go func() {
 			for {
 				select {
-				case msg := <-m.chanInputFromTerm:
+				case msg, ok := <-m.chanInputFromTerm:
+					// ok==false means the channel was closed (e.g. by StdinReaderRoutine's
+					// defer close); msg==nil is the explicit EOF sentinel sent by
+					// FileReaderRoutine.  Both cases mean "end of input": send one EOF
+					// request and exit so we do not spin sending endless EOFs.
+					eof := !ok || msg == nil
 					ioFwdReq := &protos.StreamCattachRequest_TaskIOForwardReq{
 						Msg: msg,
-						Eof: msg == nil,
+						Eof: eof,
 					}
 					// --input-filter: direct stdin to the specified task only.
 					// FlagInputFilter == -1 means "not set" (broadcast to all tasks).
@@ -356,6 +361,11 @@ func (m *StateMachineOfCattach) StateForwarding() {
 						log.Errorf("Failed to send Task IO Forward to CattachStream: %s. "+
 							"Connection to Cattach is broken", err)
 						gVars.connectionBroken = true
+						return
+					}
+					if eof {
+						// EOF forwarded once; stop the goroutine to avoid re-reading
+						// a closed channel and spinning with endless EOF requests.
 						return
 					}
 
@@ -825,18 +835,29 @@ writing:
 }
 
 func (m *StateMachineOfCattach) PrintStepLayout() {
+	// StepToCtld carries Ntasks, NodeNum, and Nodelist (a hostlist string).
+	// Per-node task distribution is not available here (it lives in StepToD
+	// which is only used on the craned side).
 	fmt.Printf("Job step layout:\n")
-	fmt.Printf("        %d tasks, %d nodes (%s)\n\n", 1, m.step.NodeNum, m.step.Nodelist)
-	//fmt.Printf("        Node %d (%s), %d task(s):", m.task.Node, layout.NodeName, len(layout.TaskIDs))
-	//for _, tid := range layout.TaskIDs {
-	//	fmt.Printf(" %d", tid)
-	//}
+	fmt.Printf("        %d tasks, %d nodes (%s)\n\n",
+		m.step.Ntasks,
+		m.step.NodeNum,
+		m.step.Nodelist)
 	fmt.Println()
 }
 
 func MainCattach(args []string) error {
 
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
+
+	// TODO: implement --error-filter: currently this flag is a no-op because the stderr stream does not carry per-task metadata (task_id), which is needed to filter by task. Implementing this would require adding task_id to the TaskErrOutputReq proto message and propagating it through cfored/supervisor. For now we return an error if the user tries to use --error-filter to avoid confusion about why it doesn't work.
+	if FlagErrorFilter >= 0 {
+		return &util.CraneError{
+			Code: util.ErrorCmdArg,
+			Message: "--error-filter is not yet supported: the stderr stream does not carry " +
+				"per-task metadata. Remove --error-filter or wait for protocol support.",
+		}
+	}
 
 	var err error
 	if gVars.cwd, err = os.Getwd(); err != nil {
@@ -860,17 +881,17 @@ func MainCattach(args []string) error {
 		return fmt.Errorf("Failed to parse stepid from command line options: %s", args[0])
 	}
 
-	if i, err := strconv.Atoi(parts[0]); err != nil {
-		return fmt.Errorf("Failed to parse stepid from command line options: %s", args[0])
-	} else {
-		m.jobId = uint32(i)
+	jobId, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil {
+		return fmt.Errorf("invalid job id %q: must be a non-negative integer in [0, 4294967295]", parts[0])
 	}
+	m.jobId = uint32(jobId)
 
-	if i, err := strconv.Atoi(parts[1]); err != nil {
-		return fmt.Errorf("Failed to parse stepid from command line options: %s", args[0])
-	} else {
-		m.stepId = uint32(i)
+	stepId, err := strconv.ParseUint(parts[1], 10, 32)
+	if err != nil {
+		return fmt.Errorf("invalid step id %q: must be a non-negative integer in [0, 4294967295]", parts[1])
 	}
+	m.stepId = uint32(stepId)
 
 	m.Init()
 	// defer m.Close() is placed before m.Run() so that resources are released
