@@ -45,7 +45,7 @@ var (
 		Version: util.Version(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			util.DetectNetworkProxy()
-			util.SetupLogger(GetFlags().Global.DebugLevel)
+			util.InitDiagLogger(GetFlags().Global.DebugLevel)
 
 			var err error
 			if cmd != RunCmd {
@@ -284,5 +284,4 @@ func init() {
 		cmd.Println("To use crane flags, place them between 'ccon' and 'run', e.g.,\n  ccon -p CPU run ...")
 		return nil
 	})
-	util.InitCraneLogger()
 }
