@@ -228,7 +228,15 @@ func (keeper *SupervisorChannelKeeper) SupervisorCrashAndRemoveAllChannel(jobId 
 
 	// Send nil (crash signal) to all front-ends outside the lock.
 	for _, channel := range channels {
-		channel <- nil
+		select {
+		case channel <- nil:
+		case <-gVars.globalCtx.Done():
+			// cfored is shutting down; stop sending crash signals.
+			return
+		default:
+			log.Warningf("[Supervisor->Cfored][Step #%d.%d] "+
+				"Front-end IO channel full during supervisor crash, crash signal dropped.", jobId, stepId)
+		}
 	}
 }
 
@@ -311,19 +319,6 @@ func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(taskId 
 	}
 }
 
-// setRemoteIoToFrontChannel registers ioToCrunChannel to receive live I/O for
-// the given step and returns a snapshot of the history buffer taken *before*
-// the channel is registered.
-//
-// Taking the snapshot and registering the channel under the same lock guarantees
-// that every message falls into exactly one of two categories:
-//   - Arrived before registration → present in the returned snapshot, NOT sent
-//     to ioToCrunChannel (channel was not yet in the map when forwardRemoteIoToFront ran).
-//   - Arrived after registration  → sent to ioToCrunChannel, NOT in the snapshot.
-//
-// Callers that replay history (cattach) must use the returned slice rather than
-// calling getRemoteHistory later; doing so would race with live delivery and
-// cause the overlap window to be sent twice.
 func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, jobId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamStepIORequest) []*protos.StreamStepIORequest {
 	step := StepIdentifier{JobId: jobId, StepId: stepId}
 	keeper.stepIORequestChannelMtx.Lock()
