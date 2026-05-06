@@ -1879,7 +1879,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		log.Debugf("X11 forwarding enabled (%v:%d). ", target, port)
 	}
 
-	if FlagMpi != MpiTypePmix {
+	if FlagMpi != "" && FlagMpi != MpiTypePmix {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: unsupported MPI type %s.", FlagMpi))
 	}
 
