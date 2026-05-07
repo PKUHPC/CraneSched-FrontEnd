@@ -94,7 +94,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 		"Select users to view (comma separated list)")
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"Select job ids to view (comma separated list), default is all")
+		"Select job ids to view (comma separated list), supports jobid, jobid.stepid, jobid_arraytaskid, and jobid_arraytaskid.stepid")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
 		"Select job names to view (comma separated list), default is all")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
@@ -130,7 +130,7 @@ Supported format identifiers or string, string case insensitive:
                              If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
                              it formats as "0:<code>" or "<code>:0" based on the condition.
 	%h/%Held              - Display the hold status of the job.
-	%j/%JobID             - Display the ID of the job.
+	%j/%JobID             - Display the ID of the job (array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid).
 	%K/%Wckey             - Display the wckey of the job.
 	%k/%Comment           - Display the comment of the job.
 	%L/%NodeList          - Display the list of nodes the job is running on.

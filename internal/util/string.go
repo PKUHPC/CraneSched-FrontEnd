@@ -200,6 +200,132 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	return seconds, nil
 }
 
+// ParseArrayRangeSpec parses the array syntax, supporting compound formats:
+// single range: "start-end" or "start-end:stride"
+// single index: "10"
+// compound: "1-5,10,20-30:2" (comma-separated ranges and individual numbers)
+// concurrency limit: "0-15%4" (max 4 concurrent tasks)
+// The merged indices must form a regular arithmetic sequence (start-end:stride)
+// since the backend proto only supports a single range.
+func ParseArrayRangeSpec(spec string) (uint32, uint32, uint32, uint32, error) {
+	cleaned := strings.TrimSpace(spec)
+	if cleaned == "" {
+		return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty specification", spec)
+	}
+
+	// Split off %N concurrency suffix
+	var maxConcurrent uint32
+	if idx := strings.LastIndex(cleaned, "%"); idx >= 0 {
+		concStr := cleaned[idx+1:]
+		cleaned = cleaned[:idx]
+		if concStr == "" {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': missing number after '%%'", spec)
+		}
+		concVal, err := strconv.ParseUint(concStr, 10, 32)
+		if err != nil || concVal == 0 {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': concurrency limit must be a positive integer", spec)
+		}
+		maxConcurrent = uint32(concVal)
+	}
+
+	segRe := regexp.MustCompile(`^(\d+)(?:-(\d+))?(?::(\d+))?$`)
+
+	// Expand all segments into individual indices
+	var indices []uint64
+	segments := strings.Split(cleaned, ",")
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': empty segment", spec)
+		}
+		result := segRe.FindStringSubmatch(seg)
+		if result == nil {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': invalid segment '%s'", spec, seg)
+		}
+
+		startVal, err := strconv.ParseUint(result[1], 10, 32)
+		if err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[1])
+		}
+
+		if result[2] == "" {
+			// Single index, e.g. "10"
+			if result[3] != "" {
+				return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride without range in segment '%s'", spec, seg)
+			}
+			indices = append(indices, startVal)
+			continue
+		}
+
+		endVal, err := strconv.ParseUint(result[2], 10, 32)
+		if err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array index '%s'", result[2])
+		}
+		if startVal > endVal {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': start > end in segment '%s'", spec, seg)
+		}
+
+		segStride := uint64(1)
+		if result[3] != "" {
+			sv, err := strconv.ParseUint(result[3], 10, 32)
+			if err != nil {
+				return 0, 0, 0, 0, fmt.Errorf("invalid --array stride '%s'", result[3])
+			}
+			if sv == 0 {
+				return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': stride must be > 0", spec)
+			}
+			segStride = sv
+		}
+
+		for i := startVal; i <= endVal; i += segStride {
+			indices = append(indices, i)
+		}
+	}
+
+	if len(indices) == 0 {
+		return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': no indices specified", spec)
+	}
+
+	// Sort and deduplicate
+	sort.Slice(indices, func(i, j int) bool { return indices[i] < indices[j] })
+	deduped := []uint64{indices[0]}
+	for i := 1; i < len(indices); i++ {
+		if indices[i] != indices[i-1] {
+			deduped = append(deduped, indices[i])
+		}
+	}
+	indices = deduped
+
+	taskCount := uint64(len(indices))
+	if taskCount > MaxArrayTaskCount {
+		return 0, 0, 0, 0, fmt.Errorf(
+			"invalid --array value '%s': task count %d exceeds limit %d",
+			spec, taskCount, MaxArrayTaskCount)
+	}
+
+	start := indices[0]
+	end := indices[len(indices)-1]
+
+	// Determine stride from the merged index list
+	stride := uint64(1)
+	if len(indices) > 1 {
+		stride = indices[1] - indices[0]
+		if stride == 0 {
+			return 0, 0, 0, 0, fmt.Errorf("invalid --array value '%s': duplicate indices", spec)
+		}
+		// Verify all indices form a regular arithmetic sequence
+		for i := 2; i < len(indices); i++ {
+			if indices[i]-indices[i-1] != stride {
+				return 0, 0, 0, 0, fmt.Errorf(
+					"invalid --array value '%s': compound spec does not form a regular arithmetic sequence (required by backend)",
+					spec)
+			}
+		}
+	}
+
+	return uint32(start), uint32(end), uint32(stride), maxConcurrent, nil
+}
+
 func ParseRelativeTime(ts string) (int64, error) {
 	// handle compound duration like 1h2m30s, 1h30m, etc.
 	if regexp.MustCompile(`^(\d+[a-zA-Z]+)+$`).MatchString(ts) {
@@ -495,38 +621,6 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 
 	shift := math.Pow(10, float64(decimalPlaces))
 	return math.Floor(num*shift) / shift, nil
-}
-
-func ParseJobId(jobId string) (int64, error) {
-	parts := strings.Split(jobId, ".")
-	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || jobId64 <= 0 {
-		return 0, fmt.Errorf("invalid job id")
-	}
-	return jobId64, nil
-}
-
-// ParseJobIdStepId parses a job step id string in the format "jobid" or "jobid.stepid".
-// Returns jobid, stepid, error. -1 if not present.
-func ParseJobIdStepId(jobStepId string) (int64, int64, error) {
-	parts := strings.Split(jobStepId, ".")
-	if len(parts) == 0 || len(parts) > 2 {
-		return -1, -1, fmt.Errorf("invalid job or step id format")
-	}
-	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || jobId64 <= 0 {
-		return -1, -1, fmt.Errorf("invalid job id")
-	}
-	var stepId64 int64
-	if len(parts) == 2 {
-		stepId64, err = strconv.ParseInt(parts[1], 10, 64)
-		if err != nil || stepId64 < 0 {
-			return -1, -1, fmt.Errorf("invalid step id")
-		}
-		return jobId64, stepId64, nil
-	}
-
-	return jobId64, -1, nil
 }
 
 // ParseJobIdStepIdStrict parses a step id string in the format "jobid.stepid".
@@ -1306,7 +1400,7 @@ func ParseGresForQosLimit(gres string) (*protos.GresMap, error) {
 		if len(parts) == 2 {
 			if parts[1] == "unlimited" {
 				if pair, exist := result.NameGresMap[name]; exist {
-					if pair.Specified != nil && len(pair.Specified) > 0 {
+					if len(pair.Specified) > 0 {
 						delete(result.NameGresMap, name)
 					} else {
 						result.NameGresMap[name].Total = math.MaxUint32
@@ -1330,7 +1424,7 @@ func ParseGresForQosLimit(gres string) (*protos.GresMap, error) {
 					if pair.Specified != nil {
 						delete(pair.Specified, gresType)
 					}
-					if pair.Specified == nil || len(pair.Specified) == 0 {
+					if len(pair.Specified) == 0 {
 						delete(result.NameGresMap, name)
 					}
 				}
@@ -1543,28 +1637,17 @@ func ParseStepIdList(jobStepIdListStr string, splitStr string) (map[uint32]*prot
 	stepIds := make(map[uint32]*protos.JobStepIds)
 
 	for stepIdStr := range strings.SplitSeq(jobStepIdListStr, splitStr) {
-		stepIdPair := strings.Split(stepIdStr, ".")
-		if len(stepIdPair) > 2 {
-			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStr)
+		selector, err := ParseJobIdSelector(stepIdStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid step id \"%s\": %w", stepIdStr, err)
 		}
-		jobId, err := strconv.ParseUint(stepIdPair[0], 10, 32)
-		if err != nil || jobId == 0 {
-			return nil, fmt.Errorf("invalid job id \"%s\"", stepIdStr)
+		jobId := selector.JobId
+		if _, exists := stepIds[jobId]; !exists {
+			stepIds[jobId] = &protos.JobStepIds{Steps: []uint32{}}
 		}
-		if len(stepIdPair) == 1 {
-			if _, exists := stepIds[uint32(jobId)]; !exists {
-				stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
-			}
-			continue
+		if selector.StepId != nil {
+			stepIds[jobId].Steps = append(stepIds[jobId].Steps, *selector.StepId)
 		}
-		stepId, err := strconv.ParseUint(stepIdPair[1], 10, 32)
-		if err != nil || stepId == 0 {
-			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStr)
-		}
-		if _, exists := stepIds[uint32(jobId)]; !exists {
-			stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
-		}
-		stepIds[uint32(jobId)].Steps = append(stepIds[uint32(jobId)].Steps, uint32(stepId))
 	}
 
 	return stepIds, nil
