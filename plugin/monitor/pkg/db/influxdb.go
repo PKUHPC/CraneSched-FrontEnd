@@ -336,6 +336,9 @@ func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
 		if span.ParentSpanId != "" {
 			tags["parent_span_id"] = span.ParentSpanId
 		}
+		if span.ServiceName != "" {
+			tags["service"] = span.ServiceName
+		}
 
 		fields := map[string]interface{}{}
 		// Calculate duration in microseconds
