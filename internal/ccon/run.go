@@ -696,6 +696,12 @@ func buildContainerStep(cmd *cobra.Command, f *Flags, jobId uint32, image string
 			step.Ntasks = uint32(ntasks)
 		}
 	}
+
+	if step.Ntasks > 1 {
+		log.Warnf("CRANE_NTASKS environment variable is set to %d, but container steps only support a single task, overriding to 1.", step.Ntasks)
+		step.Ntasks = 1
+	}
+
 	if numNodesStr, exists := syscall.Getenv("CRANE_JOB_NUM_NODES"); exists {
 		if numNodes, err := strconv.ParseUint(numNodesStr, 10, 32); err == nil {
 			step.NodeNum = uint32(numNodes)
