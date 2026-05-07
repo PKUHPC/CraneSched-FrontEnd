@@ -41,7 +41,6 @@ var (
 
 const (
 	kTerminationSignalBase = 256
-	kCraneExitCodeBase     = 320
 )
 
 // QueryJob will query all pending, running and completed jobs
@@ -79,11 +78,14 @@ func QueryJob() error {
 	}
 
 	if FlagFilterJobIDs != "" {
-		filterStepList, err := util.ParseStepIdList(FlagFilterJobIDs, ",")
+		selectors, err := util.ParseJobIdSelectorList(FlagFilterJobIDs, ",")
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 		}
-		request.FilterIds = filterStepList
+		configureJobIdSelectors(selectors)
+		request.FilterIds = buildFilterIdsFromSelectors()
+	} else {
+		resetJobIdSelectors()
 	}
 
 	if FlagFilterUsers != "" {
@@ -168,6 +170,25 @@ func QueryJob() error {
 		}
 	}
 
+	items = applyArrayAwareItemFilter(items)
+	sort.Slice(items, func(i, j int) bool {
+		left := buildSortKey(items[i])
+		right := buildSortKey(items[j])
+		if left.jobId != right.jobId {
+			return left.jobId > right.jobId
+		}
+		if left.arrayPresent != right.arrayPresent {
+			return left.arrayPresent
+		}
+		if left.arrayTaskId != right.arrayTaskId {
+			return left.arrayTaskId < right.arrayTaskId
+		}
+		if left.isStep != right.isStep {
+			return !left.isStep
+		}
+		return left.stepId < right.stepId
+	})
+
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	var header []string
@@ -223,59 +244,43 @@ func QueryJob() error {
 			table.SetAutoFormatHeaders(false)
 		}
 
-		if FlagFilterStartTime != "" {
-			header = append(header, "StartTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessStartTime(items[i]))
+		if FlagFormat == "" {
+			if FlagFilterStartTime != "" {
+				header = append(header, "StartTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessStartTime(items[i]))
+				}
 			}
-		}
 
-		if FlagFilterEndTime != "" {
-			header = append(header, "EndTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessEndTime(items[i]))
+			if FlagFilterEndTime != "" {
+				header = append(header, "EndTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessEndTime(items[i]))
+				}
 			}
-		}
 
-		if FlagFilterSubmitTime != "" {
-			header = append(header, "SubmitTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
+			if FlagFilterSubmitTime != "" {
+				header = append(header, "SubmitTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
+				}
 			}
 		}
 	}
 
-	if FlagDeadlineTime {
+	if FlagFormat == "" && FlagDeadlineTime {
 		header = append(header, "Deadline")
 		for i := 0; i < len(tableData); i++ {
 			tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
 		}
 	}
 
+	if FlagFormat == "" {
+		tableData = insertArraySummaryRows(header, tableData, items)
+	}
+
 	if !FlagNoHeader {
 		table.SetHeader(header)
-	}
-
-	// Get index of "JobId" column
-	jobIdIdx := -1
-	for i, val := range header {
-		if val == "JobId" {
-			jobIdIdx = i
-			break
-		}
-	}
-
-	// If "JobId" column exists, sort all rows by descending order of "JobId".
-	if jobIdIdx != -1 {
-		less := func(i, j int) bool {
-			jobId1, stepId1, _ := util.ParseJobIdStepId(tableData[i][jobIdIdx])
-			jobId2, stepId2, _ := util.ParseJobIdStepId(tableData[j][jobIdIdx])
-			if jobId1 != jobId2 {
-				return jobId1 > jobId2
-			}
-			return stepId1 < stepId2
-		}
-		sort.Slice(tableData, less)
 	}
 
 	if !FlagFull && FlagFormat == "" {
@@ -294,9 +299,95 @@ type JobOrStep struct {
 	isStep   bool
 }
 
+type jobDisplaySortKey struct {
+	jobId        uint32
+	arrayPresent bool
+	arrayTaskId  uint32
+	isStep       bool
+	stepId       uint32
+}
+
+func buildSortKey(item *JobOrStep) jobDisplaySortKey {
+	arrayJobId := util.JobArrayJobId(item.job)
+	arrayTaskId := util.JobArrayTaskId(item.job)
+	key := jobDisplaySortKey{
+		jobId:  util.ResolveArrayJobId(item.job.JobId, arrayJobId),
+		isStep: item.isStep,
+	}
+
+	if arrayTaskId != nil {
+		key.arrayPresent = true
+		key.arrayTaskId = *arrayTaskId
+	}
+
+	if item.isStep {
+		key.stepId = item.stepInfo.StepId
+	}
+
+	return key
+}
+
 type FieldProcessor struct {
 	header  string
 	process func(item *JobOrStep) string
+}
+
+type arraySummaryInfo = util.ArraySummaryInfo
+
+func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
+	row := make([]string, len(header))
+	summaryId := fmt.Sprintf("%d_[%d-%d]", info.AnchorJobId, info.Start, info.End)
+
+	for i, column := range header {
+		switch column {
+		case "JobId":
+			row[i] = summaryId
+		case "JobName", "Name":
+			row[i] = info.Sample.Name
+		case "Partition":
+			row[i] = info.Sample.Partition
+		case "Account":
+			row[i] = info.Sample.Account
+		case "State", "Status":
+			row[i] = "ArraySummary"
+		case "ExitCode":
+			row[i] = "-"
+		case "UserName":
+			row[i] = info.Sample.Username
+		case "Qos", "QoS":
+			row[i] = info.Sample.Qos
+		case "TimeLimit":
+			row[i] = ProcessTimeLimit(&JobOrStep{job: info.Sample})
+		case "StartTime":
+			row[i] = ProcessStartTime(&JobOrStep{job: info.Sample})
+		case "EndTime":
+			row[i] = ProcessEndTime(&JobOrStep{job: info.Sample})
+		case "SubmitTime":
+			row[i] = ProcessSubmitTime(&JobOrStep{job: info.Sample})
+		case "NodeList":
+			row[i] = fmt.Sprintf("ArrayTasks=%d", info.Count)
+		case "NodeNum":
+			row[i] = strconv.Itoa(info.Count)
+		case "wckey":
+			row[i] = info.Sample.Wckey
+		default:
+			row[i] = "-"
+		}
+	}
+
+	return row
+}
+
+func insertArraySummaryRows(header []string, rows [][]string, items []*JobOrStep) [][]string {
+	return util.BuildArraySummaryRows(header, rows, items,
+		func(item *JobOrStep) *protos.JobInfo {
+			if item.isStep {
+				return nil
+			}
+			return item.job
+		},
+		buildArraySummaryRow,
+	)
 }
 
 // Account (a)
@@ -381,6 +472,9 @@ func ProcessElapsedTime(item *JobOrStep) string {
 
 // Deadline (D)
 func ProcessDeadline(item *JobOrStep) string {
+	if item.job.DeadlineTime == nil {
+		return "unknown"
+	}
 	deadlineTime := item.job.DeadlineTime.AsTime()
 	if !deadlineTime.Equal(util.InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
@@ -440,10 +534,19 @@ func ProcessHeld(item *JobOrStep) string {
 
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
+	arrayJobId := util.JobArrayJobId(item.job)
+	arrayTaskId := util.JobArrayTaskId(item.job)
 	if item.isStep {
-		return fmt.Sprintf("%d.%d", item.stepInfo.JobId, item.stepInfo.StepId)
+		return util.FormatStepIdWithArray(
+			util.ResolveArrayJobId(item.stepInfo.JobId, arrayJobId),
+			arrayTaskId,
+			item.stepInfo.StepId,
+		)
 	}
-	return strconv.FormatUint(uint64(item.job.JobId), 10)
+	return util.FormatJobIdWithArray(
+		util.ResolveArrayJobId(item.job.JobId, arrayJobId),
+		arrayTaskId,
+	)
 }
 
 // Wckey (K)

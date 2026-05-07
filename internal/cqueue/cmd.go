@@ -93,7 +93,7 @@ func init() {
 		"Specify step ids to view (comma separated list), default is all")
 	RootCmd.Flags().Lookup("step").NoOptDefVal = DefaultStepIdFilter
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"Specify job ids to view (comma separated list), default is all")
+		"Specify job ids to view (comma separated list, supports jobid or jobid_arraytaskid), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
 		"Specify job names to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterQos, "qos", "q", "",
@@ -135,8 +135,8 @@ Supported format identifiers or string, string case insensitive:
 	%deadline/%Deadline    - Display the deadline time of jobs.
 	%e/%ElapsedTime        - Display the elapsed time from the start of the job/step.
 	%h/%Held               - Display the hold state of the job. (For jobs only)
-	%i/%StepId             - Display the ID of the step (format: jobId.stepId). (For steps only)
-	%j/%JobID              - Display the ID of the job (or parent job ID for steps).
+	%i/%StepId             - Display the ID of the step (format: jobId_arrayTaskId.stepId for array jobs, jobId.stepId otherwise). (For steps only)
+	%j/%JobID              - Display the ID of the job (array jobs use jobId_arrayTaskId).
 	%k/%Comment            - Display the comment of the job. (For jobs only)
 	%K/%Wckey              - Display the wckey of the job.
 	%L/%NodeList           - Display the list of nodes the job/step is running on.

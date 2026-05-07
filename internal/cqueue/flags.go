@@ -123,17 +123,19 @@ func (p *JobIDsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterJobIDs == "" {
 		return nil
 	}
-	filterJobIdList, err := util.ParseJobIdList(FlagFilterJobIDs, ",")
+	selectors, err := util.ParseJobIdSelectorList(FlagFilterJobIDs, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
 	}
-	idFilter := make(map[uint32]*protos.JobStepIds)
-	for _, jobId := range filterJobIdList {
-		idFilter[jobId] = nil
+	if err := configureJobIdSelectors(selectors); err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
 	}
-	req.FilterIds = idFilter
+
+	req.FilterIds = buildFilterIdsFromJobSelectors()
+	req.FilterArrayTaskIds = buildFilterArrayTaskIdsFromJobSelectors()
 	if !FlagStep {
-		req.NumLimit = uint32(len(filterJobIdList))
+		// Count total number of requested jobs/tasks, not just unique parent IDs
+		req.NumLimit = uint32(len(selectors))
 	} else {
 		req.NumLimit = 0
 	}
