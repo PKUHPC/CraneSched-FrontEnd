@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GlobalVariables struct {
@@ -341,7 +342,7 @@ CallocStateMachineLoop:
 }
 
 func MainCalloc(cmd *cobra.Command, args []string) error {
-	util.SetupLogger(FlagDebugLevel)
+	util.InitDiagLogger(FlagDebugLevel)
 
 	var err error
 	gVars.globalCtx, gVars.globalCtxCancel = context.WithCancel(context.Background())
@@ -411,9 +412,12 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 
 	setGresGpusFlag := false
 	if FlagGres != "" {
-		gresMap := util.ParseGres(FlagGres)
+		gresMap, err := util.ParseGres(FlagGres)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --gres: %s", err))
+		}
 		job.GresPerNode = gresMap
-		if _, exist := gresMap.NameTypeMap[util.GresGpuName]; exist {
+		if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 			setGresGpusFlag = true
 		}
 	}
@@ -488,6 +492,16 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	}
 	if FlagHold {
 		job.Hold = true
+	}
+	if FlagDeadlineTime != "" {
+		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
+		if err != nil {
+			return &util.CraneError{
+				Code:    util.ErrorCmdArg,
+				Message: fmt.Sprintf("Invalid argument: --deadline: %s", err),
+			}
+		}
+		job.DeadlineTime = timestamppb.New(deadlineTime)
 	}
 	if cmd.Flags().Changed("wckey") {
 		job.Wckey = &FlagWckey

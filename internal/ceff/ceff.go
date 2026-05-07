@@ -282,7 +282,7 @@ func PrintJobInfo(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) error
 	if jobInfo.NodeNum == 0 {
 		return fmt.Errorf("the number of nodes is empty")
 	}
-	cpuTotal := jobInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+	cpuTotal := jobInfo.GetAllocatedResView().GetCpuCount()
 	if math.Abs(cpuTotal-1) < 1e-9 {
 		fmt.Printf("Cores: %.2f\n", cpuTotal)
 	} else {
@@ -310,9 +310,9 @@ func PrintJobInfo(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) error
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(jobInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
+	mallocMemMbPerNode := float64(jobInfo.GetAllocatedResView().GetMemoryBytes()) /
 		float64(jobInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(jobInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes)
+	totalMallocMemMb := float64(jobInfo.GetReqTotalResView().GetMemoryBytes())
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}
@@ -351,7 +351,7 @@ func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord)
 	if jobInfo.NodeNum == 0 {
 		return nil, fmt.Errorf("the number of nodes is empty")
 	}
-	cpuTotal := jobInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+	cpuTotal := jobInfo.GetAllocatedResView().GetCpuCount()
 	coresPerNode := cpuTotal / float64(jobInfo.NodeNum)
 	jobJsonInfo := &CeffJobInfo{
 		JobID:        jobInfo.JobId,
@@ -384,9 +384,9 @@ func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord)
 
 	// Calculate mem efficiency
 	memEfficiency := 0.0
-	mallocMemMbPerNode := float64(jobInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes) /
+	mallocMemMbPerNode := float64(jobInfo.GetAllocatedResView().GetMemoryBytes()) /
 		float64(jobInfo.NodeNum) / (1024 * 1024)
-	totalMallocMemMb := float64(jobInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes)
+	totalMallocMemMb := float64(jobInfo.GetReqTotalResView().GetMemoryBytes())
 	if totalMallocMemMb != 0 {
 		memEfficiency = totalMemMb / totalMallocMemMb * 100
 	}

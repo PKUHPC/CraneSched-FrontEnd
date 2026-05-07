@@ -289,4 +289,5 @@ func init() {
 				"Select wckeys to view (comma separated list)")
 		}
 	}
+	util.InitCraneLogger()
 }

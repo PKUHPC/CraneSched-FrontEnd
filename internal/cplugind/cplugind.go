@@ -63,9 +63,9 @@ var RootCmd = &cobra.Command{
 
 		// Set log level
 		if cmd.Flags().Changed("debug-level") {
-			util.SetupLogger(FlagDebugLevel)
+			util.InitDiagLogger(FlagDebugLevel)
 		} else {
-			util.SetupLogger(gPluginConfig.LogLevel)
+			util.InitDiagLogger(gPluginConfig.LogLevel)
 		}
 
 		// Load plugins

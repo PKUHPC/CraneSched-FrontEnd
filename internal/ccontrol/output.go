@@ -58,13 +58,13 @@ func PrintFlattenYAML(prefix string, m interface{}) {
 func ShowConfig(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to read configuration file: %s", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to read configuration file: %s", err)
 	}
 
 	var config map[string]interface{}
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Failed to unmarshal yaml configuration file: %s", err))
+		return util.WrapCraneErr(util.ErrorCmdArg, "Failed to unmarshal yaml configuration file: %s", err)
 	}
 	if FlagJson {
 		output, _ := json.Marshal(config)
@@ -77,31 +77,26 @@ func ShowConfig(path string) error {
 }
 
 // show Nodes
-func formatDeviceMap(data *protos.DeviceMap) string {
+func formatGresMap(data *protos.GresMap) string {
 	if data == nil {
 		return "None"
 	}
 	var kvStrings []string
-	for deviceName, typeCountMap := range data.NameTypeMap {
-		var typeCountPairs []string
-		for deviceType, count := range typeCountMap.TypeCountMap {
-			if count != 0 {
-				typeCountPairs = append(typeCountPairs, fmt.Sprintf("%s:%d", deviceType, count))
+	for gresName, gresCount := range data.NameGresMap {
+		if len(gresCount.Specified) > 0 {
+			for typeName, count := range gresCount.Specified {
+				if count != 0 {
+					kvStrings = append(kvStrings, fmt.Sprintf("%s:%s:%d", gresName, typeName, count))
+				}
 			}
-		}
-		if typeCountMap.Total != 0 {
-			typeCountPairs = append(typeCountPairs, strconv.FormatUint(typeCountMap.Total, 10))
-		}
-		for _, typeCountPair := range typeCountPairs {
-			kvStrings = append(kvStrings, fmt.Sprintf("%s:%s", deviceName, typeCountPair))
+		} else if gresCount.Total != 0 {
+			kvStrings = append(kvStrings, fmt.Sprintf("%s:%d", gresName, gresCount.Total))
 		}
 	}
 	if len(kvStrings) == 0 {
 		return "None"
 	}
-	kvString := strings.Join(kvStrings, ", ")
-
-	return kvString
+	return strings.Join(kvStrings, ", ")
 }
 func formatDedicatedResource(data *protos.DedicatedResourceInNode) string {
 	if data == nil {
@@ -146,8 +141,7 @@ func getCranedNodesReply(nodeName string) (*protos.QueryCranedInfoReply, error) 
 	req := &protos.QueryCranedInfoRequest{CranedName: nodeName}
 	reply, err := stub.QueryCranedInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show nodes")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show nodes")
+		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show nodes")
 	}
 	return reply, nil
 }
@@ -159,16 +153,13 @@ func handleNodesEmptyResult(nodeName string, queryAll bool) error {
 	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Node %s not found.", nodeName))
 }
 
-func outputNodes(nodes []*protos.CranedInfo) error {
+func outputNodes(nodes []*protos.CranedInfo) {
 	for _, node := range nodes {
-		if err := printNodeDetails(node); err != nil {
-			return err
-		}
+		printNodeDetails(node)
 	}
-	return nil
 }
 
-func printNodeDetails(node *protos.CranedInfo) error {
+func printNodeDetails(node *protos.CranedInfo) {
 	stateStr := formatNodeState(node)
 	cranedVersion := "unknown"
 	if len(node.CranedVersion) > 0 {
@@ -199,8 +190,6 @@ func printNodeDetails(node *protos.CranedInfo) error {
 		cranedOs,
 		timeInfo.bootTime, timeInfo.startTime, timeInfo.lastBusyTime,
 	)
-
-	return nil
 }
 
 type nodeTimes struct {
@@ -235,27 +224,27 @@ func formatNodeState(node *protos.CranedInfo) string {
 // Cpu
 func formatCpuInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("CPU=%.2f AllocCPU=%.2f FreeCPU=%.2f",
-		node.ResTotal.AllocatableResInNode.CpuCoreLimit,
-		math.Abs(node.ResAlloc.AllocatableResInNode.CpuCoreLimit),
-		math.Abs(node.ResAvail.AllocatableResInNode.CpuCoreLimit),
+		node.ResTotal.CpuCount,
+		math.Abs(node.ResAlloc.CpuCount),
+		math.Abs(node.ResAvail.CpuCount),
 	)
 }
 
 // Mem
 func formatMemInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("RealMemory=%s AllocMem=%s FreeMem=%s",
-		util.FormatMemToMB(node.ResTotal.AllocatableResInNode.MemoryLimitBytes),
-		util.FormatMemToMB(node.ResAlloc.AllocatableResInNode.MemoryLimitBytes),
-		util.FormatMemToMB(node.ResAvail.AllocatableResInNode.MemoryLimitBytes),
+		util.FormatMemToMB(node.ResTotal.MemoryBytes),
+		util.FormatMemToMB(node.ResAlloc.MemoryBytes),
+		util.FormatMemToMB(node.ResAvail.MemoryBytes),
 	)
 }
 
 // Gres
 func formatGresInfo(node *protos.CranedInfo) string {
 	return fmt.Sprintf("Gres=%s AllocGres=%s FreeGres=%s",
-		formatDedicatedResource(node.ResTotal.GetDedicatedResInNode()),
-		formatDedicatedResource(node.ResAlloc.GetDedicatedResInNode()),
-		formatDedicatedResource(node.ResAvail.GetDedicatedResInNode()),
+		formatDedicatedResource(node.ResTotal.GetGres()),
+		formatDedicatedResource(node.ResAlloc.GetGres()),
+		formatDedicatedResource(node.ResAvail.GetGres()),
 	)
 }
 
@@ -271,7 +260,8 @@ func ShowNodes(nodeName string, queryAll bool) error {
 	if len(reply.CranedInfoList) == 0 {
 		return handleNodesEmptyResult(nodeName, queryAll)
 	}
-	return outputNodes(reply.CranedInfoList)
+	outputNodes(reply.CranedInfoList)
+	return nil
 }
 
 // show Partitions
@@ -279,8 +269,7 @@ func getPartitionInfoReply(partitionName string) (*protos.QueryPartitionInfoRepl
 	req := &protos.QueryPartitionInfoRequest{PartitionName: partitionName}
 	reply, err := stub.QueryPartitionInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show partitions")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show partitions")
+		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show partitions")
 	}
 	return reply, nil
 }
@@ -292,16 +281,13 @@ func handleEmptyPartitionResult(partitionName string, queryAll bool) error {
 	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Partition %s not found.", partitionName))
 }
 
-func outputPartitions(partitions []*protos.PartitionInfo) error {
+func outputPartitions(partitions []*protos.PartitionInfo) {
 	for _, partition := range partitions {
-		if err := printPartitionDetails(partition); err != nil {
-			return err
-		}
+		printPartitionDetails(partition)
 	}
-	return nil
 }
 
-func printPartitionDetails(partition *protos.PartitionInfo) error {
+func printPartitionDetails(partition *protos.PartitionInfo) {
 	accountsInfo := formatAccountsInfo(partition)
 	nodesInfo := fmt.Sprintf("TotalNodes=%d AliveNodes=%d", partition.TotalNodes, partition.AliveNodes)
 	cpuInfo := formatCpuResources(partition)
@@ -329,8 +315,6 @@ func printPartitionDetails(partition *protos.PartitionInfo) error {
 		gresInfo,
 		memLimits,
 		partition.Hostlist)
-
-	return nil
 }
 
 func formatAccountsInfo(partition *protos.PartitionInfo) string {
@@ -340,21 +324,21 @@ func formatAccountsInfo(partition *protos.PartitionInfo) string {
 }
 
 func formatCpuResources(partition *protos.PartitionInfo) string {
-	total := math.Abs(partition.ResTotal.AllocatableRes.CpuCoreLimit)
-	avail := math.Abs(partition.ResAvail.AllocatableRes.CpuCoreLimit)
-	alloc := math.Abs(partition.ResAlloc.AllocatableRes.CpuCoreLimit)
+	total := math.Abs(partition.ResTotal.CpuCount)
+	avail := math.Abs(partition.ResAvail.CpuCount)
+	alloc := math.Abs(partition.ResAlloc.CpuCount)
 	return fmt.Sprintf("TotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f", total, avail, alloc)
 }
 func formatMemoryResources(partition *protos.PartitionInfo) string {
-	total := util.FormatMemToMB(partition.ResTotal.AllocatableRes.MemoryLimitBytes)
-	avail := util.FormatMemToMB(partition.ResAvail.AllocatableRes.MemoryLimitBytes)
-	alloc := util.FormatMemToMB(partition.ResAlloc.AllocatableRes.MemoryLimitBytes)
+	total := util.FormatMemToMB(partition.ResTotal.MemoryBytes)
+	avail := util.FormatMemToMB(partition.ResAvail.MemoryBytes)
+	alloc := util.FormatMemToMB(partition.ResAlloc.MemoryBytes)
 	return fmt.Sprintf("TotalMem=%s AvailMem=%s AllocMem=%s", total, avail, alloc)
 }
 func formatGresResources(partition *protos.PartitionInfo) string {
-	total := formatDeviceMap(partition.ResTotal.GetDeviceMap())
-	avail := formatDeviceMap(partition.ResAvail.GetDeviceMap())
-	alloc := formatDeviceMap(partition.ResAlloc.GetDeviceMap())
+	total := formatGresMap(partition.ResTotal.GetGresMap())
+	avail := formatGresMap(partition.ResAvail.GetGresMap())
+	alloc := formatGresMap(partition.ResAlloc.GetGresMap())
 	return fmt.Sprintf("TotalGres=%s AvailGres=%s AllocGres=%s", total, avail, alloc)
 }
 
@@ -370,7 +354,8 @@ func ShowPartitions(partitionName string, queryAll bool) error {
 	if len(reply.PartitionInfoList) == 0 {
 		return handleEmptyPartitionResult(partitionName, queryAll)
 	}
-	return outputPartitions(reply.PartitionInfoList)
+	outputPartitions(reply.PartitionInfoList)
+	return nil
 }
 
 // show Reservation
@@ -381,8 +366,7 @@ func getReservationInfoReply(reservationName string) (*protos.QueryReservationIn
 	}
 	reply, err := stub.QueryReservationInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show reservations")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show reservations")
+		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show reservations")
 	}
 	if !reply.GetOk() {
 		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve reservation info: %s", reply.GetReason()))
@@ -396,11 +380,10 @@ func handleEmptyReservationResult(reservationName string, queryAll bool) error {
 	}
 	return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Reservation %s not found.", reservationName))
 }
-func outputReservations(reservations []*protos.ReservationInfo) error {
+func outputReservations(reservations []*protos.ReservationInfo) {
 	for _, res := range reservations {
 		fmt.Println(formatReservationDetails(res))
 	}
-	return nil
 }
 
 // strings.Builder
@@ -448,21 +431,21 @@ func formatReservationResources(res *protos.ReservationInfo) string {
 	var buf strings.Builder
 	// CPU
 	buf.WriteString(fmt.Sprintf("\tTotalCPU=%.2f AvailCPU=%.2f AllocCPU=%.2f\n",
-		math.Abs(res.ResTotal.AllocatableRes.CpuCoreLimit),
-		math.Abs(res.ResAvail.AllocatableRes.CpuCoreLimit),
-		math.Abs(res.ResAlloc.AllocatableRes.CpuCoreLimit)))
+		math.Abs(res.ResTotal.CpuCount),
+		math.Abs(res.ResAvail.CpuCount),
+		math.Abs(res.ResAlloc.CpuCount)))
 
 	// mem
 	buf.WriteString(fmt.Sprintf("\tTotalMem=%s AvailMem=%s AllocMem=%s\n",
-		util.FormatMemToMB(res.ResTotal.AllocatableRes.MemoryLimitBytes),
-		util.FormatMemToMB(res.ResAvail.AllocatableRes.MemoryLimitBytes),
-		util.FormatMemToMB(res.ResAlloc.AllocatableRes.MemoryLimitBytes)))
+		util.FormatMemToMB(res.ResTotal.MemoryBytes),
+		util.FormatMemToMB(res.ResAvail.MemoryBytes),
+		util.FormatMemToMB(res.ResAlloc.MemoryBytes)))
 
 	// Gres
 	buf.WriteString(fmt.Sprintf("\tTotalGres=%s AvailGres=%s AllocGres=%s\n",
-		formatDeviceMap(res.ResTotal.GetDeviceMap()),
-		formatDeviceMap(res.ResAvail.GetDeviceMap()),
-		formatDeviceMap(res.ResAlloc.GetDeviceMap())))
+		formatGresMap(res.ResTotal.GetGresMap()),
+		formatGresMap(res.ResAvail.GetGresMap()),
+		formatGresMap(res.ResAlloc.GetGresMap())))
 
 	return buf.String()
 }
@@ -479,7 +462,8 @@ func ShowReservations(reservationName string, queryAll bool) error {
 	if len(reply.ReservationInfoList) == 0 {
 		return handleEmptyReservationResult(reservationName, queryAll)
 	}
-	return outputReservations(reply.ReservationInfoList)
+	outputReservations(reply.ReservationInfoList)
+	return nil
 }
 
 // show Jobs
@@ -489,7 +473,7 @@ func parseJobIds(jobIds string, queryAll bool) ([]uint32, error) {
 	}
 	jobIdList, err := util.ParseJobIdList(jobIds, ",")
 	if err != nil {
-		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
+		return nil, util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 	}
 	return jobIdList, nil
 }
@@ -515,8 +499,7 @@ func getJobInfoReply(jobIdList []uint32) (*protos.QueryJobsInfoReply, error) {
 	req := &protos.QueryJobsInfoRequest{FilterIds: idFilter}
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show jobs")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "Failed to show jobs")
+		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show jobs")
 	}
 
 	if !reply.GetOk() {
@@ -545,7 +528,8 @@ func outputJobs(jobs []*protos.JobInfo, requestedIds []uint32) error {
 		}
 		printed[job.JobId] = true
 	}
-	return checkMissingJobs(requestedIds, printed)
+	checkMissingJobs(requestedIds, printed)
+	return nil
 }
 
 func printJobDetails(job *protos.JobInfo) error {
@@ -669,8 +653,8 @@ func formatJobTimes(job *protos.JobInfo) jobTimeInfo {
 }
 
 func printResourceRequests(job *protos.JobInfo) {
-	totalCpu := job.ReqTotalResView.AllocatableRes.CpuCoreLimit
-	totalMem := job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+	totalCpu := job.GetReqTotalResView().GetCpuCount()
+	totalMem := job.GetReqTotalResView().GetMemoryBytes()
 
 	var cpusPerTask float64
 	var memPerNode uint64
@@ -692,14 +676,14 @@ func printResourceRequests(job *protos.JobInfo) {
 		job.NodeNum,
 		totalCpu,
 		util.FormatMemToMB(totalMem),
-		formatDeviceMap(job.ReqTotalResView.DeviceMap))
+		formatGresMap(job.GetReqTotalResView().GetGresMap()))
 	// AllocRes
 	if job.Status == protos.JobStatus_Running {
 		fmt.Printf("\tAllocRes:node=%d cpu=%.2f mem=%v gres=%s\n",
 			job.NodeNum,
-			job.AllocatedResView.AllocatableRes.CpuCoreLimit,
-			util.FormatMemToMB(job.AllocatedResView.AllocatableRes.MemoryLimitBytes),
-			formatDeviceMap(job.AllocatedResView.DeviceMap))
+			job.GetAllocatedResView().GetCpuCount(),
+			util.FormatMemToMB(job.GetAllocatedResView().GetMemoryBytes()),
+			formatGresMap(job.GetAllocatedResView().GetGresMap()))
 	}
 }
 
@@ -799,9 +783,9 @@ func formatHostNameStr(hosts string) string {
 }
 
 // If any job is requested but not returned, remind the user
-func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) error {
+func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) {
 	if len(requestedIds) == 0 {
-		return nil
+		return
 	}
 	missingJobs := []uint32{}
 	for _, id := range requestedIds {
@@ -814,7 +798,6 @@ func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) error {
 		fmt.Printf("Job %s is not running.\n", missingList)
 	}
 
-	return nil
 }
 func ShowJobs(jobIds string, queryAll bool) error {
 	jobIdList, err := parseJobIds(jobIds, queryAll)
@@ -911,8 +894,8 @@ func ShowSteps(stepIds string, queryAll bool) error {
 			nodeListStr := formatNullStr(stepInfo.GetCranedList())
 
 			var cpusStr string
-			if stepInfo.AllocatedResView != nil && stepInfo.AllocatedResView.AllocatableRes != nil {
-				cpus := stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+			if stepInfo.AllocatedResView != nil {
+				cpus := stepInfo.GetAllocatedResView().GetCpuCount()
 				cpusStr = strconv.FormatInt(int64(cpus), 10)
 			} else {
 				cpusStr = "0"
@@ -923,14 +906,14 @@ func ShowSteps(stepIds string, queryAll bool) error {
 			nameStr := formatNullStr(stepInfo.Name)
 
 			var gresStr string
-			if stepInfo.AllocatedResView != nil && stepInfo.AllocatedResView.AllocatableRes != nil {
-				gres := stepInfo.AllocatedResView.AllocatableRes
+			if stepInfo.AllocatedResView != nil {
+				resView := stepInfo.GetAllocatedResView()
 				var gresParts []string
-				if gres.CpuCoreLimit > 0 {
-					gresParts = append(gresParts, fmt.Sprintf("cpu=%d", int64(gres.CpuCoreLimit)))
+				if resView.GetCpuCount() > 0 {
+					gresParts = append(gresParts, fmt.Sprintf("cpu=%d", int64(resView.GetCpuCount())))
 				}
-				if gres.MemoryLimitBytes > 0 {
-					gresParts = append(gresParts, fmt.Sprintf("mem=%s", util.FormatMemToMB(gres.MemoryLimitBytes)))
+				if resView.GetMemoryBytes() > 0 {
+					gresParts = append(gresParts, fmt.Sprintf("mem=%s", util.FormatMemToMB(resView.GetMemoryBytes())))
 				}
 				if stepInfo.NodeNum > 0 {
 					gresParts = append(gresParts, fmt.Sprintf("node=%d", stepInfo.NodeNum))
@@ -997,8 +980,7 @@ func ShowLicenses(licenseName string, queryAll bool) error {
 	req := &protos.QueryLicensesInfoRequest{LicenseNameList: licenseNameList}
 	reply, err := stub.QueryLicensesInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show license")
-		return util.NewCraneErr(util.ErrorNetwork, "Failed to show license")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show license")
 	}
 
 	if !reply.Ok {

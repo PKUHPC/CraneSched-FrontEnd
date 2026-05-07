@@ -35,7 +35,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -110,34 +109,47 @@ func (w SlurmWrapper) Preprocess() error {
 
 func sacct() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "sacct",
-		Short:   "Wrapper of cacct command",
-		Long:    "",
-		GroupID: "slurm",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cacct.RootCmd.PersistentPreRun(cmd, args)
-			if err := Validate(cacct.RootCmd, args); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
+		Use:                "sacct",
+		Short:              "Wrapper of cacct command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			convertedArgs := make([]string, 0, len(args))
+			for _, arg := range args {
+				switch arg {
+				case "--jobs":
+					convertedArgs = append(convertedArgs, "--job")
+				case "--starttime":
+					convertedArgs = append(convertedArgs, "--start-time")
+				case "--endtime":
+					convertedArgs = append(convertedArgs, "--end-time")
+				case "-n":
+					convertedArgs = append(convertedArgs, "-N")
+				default:
+					convertedArgs = append(convertedArgs, arg)
+				}
 			}
-			return cacct.RootCmd.RunE(cmd, args)
+			cacct.RootCmd.SetArgs(convertedArgs)
+			err := cacct.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
 		},
 	}
 
+	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
 	cmd.Flags().StringVarP(&cacct.FlagFilterAccounts, "account", "A", "",
 		"Displays jobs when a comma separated list of accounts are given as the argument.")
-	cmd.Flags().StringVarP(&cacct.FlagFilterJobIDs, "jobs", "j", "",
-		"Displays information about the specified job or list of jobs.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterUsers, "user", "u", "",
 		"Use this comma separated list of user names to select jobs to display.")
-
-	cmd.Flags().StringVarP(&cacct.FlagFilterStartTime, "starttime", "S", "",
-		"Select jobs in any state after the specified time.")
-	cmd.Flags().StringVarP(&cacct.FlagFilterEndTime, "endtime", "E", "",
-		"Select jobs in any state before the specified time.")
-
-	cmd.Flags().BoolVarP(&cacct.FlagNoHeader, "noheader", "n", false,
-		"No heading will be added to the output. The default action is to display a header.")
 
 	return cmd
 }
@@ -150,70 +162,376 @@ func sacctmgr() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			convertedArgs := make([]string, 0, len(args)+1)
-			convertedArgs = append(convertedArgs, "cacctmgr")
-
-			// Handle help
-			for _, arg := range args {
-				if arg == "--help" || arg == "-h" {
-					fmt.Println("Please refer to the user manual of Slurm.")
-					return nil
-				}
-			}
-
-			// Process each argument
-			for _, arg := range args {
-				switch arg {
-				// Map slurm commands to crane commands
-				case "create":
-					convertedArgs = append(convertedArgs, "add")
-				case "remove":
-					convertedArgs = append(convertedArgs, "delete")
-				case "update":
-					convertedArgs = append(convertedArgs, "modify")
-				case "list":
-					convertedArgs = append(convertedArgs, "show")
-				// Convert option names to lowercase for consistency
-				default:
-					if strings.Contains(arg, "=") {
-						parts := strings.SplitN(arg, "=", 2)
-						key := strings.ToLower(parts[0])
-						value := parts[1]
-
-						switch key {
-						case "names":
-							key = "name"
-						case "accounts":
-							key = "account"
-						case "partitions":
-							key = "partition"
-						case "adminlevel":
-							key = "adminlevel"
-						case "maxjobpu", "maxjobsperuser":
-							key = "maxjobsperuser"
-						case "maxcpupu", "maxcpuperuser":
-							key = "maxcpusperuser"
-						case "maxwall", "maxwalldurationperjob":
-							key = "maxtimelimitperjob"
-						case "maxsubmitjobsperuser":
-							key = "maxjobsperuser"
-						}
-
-						convertedArgs = append(convertedArgs, key+"="+value)
-					} else {
-						// Keep other arguments as-is (like "where", "set", entity names, etc.)
-						convertedArgs = append(convertedArgs, strings.ToLower(arg))
-					}
-				}
-			}
-
-			// Call cacctmgr with converted arguments
-			cacctmgr.ParseCmdArgs(convertedArgs)
+			cacctmgr.ParseCmdArgs(normalizeSacctmgrArgs(args))
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func normalizeSacctmgrArgs(args []string) []string {
+	convertedArgs := []string{"cacctmgr"}
+
+	action := ""
+	entity := ""
+	clause := ""
+	hasID := false
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		if strings.HasPrefix(arg, "-") {
+			convertedArgs = append(convertedArgs, arg)
+			if wrapperFlagConsumesValue(arg) && i+1 < len(args) {
+				convertedArgs = append(convertedArgs, args[i+1])
+				i++
+			}
+			continue
+		}
+
+		if key, op, value, ok := splitWrapperAssignment(arg); ok {
+			if normalized := normalizeSacctmgrKey(action, entity, clause, key); normalized != "" {
+				key = normalized
+			}
+			convertedArgs = append(convertedArgs, key+op+value)
+			continue
+		}
+
+		if normalizedAction, ok := normalizeSacctmgrAction(arg); ok && action == "" {
+			action = normalizedAction
+			convertedArgs = append(convertedArgs, normalizedAction)
+			continue
+		}
+
+		if normalizedEntity, ok := normalizeSacctmgrEntity(arg); ok && entity == "" {
+			entity = normalizedEntity
+			convertedArgs = append(convertedArgs, normalizedEntity)
+			continue
+		}
+
+		lowerArg := strings.ToLower(arg)
+		if lowerArg == "where" || lowerArg == "set" {
+			clause = lowerArg
+			convertedArgs = append(convertedArgs, lowerArg)
+			continue
+		}
+
+		if lowerArg == "withclusters" {
+			convertedArgs = append(convertedArgs, "withclusters")
+			continue
+		}
+
+		if normalizedKey := normalizeSacctmgrKey(action, entity, clause, arg); normalizedKey != "" {
+			convertedArg, nextIdx := normalizeWrapperKeyValueArg(normalizedKey, args, i)
+			convertedArgs = append(convertedArgs, convertedArg)
+			i = nextIdx
+			continue
+		}
+
+		if !hasID && sacctmgrActionAllowsID(action) && entity != "" && clause == "" {
+			hasID = true
+			convertedArgs = append(convertedArgs, arg)
+			continue
+		}
+
+		convertedArgs = append(convertedArgs, arg)
+	}
+
+	return convertedArgs
+}
+
+func normalizeSacctmgrAction(arg string) (string, bool) {
+	switch strings.ToLower(arg) {
+	case "create", "add":
+		return "add", true
+	case "remove", "delete":
+		return "delete", true
+	case "update", "modify":
+		return "modify", true
+	case "list", "show":
+		return "show", true
+	case "block":
+		return "block", true
+	case "unblock":
+		return "unblock", true
+	case "reset":
+		return "reset", true
+	default:
+		return "", false
+	}
+}
+
+func normalizeSacctmgrEntity(arg string) (string, bool) {
+	switch strings.ToLower(arg) {
+	case "account", "user", "qos", "transaction", "event", "wckey", "resource":
+		return strings.ToLower(arg), true
+	default:
+		return "", false
+	}
+}
+
+func normalizeSacctmgrKey(action, entity, clause, key string) string {
+	lowerKey := strings.ToLower(key)
+
+	switch action {
+	case "add":
+		switch entity {
+		case "account":
+			switch lowerKey {
+			case "name", "names":
+				return "name"
+			case "description", "parent", "defaultqos":
+				return lowerKey
+			case "partition", "partitions":
+				return "partition"
+			case "qoslist", "allowedqos", "allowedqoslist":
+				return "qoslist"
+			}
+		case "user":
+			switch lowerKey {
+			case "account", "accounts":
+				return "account"
+			case "coordinator", "level", "name", "names":
+				if lowerKey == "names" {
+					return "name"
+				}
+				return lowerKey
+			case "adminlevel":
+				return "level"
+			case "partition", "partitions":
+				return "partition"
+			}
+		case "qos":
+			return normalizeSacctmgrQosKey(lowerKey)
+		case "wckey":
+			if lowerKey == "user" {
+				return "user"
+			}
+		case "resource":
+			switch lowerKey {
+			case "name", "server", "count", "description", "lastconsumed",
+				"allocated", "servertype", "type", "allowed", "cluster", "flags":
+				return lowerKey
+			}
+		}
+	case "delete":
+		switch entity {
+		case "account", "qos":
+			if lowerKey == "name" || lowerKey == "names" {
+				return "name"
+			}
+		case "user":
+			switch lowerKey {
+			case "name", "names":
+				return "name"
+			case "account", "accounts":
+				return "account"
+			}
+		case "wckey":
+			if lowerKey == "user" {
+				return "user"
+			}
+		case "resource":
+			switch lowerKey {
+			case "name", "server", "cluster":
+				return lowerKey
+			}
+		}
+	case "block", "unblock":
+		if (entity == "account" || entity == "user") &&
+			(lowerKey == "account" || lowerKey == "accounts") {
+			return "account"
+		}
+	case "show":
+		switch entity {
+		case "account", "qos":
+			switch lowerKey {
+			case "name", "names":
+				return "name"
+			case "format":
+				return "format"
+			}
+		case "user":
+			switch lowerKey {
+			case "name", "names":
+				return "name"
+			case "account", "accounts":
+				return "accounts"
+			case "format":
+				return "format"
+			}
+		case "transaction":
+			switch lowerKey {
+			case "actor", "target", "action", "info", "starttime":
+				return lowerKey
+			}
+		case "event":
+			switch lowerKey {
+			case "maxlines", "nodes", "state", "starttime", "endtime", "format":
+				return lowerKey
+			}
+		case "resource":
+			switch lowerKey {
+			case "name", "server", "cluster":
+				return lowerKey
+			}
+		}
+	case "modify":
+		switch entity {
+		case "account":
+			switch clause {
+			case "where":
+				if lowerKey == "name" || lowerKey == "names" {
+					return "name"
+				}
+			case "set":
+				switch lowerKey {
+				case "description", "defaultqos", "defaultaccount":
+					return lowerKey
+				case "partition", "partitions", "allowedpartition", "allowedpartitions":
+					return "allowedpartition"
+				case "qos", "qoslist", "allowedqos", "allowedqoslist":
+					return "allowedqos"
+				}
+			}
+		case "user":
+			switch clause {
+			case "where":
+				switch lowerKey {
+				case "name", "names":
+					return "name"
+				case "account", "accounts":
+					return "account"
+				case "partition", "partitions":
+					return "partition"
+				}
+			case "set":
+				switch lowerKey {
+				case "defaultaccount", "defaultqos":
+					return lowerKey
+				case "adminlevel", "level":
+					return "adminlevel"
+				case "partition", "partitions", "allowedpartition", "allowedpartitions":
+					return "allowedpartition"
+				case "qos", "qoslist", "allowedqos", "allowedqoslist":
+					return "allowedqos"
+				}
+			}
+		case "qos":
+			switch clause {
+			case "where":
+				if lowerKey == "name" || lowerKey == "names" {
+					return "name"
+				}
+			case "set":
+				return normalizeSacctmgrQosKey(lowerKey)
+			}
+		case "wckey":
+			switch clause {
+			case "where":
+				if lowerKey == "user" {
+					return "user"
+				}
+			case "set":
+				if lowerKey == "defaultwckey" {
+					return "defaultwckey"
+				}
+			}
+		case "resource":
+			switch clause {
+			case "", "where":
+				switch lowerKey {
+				case "name", "server", "cluster":
+					return lowerKey
+				}
+			case "set":
+				switch lowerKey {
+				case "count", "description", "lastconsumed", "allocated",
+					"servertype", "type", "allowed", "flags":
+					return lowerKey
+				}
+			}
+		}
+	case "reset":
+		if lowerKey == "name" || lowerKey == "names" {
+			return "name"
+		}
+	}
+
+	return ""
+}
+
+func normalizeSacctmgrQosKey(lowerKey string) string {
+	switch lowerKey {
+	case "name", "names":
+		return "name"
+	case "description", "priority", "flags",
+		"maxtresperuser", "maxtresperaccount", "maxtres",
+		"maxjobs", "maxsubmitjobs":
+		return lowerKey
+	case "maxjobpu", "maxjobspu", "maxjobsperuser":
+		return "maxjobsperuser"
+	case "maxcpupu", "maxcpuspu", "maxcpuperuser", "maxcpusperuser":
+		return "maxcpusperuser"
+	case "maxsubmitjobspu", "maxsubmitjobsperuser":
+		return "maxsubmitjobsperuser"
+	case "maxjobspa", "maxjobsperaccount":
+		return "maxjobsperaccount"
+	case "maxsubmitjobspa", "maxsubmitjobsperaccount":
+		return "maxsubmitjobsperaccount"
+	case "maxwall", "maxwalldurationperjob", "maxtimelimitperjob":
+		return "maxtimelimitperjob"
+	}
+	return ""
+}
+
+func sacctmgrActionAllowsID(action string) bool {
+	return slices.Contains([]string{
+		"add", "delete", "block", "unblock", "show", "reset",
+	}, action)
+}
+
+func splitWrapperAssignment(arg string) (key, op, value string, ok bool) {
+	for _, operator := range []string{"+=", "-=", "="} {
+		if idx := strings.Index(arg, operator); idx > 0 {
+			return arg[:idx], operator, arg[idx+len(operator):], true
+		}
+	}
+	return "", "", "", false
+}
+
+func normalizeWrapperKeyValueArg(key string, args []string, idx int) (string, int) {
+	if idx+1 >= len(args) {
+		return key, idx
+	}
+
+	op := "="
+	nextArg := args[idx+1]
+	if nextArg == "=" || nextArg == "+=" || nextArg == "-=" {
+		op = nextArg
+		if idx+2 >= len(args) {
+			return key + op, idx + 1
+		}
+		return key + op + args[idx+2], idx + 2
+	}
+
+	if strings.HasPrefix(nextArg, "-") {
+		return key, idx
+	}
+	return key + op + nextArg, idx + 1
+}
+
+func wrapperFlagConsumesValue(arg string) bool {
+	if strings.Contains(arg, "=") {
+		return false
+	}
+	switch arg {
+	case "-C", "--config":
+		return true
+	default:
+		return false
+	}
 }
 
 func salloc() *cobra.Command {
@@ -259,42 +577,83 @@ func salloc() *cobra.Command {
 }
 
 func scancel() *cobra.Command {
+	var (
+		FlagJobName        string
+		FlagPartition      string
+		FlagState          string
+		FlagAccount        string
+		FlagUserName       string
+		FlagNodeList       []string
+		FlagConfigFilePath string
+		FlagJson           bool
+	)
 	cmd := &cobra.Command{
 		Use:     "scancel",
 		Short:   "Wrapper of ccancel command",
 		Long:    "",
 		GroupID: "slurm",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Run: func(cmd *cobra.Command, args []string) {
 			// scancel uses spaced arguments,
 			// we need to convert it into a comma-separated list.
+			ccancelArgs := make([]string, 0)
+			if FlagJobName != "" {
+				ccancelArgs = append(ccancelArgs, "--name", FlagJobName)
+			}
+			if FlagPartition != "" {
+				ccancelArgs = append(ccancelArgs, "--partition", FlagPartition)
+			}
+			if FlagState != "" {
+				ccancelArgs = append(ccancelArgs, "--state", FlagState)
+			}
+			if FlagAccount != "" {
+				ccancelArgs = append(ccancelArgs, "--account", FlagAccount)
+			}
+			if FlagUserName != "" {
+				ccancelArgs = append(ccancelArgs, "--user", FlagUserName)
+			}
+			if len(FlagNodeList) > 0 {
+				ccancelArgs = append(ccancelArgs, "--nodes", strings.Join(FlagNodeList, ","))
+			}
+			if FlagConfigFilePath != "" {
+				ccancelArgs = append(ccancelArgs, "--config", FlagConfigFilePath)
+			}
+			if FlagJson {
+				ccancelArgs = append(ccancelArgs, "--json")
+			}
 			if len(args) > 0 {
-				args = []string{strings.Join(args, ",")}
+				ccancelArgs = append(ccancelArgs, strings.Join(args, ","))
 			}
-
-			ccancel.RootCmd.PersistentPreRun(cmd, args)
-			if err := Validate(ccancel.RootCmd, args); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
+			ccancel.RootCmd.SetArgs(ccancelArgs)
+			err := ccancel.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
 			}
-			return ccancel.RootCmd.RunE(cmd, args)
 		},
 	}
-
-	cmd.Flags().BoolP("help", "", false, "Help for this command.")
-
-	cmd.Flags().StringVarP(&ccancel.FlagAccount, "account", "A", "",
-		"Restrict the scancel operation to jobs under this charge account.")
-	cmd.Flags().StringVarP(&ccancel.FlagJobName, "name", "n", "",
-		"Restrict the scancel operation to jobs with this job name.") // TODO: Alias --jobname
-	cmd.Flags().StringSliceVarP(&ccancel.FlagNodes, "nodelist", "w", nil,
-		"Cancel any jobs using any of the given hosts. (comma-separated list of hosts)") // TODO: Read from file
-	cmd.Flags().StringVarP(&ccancel.FlagPartition, "partition", "p", "",
-		"Restrict the scancel operation to jobs in this partition.")
-	cmd.Flags().StringVarP(&ccancel.FlagState, "state", "t", "",
-		`Restrict the scancel operation to jobs in this state.`) // TODO: Give hints on valid state strings
-	cmd.Flags().StringVarP(&ccancel.FlagUserName, "user", "u", "",
-		"Restrict the scancel operation to jobs owned by the given user.")
-
+	addConfigPathFlag(cmd, &FlagConfigFilePath)
+	cmd.Flags().StringVarP(&FlagJobName, "name", "n", "",
+		"Cancel jobs with the specified job name")
+	cmd.Flags().StringVarP(&FlagPartition, "partition", "p", "",
+		"Cancel jobs in the specified partition")
+	cmd.Flags().StringVarP(&FlagState, "state", "t", "",
+		"Cancel jobs of the specified states"+
+			"Valid job states are PENDING(P), RUNNING(R), SUSPENDED(S), ALL. "+
+			"job states are case-insensitive")
+	cmd.Flags().StringVarP(&FlagAccount, "account", "A", "",
+		"Cancel jobs under the specified account")
+	cmd.Flags().StringVarP(&FlagUserName, "user", "u", "",
+		"Cancel jobs submitted by the specified user")
+	cmd.Flags().StringSliceVarP(&FlagNodeList, "nodelist", "w", nil,
+		"Cancel jobs running or suspended on the specified nodes")
+	cmd.Flags().BoolVar(&FlagJson, "json", false,
+		"Output in JSON format")
 	return cmd
 }
 
@@ -354,121 +713,203 @@ func scontrol() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Find the sub command
-			firstSubCmd := ""
-			leadingFlags := make([]string, 0)
-			for idx, arg := range args {
-				if !strings.HasPrefix(arg, "-") {
-					// Omit flags before the first subcommand
-					firstSubCmd = arg
-					args = args[idx+1:]
-					break
-				}
-				leadingFlags = append(leadingFlags, arg)
-			}
-
-			// Convert XXX=YYY into xxx YYY
-			convertedArgs := make([]string, 0, len(args))
-			re := regexp.MustCompile(`(?i)^(\w+)=(.+)`)
-			for _, arg := range args {
-				if re.MatchString(arg) {
-					matches := re.FindStringSubmatch(arg)
-					// The regex must has 3 matches
-					convertedArgs = append(convertedArgs, strings.ToLower(matches[1]), matches[2])
-				} else {
-					convertedArgs = append(convertedArgs, arg)
-				}
-			}
-
-			switch firstSubCmd {
-			case "show":
-				// For `show`, do the keyword mapping:
-				for idx, arg := range convertedArgs {
-					switch strings.ToLower(arg) {
-					case "jobid":
-						convertedArgs[idx] = "job"
-					}
-				}
-				convertedArgs = append([]string{"show"}, convertedArgs...)
-			case "update":
-				// For `update`, the mapping is more complex
-				for idx, arg := range convertedArgs {
-					switch strings.ToLower(arg) {
-					case "jobid":
-						convertedArgs[idx] = "job"
-					case "nodename":
-						convertedArgs[idx] = "node"
-					case "partitionname":
-						convertedArgs[idx] = "partition"
-					case "timelimit":
-						convertedArgs[idx] = "--time-limit"
-					case "state":
-						convertedArgs[idx] = "--state"
-					case "reason":
-						convertedArgs[idx] = "--reason"
-					}
-				}
-
-				secondSubCmd := ""
-				for idx, arg := range convertedArgs {
-					switch arg {
-					case "job":
-						secondSubCmd = "job"
-						convertedArgs[idx] = "--job"
-					case "node":
-						secondSubCmd = "node"
-						convertedArgs[idx] = "--name"
-					}
-				}
-
-				if secondSubCmd == "" {
-					log.Error("Only \"job\" and \"node\" could be updated.")
-					os.Exit(util.ErrorCmdArg)
-				}
-				convertedArgs = append([]string{"update", secondSubCmd}, convertedArgs...)
-			case "hold":
-				concatedJobIds := ""
-				for i := 0; i < len(convertedArgs); i++ {
-					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
-						// If not "job" or "jobid", it should be a job id list
-						// Trim is needed as slurm supports "hold ,1,2,3" but crane doesn't
-						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
-						if _, err := util.ParseJobIdList(convertedArgs[i], ","); err != nil {
-							log.Errorf("Invalid job list specified: %v.\n", err)
-							os.Exit(util.ErrorCmdArg)
-						}
-						concatedJobIds += "," + convertedArgs[i]
-					}
-				}
-				convertedArgs = append([]string{"hold"}, strings.Trim(concatedJobIds, ","))
-			case "release":
-				concatedJobIds := ""
-				for i := 0; i < len(convertedArgs); i++ {
-					if convertedArgs[i] != "job" && convertedArgs[i] != "jobid" {
-						// If not "job" or "jobid", it should be a job id list
-						// Trim is needed as slurm supports "release ,1,2,3" but crane doesn't
-						convertedArgs[i] = strings.Trim(convertedArgs[i], ",")
-						if _, err := util.ParseJobIdList(convertedArgs[i], ","); err != nil {
-							log.Errorf("Invalid job list specified: %v.\n", err)
-							os.Exit(util.ErrorCmdArg)
-						}
-						concatedJobIds += "," + convertedArgs[i]
-					}
-				}
-				convertedArgs = append([]string{"release"}, strings.Trim(concatedJobIds, ","))
-			default:
-				// If no subcommand is found, just fall back to ccontrol.
-				log.Debug("Unknown subcommand: ", firstSubCmd)
-			}
-
-			// use ccontrol to parse the arguments
-			allArgs := append([]string{"ccontrol"}, append(leadingFlags, convertedArgs...)...)
+			allArgs := normalizeScontrolArgs(args)
 			ccontrol.ParseCmdArgs(allArgs)
 			return cmd.Help()
 		},
 	}
 
 	return cmd
+}
+
+func normalizeScontrolArgs(args []string) []string {
+	convertedArgs := []string{"ccontrol"}
+	action := ""
+	showEntitySeen := false
+	expectValue := false
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			convertedArgs = append(convertedArgs, arg)
+			if wrapperFlagConsumesValue(arg) && i+1 < len(args) {
+				convertedArgs = append(convertedArgs, args[i+1])
+				i++
+			}
+			continue
+		}
+
+		if expectValue {
+			convertedArgs = append(convertedArgs, arg)
+			expectValue = false
+			continue
+		}
+
+		lowerArg := strings.ToLower(arg)
+		if action == "" {
+			switch lowerArg {
+			case "show", "update", "hold", "release", "create", "delete", "reset":
+				action = lowerArg
+				convertedArgs = append(convertedArgs, lowerArg)
+				continue
+			}
+		}
+
+		switch action {
+		case "show":
+			if !showEntitySeen {
+				if key, _, value, ok := splitWrapperAssignment(arg); ok {
+					if normalizedEntity, ok := normalizeScontrolShowEntity(key); ok {
+						convertedArgs = append(convertedArgs, normalizedEntity, value)
+						showEntitySeen = true
+						continue
+					}
+				}
+
+				if normalizedEntity, ok := normalizeScontrolShowEntity(arg); ok {
+					convertedArgs = append(convertedArgs, normalizedEntity)
+					showEntitySeen = true
+					continue
+				}
+			}
+			convertedArgs = append(convertedArgs, arg)
+		case "hold", "release":
+			if key, op, value, ok := splitWrapperAssignment(arg); ok {
+				if strings.EqualFold(key, "timelimit") {
+					convertedArgs = append(convertedArgs, "timelimit"+op+value)
+					continue
+				}
+				if strings.EqualFold(key, "job") || strings.EqualFold(key, "jobid") {
+					jobIDs, nextIdx, err := collectScontrolJobIDs(args, i, value)
+					if err != nil {
+						log.Errorf("Invalid job list specified: %v.\n", err)
+						os.Exit(util.ErrorCmdArg)
+					}
+					convertedArgs = append(convertedArgs, jobIDs)
+					i = nextIdx
+					continue
+				}
+			}
+			if strings.EqualFold(arg, "timelimit") {
+				convertedArgs = append(convertedArgs, "timelimit")
+				expectValue = true
+				continue
+			}
+			if lowerArg == "job" || lowerArg == "jobid" {
+				continue
+			}
+			jobIDs, nextIdx, err := collectScontrolJobIDs(args, i, arg)
+			if err != nil {
+				log.Errorf("Invalid job list specified: %v.\n", err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			convertedArgs = append(convertedArgs, jobIDs)
+			i = nextIdx
+		default:
+			if key, op, value, ok := splitWrapperAssignment(arg); ok {
+				if normalized := normalizeScontrolUpdateKey(key); normalized != "" {
+					key = normalized
+				} else {
+					key = strings.ToLower(key)
+				}
+				convertedArgs = append(convertedArgs, key+op+value)
+				continue
+			}
+			convertedArgs = append(convertedArgs, arg)
+		}
+	}
+
+	return convertedArgs
+}
+
+func collectScontrolJobIDs(args []string, idx int, firstValue string) (string, int, error) {
+	jobIDs := make([]string, 0)
+	if firstValue = strings.Trim(firstValue, ","); firstValue != "" {
+		jobIDs = append(jobIDs, firstValue)
+	}
+
+	for idx+1 < len(args) {
+		next := args[idx+1]
+		if strings.HasPrefix(next, "-") || strings.EqualFold(next, "timelimit") {
+			break
+		}
+
+		if key, _, value, ok := splitWrapperAssignment(next); ok {
+			if strings.EqualFold(key, "timelimit") {
+				break
+			}
+			if strings.EqualFold(key, "job") || strings.EqualFold(key, "jobid") {
+				if value = strings.Trim(value, ","); value != "" {
+					jobIDs = append(jobIDs, value)
+				}
+				idx++
+				continue
+			}
+			break
+		}
+
+		if strings.EqualFold(next, "job") || strings.EqualFold(next, "jobid") {
+			idx++
+			continue
+		}
+
+		if next = strings.Trim(next, ","); next != "" {
+			jobIDs = append(jobIDs, next)
+		}
+		idx++
+	}
+
+	concatedJobIDs := strings.Join(jobIDs, ",")
+	if _, err := util.ParseJobIdList(concatedJobIDs, ","); err != nil {
+		return "", idx, err
+	}
+	return concatedJobIDs, idx, nil
+}
+
+func normalizeScontrolShowEntity(arg string) (string, bool) {
+	switch strings.ToLower(arg) {
+	case "jobid":
+		return "job", true
+	case "job":
+		return "job", true
+	case "nodename":
+		return "node", true
+	case "nodes":
+		return "node", true
+	case "node":
+		return "node", true
+	case "partitionname":
+		return "partition", true
+	case "partitions":
+		return "partition", true
+	case "partition":
+		return "partition", true
+	case "reservationname":
+		return "reservation", true
+	case "reservations":
+		return "reservation", true
+	case "reservation":
+		return "reservation", true
+	case "licensename", "licenses", "license":
+		return "lic", true
+	case "lic":
+		return "lic", true
+	default:
+		return "", false
+	}
+}
+
+func normalizeScontrolUpdateKey(key string) string {
+	switch strings.ToLower(key) {
+	case "jobid":
+		return "job"
+	case "nodename":
+		return "node"
+	case "partitionname":
+		return "partition"
+	default:
+		return ""
+	}
 }
 
 func seff() *cobra.Command {
@@ -502,6 +943,7 @@ func sinfo() *cobra.Command {
 		},
 	}
 
+	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
 	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
 	// 	"List only a partition state summary with no node state details.")
 	// cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
@@ -526,45 +968,51 @@ func sinfo() *cobra.Command {
 
 func squeue() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "squeue",
-		Short:   "Wrapper of cqueue command",
-		Long:    "",
-		GroupID: "slurm",
+		Use:                "squeue",
+		Short:              "Wrapper of cqueue command",
+		Long:               "",
+		GroupID:            "slurm",
+		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			cqueue.RootCmd.PersistentPreRun(cmd, args)
-			// Validate the arguments
-			if err := Validate(cqueue.RootCmd, args); err != nil {
-				log.Error(err)
-				os.Exit(util.ErrorCmdArg)
+			convertedArgs := make([]string, 0, len(args))
+			for _, arg := range args {
+				switch arg {
+				case "-h":
+					convertedArgs = append(convertedArgs, "-N")
+				case "--jobs":
+					convertedArgs = append(convertedArgs, "--job")
+				case "--states":
+					convertedArgs = append(convertedArgs, "--state")
+				default:
+					convertedArgs = append(convertedArgs, arg)
+				}
 			}
-
-			err := util.ErrorSuccess
-			if cqueue.FlagIterate != 0 {
-				err = squeueLoopedQuery(cqueue.FlagIterate)
+			cqueue.RootCmd.SetArgs(convertedArgs)
+			err := cqueue.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
 			} else {
-				err = squeueQuery()
+				os.Exit(util.ErrorSuccess)
 			}
-			os.Exit(err)
 		},
 	}
 
+	addConfigPathFlag(cmd, &cqueue.FlagConfigFilePath)
 	// As --noheader will use -h, we need to add the help flag manually
 	cmd.Flags().BoolP("help", "", false, "Help for this command.")
-
-	cmd.Flags().BoolVarP(&cqueue.FlagNoHeader, "noheader", "h", false,
-		"Do not print a header on the output.")
 	cmd.Flags().BoolVarP(&cqueue.FlagStartTime, "start", "S", false,
 		"Report the expected start time and resources to be allocated for pending jobs in order of \nincreasing start time.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterPartitions, "partition", "p", "",
 		"Specify the partitions of the jobs or steps to view. Accepts a comma separated list of \npartition names.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterJobIDs, "jobs", "j", "",
-		"Specify a comma separated list of job IDs to display. Defaults to all jobs. ")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterJobNames, "name", "n", "",
 		"Request jobs or job steps having one of the specified names. The list consists of a comma \nseparated list of job names.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterQos, "qos", "q", "",
 		"Specify the qos(s) of the jobs or steps to view. Accepts a comma separated list of qos's.")
-	cmd.Flags().StringVarP(&cqueue.FlagFilterStates, "states", "t", "",
-		"Specify the states of jobs to view. Accepts a comma separated list of state names or \"all\".")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterUsers, "user", "u", "",
 		"Request jobs or job steps from a comma separated list of users.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterAccounts, "account", "A", "",
@@ -807,7 +1255,6 @@ func srun() *cobra.Command {
 	cmd.Flags().StringVar(&crun.FlagMultiProg, "multi-prog", "", "")
 	cmd.Flags().StringVarP(&crun.FlagOversubscribe, "oversubscribe", "s", "", "")
 	cmd.Flags().StringVar(&crun.FlagCpuBind, "cpu-bind", "", "")
-	cmd.Flags().StringVar(&crun.FlagDeadline, "deadline", "", "")
 	cmd.Flags().StringVarP(&crun.FlagWait, "wait", "w", "", "")
 	cmd.Flags().StringVar(&crun.FlagMpi, "mpi", "", "")
 	cmd.Flags().StringVarP(&crun.FlagDependency, "dependency", "d", "", "")
@@ -845,9 +1292,6 @@ func PrintSrunIgnoreDummyArgsMessage() {
 	}
 	if crun.FlagCpuBind != "" {
 		fmt.Fprintln(os.Stderr, "The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
-	}
-	if crun.FlagDeadline != "" {
-		fmt.Fprintln(os.Stderr, "The feature --deadline is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagWait != "" {
 		fmt.Fprintln(os.Stderr, "The feature --wait/-w is not yet supported by Crane, the use is ignored.")

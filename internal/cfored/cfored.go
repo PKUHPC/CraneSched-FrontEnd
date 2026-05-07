@@ -122,7 +122,7 @@ func StartCfored(cmd *cobra.Command) {
 	if !cmd.Flags().Changed("debug-level") && config.Cfored.DebugLevel != "" {
 		debugLevel = config.Cfored.DebugLevel
 	}
-	util.SetupLogger(debugLevel)
+	util.InitDiagLogger(debugLevel)
 
 	util.DetectNetworkProxy()
 
@@ -176,7 +176,7 @@ func SetupAndRunSignalHandlerRoutine(pidFilePath string) {
 					config := util.ParseConfig(FlagConfigFilePath)
 
 					if config.Cfored.DebugLevel != "" {
-						util.SetupLogger(config.Cfored.DebugLevel)
+						util.InitDiagLogger(config.Cfored.DebugLevel)
 						log.Infof("Log level reloaded to %s", config.Cfored.DebugLevel)
 					}
 				case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:

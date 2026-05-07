@@ -5,20 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"CraneFrontEnd/tool/meta-cni/pkg/result"
+	metatemplate "CraneFrontEnd/tool/meta-cni/pkg/template"
 	metatypes "CraneFrontEnd/tool/meta-cni/pkg/types"
 	"CraneFrontEnd/tool/meta-cni/pkg/utils"
 
 	"github.com/containernetworking/cni/pkg/invoke"
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
-	types100 "github.com/containernetworking/cni/pkg/types/100"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -86,7 +85,7 @@ func resolvePipelines(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) ([]Res
 
 		instances := findGRESAnnotations(annotations, p.Name)
 		if len(instances) == 0 {
-			log.Infof("Pipeline %q skipped: no GRES annotations", p.Name)
+			// No GRES allocated for this container: skip template pipeline on ADD.
 			continue
 		}
 
@@ -122,11 +121,8 @@ func resolvePipelinesForDel(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) 
 
 		instances := findGRESAnnotations(annotations, p.Name)
 		if len(instances) == 0 {
-			// Fallback: infer from prevResult
-			instances = inferFromPrevResult(conf.PrevResult, p.IfNamePrefix)
-			if len(instances) > 0 && templateRequiresGRESDevice(p) {
-				return nil, fmt.Errorf("meta-cni: pipeline %q DEL/CHECK fallback cannot recover $gres.device from prevResult; keep annotations or persist device mapping", p.Name)
-			}
+			// No GRES allocated for this container: skip template pipeline on DEL/CHECK.
+			continue
 		}
 
 		for _, inst := range instances {
@@ -139,23 +135,6 @@ func resolvePipelinesForDel(conf *metatypes.MetaPluginConf, args *skel.CmdArgs) 
 	}
 
 	return resolved, nil
-}
-
-func templateRequiresGRESDevice(p *metatypes.Pipeline) bool {
-	if p == nil || !p.IsTemplate() {
-		return false
-	}
-
-	for i := range p.Delegates {
-		d := &p.Delegates[i]
-		for _, varRef := range d.ConfFromArgs {
-			if varRef == "$gres.device" {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 type gresInstance struct {
@@ -186,60 +165,10 @@ func findGRESAnnotations(annotations map[string]string, pipelineName string) []g
 	return instances
 }
 
-func inferFromPrevResult(prevResult cnitypes.Result, ifNamePrefix string) []gresInstance {
-	if prevResult == nil {
-		return nil
-	}
-	result100, err := types100.NewResultFromResult(prevResult)
-	if err != nil {
-		log.Warnf("meta-cni: cannot convert prevResult for inference: %v", err)
-		return nil
-	}
-
-	var instances []gresInstance
-	for _, iface := range result100.Interfaces {
-		if iface == nil || iface.Sandbox == "" {
-			continue // skip host-side interfaces
-		}
-		idx, ok := parseTemplateInstanceIndex(iface.Name, ifNamePrefix)
-		if !ok {
-			continue
-		}
-		instances = append(instances, gresInstance{Index: idx, Device: ""})
-	}
-
-	sort.Slice(instances, func(i, j int) bool {
-		return instances[i].Index < instances[j].Index
-	})
-	return instances
-}
-
-func parseTemplateInstanceIndex(ifName, ifNamePrefix string) (int, bool) {
-	if !strings.HasPrefix(ifName, ifNamePrefix) {
-		return 0, false
-	}
-
-	suffix := ifName[len(ifNamePrefix):]
-	if suffix == "" {
-		return 0, false
-	}
-	if len(suffix) > 1 && suffix[0] == '0' {
-		return 0, false
-	}
-
-	idx, err := strconv.Atoi(suffix)
-	if err != nil || idx < 0 {
-		return 0, false
-	}
-	if strconv.Itoa(idx) != suffix {
-		return 0, false
-	}
-
-	return idx, true
-}
-
 func expandTemplate(p *metatypes.Pipeline, index int, device string, cniArgs map[string]string) (ResolvedPipeline, error) {
-	// Deep copy delegates
+	idxStr := strconv.Itoa(index)
+	vars := metatemplate.BuildVars(device, idxStr, cniArgs)
+
 	delegates := make([]metatypes.DelegateEntry, len(p.Delegates))
 	for i, d := range p.Delegates {
 		delegates[i] = metatypes.DelegateEntry{
@@ -248,18 +177,15 @@ func expandTemplate(p *metatypes.Pipeline, index int, device string, cniArgs map
 			RuntimeOverride: d.RuntimeOverride,
 		}
 		if len(d.Conf) > 0 {
-			confCopy := make(json.RawMessage, len(d.Conf))
-			copy(confCopy, d.Conf)
-			delegates[i].Conf = confCopy
-		}
-		if len(d.ConfFromArgs) > 0 {
-			cfaCopy := make(map[string]string, len(d.ConfFromArgs))
-			maps.Copy(cfaCopy, d.ConfFromArgs)
-			delegates[i].ConfFromArgs = cfaCopy
+			rendered, err := metatemplate.Render(d.Conf, vars)
+			if err != nil {
+				return ResolvedPipeline{}, fmt.Errorf("pipeline %q delegate %s: render conf: %w",
+					p.Name, d.Identifier(), err)
+			}
+			delegates[i].Conf = rendered
 		}
 	}
 
-	idxStr := strconv.Itoa(index)
 	expanded := metatypes.Pipeline{
 		Name:            p.Name + "-" + idxStr,
 		IfName:          p.IfNamePrefix + idxStr,
@@ -267,61 +193,11 @@ func expandTemplate(p *metatypes.Pipeline, index int, device string, cniArgs map
 		Delegates:       delegates,
 	}
 
-	// Build variable context
-	vars := map[string]string{
-		"$gres.device": device,
-		"$gres.index":  idxStr,
-	}
-	for k, v := range cniArgs {
-		argKey := "$args." + k
-		if _, exists := vars[argKey]; !exists {
-			vars[argKey] = v
-		}
-	}
-
-	// Resolve confFromArgs
-	for i := range expanded.Delegates {
-		d := &expanded.Delegates[i]
-		if len(d.ConfFromArgs) == 0 {
-			continue
-		}
-		for confKey, varRef := range d.ConfFromArgs {
-			value, ok := vars[varRef]
-			if !ok {
-				log.Warnf("meta-cni: pipeline %q delegate %s: variable %q not found for confKey %q",
-					expanded.Name, d.Identifier(), varRef, confKey)
-				continue
-			}
-			if err := injectIntoConf(&d.Conf, confKey, value); err != nil {
-				return ResolvedPipeline{}, fmt.Errorf("inject %q into delegate %s conf: %w",
-					confKey, d.Identifier(), err)
-			}
-		}
-	}
-
 	return ResolvedPipeline{
 		Pipeline:      expanded,
 		InstanceIndex: index,
 		GRESDevice:    device,
 	}, nil
-}
-
-func injectIntoConf(conf *json.RawMessage, key, value string) error {
-	var payload map[string]any
-	if len(*conf) == 0 {
-		payload = make(map[string]any)
-	} else {
-		if err := json.Unmarshal(*conf, &payload); err != nil {
-			return fmt.Errorf("decode conf: %w", err)
-		}
-	}
-	payload[key] = value
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("encode conf: %w", err)
-	}
-	*conf = data
-	return nil
 }
 
 func validateUniqueIfNames(pipelines []ResolvedPipeline) error {

@@ -24,7 +24,10 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	grpccodes "google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 type ExitCode = int
@@ -72,6 +75,29 @@ func WrapCraneErr(code ExitCode, format string, err error) *CraneError {
 	}
 }
 
+func NewCraneErrFromGrpc(code ExitCode, err error, format string, a ...any) *CraneError {
+	msg := fmt.Sprintf(format, a...)
+	if rpcErr, ok := grpcstatus.FromError(err); ok {
+		switch rpcErr.Code() {
+		case grpccodes.Unavailable:
+			msg = fmt.Sprintf("%s: Connection to CraneCtld is broken.", msg)
+		case grpccodes.Unauthenticated:
+			msg = fmt.Sprintf("%s: Access denied.", msg)
+		case grpccodes.DeadlineExceeded: // timeout errors
+			msg = fmt.Sprintf("%s: Request timeout, please try again or reduce the query scope.", msg)
+		case grpccodes.ResourceExhausted: // resource exhaustion/oversized responses
+			msg = fmt.Sprintf("%s: Response too large, please reduce the query scope.", msg)
+		default:
+			msg = fmt.Sprintf("%s: gRPC error code %s.", msg, rpcErr.String())
+		}
+	}
+	return &CraneError{
+		Code:    code,
+		Message: msg,
+		cause:   err,
+	}
+}
+
 // Silence usage info output when RunE() returns a non-nil error
 func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 	for _, c := range cmd.Commands() {
@@ -89,8 +115,9 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 						if craneErr.Error() == "" {
 							cmd.SilenceErrors = true
 						}
-						if craneErr.Code != ErrorCmdArg {
+						if craneErr.Code != ErrorCmdArg || craneErr.Message == "" {
 							cmd.SilenceUsage = true // Silence usage info output
+							cmd.SilenceErrors = true
 						}
 					}
 				}
@@ -107,6 +134,9 @@ func RunAndHandleExit(cmd *cobra.Command) {
 	if err := cmd.Execute(); err != nil {
 		var craneErr *CraneError
 		if errors.As(err, &craneErr) {
+			if craneErr.Error() != "" && craneErr.Code != ErrorCmdArg {
+				log.Error(craneErr)
+			}
 			os.Exit(craneErr.Code)
 		} else {
 			os.Exit(ErrorGeneric)
@@ -223,6 +253,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_MAX_JOB_COUNT_PER_ACCOUNT: "The number of jobs for the current account has reached its limit",
 	protos.ErrCode_ERR_USER_HAS_JOB:              "The user has jobs pending or running, cannot be deleted",
 	protos.ErrCode_ERR_INVALID_RESOURCE:          "Invalid resource specification for the partition",
+	protos.ErrCode_ERR_INVALID_DEADLINE:          "Invalid deadline time(should be later than submit time)",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {

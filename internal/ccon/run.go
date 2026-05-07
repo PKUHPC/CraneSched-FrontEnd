@@ -277,7 +277,11 @@ func applyResourceOptions(f *Flags, job *protos.JobToCtld) error {
 	}
 
 	if gresSpec != "" {
-		job.GresPerNode = util.ParseGres(gresSpec)
+		gresMap, err := util.ParseGres(gresSpec)
+		if err != nil {
+			return fmt.Errorf("invalid gres specification '%s': %v", gresSpec, err)
+		}
+		job.GresPerNode = gresMap
 	}
 
 	return nil
@@ -331,7 +335,12 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 			if f.Run.Gpus != "" && f.Crane.Gres == "" {
 				return fmt.Errorf("--gpus is not supported. Please use --gres instead with format like 'gpu:1' or 'gpu:a100:2'")
 			}
-			step.GresPerNode = util.ParseGres(gresSpec)
+			gresPerNode, err := util.ParseGres(gresSpec)
+			if err != nil {
+				return fmt.Errorf("invalid gres specification '%s': %v", gresSpec, err)
+			}
+			step.GresPerNode = gresPerNode
+
 		}
 	}
 
@@ -687,6 +696,12 @@ func buildContainerStep(cmd *cobra.Command, f *Flags, jobId uint32, image string
 			step.Ntasks = uint32(ntasks)
 		}
 	}
+
+	if step.Ntasks > 1 {
+		log.Warnf("CRANE_NTASKS environment variable is set to %d, but container steps only support a single task, overriding to 1.", step.Ntasks)
+		step.Ntasks = 1
+	}
+
 	if numNodesStr, exists := syscall.Getenv("CRANE_JOB_NUM_NODES"); exists {
 		if numNodes, err := strconv.ParseUint(numNodesStr, 10, 32); err == nil {
 			step.NodeNum = uint32(numNodes)

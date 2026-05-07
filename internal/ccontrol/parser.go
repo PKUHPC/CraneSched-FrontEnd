@@ -57,6 +57,18 @@ type ReleaseCommand struct {
 	KeyValueParam []*KeyValueParam `parser:"@@*"`
 }
 
+type SuspendCommand struct {
+	Action        string           `parser:"@'suspend'"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+}
+
+type ResumeCommand struct {
+	Action        string           `parser:"@'resume'"`
+	ID            string           `parser:"( @String | @Ident | @Number )?"`
+	KeyValueParam []*KeyValueParam `parser:"@@*"`
+}
+
 type CreateCommand struct {
 	Action        string           `parser:"@'create'"`
 	Entity        *EntityType      `parser:"@@"`
@@ -106,7 +118,7 @@ var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
 var CControlParser = participle.MustBuild[CControlCommand](
 	participle.Lexer(CControlLexer),
 	participle.Elide("whitespace"),
-	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{}, CreateCommand{}, DeleteCommand{}, ResetCommand{}),
+	participle.Union[any](ShowCommand{}, UpdateCommand{}, HoldCommand{}, ReleaseCommand{}, SuspendCommand{}, ResumeCommand{}, CreateCommand{}, DeleteCommand{}, ResetCommand{}),
 )
 
 func ParseCControlCommand(input string) (*CControlCommand, error) {
@@ -152,6 +164,10 @@ func (c *CControlCommand) GetAction() string {
 		return cmd.Action
 	case ReleaseCommand:
 		return cmd.Action
+	case SuspendCommand:
+		return cmd.Action
+	case ResumeCommand:
+		return cmd.Action
 	case ResetCommand:
 		return cmd.Action
 	case CreateCommand:
@@ -193,6 +209,10 @@ func (c *CControlCommand) GetID() string {
 		return cmd.ID
 	case ReleaseCommand:
 		return cmd.ID
+	case SuspendCommand:
+		return cmd.ID
+	case ResumeCommand:
+		return cmd.ID
 	case DeleteCommand:
 		return cmd.ID
 	case CreateCommand:
@@ -211,6 +231,10 @@ func (c *CControlCommand) GetKVParamValue(key string) string {
 	case HoldCommand:
 		params = cmd.KeyValueParam
 	case ReleaseCommand:
+		params = cmd.KeyValueParam
+	case SuspendCommand:
+		params = cmd.KeyValueParam
+	case ResumeCommand:
 		params = cmd.KeyValueParam
 	case CreateCommand:
 		params = cmd.KeyValueParam
@@ -236,6 +260,14 @@ func (c *CControlCommand) GetKVMaps() map[string]string {
 			kvMap[param.Key] = unquoteIfQuoted(param.Value)
 		}
 	case ReleaseCommand:
+		for _, param := range cmd.KeyValueParam {
+			kvMap[param.Key] = unquoteIfQuoted(param.Value)
+		}
+	case SuspendCommand:
+		for _, param := range cmd.KeyValueParam {
+			kvMap[param.Key] = unquoteIfQuoted(param.Value)
+		}
+	case ResumeCommand:
 		for _, param := range cmd.KeyValueParam {
 			kvMap[param.Key] = unquoteIfQuoted(param.Value)
 		}

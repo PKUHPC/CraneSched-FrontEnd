@@ -175,7 +175,7 @@ func QueryJob() error {
 	if FlagFull {
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey", "Deadline"}
 		for i, jobOrStep := range items {
 			tableData[i] = []string{
 				ProcessJobID(jobOrStep),
@@ -245,6 +245,13 @@ func QueryJob() error {
 		}
 	}
 
+	if FlagDeadlineTime {
+		header = append(header, "Deadline")
+		for i := 0; i < len(tableData); i++ {
+			tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
+		}
+	}
+
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}
@@ -301,9 +308,9 @@ func ProcessAccount(item *JobOrStep) string {
 func ProcessReqCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
-		cpuCores = item.stepInfo.ReqTotalResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.stepInfo.GetReqTotalResView().GetCpuCount()
 	} else {
-		cpuCores = item.job.ReqTotalResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.job.GetReqTotalResView().GetCpuCount()
 	}
 	return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 }
@@ -312,17 +319,11 @@ func ProcessReqCPUs(item *JobOrStep) string {
 func ProcessAllocCPUs(item *JobOrStep) string {
 	var cpuCores float64
 	if item.isStep {
-		if item.stepInfo == nil || item.stepInfo.AllocatedResView == nil || item.stepInfo.AllocatedResView.AllocatableRes == nil {
-			return ""
-		}
-		cpuCores = item.stepInfo.AllocatedResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.stepInfo.GetAllocatedResView().GetCpuCount()
 	} else {
-		if item.job == nil || item.job.AllocatedResView == nil || item.job.AllocatedResView.AllocatableRes == nil {
-			return ""
-		}
-		cpuCores = item.job.AllocatedResView.AllocatableRes.CpuCoreLimit
+		cpuCores = item.job.GetAllocatedResView().GetCpuCount()
 	}
-	if item.job.AllocatedResView != nil {
+	if item.job.GetAllocatedResView() != nil {
 		return strconv.FormatFloat(cpuCores, 'f', 2, 64)
 	}
 	return ""
@@ -355,6 +356,18 @@ func ProcessElapsedTime(item *JobOrStep) string {
 			return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
 		}
 	} else if status == protos.JobStatus_Completed {
+		// Prefer backend elapsed time (already excludes suspended duration).
+		if item.isStep {
+			if item.stepInfo.ElapsedTime != nil && item.stepInfo.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
+			}
+		} else {
+			if item.job.ElapsedTime != nil && item.job.ElapsedTime.Seconds > 0 {
+				return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
+			}
+		}
+
+		// Fallback to derived duration if elapsed time is unavailable.
 		if startTime.IsZero() || endTime.IsZero() {
 			return "-"
 		}
@@ -364,6 +377,15 @@ func ProcessElapsedTime(item *JobOrStep) string {
 		}
 	}
 	return ""
+}
+
+// Deadline (D)
+func ProcessDeadline(item *JobOrStep) string {
+	deadlineTime := item.job.DeadlineTime.AsTime()
+	if !deadlineTime.Equal(util.InfiniteFuture) {
+		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return "unknown"
 }
 
 // EndTime (E)
@@ -479,10 +501,10 @@ func ProcessReqMemPerNode(item *JobOrStep) string {
 	var totalMem uint64
 	var nodeNum uint32
 	if item.isStep {
-		totalMem = item.stepInfo.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+		totalMem = item.stepInfo.GetReqTotalResView().GetMemoryBytes()
 		nodeNum = item.stepInfo.NodeNum
 	} else {
-		totalMem = item.job.ReqTotalResView.AllocatableRes.MemoryLimitBytes
+		totalMem = item.job.GetReqTotalResView().GetMemoryBytes()
 		nodeNum = item.job.NodeNum
 	}
 	if nodeNum > 0 {
@@ -498,10 +520,10 @@ func ProcessAllocMemPerNode(item *JobOrStep) string {
 
 	if item.isStep {
 		nodeNum = item.stepInfo.NodeNum
-		allocMem = item.stepInfo.AllocatedResView.AllocatableRes.MemoryLimitBytes
+		allocMem = item.stepInfo.GetAllocatedResView().GetMemoryBytes()
 	} else {
 		nodeNum = item.job.NodeNum
-		allocMem = item.job.AllocatedResView.AllocatableRes.MemoryLimitBytes
+		allocMem = item.job.GetAllocatedResView().GetMemoryBytes()
 	}
 	if nodeNum == 0 {
 		return "0"
@@ -672,6 +694,7 @@ var fieldProcessors = map[string]FieldProcessor{
 	// Group D
 	"D":           {"ElapsedTime", ProcessElapsedTime},
 	"elapsedtime": {"ElapsedTime", ProcessElapsedTime},
+	"deadline":    {"Deadline", ProcessDeadline},
 
 	// Group E
 	"E":       {"EndTime", ProcessEndTime},
@@ -848,7 +871,7 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, C/ReqCpus, c/AllocCPUs, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
+				"a/Account, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
 				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
 				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
 			os.Exit(util.ErrorInvalidFormat)

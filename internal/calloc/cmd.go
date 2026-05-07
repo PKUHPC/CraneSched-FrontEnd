@@ -20,7 +20,6 @@ package calloc
 
 import (
 	"CraneFrontEnd/internal/util"
-
 	"github.com/spf13/cobra"
 )
 
@@ -58,8 +57,9 @@ var (
 	FlagReservation string
 	FlagSignal      string
 
-	FlagHold  bool
-	FlagQuiet bool
+	FlagHold         bool
+	FlagQuiet        bool
+	FlagDeadlineTime string
 
 	FlagLicenses string
 	// not implement feature:
@@ -114,6 +114,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagReservation, "reservation", "r", "", "Use reserved resources")
 	RootCmd.Flags().BoolVar(&FlagExclusive, "exclusive", false, "Exclusive node resources")
 	RootCmd.Flags().BoolVarP(&FlagHold, "hold", "H", false, "Hold the job until it is released")
+	RootCmd.Flags().StringVar(&FlagDeadlineTime, "deadline", "", "Cancel the job if it reaches its deadline.")
 	RootCmd.Flags().StringVarP(&FlagLicenses, "licenses", "L", "", "Licenses used for the job")
 	RootCmd.Flags().StringVar(&FlagWckey, "wckey", "", "Wckey of the job")
 	RootCmd.Flags().StringVar(&FlagGpusPerNode, "gpus-per-node", "", "Gpus required per node, format: [type:]<number>[,[type:]<number>...]. eg: \"4\" or \"a100:1,volta:1\"")

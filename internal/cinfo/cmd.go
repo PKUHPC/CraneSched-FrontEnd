@@ -110,4 +110,5 @@ If the format is invalid or unrecognized, the program will terminate with an err
 Example: --format "%.5partition %.6a %s" would output the partition's name in the current environment 
          with a minimum width of 5, state of the node with a minimum width of 6, and the State.
 `)
+	util.InitCraneLogger()
 }

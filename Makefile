@@ -49,7 +49,7 @@ endif
 
 SOURCE_DATE_EPOCH := $(strip $(SOURCE_DATE_EPOCH))
 ifneq ($(strip $(SOURCE_DATE_EPOCH_FALLBACK)),)
-	$(warning SOURCE_DATE_EPOCH not set; falling back to current time $(SOURCE_DATE_EPOCH))
+  $(warning SOURCE_DATE_EPOCH not set; falling back to current time $(SOURCE_DATE_EPOCH))
 endif
 
 # Debug info control
