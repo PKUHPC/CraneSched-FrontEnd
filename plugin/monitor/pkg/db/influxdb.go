@@ -329,24 +329,23 @@ func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
 
 	for _, span := range spans {
 		tags := map[string]string{
-			"trace_id": span.TraceId,
-			"span_id":  span.SpanId,
-			"name":     span.Name,
-		}
-		if span.ParentSpanId != "" {
-			tags["parent_span_id"] = span.ParentSpanId
+			"name": span.Name,
 		}
 		if span.ServiceName != "" {
 			tags["service"] = span.ServiceName
 		}
 
-		fields := map[string]interface{}{}
 		// Calculate duration in microseconds
 		startTime := span.StartTime.AsTime()
 		endTime := span.EndTime.AsTime()
 		duration := endTime.Sub(startTime).Microseconds()
 
-		fields["duration_us"] = duration
+		fields := map[string]interface{}{
+			"trace_id":       span.TraceId,
+			"span_id":        span.SpanId,
+			"parent_span_id": span.ParentSpanId,
+			"duration_us":    duration,
+		}
 
 		// Add custom attributes
 		for k, v := range span.Attributes {
