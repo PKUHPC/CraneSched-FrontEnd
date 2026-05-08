@@ -10,5 +10,6 @@ type DBInterface interface {
 	SaveJobEnergy(*types.JobData) error
 	SaveNodeEvents([]*protos.CranedEventInfo) error
 	SaveLicenseUsage([]*protos.LicenseInfo) error
+	SaveSpans([]*protos.SpanInfo) error
 	Close() error
 }
