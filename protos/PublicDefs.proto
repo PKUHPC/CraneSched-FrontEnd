@@ -32,21 +32,6 @@ message CranedId {
   uint32 craned_index = 2;
 }
 
-message AllocatableResource {
-  double cpu_core_limit = 1;
-  uint64 memory_limit_bytes = 2;
-  uint64 memory_sw_limit_bytes = 3;
-}
-
-message TypeCountMap {
-  map<string /*Type*/, uint64> type_count_map = 1;
-  uint64 total = 2;
-}
-
-message DeviceMap {
-  map<string /*name*/, TypeCountMap> name_type_map = 1;
-}
-
 message Slots {
   repeated string slots = 1;
 }
