@@ -311,12 +311,19 @@ CtldClientStateMachineLoop:
 			}
 
 			// Notify cattach clients that are waiting for STEP_META_REPLY.
-			// JOB_COMPLETION_ACK_REPLY is handled by CattachWaitStepMeta's first case.
-			for _, c := range cattachByPidSnapshot {
+			// Send a failed STEP_META_REPLY so that CattachWaitStepMeta takes the normal
+			// failure path: it sends STEP_CONNECT_REPLY{Ok: false} back to the cattach client
+			// with a clear error message, instead of the misleading STEP_COMPLETION_ACK_REPLY
+			// that would make the client appear to have completed successfully.
+			for pid, c := range cattachByPidSnapshot {
 				c <- &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
-					Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
-						PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{},
+					Type: protos.StreamCtldReply_STEP_META_REPLY,
+					Payload: &protos.StreamCtldReply_PayloadStepMetaReply{
+						PayloadStepMetaReply: &protos.StreamCtldReply_StepMetaReply{
+							CattachPid:    pid,
+							Ok:            false,
+							FailureReason: "Cfored is not connected to CraneCtld.",
+						},
 					},
 				}
 			}
