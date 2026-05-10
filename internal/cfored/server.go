@@ -36,9 +36,9 @@ import (
 )
 
 type RequestSupervisorChannel struct {
-	valid                    *atomic.Bool
-	crunRequestChannel       chan *protos.StreamCrunRequest
-	cattachRequestChannelMap chan *protos.StreamCattachRequest
+	valid                 *atomic.Bool
+	crunRequestChannel    chan *protos.StreamCrunRequest
+	cattachRequestChannel chan *protos.StreamCattachRequest
 }
 
 type StepIdentifier struct {
@@ -46,13 +46,19 @@ type StepIdentifier struct {
 	StepId uint32
 }
 
+// TaskIOBuffer is a fixed-capacity circular ring buffer that stores the most recent
+// StreamStepIORequest messages for a step. It is used to replay buffered task output
+// to cattach clients that attach after the step has already started producing output.
+// When the buffer is full, the oldest entry is silently overwritten (FIFO eviction).
 type TaskIOBuffer struct {
 	data     []*protos.StreamStepIORequest
-	head     int
-	size     int
-	capacity int
+	head     int // index of the next slot to write into (wraps around on overflow)
+	size     int // number of valid entries currently stored
+	capacity int // maximum number of entries the buffer can hold
 }
 
+// Push appends item to the circular buffer. If the buffer is already full, the
+// oldest entry is overwritten and the effective window slides forward by one.
 func (t *TaskIOBuffer) Push(item *protos.StreamStepIORequest) {
 	t.data[t.head] = item
 	t.head = (t.head + 1) % t.capacity
@@ -61,6 +67,9 @@ func (t *TaskIOBuffer) Push(item *protos.StreamStepIORequest) {
 	}
 }
 
+// GetHistory returns all buffered entries in chronological order (oldest first).
+// The returned slice is a newly allocated copy and is safe to use after the buffer
+// is modified by subsequent Push calls.
 func (t *TaskIOBuffer) GetHistory() []*protos.StreamStepIORequest {
 	history := make([]*protos.StreamStepIORequest, t.size)
 	for i := 0; i < t.size; i++ {
@@ -105,7 +114,7 @@ func (keeper *SupervisorChannelKeeper) supervisorUpAndSetMsgToSupervisorChannel(
 	if _, exist := keeper.toSupervisorChannels[stepIdentity]; !exist {
 		keeper.toSupervisorChannels[stepIdentity] = make(map[string]*RequestSupervisorChannel)
 	}
-	keeper.toSupervisorChannels[stepIdentity][cranedId] = &RequestSupervisorChannel{crunRequestChannel: msgChannel, valid: valid, cattachRequestChannelMap: cattachMsgChannel}
+	keeper.toSupervisorChannels[stepIdentity][cranedId] = &RequestSupervisorChannel{crunRequestChannel: msgChannel, valid: valid, cattachRequestChannel: cattachMsgChannel}
 	keeper.toSupervisorChannelCV.Broadcast()
 	keeper.toSupervisorChannelMtx.Unlock()
 }
@@ -308,9 +317,9 @@ func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(taskId 
 			continue
 		}
 		select {
-		case supervisorChannel.cattachRequestChannelMap <- request:
+		case supervisorChannel.cattachRequestChannel <- request:
 		default:
-			if len(supervisorChannel.cattachRequestChannelMap) == cap(supervisorChannel.cattachRequestChannelMap) {
+			if len(supervisorChannel.cattachRequestChannel) == cap(supervisorChannel.cattachRequestChannel) {
 				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
 			} else {
 				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
@@ -363,11 +372,11 @@ func (keeper *SupervisorChannelKeeper) getStepDoneChannel(taskId uint32, stepId 
 	return keeper.stepDoneChannelMap[step]
 }
 
-func (keeper *SupervisorChannelKeeper) getRemoteHistory(taskId uint32, stepId uint32) []*protos.StreamStepIORequest {
+func (keeper *SupervisorChannelKeeper) getRemoteHistory(jobId uint32, stepId uint32) []*protos.StreamStepIORequest {
 	keeper.stepIORequestChannelMtx.Lock()
 	defer keeper.stepIORequestChannelMtx.Unlock()
 
-	taskIOBuffer, exist := keeper.taskIOBufferMap[StepIdentifier{JobId: taskId, StepId: stepId}]
+	taskIOBuffer, exist := keeper.taskIOBufferMap[StepIdentifier{JobId: jobId, StepId: stepId}]
 	if exist {
 		return taskIOBuffer.GetHistory()
 	}

@@ -63,6 +63,7 @@ type GlobalVariables struct {
 	// is confirmed). Kept separate from ctldReplyChannelMapByPid so that
 	// WaitAllFrontEnd can send the correct termination message type to each
 	// class (JOB_ID_REPLY for crun/calloc, JOB_COMPLETION_ACK_REPLY for cattach).
+	// The map key (int32) is the cattach process PID.
 	ctldReplyChannelMapForCattachByPid map[int32]chan *protos.StreamCtldReply
 
 	// Used by Cfored <--> Ctld state machine to de-multiplex messages from CraneCtld.
