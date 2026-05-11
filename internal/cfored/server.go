@@ -88,6 +88,7 @@ type SupervisorChannelKeeper struct {
 
 	stepIORequestChannelMtx sync.Mutex
 	// I/O message from Supervisor to Crun/Cattach
+	// The map key (int32) is the  Crun/Cattach process PID.
 	stepIORequestChannelMap map[StepIdentifier]map[int32]chan *protos.StreamStepIORequest
 
 	// Closed when all supervisors for a step have normally unregistered,
