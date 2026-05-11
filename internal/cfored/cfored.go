@@ -62,7 +62,8 @@ type GlobalVariables struct {
 	// Used for cattach processes waiting for STEP_META_REPLY (before job id
 	// is confirmed). Kept separate from ctldReplyChannelMapByPid so that
 	// WaitAllFrontEnd can send the correct termination message type to each
-	// class (JOB_ID_REPLY for crun/calloc, JOB_COMPLETION_ACK_REPLY for cattach).
+	// class (JOB_ID_REPLY for crun/calloc, STEP_META_REPLY(Ok=false) for cattach
+	// that are still waiting for step metadata).
 	// The map key (int32) is the cattach process PID.
 	ctldReplyChannelMapForCattachByPid map[int32]chan *protos.StreamCtldReply
 

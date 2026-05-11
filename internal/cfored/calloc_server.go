@@ -33,10 +33,7 @@ func (cforedServer *GrpcCforedServer) CallocStream(toCallocStream protos.CraneFo
 	requestChannel := make(chan grpcMessage[protos.StreamCallocRequest], 8)
 	go grpcStreamReceiver[protos.StreamCallocRequest](toCallocStream, requestChannel)
 
-	// Use capacity 8 (instead of 2) so WaitAllFrontEnd can pre-send
-	// JOB_CANCEL_REQUEST + JOB_COMPLETION_ACK_REPLY without overflowing
-	// in the presence of pre-existing messages from ctld.
-	ctldReplyChannel := make(chan *protos.StreamCtldReply, 8)
+	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
 
 	jobId = math.MaxUint32
 	stepId = math.MaxUint32

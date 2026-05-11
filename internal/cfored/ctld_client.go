@@ -242,7 +242,7 @@ CtldClientStateMachineLoop:
 							log.Warningf("[Cfored<->Ctld][Step #%d.%d] shall exist in "+
 								"ctldReplyChannelMapByStep!", jobId, stepId)
 							if ctldReply.Type == protos.StreamCtldReply_JOB_CANCEL_REQUEST {
-								log.Debugf("[Cfored<->Ctld] sending TASK_COMPLETION_REQUEST directly. Job Id #%d ", jobId)
+								log.Debugf("Cfored->Ctld Step #%d.%d JOB_COMPLETION_REQUEST ", jobId, stepId)
 								toCtldRequest := &protos.StreamCforedRequest{
 									Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
 									Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
@@ -276,29 +276,10 @@ CtldClientStateMachineLoop:
 			log.Tracef("[Cfored<->Ctld] Enter WAIT_ALL_FRONT_END state.")
 
 			gVars.ctldConnected.Store(false)
-
-			// Snapshot all maps and immediately replace them with empty ones while
-			// holding the mutex. This keeps the critical section short (no blocking
-			// channel sends), avoiding the deadlock where CrunWaitCtldAck or
-			// CancelJobOfDeadCrun needs the mutex to clean up while this goroutine
-			// holds it and is waiting for JOB_COMPLETION_REQUEST.
 			gVars.ctldReplyChannelMapMtx.Lock()
-			byPidSnapshot := gVars.ctldReplyChannelMapByPid
-			cattachByPidSnapshot := gVars.ctldReplyChannelMapForCattachByPid
-			byStepSnapshot := gVars.ctldReplyChannelMapByStep
-			cattachByStepSnapshot := gVars.ctldReplyChannelMapForCattachByStep
-			gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
-			gVars.ctldReplyChannelMapForCattachByPid = make(map[int32]chan *protos.StreamCtldReply)
-			gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
-			gVars.ctldReplyChannelMapForCattachByStep = make(map[StepIdentifier]map[int32]chan *protos.StreamCtldReply)
-			gVars.ctldReplyChannelMapMtx.Unlock()
-			// Mutex is now released. All subsequent channel sends are done without
-			// holding the mutex, preventing deadlock with goroutines that need the
-			// mutex to perform their own cleanup (e.g., CrunWaitCtldAck).
 
-			// Notify crun/calloc clients waiting for a job id.
-			for pid, c := range byPidSnapshot {
-				c <- &protos.StreamCtldReply{
+			for pid, c := range gVars.ctldReplyChannelMapByPid {
+				reply := &protos.StreamCtldReply{
 					Type: protos.StreamCtldReply_JOB_ID_REPLY,
 					Payload: &protos.StreamCtldReply_PayloadJobIdReply{
 						PayloadJobIdReply: &protos.StreamCtldReply_JobIdReply{
@@ -308,14 +289,17 @@ CtldClientStateMachineLoop:
 						},
 					},
 				}
+				c <- reply
 			}
 
-			// Notify cattach clients that are waiting for STEP_META_REPLY.
-			// Send a failed STEP_META_REPLY so that CattachWaitStepMeta takes the normal
-			// failure path: it sends STEP_CONNECT_REPLY{Ok: false} back to the cattach client
-			// with a clear error message, instead of the misleading STEP_COMPLETION_ACK_REPLY
-			// that would make the client appear to have completed successfully.
-			for pid, c := range cattachByPidSnapshot {
+			gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
+
+			// Notify cattach sessions that are still waiting for STEP_META_REPLY.
+			// Send STEP_META_REPLY(Ok=false) so they cleanly forward STEP_CONNECT_REPLY(Ok=false)
+			// to the client and exit without blocking. Do NOT send JOB_COMPLETION_ACK_REPLY here,
+			// as that would cause cattach to send STEP_COMPLETION_ACK_REPLY to a client still in
+			// the connection phase, which would be semantically incorrect.
+			for pid, c := range gVars.ctldReplyChannelMapForCattachByPid {
 				c <- &protos.StreamCtldReply{
 					Type: protos.StreamCtldReply_STEP_META_REPLY,
 					Payload: &protos.StreamCtldReply_PayloadStepMetaReply{
@@ -328,24 +312,10 @@ CtldClientStateMachineLoop:
 				}
 			}
 
-			// For each active crun/calloc step: send JOB_CANCEL_REQUEST so the
-			// goroutine initiates cancellation, then pre-send JOB_COMPLETION_ACK_REPLY
-			// so it can exit without a ctld round-trip.
-			//
-			// Steps already in CrunWaitCtldAck or CancelJobOfDeadCrun will receive
-			// JOB_CANCEL_REQUEST (ignored with a warning) then JOB_COMPLETION_ACK_REPLY
-			// (accepted) and exit cleanly — without ever needing the mutex while we
-			// are watching.
-			//
-			// We no longer wait for JOB_COMPLETION_REQUEST from each step. Any pending
-			// JOB_COMPLETION_REQUESTs that step goroutines later enqueue into
-			// cforedRequestCtldChannel will be forwarded to ctld when cfored reconnects.
-			// Ctld should handle them idempotently (job already finished / not found).
-			if len(byStepSnapshot) > 0 {
-				log.Debugf("[Cfored<->Ctld] Notifying %d active steps to cancel.", len(byStepSnapshot))
-			}
-			for step, c := range byStepSnapshot {
-				c <- &protos.StreamCtldReply{
+			gVars.ctldReplyChannelMapForCattachByPid = make(map[int32]chan *protos.StreamCtldReply)
+
+			for step, c := range gVars.ctldReplyChannelMapByStep {
+				reply := &protos.StreamCtldReply{
 					Type: protos.StreamCtldReply_JOB_CANCEL_REQUEST,
 					Payload: &protos.StreamCtldReply_PayloadJobCancelRequest{
 						PayloadJobCancelRequest: &protos.StreamCtldReply_JobCancelRequest{
@@ -354,9 +324,11 @@ CtldClientStateMachineLoop:
 						},
 					},
 				}
+				c <- reply
 			}
-			for step, c := range byStepSnapshot {
-				c <- &protos.StreamCtldReply{
+
+			for step, c := range gVars.ctldReplyChannelMapByStep {
+				reply := &protos.StreamCtldReply{
 					Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
 					Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
 						PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
@@ -365,10 +337,52 @@ CtldClientStateMachineLoop:
 						},
 					},
 				}
+				c <- reply
 			}
 
-			// Notify cattach clients that are in IO forwarding state.
-			for step, toCattachCtlReplyChannelMap := range cattachByStepSnapshot {
+			num := len(gVars.ctldReplyChannelMapByStep)
+			count := 0
+
+			if num > 0 {
+				log.Debugf("[Cfored<->Ctld] Sending cancel request to %d front ends "+
+					"with job id allocated.", num)
+				for {
+					request = <-gVars.cforedRequestCtldChannel
+					if request.Type != protos.StreamCforedRequest_JOB_COMPLETION_REQUEST {
+						log.Fatal("[Cfored<->Ctld] Expect type JOB_COMPLETION_REQUEST")
+					}
+
+					jobId := request.GetPayloadJobCompleteReq().JobId
+					stepId := request.GetPayloadJobCompleteReq().StepId
+
+					toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
+					if ok {
+						toCallocCtlReplyChannel <- &protos.StreamCtldReply{
+							Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
+							Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
+								PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
+									JobId:  jobId,
+									StepId: stepId,
+								},
+							},
+						}
+					} else {
+						log.Fatalf("[Cfored<->Ctld][Step #%d.%d] Step shall exist in ctldReplyChannelMapByStep!", jobId, stepId)
+					}
+
+					count += 1
+					log.Debugf("[Cfored<->Ctld][Step #%d.%d] Receive job completion request. %d/%d front ends is cancelled",
+						jobId, stepId, count, num)
+
+					if count >= num {
+						break
+					}
+				}
+			}
+
+			gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
+
+			for step, toCattachCtlReplyChannelMap := range gVars.ctldReplyChannelMapForCattachByStep {
 				for _, c := range toCattachCtlReplyChannelMap {
 					c <- &protos.StreamCtldReply{
 						Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
@@ -381,6 +395,10 @@ CtldClientStateMachineLoop:
 					}
 				}
 			}
+
+			gVars.ctldReplyChannelMapForCattachByStep = make(map[StepIdentifier]map[int32]chan *protos.StreamCtldReply)
+
+			gVars.ctldReplyChannelMapMtx.Unlock()
 
 			select {
 			case <-gVars.globalCtx.Done():

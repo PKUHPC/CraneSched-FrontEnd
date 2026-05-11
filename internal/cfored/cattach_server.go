@@ -143,7 +143,7 @@ CforedCattachStateMachineLoop:
 
 				gVars.ctldReplyChannelMapMtx.Lock()
 				// Use the dedicated cattach-by-pid map so WaitAllFrontEnd can
-				// send the correct termination message type (JOB_COMPLETION_ACK_REPLY)
+				// send the correct termination message type (STEP_META_REPLY(Ok=false))
 				// instead of the crun/calloc-specific JOB_ID_REPLY.
 				gVars.ctldReplyChannelMapForCattachByPid[cattachPid] = ctldReplyChannel
 				gVars.ctldReplyChannelMapMtx.Unlock()
@@ -188,15 +188,6 @@ CforedCattachStateMachineLoop:
 
 			case ctldReply := <-ctldReplyChannel:
 				switch ctldReply.Type {
-				case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
-					// This happens when WaitAllFrontEnd terminates all cattach sessions
-					// (ctld connection broke while we're waiting for STEP_META_REPLY).
-					// Clean up the pre-registration entry so no resource is leaked.
-					log.Debugf("[Ctld->Cfored->Cattach][Pid #%d] Receive JOB_COMPLETION_ACK_REPLY in WaitStepMeta, terminating.", cattachPid)
-					gVars.ctldReplyChannelMapMtx.Lock()
-					delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
-					gVars.ctldReplyChannelMapMtx.Unlock()
-					state = DeadCattach
 				case protos.StreamCtldReply_STEP_META_REPLY:
 					Ok := ctldReply.GetPayloadStepMetaReply().Ok
 					failureReason := ctldReply.GetPayloadStepMetaReply().FailureReason
