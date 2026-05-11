@@ -24,6 +24,7 @@ import (
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/cinfo"
 	"CraneFrontEnd/internal/cqueue"
+	"CraneFrontEnd/internal/util"
 	"errors"
 	"fmt"
 	"os"
@@ -85,12 +86,17 @@ func (lsf LSFWrapper) Preprocess() error {
 }
 
 var (
+	FlagBacct_C string
+	FlagBacct_D string
+	FlagBacct_S string
+	FlagBacct_u string
 	FlagBacct_d bool
 	FlagBacct_e bool
-
-	FlagBsub_B  bool
-	FlagBsub_N  bool
-	FlagBsub_Ne bool
+	FlagBacct_q string
+	FlagBacct_m string
+	FlagBacct_M string
+	FlagBacct_b bool
+	FlagBacct_l bool
 )
 
 func bacct() *cobra.Command {
@@ -103,45 +109,118 @@ func bacct() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			cacct.FlagFilterUsers = strings.ReplaceAll(cacct.FlagFilterUsers, " ", ",")
-			cacct.FlagFilterStartTime = ConvertInterval(cacct.FlagFilterStartTime)
-			cacct.FlagFilterEndTime = ConvertInterval(cacct.FlagFilterEndTime)
-			cacct.FlagFilterSubmitTime = ConvertInterval(cacct.FlagFilterSubmitTime)
-			{
-				states := []string{}
-				if FlagBacct_d {
-					states = append(states, "completed")
-				}
-				if FlagBacct_e {
-					states = append(states, "failed", "cancelled", "time-limit-exceeded")
-				}
-				if len(states) > 0 {
-					cacct.FlagFilterStates = strings.Join(states, ",")
-				}
+			cacctArgs := make([]string, 0)
+			if FlagBacct_C != "" {
+				cacctArgs = append(cacctArgs, "--end-time", ConvertInterval(FlagBacct_C))
 			}
-			if len(args) == 1 && args[0] == "0" {
-				cacct.FlagFilterJobIDs = ""
-			} else if len(args) > 0 {
-				cacct.FlagFilterJobIDs = strings.Join(args, ",")
+			if FlagBacct_D != "" {
+				cacctArgs = append(cacctArgs, "--start-time", ConvertInterval(FlagBacct_D))
+			}
+			if FlagBacct_S != "" {
+				cacctArgs = append(cacctArgs, "--submit-time", ConvertInterval(FlagBacct_S))
+			}
+			if FlagBacct_u != "" {
+				cacctArgs = append(cacctArgs, "--user", strings.ReplaceAll(FlagBacct_u, " ", ","))
+			}
+			states := []string{}
+			if FlagBacct_d {
+				states = append(states, "completed")
+			}
+			if FlagBacct_e {
+				states = append(states, "failed", "cancelled", "time-limit-exceeded")
+			}
+			if len(states) > 0 {
+				cacctArgs = append(cacctArgs, "--state", strings.Join(states, ","))
+			}
+			if FlagBacct_q != "" {
+				cacctArgs = append(cacctArgs, "--partition", FlagBacct_q)
+			}
+			if FlagBacct_m != "" {
+				cacctArgs = append(cacctArgs, "--nodelist", FlagBacct_m)
+			}
+			if FlagBacct_M != "" {
+				data, err := os.ReadFile(FlagBacct_M)
+				if err != nil {
+					os.Exit(util.ErrorCmdArg)
+				}
+				hostListStr := string(data)
+				hostListStr = strings.ReplaceAll(hostListStr, "\n", "")
+				hostListStr = strings.ReplaceAll(hostListStr, "\r", "")
+				cacctArgs = append(cacctArgs, "--nodelist", hostListStr)
+			}
+			if FlagBacct_b {
+				cacctArgs = append(cacctArgs, "--noheader")
+			}
+			if FlagBacct_l {
+				cacctArgs = append(cacctArgs, "--full")
 			}
 
-			cacct.RootCmd.PersistentPreRun(cmd, []string{})
-			cacct.RootCmd.Run(cmd, []string{})
+			if len(args) == 1 && args[0] == "0" {
+				cacctArgs = append(cacctArgs, "--job", "")
+			} else if len(args) > 0 {
+				cacctArgs = append(cacctArgs, "--job", strings.Join(args, ","))
+			}
+
+			cacct.RootCmd.SetArgs(cacctArgs)
+			err := ccancel.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
 		},
 	}
 
 	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
-	cmd.Flags().StringVar(&cacct.FlagFilterUsers, "u", "", "Displays accounting statistics for jobs that are submitted by the specified users")
-	cmd.Flags().StringVar(&cacct.FlagFilterStartTime, "D", "", "Displays accounting statistics for jobs that are dispatched during the specified time interval")
-	cmd.Flags().StringVar(&cacct.FlagFilterEndTime, "C", "", "Displays accounting statistics for jobs that completed or exited during the specified time interval")
-	cmd.Flags().StringVar(&cacct.FlagFilterSubmitTime, "S", "", "Displays accounting statistics for jobs that are submitted during the specified time interval")
-	cmd.Flags().BoolVar(&cacct.FlagFull, "l", false, "Long format. Displays detailed information for each job in a multiline format")
-	cmd.Flags().BoolVar(&FlagBacct_d, "d", false, "Displays accounting statistics for successfully completed jobs")
-	cmd.Flags().BoolVar(&FlagBacct_e, "e", false, "Displays accounting statistics for exited jobs")
-	cmd.Flags().BoolVar(&cacct.FlagNoHeader, "noheader", false, "Removes the column headings from the output")
-
+	cmd.Flags().StringVar(&FlagBacct_C, "C", "", "Displays accounting statistics for jobs that completed or exited during the specified time interval.")
+	cmd.Flags().StringVar(&FlagBacct_D, "D", "", "Displays accounting statistics for jobs that are dispatched during the specified time interval.")
+	cmd.Flags().StringVar(&FlagBacct_S, "E", "", "Displays accounting statistics that are calculated with eligible pending time instead of total pending time for the wait time, turnaround time, expansion factor (turnaround time divided by run time), and hog factor (CPU time divided by turnaround time).")
+	cmd.Flags().StringVar(&FlagBacct_u, "u", "", "Displays accounting statistics for jobs that are submitted by the specified users, or by all users if the keyword all is specified.")
+	cmd.Flags().BoolVar(&FlagBacct_d, "d", false, "Displays accounting statistics for successfully completed jobs (with a DONE status).")
+	cmd.Flags().BoolVar(&FlagBacct_e, "e", false, "Displays accounting statistics for exited jobs (with an EXIT status).")
+	cmd.Flags().StringVar(&FlagBacct_q, "q", "", "Displays accounting statistics for jobs that are submitted to the specified queues.")
+	cmd.Flags().StringVar(&FlagBacct_m, "m", "", "Displays accounting statistics for jobs that are dispatched to the specified hosts.")
+	cmd.Flags().StringVar(&FlagBacct_M, "M", "", "Displays accounting statistics for jobs that are dispatched to the hosts listed in a file")
+	cmd.Flags().BoolVar(&FlagBacct_b, "b", false, "Brief format.")
+	cmd.Flags().BoolVar(&FlagBacct_l, "l", false, "Long format.")
 	return cmd
 }
+
+var (
+	FlagBsub_nnodes string
+	FlagBsub_n      string
+	FlagBsub_W      string
+	FlagBsub_M      string
+	FlagBsub_q      string
+	FlagBsub_J      string
+	FlagBsub_cwd    string
+	FlagBsub_Lp     string
+	FlagBsub_m      string
+	FlagBsub_L      string
+	FlagBsub_env    string
+	FlagBsub_i      string
+	FlagBsub_o      string
+	FlagBsub_e      string
+	FlagBsub_ext    string
+	FlagBsub_B      bool
+	FlagBsub_N      bool
+	FlagBsub_Ne     bool
+	FlagBsub_u      string
+	FlagBsub_Jd     string
+	FlagBsub_json   bool
+	FlagBsub_oo     string
+	FlagBsub_U      string
+	FlagBsub_x      string
+	FlagBsub_H      bool
+	FlagBsub_b      string
+	FlagBsub_w      string
+	FlagBsub_t      string
+)
 
 func bsub() *cobra.Command {
 	cmd := &cobra.Command{
@@ -151,57 +230,152 @@ func bsub() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			{
-				mailTypes := make([]string, 0)
-				if FlagBsub_B {
-					mailTypes = append(mailTypes, "BEGIN")
+			cbatchArgs := make([]string, 0)
+			if FlagBsub_nnodes != "" {
+				cbatchArgs = append(cbatchArgs, "--nodes", FlagBsub_nnodes)
+			}
+			if FlagBsub_n != "" {
+				cbatchArgs = append(cbatchArgs, "--ntasks", FlagBsub_n)
+			}
+			if FlagBsub_W != "" {
+				cbatchArgs = append(cbatchArgs, "--time", cbatch.ConvertLSFRuntimeLimit(FlagBsub_W))
+			}
+			if FlagBsub_M != "" {
+				cbatchArgs = append(cbatchArgs, "--mem", FlagBsub_M)
+			}
+			if FlagBsub_q != "" {
+				cbatchArgs = append(cbatchArgs, "--partition", FlagBsub_q)
+			}
+			if FlagBsub_J != "" {
+				cbatchArgs = append(cbatchArgs, "--job-name", FlagBsub_J)
+			}
+			if FlagBsub_cwd != "" {
+				cbatchArgs = append(cbatchArgs, "--chdir", FlagBsub_cwd)
+			}
+			if FlagBsub_Lp != "" {
+				cbatchArgs = append(cbatchArgs, "--licenses", FlagBsub_Lp)
+			}
+			if FlagBsub_m != "" {
+				cbatchArgs = append(cbatchArgs, "--nodelist", strings.ReplaceAll(FlagBsub_m, " ", ","))
+			}
+			if FlagBsub_L != "" {
+				cbatchArgs = append(cbatchArgs, "--get-user-env", FlagBsub_L)
+			}
+			if FlagBsub_env != "" {
+				cbatchArgs = append(cbatchArgs, "--export", FlagBsub_env)
+			}
+			if FlagBsub_i != "" {
+				cbatchArgs = append(cbatchArgs, "--input", FlagBsub_i)
+			}
+			if FlagBsub_o != "" {
+				cbatchArgs = append(cbatchArgs, "--output", FlagBsub_o)
+			}
+			if FlagBsub_e != "" {
+				cbatchArgs = append(cbatchArgs, "--error", FlagBsub_e)
+			}
+			if FlagBsub_ext != "" {
+				cbatchArgs = append(cbatchArgs, "--extra-attr", FlagBsub_ext)
+			}
+			mailTypes := make([]string, 0)
+			if FlagBsub_B {
+				mailTypes = append(mailTypes, "BEGIN")
+			}
+			if FlagBsub_N {
+				mailTypes = append(mailTypes, "END")
+			}
+			if FlagBsub_Ne {
+				mailTypes = append(mailTypes, "FAIL")
+			}
+			cbatchArgs = append(cbatchArgs, "--mail-type", strings.Join(mailTypes, ","))
+			if FlagBsub_u != "" {
+				cbatchArgs = append(cbatchArgs, "--mail-user", FlagBsub_u)
+			}
+			if FlagBsub_Jd != "" {
+				cbatchArgs = append(cbatchArgs, "--comment", FlagBsub_Jd)
+			}
+			if FlagBsub_json {
+				cbatchArgs = append(cbatchArgs, "--json")
+			}
+			if FlagBsub_oo != "" {
+				cbatchArgs = append(cbatchArgs, "--open-mode")
+			}
+			if FlagBsub_U != "" {
+				cbatchArgs = append(cbatchArgs, "--reservation", FlagBacct_u)
+			}
+			if FlagBsub_x != "" {
+				cbatchArgs = append(cbatchArgs, "--exclusive", FlagBsub_x)
+			}
+			if FlagBsub_H {
+				cbatchArgs = append(cbatchArgs, "--hold")
+			}
+			if FlagBsub_b != "" {
+				cbatchArgs = append(cbatchArgs, "--begin", FlagBsub_b)
+			}
+			if FlagBsub_w != "" {
+				cbatchArgs = append(cbatchArgs, "--dependency", FlagBsub_w)
+			}
+			if FlagBsub_t != "" {
+				cbatchArgs = append(cbatchArgs, "--deadline", FlagBsub_t)
+			}
+			cbatch.RootCmd.SetArgs(cbatchArgs)
+			err := cbatch.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
 				}
-				if FlagBsub_N {
-					mailTypes = append(mailTypes, "END")
-				}
-				if FlagBsub_Ne {
-					mailTypes = append(mailTypes, "FAIL")
-				}
-				cbatch.FlagMailType = strings.Join(mailTypes, ",")
+			} else {
+				os.Exit(util.ErrorSuccess)
 			}
-			if cbatch.FlagNodelist != "" {
-				cbatch.FlagNodelist = strings.ReplaceAll(cbatch.FlagNodelist, " ", ",")
-			}
-			cbatch.FlagTime = cbatch.ConvertLSFRuntimeLimit(cbatch.FlagTime)
-
-			// Cbatch use Flags().Changed() to detect if some flag is set by user or default value.
-			// Such flags(nodes, cpus-per-task, ntasks-per-node) need to be set if changed.
-			if cmd.Flags().Changed("nnode") {
-				cbatch.RootCmd.ParseFlags([]string{"--nodes", strconv.Itoa(int(cbatch.FlagNodes))})
-			}
-			if cmd.Flags().Changed("n") {
-				cbatch.RootCmd.ParseFlags([]string{"--ntasks-per-node", strconv.Itoa(int(cbatch.FlagNtasksPerNode))})
-			}
-
-			cbatch.RootCmd.PersistentPreRun(cmd, args)
-			cbatch.RootCmd.Run(cbatch.RootCmd, args)
 		},
 	}
 
 	addConfigPathFlag(cmd, &cbatch.FlagConfigFilePath)
-	cmd.Flags().StringVar(&cbatch.FlagJob, "J", "", "Assigns the specified name to the job")
-	cmd.Flags().StringVar(&cbatch.FlagStdoutPath, "o", "", "Appends the standard output of the job to the specified file path")
-	cmd.Flags().StringVar(&cbatch.FlagStderrPath, "e", "", "Appends the standard error output of the job to the specified file path")
-	cmd.Flags().Uint32Var(&cbatch.FlagNodes, "nnode", 1, "Specifies the number of compute nodes that are required for the job")
-	cmd.Flags().Uint32Var(&cbatch.FlagNtasksPerNode, "n", 1, "Submits a parallel job and specifies the number of tasks in the job")
-	cmd.Flags().StringVar(&cbatch.FlagTime, "W", "", "Sets the runtime limit of the job (timeFormat: [hour:]minute)")
-	cmd.Flags().StringVar(&cbatch.FlagMem, "M", "", "Sets a memory limit for all the processes that belong to the job")
-	cmd.Flags().StringVar(&cbatch.FlagCwd, "cwd", "", "Specifies the current working directory for job execution")
-	cmd.Flags().StringVar(&cbatch.FlagPartition, "q", "", "Submits the job to the specified queue (partition)")
-	cmd.Flags().StringVar(&cbatch.FlagNodelist, "m", "", "Submits a job to be run on specific host")
-	cmd.Flags().StringVar(&cbatch.FlagExport, "env", "", "Controls the propagation of the specified job submission environment variables to the execution hosts")
-	cmd.Flags().StringVar(&cbatch.FlagMailUser, "u", "", "Sends mail to the specified email destination")
+	cmd.Flags().StringVar(&FlagBsub_nnodes, "nnode", "", "Specifies the number of compute nodes that are required for the job")
+	cmd.Flags().StringVar(&FlagBsub_n, "n", "", "")
+	cmd.Flags().StringVar(&FlagBsub_W, "W", "", "")
+	cmd.Flags().StringVar(&FlagBsub_M, "M", "", "")
+	cmd.Flags().StringVar(&FlagBsub_q, "q", "", "")
+	cmd.Flags().StringVar(&FlagBsub_J, "J", "", "")
+	cmd.Flags().StringVar(&FlagBsub_cwd, "cwd", "", "")
+	cmd.Flags().StringVar(&FlagBsub_Lp, "Lp", "", "")
+	cmd.Flags().StringVar(&FlagBsub_m, "m", "", "")
+	cmd.Flags().StringVar(&FlagBsub_L, "L", "", "")
+	cmd.Flags().StringVar(&FlagBsub_env, "env", "", "")
+	cmd.Flags().StringVar(&FlagBsub_i, "i", "", "")
+	cmd.Flags().StringVar(&FlagBsub_o, "o", "", "")
+	cmd.Flags().StringVar(&FlagBsub_e, "e", "", "")
+	cmd.Flags().StringVar(&FlagBsub_ext, "ext", "", "")
 	cmd.Flags().BoolVar(&FlagBsub_B, "B", false, "Sends mail to you when the job is dispatched and begins execution")
 	cmd.Flags().BoolVar(&FlagBsub_N, "N", false, "Sends the job report to you by mail when the job finishes")
 	cmd.Flags().BoolVar(&FlagBsub_Ne, "Ne", false, "Sends the job report to you by mail when the job failed")
+	cmd.Flags().StringVar(&FlagBsub_u, "u", "", "")
+	cmd.Flags().StringVar(&FlagBsub_Jd, "Jd", "", "")
+	cmd.Flags().BoolVar(&FlagBsub_json, "json", false, "")
+	cmd.Flags().StringVar(&FlagBsub_oo, "oo", "", "")
+	cmd.Flags().StringVar(&FlagBsub_U, "U", "", "")
+	cmd.Flags().StringVar(&FlagBsub_x, "x", "", "")
+	cmd.Flags().BoolVar(&FlagBsub_H, "W", false, "")
+	cmd.Flags().StringVar(&FlagBsub_b, "b", "", "")
+	cmd.Flags().StringVar(&FlagBsub_w, "w", "", "")
+	cmd.Flags().StringVar(&FlagBsub_t, "t", "", "")
 
 	return cmd
 }
+
+var (
+	FlagBjobs_a        bool
+	FlagBjobs_l        bool
+	FlagBjobs_noheader bool
+	FlagBjobs_u        string
+	FlagBjobs_q        string
+	FlagBjobs_J        string
+	FlagBjobs_r        bool
+	FlagBjobs_p        bool
+	FlagBjobs_json     bool
+)
 
 func bjobs() *cobra.Command {
 	// bjobs: args represent job ids
@@ -213,24 +387,79 @@ func bjobs() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			cqueue.FlagFilterJobIDs = strings.Join(args, ",")
-			cqueue.RootCmd.PersistentPreRun(cmd, []string{})
-			if !cqueue.FlagNoHeader {
+			cqueueArgs := make([]string, 0)
+			if FlagBjobs_l {
+				cqueueArgs = append(cqueueArgs, "--full")
+			}
+			if !FlagBjobs_noheader {
 				fmt.Printf("%s %s %s %s %s %s %s %s\n",
 					"JOBID", "USER", "STAT", "QUEUE", "FROM_HOST", "EXEC_HOST", "JOB_NAME", "SUBMIT_TIME")
-				cqueue.FlagNoHeader = true
+				cqueueArgs = append(cqueueArgs, "--noheader")
 			}
-			cqueue.FlagFormat = "%j %u %t %P %L %L %n %s"
-			cqueue.RootCmd.Run(cmd, []string{})
+			if FlagBjobs_u != "" {
+				cqueueArgs = append(cqueueArgs, "--user", FlagBjobs_u)
+			}
+
+			if FlagBjobs_q != "" {
+				cqueueArgs = append(cqueueArgs, "--partition", FlagBjobs_q)
+
+			}
+
+			if FlagBjobs_J != "" {
+				cqueueArgs = append(cqueueArgs, "--name", FlagBjobs_J)
+
+			}
+			state := make([]string, 0)
+			if FlagBjobs_r {
+				state = append(state, "running")
+			}
+			if FlagBjobs_p {
+				state = append(state, "pending")
+
+			}
+			if len(state) > 0 {
+				cqueueArgs = append(cqueueArgs, "--state", strings.Join(state, " "))
+			}
+			if FlagBjobs_json {
+				cqueueArgs = append(cqueueArgs, "--json")
+			}
+			cqueueArgs = append(cqueueArgs, "--format", "%j %u %t %P %L %L %n %s")
+			cqueueArgs = append(cqueueArgs, strings.Join(args, ","))
+			cqueue.RootCmd.SetArgs(cqueueArgs)
+			err := cqueue.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
+
 		},
 	}
 
 	addConfigPathFlag(cmd, &cqueue.FlagConfigFilePath)
-	cmd.Flags().StringVar(&cqueue.FlagFilterJobNames, "J", "", "Displays information about jobs with the specified job name")
-	cmd.Flags().BoolVar(&cqueue.FlagNoHeader, "noheader", false, "Removes the column headings from the output")
-
+	cmd.Flags().BoolVar(&FlagBjobs_a, "a", false, "")
+	cmd.Flags().BoolVar(&FlagBjobs_l, "l", false, "")
+	cmd.Flags().BoolVar(&FlagBjobs_noheader, "noheader", false, "")
+	cmd.Flags().StringVar(&FlagBjobs_u, "u", "", "")
+	cmd.Flags().StringVar(&FlagBjobs_q, "q", "", "")
+	cmd.Flags().StringVar(&FlagBjobs_J, "J", "", "")
+	cmd.Flags().BoolVar(&FlagBjobs_r, "r", false, "")
+	cmd.Flags().BoolVar(&FlagBjobs_p, "p", false, "")
+	cmd.Flags().BoolVar(&FlagBjobs_json, "json", false, "")
 	return cmd
 }
+
+var (
+	FlagBqueues_noheader bool
+	FlagBqueues_json     bool
+	FlagBqueues_m        string
+	FlagBqueues_l        bool
+)
 
 func bqueues() *cobra.Command {
 	// bqueues: args represent queue names
@@ -242,17 +471,53 @@ func bqueues() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			cinfo.FlagFilterPartitions = args
-			cinfo.RootCmd.PersistentPreRun(cmd, []string{})
-			cinfo.RootCmd.Run(cmd, []string{})
+			cinfoArgs := make([]string, 0)
+			if FlagBqueues_noheader {
+				cinfoArgs = append(cinfoArgs, "--noheader")
+			}
+			if FlagBqueues_json {
+				cinfoArgs = append(cinfoArgs, "--json")
+			}
+			if FlagBqueues_m != "" {
+				cinfoArgs = append(cinfoArgs, "--nodes", FlagBacct_m)
+			}
+			if FlagBqueues_l {
+				cinfoArgs = append(cinfoArgs, "--full")
+			}
+			cinfoArgs = append(cinfoArgs, "--partition")
+			cinfoArgs = append(cinfoArgs, args...)
+
+			cinfo.RootCmd.SetArgs(cinfoArgs)
+			err := cinfo.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
 		},
 	}
 
 	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
-	cmd.Flags().StringSliceVar(&cinfo.FlagFilterNodes, "m", nil, "Displays the queues that can run jobs on the specified host")
+	cmd.Flags().BoolVar(&FlagBqueues_noheader, "noheader", false, "")
+	cmd.Flags().BoolVar(&FlagBqueues_json, "json", false, "")
+	cmd.Flags().StringVar(&FlagBqueues_m, "m", "", "")
+	cmd.Flags().BoolVar(&FlagBqueues_l, "l", false, "")
 
 	return cmd
 }
+
+var (
+	FlagBkill_J    string
+	FlagBkill_q    string
+	FlagBkill_stat string
+	FlagBkill_u    string
+	FlagBkill_m    string
+)
 
 func bkill() *cobra.Command {
 	// bkill: args represent job ids
@@ -264,41 +529,52 @@ func bkill() *cobra.Command {
 		GroupID: "lsf",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			ignore_args, ignore_flags := false, false
-			if ccancel.FlagState != "" {
-				ignore_args = true
-				ignore_flags = true
+			ccancelArgs := make([]string, 0)
+			if FlagBkill_J != "" {
+				ccancelArgs = append(ccancelArgs, "--name", FlagBkill_J)
 			}
-			if len(args) == 1 && args[0] == "0" {
-				ignore_args = true
-			} else if len(args) > 0 {
-				ignore_flags = true
+			if FlagBkill_q != "" {
+				ccancelArgs = append(ccancelArgs, "--partition", FlagBkill_q)
 			}
-
-			if ignore_args {
-				args = nil
-			} else if len(args) > 0 {
-				args = []string{strings.Join(args, ",")}
+			if FlagBkill_stat != "" {
+				ccancelArgs = append(ccancelArgs, "--state")
+				switch FlagBkill_stat {
+				case "run":
+					ccancelArgs = append(ccancelArgs, "running")
+				case "pend":
+					ccancelArgs = append(ccancelArgs, "pending")
+				case "susp":
+					ccancelArgs = append(ccancelArgs, "suspend")
+				}
 			}
-
-			if ignore_flags {
-				ccancel.FlagJobName = ""
-				ccancel.FlagUserName = ""
-				ccancel.FlagPartition = ""
-				ccancel.FlagNodes = nil
+			if FlagBkill_u != "" {
+				ccancelArgs = append(ccancelArgs, "--user", FlagBkill_u)
 			}
-
-			ccancel.RootCmd.PersistentPreRun(cmd, args)
-			ccancel.RootCmd.Run(cmd, args)
+			if FlagBkill_m != "" {
+				ccancelArgs = append(ccancelArgs, "--nodes", FlagBkill_m)
+			}
+			ccancelArgs = append(ccancelArgs, strings.Join(args, ","))
+			ccancel.RootCmd.SetArgs(ccancelArgs)
+			err := ccancel.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
 		},
 	}
 
 	addConfigPathFlag(cmd, &ccancel.FlagConfigFilePath)
-	cmd.Flags().StringVar(&ccancel.FlagJobName, "J", "", "Operates only on jobs with the specified job name")
-	cmd.Flags().StringVar(&ccancel.FlagUserName, "u", "", "Operates only on jobs that are submitted by the specified user")
-	cmd.Flags().StringVar(&ccancel.FlagPartition, "q", "", "Operates only on jobs in the specified queue (partition)")
-	cmd.Flags().StringSliceVar(&ccancel.FlagNodes, "m", nil, "Operates only on jobs that are dispatched to the specified host")
-	cmd.Flags().StringVar(&ccancel.FlagState, "stat", "", "Operates only on jobs in the specified status")
+	cmd.Flags().StringVar(&FlagBkill_J, "J", "", "Operates only on jobs with the specified job name")
+	cmd.Flags().StringVar(&FlagBkill_u, "u", "", "Operates only on jobs that are submitted by the specified user")
+	cmd.Flags().StringVar(&FlagBkill_q, "q", "", "Operates only on jobs in the specified queue (partition)")
+	cmd.Flags().StringVar(&FlagBkill_m, "m", "", "Operates only on jobs that are dispatched to the specified host")
+	cmd.Flags().StringVar(&FlagBkill_stat, "stat", "", "Operates only on jobs in the specified status")
 
 	return cmd
 }
