@@ -74,7 +74,8 @@ type GlobalVariables struct {
 
 	// Used by Cfored <--> Ctld state machine to de-multiplex messages from CraneCtld.
 	// Cfored <--> Ctld state machine GUARANTEES that NO `nil` will be sent into these channels.
-	// Used for cattach with task id allocated.
+	// Used for cattach with job id allocated.
+	// The map key (int32) is the cattach process PID.
 	ctldReplyChannelMapForCattachByStep map[StepIdentifier]map[int32]chan *protos.StreamCtldReply
 
 	// Used by Calloc/Crun <--> Cfored state machine to multiplex messages
