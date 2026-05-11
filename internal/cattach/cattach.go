@@ -574,8 +574,15 @@ reading:
 
 				data := make([]byte, nr)
 				copy(data, buf[:nr])
-				m.chanInputFromTerm <- data
-				log.Tracef("Sent %d bytes to channel", nr)
+				// Use select so that a concurrent taskFinishCb() (e.g. connection
+				// broken, SIGINT) can interrupt the send when chanInputFromTerm is
+				// full, preventing StdinReaderRoutine from blocking forever.
+				select {
+				case m.chanInputFromTerm <- data:
+					log.Tracef("Sent %d bytes to channel", nr)
+				case <-m.taskFinishCtx.Done():
+					return
+				}
 			}
 		}
 	}
@@ -689,8 +696,19 @@ reading:
 				if err == io.EOF {
 					eofData := make([]byte, n)
 					copy(eofData, buffer[:n])
-					m.chanInputFromTerm <- eofData
-					m.chanInputFromTerm <- nil
+					// Use select on both sends so that taskFinishCb() (e.g. SIGINT,
+					// connection broken) can interrupt a blocking send when
+					// chanInputFromTerm is full and the consumer has already exited,
+					// preventing FileReaderRoutine from leaking forever.
+					select {
+					case m.chanInputFromTerm <- eofData:
+					case <-m.taskFinishCtx.Done():
+						break reading
+					}
+					select {
+					case m.chanInputFromTerm <- nil:
+					case <-m.taskFinishCtx.Done():
+					}
 					break reading
 				}
 				log.Errorf("Failed to read from fd: %v", err)
@@ -698,7 +716,11 @@ reading:
 			}
 			copyData := make([]byte, n)
 			copy(copyData, buffer[:n])
-			m.chanInputFromTerm <- copyData
+			select {
+			case m.chanInputFromTerm <- copyData:
+			case <-m.taskFinishCtx.Done():
+				break reading
+			}
 		}
 	}
 }
@@ -718,6 +740,12 @@ func (m *StateMachineOfCattach) forwardingSigHandlerRoutine() {
 			default:
 				log.Tracef("Ignored signal: %v", sig)
 			}
+		case <-m.taskFinishCtx.Done():
+			// taskFinishCb() was called by another path (e.g. connection broken,
+			// STEP_COMPLETION_ACK_REPLY received).  Exit so this goroutine does
+			// not leak when StateForwarding returns without a SIGINT.
+			log.Tracef("Signal processing goroutine exit (taskFinishCtx done).")
+			return
 		}
 	}
 }

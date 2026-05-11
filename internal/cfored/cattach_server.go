@@ -282,17 +282,21 @@ CforedCattachStateMachineLoop:
 
 			select {
 			case ctldReply := <-ctldReplyChannel:
-				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
-					log.Errorf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
-						jobId, stepId, ctldReply.Type)
-				} else {
-					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY", jobId, stepId)
-					state = DeadCattach
-				}
+				// Always stop the waitAnySupervisorReady goroutine before transitioning,
+				// regardless of message type.
 				stopWaiting.Store(true)
 				// Wake up the goroutine in waitSupervisorChannelsReady that may be blocked
 				// in toSupervisorChannelCV.Wait() so it can observe stopWaiting == true.
 				gSupervisorChanKeeper.broadcastStopWaiting()
+				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+					log.Errorf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s in WaitIOForward, transitioning to DeadCattach",
+						jobId, stepId, ctldReply.Type)
+				} else {
+					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY", jobId, stepId)
+				}
+				// Transition to DeadCattach regardless of the message type: any ctld
+				// message received here means the step is no longer valid for I/O.
+				state = DeadCattach
 			case <-readyChannel:
 				reply = &protos.StreamCattachReply{
 					Type: protos.StreamCattachReply_TASK_IO_FORWARD_READY,
