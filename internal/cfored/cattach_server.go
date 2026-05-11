@@ -428,7 +428,7 @@ CforedCattachStateMachineLoop:
 		case End:
 			log.Infof("[Cfored<->Cattach][Job #%d] Enter State End", jobId)
 
-			// remove cattach by taskId for ctldReplyChannel
+			// remove cattach by [jobid, stepId] for ctldReplyChannel
 			gVars.ctldReplyChannelMapMtx.Lock()
 			if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] != nil {
 				delete(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}], cattachPid)
