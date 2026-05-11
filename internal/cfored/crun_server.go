@@ -153,14 +153,8 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
-	// Use larger buffers to reduce the chance of blocking:
-	// - ctldReplyChannel: WaitAllFrontEnd pre-sends JOB_CANCEL_REQUEST +
-	//   JOB_COMPLETION_ACK_REPLY (2 messages); a small pre-existing payload from
-	//   ctld before the disconnect would overflow capacity=2.
-	// - StepIoRequestChannel: supervisor output may arrive faster than crun
-	//   consumes it; a larger buffer reduces the drop rate in forwardRemoteIoToFront.
-	ctldReplyChannel := make(chan *protos.StreamCtldReply, 8)
-	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, 64)
+	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
+	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, 2)
 	jobId = math.MaxUint32
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
