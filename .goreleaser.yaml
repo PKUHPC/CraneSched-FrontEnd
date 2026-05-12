@@ -111,6 +111,30 @@ nfpms:
         file_info:
           mode: 0644
 
+      # CNI plugin binaries
+      - src: build/tool/meta-cni
+        dst: /opt/cni/bin/crane-meta
+        file_info:
+          mode: 0755
+      - src: build/tool/dns-register
+        dst: /opt/cni/bin/dns-register
+        file_info:
+          mode: 0755
+
+      # CNI plugin configurations (reference only, user must copy to /etc/cni/net.d/)
+      - src: tool/meta-cni/config/00-crane-calico.conf
+        dst: /usr/share/doc/cranesched-frontend/cni/00-crane-calico.conf
+        file_info:
+          mode: 0644
+      - src: tool/meta-cni/config/00-crane-calico-sriov.conf
+        dst: /usr/share/doc/cranesched-frontend/cni/00-crane-calico-sriov.conf
+        file_info:
+          mode: 0644
+      - src: tool/meta-cni/config/00-meta.example.conf
+        dst: /usr/share/doc/cranesched-frontend/cni/00-meta.example.conf
+        file_info:
+          mode: 0644
+
       # Documentation
       - src: LICENSE
         dst: /usr/share/doc/cranesched-frontend/LICENSE
