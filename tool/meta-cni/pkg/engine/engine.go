@@ -309,7 +309,10 @@ func executePipelineAdd(ctx context.Context, rp *ResolvedPipeline, conf *metatyp
 			// Rollback successful delegates in this pipeline
 			for j := len(successful) - 1; j >= 0; j-- {
 				snap := successful[j]
-				rollRestore, _ := utils.ApplyEnv(snap.env)
+				rollRestore, rollEnvErr := utils.ApplyEnv(snap.env)
+				if rollEnvErr != nil {
+					logger.Errorf("rollback: failed to apply env for delegate %s, attempting DEL with current env: %v", snap.delegate.Identifier(), rollEnvErr)
+				}
 				_ = callDelegateDel(ctx, snap.delegate, conf.CNIVersion, chainResult, conf.RuntimeConfig)
 				if rollRestore != nil {
 					rollRestore()
