@@ -143,10 +143,11 @@ func bacct() *cobra.Command {
 				if err != nil {
 					os.Exit(util.ErrorCmdArg)
 				}
-				hostListStr := string(data)
-				hostListStr = strings.ReplaceAll(hostListStr, "\n", "")
-				hostListStr = strings.ReplaceAll(hostListStr, "\r", "")
-				cacctArgs = append(cacctArgs, "--nodelist", hostListStr)
+				hosts := strings.Fields(string(data))
+				if len(hosts) == 0 {
+					os.Exit(util.ErrorCmdArg)
+				}
+				cacctArgs = append(cacctArgs, "--nodelist", strings.Join(hosts, ","))
 			}
 			if FlagBacct_b {
 				cacctArgs = append(cacctArgs, "--noheader")
@@ -162,7 +163,7 @@ func bacct() *cobra.Command {
 			}
 
 			cacct.RootCmd.SetArgs(cacctArgs)
-			err := ccancel.RootCmd.Execute()
+			err := cacct.RootCmd.Execute()
 			if err != nil {
 				switch e := err.(type) {
 				case *util.CraneError:
@@ -179,7 +180,7 @@ func bacct() *cobra.Command {
 	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
 	cmd.Flags().StringVar(&FlagBacct_C, "C", "", "Displays accounting statistics for jobs that completed or exited during the specified time interval.")
 	cmd.Flags().StringVar(&FlagBacct_D, "D", "", "Displays accounting statistics for jobs that are dispatched during the specified time interval.")
-	cmd.Flags().StringVar(&FlagBacct_S, "E", "", "Displays accounting statistics that are calculated with eligible pending time instead of total pending time for the wait time, turnaround time, expansion factor (turnaround time divided by run time), and hog factor (CPU time divided by turnaround time).")
+	cmd.Flags().StringVar(&FlagBacct_S, "S", "", "Displays accounting statistics for jobs submitted during the specified time interval.")
 	cmd.Flags().StringVar(&FlagBacct_u, "u", "", "Displays accounting statistics for jobs that are submitted by the specified users, or by all users if the keyword all is specified.")
 	cmd.Flags().BoolVar(&FlagBacct_d, "d", false, "Displays accounting statistics for successfully completed jobs (with a DONE status).")
 	cmd.Flags().BoolVar(&FlagBacct_e, "e", false, "Displays accounting statistics for exited jobs (with an EXIT status).")
@@ -215,7 +216,7 @@ var (
 	FlagBsub_json   bool
 	FlagBsub_oo     string
 	FlagBsub_U      string
-	FlagBsub_x      string
+	FlagBsub_x      bool
 	FlagBsub_H      bool
 	FlagBsub_b      string
 	FlagBsub_w      string
@@ -259,7 +260,7 @@ func bsub() *cobra.Command {
 				cbatchArgs = append(cbatchArgs, "--nodelist", strings.ReplaceAll(FlagBsub_m, " ", ","))
 			}
 			if FlagBsub_L != "" {
-				cbatchArgs = append(cbatchArgs, "--get-user-env", FlagBsub_L)
+				cbatchArgs = append(cbatchArgs, "--get-user-env")
 			}
 			if FlagBsub_env != "" {
 				cbatchArgs = append(cbatchArgs, "--export", FlagBsub_env)
@@ -286,7 +287,9 @@ func bsub() *cobra.Command {
 			if FlagBsub_Ne {
 				mailTypes = append(mailTypes, "FAIL")
 			}
-			cbatchArgs = append(cbatchArgs, "--mail-type", strings.Join(mailTypes, ","))
+			if len(mailTypes) > 0 {
+				cbatchArgs = append(cbatchArgs, "--mail-type", strings.Join(mailTypes, ","))
+			}
 			if FlagBsub_u != "" {
 				cbatchArgs = append(cbatchArgs, "--mail-user", FlagBsub_u)
 			}
@@ -297,13 +300,13 @@ func bsub() *cobra.Command {
 				cbatchArgs = append(cbatchArgs, "--json")
 			}
 			if FlagBsub_oo != "" {
-				cbatchArgs = append(cbatchArgs, "--open-mode")
+				cbatchArgs = append(cbatchArgs, "--open-mode", FlagBsub_oo)
 			}
 			if FlagBsub_U != "" {
-				cbatchArgs = append(cbatchArgs, "--reservation", FlagBacct_u)
+				cbatchArgs = append(cbatchArgs, "--reservation", FlagBsub_U)
 			}
-			if FlagBsub_x != "" {
-				cbatchArgs = append(cbatchArgs, "--exclusive", FlagBsub_x)
+			if FlagBsub_x {
+				cbatchArgs = append(cbatchArgs, "--exclusive")
 			}
 			if FlagBsub_H {
 				cbatchArgs = append(cbatchArgs, "--hold")
@@ -317,6 +320,7 @@ func bsub() *cobra.Command {
 			if FlagBsub_t != "" {
 				cbatchArgs = append(cbatchArgs, "--deadline", FlagBsub_t)
 			}
+			cbatchArgs = append(cbatchArgs, args[0])
 			cbatch.RootCmd.SetArgs(cbatchArgs)
 			err := cbatch.RootCmd.Execute()
 			if err != nil {
@@ -356,8 +360,8 @@ func bsub() *cobra.Command {
 	cmd.Flags().BoolVar(&FlagBsub_json, "json", false, "")
 	cmd.Flags().StringVar(&FlagBsub_oo, "oo", "", "")
 	cmd.Flags().StringVar(&FlagBsub_U, "U", "", "")
-	cmd.Flags().StringVar(&FlagBsub_x, "x", "", "")
-	cmd.Flags().BoolVar(&FlagBsub_H, "W", false, "")
+	cmd.Flags().BoolVar(&FlagBsub_x, "x", false, "")
+	cmd.Flags().BoolVar(&FlagBsub_H, "H", false, "")
 	cmd.Flags().StringVar(&FlagBsub_b, "b", "", "")
 	cmd.Flags().StringVar(&FlagBsub_w, "w", "", "")
 	cmd.Flags().StringVar(&FlagBsub_t, "t", "", "")
@@ -391,7 +395,9 @@ func bjobs() *cobra.Command {
 			if FlagBjobs_l {
 				cqueueArgs = append(cqueueArgs, "--full")
 			}
-			if !FlagBjobs_noheader {
+			if FlagBjobs_noheader || FlagBjobs_json {
+				cqueueArgs = append(cqueueArgs, "--noheader")
+			} else {
 				fmt.Printf("%s %s %s %s %s %s %s %s\n",
 					"JOBID", "USER", "STAT", "QUEUE", "FROM_HOST", "EXEC_HOST", "JOB_NAME", "SUBMIT_TIME")
 				cqueueArgs = append(cqueueArgs, "--noheader")
@@ -418,13 +424,17 @@ func bjobs() *cobra.Command {
 
 			}
 			if len(state) > 0 {
-				cqueueArgs = append(cqueueArgs, "--state", strings.Join(state, " "))
+				cqueueArgs = append(cqueueArgs, "--state", strings.Join(state, ","))
 			}
 			if FlagBjobs_json {
 				cqueueArgs = append(cqueueArgs, "--json")
 			}
-			cqueueArgs = append(cqueueArgs, "--format", "%j %u %t %P %L %L %n %s")
-			cqueueArgs = append(cqueueArgs, strings.Join(args, ","))
+			if !FlagBjobs_json {
+				cqueueArgs = append(cqueueArgs, "--format", "%j %u %t %P %L %L %n %s")
+			}
+			if len(args) > 0 {
+				cqueueArgs = append(cqueueArgs, "--job", strings.Join(args, ","))
+			}
 			cqueue.RootCmd.SetArgs(cqueueArgs)
 			err := cqueue.RootCmd.Execute()
 			if err != nil {
@@ -479,13 +489,14 @@ func bqueues() *cobra.Command {
 				cinfoArgs = append(cinfoArgs, "--json")
 			}
 			if FlagBqueues_m != "" {
-				cinfoArgs = append(cinfoArgs, "--nodes", FlagBacct_m)
+				cinfoArgs = append(cinfoArgs, "--nodes", strings.ReplaceAll(FlagBqueues_m, " ", ","))
 			}
 			if FlagBqueues_l {
-				cinfoArgs = append(cinfoArgs, "--full")
+				cinfoArgs = append(cinfoArgs, "--format", "%p %a %n %s %l")
 			}
-			cinfoArgs = append(cinfoArgs, "--partition")
-			cinfoArgs = append(cinfoArgs, args...)
+			if len(args) > 0 {
+				cinfoArgs = append(cinfoArgs, "--partition", strings.Join(args, ","))
+			}
 
 			cinfo.RootCmd.SetArgs(cinfoArgs)
 			err := cinfo.RootCmd.Execute()
@@ -537,15 +548,18 @@ func bkill() *cobra.Command {
 				ccancelArgs = append(ccancelArgs, "--partition", FlagBkill_q)
 			}
 			if FlagBkill_stat != "" {
-				ccancelArgs = append(ccancelArgs, "--state")
+				state := ""
 				switch FlagBkill_stat {
 				case "run":
-					ccancelArgs = append(ccancelArgs, "running")
+					state = "running"
 				case "pend":
-					ccancelArgs = append(ccancelArgs, "pending")
+					state = "pending"
 				case "susp":
-					ccancelArgs = append(ccancelArgs, "suspend")
+					state = "suspended"
+				default:
+					os.Exit(util.ErrorCmdArg)
 				}
+				ccancelArgs = append(ccancelArgs, "--state", state)
 			}
 			if FlagBkill_u != "" {
 				ccancelArgs = append(ccancelArgs, "--user", FlagBkill_u)
@@ -553,7 +567,9 @@ func bkill() *cobra.Command {
 			if FlagBkill_m != "" {
 				ccancelArgs = append(ccancelArgs, "--nodes", FlagBkill_m)
 			}
-			ccancelArgs = append(ccancelArgs, strings.Join(args, ","))
+			if len(args) > 0 {
+				ccancelArgs = append(ccancelArgs, strings.Join(args, ","))
+			}
 			ccancel.RootCmd.SetArgs(ccancelArgs)
 			err := ccancel.RootCmd.Execute()
 			if err != nil {
