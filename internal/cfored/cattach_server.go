@@ -227,7 +227,7 @@ CforedCattachStateMachineLoop:
 							gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: jobId, StepId: stepId}
 							gVars.pidStepMapMtx.Unlock()
 							cattachPreReadyHistory = gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
-							for cranedName, tasks := range ctldReply.GetPayloadStepMetaReply().CranedTaskMap {
+							for cranedName, tasks := range stepInfo.GetCranedTaskMap() {
 								for _, taskId := range tasks.GetTaskIds() {
 									taskCranedMap[taskId] = cranedName
 								}
