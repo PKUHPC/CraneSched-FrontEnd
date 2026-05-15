@@ -75,10 +75,12 @@ var (
 	FlagDns          []string
 	FlagDeadlineTime string
 
+	FlagRequeue   bool
+	FlagNoRequeue bool
+
 	// not implement feature:
 	FlagNTasks          string
 	FlagArray           string
-	FlagNoRequeue       string
 	FlagParsable        string
 	FlagNTasksPerSocket string
 	FlagCpuFreq         string
@@ -88,7 +90,6 @@ var (
 	FlagInput           string
 	FlagSocketsPerNode  string
 	FlagCoresPerSocket  string
-	FlagRequeue         string
 	FlagWait            string
 
 	RootCmd = &cobra.Command{
@@ -191,6 +192,9 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
 	RootCmd.Flags().StringVar(&FlagDeadlineTime, "deadline", "", "Remove the job if not started by time.")
+	RootCmd.Flags().BoolVar(&FlagRequeue, "requeue", false, "Requeue the job on failure")
+	RootCmd.Flags().BoolVar(&FlagNoRequeue, "no-requeue", false, "Do not requeue the job on failure")
+	RootCmd.MarkFlagsMutuallyExclusive("requeue", "no-requeue")
 	initPodFlags(RootCmd)
 	util.InitCraneLogger()
 }

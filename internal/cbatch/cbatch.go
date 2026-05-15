@@ -267,6 +267,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 	if FlagHold {
 		job.Hold = true
 	}
+	if FlagRequeue {
+		job.RequeueIfFailed = true
+	}
 	if FlagReservation != "" {
 		job.Reservation = FlagReservation
 	}
@@ -521,6 +524,10 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			for _, signal := range signals {
 				job.Signals = append(job.Signals, signal)
 			}
+		case "--requeue":
+			job.RequeueIfFailed = true
+		case "--no-requeue":
+			job.RequeueIfFailed = false
 		default:
 			return fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
 		}
@@ -658,7 +665,6 @@ func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	unsupportedFlags := map[string]string{
 		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
-		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
 		"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
 		"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",
 		"ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
@@ -673,7 +679,6 @@ func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 		"i":                 "The feature --input/-i is not yet supported by Crane, the use is ignored.",
 		"sockets-per-node":  "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.",
 		"cores-per-socket":  "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.",
-		"requeue":           "The feature --requeue is not yet supported by Crane, the use is ignored.",
 		"wait":              "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
 		"W":                 "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
 	}

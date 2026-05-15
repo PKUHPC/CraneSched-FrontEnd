@@ -184,6 +184,42 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 	return SummarizeReply(reply)
 }
 
+func RequeueJobs(jobs string) error {
+	jobList, err := util.ParseJobIdList(jobs, ",")
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
+	}
+
+	req := &protos.RequeueJobRequest{
+		OperatorUid: uint32(os.Getuid()),
+		JobIds:      jobList,
+	}
+
+	reply, err := stub.RequeueJob(context.Background(), req)
+	if err != nil {
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to requeue the job")
+	}
+
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.NotRequeuedJobs) == 0 {
+			return nil
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+
+	for _, jobId := range reply.RequeuedJobs {
+		fmt.Printf("Job %d requeued successfully.\n", jobId)
+	}
+	for jobId, reason := range reply.NotRequeuedJobs {
+		fmt.Printf("Job %d failed to requeue: %s\n", jobId, reason)
+	}
+	if len(reply.NotRequeuedJobs) > 0 {
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+	return nil
+}
+
 func HoldReleaseJobs(jobs string, hold bool) error {
 	jobList, err := util.ParseJobIdList(jobs, ",")
 	if err != nil {

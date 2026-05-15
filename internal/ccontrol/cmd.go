@@ -63,6 +63,7 @@ var actionToExecute = map[string]func(command *CControlCommand) error{
 	"release": executeReleaseCommand,
 	"suspend": executeSuspendCommand,
 	"resume":  executeResumeCommand,
+	"requeue": executeRequeueCommand,
 	"create":  executeCreateCommand,
 	"delete":  executeDeleteCommand,
 	"reset":   executeResetCommand,
@@ -395,6 +396,18 @@ func executeHoldCommand(command *CControlCommand) error {
 	err := HoldReleaseJobs(jobIds, true)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorGeneric, "hold jobs failed: %s\n", err)
+	}
+	return nil
+}
+
+func executeRequeueCommand(command *CControlCommand) error {
+	jobIds := command.GetID()
+	if jobIds == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("no job id specified"))
+	}
+	err := RequeueJobs(jobIds)
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorGeneric, "requeue jobs failed: %s\n", err)
 	}
 	return nil
 }
