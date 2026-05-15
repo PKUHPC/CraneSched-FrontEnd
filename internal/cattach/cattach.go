@@ -28,8 +28,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"os/user"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -110,7 +108,7 @@ func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 type StateMachineOfCattach struct {
 	jobId  uint32 // This field will be set after ReqTaskId state
 	stepId uint32
-	step   *protos.StepToCtld
+	step   *protos.CattachStepInfo
 
 	state StateOfCattach
 	err   util.ExitCode // Hold the final error of the state machine if any
@@ -242,17 +240,14 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 			cforedReply := cforedReply.GetPayloadStepConnectReply()
 			Ok := cforedReply.Ok
 			if Ok {
-				m.step = cforedReply.Step
-				FlagPty = m.step.GetInteractiveMeta().Pty
-				// If the step has exclusive stdin routing to a specific task
-				// (crun --input=<task_id>), enter read-only mode: display output
-				// but do not forward any stdin from the cattach terminal.
-				// PTY mode is excluded because PTY always uses task-0-only routing
+				m.step = cforedReply.StepInfo
+				FlagPty = m.step.GetPty()
+				// CattachStepInfo.InputTaskId is an optional uint32; HasInputTaskId()
+				// returns true when crun stored an explicit task id via --input=<task_id>.
+				// In that case cattach enters read-only mode (output only, no stdin).
+				// PTY mode is excluded because it always uses task-0-only routing
 				// internally yet requires full interactive control.
-				// IoMeta.InputTaskId is *uint32 (optional proto field); non-nil means
-				// crun stored an explicit task id — use direct pointer comparison.
-				ioMeta := m.step.GetIoMeta()
-				FlagReadOnly = ioMeta != nil && ioMeta.InputTaskId != nil && !FlagPty
+				FlagReadOnly = m.step.InputTaskId != nil && !FlagPty
 				if FlagReadOnly {
 					log.Debug("Step has exclusive stdin to one task; cattach entering read-only mode (output only)")
 				}
@@ -304,7 +299,7 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 func (m *StateMachineOfCattach) StateForwarding() {
 	var request *protos.StreamCattachRequest
 
-	if m.step.GetInteractiveMeta().Pty {
+	if m.step.GetPty() {
 		ptyAttr := unix.Termios{}
 		err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
 		if err != nil {
@@ -587,142 +582,6 @@ reading:
 		}
 	}
 
-}
-
-func (m *StateMachineOfCattach) ParseFilePattern(pattern string) (string, error) {
-	log.Tracef("Parsefile pattern: %s", pattern)
-	if pattern == "" {
-		return pattern, nil
-	}
-	// User input two backslash , but we will only get one.
-	if strings.Contains(pattern, "\\") {
-		return strings.ReplaceAll(pattern, "\\", ""), nil
-	}
-	currentUser, err := user.LookupId(fmt.Sprintf("%d", m.step.Uid))
-	if err != nil {
-		return pattern, fmt.Errorf("failed to lookup user by uid %d: %s", m.step.Uid, err)
-	}
-	replacements := map[string]string{
-		"%%": "%",
-		//Job array's master job allocation number.
-		//"%A": "",
-		//Job array ID (index) number.
-		//"%a": "",
-		//jobid.stepid of the running job (e.g. "128.0")
-		//"%J": "111.0",
-		// job id
-		"%j": fmt.Sprintf("%d", m.jobId),
-		// step id
-		"%s": fmt.Sprintf("%d", m.stepId),
-		//short hostname
-		//"%N": "node1",
-		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
-		//"%n": "0",
-		//task identifier (rank) relative to current job.
-		//"%t": "0",
-		//User name
-		"%u": currentUser.Username,
-		// Job name
-		"%x": m.step.Name,
-	}
-
-	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
-
-	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
-		parts := re.FindStringSubmatch(match)
-		if parts[0] == "%%" {
-			return "%"
-		}
-		if len(parts) < 3 {
-			return match // fallback
-		}
-
-		padding := parts[1]   // '5' in '%5j'
-		specifier := parts[2] // 'j' in '%5j'
-
-		value, found := replacements["%"+specifier]
-		if !found {
-			return match // fallback
-		}
-
-		if specifier == "j" || specifier == "s" {
-			if padding == "" {
-				return value
-			}
-			_, err := strconv.Atoi(padding)
-			if err != nil {
-				return value
-			}
-			paddedFormat := "%0" + padding + "v"
-			return fmt.Sprintf(paddedFormat, value)
-		}
-
-		return value
-	})
-
-	return result, nil
-}
-
-func (m *StateMachineOfCattach) FileReaderRoutine(filePattern string) {
-	parsedFilePath, err := m.ParseFilePattern(filePattern)
-	if err != nil {
-		log.Errorf("Failed to parse file pattern %s: %s", filePattern, err)
-		return
-	}
-	file, err := os.Open(parsedFilePath)
-	if err != nil {
-		log.Errorf("Failed to open file %s: %s", parsedFilePath, err)
-		m.chanInputFromTerm <- nil
-		m.taskErrCb()
-		return
-	}
-	log.Debugf("Reading from file %s", parsedFilePath)
-	reader := bufio.NewReader(file)
-	buffer := make([]byte, 4096)
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Errorf("Failed to close stdin file: %s.", err)
-		}
-	}(file)
-reading:
-	for {
-		select {
-		case <-m.taskFinishCtx.Done():
-			break reading
-		default:
-			n, err := reader.Read(buffer)
-			if err != nil {
-				if err == io.EOF {
-					eofData := make([]byte, n)
-					copy(eofData, buffer[:n])
-					// Use select on both sends so that taskFinishCb() (e.g. SIGINT,
-					// connection broken) can interrupt a blocking send when
-					// chanInputFromTerm is full and the consumer has already exited,
-					// preventing FileReaderRoutine from leaking forever.
-					select {
-					case m.chanInputFromTerm <- eofData:
-					case <-m.taskFinishCtx.Done():
-						break reading
-					}
-					select {
-					case m.chanInputFromTerm <- nil:
-					case <-m.taskFinishCtx.Done():
-					}
-					break reading
-				}
-				log.Errorf("Failed to read from fd: %v", err)
-				break reading
-			}
-			copyData := make([]byte, n)
-			copy(copyData, buffer[:n])
-			select {
-			case m.chanInputFromTerm <- copyData:
-			case <-m.taskFinishCtx.Done():
-				break reading
-			}
-		}
-	}
 }
 
 func (m *StateMachineOfCattach) forwardingSigHandlerRoutine() {

@@ -861,10 +861,10 @@ message StreamCtldReply {
   }
 
   message StepMetaReply {
-    bool       ok             = 1;
-    string     failure_reason = 2;
-    StepToCtld step           = 3;
-    int32      cattach_pid    = 4;
+    bool            ok             = 1;
+    string          failure_reason = 2;
+    CattachStepInfo step_info      = 3;  // replaces StepToCtld; minimal fields only
+    int32           cattach_pid    = 4;
     message Tasks {
       repeated uint32 task_ids = 1;
     }
@@ -1021,6 +1021,14 @@ message StreamCrunReply {
   }
 }
 
+message CattachStepInfo {
+  bool            pty           = 1;  // from InteractiveMeta.Pty
+  optional uint32 input_task_id = 2;  // set when crun used --input=<task_id>
+  uint32          ntasks        = 3;  // for --layout
+  uint32          node_num      = 4;  // for --layout
+  string          nodelist      = 5;  // for --layout and execCranedIds parsing
+}
+
 message StreamCattachRequest {
   enum CattachRequestType {
     STEP_CONNECT_REQUEST    = 0;
@@ -1065,9 +1073,9 @@ message StreamCattachReply {
   }
 
   message StepConnectReply {
-    bool       ok             = 1;
-    StepToCtld step           = 2;
-    string     failure_reason = 3;
+    bool            ok             = 1;
+    CattachStepInfo step_info      = 2;  // replaces StepToCtld; minimal fields only
+    string          failure_reason = 3;
   }
 
   message StepCancelRequest {}
