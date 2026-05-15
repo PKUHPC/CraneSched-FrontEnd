@@ -55,6 +55,8 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 	// setRemoteIoToFrontChannel to guarantee no overlap with live delivery.
 	var cattachPreReadyHistory []*protos.StreamStepIORequest
 
+	taskCranedMap := make(map[uint32]string)
+
 	RequestChannel := make(chan grpcMessage[protos.StreamCattachRequest], 8)
 	go grpcStreamReceiver[protos.StreamCattachRequest](toCattachStream, RequestChannel)
 
@@ -226,6 +228,11 @@ CforedCattachStateMachineLoop:
 							gVars.pidStepMap[cattachPid] = StepIdentifier{JobId: jobId, StepId: stepId}
 							gVars.pidStepMapMtx.Unlock()
 							cattachPreReadyHistory = gSupervisorChanKeeper.setRemoteIoToFrontChannel(cattachPid, jobId, stepId, TaskIoRequestChannel)
+							for cranedName, tasks := range ctldReply.GetPayloadStepMetaReply().CranedTaskMap {
+								for _, taskId := range tasks.GetTaskIds() {
+									taskCranedMap[taskId] = cranedName
+								}
+							}
 						}
 					}
 
@@ -378,11 +385,31 @@ CforedCattachStateMachineLoop:
 					} else {
 						switch cattachRequest.Type {
 						case protos.StreamCattachRequest_TASK_IO_FORWARD:
-							log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
-								" task, msg size[%d], EOF [%v]", jobId, stepId,
-								len(cattachRequest.GetPayloadTaskIoForwardReq().GetMsg()),
-								cattachRequest.GetPayloadTaskIoForwardReq().Eof)
-							gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
+							req := cattachRequest.GetPayloadTaskIoForwardReq()
+							if req.TaskId != nil {
+								// --input-filter: route stdin to the specific task's node only,
+								// mirroring how crun_server.go uses forwardCrunRequestToSingleSupervisor
+								// when TaskId is set (looked up via task_craned_map).
+								node := taskCranedMap[*req.TaskId]
+								if node != "" {
+									log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD to task #%d"+
+										" on node %s, msg size[%d], EOF [%v]",
+										jobId, stepId, *req.TaskId, node, len(req.GetMsg()), req.Eof)
+									gSupervisorChanKeeper.forwardCattachRequestToSingleSupervisor(jobId, stepId, node, cattachRequest)
+								} else {
+									// task_id was set but not found in the map (e.g. out of range or
+									// step not yet populated); fall back to broadcast so the message
+									// is not silently dropped.
+									log.Warnf("[Cattach->Cfored->Supervisor][Step #%d.%d] task_id %d not found in"+
+										" task_craned_map, falling back to broadcast", jobId, stepId, *req.TaskId)
+									gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
+								}
+							} else {
+								log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+
+									" all tasks, msg size[%d], EOF [%v]", jobId, stepId,
+									len(req.GetMsg()), req.Eof)
+								gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
+							}
 
 						case protos.StreamCattachRequest_STEP_COMPLETION_REQUEST:
 							log.Debugf("[Cattach->Cfored->Ctld][Step #%d.%d] Receive StepCompletionRequest", jobId, stepId)
