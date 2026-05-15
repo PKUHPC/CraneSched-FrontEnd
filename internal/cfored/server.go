@@ -41,6 +41,10 @@ type RequestSupervisorChannel struct {
 	cattachRequestChannel chan *protos.StreamCattachRequest
 }
 
+type FrontRequest interface {
+	*protos.StreamCrunRequest | *protos.StreamCattachRequest
+}
+
 type StepIdentifier struct {
 	JobId  uint32
 	StepId uint32
@@ -250,83 +254,151 @@ func (keeper *SupervisorChannelKeeper) SupervisorCrashAndRemoveAllChannel(jobId 
 	}
 }
 
-func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(jobId uint32, stepId uint32, request *protos.StreamCrunRequest) {
+func forwardRequestToSupervisorByChannel[T FrontRequest](
+	keeper *SupervisorChannelKeeper,
+	jobId uint32,
+	stepId uint32,
+	request T,
+	getChannel func(*RequestSupervisorChannel) chan T,
+) {
 	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
+
 	keeper.toSupervisorChannelMtx.Lock()
 	defer keeper.toSupervisorChannelMtx.Unlock()
+
 	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
 	if !exist {
-		log.Errorf("[Step #%d.%d] Trying to forward crun request to non-exist step.", jobId, stepId)
+		log.Errorf("[Step #%d.%d] Trying to forward request to non-exist step.", jobId, stepId)
 		return
 	}
+
 	for cranedId, supervisorChannel := range stepChannels {
 		if !supervisorChannel.valid.Load() {
-			log.Tracef("[Step #%d.%d] Ignoring crun request to invalid supervisor on Craned %s", jobId, stepId, cranedId)
+			log.Tracef(
+				"[Step #%d.%d] Ignoring request to invalid supervisor on Craned %s",
+				jobId,
+				stepId,
+				cranedId,
+			)
 			continue
 		}
+
+		ch := getChannel(supervisorChannel)
 		select {
-		case supervisorChannel.crunRequestChannel <- request:
+		case ch <- request:
 		default:
-			if len(supervisorChannel.crunRequestChannel) == cap(supervisorChannel.crunRequestChannel) {
-				log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s is full", jobId, stepId, cranedId)
+			if len(ch) == cap(ch) {
+				log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on %s is full", jobId, stepId, cranedId)
 			} else {
-				log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s write failed", jobId, stepId, cranedId)
+				log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on %s write failed", jobId, stepId, cranedId)
 			}
 		}
 	}
+}
+
+func forwardRequestToSingleSupervisorByChannel[T FrontRequest](
+	keeper *SupervisorChannelKeeper,
+	jobId uint32,
+	stepId uint32,
+	cranedId string,
+	request T,
+	getChannel func(*RequestSupervisorChannel) chan T,
+) {
+	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
+
+	keeper.toSupervisorChannelMtx.Lock()
+	defer keeper.toSupervisorChannelMtx.Unlock()
+
+	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
+	if !exist {
+		log.Errorf("[Step #%d.%d] Trying to forward request to non-exist step.", jobId, stepId)
+		return
+	}
+
+	supervisorChannel, exist := stepChannels[cranedId]
+	if !exist {
+		log.Errorf(
+			"[Step #%d.%d] Trying to forward request to non-exist craned %s.",
+			jobId,
+			stepId,
+			cranedId,
+		)
+		return
+	}
+
+	if !supervisorChannel.valid.Load() {
+		log.Tracef(
+			"[Step #%d.%d] Ignoring request to invalid supervisor on Craned %s",
+			jobId,
+			stepId,
+			cranedId,
+		)
+		return
+	}
+
+	ch := getChannel(supervisorChannel)
+
+	select {
+	case ch <- request:
+	default:
+		if len(ch) == cap(ch) {
+			log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on %s is full", jobId, stepId, cranedId)
+		} else {
+			log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on %s write failed", jobId, stepId, cranedId)
+		}
+	}
+}
+
+func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(jobId uint32, stepId uint32, request *protos.StreamCrunRequest) {
+	forwardRequestToSupervisorByChannel(
+		keeper,
+		jobId,
+		stepId,
+		request,
+		func(ch *RequestSupervisorChannel) chan *protos.StreamCrunRequest {
+			return ch.crunRequestChannel
+		},
+	)
 }
 
 func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSingleSupervisor(jobId uint32, stepId uint32,
 	cranedId string, request *protos.StreamCrunRequest) {
-	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
-	keeper.toSupervisorChannelMtx.Lock()
-	defer keeper.toSupervisorChannelMtx.Unlock()
-	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
-	if !exist {
-		log.Errorf("[Step #%d.%d] Trying to forward crun request to non-exist step.", jobId, stepId)
-		return
-	}
-	supervisorChannel, exist := stepChannels[cranedId]
-	if !exist {
-		log.Errorf("[Step #%d.%d] Trying to forward crun request to non-exist craned %s.", jobId, stepId, cranedId)
-	}
-
-	select {
-	case supervisorChannel.crunRequestChannel <- request:
-	default:
-		if len(supervisorChannel.crunRequestChannel) == cap(supervisorChannel.crunRequestChannel) {
-			log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s is full", jobId, stepId, cranedId)
-		} else {
-			log.Errorf("[Step #%d.%d] toSupervisorChannel to supervisor on%s write failed", jobId, stepId, cranedId)
-		}
-	}
+	forwardRequestToSingleSupervisorByChannel(
+		keeper,
+		jobId,
+		stepId,
+		cranedId,
+		request,
+		func(ch *RequestSupervisorChannel) chan *protos.StreamCrunRequest {
+			return ch.crunRequestChannel
+		},
+	)
 }
 
-func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(taskId uint32, stepId uint32, request *protos.StreamCattachRequest) {
-	stepIdentity := StepIdentifier{JobId: taskId, StepId: stepId}
-	keeper.toSupervisorChannelMtx.Lock()
-	defer keeper.toSupervisorChannelMtx.Unlock()
-	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
-	// TODO: when step non-exist, cattach front echo msg and close
-	if !exist {
-		log.Errorf("[Job #%d.%d] Trying to forward cattach request to non-exist step.", taskId, stepId)
-		return
-	}
-	for cranedId, supervisorChannel := range stepChannels {
-		if !supervisorChannel.valid.Load() {
-			log.Tracef("[Job #%d.%d] Ignoring cattach request to invalid supervisor on Craned %s", taskId, stepId, cranedId)
-			continue
-		}
-		select {
-		case supervisorChannel.cattachRequestChannel <- request:
-		default:
-			if len(supervisorChannel.cattachRequestChannel) == cap(supervisorChannel.cattachRequestChannel) {
-				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s is full", taskId, stepId, cranedId)
-			} else {
-				log.Errorf("[Job #%d.%d] toSupervisorChannel to supervisor on%s write failed", taskId, stepId, cranedId)
-			}
-		}
-	}
+func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSupervisor(jobId uint32, stepId uint32, request *protos.StreamCattachRequest) {
+	forwardRequestToSupervisorByChannel(
+		keeper,
+		jobId,
+		stepId,
+		request,
+		func(ch *RequestSupervisorChannel) chan *protos.StreamCattachRequest {
+			return ch.cattachRequestChannel
+		},
+	)
+}
+
+func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSingleSupervisor(jobId uint32, stepId uint32,
+	cranedId string, request *protos.StreamCattachRequest) {
+	forwardRequestToSingleSupervisorByChannel(
+		keeper,
+		jobId,
+		stepId,
+		cranedId,
+		request,
+		func(ch *RequestSupervisorChannel) chan *protos.StreamCattachRequest {
+			return ch.cattachRequestChannel
+		},
+	)
 }
 
 func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, jobId uint32, stepId uint32, ioToCrunChannel chan *protos.StreamStepIORequest) []*protos.StreamStepIORequest {
