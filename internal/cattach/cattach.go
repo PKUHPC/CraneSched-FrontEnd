@@ -722,14 +722,27 @@ writing:
 }
 
 func (m *StateMachineOfCattach) PrintStepLayout() {
-	// StepToCtld carries Ntasks, NodeNum, and Nodelist (a hostlist string).
-	// Per-node task distribution is not available here (it lives in StepToD
-	// which is only used on the craned side).
 	fmt.Printf("Job step layout:\n")
 	fmt.Printf("        %d tasks, %d nodes (%s)\n\n",
-		m.step.Ntasks,
-		m.step.NodeNum,
-		m.step.Nodelist)
+		m.step.Ntasks, m.step.NodeNum, m.step.Nodelist)
+
+	// Print per-node task breakdown, mirroring Slurm's sattach --layout output.
+	nodeList, ok := util.ParseHostList(m.step.Nodelist)
+	if ok && len(m.step.CranedTaskMap) > 0 {
+		for i, node := range nodeList {
+			nodeTasks, exists := m.step.CranedTaskMap[node]
+			if !exists {
+				continue
+			}
+			ids := nodeTasks.GetTaskIds()
+			idStr := ""
+			for _, tid := range ids {
+				idStr += fmt.Sprintf(" %d", tid)
+			}
+			fmt.Printf("        Node %d (%s), %d task(s):%s\n",
+				i, node, len(ids), idStr)
+		}
+	}
 	fmt.Println()
 }
 
