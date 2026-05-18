@@ -77,6 +77,8 @@ var (
 	FlagNodeList string
 	FlagNumLimit uint32
 
+	FlagShowPartitionLimit bool
+
 	FlagEntityName          string
 	FlagEntityAccount       string
 	FlagEntityPartitions    string
@@ -751,6 +753,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 	FlagAllowedQosList = ""
 	FlagDeletePartitionList = ""
 	FlagDeleteQosList = ""
+	FlagPartition = ""
 
 	WhereParams := command.GetWhereParams()
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
@@ -768,6 +771,8 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
+		case "partition":
+			FlagPartition = value
 		default:
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for account modification\n", key))
 		}
@@ -814,6 +819,78 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_DefaultAccount,
 				NewValue:    FlagSetDefaultAccount,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxsubmitjobs":
+			if FlagPartition == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxSubmitJobs", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxSubmitJobs,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxjobs":
+			if FlagPartition == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxJobs", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxJobs,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxtres":
+			if FlagPartition == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if _, err := util.ParseTres(value); err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v\n", value, err))
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTres,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxtresperjob":
+			if FlagPartition == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if _, err := util.ParseTres(value); err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v\n", value, err))
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTresPerJob,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxwall":
+			if FlagPartition == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxWall", 64); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxWall,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxwallperjob":
+			if FlagPartition == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxWallPerJob", 64); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxWallDurationPerJob,
+				NewValue:    value,
 				RequestType: protos.OperationType_Overwrite,
 			})
 		default:
@@ -863,7 +940,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 		}
 	}
 
-	return ModifyAccount(params, FlagEntityName)
+	return ModifyAccount(params, FlagPartition, FlagEntityName)
 }
 
 func executeModifyUserCommand(command *CAcctMgrCommand) error {
@@ -944,6 +1021,78 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_AdminLevel,
 				NewValue:    FlagAdminLevel,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxsubmitjobs":
+			if FlagEntityPartitions == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxSubmitJobs", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxSubmitJobs,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxjobs":
+			if FlagEntityPartitions == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxJobs", 32); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxJobs,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxtres":
+			if FlagEntityPartitions == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if _, err := util.ParseTres(value); err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v\n", value, err))
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTres,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxtresperjob":
+			if FlagEntityPartitions == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if _, err := util.ParseTres(value); err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v\n", value, err))
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxTresPerJob,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxwall":
+			if FlagEntityPartitions == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxWall", 64); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxWall,
+				NewValue:    value,
+				RequestType: protos.OperationType_Overwrite,
+			})
+		case "maxwallperjob":
+			if FlagEntityPartitions == "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+			}
+			if err := validateUintValue(value, "maxWallPerJob", 64); err != nil {
+				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_MaxWallDurationPerJob,
+				NewValue:    value,
 				RequestType: protos.OperationType_Overwrite,
 			})
 		default:
