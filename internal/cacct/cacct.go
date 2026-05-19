@@ -84,6 +84,7 @@ func QueryJob() error {
 		}
 		configureJobIdSelectors(selectors)
 		request.FilterIds = buildFilterIdsFromSelectors()
+		request.FilterArrayTaskIds = buildFilterArrayTaskIdsFromSelectors()
 	} else {
 		resetJobIdSelectors()
 	}

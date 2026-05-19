@@ -35,6 +35,9 @@ func buildFilterIdsFromSelectors() map[uint32]*protos.JobStepIds {
 
 	buckets := make(map[uint32]*stepBucket)
 	for _, selector := range jobIdSelectors {
+		if selector.ArrayTaskId != nil {
+			continue
+		}
 		bucket, ok := buckets[selector.JobId]
 		if !ok {
 			bucket = &stepBucket{steps: make(map[uint32]struct{})}
@@ -65,8 +68,43 @@ func buildFilterIdsFromSelectors() map[uint32]*protos.JobStepIds {
 		sort.Slice(steps, func(i, j int) bool { return steps[i] < steps[j] })
 		filterIds[jobId] = &protos.JobStepIds{Steps: steps}
 	}
+	if len(filterIds) == 0 {
+		return nil
+	}
 
 	return filterIds
+}
+
+func buildFilterArrayTaskIdsFromSelectors() map[uint32]*protos.ArrayTaskIds {
+	if !hasArrayTaskSelectors {
+		return nil
+	}
+
+	taskSets := make(map[uint32]map[uint32]struct{})
+	for _, selector := range jobIdSelectors {
+		if selector.ArrayTaskId == nil {
+			continue
+		}
+		if _, ok := taskSets[selector.JobId]; !ok {
+			taskSets[selector.JobId] = make(map[uint32]struct{})
+		}
+		taskSets[selector.JobId][*selector.ArrayTaskId] = struct{}{}
+	}
+
+	filterArrayTaskIds := make(map[uint32]*protos.ArrayTaskIds)
+	for jobId, taskSet := range taskSets {
+		taskIds := make([]uint32, 0, len(taskSet))
+		for taskId := range taskSet {
+			taskIds = append(taskIds, taskId)
+		}
+		sort.Slice(taskIds, func(i, j int) bool { return taskIds[i] < taskIds[j] })
+		filterArrayTaskIds[jobId] = &protos.ArrayTaskIds{ArrayTaskIds: taskIds}
+	}
+	if len(filterArrayTaskIds) == 0 {
+		return nil
+	}
+
+	return filterArrayTaskIds
 }
 
 func applyArrayAwareItemFilter(items []*JobOrStep) []*JobOrStep {

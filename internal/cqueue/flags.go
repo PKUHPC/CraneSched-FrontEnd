@@ -148,23 +148,43 @@ func (p *StepIDsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterStepIDs == "" {
 		return nil
 	}
-	filterStepList, err := util.ParseStepIdList(FlagFilterStepIDs, ",")
+	selectors, err := util.ParseJobIdSelectorList(FlagFilterStepIDs, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid step list specified: %s.", err))
 	}
-	if len(filterStepList) == 0 {
-		req.FilterIds = filterStepList
-	} else {
-		if req.FilterIds == nil {
-			req.FilterIds = make(map[uint32]*protos.JobStepIds)
+	addArrayTaskSelections(selectors)
+
+	if req.FilterIds == nil {
+		req.FilterIds = make(map[uint32]*protos.JobStepIds)
+	}
+	if req.FilterArrayTaskIds == nil {
+		req.FilterArrayTaskIds = make(map[uint32]*protos.ArrayTaskIds)
+	}
+	for _, selector := range selectors {
+		steps, exist := req.FilterIds[selector.JobId]
+		if !exist || steps == nil {
+			steps = &protos.JobStepIds{}
+			req.FilterIds[selector.JobId] = steps
 		}
-		for jobId, steps := range filterStepList {
-			if _, exist := req.FilterIds[jobId]; exist {
-				steps.Steps = append(steps.Steps, req.FilterIds[jobId].Steps...)
-			} else {
-				req.FilterIds[jobId] = steps
-			}
+		if selector.StepId != nil {
+			steps.Steps = append(steps.Steps, *selector.StepId)
 		}
+
+		if selector.ArrayTaskId == nil {
+			continue
+		}
+		taskIds, exist := req.FilterArrayTaskIds[selector.JobId]
+		if !exist {
+			taskIds = &protos.ArrayTaskIds{}
+			req.FilterArrayTaskIds[selector.JobId] = taskIds
+		}
+		taskIds.ArrayTaskIds = append(taskIds.ArrayTaskIds, *selector.ArrayTaskId)
+	}
+	if len(req.FilterIds) == 0 {
+		req.FilterIds = nil
+	}
+	if len(req.FilterArrayTaskIds) == 0 {
+		req.FilterArrayTaskIds = nil
 	}
 	req.NumLimit = 0
 	return nil

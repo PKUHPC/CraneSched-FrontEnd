@@ -47,9 +47,15 @@ func configureJobIdSelectors(selectors []util.JobIdSelector) error {
 func buildFilterIdsFromJobSelectors() map[uint32]*protos.JobStepIds {
 	filterIds := make(map[uint32]*protos.JobStepIds)
 	for _, selector := range jobIdSelectors {
+		if selector.ArrayTaskId != nil {
+			continue
+		}
 		if _, ok := filterIds[selector.JobId]; !ok {
 			filterIds[selector.JobId] = nil
 		}
+	}
+	if len(filterIds) == 0 {
+		return nil
 	}
 	return filterIds
 }
@@ -67,6 +73,23 @@ func buildFilterArrayTaskIdsFromJobSelectors() map[uint32]*protos.ArrayTaskIds {
 		result[jobId] = taskIds
 	}
 	return result
+}
+
+func addArrayTaskSelections(selectors []util.JobIdSelector) {
+	for _, selector := range selectors {
+		if selector.ArrayTaskId == nil {
+			allJobSelections[selector.JobId] = struct{}{}
+			continue
+		}
+		hasArrayTaskSelectors = true
+		if arrayTaskIdSelections == nil {
+			arrayTaskIdSelections = make(map[uint32]map[uint32]struct{})
+		}
+		if _, ok := arrayTaskIdSelections[selector.JobId]; !ok {
+			arrayTaskIdSelections[selector.JobId] = make(map[uint32]struct{})
+		}
+		arrayTaskIdSelections[selector.JobId][*selector.ArrayTaskId] = struct{}{}
+	}
 }
 
 func applyArrayAwareJobFilter(reply *protos.QueryJobsInfoReply) {
