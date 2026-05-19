@@ -216,7 +216,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := attachAfterRun(f, reply); err != nil {
-		return util.WrapCraneErr(util.ErrorBackend, "Failed to attach after container is submitted: %v", err)
+		return util.WrapCraneErr(util.ErrorBackend, "Stream connection lost. Please check container status with 'ccon ps' or try reattaching: %v", err)
 	}
 
 	return nil
