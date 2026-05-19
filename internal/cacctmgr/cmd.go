@@ -122,6 +122,19 @@ func validateUintValue(value string, fieldName string, bitSize int) error {
 	return nil
 }
 
+// TODO(preempt): expose REQUEUE and SUSPEND once supported.
+func parsePreemptMode(value string) (protos.PreemptMode, error) {
+	switch strings.ToUpper(value) {
+	case "OFF":
+		return protos.PreemptMode_PREEMPT_MODE_OFF, nil
+	case "CANCEL":
+		return protos.PreemptMode_PREEMPT_MODE_CANCEL, nil
+	default:
+		return protos.PreemptMode_PREEMPT_MODE_OFF,
+			fmt.Errorf("invalid preempt mode %q: valid values are OFF, CANCEL", value)
+	}
+}
+
 func ParseCmdArgs(args []string) {
 	commandArgs := preParseGlobalFlags(args[1:])
 
@@ -361,6 +374,18 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s ,err: %v", value, err))
 			}
 			FlagQos.Flags = FlagQosFlags
+		case "preempt":
+			preemptList, err := util.ParseStringParamListAllowEmpty(value, ",")
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid preempt list %q: %v\n", value, err))
+			}
+			FlagQos.Preempt = preemptList
+		case "preemptmode":
+			mode, err := parsePreemptMode(value)
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("%v\n", err))
+			}
+			FlagQos.PreemptMode = mode
 		default:
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown flag: %s\n", key))
 		}
@@ -1201,6 +1226,22 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 			params = append(params, ModifyParam{
 				ModifyField: protos.ModifyField_Flags,
 				NewValue:    strconv.FormatUint(uint64(FlagQosFlags), 10),
+			})
+		case "preempt":
+			if _, err := util.ParseStringParamListAllowEmpty(value, ","); err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid preempt list %q: %v\n", value, err))
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_Preempt,
+				NewValue:    value,
+			})
+		case "preemptmode":
+			if _, err := parsePreemptMode(value); err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("%v\n", err))
+			}
+			params = append(params, ModifyParam{
+				ModifyField: protos.ModifyField_ModifyPreemptMode,
+				NewValue:    strings.ToUpper(value),
 			})
 		default:
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for qos modification\n", key))
