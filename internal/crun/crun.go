@@ -1143,21 +1143,23 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 		"%t": {},
 	}
 
+	arrayJobId := os.Getenv("CRANE_ARRAY_JOB_ID")
+	if arrayJobId == "" {
+		arrayJobId = fmt.Sprintf("%d", m.jobId)
+	}
+	arrayTaskId := os.Getenv("CRANE_ARRAY_TASK_ID")
+	if arrayTaskId == "" {
+		arrayTaskId = "0"
+	}
+
 	localReplacements := map[string]string{
 		"%%": "%",
-		//Job array's master job allocation number.
-		//"%A": "",
-		//Job array ID (index) number.
-		//"%a": "",
-		//jobid.stepid of the running job (e.g. "128.0")
+		"%A": arrayJobId,
+		"%a": arrayTaskId,
 		"%J": fmt.Sprintf("%d.%d", m.jobId, m.stepId),
-		// job id
 		"%j": fmt.Sprintf("%d", m.jobId),
-		// step id
 		"%s": fmt.Sprintf("%d", m.stepId),
-		//User name
 		"%u": currentUser.Username,
-		// Job name
 		"%x": name,
 	}
 
@@ -1187,7 +1189,7 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 			return match // fallback
 		}
 
-		if specifier == "j" || specifier == "s" {
+		if specifier == "j" || specifier == "s" || specifier == "A" || specifier == "a" {
 			if padding == "" {
 				return value
 			}
