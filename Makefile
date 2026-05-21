@@ -219,7 +219,7 @@ check-goreleaser:
 package: check-goreleaser
 ifneq ($(SKIP_REBUILD),true)
 	@echo "- Rebuilding binaries and plugins for packaging..."
-	@$(MAKE) STRIP=true protos build plugin
+	@$(MAKE) STRIP=true protos build plugin tool
 else
 	@echo "- Skipping rebuild (SKIP_REBUILD=true). Using existing build artifacts."
 endif

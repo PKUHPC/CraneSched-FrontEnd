@@ -33,6 +33,7 @@ message StepStatusChangeRequest {
   uint32 exit_code = 5;
   string reason = 6;
   google.protobuf.Timestamp timestamp = 7;
+  optional JobStatus final_status = 8;
 }
 
 message StepStatusChangeReply {
