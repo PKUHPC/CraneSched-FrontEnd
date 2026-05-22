@@ -274,7 +274,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	if FlagHold {
 		job.Hold = true
 	}
-	if FlagRequeue {
+	if FlagNoRequeue {
+		job.RequeueIfFailed = false
+	} else if FlagRequeue {
 		job.RequeueIfFailed = true
 	}
 	if FlagReservation != "" {

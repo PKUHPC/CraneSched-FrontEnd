@@ -407,6 +407,10 @@ func executeRequeueCommand(command *CControlCommand) error {
 	}
 	err := RequeueJobs(jobIds)
 	if err != nil {
+		var craneErr *util.CraneError
+		if errors.As(err, &craneErr) {
+			return craneErr
+		}
 		return util.WrapCraneErr(util.ErrorGeneric, "requeue jobs failed: %s\n", err)
 	}
 	return nil

@@ -1382,9 +1382,6 @@ func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagCoresPerSocket != "" {
 		fmt.Fprintln(os.Stderr, "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.")
 	}
-	if cbatch.FlagRequeue {
-		fmt.Fprintln(os.Stderr, "The feature --requeue is not yet supported by Crane, the use is ignored.")
-	}
 	if cbatch.FlagWait != "" {
 		fmt.Fprintln(os.Stderr, "The feature --wait/-W is not yet supported by Crane, the use is ignored.")
 	}
