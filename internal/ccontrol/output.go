@@ -179,6 +179,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 		"NodeName=%v State=%v %s\n"+
 			"\t%s\n"+
 			"\t%s\n"+
+			"\tSockets=%d\n"+
 			"\tPartition=%s RunningJob=%d Version=%s\n"+
 			"\tOs=%s\n"+
 			"\tBootTime=%s CranedStartTime=%s\n"+
@@ -186,6 +187,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 		node.Hostname, stateStr, cpuInfo,
 		memInfo,
 		gresInfo,
+		node.GetCpuTopology().GetSockets(),
 		strings.Join(node.PartitionNames, ","), node.RunningJobNum, cranedVersion,
 		cranedOs,
 		timeInfo.bootTime, timeInfo.startTime, timeInfo.lastBusyTime,
