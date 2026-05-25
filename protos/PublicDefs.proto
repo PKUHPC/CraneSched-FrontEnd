@@ -680,7 +680,6 @@ message StepInfo {
 }
 
 // Physical CPU topology of a node or job topology constraint.
-// Physical CPU topology of a node or job topology constraint.
 message NodeTopoInfo {
   uint32 boards           = 1;
   uint32 sockets          = 2;
