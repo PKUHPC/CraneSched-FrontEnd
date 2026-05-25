@@ -60,7 +60,7 @@ func ProcessHeld(job *protos.JobInfo) string {
 
 // 'j' group
 func ProcessJobId(job *protos.JobInfo) string {
-	return formatJobIdForDisplay(job)
+	return util.FormatJobId(job.JobId, job.ArrayTask)
 }
 
 // 'k'wckey

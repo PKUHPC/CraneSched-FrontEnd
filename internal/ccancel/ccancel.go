@@ -51,31 +51,7 @@ func CancelJob(args []string) error {
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %v.\n", err))
 		}
-
-		filterIds := make(map[uint32]*protos.JobStepIds)
-		filterArrayTaskIds := make(map[uint32]*protos.ArrayTaskIds)
-
-		for _, sel := range selectors {
-			if _, ok := filterIds[sel.JobId]; !ok {
-				filterIds[sel.JobId] = &protos.JobStepIds{}
-			}
-			if sel.StepId != nil {
-				filterIds[sel.JobId].Steps = append(filterIds[sel.JobId].Steps, *sel.StepId)
-			}
-
-			if sel.ArrayTaskId != nil {
-				if _, ok := filterArrayTaskIds[sel.JobId]; !ok {
-					filterArrayTaskIds[sel.JobId] = &protos.ArrayTaskIds{}
-				}
-				filterArrayTaskIds[sel.JobId].ArrayTaskIds = append(
-					filterArrayTaskIds[sel.JobId].ArrayTaskIds, *sel.ArrayTaskId)
-			}
-		}
-
-		req.FilterIds = filterIds
-		if len(filterArrayTaskIds) > 0 {
-			req.FilterArrayTaskIds = filterArrayTaskIds
-		}
+		req.FilterJobIds = selectors
 	}
 
 	if FlagState != "" {
@@ -98,28 +74,59 @@ func CancelJob(args []string) error {
 
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if len(reply.NotCancelledJobSteps) > 0 {
+		if len(reply.NotCancelled) > 0 {
 			return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
 		} else {
 			return nil
 		}
 	}
 
-	if len(reply.CancelledSteps) > 0 {
-		cancelledJobsString := util.JobStepListToString(reply.CancelledSteps)
+	if len(reply.Cancelled) > 0 {
+		jobIdStrList := make([]string, 0)
+		stepIdStrList := make([]string, 0)
+		for _, item := range reply.Cancelled {
+			var arrayTask *protos.ArrayTaskIdentity
+			if item.ArrayTaskId != nil {
+				arrayTask = &protos.ArrayTaskIdentity{ArrayJobId: item.JobId, TaskId: *item.ArrayTaskId}
+			}
+			if len(item.Steps) == 0 {
+				jobIdStrList = append(jobIdStrList, util.FormatJobId(item.JobId, arrayTask))
+				continue
+			}
+			for _, stepId := range item.Steps {
+				stepIdStrList = append(stepIdStrList, util.FormatStepId(item.JobId, arrayTask, stepId))
+			}
+		}
+		cancelledJobsString := ""
+		if len(jobIdStrList) != 0 {
+			cancelledJobsString = fmt.Sprintf("Job %s",
+				util.ConvertSliceToString(jobIdStrList, ","))
+		}
+		if len(stepIdStrList) > 0 {
+			stepStr := fmt.Sprintf("Step %s",
+				util.ConvertSliceToString(stepIdStrList, ","))
+			if len(cancelledJobsString) == 0 {
+				cancelledJobsString = stepStr
+			} else {
+				cancelledJobsString += " " + stepStr
+			}
+		}
 		fmt.Printf("%s cancelled successfully.\n", cancelledJobsString)
 	}
 
-	if len(reply.NotCancelledJobSteps) > 0 {
-		for jobId, stepErr := range reply.NotCancelledJobSteps {
-			if len(stepErr.Reason) != 0 {
-				fmt.Printf("Failed to cancel job: %d. Reason: %s.\n", jobId, stepErr.Reason)
-			} else {
-				for i := 0; i < len(stepErr.StepIds); i++ {
-					fmt.Printf("Failed to cancel step: %d-%d. Reason: %s.\n", jobId, stepErr.StepIds[i], stepErr.StepReasons[i])
-
-				}
+	if len(reply.NotCancelled) > 0 {
+		for _, entry := range reply.NotCancelled {
+			var arrayTask *protos.ArrayTaskIdentity
+			if entry.ArrayTaskId != nil {
+				arrayTask = &protos.ArrayTaskIdentity{ArrayJobId: entry.JobId, TaskId: *entry.ArrayTaskId}
 			}
+			kind := "job"
+			id := util.FormatJobId(entry.JobId, arrayTask)
+			if entry.StepId != nil {
+				kind = "step"
+				id = util.FormatStepId(entry.JobId, arrayTask, *entry.StepId)
+			}
+			fmt.Printf("Failed to cancel %s %s. Reason: %s.\n", kind, id, entry.Reason)
 		}
 		return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
 	}

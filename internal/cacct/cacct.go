@@ -82,10 +82,7 @@ func QueryJob() error {
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 		}
-		configureJobIdSelectors(selectors)
-		request.FilterIds = buildFilterIdsFromSelectors()
-	} else {
-		resetJobIdSelectors()
+		request.FilterJobIds = selectors
 	}
 
 	if FlagFilterUsers != "" {
@@ -146,6 +143,8 @@ func QueryJob() error {
 
 	if FlagNumLimit != 0 {
 		request.NumLimit = FlagNumLimit
+	} else if FlagFilterJobIDs != "" {
+		request.NumLimit = ^uint32(0)
 	}
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
@@ -164,29 +163,28 @@ func QueryJob() error {
 	}
 	items := make([]*JobOrStep, 0)
 	for _, job := range reply.JobInfoList {
+		if isArrayParentAggregate(job) {
+			continue
+		}
 		items = append(items, &JobOrStep{job: job, stepInfo: nil, isStep: false})
 		for _, step := range job.StepInfoList {
 			items = append(items, &JobOrStep{job: job, stepInfo: step, isStep: true})
 		}
 	}
 
-	items = applyArrayAwareItemFilter(items)
 	sort.Slice(items, func(i, j int) bool {
-		left := buildSortKey(items[i])
-		right := buildSortKey(items[j])
-		if left.jobId != right.jobId {
-			return left.jobId > right.jobId
+		jobId1, stepId1 := items[i].job.JobId, uint32(0)
+		jobId2, stepId2 := items[j].job.JobId, uint32(0)
+		if items[i].isStep {
+			stepId1 = items[i].stepInfo.StepId
 		}
-		if left.arrayPresent != right.arrayPresent {
-			return left.arrayPresent
+		if items[j].isStep {
+			stepId2 = items[j].stepInfo.StepId
 		}
-		if left.arrayTaskId != right.arrayTaskId {
-			return left.arrayTaskId < right.arrayTaskId
+		if jobId1 != jobId2 {
+			return jobId1 > jobId2
 		}
-		if left.isStep != right.isStep {
-			return !left.isStep
-		}
-		return left.stepId < right.stepId
+		return stepId1 < stepId2
 	})
 
 	table := tablewriter.NewWriter(os.Stdout)
@@ -275,10 +273,6 @@ func QueryJob() error {
 		}
 	}
 
-	if FlagFormat == "" {
-		tableData = insertArraySummaryRows(header, tableData, items)
-	}
-
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}
@@ -292,6 +286,10 @@ func QueryJob() error {
 	return nil
 }
 
+func isArrayParentAggregate(job *protos.JobInfo) bool {
+	return job.ArraySpec != nil && job.ArrayTask == nil
+}
+
 // JobOrStep represents either a job (JobInfo) or a step (StepInfo)
 type JobOrStep struct {
 	job      *protos.JobInfo
@@ -299,95 +297,9 @@ type JobOrStep struct {
 	isStep   bool
 }
 
-type jobDisplaySortKey struct {
-	jobId        uint32
-	arrayPresent bool
-	arrayTaskId  uint32
-	isStep       bool
-	stepId       uint32
-}
-
-func buildSortKey(item *JobOrStep) jobDisplaySortKey {
-	arrayJobId := util.JobArrayJobId(item.job)
-	arrayTaskId := util.JobArrayTaskId(item.job)
-	key := jobDisplaySortKey{
-		jobId:  util.ResolveArrayJobId(item.job.JobId, arrayJobId),
-		isStep: item.isStep,
-	}
-
-	if arrayTaskId != nil {
-		key.arrayPresent = true
-		key.arrayTaskId = *arrayTaskId
-	}
-
-	if item.isStep {
-		key.stepId = item.stepInfo.StepId
-	}
-
-	return key
-}
-
 type FieldProcessor struct {
 	header  string
 	process func(item *JobOrStep) string
-}
-
-type arraySummaryInfo = util.ArraySummaryInfo
-
-func buildArraySummaryRow(header []string, info *arraySummaryInfo) []string {
-	row := make([]string, len(header))
-	summaryId := fmt.Sprintf("%d_[%d-%d]", info.AnchorJobId, info.Start, info.End)
-
-	for i, column := range header {
-		switch column {
-		case "JobId":
-			row[i] = summaryId
-		case "JobName", "Name":
-			row[i] = info.Sample.Name
-		case "Partition":
-			row[i] = info.Sample.Partition
-		case "Account":
-			row[i] = info.Sample.Account
-		case "State", "Status":
-			row[i] = "ArraySummary"
-		case "ExitCode":
-			row[i] = "-"
-		case "UserName":
-			row[i] = info.Sample.Username
-		case "Qos", "QoS":
-			row[i] = info.Sample.Qos
-		case "TimeLimit":
-			row[i] = ProcessTimeLimit(&JobOrStep{job: info.Sample})
-		case "StartTime":
-			row[i] = ProcessStartTime(&JobOrStep{job: info.Sample})
-		case "EndTime":
-			row[i] = ProcessEndTime(&JobOrStep{job: info.Sample})
-		case "SubmitTime":
-			row[i] = ProcessSubmitTime(&JobOrStep{job: info.Sample})
-		case "NodeList":
-			row[i] = fmt.Sprintf("ArrayTasks=%d", info.Count)
-		case "NodeNum":
-			row[i] = strconv.Itoa(info.Count)
-		case "wckey":
-			row[i] = info.Sample.Wckey
-		default:
-			row[i] = "-"
-		}
-	}
-
-	return row
-}
-
-func insertArraySummaryRows(header []string, rows [][]string, items []*JobOrStep) [][]string {
-	return util.BuildArraySummaryRows(header, rows, items,
-		func(item *JobOrStep) *protos.JobInfo {
-			if item.isStep {
-				return nil
-			}
-			return item.job
-		},
-		buildArraySummaryRow,
-	)
 }
 
 // Account (a)
@@ -534,19 +446,10 @@ func ProcessHeld(item *JobOrStep) string {
 
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
-	arrayJobId := util.JobArrayJobId(item.job)
-	arrayTaskId := util.JobArrayTaskId(item.job)
 	if item.isStep {
-		return util.FormatStepIdWithArray(
-			util.ResolveArrayJobId(item.stepInfo.JobId, arrayJobId),
-			arrayTaskId,
-			item.stepInfo.StepId,
-		)
+		return util.FormatStepId(item.job.JobId, item.job.ArrayTask, item.stepInfo.StepId)
 	}
-	return util.FormatJobIdWithArray(
-		util.ResolveArrayJobId(item.job.JobId, arrayJobId),
-		arrayTaskId,
-	)
+	return util.FormatJobId(item.job.JobId, item.job.ArrayTask)
 }
 
 // Wckey (K)

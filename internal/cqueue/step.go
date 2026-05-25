@@ -55,10 +55,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 	}
 
 	less := func(i, j int) bool {
-		jobId1 := util.ResolveArrayJobId(
-			stepDataList[i].stepInfo.JobId, util.JobArrayJobId(stepDataList[i].job))
-		jobId2 := util.ResolveArrayJobId(
-			stepDataList[j].stepInfo.JobId, util.JobArrayJobId(stepDataList[j].job))
+		jobId1, jobId2 := stepDataList[i].stepInfo.JobId, stepDataList[j].stepInfo.JobId
 		stepId1, stepId2 := stepDataList[i].stepInfo.StepId, stepDataList[j].stepInfo.StepId
 		if jobId1 != jobId2 {
 			return jobId1 > jobId2
@@ -83,7 +80,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 			stepInfo := stepData.stepInfo
 			job := stepData.job
 
-			stepIdStr := formatStepIdForDisplay(stepInfo, job)
+			stepIdStr := util.FormatStepId(stepInfo.JobId, job.ArrayTask, stepInfo.StepId)
 
 			name := stepInfo.Name
 
@@ -130,7 +127,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 
 // Step field processors
 func ProcessStepId(stepData StepData) string {
-	return formatStepIdForDisplay(stepData.stepInfo, stepData.job)
+	return util.FormatStepId(stepData.stepInfo.JobId, stepData.job.ArrayTask, stepData.stepInfo.StepId)
 }
 
 func ProcessStepName(stepData StepData) string {
@@ -191,7 +188,7 @@ func ProcessStepCommand(stepData StepData) string {
 }
 
 func ProcessStepJobId(stepData StepData) string {
-	return formatJobIdForDisplay(stepData.job)
+	return util.FormatJobId(stepData.job.JobId, stepData.job.ArrayTask)
 }
 
 type StepFieldProcessor struct {

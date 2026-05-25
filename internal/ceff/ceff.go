@@ -52,7 +52,7 @@ type ResourceUsageRecord struct {
 }
 
 type CeffJobInfo struct {
-	JobID              uint32           `json:"job_id"`
+	JobID              string           `json:"job_id"`
 	QoS                string           `json:"qos"`
 	UID                uint32           `json:"uid"`
 	UserName           string           `json:"user_name"`
@@ -233,21 +233,22 @@ func FormatDuration(duration time.Duration) string {
 	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 }
 
-func findNotFoundJobs(jobIdList []uint32, printed map[uint32]bool) []uint32 {
-	var notFoundJobs []uint32
-	for _, jobID := range jobIdList {
-		if !printed[jobID] {
-			notFoundJobs = append(notFoundJobs, jobID)
+func findNotFoundJobs(jobInfoList []*protos.JobInfo, printed map[uint32]bool) []string {
+	var notFoundJobs []string
+	for _, jobInfo := range jobInfoList {
+		if !printed[jobInfo.JobId] {
+			notFoundJobs = append(notFoundJobs, util.FormatJobId(jobInfo.JobId, jobInfo.ArrayTask))
 		}
 	}
 	return notFoundJobs
 }
 
 func PrintJobInfo(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) error {
+	displayJobID := util.FormatJobId(jobInfo.JobId, jobInfo.ArrayTask)
 	// Filter job records
 	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(jobInfo.JobId))
 	if err != nil {
-		return fmt.Errorf("print job %v info error: %w", jobInfo.JobId, err)
+		return fmt.Errorf("print job %v info error: %w", displayJobID, err)
 	}
 
 	// Obtain user and group information
@@ -270,7 +271,7 @@ func PrintJobInfo(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) error
 			"Qos: %v\n"+
 			"User/Group: %s(%d)/%s(%d)\n"+
 			"Account: %v\n",
-		jobInfo.JobId, jobInfo.Qos, craneUser.Username, jobInfo.Uid, group.Name, jobInfo.Gid,
+		displayJobID, jobInfo.Qos, craneUser.Username, jobInfo.Uid, group.Name, jobInfo.Gid,
 		jobInfo.Account)
 
 	if jobInfo.Status == protos.JobStatus_Pending || jobInfo.Status == protos.JobStatus_Running {
@@ -334,9 +335,10 @@ func PrintJobInfo(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) error
 }
 
 func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) (*CeffJobInfo, error) {
+	displayJobID := util.FormatJobId(jobInfo.JobId, jobInfo.ArrayTask)
 	totalCPUUseS, totalMemMb, err := CalculateTotalUsagePtr(records, int64(jobInfo.JobId))
 	if err != nil {
-		return nil, fmt.Errorf("print job %v json info error: %w", jobInfo.JobId, err)
+		return nil, fmt.Errorf("print job %v json info error: %w", displayJobID, err)
 	}
 
 	craneUser, err := user.LookupId(strconv.Itoa(int(jobInfo.Uid)))
@@ -354,7 +356,7 @@ func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord)
 	cpuTotal := jobInfo.GetAllocatedResView().GetCpuCount()
 	coresPerNode := cpuTotal / float64(jobInfo.NodeNum)
 	jobJsonInfo := &CeffJobInfo{
-		JobID:        jobInfo.JobId,
+		JobID:        displayJobID,
 		QoS:          jobInfo.Qos,
 		UserName:     craneUser.Username,
 		UID:          jobInfo.Uid,
@@ -402,20 +404,13 @@ func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord)
 }
 
 func QueryJobsInfoByIds(jobIds string) error {
-	stepIdList, err := util.ParseStepIdList(jobIds, ",")
+	selectors, err := util.ParseJobIdSelectorList(jobIds, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s", err))
 	}
-	jobIdList := make([]uint32, len(stepIdList))
-	for jobId, _ := range stepIdList {
-		jobIdList = append(jobIdList, jobId)
-	}
-	for _, jobId := range jobIdList {
-		stepIdList[jobId] = &protos.JobStepIds{Steps: make([]uint32, 0)}
-	}
 
 	req := &protos.QueryJobsInfoRequest{
-		FilterIds:                  stepIdList,
+		FilterJobIds:               selectors,
 		OptionIncludeCompletedJobs: true,
 	}
 
@@ -423,6 +418,11 @@ func QueryJobsInfoByIds(jobIds string) error {
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to query job info")
 		return &util.CraneError{Code: util.ErrorNetwork}
+	}
+
+	jobIdList := make([]uint32, 0, len(reply.JobInfoList))
+	for _, jobInfo := range reply.JobInfoList {
+		jobIdList = append(jobIdList, jobInfo.JobId)
 	}
 
 	// Query Resource Usage Records via cplugind (secure approach)
@@ -449,7 +449,7 @@ func QueryJobsInfoByIds(jobIds string) error {
 		}
 
 		fmt.Println(string(jsonData))
-		notFoundJobs := findNotFoundJobs(jobIdList, printed)
+		notFoundJobs := findNotFoundJobs(reply.JobInfoList, printed)
 		if len(notFoundJobs) > 0 {
 			fmt.Printf("Job %v does not exist.\n", notFoundJobs)
 		}
@@ -465,7 +465,7 @@ func QueryJobsInfoByIds(jobIds string) error {
 		}
 	}
 
-	notFoundJobs := findNotFoundJobs(jobIdList, printed)
+	notFoundJobs := findNotFoundJobs(reply.JobInfoList, printed)
 	if len(notFoundJobs) > 0 {
 		fmt.Printf("Job %v does not exist.\n", notFoundJobs)
 	}

@@ -1089,10 +1089,7 @@ func squeueQueryTableOutput(reply *protos.QueryJobsInfoReply) util.ExitCode {
 		}
 
 		tableData[i] = []string{
-			util.FormatJobIdWithArray(
-				util.ResolveArrayJobId(jobInfo.JobId, util.JobArrayJobId(jobInfo)),
-				util.JobArrayTaskId(jobInfo),
-			),
+			util.FormatJobId(jobInfo.JobId, jobInfo.ArrayTask),
 			jobInfo.Partition,
 			jobInfo.Name,
 			jobInfo.Username,

@@ -126,9 +126,9 @@ Supported format identifiers or string, string case insensitive:
 	%D/%ElapsedTime       - Display the elapsed time from the start of the job.
 	%deadline/%Deadline   - Display the deadline time of the job.
 	%E/%EndTime           - Display the end time of the job.
-	%e/%ExitCode          - Display the exit code of the job. 
-                             If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
-                             it formats as "0:<code>" or "<code>:0" based on the condition.
+	%e/%ExitCode          - Display the exit code of the job.
+                             Signal-terminated jobs format as "0:<signal>",
+                             otherwise as "<code>:0".
 	%h/%Held              - Display the hold status of the job.
 	%j/%JobID             - Display the ID of the job (array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid).
 	%K/%Wckey             - Display the wckey of the job.

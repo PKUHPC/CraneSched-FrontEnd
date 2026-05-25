@@ -129,18 +129,11 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 		job.Ntasks = FlagNtasks
 	}
 	if cmd.Flags().Changed("array") {
-		start, end, stride, maxConc, err := util.ParseArrayRangeSpec(FlagArray)
+		arraySpec, err := util.ParseArrayRangeSpec(FlagArray)
 		if err != nil {
 			return nil, err
 		}
-		job.ArraySpec = &protos.ArraySpec{
-			Start:  start,
-			End:    end,
-			Stride: &stride,
-		}
-		if maxConc > 0 {
-			job.ArraySpec.MaxConcurrent = &maxConc
-		}
+		job.ArraySpec = arraySpec
 	}
 	if cmd.Flags().Changed("gres") {
 		gresMap, err := util.ParseGres(FlagGres)
@@ -401,18 +394,11 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			}
 			job.Ntasks = uint32(num)
 		case "--array", "-a":
-			start, end, stride, maxConc, err := util.ParseArrayRangeSpec(arg.val)
+			arraySpec, err := util.ParseArrayRangeSpec(arg.val)
 			if err != nil {
 				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
 			}
-			job.ArraySpec = &protos.ArraySpec{
-				Start:  start,
-				End:    end,
-				Stride: &stride,
-			}
-			if maxConc > 0 {
-				job.ArraySpec.MaxConcurrent = &maxConc
-			}
+			job.ArraySpec = arraySpec
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {

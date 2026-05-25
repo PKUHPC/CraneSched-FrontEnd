@@ -36,7 +36,6 @@ var (
 
 func FillReqByCobraFlags() (*protos.QueryJobsInfoRequest, error) {
 	req := protos.QueryJobsInfoRequest{OptionIncludeCompletedJobs: false}
-	resetJobIdSelectors()
 
 	processors := []FilterProcessor{
 		&StatesFilterProcessor{},
@@ -108,8 +107,6 @@ func Query() error {
 	if err != nil {
 		return err
 	}
-
-	applyArrayAwareJobFilter(reply)
 
 	if FlagJson {
 		return JsonOutput(reply)

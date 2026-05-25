@@ -136,19 +136,6 @@ var (
 
 			hasArray := job.ArraySpec != nil
 			if hasArray {
-				if FlagRepeat > 1 {
-					return util.NewCraneErr(util.ErrorCmdArg, "--array and --repeat are mutually exclusive")
-				}
-
-				stride := uint64(1)
-				if job.ArraySpec.Stride != nil && *job.ArraySpec.Stride != 0 {
-					stride = uint64(*job.ArraySpec.Stride)
-				}
-				arrayCount := (uint64(job.ArraySpec.End)-uint64(job.ArraySpec.Start))/stride + 1
-				if arrayCount == 0 || arrayCount > uint64(util.MaxArrayTaskCount) {
-					return util.NewCraneErr(util.ErrorCmdArg, "--array range is too large")
-				}
-
 				return SendMultipleRequests(job, 1)
 			}
 

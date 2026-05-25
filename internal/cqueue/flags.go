@@ -127,12 +127,13 @@ func (p *JobIDsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
 	}
-	if err := configureJobIdSelectors(selectors); err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
+	for _, selector := range selectors {
+		if len(selector.Steps) > 0 {
+			return util.NewCraneErr(util.ErrorCmdArg, "Step selector is unsupported in cqueue --job, use --step for step queries.")
+		}
 	}
 
-	req.FilterIds = buildFilterIdsFromJobSelectors()
-	req.FilterArrayTaskIds = buildFilterArrayTaskIdsFromJobSelectors()
+	req.FilterJobIds = selectors
 	if !FlagStep {
 		// Count total number of requested jobs/tasks, not just unique parent IDs
 		req.NumLimit = uint32(len(selectors))
@@ -148,24 +149,12 @@ func (p *StepIDsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 	if FlagFilterStepIDs == "" {
 		return nil
 	}
-	filterStepList, err := util.ParseStepIdList(FlagFilterStepIDs, ",")
+	selectors, err := util.ParseJobIdSelectorList(FlagFilterStepIDs, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid step list specified: %s.", err))
 	}
-	if len(filterStepList) == 0 {
-		req.FilterIds = filterStepList
-	} else {
-		if req.FilterIds == nil {
-			req.FilterIds = make(map[uint32]*protos.JobStepIds)
-		}
-		for jobId, steps := range filterStepList {
-			if _, exist := req.FilterIds[jobId]; exist {
-				steps.Steps = append(steps.Steps, req.FilterIds[jobId].Steps...)
-			} else {
-				req.FilterIds[jobId] = steps
-			}
-		}
-	}
+
+	req.FilterJobIds = append(req.FilterJobIds, selectors...)
 	req.NumLimit = 0
 	return nil
 }

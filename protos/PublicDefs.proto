@@ -32,21 +32,6 @@ message CranedId {
   uint32 craned_index = 2;
 }
 
-message AllocatableResource {
-  double cpu_core_limit = 1;
-  uint64 memory_limit_bytes = 2;
-  uint64 memory_sw_limit_bytes = 3;
-}
-
-message TypeCountMap {
-  map<string /*Type*/, uint64> type_count_map = 1;
-  uint64 total = 2;
-}
-
-message DeviceMap {
-  map<string /*name*/, TypeCountMap> name_type_map = 1;
-}
-
 message Slots {
   repeated string slots = 1;
 }
@@ -176,13 +161,6 @@ message ArraySpec {
 message ArrayTaskIdentity {
   uint32 array_job_id = 1;
   uint32 task_id = 2;
-}
-
-message ArrayTaskMeta {
-  uint32 task_count = 1;
-  uint32 task_min = 2;
-  uint32 task_max = 3;
-  uint32 task_step = 4;
 }
 
 message DependencyStatus {
@@ -427,7 +405,6 @@ message JobToD {
   string name = 9;
 
   optional ArrayTaskIdentity array_task = 16;
-  optional ArrayTaskMeta array_task_meta = 17;
 }
 
 enum StepType {
@@ -506,8 +483,10 @@ message JobStepIds {
   repeated uint32 steps = 1;
 }
 
-message ArrayTaskIds {
-  repeated uint32 array_task_ids = 1;
+message JobIdSelector {
+  uint32 job_id = 1;
+  optional uint32 array_task_id = 2;
+  repeated uint32 steps = 3;
 }
 
 message IoMeta {
@@ -696,7 +675,6 @@ message JobInfo {
 
   ArraySpec array_spec = 50;
   ArrayTaskIdentity array_task = 51;
-  ArrayTaskMeta array_task_meta = 52;
 }
 
 message StepInfo {
