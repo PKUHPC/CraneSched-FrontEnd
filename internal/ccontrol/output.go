@@ -174,9 +174,11 @@ func printNodeDetails(node *protos.CranedInfo) {
 	cpuInfo := formatCpuInfo(node)
 	memInfo := formatMemInfo(node)
 	gresInfo := formatGresInfo(node)
+	topoInfo := formatTopoInfo(node)
 
 	fmt.Printf(
 		"NodeName=%v State=%v %s\n"+
+			"\t%s\n"+
 			"\t%s\n"+
 			"\t%s\n"+
 			"\tPartition=%s RunningJob=%d Version=%s\n"+
@@ -186,6 +188,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 		node.Hostname, stateStr, cpuInfo,
 		memInfo,
 		gresInfo,
+		topoInfo,
 		strings.Join(node.PartitionNames, ","), node.RunningJobNum, cranedVersion,
 		cranedOs,
 		timeInfo.bootTime, timeInfo.startTime, timeInfo.lastBusyTime,
@@ -245,6 +248,17 @@ func formatGresInfo(node *protos.CranedInfo) string {
 		formatDedicatedResource(node.ResTotal.GetGres()),
 		formatDedicatedResource(node.ResAlloc.GetGres()),
 		formatDedicatedResource(node.ResAvail.GetGres()),
+	)
+}
+
+func formatTopoInfo(node *protos.CranedInfo) string {
+	topo := node.GetNodeTopoInfo()
+	if topo == nil {
+		return "Boards=1 Sockets=1 CoresPerSocket=1 ThreadsPerCore=1"
+	}
+	return fmt.Sprintf("Boards=%d Sockets=%d CoresPerSocket=%d ThreadsPerCore=%d",
+		topo.GetBoards(), topo.GetSockets(),
+		topo.GetCoresPerSocket(), topo.GetThreadsPerCore(),
 	)
 }
 
