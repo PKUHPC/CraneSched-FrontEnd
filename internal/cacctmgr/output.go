@@ -919,7 +919,7 @@ func formatPreemptMode(m protos.PreemptMode) string {
 	case protos.PreemptMode_PREEMPT_MODE_SUSPEND:
 		return "SUSPEND"
 	default:
-		return "OFF"
+		return "INVALID"
 	}
 }
 

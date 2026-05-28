@@ -124,7 +124,7 @@ func validateUintValue(value string, fieldName string, bitSize int) error {
 
 // TODO(preempt): expose REQUEUE and SUSPEND once supported.
 func parsePreemptMode(value string) (protos.PreemptMode, error) {
-	switch strings.ToUpper(value) {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
 	case "OFF":
 		return protos.PreemptMode_PREEMPT_MODE_OFF, nil
 	case "CANCEL":
