@@ -523,24 +523,24 @@ func handleEmptyJobResult(selectors []*protos.JobIdSelector, queryAll bool) erro
 }
 
 func outputJobs(jobs []*protos.JobInfo, selectors []*protos.JobIdSelector) error {
-	returnedJobs := make(map[jobIdentifier]bool)
+	returnedJobs := make(map[util.JobIdentifier]bool)
 	for _, job := range jobs {
 		if err := printJobDetails(job); err != nil {
 			return err
 		}
-		returnedJobs[jobIdentifierFromJobInfo(job)] = true
+		returnedJobs[util.JobIdentifierFromJobInfo(job)] = true
 	}
 	return checkMissingJobs(selectors, returnedJobs)
 }
 
 func formatSelector(sel *protos.JobIdSelector) string {
-	return jobIdentifierFromSelector(sel).String()
+	return util.JobIdentifierFromSelector(sel).String()
 }
 
-func checkMissingJobs(selectors []*protos.JobIdSelector, returnedJobs map[jobIdentifier]bool) error {
+func checkMissingJobs(selectors []*protos.JobIdSelector, returnedJobs map[util.JobIdentifier]bool) error {
 	missing := make([]string, 0)
 	for _, sel := range selectors {
-		id := jobIdentifierFromSelector(sel)
+		id := util.JobIdentifierFromSelector(sel)
 		if !returnedJobs[id] {
 			missing = append(missing, id.String())
 		}
@@ -870,12 +870,12 @@ func ShowSteps(stepIds string, queryAll bool) error {
 	}
 
 	printedSteps := 0
-	printed := make(map[stepIdentifier]bool)
+	printed := make(map[util.StepIdentifier]bool)
 	for _, jobInfo := range reply.JobInfoList {
 		// Iterate through all steps in this job
 		for _, stepInfo := range jobInfo.StepInfoList {
 			printedSteps++
-			printed[stepIdentifierFromStepInfo(jobInfo, stepInfo)] = true
+			printed[util.StepIdentifierFromStepInfo(jobInfo, stepInfo)] = true
 			stepId := stepInfo.StepId
 
 			var timeStartStr string
@@ -962,17 +962,17 @@ func ShowSteps(stepIds string, queryAll bool) error {
 	return nil
 }
 
-func requestedStepIdentifiers(selectors []*protos.JobIdSelector) []stepIdentifier {
-	requestedSteps := make([]stepIdentifier, 0)
+func requestedStepIdentifiers(selectors []*protos.JobIdSelector) []util.StepIdentifier {
+	requestedSteps := make([]util.StepIdentifier, 0)
 	for _, selector := range selectors {
 		for _, stepId := range selector.Steps {
-			requestedSteps = append(requestedSteps, stepIdentifierFromSelector(selector, stepId))
+			requestedSteps = append(requestedSteps, util.StepIdentifierFromSelector(selector, stepId))
 		}
 	}
 	return requestedSteps
 }
 
-func printMissingSteps(requestedSteps []stepIdentifier, printed map[stepIdentifier]bool) {
+func printMissingSteps(requestedSteps []util.StepIdentifier, printed map[util.StepIdentifier]bool) {
 	missing := make([]string, 0)
 	for _, step := range requestedSteps {
 		if printed == nil || !printed[step] {

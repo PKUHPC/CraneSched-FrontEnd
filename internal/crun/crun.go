@@ -1164,7 +1164,8 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 
 	// Patterns containing %N/%n/%t are expanded by craned on compute nodes.
 	// Other patterns are opened by this crun process, so %A/%a use the nested
-	// step environment propagated from the parent array task.
+	// step environment propagated from the parent array task. Missing array env
+	// means non-array context; partial or malformed array env is an error.
 	arrayJobId := strconv.FormatUint(uint64(m.jobId), 10)
 	arrayTaskId := strconv.FormatUint(uint64(kNoArrayTaskIdSentinel), 10)
 	if usesArrayPattern {
@@ -1234,6 +1235,7 @@ func (m *StateMachineOfCrun) localArrayPatternValues() (string, string, error) {
 			kArrayJobIdEnv, kArrayTaskIdEnv)
 	}
 	if !hasArrayJobId {
+		// Slurm-compatible non-array expansion: %A is the job id and %a is NO_VAL.
 		return arrayJobId, arrayTaskId, nil
 	}
 

@@ -233,14 +233,29 @@ func FormatDuration(duration time.Duration) string {
 	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 }
 
-func findNotFoundJobs(jobInfoList []*protos.JobInfo, printed map[uint32]bool) []string {
+func findNotFoundJobs(selectors []*protos.JobIdSelector, returned map[util.JobIdentifier]bool) []string {
 	var notFoundJobs []string
-	for _, jobInfo := range jobInfoList {
-		if !printed[jobInfo.JobId] {
-			notFoundJobs = append(notFoundJobs, util.FormatJobId(jobInfo.JobId, jobInfo.ArrayTask))
+	for _, selector := range selectors {
+		id := util.JobIdentifierFromSelector(selector)
+		if !returned[id] {
+			notFoundJobs = append(notFoundJobs, id.String())
 		}
 	}
 	return notFoundJobs
+}
+
+func returnedJobIdentifiers(jobInfoList []*protos.JobInfo) map[util.JobIdentifier]bool {
+	returned := make(map[util.JobIdentifier]bool, len(jobInfoList))
+	for _, jobInfo := range jobInfoList {
+		returned[util.JobIdentifierFromJobInfo(jobInfo)] = true
+	}
+	return returned
+}
+
+func printNotFoundJobs(notFoundJobs []string) {
+	if len(notFoundJobs) > 0 {
+		fmt.Printf("Job %s does not exist.\n", util.ConvertSliceToString(notFoundJobs, ", "))
+	}
 }
 
 func PrintJobInfo(jobInfo *protos.JobInfo, records []*ResourceUsageRecord) error {
@@ -419,6 +434,15 @@ func QueryJobsInfoByIds(jobIds string) error {
 		util.GrpcErrorPrintf(err, "Failed to query job info")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to query job info for %s", jobIds))
+	}
+
+	notFoundJobs := findNotFoundJobs(selectors, returnedJobIdentifiers(reply.JobInfoList))
+	if len(reply.JobInfoList) == 0 {
+		printNotFoundJobs(notFoundJobs)
+		return nil
+	}
 
 	jobIdList := make([]uint32, 0, len(reply.JobInfoList))
 	for _, jobInfo := range reply.JobInfoList {
@@ -431,7 +455,6 @@ func QueryJobsInfoByIds(jobIds string) error {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to query efficiency data via plugin: %s", err))
 	}
 
-	printed := map[uint32]bool{}
 	jobInfoList := []*CeffJobInfo{}
 	if FlagJson {
 		for _, jobInfo := range reply.JobInfoList {
@@ -439,7 +462,6 @@ func QueryJobsInfoByIds(jobIds string) error {
 				log.Warnf("%v", err)
 			} else {
 				jobInfoList = append(jobInfoList, jobData)
-				printed[jobInfo.JobId] = true
 			}
 		}
 
@@ -449,10 +471,7 @@ func QueryJobsInfoByIds(jobIds string) error {
 		}
 
 		fmt.Println(string(jsonData))
-		notFoundJobs := findNotFoundJobs(reply.JobInfoList, printed)
-		if len(notFoundJobs) > 0 {
-			fmt.Printf("Job %v does not exist.\n", notFoundJobs)
-		}
+		printNotFoundJobs(notFoundJobs)
 
 		return nil
 	}
@@ -460,15 +479,10 @@ func QueryJobsInfoByIds(jobIds string) error {
 	for _, jobInfo := range reply.JobInfoList {
 		if err := PrintJobInfo(jobInfo, result); err != nil {
 			log.Warnf("%v", err)
-		} else {
-			printed[jobInfo.JobId] = true
 		}
 	}
 
-	notFoundJobs := findNotFoundJobs(reply.JobInfoList, printed)
-	if len(notFoundJobs) > 0 {
-		fmt.Printf("Job %v does not exist.\n", notFoundJobs)
-	}
+	printNotFoundJobs(notFoundJobs)
 
 	return nil
 }

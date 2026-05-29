@@ -85,16 +85,12 @@ func CancelJob(args []string) error {
 		jobIdStrList := make([]string, 0)
 		stepIdStrList := make([]string, 0)
 		for _, item := range reply.Cancelled {
-			var arrayTask *protos.ArrayTaskIdentity
-			if item.ArrayTaskId != nil {
-				arrayTask = &protos.ArrayTaskIdentity{ArrayJobId: item.JobId, TaskId: *item.ArrayTaskId}
-			}
 			if len(item.Steps) == 0 {
-				jobIdStrList = append(jobIdStrList, util.FormatJobId(item.JobId, arrayTask))
+				jobIdStrList = append(jobIdStrList, util.FormatJobIdFromArrayTaskId(item.JobId, item.ArrayTaskId))
 				continue
 			}
 			for _, stepId := range item.Steps {
-				stepIdStrList = append(stepIdStrList, util.FormatStepId(item.JobId, arrayTask, stepId))
+				stepIdStrList = append(stepIdStrList, util.FormatStepIdFromArrayTaskId(item.JobId, item.ArrayTaskId, stepId))
 			}
 		}
 		cancelledJobsString := ""
@@ -116,15 +112,11 @@ func CancelJob(args []string) error {
 
 	if len(reply.NotCancelled) > 0 {
 		for _, entry := range reply.NotCancelled {
-			var arrayTask *protos.ArrayTaskIdentity
-			if entry.ArrayTaskId != nil {
-				arrayTask = &protos.ArrayTaskIdentity{ArrayJobId: entry.JobId, TaskId: *entry.ArrayTaskId}
-			}
 			kind := "job"
-			id := util.FormatJobId(entry.JobId, arrayTask)
+			id := util.FormatJobIdFromArrayTaskId(entry.JobId, entry.ArrayTaskId)
 			if entry.StepId != nil {
 				kind = "step"
-				id = util.FormatStepId(entry.JobId, arrayTask, *entry.StepId)
+				id = util.FormatStepIdFromArrayTaskId(entry.JobId, entry.ArrayTaskId, *entry.StepId)
 			}
 			fmt.Printf("Failed to cancel %s %s. Reason: %s.\n", kind, id, entry.Reason)
 		}

@@ -49,74 +49,6 @@ const (
 	DeadlineTypeFlag
 )
 
-type jobIdentifier struct {
-	jobId        uint32
-	arrayTaskId  uint32
-	hasArrayTask bool
-}
-
-func jobIdentifierFromJobInfo(job *protos.JobInfo) jobIdentifier {
-	if job.ArrayTask != nil {
-		return jobIdentifier{
-			jobId:        job.ArrayTask.ArrayJobId,
-			arrayTaskId:  job.ArrayTask.TaskId,
-			hasArrayTask: true,
-		}
-	}
-	return jobIdentifier{jobId: job.JobId}
-}
-
-func jobIdentifierFromSelector(selector *protos.JobIdSelector) jobIdentifier {
-	if selector.ArrayTaskId != nil {
-		return jobIdentifier{
-			jobId:        selector.JobId,
-			arrayTaskId:  *selector.ArrayTaskId,
-			hasArrayTask: true,
-		}
-	}
-	return jobIdentifier{jobId: selector.JobId}
-}
-
-func (id jobIdentifier) String() string {
-	if !id.hasArrayTask {
-		return strconv.FormatUint(uint64(id.jobId), 10)
-	}
-	return util.FormatJobId(id.jobId, &protos.ArrayTaskIdentity{
-		ArrayJobId: id.jobId,
-		TaskId:     id.arrayTaskId,
-	})
-}
-
-type stepIdentifier struct {
-	job    jobIdentifier
-	stepId uint32
-}
-
-func stepIdentifierFromStepInfo(job *protos.JobInfo, step *protos.StepInfo) stepIdentifier {
-	return stepIdentifier{
-		job:    jobIdentifierFromJobInfo(job),
-		stepId: step.StepId,
-	}
-}
-
-func stepIdentifierFromSelector(selector *protos.JobIdSelector, stepId uint32) stepIdentifier {
-	return stepIdentifier{
-		job:    jobIdentifierFromSelector(selector),
-		stepId: stepId,
-	}
-}
-
-func (id stepIdentifier) String() string {
-	var arrayTask *protos.ArrayTaskIdentity
-	if id.job.hasArrayTask {
-		arrayTask = &protos.ArrayTaskIdentity{
-			ArrayJobId: id.job.jobId,
-			TaskId:     id.job.arrayTaskId,
-		}
-	}
-	return util.FormatStepId(id.job.jobId, arrayTask, id.stepId)
-}
-
 func SummarizeReply(proto interface{}) error {
 	switch reply := proto.(type) {
 	case *protos.ModifyJobReply:
@@ -438,19 +370,19 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	}
 
 	pdOrRJobMap := make(map[uint32]string)
-	validJobList := map[jobIdentifier]bool{}
+	validJobList := map[util.JobIdentifier]bool{}
 	for _, jobInfo := range reply.JobInfoList {
 		newJsonStr, err := updateJobExtraAttr(jobInfo.ExtraAttr, valueMap)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Failed to set extra attributes JSON: %s", err)
 		}
 		pdOrRJobMap[jobInfo.JobId] = newJsonStr
-		validJobList[jobIdentifierFromJobInfo(jobInfo)] = true
+		validJobList[util.JobIdentifierFromJobInfo(jobInfo)] = true
 	}
 
 	notGetInfoJobs := make([]string, 0)
 	for _, selector := range selectors {
-		id := jobIdentifierFromSelector(selector)
+		id := util.JobIdentifierFromSelector(selector)
 		if !validJobList[id] {
 			notGetInfoJobs = append(notGetInfoJobs, id.String())
 		}

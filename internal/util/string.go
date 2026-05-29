@@ -277,6 +277,89 @@ func FormatStepId(jobId uint32, arrayTask *protos.ArrayTaskIdentity, stepId uint
 	return fmt.Sprintf("%s.%d", FormatJobId(jobId, arrayTask), stepId)
 }
 
+func ArrayTaskIdentityFromArrayTaskId(jobId uint32, arrayTaskId *uint32) *protos.ArrayTaskIdentity {
+	if arrayTaskId == nil {
+		return nil
+	}
+	return &protos.ArrayTaskIdentity{ArrayJobId: jobId, TaskId: *arrayTaskId}
+}
+
+func FormatJobIdFromArrayTaskId(jobId uint32, arrayTaskId *uint32) string {
+	return FormatJobId(jobId, ArrayTaskIdentityFromArrayTaskId(jobId, arrayTaskId))
+}
+
+func FormatStepIdFromArrayTaskId(jobId uint32, arrayTaskId *uint32, stepId uint32) string {
+	return FormatStepId(jobId, ArrayTaskIdentityFromArrayTaskId(jobId, arrayTaskId), stepId)
+}
+
+type JobIdentifier struct {
+	JobId        uint32
+	ArrayTaskId  uint32
+	HasArrayTask bool
+}
+
+func JobIdentifierFromJobInfo(job *protos.JobInfo) JobIdentifier {
+	if job.ArrayTask != nil {
+		return JobIdentifier{
+			JobId:        job.ArrayTask.ArrayJobId,
+			ArrayTaskId:  job.ArrayTask.TaskId,
+			HasArrayTask: true,
+		}
+	}
+	return JobIdentifier{JobId: job.JobId}
+}
+
+func JobIdentifierFromSelector(selector *protos.JobIdSelector) JobIdentifier {
+	if selector.ArrayTaskId != nil {
+		return JobIdentifier{
+			JobId:        selector.JobId,
+			ArrayTaskId:  *selector.ArrayTaskId,
+			HasArrayTask: true,
+		}
+	}
+	return JobIdentifier{JobId: selector.JobId}
+}
+
+func (id JobIdentifier) String() string {
+	if !id.HasArrayTask {
+		return strconv.FormatUint(uint64(id.JobId), 10)
+	}
+	return FormatJobId(id.JobId, &protos.ArrayTaskIdentity{
+		ArrayJobId: id.JobId,
+		TaskId:     id.ArrayTaskId,
+	})
+}
+
+type StepIdentifier struct {
+	Job    JobIdentifier
+	StepId uint32
+}
+
+func StepIdentifierFromStepInfo(job *protos.JobInfo, step *protos.StepInfo) StepIdentifier {
+	return StepIdentifier{
+		Job:    JobIdentifierFromJobInfo(job),
+		StepId: step.StepId,
+	}
+}
+
+func StepIdentifierFromSelector(selector *protos.JobIdSelector, stepId uint32) StepIdentifier {
+	return StepIdentifier{
+		Job:    JobIdentifierFromSelector(selector),
+		StepId: stepId,
+	}
+}
+
+func (id StepIdentifier) String() string {
+	var arrayTask *protos.ArrayTaskIdentity
+	if id.Job.HasArrayTask {
+		arrayTask = &protos.ArrayTaskIdentity{
+			ArrayJobId: id.Job.JobId,
+			TaskId:     id.Job.ArrayTaskId,
+		}
+	}
+	return FormatStepId(id.Job.JobId, arrayTask, id.StepId)
+}
+
 func ParseRelativeTime(ts string) (int64, error) {
 	// handle compound duration like 1h2m30s, 1h30m, etc.
 	if regexp.MustCompile(`^(\d+[a-zA-Z]+)+$`).MatchString(ts) {
