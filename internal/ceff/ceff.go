@@ -52,7 +52,10 @@ type ResourceUsageRecord struct {
 }
 
 type CeffJobInfo struct {
-	JobID              string           `json:"job_id"`
+	JobID              uint32           `json:"job_id"`
+	DisplayJobID       string           `json:"display_job_id,omitempty"`
+	ArrayJobID         *uint32          `json:"array_job_id,omitempty"`
+	ArrayTaskID        *uint32          `json:"array_task_id,omitempty"`
 	QoS                string           `json:"qos"`
 	UID                uint32           `json:"uid"`
 	UserName           string           `json:"user_name"`
@@ -370,8 +373,21 @@ func PrintJobInfoInJson(jobInfo *protos.JobInfo, records []*ResourceUsageRecord)
 	}
 	cpuTotal := jobInfo.GetAllocatedResView().GetCpuCount()
 	coresPerNode := cpuTotal / float64(jobInfo.NodeNum)
+	var displayJobIDForJSON string
+	var arrayJobID *uint32
+	var arrayTaskID *uint32
+	if jobInfo.ArrayTask != nil {
+		displayJobIDForJSON = displayJobID
+		arrayJobIDValue := jobInfo.ArrayTask.ArrayJobId
+		arrayTaskIDValue := jobInfo.ArrayTask.TaskId
+		arrayJobID = &arrayJobIDValue
+		arrayTaskID = &arrayTaskIDValue
+	}
 	jobJsonInfo := &CeffJobInfo{
-		JobID:        displayJobID,
+		JobID:        jobInfo.JobId,
+		DisplayJobID: displayJobIDForJSON,
+		ArrayJobID:   arrayJobID,
+		ArrayTaskID:  arrayTaskID,
 		QoS:          jobInfo.Qos,
 		UserName:     craneUser.Username,
 		UID:          jobInfo.Uid,

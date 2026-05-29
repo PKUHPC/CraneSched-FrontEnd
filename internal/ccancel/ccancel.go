@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 )
@@ -29,6 +30,64 @@ import (
 var (
 	stub protos.CraneCtldClient
 )
+
+type legacyCancelJobReply struct {
+	CancelledSteps       map[string]legacyCancelledSteps       `json:"cancelled_steps"`
+	NotCancelledJobSteps map[string]legacyNotCancelledJobSteps `json:"not_cancelled_job_steps"`
+}
+
+type legacyCancelledSteps struct {
+	Steps []uint32 `json:"steps"`
+}
+
+type legacyNotCancelledJobSteps struct {
+	Reason      string   `json:"reason"`
+	StepIds     []uint32 `json:"step_ids"`
+	StepReasons []string `json:"step_reasons"`
+}
+
+func formatLegacyCancelJobReply(reply *protos.CancelJobReply) (string, error) {
+	legacyReply := legacyCancelJobReply{
+		CancelledSteps:       make(map[string]legacyCancelledSteps),
+		NotCancelledJobSteps: make(map[string]legacyNotCancelledJobSteps),
+	}
+
+	for _, item := range reply.Cancelled {
+		id := util.FormatJobIdFromArrayTaskId(item.JobId, item.ArrayTaskId)
+		entry := legacyReply.CancelledSteps[id]
+		if len(item.Steps) > 0 {
+			entry.Steps = append(entry.Steps, item.Steps...)
+		}
+		if entry.Steps == nil {
+			entry.Steps = []uint32{}
+		}
+		legacyReply.CancelledSteps[id] = entry
+	}
+
+	for _, item := range reply.NotCancelled {
+		id := util.FormatJobIdFromArrayTaskId(item.JobId, item.ArrayTaskId)
+		entry := legacyReply.NotCancelledJobSteps[id]
+		if item.StepId == nil {
+			entry.Reason = item.Reason
+		} else {
+			entry.StepIds = append(entry.StepIds, *item.StepId)
+			entry.StepReasons = append(entry.StepReasons, item.Reason)
+		}
+		if entry.StepIds == nil {
+			entry.StepIds = []uint32{}
+		}
+		if entry.StepReasons == nil {
+			entry.StepReasons = []string{}
+		}
+		legacyReply.NotCancelledJobSteps[id] = entry
+	}
+
+	output, err := json.Marshal(legacyReply)
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
 
 func CancelJob(args []string) error {
 	req := &protos.CancelJobRequest{
@@ -73,7 +132,11 @@ func CancelJob(args []string) error {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		output, err := formatLegacyCancelJobReply(reply)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorInvalidFormat, err.Error())
+		}
+		fmt.Println(output)
 		if len(reply.NotCancelled) > 0 {
 			return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
 		} else {
@@ -112,13 +175,12 @@ func CancelJob(args []string) error {
 
 	if len(reply.NotCancelled) > 0 {
 		for _, entry := range reply.NotCancelled {
-			kind := "job"
 			id := util.FormatJobIdFromArrayTaskId(entry.JobId, entry.ArrayTaskId)
-			if entry.StepId != nil {
-				kind = "step"
-				id = util.FormatStepIdFromArrayTaskId(entry.JobId, entry.ArrayTaskId, *entry.StepId)
+			if entry.StepId == nil {
+				fmt.Printf("Failed to cancel job: %s. Reason: %s.\n", id, entry.Reason)
+			} else {
+				fmt.Printf("Failed to cancel step: %s-%d. Reason: %s.\n", id, *entry.StepId, entry.Reason)
 			}
-			fmt.Printf("Failed to cancel %s %s. Reason: %s.\n", kind, id, entry.Reason)
 		}
 		return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
 	}

@@ -94,7 +94,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 		"Select users to view (comma separated list)")
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"Select job ids to view (comma separated list), supports jobid, jobid.stepid, jobid_arraytaskid, and jobid_arraytaskid.stepid")
+		"Select job ids to view (comma separated list), default is all. Supports jobid, jobid.stepid, jobid_arraytaskid, and jobid_arraytaskid.stepid")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
 		"Select job names to view (comma separated list), default is all")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
@@ -127,10 +127,12 @@ Supported format identifiers or string, string case insensitive:
 	%deadline/%Deadline   - Display the deadline time of the job.
 	%E/%EndTime           - Display the end time of the job.
 	%e/%ExitCode          - Display the exit code of the job.
-                             Signal-terminated jobs format as "0:<signal>",
-                             otherwise as "<code>:0".
+                             If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
+                             it formats as "0:<code>" or "<code>:0" based on the condition.
+                             Signal-terminated jobs format as "0:<signal>".
 	%h/%Held              - Display the hold status of the job.
-	%j/%JobID             - Display the ID of the job (array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid).
+	%j/%JobID             - Display the ID of the job.
+                             Array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid.
 	%ArrayJobId           - Display the array job id, empty for non-array jobs.
 	%ArrayTaskId          - Display the array task id, empty for non-array jobs and array parents.
 	%ArraySpec            - Display the array range specification, empty for non-array jobs.
