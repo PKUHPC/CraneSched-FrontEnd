@@ -131,6 +131,9 @@ Supported format identifiers or string, string case insensitive:
                              otherwise as "<code>:0".
 	%h/%Held              - Display the hold status of the job.
 	%j/%JobID             - Display the ID of the job (array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid).
+	%ArrayJobId           - Display the array job id, empty for non-array jobs.
+	%ArrayTaskId          - Display the array task id, empty for non-array jobs and array parents.
+	%ArraySpec            - Display the array range specification, empty for non-array jobs.
 	%K/%Wckey             - Display the wckey of the job.
 	%k/%Comment           - Display the comment of the job.
 	%L/%NodeList          - Display the list of nodes the job is running on.

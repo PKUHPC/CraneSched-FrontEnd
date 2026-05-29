@@ -594,27 +594,8 @@ func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
 	}
 
 	if len(reply.JobIdList) > 0 {
-		if job.ArraySpec != nil {
-			// Array job: backend returns a single array_job_id.
-			// Tasks will be expanded at scheduling time.
-			concSuffix := ""
-			if job.ArraySpec.MaxConcurrent != nil && *job.ArraySpec.MaxConcurrent > 0 {
-				concSuffix = fmt.Sprintf(", concurrency %%%d", *job.ArraySpec.MaxConcurrent)
-			}
-			if job.ArraySpec.Stride != nil && *job.ArraySpec.Stride > 1 {
-				fmt.Printf("Submitted array job %d, array range [%d-%d:%d]%s.\n",
-					reply.JobIdList[0],
-					job.ArraySpec.Start, job.ArraySpec.End, *job.ArraySpec.Stride,
-					concSuffix)
-			} else {
-				fmt.Printf("Submitted array job %d, array range [%d-%d]%s.\n",
-					reply.JobIdList[0],
-					job.ArraySpec.Start, job.ArraySpec.End, concSuffix)
-			}
-		} else {
-			jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
-			fmt.Printf("Job id allocated: %s.\n", jobIdListString)
-		}
+		jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
+		fmt.Printf("Job id allocated: %s.\n", jobIdListString)
 	}
 
 	if len(reply.GetCodeList()) > 0 {

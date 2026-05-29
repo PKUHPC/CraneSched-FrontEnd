@@ -523,41 +523,26 @@ func handleEmptyJobResult(selectors []*protos.JobIdSelector, queryAll bool) erro
 }
 
 func outputJobs(jobs []*protos.JobInfo, selectors []*protos.JobIdSelector) error {
-	returnedJobIds := make(map[uint32]bool)
-	returnedArrayTasks := make(map[uint64]bool)
+	returnedJobs := make(map[jobIdentifier]bool)
 	for _, job := range jobs {
 		if err := printJobDetails(job); err != nil {
 			return err
 		}
-		returnedJobIds[job.JobId] = true
-		if job.ArrayTask != nil {
-			returnedArrayTasks[uint64(job.ArrayTask.ArrayJobId)<<32|uint64(job.ArrayTask.TaskId)] = true
-		}
+		returnedJobs[jobIdentifierFromJobInfo(job)] = true
 	}
-	return checkMissingJobs(selectors, returnedJobIds, returnedArrayTasks)
+	return checkMissingJobs(selectors, returnedJobs)
 }
 
 func formatSelector(sel *protos.JobIdSelector) string {
-	var arrayTask *protos.ArrayTaskIdentity
-	if sel.ArrayTaskId != nil {
-		arrayTask = &protos.ArrayTaskIdentity{ArrayJobId: sel.JobId, TaskId: *sel.ArrayTaskId}
-	}
-	return util.FormatJobId(sel.JobId, arrayTask)
+	return jobIdentifierFromSelector(sel).String()
 }
 
-func checkMissingJobs(selectors []*protos.JobIdSelector,
-	returnedJobIds map[uint32]bool, returnedArrayTasks map[uint64]bool) error {
+func checkMissingJobs(selectors []*protos.JobIdSelector, returnedJobs map[jobIdentifier]bool) error {
 	missing := make([]string, 0)
 	for _, sel := range selectors {
-		if sel.ArrayTaskId == nil {
-			if !returnedJobIds[sel.JobId] {
-				missing = append(missing, formatSelector(sel))
-			}
-			continue
-		}
-		key := uint64(sel.JobId)<<32 | uint64(*sel.ArrayTaskId)
-		if !returnedArrayTasks[key] {
-			missing = append(missing, formatSelector(sel))
+		id := jobIdentifierFromSelector(sel)
+		if !returnedJobs[id] {
+			missing = append(missing, id.String())
 		}
 	}
 	if len(missing) > 0 {
@@ -864,9 +849,12 @@ func ShowSteps(stepIds string, queryAll bool) error {
 		return nil
 	}
 
+	requestedSteps := requestedStepIdentifiers(selectors)
 	if len(reply.JobInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No step is running.")
+		} else if len(requestedSteps) > 0 {
+			printMissingSteps(requestedSteps, nil)
 		} else {
 			fmt.Printf("Step %s is not running.\n", stepIds)
 		}
@@ -882,10 +870,12 @@ func ShowSteps(stepIds string, queryAll bool) error {
 	}
 
 	printedSteps := 0
+	printed := make(map[stepIdentifier]bool)
 	for _, jobInfo := range reply.JobInfoList {
 		// Iterate through all steps in this job
 		for _, stepInfo := range jobInfo.StepInfoList {
 			printedSteps++
+			printed[stepIdentifierFromStepInfo(jobInfo, stepInfo)] = true
 			stepId := stepInfo.StepId
 
 			var timeStartStr string
@@ -961,11 +951,37 @@ func ShowSteps(stepIds string, queryAll bool) error {
 			fmt.Println()
 		}
 	}
-	if printedSteps == 0 && !queryAll {
-		fmt.Printf("Step %s is not running.\n", stepIds)
+	if !queryAll {
+		if len(requestedSteps) > 0 {
+			printMissingSteps(requestedSteps, printed)
+		} else if printedSteps == 0 {
+			fmt.Printf("Step %s is not running.\n", stepIds)
+		}
 	}
 
 	return nil
+}
+
+func requestedStepIdentifiers(selectors []*protos.JobIdSelector) []stepIdentifier {
+	requestedSteps := make([]stepIdentifier, 0)
+	for _, selector := range selectors {
+		for _, stepId := range selector.Steps {
+			requestedSteps = append(requestedSteps, stepIdentifierFromSelector(selector, stepId))
+		}
+	}
+	return requestedSteps
+}
+
+func printMissingSteps(requestedSteps []stepIdentifier, printed map[stepIdentifier]bool) {
+	missing := make([]string, 0)
+	for _, step := range requestedSteps {
+		if printed == nil || !printed[step] {
+			missing = append(missing, step.String())
+		}
+	}
+	if len(missing) > 0 {
+		fmt.Printf("Step %s is not running.\n", strings.Join(missing, ", "))
+	}
 }
 
 func ShowLicenses(licenseName string, queryAll bool) error {

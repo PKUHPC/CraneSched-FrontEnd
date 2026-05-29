@@ -41,6 +41,7 @@ var (
 
 const (
 	kTerminationSignalBase = 256
+	kCraneExitCodeBase     = 320
 )
 
 // QueryJob will query all pending, running and completed jobs
@@ -143,8 +144,6 @@ func QueryJob() error {
 
 	if FlagNumLimit != 0 {
 		request.NumLimit = FlagNumLimit
-	} else if FlagFilterJobIDs != "" {
-		request.NumLimit = ^uint32(0)
 	}
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
@@ -163,9 +162,6 @@ func QueryJob() error {
 	}
 	items := make([]*JobOrStep, 0)
 	for _, job := range reply.JobInfoList {
-		if isArrayParentAggregate(job) {
-			continue
-		}
 		items = append(items, &JobOrStep{job: job, stepInfo: nil, isStep: false})
 		for _, step := range job.StepInfoList {
 			items = append(items, &JobOrStep{job: job, stepInfo: step, isStep: true})
@@ -284,10 +280,6 @@ func QueryJob() error {
 	table.AppendBulk(tableData)
 	table.Render()
 	return nil
-}
-
-func isArrayParentAggregate(job *protos.JobInfo) bool {
-	return job.ArraySpec != nil && job.ArrayTask == nil
 }
 
 // JobOrStep represents either a job (JobInfo) or a step (StepInfo)
@@ -428,7 +420,9 @@ func ProcessExitCode(item *JobOrStep) string {
 		code = item.job.ExitCode
 	}
 
-	if code >= kTerminationSignalBase {
+	if code >= kCraneExitCodeBase {
+		exitCode = fmt.Sprintf("%d:0", code)
+	} else if code >= kTerminationSignalBase {
 		exitCode = fmt.Sprintf("0:%d", code-kTerminationSignalBase)
 	} else {
 		exitCode = fmt.Sprintf("%d:0", code)
@@ -450,6 +444,45 @@ func ProcessJobID(item *JobOrStep) string {
 		return util.FormatStepId(item.job.JobId, item.job.ArrayTask, item.stepInfo.StepId)
 	}
 	return util.FormatJobId(item.job.JobId, item.job.ArrayTask)
+}
+
+// ArrayJobId
+func ProcessArrayJobID(item *JobOrStep) string {
+	if item.job.ArrayTask != nil {
+		return strconv.FormatUint(uint64(item.job.ArrayTask.ArrayJobId), 10)
+	}
+	if item.job.ArraySpec != nil {
+		return strconv.FormatUint(uint64(item.job.JobId), 10)
+	}
+	return ""
+}
+
+// ArrayTaskId
+func ProcessArrayTaskID(item *JobOrStep) string {
+	if item.job.ArrayTask == nil {
+		return ""
+	}
+	return strconv.FormatUint(uint64(item.job.ArrayTask.TaskId), 10)
+}
+
+// ArraySpec
+func ProcessArraySpec(item *JobOrStep) string {
+	arraySpec := item.job.ArraySpec
+	if arraySpec == nil {
+		return ""
+	}
+
+	spec := strconv.FormatUint(uint64(arraySpec.Start), 10)
+	if arraySpec.Start != arraySpec.End {
+		spec = fmt.Sprintf("%s-%d", spec, arraySpec.End)
+	}
+	if arraySpec.Stride != nil && *arraySpec.Stride > 1 {
+		spec = fmt.Sprintf("%s:%d", spec, *arraySpec.Stride)
+	}
+	if arraySpec.MaxConcurrent != nil && *arraySpec.MaxConcurrent > 0 {
+		spec = fmt.Sprintf("%s%%%d", spec, *arraySpec.MaxConcurrent)
+	}
+	return spec
 }
 
 // Wckey (K)
@@ -718,6 +751,11 @@ var fieldProcessors = map[string]FieldProcessor{
 	"j":     {"JobID", ProcessJobID},
 	"jobid": {"JobID", ProcessJobID},
 
+	// Group array
+	"arrayjobid":  {"ArrayJobId", ProcessArrayJobID},
+	"arraytaskid": {"ArrayTaskId", ProcessArrayTaskID},
+	"arrayspec":   {"ArraySpec", ProcessArraySpec},
+
 	// Group K
 	"K":     {"Wckey", ProcessWckey},
 	"wckey": {"Wckey", ProcessWckey},
@@ -877,7 +915,7 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
+				"a/Account, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, ArrayJobId, ArrayTaskId, ArraySpec, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
 				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
 				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
 			os.Exit(util.ErrorInvalidFormat)

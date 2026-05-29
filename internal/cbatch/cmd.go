@@ -41,6 +41,7 @@ var (
 	FlagLicenses      string
 	FlagCwd           string
 	FlagRepeat        uint32
+	FlagArray         string
 	FlagNodelist      string
 	FlagExcludes      string
 	FlagGres          string
@@ -90,8 +91,6 @@ var (
 	FlagRequeue         string
 	FlagWait            string
 
-	FlagArray string
-
 	RootCmd = &cobra.Command{
 		Use:     "cbatch [flags] file",
 		Short:   "Submit batch job",
@@ -118,6 +117,9 @@ var (
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
 			}
+			if job.ArraySpec != nil && FlagRepeat != 1 {
+				return util.NewCraneErr(util.ErrorCmdArg, "--repeat is incompatible with --array")
+			}
 
 			job.Uid = uint32(os.Getuid())
 			job.Gid = uint32(os.Getgid())
@@ -132,11 +134,6 @@ var (
 			job.SubmitDir, err = os.Getwd()
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorSystem, "Get submit dir err: %s.", err)
-			}
-
-			hasArray := job.ArraySpec != nil
-			if hasArray {
-				return SendMultipleRequests(job, 1)
 			}
 
 			if FlagRepeat == 1 {
