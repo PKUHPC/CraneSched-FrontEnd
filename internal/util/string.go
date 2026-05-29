@@ -1716,25 +1716,6 @@ func ParseJobIdSelectorList(selectorList string, splitStr string) ([]*protos.Job
 	return selectors, nil
 }
 
-// Parse a list of jobid.stepid strings into map[uint32]*protos.JobStepIds.
-func ParseStepIdList(jobStepIdListStr string, splitStr string) (map[uint32]*protos.JobStepIds, error) {
-	stepIds := make(map[uint32]*protos.JobStepIds)
-	selectors, err := ParseJobIdSelectorList(jobStepIdListStr, splitStr)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, selector := range selectors {
-		jobId := selector.JobId
-		if _, exists := stepIds[jobId]; !exists {
-			stepIds[jobId] = &protos.JobStepIds{Steps: []uint32{}}
-		}
-		stepIds[jobId].Steps = append(stepIds[jobId].Steps, selector.Steps...)
-	}
-
-	return stepIds, nil
-}
-
 func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
 	var jobIdList []uint32
 	for jobIdStr := range strings.SplitSeq(jobIds, splitStr) {
