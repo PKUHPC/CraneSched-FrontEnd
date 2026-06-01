@@ -7,6 +7,7 @@ import (
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/generated/protos"
@@ -324,8 +325,11 @@ func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
 	if len(spans) == 0 {
 		return nil
 	}
+
+	start := time.Now()
 	writeAPI := db.client.WriteAPIBlocking(db.org, db.traceBucket)
 	ctx := context.Background()
+	points := make([]*write.Point, 0, len(spans))
 
 	for _, span := range spans {
 		tags := map[string]string{
@@ -353,10 +357,19 @@ func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
 		}
 
 		point := influxdb2.NewPoint("spans", tags, fields, endTime)
-		if err := writeAPI.WritePoint(ctx, point); err != nil {
-			log.Errorf("Failed to write span to InfluxDB: %v", err)
-			return fmt.Errorf("failed to write span: %v", err)
-		}
+		points = append(points, point)
+	}
+
+	if err := writeAPI.WritePoint(ctx, points...); err != nil {
+		log.Errorf("Failed to write %d spans to InfluxDB: %v", len(points), err)
+		return fmt.Errorf("failed to write spans: %v", err)
+	}
+
+	elapsed := time.Since(start)
+	log.Debugf("Saved %d trace spans to InfluxDB in %s", len(points), elapsed)
+	if elapsed > time.Second {
+		log.Warnf("Slow trace span write: saved %d spans to InfluxDB in %s",
+			len(points), elapsed)
 	}
 	return nil
 }
