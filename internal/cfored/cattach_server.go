@@ -396,12 +396,8 @@ CforedCattachStateMachineLoop:
 										jobId, stepId, *req.TaskId, node, len(req.GetMsg()), req.Eof)
 									gSupervisorChanKeeper.forwardCattachRequestToSingleSupervisor(jobId, stepId, node, cattachRequest)
 								} else {
-									// task_id was set but not found in the map (e.g. out of range or
-									// step not yet populated); fall back to broadcast so the message
-									// is not silently dropped.
 									log.Warnf("[Cattach->Cfored->Supervisor][Step #%d.%d] task_id %d not found in"+
-										" task_craned_map, falling back to broadcast", jobId, stepId, *req.TaskId)
-									gSupervisorChanKeeper.forwardCattachRequestToSupervisor(jobId, stepId, cattachRequest)
+										" task_craned_map, dropping stdin", jobId, stepId, *req.TaskId)
 								}
 							} else {
 								log.Debugf("[Cattach->Cfored->Supervisor][Step #%d.%d] Receive TASK_IO_FORWARD Request to"+

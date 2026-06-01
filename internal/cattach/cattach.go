@@ -72,6 +72,24 @@ type ReplyReceiveItem struct {
 	err   error
 }
 
+func stepHasTaskId(step *protos.CattachStepInfo, taskId uint32) bool {
+	if step == nil {
+		return false
+	}
+	for _, nodeTasks := range step.GetCranedTaskMap() {
+		for _, id := range nodeTasks.GetTaskIds() {
+			if id == taskId {
+				return true
+			}
+		}
+	}
+	if len(step.GetCranedTaskMap()) > 0 {
+		return false
+	}
+
+	return taskId < step.GetNtasks()
+}
+
 type CforedReplyReceiver struct {
 	stream       protos.CraneForeD_CattachStreamClient
 	replyChannel chan ReplyReceiveItem
@@ -106,9 +124,10 @@ func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 }
 
 type StateMachineOfCattach struct {
-	jobId  uint32 // This field will be set after ReqTaskId state
-	stepId uint32
-	step   *protos.CattachStepInfo
+	jobId              uint32 // This field will be set after ReqTaskId state
+	stepId             uint32
+	step               *protos.CattachStepInfo
+	invalidInputFilter bool
 
 	state StateOfCattach
 	err   util.ExitCode // Hold the final error of the state machine if any
@@ -251,6 +270,7 @@ func (m *StateMachineOfCattach) StateWaitForward() {
 				if FlagReadOnly {
 					log.Debug("Step has exclusive stdin to one task; cattach entering read-only mode (output only)")
 				}
+				m.invalidInputFilter = FlagInputFilter >= 0 && !stepHasTaskId(m.step, uint32(FlagInputFilter))
 				if FlagLayout {
 					m.PrintStepLayout()
 					m.state = End
@@ -323,10 +343,10 @@ func (m *StateMachineOfCattach) StateForwarding() {
 
 	m.StartIOForward()
 
-	// Forward terminal stdin to cfored.
-	// Skipped in read-only mode (FlagReadOnly=true, set when the step has
-	// exclusive stdin routing via crun --input=<task_id>).
-	if !FlagReadOnly {
+	// Forward terminal stdin to cfored. When --input-filter targets a missing
+	// task, keep reading stdin so every attempted input reports an error, but
+	// drop it instead of forwarding.
+	if !FlagReadOnly || m.invalidInputFilter {
 		go func() {
 			for {
 				select {
@@ -336,6 +356,15 @@ func (m *StateMachineOfCattach) StateForwarding() {
 					// FileReaderRoutine.  Both cases mean "end of input": send one EOF
 					// request and exit so we do not spin sending endless EOFs.
 					eof := !ok || msg == nil
+					if m.invalidInputFilter {
+						if !eof {
+							log.Errorf("cattach: error: a valid task id must be specified for --input-filter")
+						}
+						if eof {
+							return
+						}
+						continue
+					}
 					ioFwdReq := &protos.StreamCattachRequest_TaskIOForwardReq{
 						Msg: msg,
 						Eof: eof,
@@ -469,8 +498,9 @@ func (m *StateMachineOfCattach) StartIOForward() {
 
 	go m.forwardingSigHandlerRoutine()
 	// In read-only mode (step has exclusive stdin, e.g. crun --input=<task_id>),
-	// do not read from the local terminal — only display task output.
-	if !FlagReadOnly {
+	// do not read from the local terminal. Invalid --input-filter is different:
+	// read stdin so user input can be rejected with an error each time.
+	if !FlagReadOnly || m.invalidInputFilter {
 		go m.StdinReaderRoutine()
 	}
 	go m.StdoutWriterRoutine()
