@@ -121,6 +121,9 @@ Format specification: %[[.]size]type
 
 Supported format identifiers or string, string case insensitive:
 	%a/%Account           - Display the account associated with the job.
+	%ArrayJobId           - Display the array job id, empty for non-array jobs.
+	%ArraySpec            - Display the array range specification, empty for non-array jobs.
+	%ArrayTaskId          - Display the array task id, empty for non-array jobs and array parents.
 	%C/%ReqCpus           - Display the number of requested CPUs, formatted to two decimal places
 	%c/%AllocCpus         - Display the number of allocated CPUs, formatted to two decimal places.
 	%D/%ElapsedTime       - Display the elapsed time from the start of the job.
@@ -133,9 +136,6 @@ Supported format identifiers or string, string case insensitive:
 	%h/%Held              - Display the hold status of the job.
 	%j/%JobID             - Display the ID of the job.
                              Array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid.
-	%ArrayJobId           - Display the array job id, empty for non-array jobs.
-	%ArrayTaskId          - Display the array task id, empty for non-array jobs and array parents.
-	%ArraySpec            - Display the array range specification, empty for non-array jobs.
 	%K/%Wckey             - Display the wckey of the job.
 	%k/%Comment           - Display the comment of the job.
 	%L/%NodeList          - Display the list of nodes the job is running on.

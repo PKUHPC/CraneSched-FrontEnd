@@ -72,13 +72,6 @@ const (
 	MpiTypePmix string = "pmix"
 )
 
-const (
-	// Matches Slurm NO_VAL and backend non-array %a expansion.
-	kNoArrayTaskIdSentinel uint32 = 4294967294
-	kArrayJobIdEnv                = "CRANE_ARRAY_JOB_ID"
-	kArrayTaskIdEnv               = "CRANE_ARRAY_TASK_ID"
-)
-
 type GlobalVariables struct {
 	cwd string
 
@@ -1146,43 +1139,30 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
 
 	isLocalFile := true
-	usesArrayPattern := false
 	for _, match := range re.FindAllStringSubmatch(pattern, -1) {
 		if len(match) < 3 {
 			continue
 		}
 		switch match[2] {
-		case "N", "n", "t":
+		case "A", "a", "N", "n", "t":
 			isLocalFile = false
-		case "A", "a":
-			usesArrayPattern = true
 		}
 	}
 	if !isLocalFile {
 		return "", false, nil
 	}
 
-	// Patterns containing %N/%n/%t are expanded by craned on compute nodes.
-	// Other patterns are opened by this crun process, so %A/%a use the nested
-	// step environment propagated from the parent array task. Missing array env
-	// means non-array context; partial or malformed array env is an error.
-	arrayJobId := strconv.FormatUint(uint64(m.jobId), 10)
-	arrayTaskId := strconv.FormatUint(uint64(kNoArrayTaskIdSentinel), 10)
-	if usesArrayPattern {
-		arrayJobId, arrayTaskId, err = m.localArrayPatternValues()
-		if err != nil {
-			return pattern, true, err
-		}
-	}
-
 	localReplacements := map[string]string{
 		"%%": "%",
-		"%A": arrayJobId,
-		"%a": arrayTaskId,
+		// jobid.stepid of the running job (e.g. "128.0")
 		"%J": fmt.Sprintf("%d.%d", m.jobId, m.stepId),
+		// job id
 		"%j": fmt.Sprintf("%d", m.jobId),
+		// step id
 		"%s": fmt.Sprintf("%d", m.stepId),
+		//User name
 		"%u": currentUser.Username,
+		// Job name
 		"%x": name,
 	}
 
@@ -1203,7 +1183,7 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 			return match // fallback
 		}
 
-		if specifier == "j" || specifier == "s" || specifier == "A" || specifier == "a" {
+		if specifier == "j" || specifier == "s" {
 			if padding == "" {
 				return value
 			}
@@ -1218,35 +1198,6 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 		return value
 	})
 	return result, true, nil
-}
-
-func (m *StateMachineOfCrun) localArrayPatternValues() (string, string, error) {
-	arrayJobId := strconv.FormatUint(uint64(m.jobId), 10)
-	arrayTaskId := strconv.FormatUint(uint64(kNoArrayTaskIdSentinel), 10)
-
-	if m.step == nil {
-		return arrayJobId, arrayTaskId, nil
-	}
-
-	envArrayJobId, hasArrayJobId := m.step.Env[kArrayJobIdEnv]
-	envArrayTaskId, hasArrayTaskId := m.step.Env[kArrayTaskIdEnv]
-	if hasArrayJobId != hasArrayTaskId {
-		return "", "", fmt.Errorf("incomplete array environment for crun file pattern: %s and %s must be set together",
-			kArrayJobIdEnv, kArrayTaskIdEnv)
-	}
-	if !hasArrayJobId {
-		// Slurm-compatible non-array expansion: %A is the job id and %a is NO_VAL.
-		return arrayJobId, arrayTaskId, nil
-	}
-
-	if _, err := strconv.ParseUint(envArrayJobId, 10, 32); err != nil {
-		return "", "", fmt.Errorf("invalid %s %q for crun file pattern: %w", kArrayJobIdEnv, envArrayJobId, err)
-	}
-	if _, err := strconv.ParseUint(envArrayTaskId, 10, 32); err != nil {
-		return "", "", fmt.Errorf("invalid %s %q for crun file pattern: %w", kArrayTaskIdEnv, envArrayTaskId, err)
-	}
-
-	return envArrayJobId, envArrayTaskId, nil
 }
 
 func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {

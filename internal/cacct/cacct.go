@@ -722,6 +722,11 @@ var fieldProcessors = map[string]FieldProcessor{
 	"a":       {"Account", ProcessAccount},
 	"account": {"Account", ProcessAccount},
 
+	// Group array
+	"arrayjobid":  {"ArrayJobId", ProcessArrayJobID},
+	"arrayspec":   {"ArraySpec", ProcessArraySpec},
+	"arraytaskid": {"ArrayTaskId", ProcessArrayTaskID},
+
 	// Group C
 	"C":       {"ReqCpus", ProcessReqCPUs},
 	"reqcpus": {"ReqCpus", ProcessReqCPUs},
@@ -750,11 +755,6 @@ var fieldProcessors = map[string]FieldProcessor{
 	// Group j
 	"j":     {"JobID", ProcessJobID},
 	"jobid": {"JobID", ProcessJobID},
-
-	// Group array
-	"arrayjobid":  {"ArrayJobId", ProcessArrayJobID},
-	"arraytaskid": {"ArrayTaskId", ProcessArrayTaskID},
-	"arrayspec":   {"ArraySpec", ProcessArraySpec},
 
 	// Group K
 	"K":     {"Wckey", ProcessWckey},
@@ -915,7 +915,7 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, ArrayJobId, ArrayTaskId, ArraySpec, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
+				"a/Account, ArrayJobId, ArraySpec, ArrayTaskId, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
 				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
 				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
 			os.Exit(util.ErrorInvalidFormat)
