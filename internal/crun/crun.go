@@ -1136,25 +1136,26 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 		return strings.ReplaceAll(pattern, "\\", ""), true, nil
 	}
 
-	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
-
-	isLocalFile := true
-	for _, match := range re.FindAllStringSubmatch(pattern, -1) {
-		if len(match) < 3 {
-			continue
-		}
-		switch match[2] {
-		case "A", "a", "N", "n", "t":
-			isLocalFile = false
-		}
-	}
-	if !isLocalFile {
-		return "", false, nil
+	remoteReplacements := map[string]struct{}{
+		//Job array's master job allocation number.
+		"%A": {},
+		//Job array ID (index) number.
+		"%a": {},
+		//short hostname
+		"%N": {},
+		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
+		"%n": {},
+		// task id in step
+		"%t": {},
 	}
 
 	localReplacements := map[string]string{
 		"%%": "%",
-		// jobid.stepid of the running job (e.g. "128.0")
+		//Job array's master job allocation number.
+		//"%A": "",
+		//Job array ID (index) number.
+		//"%a": "",
+		//jobid.stepid of the running job (e.g. "128.0")
 		"%J": fmt.Sprintf("%d.%d", m.jobId, m.stepId),
 		// job id
 		"%j": fmt.Sprintf("%d", m.jobId),
@@ -1165,6 +1166,10 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 		// Job name
 		"%x": name,
 	}
+
+	re := regexp.MustCompile(`%%|%(\d*)([AajJsNntuUx])`)
+
+	isLocalFile := true
 
 	result := re.ReplaceAllStringFunc(pattern, func(match string) string {
 		parts := re.FindStringSubmatch(match)
@@ -1177,6 +1182,11 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 
 		padding := parts[1]   // '5' in '%5j'
 		specifier := parts[2] // 'j' in '%5j'
+
+		_, foundInRemote := remoteReplacements["%"+specifier]
+		if foundInRemote {
+			isLocalFile = false
+		}
 
 		value, found := localReplacements["%"+specifier]
 		if !found {
@@ -1197,7 +1207,11 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 
 		return value
 	})
-	return result, true, nil
+	if !isLocalFile {
+		return "", false, nil
+	} else {
+		return result, true, nil
+	}
 }
 
 func (m *StateMachineOfCrun) FileReaderRoutine(filePattern string) {

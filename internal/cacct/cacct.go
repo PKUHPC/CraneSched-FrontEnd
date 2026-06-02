@@ -259,13 +259,13 @@ func QueryJob() error {
 					tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
 				}
 			}
-		}
-	}
 
-	if FlagFormat == "" && FlagDeadlineTime {
-		header = append(header, "Deadline")
-		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
+			if FlagDeadlineTime {
+				header = append(header, "Deadline")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
+				}
+			}
 		}
 	}
 
@@ -376,9 +376,6 @@ func ProcessElapsedTime(item *JobOrStep) string {
 
 // Deadline (D)
 func ProcessDeadline(item *JobOrStep) string {
-	if item.job.DeadlineTime == nil {
-		return "unknown"
-	}
 	deadlineTime := item.job.DeadlineTime.AsTime()
 	if !deadlineTime.Equal(util.InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
@@ -420,9 +417,7 @@ func ProcessExitCode(item *JobOrStep) string {
 		code = item.job.ExitCode
 	}
 
-	if code >= kCraneExitCodeBase {
-		exitCode = fmt.Sprintf("%d:0", code)
-	} else if code >= kTerminationSignalBase {
+	if code >= kTerminationSignalBase {
 		exitCode = fmt.Sprintf("0:%d", code-kTerminationSignalBase)
 	} else {
 		exitCode = fmt.Sprintf("%d:0", code)
@@ -719,10 +714,8 @@ func ProcessExcludeNodes(item *JobOrStep) string {
 
 var fieldProcessors = map[string]FieldProcessor{
 	// Group a
-	"a":       {"Account", ProcessAccount},
-	"account": {"Account", ProcessAccount},
-
-	// Group array
+	"a":           {"Account", ProcessAccount},
+	"account":     {"Account", ProcessAccount},
 	"arrayjobid":  {"ArrayJobId", ProcessArrayJobID},
 	"arrayspec":   {"ArraySpec", ProcessArraySpec},
 	"arraytaskid": {"ArrayTaskId", ProcessArrayTaskID},

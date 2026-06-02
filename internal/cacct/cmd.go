@@ -132,7 +132,6 @@ Supported format identifiers or string, string case insensitive:
 	%e/%ExitCode          - Display the exit code of the job.
                              If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
                              it formats as "0:<code>" or "<code>:0" based on the condition.
-                             Signal-terminated jobs format as "0:<signal>".
 	%h/%Held              - Display the hold status of the job.
 	%j/%JobID             - Display the ID of the job.
                              Array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid.
