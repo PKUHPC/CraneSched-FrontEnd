@@ -100,6 +100,10 @@ nfpms:
         dst: /usr/bin/crun
         file_info:
           mode: 0755
+      - src: build/bin/cattach
+        dst: /usr/bin/cattach
+        file_info:
+          mode: 0755
       - src: build/bin/cwrapper
         dst: /usr/bin/cwrapper
         file_info:
