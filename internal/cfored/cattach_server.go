@@ -200,20 +200,20 @@ CforedCattachStateMachineLoop:
 					var stepInfo *protos.CattachStepInfo
 					if Ok {
 						// node[03-04]
-						var ok bool
 						stepInfo = ctldReply.GetPayloadStepMetaReply().StepInfo
-						execCranedIds, ok = util.ParseHostList(stepInfo.GetNodelist())
-						if !ok {
-							gVars.ctldReplyChannelMapMtx.Unlock()
-							state = DeadCattach
-							break
-						}
 						if stepInfo == nil {
-							// Job is not interactive (e.g. batch job); cattach is not supported.
+							// Job is not an attachable crun step; cattach is not supported.
 							log.Warnf("[Ctld->Cfored->Cattach][Step #%d.%d] Job has no step_info, cattach rejected.", jobId, stepId)
 							Ok = false
-							failureReason = "Job is not interactive, cattach is not supported"
+							failureReason = "cattach only supports crun steps"
 						} else {
+							var ok bool
+							execCranedIds, ok = util.ParseHostList(stepInfo.GetNodelist())
+							if !ok {
+								gVars.ctldReplyChannelMapMtx.Unlock()
+								state = DeadCattach
+								break
+							}
 							cattachPty = stepInfo.GetPty()
 							if cattachPty {
 								// For crun with pty, only execute on first node
