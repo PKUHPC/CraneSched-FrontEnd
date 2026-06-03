@@ -1002,8 +1002,8 @@ enum ModifyField {
   ModifyPreemptMode = 21;
 
   //  account/user-partition
-  MaxTresPerJob = 20;
-  MaxWallDurationPerJob = 21;
+  MaxTresPerJob = 22;
+  MaxWallDurationPerJob = 23;
 
   // wckey
   DefaultWckey = 40;
