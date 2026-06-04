@@ -275,8 +275,10 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		job.Hold = true
 	}
 	if FlagNoRequeue {
+		job.NoRequeue = true
 		job.RequeueIfFailed = false
 	} else if FlagRequeue {
+		job.NoRequeue = false
 		job.RequeueIfFailed = true
 	}
 	if FlagReservation != "" {
@@ -540,8 +542,10 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 				job.Signals = append(job.Signals, signal)
 			}
 		case "--requeue":
+			job.NoRequeue = false
 			job.RequeueIfFailed = true
 		case "--no-requeue":
+			job.NoRequeue = true
 			job.RequeueIfFailed = false
 		default:
 			return fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
