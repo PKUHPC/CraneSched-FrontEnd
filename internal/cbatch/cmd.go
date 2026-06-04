@@ -113,7 +113,8 @@ var (
 				return util.NewCraneErr(util.ErrorCmdArg, "--repeat should be greater than 0")
 			}
 
-			job, err := BuildCbatchJob(cmd, args)
+			config := util.ParseConfig(FlagConfigFilePath)
+			job, err := BuildCbatchJob(cmd, args, config)
 			if err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%v", err)
 			}
@@ -134,9 +135,9 @@ var (
 			}
 
 			if FlagRepeat == 1 {
-				return SendRequest(job)
+				return SendRequest(config, job)
 			} else {
-				return SendMultipleRequests(job, FlagRepeat)
+				return SendMultipleRequests(config, job, FlagRepeat)
 			}
 		},
 	}

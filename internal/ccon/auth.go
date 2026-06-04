@@ -19,13 +19,15 @@
 package ccon
 
 import (
-	"bufio"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -48,6 +50,17 @@ type AuthConfig struct {
 type RegistryConfig struct {
 	Auths map[string]AuthConfig `json:"auths"`
 }
+
+type registryAuthOutput struct {
+	Server string `json:"server"`
+}
+
+type loginJsonFlags struct {
+	Username      string `json:"username,omitempty"`
+	PasswordStdin bool   `json:"password_stdin,omitempty"`
+}
+
+const registryConfigFileMode os.FileMode = 0600
 
 func encodeAuth(username, password string) string {
 	auth := username + ":" + password
@@ -120,8 +133,11 @@ func saveRegistryConfig(config *RegistryConfig) error {
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
+	if err := os.WriteFile(configPath, data, registryConfigFileMode); err != nil {
 		return fmt.Errorf("failed to write config file: %v", err)
+	}
+	if err := os.Chmod(configPath, registryConfigFileMode); err != nil {
+		return fmt.Errorf("failed to set config file permission: %v", err)
 	}
 
 	return nil
@@ -129,12 +145,11 @@ func saveRegistryConfig(config *RegistryConfig) error {
 
 func readPassword(fromStdin bool) (string, error) {
 	if fromStdin {
-		reader := bufio.NewReader(os.Stdin)
-		password, err := reader.ReadString('\n')
+		password, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return "", err
 		}
-		return strings.TrimSpace(password), nil
+		return strings.TrimRight(string(password), "\r\n"), nil
 	}
 
 	fmt.Print("Password: ")
@@ -146,22 +161,118 @@ func readPassword(fromStdin bool) (string, error) {
 	return string(bytePassword), nil
 }
 
+func canonicalRegistryServer(server string) string {
+	switch server {
+	case "index.docker.io", "registry-1.docker.io":
+		return "docker.io"
+	default:
+		return server
+	}
+}
+
+func normalizeRegistryServer(input string) (string, error) {
+	server := strings.TrimSpace(input)
+	if server == "" {
+		return "", fmt.Errorf("registry server is required")
+	}
+
+	if strings.Contains(server, "://") {
+		parsed, err := url.Parse(server)
+		if err != nil || parsed.Host == "" || parsed.User != nil ||
+			parsed.RawQuery != "" || parsed.Fragment != "" {
+			return "", fmt.Errorf("invalid registry server: %s", input)
+		}
+		if strings.Trim(parsed.Path, "/") != "" {
+			return "", fmt.Errorf("invalid registry server: %s", input)
+		}
+		server = parsed.Host
+	} else {
+		server = strings.TrimRight(server, "/")
+	}
+
+	server = strings.ToLower(server)
+	if server == "" || strings.Contains(server, "/") {
+		return "", fmt.Errorf("invalid registry server: %s", input)
+	}
+
+	return canonicalRegistryServer(server), nil
+}
+
+func authLookupKeys(registry string) []string {
+	registry = canonicalRegistryServer(strings.ToLower(strings.TrimSpace(registry)))
+	keys := []string{registry}
+	if registry == "docker.io" {
+		keys = append(keys, "index.docker.io", "registry-1.docker.io")
+	}
+	return keys
+}
+
+func findAuthConfig(config *RegistryConfig, registry string) (AuthConfig, bool) {
+	for _, key := range authLookupKeys(registry) {
+		authConfig, exists := config.Auths[key]
+		if exists {
+			return authConfig, true
+		}
+	}
+
+	keys := make([]string, 0, len(config.Auths))
+	for key := range config.Auths {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		normalized, err := normalizeRegistryServer(key)
+		if err == nil && normalized == registry {
+			return config.Auths[key], true
+		}
+	}
+
+	return AuthConfig{}, false
+}
+
+func deleteAuthConfigs(config *RegistryConfig, registry string) bool {
+	deleted := false
+	for _, key := range authLookupKeys(registry) {
+		if _, exists := config.Auths[key]; exists {
+			delete(config.Auths, key)
+			deleted = true
+		}
+	}
+
+	for key := range config.Auths {
+		normalized, err := normalizeRegistryServer(key)
+		if err == nil && normalized == registry {
+			delete(config.Auths, key)
+			deleted = true
+		}
+	}
+
+	return deleted
+}
+
 func loginExecute(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, "registry server is required")
 	}
 
-	server := strings.TrimSpace(args[0])
-	server = strings.TrimPrefix(server, "http://")
-	server = strings.TrimPrefix(server, "https://")
-	server = strings.TrimSuffix(server, "/")
-	if server == "" || strings.Contains(server, "/") {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid registry server: %s", args[0]))
+	server, err := normalizeRegistryServer(args[0])
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	f := GetFlags()
 	username := f.Login.Username
 	password := f.Login.Password
+	usePasswordStdin := f.Login.PasswordStdin && password == ""
+
+	if f.Login.PasswordStdin && password != "" {
+		return util.NewCraneErr(util.ErrorCmdArg, "--password and --password-stdin are mutually exclusive")
+	}
+
+	if f.Login.PasswordStdin && username == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, "username is required with --password-stdin")
+	}
 
 	if username == "" {
 		fmt.Print("Username: ")
@@ -173,7 +284,7 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 
 	if password == "" {
 		var err error
-		password, err = readPassword(f.Login.PasswordStdin)
+		password, err = readPassword(usePasswordStdin)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "failed to read password: %v", err)
 		}
@@ -191,6 +302,7 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 		Auth: encodeAuth(username, password),
 	}
 
+	deleteAuthConfigs(config, server)
 	config.Auths[server] = authConfig
 
 	if err := saveRegistryConfig(config); err != nil {
@@ -198,7 +310,10 @@ func loginExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	if f.Global.Json {
-		outputJson("login", "", f.Login, config)
+		outputJson("login", "", loginJsonFlags{
+			Username:      username,
+			PasswordStdin: usePasswordStdin,
+		}, registryAuthOutput{Server: server})
 	} else {
 		fmt.Printf("Login Succeeded: %s\n", server)
 	}
@@ -229,13 +344,14 @@ func getAuthForRegistry(registry string) (username, password string, err error) 
 	if registry == "" {
 		return "", "", fmt.Errorf("registry cannot be empty")
 	}
+	registry = canonicalRegistryServer(strings.ToLower(strings.TrimSpace(registry)))
 
 	config, err := loadRegistryConfig()
 	if err != nil {
 		return "", "", err
 	}
 
-	authConfig, exists := config.Auths[registry]
+	authConfig, exists := findAuthConfig(config, registry)
 	if !exists {
 		return "", "", nil // No auth info available
 	}
@@ -248,12 +364,9 @@ func logoutExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "registry server is required")
 	}
 
-	server := strings.TrimSpace(args[0])
-	server = strings.TrimPrefix(server, "http://")
-	server = strings.TrimPrefix(server, "https://")
-	server = strings.TrimSuffix(server, "/")
-	if server == "" || strings.Contains(server, "/") {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid registry server: %s", args[0]))
+	server, err := normalizeRegistryServer(args[0])
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	config, err := loadRegistryConfig()
@@ -261,11 +374,9 @@ func logoutExecute(cmd *cobra.Command, args []string) error {
 		return util.WrapCraneErr(util.ErrorSystem, "failed to load registry config: %v", err)
 	}
 
-	if _, exists := config.Auths[server]; !exists {
+	if !deleteAuthConfigs(config, server) {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("no existing login for %s", server))
 	}
-
-	delete(config.Auths, server)
 
 	if err := saveRegistryConfig(config); err != nil {
 		return util.WrapCraneErr(util.ErrorSystem, "failed to save registry config: %v", err)
@@ -273,7 +384,7 @@ func logoutExecute(cmd *cobra.Command, args []string) error {
 
 	f := GetFlags()
 	if f.Global.Json {
-		outputJson("logout", "", nil, config)
+		outputJson("logout", "", nil, registryAuthOutput{Server: server})
 	} else {
 		fmt.Printf("Logout Succeeded: %s\n", server)
 	}
