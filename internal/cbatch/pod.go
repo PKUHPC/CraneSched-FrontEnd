@@ -45,7 +45,8 @@ func initPodFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&FlagPodName, "pod-name", "", "Name of pod (defaults to job name)")
 	cmd.Flags().StringSliceVar(&FlagPodPorts, "pod-port", []string{}, "Publish pod port(s) in HOST:CONTAINER or PORT form")
 	cmd.Flags().StringVar(&FlagPodUser, "pod-user", "", "Run pod as UID[:GID] (default: current user when --pod-userns=false)")
-	cmd.Flags().BoolVar(&FlagPodUserns, "pod-userns", true, "Enable pod user namespace")
+	cmd.Flags().BoolVar(&FlagPodUserns, "pod-userns", util.DefaultUserNsEnabledByDefault, "Enable pod user namespace; default follows Container.UserNsEnabledByDefault in config")
+	cmd.Flags().Lookup("pod-userns").DefValue = "from config"
 	cmd.Flags().BoolVar(&FlagPodHostNet, "pod-host-network", false, "Use host network namespace for the pod")
 	cmd.Flags().StringSliceVar(&FlagDns, "pod-dns", []string{}, "Configure DNS server(s) for pod (comma-separated or repeated)")
 }

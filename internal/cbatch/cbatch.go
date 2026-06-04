@@ -47,7 +47,7 @@ var (
 )
 
 // BuildCbatchJob reads flags and script file to build a job
-func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error) {
+func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*protos.JobToCtld, error) {
 	job := new(protos.JobToCtld)
 
 	// Parse the script file or use wrapped script
@@ -91,7 +91,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
-	podOpts := podOptions{userns: true}
+	podOpts := podOptions{userns: config.Container.UserNsEnabledByDefault}
 
 	// Set args from the script
 	if err := applyScriptArgs(cmd, cbatchArgs, job, &structExtraFromScript, &podOpts); err != nil {
@@ -529,8 +529,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 	return nil
 }
 
-func SendRequest(job *protos.JobToCtld) error {
-	config := util.ParseConfig(FlagConfigFilePath)
+func SendRequest(config *util.Config, job *protos.JobToCtld) error {
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchJobRequest{Job: job}
 
@@ -560,8 +559,7 @@ func SendRequest(job *protos.JobToCtld) error {
 	}
 }
 
-func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
-	config := util.ParseConfig(FlagConfigFilePath)
+func SendMultipleRequests(config *util.Config, job *protos.JobToCtld, count uint32) error {
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchJobsRequest{Job: job, Count: count}
 
