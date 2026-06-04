@@ -231,7 +231,9 @@ func (p MonitorPlugin) TraceHook(ctx *api.PluginContext) {
 		return
 	}
 
-	globalMonitor.traceWriter.Enqueue(req.GetSpans())
+	if err := globalMonitor.traceWriter.Enqueue(ctx.GrpcCtx, req.GetSpans()); err != nil {
+		log.Errorf("Failed to enqueue trace spans: %v", err)
+	}
 }
 
 func (p MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error {

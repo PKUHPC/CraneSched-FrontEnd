@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -22,8 +24,7 @@ type TraceWriter struct {
 	done  chan struct{}
 
 	stopped        atomic.Bool
-	droppedBatches atomic.Uint64
-	droppedSpans   atomic.Uint64
+	failedEnqueues atomic.Uint64
 }
 
 func NewTraceWriter(database db.DBInterface) *TraceWriter {
@@ -37,21 +38,23 @@ func NewTraceWriter(database db.DBInterface) *TraceWriter {
 	return writer
 }
 
-func (w *TraceWriter) Enqueue(spans []*protos.SpanInfo) {
+func (w *TraceWriter) Enqueue(ctx context.Context, spans []*protos.SpanInfo) error {
 	if len(spans) == 0 || w == nil || w.stopped.Load() {
-		return
+		return nil
 	}
 
 	batch := append([]*protos.SpanInfo(nil), spans...)
 	select {
 	case w.queue <- batch:
-	default:
-		droppedBatches := w.droppedBatches.Add(1)
-		droppedSpans := w.droppedSpans.Add(uint64(len(batch)))
-		if droppedBatches == 1 || droppedBatches%128 == 0 {
-			log.Warnf("Trace writer queue full, dropped %d batches / %d spans",
-				droppedBatches, droppedSpans)
+		return nil
+	case <-ctx.Done():
+		failed := w.failedEnqueues.Add(1)
+		if failed == 1 || failed%128 == 0 {
+			log.Warnf("Trace writer enqueue canceled %d times: %v", failed, ctx.Err())
 		}
+		return ctx.Err()
+	case <-w.stop:
+		return errors.New("trace writer is stopping")
 	}
 }
 

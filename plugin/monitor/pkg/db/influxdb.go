@@ -335,6 +335,9 @@ func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
 		tags := map[string]string{
 			"name": span.Name,
 		}
+		if span.SpanId != "" {
+			tags["span_id_key"] = span.SpanId
+		}
 		if span.ServiceName != "" {
 			tags["service"] = span.ServiceName
 		}
