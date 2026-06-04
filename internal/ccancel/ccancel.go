@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 )
@@ -29,6 +30,59 @@ import (
 var (
 	stub protos.CraneCtldClient
 )
+
+type cancelledStepsJson struct {
+	Steps []uint32 `json:"steps"`
+}
+
+type notCancelledJobStepsJson struct {
+	Reason      string   `json:"reason"`
+	StepIds     []uint32 `json:"step_ids"`
+	StepReasons []string `json:"step_reasons"`
+}
+
+type cancelJobReplyJson struct {
+	CancelledSteps       map[string]cancelledStepsJson       `json:"cancelled_steps"`
+	NotCancelledJobSteps map[string]notCancelledJobStepsJson `json:"not_cancelled_job_steps"`
+}
+
+func formatCancelJobReplyJson(reply *protos.CancelJobReply) (string, error) {
+	output := cancelJobReplyJson{
+		CancelledSteps:       make(map[string]cancelledStepsJson),
+		NotCancelledJobSteps: make(map[string]notCancelledJobStepsJson),
+	}
+
+	for _, item := range reply.Cancelled {
+		key := util.FormatJobIdFromArrayTaskId(item.JobId, item.ArrayTaskId)
+		output.CancelledSteps[key] = cancelledStepsJson{
+			Steps: append([]uint32{}, item.Steps...),
+		}
+	}
+
+	for _, item := range reply.NotCancelled {
+		key := util.FormatJobIdFromArrayTaskId(item.JobId, item.ArrayTaskId)
+		entry := output.NotCancelledJobSteps[key]
+		if entry.StepIds == nil {
+			entry.StepIds = []uint32{}
+		}
+		if entry.StepReasons == nil {
+			entry.StepReasons = []string{}
+		}
+		if item.StepId == nil {
+			entry.Reason = item.Reason
+		} else {
+			entry.StepIds = append(entry.StepIds, *item.StepId)
+			entry.StepReasons = append(entry.StepReasons, item.Reason)
+		}
+		output.NotCancelledJobSteps[key] = entry
+	}
+
+	data, err := json.Marshal(output)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
 
 func CancelJob(args []string) error {
 	req := &protos.CancelJobRequest{
@@ -73,7 +127,11 @@ func CancelJob(args []string) error {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		output, err := formatCancelJobReplyJson(reply)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorInvalidFormat, "Failed to marshal cancel reply: %v", err)
+		}
+		fmt.Println(output)
 		if len(reply.NotCancelled) > 0 {
 			return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
 		} else {
