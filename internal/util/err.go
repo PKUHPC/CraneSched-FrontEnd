@@ -254,6 +254,11 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_USER_HAS_JOB:              "The user has jobs pending or running, cannot be deleted",
 	protos.ErrCode_ERR_INVALID_RESOURCE:          "Invalid resource specification for the partition",
 	protos.ErrCode_ERR_INVALID_DEADLINE:          "Invalid deadline time(should be later than submit time)",
+
+	protos.ErrCode_ERR_PARTITION_TRES_PER_JOB_BEYOND:         "Resource (TRES) per job exceeds the partition limit",
+	protos.ErrCode_ERR_PARTITION_TIME_BEYOND:                 "Time limit exceeds the partition's per-job wall time limit",
+	protos.ErrCode_ERR_PARTITION_MAX_SUBMIT_JOBS_PER_USER:    "Partition max submit jobs per user exceeded",
+	protos.ErrCode_ERR_PARTITION_MAX_SUBMIT_JOBS_PER_ACCOUNT: "Partition max submit jobs per account exceeded",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
