@@ -66,7 +66,11 @@ func ParseConfig(configFilePath string) *Config {
 		os.Exit(ErrorCmdArg)
 	}
 
-	config := &Config{}
+	config := &Config{
+		Container: ContainerConfig{
+			UserNsEnabledByDefault: DefaultUserNsEnabledByDefault,
+		},
+	}
 	err = yaml.Unmarshal(confFile, config)
 	if err != nil {
 		log.Errorf("Config syntax error in %s: %v", configFilePath, err)
