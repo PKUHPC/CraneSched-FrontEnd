@@ -148,6 +148,7 @@ message ExecuteStepsReply {
 
 message TerminateStepsRequest {
   map<uint32, JobStepIds> job_step_ids_map = 1;
+  TerminateSource terminate_source = 2;
 }
 
 message TerminateStepsReply {
@@ -155,6 +156,25 @@ message TerminateStepsReply {
   string reason = 2;
 }
 
+message SuspendJobsRequest {
+  // Suspend operations are applied on job granularity.
+  repeated uint32 job_id_list = 1;
+}
+
+message SuspendJobsReply {
+  bool ok = 1;
+  string reason = 2;
+}
+
+message ResumeJobsRequest {
+  // Resume operations are applied on job granularity.
+  repeated uint32 job_id_list = 1;
+}
+
+message ResumeJobsReply {
+  bool ok = 1;
+  string reason = 2;
+}
 
 message ChangeJobTimeConstraintRequest{
   uint32 job_id = 1;
@@ -170,7 +190,7 @@ message CancelJobRequest {
   uint32 operator_uid = 1;
 
   // Filters
-  map<uint32, JobStepIds> filter_ids = 2;
+  repeated JobIdSelector filter_job_ids = 2;
   string filter_partition = 3;
   string filter_account = 4;
   JobStatus filter_state = 5;
@@ -179,14 +199,22 @@ message CancelJobRequest {
   string filter_username = 8;
 }
 
+message CancelledJobStep {
+  uint32 job_id = 1;
+  optional uint32 array_task_id = 2;
+  repeated uint32 steps = 3;
+}
+
+message NotCancelledJobStep {
+  uint32 job_id = 1;
+  optional uint32 array_task_id = 2;
+  optional uint32 step_id = 3;
+  string reason = 4;
+}
+
 message CancelJobReply {
-  map<uint32, JobStepIds> cancelled_steps = 1;
-  message NotCancelledJobSteps {
-    string reason = 1;
-    repeated uint32 step_ids = 2;
-    repeated string step_reasons = 3;
-  }
-  map<uint32, NotCancelledJobSteps> not_cancelled_job_steps = 2;
+  repeated CancelledJobStep cancelled = 1;
+  repeated NotCancelledJobStep not_cancelled = 2;
 }
 
 message QueryStepFromPortRequest {
@@ -258,7 +286,7 @@ message ModifyJobRequest {
   }
 
   uint32 uid = 1;
-  repeated uint32 job_ids = 2;
+  repeated JobIdSelector job_ids = 2;
 
   TargetAttributes attribute = 3;
 
@@ -585,7 +613,7 @@ message QueryClusterInfoReply {
 }
 
 message QueryJobsInfoRequest {
-  map<uint32 /*JobId*/, JobStepIds> filter_ids = 1;
+  repeated JobIdSelector filter_job_ids = 1;
   repeated string filter_partitions = 2;
   uint32 num_limit = 3;
   repeated string filter_job_names = 4;
@@ -1416,6 +1444,8 @@ service Craned {
   If the job is a batch job, just kill it.
   */
   rpc TerminateSteps(TerminateStepsRequest) returns (TerminateStepsReply);
+  rpc SuspendJobs(SuspendJobsRequest) returns (SuspendJobsReply);
+  rpc ResumeJobs(ResumeJobsRequest) returns (ResumeJobsReply);
   rpc ChangeJobTimeConstraint(ChangeJobTimeConstraintRequest) returns (ChangeJobTimeConstraintReply);
 
   /*

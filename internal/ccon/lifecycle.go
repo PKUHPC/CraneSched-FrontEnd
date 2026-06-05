@@ -46,14 +46,9 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "step 0 is reserved for pods, please specify a container step ID")
 	}
 
-	idFilter := map[uint32]*protos.JobStepIds{}
-	idFilter[uint32(jobId)] = &protos.JobStepIds{
-		Steps: []uint32{uint32(stepId)},
-	}
-
 	// First, query the job to verify it's a container job
 	queryReq := &protos.QueryJobsInfoRequest{
-		FilterIds:      idFilter,
+		FilterJobIds:   []*protos.JobIdSelector{{JobId: jobId, Steps: []uint32{stepId}}},
 		FilterJobTypes: []protos.JobType{protos.JobType_Container},
 	}
 
@@ -75,7 +70,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	// Create cancel request
 	req := &protos.CancelJobRequest{
 		OperatorUid:     uint32(os.Getuid()),
-		FilterIds:       idFilter,
+		FilterJobIds:    []*protos.JobIdSelector{{JobId: jobId, Steps: []uint32{stepId}}},
 		FilterPartition: "",
 		FilterAccount:   "",
 		FilterState:     protos.JobStatus_Invalid,
@@ -93,7 +88,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	if f.Global.Json {
 		outputJson("stop", "", f.Stop, reply)
-		if len(reply.NotCancelledJobSteps) > 0 {
+		if len(reply.NotCancelled) > 0 {
 			return nil
 		} else {
 			return util.NewCraneErr(util.ErrorBackend, "")
@@ -101,16 +96,13 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Handle non-JSON output
-	if len(reply.CancelledSteps) > 0 {
+	if len(reply.Cancelled) > 0 {
 		fmt.Printf("Container %d.%d stopped successfully\n", jobId, stepId)
 		return nil
 	}
 
-	if len(reply.NotCancelledJobSteps) > 0 {
-		reason := "Unknown error"
-		if len(reply.NotCancelledJobSteps) > 0 {
-			reason = reply.NotCancelledJobSteps[0].GetReason()
-		}
+	if len(reply.NotCancelled) > 0 {
+		reason := reply.NotCancelled[0].GetReason()
 		log.Errorf("Failed to stop container %d.%d: %s", jobId, stepId, reason)
 		return util.NewCraneErr(util.ErrorBackend, "")
 	}

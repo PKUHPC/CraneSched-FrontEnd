@@ -21,7 +21,6 @@ package cqueue
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os"
 	"regexp"
 	"sort"
@@ -56,8 +55,8 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 	}
 
 	less := func(i, j int) bool {
-		jobId1, stepId1 := stepDataList[i].stepInfo.JobId, stepDataList[i].stepInfo.StepId
-		jobId2, stepId2 := stepDataList[j].stepInfo.JobId, stepDataList[j].stepInfo.StepId
+		jobId1, jobId2 := stepDataList[i].stepInfo.JobId, stepDataList[j].stepInfo.JobId
+		stepId1, stepId2 := stepDataList[i].stepInfo.StepId, stepDataList[j].stepInfo.StepId
 		if jobId1 != jobId2 {
 			return jobId1 > jobId2
 		}
@@ -81,7 +80,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 			stepInfo := stepData.stepInfo
 			job := stepData.job
 
-			stepIdStr := fmt.Sprintf("%d.%d", stepInfo.JobId, stepInfo.StepId)
+			stepIdStr := util.FormatStepId(stepInfo.JobId, job.ArrayTask, stepInfo.StepId)
 
 			name := stepInfo.Name
 
@@ -128,7 +127,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 
 // Step field processors
 func ProcessStepId(stepData StepData) string {
-	return fmt.Sprintf("%d.%d", stepData.stepInfo.JobId, stepData.stepInfo.StepId)
+	return util.FormatStepId(stepData.stepInfo.JobId, stepData.job.ArrayTask, stepData.stepInfo.StepId)
 }
 
 func ProcessStepName(stepData StepData) string {
@@ -189,7 +188,7 @@ func ProcessStepCommand(stepData StepData) string {
 }
 
 func ProcessStepJobId(stepData StepData) string {
-	return strconv.FormatUint(uint64(stepData.stepInfo.JobId), 10)
+	return util.FormatJobId(stepData.job.JobId, stepData.job.ArrayTask)
 }
 
 type StepFieldProcessor struct {

@@ -124,13 +124,13 @@ func (s *QueryService) getJobInformation(ctx context.Context, jobIds []uint32) (
 
 	ctldClient := util.GetStubToCtldByConfig(s.craneConfig)
 
-	stepIds := make(map[uint32]*protos.JobStepIds)
+	selectors := make([]*protos.JobIdSelector, 0, len(jobIds))
 	for _, id := range jobIds {
-		stepIds[id] = &protos.JobStepIds{}
+		selectors = append(selectors, &protos.JobIdSelector{JobId: id})
 	}
 
 	req := &protos.QueryJobsInfoRequest{
-		FilterIds:                  stepIds,
+		FilterJobIds:               selectors,
 		OptionIncludeCompletedJobs: true,
 	}
 

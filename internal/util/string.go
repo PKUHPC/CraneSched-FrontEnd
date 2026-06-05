@@ -204,6 +204,166 @@ func ParseDurationStrToSeconds(duration string) (int64, error) {
 	return seconds, nil
 }
 
+func ParseArrayRangeSpec(spec string) (*protos.ArraySpec, error) {
+	cleaned := strings.TrimSpace(spec)
+	if cleaned == "" {
+		return nil, fmt.Errorf("invalid --array value '%s': empty specification", spec)
+	}
+
+	arraySpec := &protos.ArraySpec{}
+	if idx := strings.LastIndex(cleaned, "%"); idx >= 0 {
+		concStr := cleaned[idx+1:]
+		cleaned = cleaned[:idx]
+		if concStr == "" {
+			return nil, fmt.Errorf("invalid --array value '%s': missing number after '%%'", spec)
+		}
+		concVal, err := strconv.ParseUint(concStr, 10, 32)
+		if err != nil || concVal == 0 {
+			return nil, fmt.Errorf("invalid --array value '%s': concurrency limit must be a positive integer", spec)
+		}
+		maxConcurrent := uint32(concVal)
+		arraySpec.MaxConcurrent = &maxConcurrent
+	}
+
+	result := regexp.MustCompile(`^(\d+)(?:-(\d+))?(?::(\d+))?$`).FindStringSubmatch(cleaned)
+	if result == nil {
+		return nil, fmt.Errorf("invalid --array value '%s'", spec)
+	}
+
+	start, err := strconv.ParseUint(result[1], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid --array index '%s'", result[1])
+	}
+
+	end := start
+	if result[2] != "" {
+		end, err = strconv.ParseUint(result[2], 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --array index '%s'", result[2])
+		}
+	}
+	if start > end {
+		return nil, fmt.Errorf("invalid --array value '%s': start > end", spec)
+	}
+	arraySpec.Start = uint32(start)
+	arraySpec.End = uint32(end)
+
+	stride := uint64(1)
+	if result[3] != "" {
+		if result[2] == "" {
+			return nil, fmt.Errorf("invalid --array value '%s': stride without range", spec)
+		}
+		stride, err = strconv.ParseUint(result[3], 10, 32)
+		if err != nil || stride == 0 {
+			return nil, fmt.Errorf("invalid --array stride '%s'", result[3])
+		}
+		strideU32 := uint32(stride)
+		arraySpec.Stride = &strideU32
+	}
+
+	taskCount := (end-start)/stride + 1
+	if taskCount > MaxArrayTaskCount {
+		return nil, fmt.Errorf("invalid --array value '%s': task count %d exceeds limit %d",
+			spec, taskCount, MaxArrayTaskCount)
+	}
+
+	return arraySpec, nil
+}
+
+func FormatJobId(jobId uint32, arrayTask *protos.ArrayTaskIdentity) string {
+	if arrayTask != nil {
+		return fmt.Sprintf("%d_%d", arrayTask.ArrayJobId, arrayTask.TaskId)
+	}
+	return strconv.FormatUint(uint64(jobId), 10)
+}
+
+func FormatStepId(jobId uint32, arrayTask *protos.ArrayTaskIdentity, stepId uint32) string {
+	return fmt.Sprintf("%s.%d", FormatJobId(jobId, arrayTask), stepId)
+}
+
+func ArrayTaskIdentityFromArrayTaskId(jobId uint32, arrayTaskId *uint32) *protos.ArrayTaskIdentity {
+	if arrayTaskId == nil {
+		return nil
+	}
+	return &protos.ArrayTaskIdentity{ArrayJobId: jobId, TaskId: *arrayTaskId}
+}
+
+func FormatJobIdFromArrayTaskId(jobId uint32, arrayTaskId *uint32) string {
+	return FormatJobId(jobId, ArrayTaskIdentityFromArrayTaskId(jobId, arrayTaskId))
+}
+
+func FormatStepIdFromArrayTaskId(jobId uint32, arrayTaskId *uint32, stepId uint32) string {
+	return FormatStepId(jobId, ArrayTaskIdentityFromArrayTaskId(jobId, arrayTaskId), stepId)
+}
+
+type JobIdentifier struct {
+	JobId        uint32
+	ArrayTaskId  uint32
+	HasArrayTask bool
+}
+
+func JobIdentifierFromJobInfo(job *protos.JobInfo) JobIdentifier {
+	if job.ArrayTask != nil {
+		return JobIdentifier{
+			JobId:        job.ArrayTask.ArrayJobId,
+			ArrayTaskId:  job.ArrayTask.TaskId,
+			HasArrayTask: true,
+		}
+	}
+	return JobIdentifier{JobId: job.JobId}
+}
+
+func JobIdentifierFromSelector(selector *protos.JobIdSelector) JobIdentifier {
+	if selector.ArrayTaskId != nil {
+		return JobIdentifier{
+			JobId:        selector.JobId,
+			ArrayTaskId:  *selector.ArrayTaskId,
+			HasArrayTask: true,
+		}
+	}
+	return JobIdentifier{JobId: selector.JobId}
+}
+
+func (id JobIdentifier) String() string {
+	if !id.HasArrayTask {
+		return strconv.FormatUint(uint64(id.JobId), 10)
+	}
+	return FormatJobId(id.JobId, &protos.ArrayTaskIdentity{
+		ArrayJobId: id.JobId,
+		TaskId:     id.ArrayTaskId,
+	})
+}
+
+type StepIdentifier struct {
+	Job    JobIdentifier
+	StepId uint32
+}
+
+func StepIdentifierFromStepInfo(job *protos.JobInfo, step *protos.StepInfo) StepIdentifier {
+	return StepIdentifier{
+		Job:    JobIdentifierFromJobInfo(job),
+		StepId: step.StepId,
+	}
+}
+
+func StepIdentifierFromSelector(selector *protos.JobIdSelector, stepId uint32) StepIdentifier {
+	return StepIdentifier{
+		Job:    JobIdentifierFromSelector(selector),
+		StepId: stepId,
+	}
+}
+
+func (id StepIdentifier) String() string {
+	var arrayTask *protos.ArrayTaskIdentity
+	if id.Job.HasArrayTask {
+		arrayTask = &protos.ArrayTaskIdentity{
+			ArrayJobId: id.Job.JobId,
+			TaskId:     id.Job.ArrayTaskId,
+		}
+	}
+	return FormatStepId(id.Job.JobId, arrayTask, id.StepId)
+}
+
 func ParseRelativeTime(ts string) (int64, error) {
 	// handle compound duration like 1h2m30s, 1h30m, etc.
 	if regexp.MustCompile(`^(\d+[a-zA-Z]+)+$`).MatchString(ts) {
@@ -499,38 +659,6 @@ func ParseFloatWithPrecision(val string, decimalPlaces int) (float64, error) {
 
 	shift := math.Pow(10, float64(decimalPlaces))
 	return math.Floor(num*shift) / shift, nil
-}
-
-func ParseJobId(jobId string) (int64, error) {
-	parts := strings.Split(jobId, ".")
-	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || jobId64 <= 0 {
-		return 0, fmt.Errorf("invalid job id")
-	}
-	return jobId64, nil
-}
-
-// ParseJobIdStepId parses a job step id string in the format "jobid" or "jobid.stepid".
-// Returns jobid, stepid, error. -1 if not present.
-func ParseJobIdStepId(jobStepId string) (int64, int64, error) {
-	parts := strings.Split(jobStepId, ".")
-	if len(parts) == 0 || len(parts) > 2 {
-		return -1, -1, fmt.Errorf("invalid job or step id format")
-	}
-	jobId64, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || jobId64 <= 0 {
-		return -1, -1, fmt.Errorf("invalid job id")
-	}
-	var stepId64 int64
-	if len(parts) == 2 {
-		stepId64, err = strconv.ParseInt(parts[1], 10, 64)
-		if err != nil || stepId64 < 0 {
-			return -1, -1, fmt.Errorf("invalid step id")
-		}
-		return jobId64, stepId64, nil
-	}
-
-	return jobId64, -1, nil
 }
 
 // ParseJobIdStepIdStrict parses a step id string in the format "jobid.stepid".
@@ -1310,7 +1438,7 @@ func ParseGresForQosLimit(gres string) (*protos.GresMap, error) {
 		if len(parts) == 2 {
 			if parts[1] == "unlimited" {
 				if pair, exist := result.NameGresMap[name]; exist {
-					if pair.Specified != nil && len(pair.Specified) > 0 {
+					if len(pair.Specified) > 0 {
 						delete(result.NameGresMap, name)
 					} else {
 						result.NameGresMap[name].Total = math.MaxUint32
@@ -1334,7 +1462,7 @@ func ParseGresForQosLimit(gres string) (*protos.GresMap, error) {
 					if pair.Specified != nil {
 						delete(pair.Specified, gresType)
 					}
-					if pair.Specified == nil || len(pair.Specified) == 0 {
+					if len(pair.Specified) == 0 {
 						delete(result.NameGresMap, name)
 					}
 				}
@@ -1549,36 +1677,47 @@ func ParseStringParamListAllowEmpty(parameters string, splitStr string) ([]strin
 	return ParseStringParamList(parameters, splitStr)
 }
 
-// Parse a list of jobid.stepid strings into map[uint32]*protos.JobStepIds
-func ParseStepIdList(jobStepIdListStr string, splitStr string) (map[uint32]*protos.JobStepIds, error) {
-	stepIds := make(map[uint32]*protos.JobStepIds)
+func ParseJobIdSelectorList(selectorList string, splitStr string) ([]*protos.JobIdSelector, error) {
+	selectors := make([]*protos.JobIdSelector, 0)
 
-	for stepIdStr := range strings.SplitSeq(jobStepIdListStr, splitStr) {
-		stepIdPair := strings.Split(stepIdStr, ".")
-		if len(stepIdPair) > 2 {
-			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStr)
+	for token := range strings.SplitSeq(selectorList, splitStr) {
+		parts := strings.Split(strings.TrimSpace(token), ".")
+		if len(parts) == 0 || len(parts) > 2 || parts[0] == "" {
+			return nil, fmt.Errorf("invalid selector \"%s\"", token)
 		}
-		jobId, err := strconv.ParseUint(stepIdPair[0], 10, 32)
+
+		jobParts := strings.Split(parts[0], "_")
+		if len(jobParts) == 0 || len(jobParts) > 2 || jobParts[0] == "" {
+			return nil, fmt.Errorf("invalid selector \"%s\"", token)
+		}
+
+		jobId, err := strconv.ParseUint(jobParts[0], 10, 32)
 		if err != nil || jobId == 0 {
-			return nil, fmt.Errorf("invalid job id \"%s\"", stepIdStr)
+			return nil, fmt.Errorf("invalid job id \"%s\"", token)
 		}
-		if len(stepIdPair) == 1 {
-			if _, exists := stepIds[uint32(jobId)]; !exists {
-				stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
+
+		selector := &protos.JobIdSelector{JobId: uint32(jobId)}
+		if len(jobParts) == 2 {
+			arrayTaskId, err := strconv.ParseUint(jobParts[1], 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid array task id \"%s\"", token)
 			}
-			continue
+			arrayTaskId32 := uint32(arrayTaskId)
+			selector.ArrayTaskId = &arrayTaskId32
 		}
-		stepId, err := strconv.ParseUint(stepIdPair[1], 10, 32)
-		if err != nil || stepId == 0 {
-			return nil, fmt.Errorf("invalid step id \"%s\"", stepIdStr)
+
+		if len(parts) == 2 {
+			stepId, err := strconv.ParseUint(parts[1], 10, 32)
+			if err != nil || stepId == 0 {
+				return nil, fmt.Errorf("invalid step id \"%s\"", token)
+			}
+			selector.Steps = append(selector.Steps, uint32(stepId))
 		}
-		if _, exists := stepIds[uint32(jobId)]; !exists {
-			stepIds[uint32(jobId)] = &protos.JobStepIds{Steps: []uint32{}}
-		}
-		stepIds[uint32(jobId)].Steps = append(stepIds[uint32(jobId)].Steps, uint32(stepId))
+
+		selectors = append(selectors, selector)
 	}
 
-	return stepIds, nil
+	return selectors, nil
 }
 
 func ParseJobIdList(jobIds string, splitStr string) ([]uint32, error) {
@@ -1693,35 +1832,6 @@ func (j *JobExtraAttrs) Marshal(r *string) error {
 
 	*r = extra
 	return nil
-}
-
-func JobStepListToString(steps map[uint32]*protos.JobStepIds) string {
-	jobIdStrList := make([]string, 0)
-	stepIdStrList := make([]string, 0)
-	for jobId, stepIds := range steps {
-		if stepIds == nil || len(stepIds.Steps) == 0 {
-			jobIdStrList = append(jobIdStrList, fmt.Sprintf("%d", jobId))
-		} else {
-			for _, stepId := range stepIds.Steps {
-				stepIdStrList = append(stepIdStrList, fmt.Sprintf("%d.%d", jobId, stepId))
-			}
-		}
-	}
-	jobStr := ""
-	if len(jobIdStrList) != 0 {
-		jobStr = fmt.Sprintf("Job %s", ConvertSliceToString(jobIdStrList, ","))
-	}
-
-	if len(stepIdStrList) == 0 {
-		return jobStr
-	} else {
-		stepStr := fmt.Sprintf("Step %s", ConvertSliceToString(stepIdStrList, ","))
-		if len(jobStr) == 0 {
-			return stepStr
-		} else {
-			return jobStr + " " + stepStr
-		}
-	}
 }
 
 func ConvertSliceToString[T any](slice []T, sep string) string {

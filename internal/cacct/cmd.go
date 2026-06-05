@@ -94,7 +94,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagFilterUsers, "user", "u", "",
 		"Select users to view (comma separated list)")
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"Select job ids to view (comma separated list), default is all")
+		"Select job ids to view (comma separated list), default is all. Supports jobid, jobid.stepid, jobid_arraytaskid, and jobid_arraytaskid.stepid")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
 		"Select job names to view (comma separated list), default is all")
 	RootCmd.Flags().BoolVarP(&FlagNoHeader, "noheader", "N", false,
@@ -121,16 +121,20 @@ Format specification: %[[.]size]type
 
 Supported format identifiers or string, string case insensitive:
 	%a/%Account           - Display the account associated with the job.
+	%ArrayJobId           - Display the array job id, empty for non-array jobs.
+	%ArraySpec            - Display the array range specification, empty for non-array jobs.
+	%ArrayTaskId          - Display the array task id, empty for non-array jobs and array parents.
 	%C/%ReqCpus           - Display the number of requested CPUs, formatted to two decimal places
 	%c/%AllocCpus         - Display the number of allocated CPUs, formatted to two decimal places.
 	%D/%ElapsedTime       - Display the elapsed time from the start of the job.
 	%deadline/%Deadline   - Display the deadline time of the job.
 	%E/%EndTime           - Display the end time of the job.
-	%e/%ExitCode          - Display the exit code of the job. 
+	%e/%ExitCode          - Display the exit code of the job.
                              If the exit code is based on a specific base (e.g., kCraneExitCodeBase),
                              it formats as "0:<code>" or "<code>:0" based on the condition.
 	%h/%Held              - Display the hold status of the job.
 	%j/%JobID             - Display the ID of the job.
+                             Array jobs use jobid_arraytaskid; steps use jobid_arraytaskid.stepid.
 	%K/%Wckey             - Display the wckey of the job.
 	%k/%Comment           - Display the comment of the job.
 	%L/%NodeList          - Display the list of nodes the job is running on.

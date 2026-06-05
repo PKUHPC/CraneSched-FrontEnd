@@ -1137,6 +1137,10 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 	}
 
 	remoteReplacements := map[string]struct{}{
+		//Job array's master job allocation number.
+		"%A": {},
+		//Job array ID (index) number.
+		"%a": {},
 		//short hostname
 		"%N": {},
 		//Node identifier relative to current job (e.g. "0" is the first node of the running job)
