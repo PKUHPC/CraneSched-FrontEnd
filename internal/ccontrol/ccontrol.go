@@ -173,7 +173,7 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 }
 
 func RequeueJobs(jobs string) error {
-	jobList, err := util.ParseJobIdList(jobs, ",")
+	jobList, displayByJobId, err := resolveRequeueJobIds(jobs)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
@@ -197,15 +197,71 @@ func RequeueJobs(jobs string) error {
 	}
 
 	for _, jobId := range reply.RequeuedJobs {
-		fmt.Printf("Job %d requeued successfully.\n", jobId)
+		fmt.Printf("Job %s requeued successfully.\n", displayRequeueJobId(jobId, displayByJobId))
 	}
 	for jobId, reason := range reply.NotRequeuedJobs {
-		fmt.Printf("Job %d failed to requeue: %s\n", jobId, reason)
+		fmt.Printf("Job %s failed to requeue: %s\n", displayRequeueJobId(jobId, displayByJobId), reason)
 	}
 	if len(reply.NotRequeuedJobs) > 0 {
 		return &util.CraneError{Code: util.ErrorBackend}
 	}
 	return nil
+}
+
+func resolveRequeueJobIds(jobs string) ([]uint32, map[uint32]string, error) {
+	selectors, err := util.ParseJobIdSelectorList(jobs, ",")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	jobIds := make([]uint32, 0, len(selectors))
+	displayByJobId := make(map[uint32]string, len(selectors))
+	arraySelectors := make([]*protos.JobIdSelector, 0)
+	for _, selector := range selectors {
+		if len(selector.Steps) != 0 {
+			return nil, nil, fmt.Errorf("step selector is not supported for requeue: %s",
+				util.JobIdentifierFromSelector(selector).String())
+		}
+		if selector.ArrayTaskId == nil {
+			jobIds = append(jobIds, selector.JobId)
+			displayByJobId[selector.JobId] = util.FormatJobId(selector.JobId, nil)
+			continue
+		}
+		arraySelectors = append(arraySelectors, selector)
+	}
+
+	if len(arraySelectors) == 0 {
+		return jobIds, displayByJobId, nil
+	}
+
+	reply, err := getJobInfoReply(arraySelectors)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resolvedBySelector := make(map[util.JobIdentifier]*protos.JobInfo, len(reply.JobInfoList))
+	for _, job := range reply.JobInfoList {
+		resolvedBySelector[util.JobIdentifierFromJobInfo(job)] = job
+	}
+
+	for _, selector := range arraySelectors {
+		identifier := util.JobIdentifierFromSelector(selector)
+		job := resolvedBySelector[identifier]
+		if job == nil {
+			return nil, nil, fmt.Errorf("job %s is not running", identifier.String())
+		}
+		jobIds = append(jobIds, job.JobId)
+		displayByJobId[job.JobId] = identifier.String()
+	}
+
+	return jobIds, displayByJobId, nil
+}
+
+func displayRequeueJobId(jobId uint32, displayByJobId map[uint32]string) string {
+	if display, ok := displayByJobId[jobId]; ok {
+		return display
+	}
+	return util.FormatJobId(jobId, nil)
 }
 
 func HoldReleaseJobs(jobs string, hold bool) error {
