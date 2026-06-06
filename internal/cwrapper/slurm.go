@@ -688,7 +688,6 @@ func sbatch() *cobra.Command {
 	}
 	// not implement feature:
 	cmd.Flags().StringVarP(&cbatch.FlagNTasks, "ntasks", "n", "", "")
-	cmd.Flags().StringVar(&cbatch.FlagNoRequeue, "no-requeue", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagParsable, "parsable", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagGpusPerNode, "gpus-per-node", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagNTasksPerSocket, "ntasks-per-socket", "", "")
@@ -701,7 +700,7 @@ func sbatch() *cobra.Command {
 	cmd.Flags().StringVarP(&cbatch.FlagInput, "input", "i", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagSocketsPerNode, "sockets-per-node", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCoresPerSocket, "cores-per-socket", "", "")
-	cmd.Flags().StringVar(&cbatch.FlagRequeue, "requeue", "", "")
+	cmd.Flags().BoolVar(&cbatch.FlagRequeue, "requeue", false, "")
 	cmd.Flags().StringVarP(&cbatch.FlagWait, "wait", "W", "", "")
 	return cmd
 }
@@ -1347,9 +1346,6 @@ func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagNTasks != "" {
 		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
 	}
-	if cbatch.FlagNoRequeue != "" {
-		fmt.Fprintln(os.Stderr, "The feature --no-requeue is not yet supported by Crane, the use is ignored.")
-	}
 	if cbatch.FlagParsable != "" {
 		fmt.Fprintln(os.Stderr, "The feature --parsable is not yet supported by Crane, the use is ignored.")
 	}
@@ -1385,9 +1381,6 @@ func PrintSbatchIgnoreArgsMessage() {
 	}
 	if cbatch.FlagCoresPerSocket != "" {
 		fmt.Fprintln(os.Stderr, "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagRequeue != "" {
-		fmt.Fprintln(os.Stderr, "The feature --requeue is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagWait != "" {
 		fmt.Fprintln(os.Stderr, "The feature --wait/-W is not yet supported by Crane, the use is ignored.")
