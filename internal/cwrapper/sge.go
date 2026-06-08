@@ -20,6 +20,7 @@ package cwrapper
 
 import (
 	"CraneFrontEnd/internal/cbatch"
+	"CraneFrontEnd/internal/cqueue"
 	"CraneFrontEnd/internal/util"
 	"fmt"
 	"os"
@@ -45,11 +46,12 @@ func (w SGEWrapper) Group() *cobra.Group {
 func (w SGEWrapper) SubCommands() []*cobra.Command {
 	return []*cobra.Command{
 		qsub(),
+		qstat(),
 	}
 }
 
 func (w SGEWrapper) HasCommand(cmd string) bool {
-	return slices.Contains([]string{"qsub"}, cmd)
+	return slices.Contains([]string{"qsub", "qstat"}, cmd)
 }
 
 func (w SGEWrapper) Preprocess() error {
@@ -93,6 +95,13 @@ var (
 	FlagQsubCwd bool
 	FlagQsubAll bool
 	FlagQsubH   bool
+
+	FlagQstatF bool
+	FlagQstatI bool
+	FlagQstatN bool
+	FlagQstatQ string
+	FlagQstatR bool
+	FlagQstatU string
 )
 
 func qsub() *cobra.Command {
@@ -206,6 +215,82 @@ Currently supports a practical subset of qsub options that can be mapped to Cran
 	cmd.Flags().BoolVar(&FlagQsubCwd, "cwd", false, "Run the job from the current working directory.")
 	cmd.Flags().BoolVar(&FlagQsubAll, "V", false, "Export the current environment.")
 	cmd.Flags().BoolVar(&FlagQsubH, "h", false, "Submit the job in held state.")
+
+	return cmd
+}
+
+func qstat() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "qstat [flags] [job_id ...]",
+		Short:   "Wrapper of cqueue command",
+		Long:    "Wrapper of cqueue command.",
+		GroupID: "sge",
+		Args:    cobra.ArbitraryArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			if FlagQstatI && FlagQstatR {
+				log.Error("options -i and -r are mutually exclusive")
+				os.Exit(util.ErrorCmdArg)
+			}
+
+			cqueueArgs := make([]string, 0)
+			singleLineMode := false
+
+			if FlagQstatF {
+				cqueueArgs = append(cqueueArgs, "--full")
+			}
+			if FlagQstatI {
+				cqueueArgs = append(cqueueArgs, "--state", "pending,suspended")
+				singleLineMode = true
+			}
+			if FlagQstatR {
+				cqueueArgs = append(cqueueArgs, "--state", "running")
+				singleLineMode = true
+			}
+			if FlagQstatQ != "" {
+				cqueueArgs = append(cqueueArgs, "--partition", FlagQstatQ)
+				singleLineMode = true
+			}
+			if FlagQstatU != "" && FlagQstatU != "*" {
+				cqueueArgs = append(cqueueArgs, "--user", FlagQstatU)
+				singleLineMode = true
+			}
+			if FlagQstatN {
+				singleLineMode = true
+			}
+			if len(args) > 0 {
+				cqueueArgs = append(cqueueArgs, "--job", strings.Join(args, ","))
+			}
+
+			if singleLineMode && !FlagQstatF {
+				fmt.Printf("%s %s %s %s %s %s %s %s %s %s %s\n",
+					"JOBID", "USER", "QUEUE", "NAME", "SESSID", "NDS", "TSK",
+					"MEM", "REQTIME", "STATE", "ELAPSED")
+				cqueueArgs = append(cqueueArgs, "--noheader")
+				cqueueArgs = append(cqueueArgs, "--format", "%j %u %P %n - %N %C %M %l %t %e")
+			}
+
+			cqueue.RootCmd.SetArgs(cqueueArgs)
+			err := cqueue.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
+		},
+	}
+
+	addConfigPathFlag(cmd, &cqueue.FlagConfigFilePath)
+	cmd.Flags().BoolVar(&FlagQstatF, "f", false, "Display full job information.")
+	cmd.Flags().BoolVar(&FlagQstatI, "i", false, "Display pending and suspended jobs.")
+	cmd.Flags().BoolVar(&FlagQstatN, "n", false, "Use the single-line job display format with node information.")
+	cmd.Flags().StringVar(&FlagQstatQ, "q", "", "Display jobs in the specified queue.")
+	cmd.Flags().BoolVar(&FlagQstatR, "r", false, "Display running jobs.")
+	cmd.Flags().StringVar(&FlagQstatU, "u", "", "Display jobs submitted by the specified user.")
 
 	return cmd
 }
