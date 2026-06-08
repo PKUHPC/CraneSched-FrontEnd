@@ -19,6 +19,7 @@
 package cwrapper
 
 import (
+	"CraneFrontEnd/internal/cacct"
 	"CraneFrontEnd/internal/cbatch"
 	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/cqueue"
@@ -46,6 +47,7 @@ func (w SGEWrapper) Group() *cobra.Group {
 
 func (w SGEWrapper) SubCommands() []*cobra.Command {
 	return []*cobra.Command{
+		qacct(),
 		qdel(),
 		qsub(),
 		qstat(),
@@ -53,7 +55,7 @@ func (w SGEWrapper) SubCommands() []*cobra.Command {
 }
 
 func (w SGEWrapper) HasCommand(cmd string) bool {
-	return slices.Contains([]string{"qdel", "qsub", "qstat"}, cmd)
+	return slices.Contains([]string{"qacct", "qdel", "qsub", "qstat"}, cmd)
 }
 
 func (w SGEWrapper) Preprocess() error {
@@ -104,6 +106,16 @@ var (
 	FlagQstatQ string
 	FlagQstatR bool
 	FlagQstatU string
+
+	FlagQacctA    string
+	FlagQacctB    string
+	FlagQacctD    int
+	FlagQacctE    string
+	FlagQacctEEnd bool
+	FlagQacctJ    string
+	FlagQacctO    string
+	FlagQacctQ    string
+	FlagQacctU    string
 )
 
 func qsub() *cobra.Command {
@@ -254,6 +266,88 @@ func qdel() *cobra.Command {
 	return cmd
 }
 
+func qacct() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "qacct [flags]",
+		Short:   "Wrapper of cacct command",
+		Long:    "Wrapper of cacct command.",
+		GroupID: "sge",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if sgeHelpRequested(cmd) {
+				return nil
+			}
+			return cobra.NoArgs(cmd, args)
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			cacctArgs := make([]string, 0)
+
+			if FlagQacctA != "" {
+				cacctArgs = append(cacctArgs, "--account", FlagQacctA)
+			}
+			if FlagQacctJ != "" {
+				if isSGEJobIDFilter(FlagQacctJ) {
+					cacctArgs = append(cacctArgs, "--job", FlagQacctJ)
+				} else {
+					cacctArgs = append(cacctArgs, "--name", FlagQacctJ)
+				}
+			}
+			if FlagQacctO != "" {
+				cacctArgs = append(cacctArgs, "--user", FlagQacctO)
+			}
+			if FlagQacctU != "" {
+				cacctArgs = append(cacctArgs, "--user", FlagQacctU)
+			}
+			if FlagQacctQ != "" {
+				cacctArgs = append(cacctArgs, "--partition", FlagQacctQ)
+			}
+
+			if FlagQacctB != "" || FlagQacctE != "" || FlagQacctD > 0 {
+				start, end, err := buildQacctTimeRange()
+				if err != nil {
+					log.Error(err)
+					os.Exit(util.ErrorCmdArg)
+				}
+
+				if FlagQacctEEnd {
+					if start != "" || end != "" {
+						cacctArgs = append(cacctArgs, "--end-time", start+"~"+end)
+					}
+				} else {
+					if start != "" || end != "" {
+						cacctArgs = append(cacctArgs, "--start-time", start+"~"+end)
+					}
+				}
+			}
+
+			cacct.RootCmd.SetArgs(cacctArgs)
+			err := cacct.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
+		},
+	}
+
+	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
+	cmd.Flags().StringVar(&FlagQacctA, "A", "", "List matching accounts.")
+	cmd.Flags().StringVar(&FlagQacctB, "b", "", "Jobs started after begin_time.")
+	cmd.Flags().IntVar(&FlagQacctD, "d", 0, "Jobs started during the last d days.")
+	cmd.Flags().StringVar(&FlagQacctE, "e", "", "Jobs started before end_time.")
+	cmd.Flags().BoolVar(&FlagQacctEEnd, "E", false, "Use job end time instead of start time.")
+	cmd.Flags().StringVar(&FlagQacctJ, "j", "", "List matching jobs by id or name.")
+	cmd.Flags().StringVar(&FlagQacctO, "o", "", "List matching owners.")
+	cmd.Flags().StringVar(&FlagQacctQ, "q", "", "List matching queue.")
+	cmd.Flags().StringVar(&FlagQacctU, "u", "", "List matching owners.")
+
+	return cmd
+}
+
 func qstat() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "qstat [flags] [job_id ...]",
@@ -333,6 +427,39 @@ func qstat() *cobra.Command {
 func sgeHelpRequested(cmd *cobra.Command) bool {
 	help, err := cmd.Flags().GetBool("help")
 	return err == nil && help
+}
+
+func isSGEJobIDFilter(value string) bool {
+	_, err := util.ParseJobIdSelectorList(value, ",")
+	return err == nil
+}
+
+func buildQacctTimeRange() (string, string, error) {
+	var start, end string
+
+	if FlagQacctD > 0 {
+		now := time.Now()
+		start = now.AddDate(0, 0, -FlagQacctD).Format("2006-01-02T15:04:05")
+		end = now.Format("2006-01-02T15:04:05")
+	}
+
+	if FlagQacctB != "" {
+		beginAt, err := convertSGEDateTime(FlagQacctB)
+		if err != nil {
+			return "", "", err
+		}
+		start = beginAt
+	}
+
+	if FlagQacctE != "" {
+		endAt, err := convertSGEDateTime(FlagQacctE)
+		if err != nil {
+			return "", "", err
+		}
+		end = endAt
+	}
+
+	return start, end, nil
 }
 
 func convertSGEDateTime(value string) (string, error) {
