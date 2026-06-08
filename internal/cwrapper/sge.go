@@ -20,6 +20,7 @@ package cwrapper
 
 import (
 	"CraneFrontEnd/internal/cbatch"
+	"CraneFrontEnd/internal/ccancel"
 	"CraneFrontEnd/internal/cqueue"
 	"CraneFrontEnd/internal/util"
 	"fmt"
@@ -45,13 +46,14 @@ func (w SGEWrapper) Group() *cobra.Group {
 
 func (w SGEWrapper) SubCommands() []*cobra.Command {
 	return []*cobra.Command{
+		qdel(),
 		qsub(),
 		qstat(),
 	}
 }
 
 func (w SGEWrapper) HasCommand(cmd string) bool {
-	return slices.Contains([]string{"qsub", "qstat"}, cmd)
+	return slices.Contains([]string{"qdel", "qsub", "qstat"}, cmd)
 }
 
 func (w SGEWrapper) Preprocess() error {
@@ -216,6 +218,39 @@ Currently supports a practical subset of qsub options that can be mapped to Cran
 	cmd.Flags().BoolVar(&FlagQsubAll, "V", false, "Export the current environment.")
 	cmd.Flags().BoolVar(&FlagQsubH, "h", false, "Submit the job in held state.")
 
+	return cmd
+}
+
+func qdel() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "qdel job_id ...",
+		Short:   "Wrapper of ccancel command",
+		Long:    "Wrapper of ccancel command.",
+		GroupID: "sge",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if sgeHelpRequested(cmd) {
+				return nil
+			}
+			return cobra.MinimumNArgs(1)(cmd, args)
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			ccancelArgs := []string{strings.Join(args, ",")}
+			ccancel.RootCmd.SetArgs(ccancelArgs)
+			err := ccancel.RootCmd.Execute()
+			if err != nil {
+				switch e := err.(type) {
+				case *util.CraneError:
+					os.Exit(e.Code)
+				default:
+					os.Exit(util.ErrorGeneric)
+				}
+			} else {
+				os.Exit(util.ErrorSuccess)
+			}
+		},
+	}
+
+	addConfigPathFlag(cmd, &ccancel.FlagConfigFilePath)
 	return cmd
 }
 
