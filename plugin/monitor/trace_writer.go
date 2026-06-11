@@ -3,43 +3,98 @@ package main
 import (
 	"context"
 	"errors"
+	"hash/fnv"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/plugin/monitor/pkg/config"
 	"CraneFrontEnd/plugin/monitor/pkg/db"
 )
 
 const (
-	defaultTraceQueueBatches = 4096
-	maxTraceWriteBatchSpans  = 4096
-	traceWriteFlushInterval  = 50 * time.Millisecond
 	traceWriterStatsInterval = 5 * time.Second
 	traceWriterCloseTimeout  = 10 * time.Second
 )
 
 type TraceWriter struct {
-	db    db.DBInterface
-	queue chan []*protos.SpanInfo
-	stop  chan struct{}
-	done  chan struct{}
+	db     db.DBInterface
+	cfg    config.TraceWriterConfig
+	shards []*traceWriterShard
 
-	stopped         atomic.Bool
+	stop    chan struct{}
+	done    chan struct{}
+	stopped atomic.Bool
+}
+
+type traceWriterShard struct {
+	id    int
+	db    db.DBInterface
+	cfg   config.TraceWriterConfig
+	queue chan []*protos.SpanInfo
+
 	enqueuedBatches atomic.Uint64
 	enqueuedSpans   atomic.Uint64
 	failedEnqueues  atomic.Uint64
 }
 
-func NewTraceWriter(database db.DBInterface) *TraceWriter {
+type traceSpanWrite struct {
+	bucket string
+	span   *protos.SpanInfo
+}
+
+func NewTraceWriter(database db.DBInterface, writerConfig config.TraceWriterConfig) *TraceWriter {
+	normalizeTraceWriterConfig(&writerConfig)
 	writer := &TraceWriter{
-		db:    database,
-		queue: make(chan []*protos.SpanInfo, defaultTraceQueueBatches),
-		stop:  make(chan struct{}),
-		done:  make(chan struct{}),
+		db:     database,
+		cfg:    writerConfig,
+		shards: make([]*traceWriterShard, writerConfig.Shards),
+		stop:   make(chan struct{}),
+		done:   make(chan struct{}),
 	}
-	go writer.run()
+	var wg sync.WaitGroup
+	wg.Add(writerConfig.Shards)
+	for i := range writer.shards {
+		shard := &traceWriterShard{
+			id:    i,
+			db:    database,
+			cfg:   writerConfig,
+			queue: make(chan []*protos.SpanInfo, writerConfig.QueueBatches),
+		}
+		writer.shards[i] = shard
+		go shard.run(writer.stop, &wg)
+	}
+	go func() {
+		wg.Wait()
+		close(writer.done)
+	}()
 	return writer
+}
+
+func normalizeTraceWriterConfig(cfg *config.TraceWriterConfig) {
+	if cfg.Shards <= 0 {
+		cfg.Shards = 1
+	}
+	if cfg.BatchSpans <= 0 {
+		cfg.BatchSpans = 1024
+	}
+	if cfg.QueueBatches <= 0 {
+		cfg.QueueBatches = 4096
+	}
+	if cfg.FlushIntervalMs <= 0 {
+		cfg.FlushIntervalMs = 50
+	}
+	if cfg.RetryBackoffMs <= 0 {
+		cfg.RetryBackoffMs = 200
+	}
+	if cfg.MaxRetryBackoffMs <= 0 {
+		cfg.MaxRetryBackoffMs = 5000
+	}
+	if cfg.MaxRetryBackoffMs < cfg.RetryBackoffMs {
+		cfg.MaxRetryBackoffMs = cfg.RetryBackoffMs
+	}
 }
 
 func (w *TraceWriter) Enqueue(ctx context.Context, spans []*protos.SpanInfo) error {
@@ -47,21 +102,31 @@ func (w *TraceWriter) Enqueue(ctx context.Context, spans []*protos.SpanInfo) err
 		return nil
 	}
 
-	batch := append([]*protos.SpanInfo(nil), spans...)
-	select {
-	case w.queue <- batch:
-		w.enqueuedBatches.Add(1)
-		w.enqueuedSpans.Add(uint64(len(batch)))
-		return nil
-	case <-ctx.Done():
-		failed := w.failedEnqueues.Add(1)
-		if failed == 1 || failed%128 == 0 {
-			log.Warnf("Trace writer enqueue canceled %d times: %v", failed, ctx.Err())
-		}
-		return ctx.Err()
-	case <-w.stop:
-		return errors.New("trace writer is stopping")
+	byShard := make(map[int][]*protos.SpanInfo)
+	for _, span := range spans {
+		shardID := traceShardID(span, len(w.shards))
+		byShard[shardID] = append(byShard[shardID], span)
 	}
+
+	for shardID, shardSpans := range byShard {
+		batch := append([]*protos.SpanInfo(nil), shardSpans...)
+		shard := w.shards[shardID]
+		select {
+		case shard.queue <- batch:
+			shard.enqueuedBatches.Add(1)
+			shard.enqueuedSpans.Add(uint64(len(batch)))
+		case <-ctx.Done():
+			failed := shard.failedEnqueues.Add(1)
+			if failed == 1 || failed%128 == 0 {
+				log.Warnf("Trace writer enqueue canceled shard_id=%d count=%d err=%v",
+					shardID, failed, ctx.Err())
+			}
+			return ctx.Err()
+		case <-w.stop:
+			return errors.New("trace writer is stopping")
+		}
+	}
+	return nil
 }
 
 func (w *TraceWriter) Close() {
@@ -81,24 +146,27 @@ func (w *TraceWriter) Close() {
 	}
 }
 
-func (w *TraceWriter) run() {
-	defer close(w.done)
+func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
 
-	ticker := time.NewTicker(traceWriteFlushInterval)
+	ticker := time.NewTicker(time.Duration(s.cfg.FlushIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	statsTicker := time.NewTicker(traceWriterStatsInterval)
 	defer statsTicker.Stop()
 
-	pending := make([]*protos.SpanInfo, 0, maxTraceWriteBatchSpans)
+	pending := make([]traceSpanWrite, 0, s.cfg.BatchSpans)
 	stats := traceWriterStats{}
 	var lastEnqueuedBatches uint64
 	var lastEnqueuedSpans uint64
 	var lastFailedEnqueues uint64
+	var retryBackoff time.Duration
+	var nextRetry time.Time
+	var oldestPending time.Time
 
 	logStats := func(final bool) {
-		enqueuedBatches := w.enqueuedBatches.Load()
-		enqueuedSpans := w.enqueuedSpans.Load()
-		failedEnqueues := w.failedEnqueues.Load()
+		enqueuedBatches := s.enqueuedBatches.Load()
+		enqueuedSpans := s.enqueuedSpans.Load()
+		failedEnqueues := s.failedEnqueues.Load()
 		snapshot := stats.snapshot()
 		stats.reset()
 
@@ -109,75 +177,158 @@ func (w *TraceWriter) run() {
 		lastEnqueuedSpans = enqueuedSpans
 		lastFailedEnqueues = failedEnqueues
 
-		queueLen := len(w.queue)
+		queueLen := len(s.queue)
+		oldestPendingMs := int64(0)
+		if !oldestPending.IsZero() && len(pending) > 0 {
+			oldestPendingMs = time.Since(oldestPending).Milliseconds()
+		}
 		shouldLog := final || enqueueBatchesDelta > 0 || snapshot.flushCount > 0 ||
 			queueLen > 0 || len(pending) > 0 || snapshot.writeErrors > 0 ||
-			failedEnqueuesDelta > 0
+			failedEnqueuesDelta > 0 || snapshot.retryCount > 0
 		if !shouldLog {
 			return
 		}
 
-		msg := "TraceWriterStats final=%t queue_len_batches=%d queue_cap_batches=%d " +
-			"pending_spans=%d enqueue_batches=%d enqueue_spans=%d flush_count=%d " +
-			"flush_spans=%d flush_batch_spans_p50=%d flush_batch_spans_p95=%d " +
-			"flush_batch_spans_p99=%d flush_batch_spans_max=%d " +
-			"flush_elapsed_ms_p50=%d flush_elapsed_ms_p95=%d " +
-			"flush_elapsed_ms_p99=%d flush_elapsed_ms_max=%d write_errors=%d " +
-			"enqueue_canceled=%d"
+		msg := "TraceWriterStats final=%t shard_id=%d queue_len_batches=%d queue_cap_batches=%d " +
+			"pending_spans=%d oldest_pending_ms=%d enqueue_batches=%d enqueue_spans=%d " +
+			"flush_count=%d flush_spans=%d flush_batch_spans_p50=%d flush_batch_spans_p95=%d " +
+			"flush_batch_spans_p99=%d flush_batch_spans_max=%d flush_elapsed_ms_p50=%d " +
+			"flush_elapsed_ms_p95=%d flush_elapsed_ms_p99=%d flush_elapsed_ms_max=%d " +
+			"write_errors=%d retry_count=%d retry_spans=%d dropped_spans=%d enqueue_canceled=%d"
 		args := []any{
-			final, queueLen, cap(w.queue), len(pending), enqueueBatchesDelta,
-			enqueueSpansDelta, snapshot.flushCount, snapshot.flushSpans,
-			snapshot.batchP50, snapshot.batchP95, snapshot.batchP99,
-			snapshot.batchMax, snapshot.elapsedP50Ms, snapshot.elapsedP95Ms,
-			snapshot.elapsedP99Ms, snapshot.elapsedMaxMs, snapshot.writeErrors,
-			failedEnqueuesDelta,
+			final, s.id, queueLen, cap(s.queue), len(pending), oldestPendingMs,
+			enqueueBatchesDelta, enqueueSpansDelta, snapshot.flushCount,
+			snapshot.flushSpans, snapshot.batchP50, snapshot.batchP95,
+			snapshot.batchP99, snapshot.batchMax, snapshot.elapsedP50Ms,
+			snapshot.elapsedP95Ms, snapshot.elapsedP99Ms, snapshot.elapsedMaxMs,
+			snapshot.writeErrors, snapshot.retryCount, snapshot.retrySpans,
+			snapshot.droppedSpans, failedEnqueuesDelta,
 		}
-		if queueLen > cap(w.queue)*3/4 || snapshot.elapsedP95Ms >= 500 ||
-			snapshot.writeErrors > 0 || failedEnqueuesDelta > 0 {
+		if queueLen > cap(s.queue)*3/4 || snapshot.elapsedP95Ms >= 500 ||
+			snapshot.writeErrors > 0 || failedEnqueuesDelta > 0 ||
+			snapshot.retryCount > 0 || oldestPendingMs >= 5000 {
 			log.Warnf(msg, args...)
 		} else {
 			log.Infof(msg, args...)
 		}
 	}
 
-	flush := func() {
-		for start := 0; start < len(pending); start += maxTraceWriteBatchSpans {
-			end := start + maxTraceWriteBatchSpans
-			if end > len(pending) {
-				end = len(pending)
-			}
-			batch := pending[start:end]
-			begin := time.Now()
-			if err := w.db.SaveSpans(batch); err != nil {
-				stats.writeErrors++
-				log.Errorf("Failed to save async trace spans: %v", err)
-			}
-			stats.record(len(batch), time.Since(begin))
+	flush := func(force bool) {
+		if len(pending) == 0 {
+			return
 		}
-		pending = pending[:0]
+		if !force && !nextRetry.IsZero() && time.Now().Before(nextRetry) {
+			return
+		}
+
+		limit := s.cfg.BatchSpans
+		if limit > len(pending) {
+			limit = len(pending)
+		}
+		batch := pending[:limit]
+		byBucket := make(map[string][]*protos.SpanInfo)
+		for _, item := range batch {
+			byBucket[item.bucket] = append(byBucket[item.bucket], item.span)
+		}
+		buckets := make([]string, 0, len(byBucket))
+		for bucket := range byBucket {
+			buckets = append(buckets, bucket)
+		}
+		sort.Strings(buckets)
+
+		begin := time.Now()
+		failed := make([]traceSpanWrite, 0)
+		for _, bucket := range buckets {
+			if err := s.db.SaveSpansToBucket(bucket, byBucket[bucket]); err != nil {
+				stats.writeErrors++
+				stats.retryCount++
+				stats.retrySpans += uint64(len(byBucket[bucket]))
+				if retryBackoff == 0 {
+					retryBackoff = time.Duration(s.cfg.RetryBackoffMs) * time.Millisecond
+				} else {
+					retryBackoff *= 2
+					maxBackoff := time.Duration(s.cfg.MaxRetryBackoffMs) * time.Millisecond
+					if retryBackoff > maxBackoff {
+						retryBackoff = maxBackoff
+					}
+				}
+				nextRetry = time.Now().Add(retryBackoff)
+				log.Errorf("Failed to save async trace spans shard_id=%d bucket=%s batch_spans=%d retry_backoff_ms=%d: %v",
+					s.id, bucket, len(byBucket[bucket]), retryBackoff.Milliseconds(), err)
+				for _, span := range byBucket[bucket] {
+					failed = append(failed, traceSpanWrite{bucket: bucket, span: span})
+				}
+			}
+		}
+
+		stats.record(len(batch), time.Since(begin))
+		if len(failed) > 0 {
+			nextPending := make([]traceSpanWrite, 0, len(failed)+len(pending)-limit)
+			nextPending = append(nextPending, failed...)
+			nextPending = append(nextPending, pending[limit:]...)
+			pending = nextPending
+			return
+		}
+
+		pending = pending[limit:]
+		if len(pending) == 0 {
+			oldestPending = time.Time{}
+		}
+		retryBackoff = 0
+		nextRetry = time.Time{}
+	}
+
+	appendPending := func(spans []*protos.SpanInfo) {
+		if len(spans) == 0 {
+			return
+		}
+		if len(pending) == 0 {
+			oldestPending = time.Now()
+		}
+		for _, span := range spans {
+			for _, bucket := range s.db.TraceBucketsForSpan(span) {
+				pending = append(pending, traceSpanWrite{bucket: bucket, span: span})
+			}
+		}
 	}
 
 	for {
 		select {
-		case spans := <-w.queue:
-			pending = append(pending, spans...)
-			if len(pending) >= maxTraceWriteBatchSpans {
-				flush()
+		case spans := <-s.queue:
+			appendPending(spans)
+			for len(pending) >= s.cfg.BatchSpans {
+				before := len(pending)
+				flush(false)
+				if len(pending) == before {
+					break
+				}
 			}
 		case <-ticker.C:
-			flush()
+			flush(false)
 		case <-statsTicker.C:
 			logStats(false)
-		case <-w.stop:
+		case <-stop:
 			for {
 				select {
-				case spans := <-w.queue:
-					pending = append(pending, spans...)
-					if len(pending) >= maxTraceWriteBatchSpans {
-						flush()
+				case spans := <-s.queue:
+					appendPending(spans)
+					for len(pending) >= s.cfg.BatchSpans {
+						before := len(pending)
+						flush(true)
+						if len(pending) == before {
+							break
+						}
 					}
 				default:
-					flush()
+					for len(pending) > 0 {
+						before := len(pending)
+						flush(true)
+						if len(pending) == before {
+							stats.droppedSpans += uint64(len(pending))
+							log.Warnf("Trace writer shard_id=%d stopped with %d undrained spans", s.id, len(pending))
+							pending = pending[:0]
+						}
+					}
 					logStats(true)
 					return
 				}
@@ -187,17 +338,23 @@ func (w *TraceWriter) run() {
 }
 
 type traceWriterStats struct {
-	flushCount  uint64
-	flushSpans  uint64
-	writeErrors uint64
-	batchSizes  []int
-	elapsedMs   []int64
+	flushCount   uint64
+	flushSpans   uint64
+	writeErrors  uint64
+	retryCount   uint64
+	retrySpans   uint64
+	droppedSpans uint64
+	batchSizes   []int
+	elapsedMs    []int64
 }
 
 type traceWriterStatsSnapshot struct {
 	flushCount   uint64
 	flushSpans   uint64
 	writeErrors  uint64
+	retryCount   uint64
+	retrySpans   uint64
+	droppedSpans uint64
 	batchP50     int
 	batchP95     int
 	batchP99     int
@@ -222,6 +379,9 @@ func (s *traceWriterStats) reset() {
 	s.flushCount = 0
 	s.flushSpans = 0
 	s.writeErrors = 0
+	s.retryCount = 0
+	s.retrySpans = 0
+	s.droppedSpans = 0
 	s.batchSizes = s.batchSizes[:0]
 	s.elapsedMs = s.elapsedMs[:0]
 }
@@ -231,6 +391,9 @@ func (s *traceWriterStats) snapshot() traceWriterStatsSnapshot {
 		flushCount:   s.flushCount,
 		flushSpans:   s.flushSpans,
 		writeErrors:  s.writeErrors,
+		retryCount:   s.retryCount,
+		retrySpans:   s.retrySpans,
+		droppedSpans: s.droppedSpans,
 		batchP50:     percentileInt(s.batchSizes, 50),
 		batchP95:     percentileInt(s.batchSizes, 95),
 		batchP99:     percentileInt(s.batchSizes, 99),
@@ -240,6 +403,25 @@ func (s *traceWriterStats) snapshot() traceWriterStatsSnapshot {
 		elapsedP99Ms: percentileInt64(s.elapsedMs, 99),
 		elapsedMaxMs: percentileInt64(s.elapsedMs, 100),
 	}
+}
+
+func traceShardID(span *protos.SpanInfo, shardCount int) int {
+	if shardCount <= 1 {
+		return 0
+	}
+	key := ""
+	if span != nil {
+		if jobID := span.Attributes["job_id"]; jobID != "" {
+			key = jobID
+		} else if span.TraceId != "" {
+			key = span.TraceId
+		} else {
+			key = span.SpanId
+		}
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return int(h.Sum32() % uint32(shardCount))
 }
 
 func percentileInt(values []int, percentile int) int {
@@ -266,12 +448,18 @@ func percentileIndex(length int, percentile int) int {
 	if length <= 1 {
 		return 0
 	}
-	idx := (length*percentile+99)/100 - 1
-	if idx < 0 {
+	if percentile <= 0 {
 		return 0
 	}
-	if idx >= length {
+	if percentile >= 100 {
 		return length - 1
 	}
-	return idx
+	idx := (length*percentile + 99) / 100
+	if idx <= 0 {
+		return 0
+	}
+	if idx > length {
+		return length - 1
+	}
+	return idx - 1
 }

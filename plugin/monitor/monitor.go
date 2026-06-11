@@ -263,7 +263,7 @@ func (p MonitorPlugin) ensureInitialized() error {
 	}
 
 	if globalMonitor.traceWriter == nil {
-		globalMonitor.traceWriter = NewTraceWriter(db.GetInstance())
+		globalMonitor.traceWriter = NewTraceWriter(db.GetInstance(), globalMonitor.config.DB.TraceWriter)
 	}
 
 	return nil
