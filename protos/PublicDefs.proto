@@ -239,7 +239,6 @@ message JobToCtld {
   bool hold = 38;
   google.protobuf.Timestamp begin_time = 39;
 
-
   message License {
     string key = 1;
     uint32 count = 2;
@@ -255,7 +254,6 @@ message JobToCtld {
   string task_epilog = 47;
   repeated Signal signals = 48;
   google.protobuf.Timestamp deadline_time = 49;
-
   optional double cpus_per_task = 50;
   optional uint64 mem_per_node = 51;
   optional GresMap gres_per_node = 52;
@@ -347,12 +345,12 @@ message StepToCtld {
 
   string excludes = 34;
   string nodelist = 35;
+
   optional uint64 mem_per_cpu = 36;
   optional double cpus_per_task = 37;
   optional uint64 mem_per_node = 38;
   optional GresMap gres_per_node = 39;
   google.protobuf.Timestamp deadline_time = 40;
-
 }
 
 message RuntimeAttrOfStep {
@@ -404,6 +402,7 @@ message JobToD {
 
   string name = 9;
 
+  optional string traceparent = 10;  // W3C traceparent for distributed tracing
   optional ArrayTaskIdentity array_task = 16;
 }
 
@@ -725,11 +724,11 @@ message StepInfo {
 
 // Physical CPU topology of a node or job topology constraint.
 message NodeTopoInfo {
-  uint32 boards           = 1;
-  uint32 sockets          = 2;
+  uint32 boards = 1;
+  uint32 sockets = 2;
   uint32 cores_per_socket = 3;
   uint32 threads_per_core = 4;
-  uint32 total_cpus       = 5;
+  uint32 total_cpus = 5;
 }
 
 message PartitionInfo {
@@ -942,11 +941,19 @@ enum ErrCode {
   ERR_MAX_TRES_PER_ACCOUNT_BEYOND = 103;
   ERR_TRES_PER_JOB_BEYOND = 104;
   ERR_INVALID_DEADLINE = 105;
+  ERR_PMIX_ERR = 106;  // PMIx initialization or runtime error
 }
 
 enum EntityType {
   Account = 0;
   User = 1;
+}
+
+enum TerminateSource {
+  TERMINATE_SOURCE_USER_CANCEL = 0;
+  TERMINATE_SOURCE_NORMAL_COMPLETION = 1;
+  TERMINATE_SOURCE_FRONTEND_DISCONNECT = 2;
+  TERMINATE_SOURCE_PREEMPT = 3;
 }
 
 enum OperationType {
@@ -1111,12 +1118,6 @@ message CranedRemoteMeta {
   NodeTopoInfo node_topo_info = 10;
 }
 
-enum TerminateSource {
-  TERMINATE_SOURCE_USER_CANCEL = 0;
-  TERMINATE_SOURCE_NORMAL_COMPLETION = 1;
-  TERMINATE_SOURCE_FRONTEND_DISCONNECT = 2;
-}
-
 enum TxnAction {
   AddAccount = 0;
   ModifyAccount = 1;
@@ -1193,4 +1194,9 @@ message JobSizeSummaryItem {
   uint32 cpus_alloc = 4;
   double total_cpu_time = 5;
   int64 total_count = 6;
+}
+
+message PmixProc {
+  string nspace = 1;
+  uint32 rank = 2;
 }

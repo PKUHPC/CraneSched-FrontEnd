@@ -140,6 +140,7 @@ message FreeJobsReply {}
 
 message ExecuteStepsRequest {
   map<uint32, JobStepIds> job_step_ids_map = 1;
+  map<uint32, string> job_traceparents = 2;  // job_id → W3C traceparent
 }
 
 message ExecuteStepsReply {
@@ -176,7 +177,7 @@ message ResumeJobsReply {
   string reason = 2;
 }
 
-message ChangeJobTimeConstraintRequest{
+message ChangeJobTimeConstraintRequest {
   uint32 job_id = 1;
   optional int64 time_limit_seconds = 2;
   optional int64 deadline_time = 3;
@@ -637,6 +638,21 @@ message QueryJobsInfoReply {
   repeated JobInfo job_info_list = 2;
 }
 
+message QueueStateCount {
+  JobStatus state = 1;
+  uint64 count = 2;
+}
+
+message QueryQueueStateSummaryRequest {
+  repeated JobStatus filter_states = 1;
+}
+
+message QueryQueueStateSummaryReply {
+  bool ok = 1;
+  uint64 total_count = 2;
+  repeated QueueStateCount state_counts = 3;
+}
+
 message QueryJobEfficiencyRequest {
   repeated uint32 job_ids = 1;
   uint32 uid = 2;  // User ID for authorization
@@ -787,7 +803,7 @@ message StreamCforedRequest {
     STEP_REQUEST = 4;
     JOB_COMPLETION_REQUEST = 2;
     CFORED_GRACEFUL_EXIT = 3;
-    STEP_META_REQUEST      = 5;
+    STEP_META_REQUEST = 5;
   }
   CforedRequestType type = 1;
 
@@ -832,8 +848,20 @@ message StreamCforedRequest {
     StepReq payload_step_req = 6;
     JobCompleteReq payload_job_complete_req = 4;
     GracefulExitReq payload_graceful_exit_req = 5;
-    StepMetaReq     payload_step_meta_req     = 7;
+    StepMetaReq payload_step_meta_req = 7;
   }
+}
+
+message CattachStepInfo {
+  bool pty = 1;                       // from InteractiveMeta.Pty
+  optional uint32 input_task_id = 2;  // set when crun used --input=<task_id>
+  uint32 ntasks = 3;                  // for --layout
+  uint32 node_num = 4;                // for --layout
+  string nodelist = 5;                // for --layout and execCranedIds parsing
+  message NodeTasks {
+    repeated uint32 task_ids = 1;
+  }
+  map<string, NodeTasks> craned_task_map = 6;
 }
 
 message StreamCtldReply {
@@ -844,7 +872,7 @@ message StreamCtldReply {
     JOB_COMPLETION_ACK_REPLY = 3;
     CFORED_REGISTRATION_ACK = 4;
     CFORED_GRACEFUL_EXIT_ACK = 5;
-    STEP_META_REPLY          = 6;
+    STEP_META_REPLY = 6;
   }
 
   message JobIdReply {
@@ -889,10 +917,10 @@ message StreamCtldReply {
   }
 
   message StepMetaReply {
-    bool            ok             = 1;
-    string          failure_reason = 2;
-    CattachStepInfo step_info      = 3;  // replaces StepToCtld; minimal fields only
-    int32           cattach_pid    = 4;
+    bool ok = 1;
+    string failure_reason = 2;
+    CattachStepInfo step_info = 3;
+    int32 cattach_pid = 4;
   }
 
   CtldReplyType type = 1;
@@ -904,7 +932,7 @@ message StreamCtldReply {
     JobCompletionAckReply payload_job_completion_ack = 5;
     JobIdReply payload_job_id_reply = 6;
     CforedGracefulExitAck payload_graceful_exit_ack = 7;
-    StepMetaReply         payload_step_meta_reply     = 8;
+    StepMetaReply payload_step_meta_reply = 8;
   }
 }
 
@@ -1045,31 +1073,18 @@ message StreamCrunReply {
   }
 }
 
-
-message CattachStepInfo {
-  bool            pty           = 1;  // from InteractiveMeta.Pty
-  optional uint32 input_task_id = 2;  // set when crun used --input=<task_id>
-  uint32          ntasks        = 3;  // for --layout
-  uint32          node_num      = 4;  // for --layout
-  string          nodelist      = 5;  // for --layout and execCranedIds parsing
-  message NodeTasks {
-    repeated uint32 task_ids = 1;
-  }
-  map<string, NodeTasks> craned_task_map = 6;
-}
-
 message StreamCattachRequest {
   enum CattachRequestType {
-    STEP_CONNECT_REQUEST    = 0;
+    STEP_CONNECT_REQUEST = 0;
     STEP_COMPLETION_REQUEST = 1;
-    TASK_IO_FORWARD         = 2;
+    TASK_IO_FORWARD = 2;
   }
 
   message StepConnectReq {
-    int32  cattach_pid = 1;
-    uint32 job_id      = 2;
-    uint32 step_id     = 3;
-    uint32 uid         = 4;
+    int32 cattach_pid = 1;
+    uint32 job_id = 2;
+    uint32 step_id = 3;
+    uint32 uid = 4;
   }
 
   message StepCompleteReq {
@@ -1077,34 +1092,34 @@ message StreamCattachRequest {
   }
 
   message TaskIOForwardReq {
-    bytes           msg     = 1;
-    bool            eof     = 2;
+    bytes msg = 1;
+    bool eof = 2;
     optional uint32 task_id = 3;  // If set, forward stdin only to the specified task; otherwise broadcast.
   }
 
   CattachRequestType type = 1;
 
   oneof payload {
-    StepConnectReq   payload_step_connect_req    = 2;
-    StepCompleteReq  payload_step_complete_req   = 3;
+    StepConnectReq payload_step_connect_req = 2;
+    StepCompleteReq payload_step_complete_req = 3;
     TaskIOForwardReq payload_task_io_forward_req = 4;
   }
 }
 
 message StreamCattachReply {
   enum CforedCattachReplyType {
-    STEP_CONNECT_REPLY        = 0;
-    STEP_CANCEL_REQUEST       = 1;
+    STEP_CONNECT_REPLY = 0;
+    STEP_CANCEL_REQUEST = 1;
     STEP_COMPLETION_ACK_REPLY = 2;
-    TASK_IO_FORWARD           = 3;
-    TASK_IO_FORWARD_READY     = 4;
-    TASK_ERR_OUTPUT_FORWARD   = 9;
+    TASK_IO_FORWARD = 3;
+    TASK_IO_FORWARD_READY = 4;
+    TASK_ERR_OUTPUT_FORWARD = 9;
   }
 
   message StepConnectReply {
-    bool            ok             = 1;
-    CattachStepInfo step_info      = 2;  // replaces StepToCtld; minimal fields only
-    string          failure_reason = 3;
+    bool ok = 1;
+    CattachStepInfo step_info = 2;
+    string failure_reason = 3;
   }
 
   message StepCancelRequest {}
@@ -1118,7 +1133,7 @@ message StreamCattachReply {
   }
 
   message TaskIOForwardReply {
-    bytes  msg     = 1;
+    bytes msg = 1;
     uint32 task_id = 2;
   }
 
@@ -1129,11 +1144,11 @@ message StreamCattachReply {
   CforedCattachReplyType type = 1;
 
   oneof payload {
-    StepConnectReply            payload_step_connect_reply               = 2;
-    StepCancelRequest           payload_step_cancel_request              = 3;
-    StepCompletionAckReply      payload_step_completion_ack_reply        = 4;
-    TaskIOForwardReadyReply     payload_task_io_forward_ready_reply      = 5;
-    TaskIOForwardReply          payload_task_io_forward_reply            = 6;
+    StepConnectReply payload_step_connect_reply = 2;
+    StepCancelRequest payload_step_cancel_request = 3;
+    StepCompletionAckReply payload_step_completion_ack_reply = 4;
+    TaskIOForwardReadyReply payload_task_io_forward_ready_reply = 5;
+    TaskIOForwardReply payload_task_io_forward_reply = 6;
     TaskIOErrOutputForwardReply payload_task_io_err_output_forward_reply = 11;
   }
 }
@@ -1158,7 +1173,7 @@ message StreamStepIORequest {
 
   message TaskOutputReq {
     bytes msg = 1;
-    uint32 task_id = 2; // The rank/id of the task that produced this output.
+    uint32 task_id = 2;  // The rank/id of the task that produced this output.
   }
 
   message TaskErrOutputReq {
@@ -1218,7 +1233,7 @@ message StreamStepIOReply {
   message TaskInputReq {
     bytes msg = 1;
     bool eof = 2;
-    optional uint32 task_id = 3;
+    optional uint32 task_id = 3;  // If set, deliver stdin only to the specified task; otherwise broadcast.
   }
 
   message SupervisorUnregisterReply {
@@ -1441,83 +1456,243 @@ message QueryJobSizeSummaryReply {
   repeated JobSizeSummaryItem item_list = 1;
 }
 
-// Todo: Divide service into two parts: one for Craned and one for Crun
-//  We need to distinguish the message sender
-//  and have some kind of authentication
+message BroadcastPmixPortRequest {
+  string craned_id = 1;            //  sender
+  repeated string craned_ids = 2;  // nodes
+  uint32 job_id = 3;
+  uint32 step_id = 4;
+  bytes port = 5;  // grpc port or ucx addr (must bytes)
+}
+
+message BroadcastPmixPortReply {
+  bool ok = 1;
+}
+
+message ReceivePmixPortRequest {
+  uint32 job_id = 1;
+  uint32 step_id = 2;
+
+  message PmixPorts {
+    string craned_id = 1;
+    bytes port = 2;  // grpc port or ucx addr (must bytes)
+  }
+  repeated PmixPorts pmix_ports = 3;
+}
+
+message ReceivePmixPortReply {
+  bool ok = 1;
+}
+
 service CraneCtld {
   /* RPCs called from ccancel */
+
   rpc CancelJob(CancelJobRequest) returns (CancelJobReply);
 
   /* RPCs called from cbatch */
+
+  // Possible ErrCodes in reply.code: ERR_CRI_DISABLED, ERR_LUA_FAILED, ERR_INVALID_PARTITION, ERR_INVALID_PARAM,
+  // ERR_BLOCKED_ACCOUNT, ERR_BLOCKED_USER, ERR_NO_RESOURCE, ERR_PERMISSION_DENIED, ERR_INVALID_USER, ERR_INVALID_UID,
+  // ERR_MAX_JOB_COUNT_PER_USER, ERR_MAX_JOB_COUNT_PER_ACCOUNT, ERR_QOS_JOB_COUNT_EXCEEDED,
+  // ERR_NOT_IN_ALLOWED_LIST, ERR_IN_DENIED_LIST, ERR_TRES_PER_JOB_BEYOND, ERR_MAX_TRES_PER_USER_BEYOND,
+  // ERR_MAX_TRES_PER_ACCOUNT_BEYOND, ERR_MISSING_DEPENDENCY, ERR_INVALID_DEADLINE, ERR_USER_ACCOUNT_MISMATCH,
+  // ERR_PARTITION_MISSING, ERR_HAS_NO_QOS_IN_PARTITION, ERR_DB_INSERT_FAILED, ERR_BEYOND_JOB_ID,
+  // ERR_TIME_TIMIT_BEYOND, ERR_INVALID_NODE_LIST, ERR_INVALID_EX_NODE_LIST, ERR_INVALID_WCKEY,
+  // ERR_LICENSE_LEGAL_FAILED, ERR_NO_ENOUGH_NODE, ERR_INVALID_NODE_NUM, ERR_INVALID_RESOURCE
   rpc SubmitBatchJob(SubmitBatchJobRequest) returns (SubmitBatchJobReply);
+
+  // Possible ErrCodes in reply.code_list (per-job, no Lua check unlike SubmitBatchJob):
+  // ERR_CRI_DISABLED, ERR_INVALID_PARTITION, ERR_INVALID_PARAM, ERR_BLOCKED_ACCOUNT, ERR_BLOCKED_USER,
+  // ERR_NO_RESOURCE, ERR_PERMISSION_DENIED, ERR_INVALID_USER, ERR_INVALID_UID,
+  // ERR_MAX_JOB_COUNT_PER_USER, ERR_MAX_JOB_COUNT_PER_ACCOUNT, ERR_QOS_JOB_COUNT_EXCEEDED,
+  // ERR_NOT_IN_ALLOWED_LIST, ERR_IN_DENIED_LIST, ERR_TRES_PER_JOB_BEYOND, ERR_MAX_TRES_PER_USER_BEYOND,
+  // ERR_MAX_TRES_PER_ACCOUNT_BEYOND, ERR_MISSING_DEPENDENCY, ERR_INVALID_DEADLINE, ERR_USER_ACCOUNT_MISMATCH,
+  // ERR_PARTITION_MISSING, ERR_HAS_NO_QOS_IN_PARTITION, ERR_DB_INSERT_FAILED, ERR_BEYOND_JOB_ID,
+  // ERR_TIME_TIMIT_BEYOND, ERR_INVALID_NODE_LIST, ERR_INVALID_EX_NODE_LIST, ERR_INVALID_WCKEY,
+  // ERR_LICENSE_LEGAL_FAILED, ERR_NO_ENOUGH_NODE, ERR_INVALID_NODE_NUM, ERR_INVALID_RESOURCE
   rpc SubmitBatchJobs(SubmitBatchJobsRequest) returns (SubmitBatchJobsReply);
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_PARAM, ERR_CRI_DISABLED, ERR_NON_EXISTENT,
+  // ERR_STEP_RES_BEYOND, ERR_PERMISSION_DENIED, ERR_INVALID_NODE_LIST, ERR_INVALID_EX_NODE_LIST,
+  // ERR_INVALID_RESOURCE, ERR_TIME_TIMIT_BEYOND, ERR_NO_ENOUGH_NODE
   rpc SubmitContainerStep(SubmitContainerStepRequest) returns (SubmitContainerStepReply);
 
   /* PRCs called from ccontrol */
+
   rpc QueryCranedInfo(QueryCranedInfoRequest) returns (QueryCranedInfoReply);
+
   rpc QueryPartitionInfo(QueryPartitionInfoRequest) returns (QueryPartitionInfoReply);
+
   rpc QueryReservationInfo(QueryReservationInfoRequest) returns (QueryReservationInfoReply);
+
   rpc QueryLicensesInfo(QueryLicensesInfoRequest) returns (QueryLicensesInfoReply);
+
   rpc ModifyJob(ModifyJobRequest) returns (ModifyJobReply);
+
   rpc ModifyNode(ModifyCranedStateRequest) returns (ModifyCranedStateReply);
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_UID, ERR_INVALID_OP_USER, ERR_PERMISSION_USER,
+  // ERR_INVALID_PARTITION, ERR_PARTITION_MISSING, ERR_INVALID_ACCOUNT
   rpc ModifyPartitionAcl(ModifyPartitionAclRequest) returns (ModifyPartitionAclReply);
+
   rpc EnableAutoPowerControl(EnableAutoPowerControlRequest) returns (EnableAutoPowerControlReply);
+
   rpc ModifyJobsExtraAttrs(ModifyJobsExtraAttrsRequest) returns (ModifyJobsExtraAttrsReply);
+
   rpc ResetNextJobId(ResetNextJobIdRequest) returns (ResetNextJobIdReply);
+
   rpc ResetNextStepDbId(ResetNextStepDbIdRequest) returns (ResetNextStepDbIdReply);
+
   rpc PurgeJobHistory(PurgeJobHistoryRequest) returns (PurgeJobHistoryReply);
 
   /* RPCs called from cacctmgr */
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_UID, ERR_INVALID_OP_USER, ERR_PERMISSION_USER,
+  // ERR_USER_ACCESS_TO_ACCOUNT_DENIED, ERR_ACCOUNT_ALREADY_EXISTS, ERR_INVALID_PARENT_ACCOUNT,
+  // ERR_INVALID_PARTITION, ERR_PARENT_ACCOUNT_PARTITION_MISSING,
+  // ERR_INVALID_QOS, ERR_PARENT_ACCOUNT_QOS_MISSING, ERR_DEFAULT_QOS_NOT_INHERITED,
+  // ERR_UPDATE_DATABASE
   rpc AddAccount(AddAccountRequest) returns (AddAccountReply);
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_UID, ERR_INVALID_OP_USER, ERR_PERMISSION_USER,
+  // ERR_INVALID_USERNAME, ERR_NO_ACCOUNT_SPECIFIED, ERR_USER_ALREADY_EXISTS, ERR_INVALID_ACCOUNT,
+  // ERR_INVALID_PARTITION, ERR_PARENT_ACCOUNT_PARTITION_MISSING, ERR_PARTITION_MISSING,
+  // ERR_INVALID_QOS, ERR_UPDATE_DATABASE
   rpc AddUser(AddUserRequest) returns (AddUserReply);
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_UID, ERR_INVALID_OP_USER, ERR_PERMISSION_USER,
+  // ERR_INVALID_PARAM, ERR_TIME_LIMIT, ERR_DB_QOS_ALREADY_EXISTS, ERR_UPDATE_DATABASE
   rpc AddQos(AddQosRequest) returns (AddQosReply);
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_UID, ERR_INVALID_OP_USER, ERR_PERMISSION_USER,
+  // ERR_INVALID_WCKEY, ERR_WCKEY_ALREADY_EXISTS, ERR_INVALID_USER, ERR_UPDATE_DATABASE
   rpc AddWckey(AddWckeyRequest) returns (AddWckeyReply);
 
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_USER_ACCESS_TO_ACCOUNT_DENIED, ERR_NOT_FORCE,
+  // ERR_INVALID_ACCOUNT, ERR_ACCOUNT_HAS_CHILDREN, ERR_USER_HAS_JOB, ERR_UPDATE_DATABASE
   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountReply);
+
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_NOT_FORCE, ERR_INVALID_ACCOUNT, ERR_INVALID_USER,
+  // ERR_USER_ACCOUNT_MISMATCH, ERR_USER_HAS_JOB, ERR_UPDATE_DATABASE
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserReply);
+
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_NOT_FORCE, ERR_INVALID_QOS, ERR_QOS_REFERENCES_EXIST,
+  // ERR_UPDATE_DATABASE
   rpc DeleteQos(DeleteQosRequest) returns (DeleteQosReply);
+
+  // Possible ErrCodes in reply.rich_error.code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_NOT_FORCE, ERR_INVALID_USER, ERR_INVALID_WCKEY,
+  // ERR_DEL_DEFAULT_WCKEY, ERR_UPDATE_DATABASE
   rpc DeleteWckey(DeleteWckeyRequest) returns (DeleteWckeyReply);
 
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_INVALID_ACCOUNT, ERR_USER_ACCESS_TO_ACCOUNT_DENIED
   rpc QueryAccountInfo(QueryAccountInfoRequest) returns (QueryAccountInfoReply);
+
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_INVALID_USER, ERR_PERMISSION_USER
   rpc QueryUserInfo(QueryUserInfoRequest) returns (QueryUserInfoReply);
+
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_INVALID_QOS, ERR_QOS_MISSING
   rpc QueryQosInfo(QueryQosInfoRequest) returns (QueryQosInfoReply);
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_UID, ERR_INVALID_OP_USER, ERR_PERMISSION_USER
   rpc QueryWckeyInfo(QueryWckeyInfoRequest) returns (QueryWckeyInfoReply);
 
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_USER_ACCESS_TO_ACCOUNT_DENIED, ERR_INVALID_ACCOUNT,
+  // ERR_NO_ACCOUNT_SPECIFIED, ERR_INVALID_PARTITION, ERR_PARENT_ACCOUNT_PARTITION_MISSING,
+  // ERR_PARTITION_ALREADY_EXISTS, ERR_PARTITION_MISSING, ERR_CHILD_HAS_PARTITION,
+  // ERR_INVALID_QOS, ERR_PARENT_ACCOUNT_QOS_MISSING, ERR_QOS_ALREADY_EXISTS, ERR_QOS_MISSING,
+  // ERR_SET_ACCOUNT_QOS, ERR_DUPLICATE_DEFAULT_QOS, ERR_DEFAULT_QOS_MODIFICATION_DENIED,
+  // ERR_CHILD_HAS_DEFAULT_QOS, ERR_SET_ALLOWED_QOS, ERR_DEFAULT_QOS_NOT_INHERITED,
+  // ERR_UPDATE_DATABASE
   rpc ModifyAccount(ModifyAccountRequest) returns (ModifyAccountReply);
+
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_USER_ACCESS_TO_ACCOUNT_DENIED, ERR_INVALID_USER,
+  // ERR_INVALID_ACCOUNT, ERR_USER_ACCOUNT_MISMATCH, ERR_INVALID_ADMIN_LEVEL,
+  // ERR_INVALID_PARTITION, ERR_PARENT_ACCOUNT_PARTITION_MISSING, ERR_PARTITION_ALREADY_EXISTS,
+  // ERR_PARTITION_MISSING, ERR_INVALID_QOS, ERR_USER_EMPTY_PARTITION, ERR_QOS_ALREADY_EXISTS,
+  // ERR_QOS_MISSING, ERR_SET_ALLOWED_QOS, ERR_SET_DEFAULT_QOS, ERR_DUPLICATE_DEFAULT_QOS,
+  // ERR_DEFAULT_QOS_MODIFICATION_DENIED, ERR_UPDATE_DATABASE
   rpc ModifyUser(ModifyUserRequest) returns (ModifyUserReply);
+
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_INVALID_QOS, ERR_TIME_LIMIT, ERR_CONVERT_TO_INTEGER,
+  // ERR_CONVERT_TO_RESOURCE_VIEW, ERR_UPDATE_DATABASE
   rpc ModifyQos(ModifyQosRequest) returns (ModifyQosReply);
+
+  // Possible ErrCodes in reply.code: ERR_INVALID_UID, ERR_INVALID_OP_USER, ERR_PERMISSION_USER,
+  // ERR_INVALID_USER, ERR_INVALID_WCKEY, ERR_UPDATE_DATABASE
   rpc ModifyDefaultWckey(ModifyDefaultWckeyRequest) returns (ModifyDefaultWckeyReply);
 
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_USER_ACCESS_TO_ACCOUNT_DENIED, ERR_INVALID_ACCOUNT,
+  // ERR_INVALID_USER, ERR_USER_ACCOUNT_MISMATCH, ERR_UPDATE_DATABASE
   rpc BlockAccountOrUser(BlockAccountOrUserRequest) returns (BlockAccountOrUserReply);
 
+  // Possible ErrCodes in reply.rich_error_list[].code: ERR_INVALID_UID, ERR_INVALID_OP_USER,
+  // ERR_PERMISSION_USER, ERR_INVALID_USER, ERR_REVOKE_CERTIFICATE, ERR_UPDATE_DATABASE
   rpc ResetUserCredential(ResetUserCredentialRequest) returns (ResetUserCredentialReply);
 
+  // Possible ErrCodes in reply.code: ERR_INVALID_USER, ERR_USER_NO_PRIVILEGE, ERR_GENERIC_FAILURE
   rpc QueryTxnLog(QueryTxnLogRequest) returns (QueryTxnLogReply);
 
+  // Possible ErrCodes in reply.rich_err.code: ERR_INVALID_USER, ERR_USER_NO_PRIVILEGE, ERR_NOT_FORCE,
+  // ERR_RESOURCE_NOT_FOUND, ERR_UPDATE_DATABASE
   rpc DeleteLicenseResource(DeleteLicenseResourceRequest) returns (DeleteLicenseResourceReply);
+
+  // Possible ErrCodes in reply.rich_err.code: ERR_INVALID_USER, ERR_USER_NO_PRIVILEGE,
+  // ERR_RESOURCE_ALREADY_EXIST, ERR_RESOURCE_NOT_FOUND, ERR_INVALID_ARGUMENT, ERR_UPDATE_DATABASE
   rpc AddOrModifyLicenseResource(AddOrModifyLicenseResourceRequest) returns (AddOrModifyLicenseResourceReply);
+
+  // Possible ErrCodes in reply.rich_err.code: ERR_RESOURCE_NOT_FOUND
   rpc QueryLicenseResource(QueryLicenseResourceRequest) returns (QueryLicenseResourceReply);
 
   /* RPCs called from cinfo */
+
   rpc QueryClusterInfo(QueryClusterInfoRequest) returns (QueryClusterInfoReply);
 
   /* common RPCs */
+
   rpc QueryJobsInfo(QueryJobsInfoRequest) returns (QueryJobsInfoReply);
+
+  rpc QueryQueueStateSummary(QueryQueueStateSummaryRequest) returns (QueryQueueStateSummaryReply);
+
   rpc CreateReservation(CreateReservationRequest) returns (CreateReservationReply);
+
   rpc DeleteReservation(DeleteReservationRequest) returns (DeleteReservationReply);
+
   rpc ResetPartitionAcl(ResetPartitionAclRequest) returns (ResetPartitionAclReply);
 
   rpc QueryJobSummary(QueryJobSummaryRequest) returns (stream QueryJobSummaryReply);
+
   rpc QueryJobSizeSummary(QueryJobSizeSummaryRequest) returns (stream QueryJobSizeSummaryReply);
 
   /* RPC called form plugin */
+
   rpc PowerStateChange(PowerStateChangeRequest) returns (PowerStateChangeReply);
 
   /* RPCS called from PKI request */
+
+  // Possible ErrCodes in reply.reason: ERR_INVALID_PARAM, ERR_PERMISSION_USER, ERR_SIGN_CERTIFICATE,
+  // ERR_DUPLICATE_CERTIFICATE, ERR_INVALID_USER, ERR_UPDATE_DATABASE
   rpc SignUserCertificate(SignUserCertificateRequest) returns (SignUserCertificateResponse);
 
   /* RPCS called from ccon */
+
+  // Possible ErrCodes in reply.status.code: ERR_INVALID_PARAM, ERR_NON_EXISTENT,
+  // ERR_CRI_CONTAINER_NOT_READY, ERR_CRI_MULTIPLE_NODES, ERR_PERMISSION_USER,
+  // ERR_RPC_FAILURE, ERR_CRI_GENERIC
   rpc AttachContainerStep(AttachContainerStepRequest) returns (AttachContainerStepReply);
+
+  // Possible ErrCodes in reply.status.code: ERR_INVALID_PARAM, ERR_NON_EXISTENT,
+  // ERR_CRI_CONTAINER_NOT_READY, ERR_CRI_MULTIPLE_NODES, ERR_PERMISSION_USER,
+  // ERR_RPC_FAILURE, ERR_CRI_GENERIC
   rpc ExecInContainerStep(ExecInContainerStepRequest) returns (ExecInContainerStepReply);
 }
 
@@ -1532,6 +1707,7 @@ service CraneCtldForInternal {
   rpc CranedTriggerReverseConn(CranedTriggerReverseConnRequest) returns (google.protobuf.Empty);
   rpc CranedRegister(CranedRegisterRequest) returns (CranedRegisterReply);
   rpc CranedPing(CranedPingRequest) returns (CranedPingReply);
+  rpc BroadcastPmixPort(BroadcastPmixPortRequest) returns (BroadcastPmixPortReply);
 
   rpc UpdateNodeDrainState(UpdateNodeDrainStateRequest) returns (UpdateNodeDrainStateReply);
   rpc QueryCranedInfo(QueryCranedInfoRequest) returns (QueryCranedInfoReply);
@@ -1549,6 +1725,7 @@ service Craned {
   rpc AllocSteps(AllocStepsRequest) returns (AllocStepsReply);
   rpc FreeSteps(FreeStepsRequest) returns (FreeStepsReply);
   rpc FreeJobs(FreeJobsRequest) returns (FreeJobsReply);
+  rpc ReceivePmixPort(ReceivePmixPortRequest) returns (ReceivePmixPortReply);
   /*
   If the job is an interactive job, the resource uuid is also revoked.
    If there's no process in this interactive job, just deallocate all the resources.
@@ -1571,6 +1748,8 @@ service Craned {
   rpc QuerySshStepEnvVariables(QuerySshStepEnvVariablesRequest) returns (QuerySshStepEnvVariablesReply);
   /* ----------------------------------- Called from Supervisor  --------------------------------------------------- */
   rpc StepStatusChange(StepStatusChangeRequest) returns (StepStatusChangeReply);
+  /* ----------------------------------- Called from PMIX  -------------------------------------------------------- */
+  rpc BroadcastPmixPort(BroadcastPmixPortRequest) returns (BroadcastPmixPortReply);
 }
 
 service CranedForPam {

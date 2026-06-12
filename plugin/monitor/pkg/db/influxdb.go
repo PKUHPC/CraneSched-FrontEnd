@@ -3,10 +3,13 @@ package db
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strings"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	logrus "github.com/sirupsen/logrus"
 
 	"CraneFrontEnd/generated/protos"
@@ -27,9 +30,21 @@ type InfluxDB struct {
 	nodeBucket          string
 	jobBucket           string
 	clusterBucket       string
+	traceBucket         string
+	traceCoreBucket     string
+	traceDetailBucket   string
+	traceErrorBucket    string
+	traceShardBuckets   []string
 	eventMeasurement    string
 	resourceMeasurement string
 	enabled             *config.Enabled
+}
+
+var coreTraceSpanNames = map[string]struct{}{
+	"job/pending":   {},
+	"job/lifecycle": {},
+	"step/execute":  {},
+	"job/end":       {},
 }
 
 func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
@@ -62,6 +77,11 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 		nodeBucket:          config.DB.InfluxDB.NodeBucket,
 		jobBucket:           config.DB.InfluxDB.JobBucket,
 		clusterBucket:       config.DB.InfluxDB.ClusterBucket,
+		traceBucket:         config.DB.InfluxDB.TraceBucket,
+		traceCoreBucket:     config.DB.InfluxDB.TraceCoreBucket,
+		traceDetailBucket:   config.DB.InfluxDB.TraceDetailBucket,
+		traceErrorBucket:    config.DB.InfluxDB.TraceErrorBucket,
+		traceShardBuckets:   append([]string(nil), config.DB.InfluxDB.TraceShardBuckets...),
 		eventMeasurement:    config.DB.InfluxDB.EventMeasurement,
 		resourceMeasurement: config.DB.InfluxDB.ResourceMeasurement,
 		enabled:             &config.Monitor.Enabled,
@@ -80,6 +100,13 @@ func NewInfluxDB(config *config.Config) (*InfluxDB, error) {
 	if err := db.createBucketIfNotExists(db.clusterBucket); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to create cluster bucket: %v", err)
+	}
+
+	for _, bucket := range db.traceBuckets() {
+		if err := db.createBucketIfNotExists(bucket); err != nil {
+			client.Close()
+			return nil, fmt.Errorf("failed to create trace bucket %s: %v", bucket, err)
+		}
 	}
 
 	return db, nil
@@ -311,6 +338,185 @@ func (db *InfluxDB) SaveLicenseUsage(licenses []*protos.LicenseInfo) error {
 	}
 
 	return nil
+}
+
+func (db *InfluxDB) SaveSpans(spans []*protos.SpanInfo) error {
+	if len(spans) == 0 {
+		return nil
+	}
+
+	byBucket := make(map[string][]*protos.SpanInfo)
+	for _, span := range spans {
+		for _, bucket := range db.TraceBucketsForSpan(span) {
+			byBucket[bucket] = append(byBucket[bucket], span)
+		}
+	}
+
+	buckets := make([]string, 0, len(byBucket))
+	for bucket := range byBucket {
+		buckets = append(buckets, bucket)
+	}
+	sort.Strings(buckets)
+
+	for _, bucket := range buckets {
+		if err := db.SaveSpansToBucket(bucket, byBucket[bucket]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (db *InfluxDB) SaveSpansToBucket(bucket string, spans []*protos.SpanInfo) error {
+	if len(spans) == 0 {
+		return nil
+	}
+	if bucket == "" {
+		bucket = db.traceBucket
+	}
+
+	start := time.Now()
+	writeAPI := db.client.WriteAPIBlocking(db.org, bucket)
+	ctx := context.Background()
+	points := make([]*write.Point, 0, len(spans))
+
+	for _, span := range spans {
+		tags := map[string]string{
+			"name": span.Name,
+		}
+		if span.ServiceName != "" {
+			tags["service"] = span.ServiceName
+		}
+
+		// Calculate duration in microseconds
+		startTime := span.StartTime.AsTime()
+		endTime := span.EndTime.AsTime()
+		duration := endTime.Sub(startTime).Microseconds()
+
+		fields := map[string]interface{}{
+			"trace_id":       span.TraceId,
+			"span_id":        span.SpanId,
+			"parent_span_id": span.ParentSpanId,
+			"duration_us":    duration,
+		}
+
+		// Add custom attributes
+		for k, v := range span.Attributes {
+			fields[k] = v
+		}
+
+		point := influxdb2.NewPoint("spans", tags, fields, endTime)
+		points = append(points, point)
+	}
+
+	if err := writeAPI.WritePoint(ctx, points...); err != nil {
+		log.Errorf("Failed to write %d spans to InfluxDB bucket=%s: %v", len(points), bucket, err)
+		return fmt.Errorf("failed to write spans to bucket %s: %v", bucket, err)
+	}
+
+	elapsed := time.Since(start)
+	log.Debugf("Saved %d trace spans to InfluxDB bucket=%s in %s", len(points), bucket, elapsed)
+	if elapsed > time.Second {
+		log.Warnf("Slow trace span write: saved %d spans to InfluxDB bucket=%s in %s",
+			len(points), bucket, elapsed)
+	}
+	return nil
+}
+
+func (db *InfluxDB) TraceBucketForSpan(span *protos.SpanInfo) string {
+	buckets := db.TraceBucketsForSpan(span)
+	if len(buckets) == 0 {
+		return db.traceBucket
+	}
+	return buckets[0]
+}
+
+func (db *InfluxDB) TraceBucketsForSpan(span *protos.SpanInfo) []string {
+	if span == nil {
+		return []string{db.traceBucket}
+	}
+
+	primary := db.traceBucket
+	if _, ok := coreTraceSpanNames[span.Name]; ok {
+		if len(db.traceShardBuckets) > 0 {
+			primary = db.traceShardBuckets[stableTraceShardKey(span)%uint32(len(db.traceShardBuckets))]
+		} else if db.traceCoreBucket != "" {
+			primary = db.traceCoreBucket
+		}
+
+		buckets := []string{primary}
+		if spanShouldWriteErrorBucket(span) {
+			errorBucket := db.traceErrorBucket
+			if errorBucket == "" {
+				errorBucket = db.traceBucket
+			}
+			if errorBucket != "" && errorBucket != primary {
+				buckets = append(buckets, errorBucket)
+			}
+		}
+		return buckets
+	}
+
+	if spanShouldWriteErrorBucket(span) {
+		if db.traceErrorBucket != "" {
+			primary = db.traceErrorBucket
+		}
+	} else if db.traceDetailBucket != "" {
+		primary = db.traceDetailBucket
+	}
+	return []string{primary}
+}
+
+func spanShouldWriteErrorBucket(span *protos.SpanInfo) bool {
+	if span == nil {
+		return false
+	}
+	if span.Status == protos.SpanStatus_SPAN_STATUS_ERROR {
+		return true
+	}
+	if v, ok := span.Attributes["final_status"]; ok && v != "" &&
+		v != "2" && v != "Completed" && v != "completed" {
+		return true
+	}
+	return false
+}
+
+func stableTraceShardKey(span *protos.SpanInfo) uint32 {
+	key := ""
+	if span != nil {
+		if jobID := span.Attributes["job_id"]; jobID != "" {
+			key = jobID
+		} else if span.TraceId != "" {
+			key = span.TraceId
+		} else {
+			key = span.SpanId
+		}
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return h.Sum32()
+}
+
+func (db *InfluxDB) traceBuckets() []string {
+	seen := make(map[string]struct{})
+	add := func(bucket string) {
+		if bucket == "" {
+			return
+		}
+		seen[bucket] = struct{}{}
+	}
+	add(db.traceBucket)
+	add(db.traceCoreBucket)
+	add(db.traceDetailBucket)
+	add(db.traceErrorBucket)
+	for _, bucket := range db.traceShardBuckets {
+		add(bucket)
+	}
+	buckets := make([]string, 0, len(seen))
+	for bucket := range seen {
+		buckets = append(buckets, bucket)
+	}
+	sort.Strings(buckets)
+	return buckets
 }
 
 func (db *InfluxDB) Close() error {

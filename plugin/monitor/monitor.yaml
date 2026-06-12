@@ -19,14 +19,26 @@ Cgroup:
 Database:
   Type: "influxdb"
   Influxdb:
-    Url: "YOUR_INFLUXDB_URL"
-    Token: "YOUR_INFLUXDB_TOKEN"
-    Org: "YOUR_INFLUXDB_ORG_NAME"
-    NodeBucket: "YOUR_NODE_BUCKET_NAME"
-    JobBucket: "YOUR_JOB_BUCKET_NAME"
-    ClusterBucket: "YOUR_CLUSTER_BUCKET_NAME"
+    Url: "http://localhost:8086"
+    Token: "your_token"
+    Org: "your_organization"
+    NodeBucket: "your_node_bucket_name"
+    JobBucket: "your_job_bucket_name"
+    ClusterBucket: "your_cluster_bucket_name"
+    TraceBucket: "your_trace_bucket_name"
+    TraceCoreBucket: "your_trace_core_bucket_name"
+    TraceDetailBucket: "your_trace_detail_bucket_name"
+    TraceErrorBucket: "your_trace_error_bucket_name"
+    TraceShardBuckets: []
     EventMeasurement: "NodeEvents"
     ResourceMeasurement: "ResourceUsage"
+  TraceWriter:
+    Shards: 4
+    BatchSpans: 1024
+    QueueBatches: 8192
+    FlushIntervalMs: 50
+    RetryBackoffMs: 200
+    MaxRetryBackoffMs: 5000
 
 Interval: 1000
 BufferSize: 32

@@ -20,6 +20,7 @@ package cqueue
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -49,6 +50,7 @@ var (
 	FlagIterate          uint64
 	FlagNumLimit         uint32
 	FlagJson             bool
+	FlagCount            bool
 
 	RootCmd = &cobra.Command{
 		Use:     "cqueue [flags]",
@@ -69,6 +71,11 @@ var (
 			FlagStep = cmd.Flags().Changed("step")
 			if FlagFilterStepIDs == DefaultStepIdFilter {
 				FlagFilterStepIDs = ""
+			}
+			if FlagCount {
+				if err := validateCountFlags(cmd); err != nil {
+					return err
+				}
 			}
 			if FlagIterate != 0 {
 				return loopedQuery(FlagIterate)
@@ -177,8 +184,25 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 		"Limit the number of lines in the output, 0 means no limit")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
+	RootCmd.Flags().BoolVar(&FlagCount, "count", false,
+		"Output lightweight queue state counts only")
 	RootCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodelist", "w", "",
 		"Specify node names to view (comma separated list or patterns like node[1-10]), default is all")
 
 	util.InitCraneLogger()
+}
+
+func validateCountFlags(cmd *cobra.Command) error {
+	unsupported := []string{
+		"step", "job", "name", "qos", "user", "account", "partition",
+		"type", "licenses", "start", "deadline", "self", "format", "full",
+		"max-lines", "nodelist",
+	}
+	for _, name := range unsupported {
+		if cmd.Flags().Changed(name) {
+			return util.NewCraneErr(util.ErrorCmdArg,
+				fmt.Sprintf("--count does not support --%s yet; use --state only", name))
+		}
+	}
+	return nil
 }
