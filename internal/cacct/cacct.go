@@ -79,11 +79,11 @@ func QueryJob() error {
 	}
 
 	if FlagFilterJobIDs != "" {
-		filterStepList, err := util.ParseStepIdList(FlagFilterJobIDs, ",")
+		selectors, err := util.ParseJobIdSelectorList(FlagFilterJobIDs, ",")
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 		}
-		request.FilterIds = filterStepList
+		request.FilterJobIds = selectors
 	}
 
 	if FlagFilterUsers != "" {
@@ -168,6 +168,21 @@ func QueryJob() error {
 		}
 	}
 
+	sort.Slice(items, func(i, j int) bool {
+		jobId1, stepId1 := items[i].job.JobId, uint32(0)
+		jobId2, stepId2 := items[j].job.JobId, uint32(0)
+		if items[i].isStep {
+			stepId1 = items[i].stepInfo.StepId
+		}
+		if items[j].isStep {
+			stepId2 = items[j].stepInfo.StepId
+		}
+		if jobId1 != jobId2 {
+			return jobId1 > jobId2
+		}
+		return stepId1 < stepId2
+	})
+
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
 	var header []string
@@ -223,59 +238,39 @@ func QueryJob() error {
 			table.SetAutoFormatHeaders(false)
 		}
 
-		if FlagFilterStartTime != "" {
-			header = append(header, "StartTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessStartTime(items[i]))
+		if FlagFormat == "" {
+			if FlagFilterStartTime != "" {
+				header = append(header, "StartTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessStartTime(items[i]))
+				}
 			}
-		}
 
-		if FlagFilterEndTime != "" {
-			header = append(header, "EndTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessEndTime(items[i]))
+			if FlagFilterEndTime != "" {
+				header = append(header, "EndTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessEndTime(items[i]))
+				}
 			}
-		}
 
-		if FlagFilterSubmitTime != "" {
-			header = append(header, "SubmitTime")
-			for i := 0; i < len(tableData); i++ {
-				tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
+			if FlagFilterSubmitTime != "" {
+				header = append(header, "SubmitTime")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessSubmitTime(items[i]))
+				}
 			}
-		}
-	}
 
-	if FlagDeadlineTime {
-		header = append(header, "Deadline")
-		for i := 0; i < len(tableData); i++ {
-			tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
+			if FlagDeadlineTime {
+				header = append(header, "Deadline")
+				for i := 0; i < len(tableData); i++ {
+					tableData[i] = append(tableData[i], ProcessDeadline(items[i]))
+				}
+			}
 		}
 	}
 
 	if !FlagNoHeader {
 		table.SetHeader(header)
-	}
-
-	// Get index of "JobId" column
-	jobIdIdx := -1
-	for i, val := range header {
-		if val == "JobId" {
-			jobIdIdx = i
-			break
-		}
-	}
-
-	// If "JobId" column exists, sort all rows by descending order of "JobId".
-	if jobIdIdx != -1 {
-		less := func(i, j int) bool {
-			jobId1, stepId1, _ := util.ParseJobIdStepId(tableData[i][jobIdIdx])
-			jobId2, stepId2, _ := util.ParseJobIdStepId(tableData[j][jobIdIdx])
-			if jobId1 != jobId2 {
-				return jobId1 > jobId2
-			}
-			return stepId1 < stepId2
-		}
-		sort.Slice(tableData, less)
 	}
 
 	if !FlagFull && FlagFormat == "" {
@@ -441,9 +436,48 @@ func ProcessHeld(item *JobOrStep) string {
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
 	if item.isStep {
-		return fmt.Sprintf("%d.%d", item.stepInfo.JobId, item.stepInfo.StepId)
+		return util.FormatStepId(item.job.JobId, item.job.ArrayTask, item.stepInfo.StepId)
 	}
-	return strconv.FormatUint(uint64(item.job.JobId), 10)
+	return util.FormatJobId(item.job.JobId, item.job.ArrayTask)
+}
+
+// ArrayJobId
+func ProcessArrayJobID(item *JobOrStep) string {
+	if item.job.ArrayTask != nil {
+		return strconv.FormatUint(uint64(item.job.ArrayTask.ArrayJobId), 10)
+	}
+	if item.job.ArraySpec != nil {
+		return strconv.FormatUint(uint64(item.job.JobId), 10)
+	}
+	return ""
+}
+
+// ArrayTaskId
+func ProcessArrayTaskID(item *JobOrStep) string {
+	if item.job.ArrayTask == nil {
+		return ""
+	}
+	return strconv.FormatUint(uint64(item.job.ArrayTask.TaskId), 10)
+}
+
+// ArraySpec
+func ProcessArraySpec(item *JobOrStep) string {
+	arraySpec := item.job.ArraySpec
+	if arraySpec == nil {
+		return ""
+	}
+
+	spec := strconv.FormatUint(uint64(arraySpec.Start), 10)
+	if arraySpec.Start != arraySpec.End {
+		spec = fmt.Sprintf("%s-%d", spec, arraySpec.End)
+	}
+	if arraySpec.Stride != nil && *arraySpec.Stride > 1 {
+		spec = fmt.Sprintf("%s:%d", spec, *arraySpec.Stride)
+	}
+	if arraySpec.MaxConcurrent != nil && *arraySpec.MaxConcurrent > 0 {
+		spec = fmt.Sprintf("%s%%%d", spec, *arraySpec.MaxConcurrent)
+	}
+	return spec
 }
 
 // Wckey (K)
@@ -680,8 +714,11 @@ func ProcessExcludeNodes(item *JobOrStep) string {
 
 var fieldProcessors = map[string]FieldProcessor{
 	// Group a
-	"a":       {"Account", ProcessAccount},
-	"account": {"Account", ProcessAccount},
+	"a":           {"Account", ProcessAccount},
+	"account":     {"Account", ProcessAccount},
+	"arrayjobid":  {"ArrayJobId", ProcessArrayJobID},
+	"arrayspec":   {"ArraySpec", ProcessArraySpec},
+	"arraytaskid": {"ArrayTaskId", ProcessArrayTaskID},
 
 	// Group C
 	"C":       {"ReqCpus", ProcessReqCPUs},
@@ -871,7 +908,7 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
 			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
+				"a/Account, ArrayJobId, ArraySpec, ArrayTaskId, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
 				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
 				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
 			os.Exit(util.ErrorInvalidFormat)

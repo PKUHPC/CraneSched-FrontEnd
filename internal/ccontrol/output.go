@@ -179,6 +179,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 		"NodeName=%v State=%v %s\n"+
 			"\t%s\n"+
 			"\t%s\n"+
+			"\tSockets=%d\n"+
 			"\tPartition=%s RunningJob=%d Version=%s\n"+
 			"\tOs=%s\n"+
 			"\tBootTime=%s CranedStartTime=%s\n"+
@@ -186,6 +187,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 		node.Hostname, stateStr, cpuInfo,
 		memInfo,
 		gresInfo,
+		node.GetNodeTopoInfo().GetSockets(),
 		strings.Join(node.PartitionNames, ","), node.RunningJobNum, cranedVersion,
 		cranedOs,
 		timeInfo.bootTime, timeInfo.startTime, timeInfo.lastBusyTime,
@@ -466,75 +468,94 @@ func ShowReservations(reservationName string, queryAll bool) error {
 	return nil
 }
 
-// show Jobs
-func parseJobIds(jobIds string, queryAll bool) ([]uint32, error) {
+func parseJobIdSelectors(jobIds string, queryAll bool) ([]*protos.JobIdSelector, error) {
 	if queryAll {
 		return nil, nil
 	}
-	jobIdList, err := util.ParseJobIdList(jobIds, ",")
+	selectors, err := util.ParseJobIdSelectorList(jobIds, ",")
 	if err != nil {
 		return nil, util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.", err)
 	}
-	return jobIdList, nil
+	for _, selector := range selectors {
+		if len(selector.Steps) > 0 {
+			return nil, util.NewCraneErr(util.ErrorCmdArg, "Step selector is unsupported in show job, use show step for step queries.")
+		}
+	}
+	return selectors, nil
 }
 
-// show steps
-func parseStepIds(jobIds string, queryAll bool) (map[uint32] /*Job Id*/ *protos.JobStepIds, error) {
+func parseStepIdSelectors(jobIds string, queryAll bool) ([]*protos.JobIdSelector, error) {
 	if queryAll {
 		return nil, nil
 	}
-	jobIdList, err := util.ParseStepIdList(jobIds, ",")
+	selectors, err := util.ParseJobIdSelectorList(jobIds, ",")
 	if err != nil {
 		return nil, util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid job list specified: %s.", err))
 	}
-	return jobIdList, nil
+	return selectors, nil
 }
 
-func getJobInfoReply(jobIdList []uint32) (*protos.QueryJobsInfoReply, error) {
-	idFilter := map[uint32]*protos.JobStepIds{}
-	for _, jobId := range jobIdList {
-		idFilter[jobId] = nil
+func getJobInfoReply(selectors []*protos.JobIdSelector) (*protos.QueryJobsInfoReply, error) {
+	req := &protos.QueryJobsInfoRequest{
+		FilterJobIds: selectors,
 	}
-
-	req := &protos.QueryJobsInfoRequest{FilterIds: idFilter}
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
 		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show jobs")
 	}
 
 	if !reply.GetOk() {
-		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %v", jobIdList))
+		return nil, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to retrieve information for job %v", selectors))
 	}
 	return reply, nil
 }
 
-func handleEmptyJobResult(jobIdList []uint32, queryAll bool) error {
+func handleEmptyJobResult(selectors []*protos.JobIdSelector, queryAll bool) error {
 	if queryAll {
 		fmt.Println("No job is running.")
 		return nil
 	}
 
-	jobIdListString := util.ConvertSliceToString(jobIdList, ", ")
-	fmt.Printf("Job %s is not running.\n", jobIdListString)
+	ids := make([]string, 0, len(selectors))
+	for _, sel := range selectors {
+		ids = append(ids, formatSelector(sel))
+	}
+	fmt.Printf("Job %s is not running.\n", strings.Join(ids, ", "))
 	return nil
 }
 
-func outputJobs(jobs []*protos.JobInfo, requestedIds []uint32) error {
-	// Track if any job requested is not returned
-	printed := make(map[uint32]bool)
+func outputJobs(jobs []*protos.JobInfo, selectors []*protos.JobIdSelector) error {
+	returnedJobs := make(map[util.JobIdentifier]bool)
 	for _, job := range jobs {
 		if err := printJobDetails(job); err != nil {
 			return err
 		}
-		printed[job.JobId] = true
+		returnedJobs[util.JobIdentifierFromJobInfo(job)] = true
 	}
-	checkMissingJobs(requestedIds, printed)
+	return checkMissingJobs(selectors, returnedJobs)
+}
+
+func formatSelector(sel *protos.JobIdSelector) string {
+	return util.JobIdentifierFromSelector(sel).String()
+}
+
+func checkMissingJobs(selectors []*protos.JobIdSelector, returnedJobs map[util.JobIdentifier]bool) error {
+	missing := make([]string, 0)
+	for _, sel := range selectors {
+		id := util.JobIdentifierFromSelector(sel)
+		if !returnedJobs[id] {
+			missing = append(missing, id.String())
+		}
+	}
+	if len(missing) > 0 {
+		fmt.Printf("Job %s is not running.\n", strings.Join(missing, ", "))
+	}
 	return nil
 }
 
 func printJobDetails(job *protos.JobInfo) error {
 	// id/name
-	fmt.Printf("JobId=%v JobName=%v\n", job.JobId, job.Name)
+	fmt.Printf("JobId=%v JobName=%v\n", util.FormatJobId(job.JobId, job.ArrayTask), job.Name)
 	// user / group
 	userInfo, err := getUserGroupInfo(job)
 	if err != nil {
@@ -782,29 +803,12 @@ func formatHostNameStr(hosts string) string {
 	return hosts
 }
 
-// If any job is requested but not returned, remind the user
-func checkMissingJobs(requestedIds []uint32, printed map[uint32]bool) {
-	if len(requestedIds) == 0 {
-		return
-	}
-	missingJobs := []uint32{}
-	for _, id := range requestedIds {
-		if !printed[id] {
-			missingJobs = append(missingJobs, id)
-		}
-	}
-	if len(missingJobs) > 0 {
-		missingList := util.ConvertSliceToString(missingJobs, ", ")
-		fmt.Printf("Job %s is not running.\n", missingList)
-	}
-
-}
 func ShowJobs(jobIds string, queryAll bool) error {
-	jobIdList, err := parseJobIds(jobIds, queryAll)
+	selectors, err := parseJobIdSelectors(jobIds, queryAll)
 	if err != nil {
 		return err
 	}
-	reply, err := getJobInfoReply(jobIdList)
+	reply, err := getJobInfoReply(selectors)
 	if err != nil {
 		return err
 	}
@@ -813,21 +817,23 @@ func ShowJobs(jobIds string, queryAll bool) error {
 		return nil
 	}
 	if len(reply.JobInfoList) == 0 {
-		return handleEmptyJobResult(jobIdList, queryAll)
+		return handleEmptyJobResult(selectors, queryAll)
 	}
-	return outputJobs(reply.JobInfoList, jobIdList)
+	return outputJobs(reply.JobInfoList, selectors)
 }
 
 func ShowSteps(stepIds string, queryAll bool) error {
 	var req *protos.QueryJobsInfoRequest
 	var err error
 
-	jobStepMap, err := parseStepIds(stepIds, queryAll)
+	selectors, err := parseStepIdSelectors(stepIds, queryAll)
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid step list specified: %s.", err))
 	}
 
-	req = &protos.QueryJobsInfoRequest{FilterIds: jobStepMap}
+	req = &protos.QueryJobsInfoRequest{
+		FilterJobIds: selectors,
+	}
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
 		util.GrpcErrorPrintf(err, "Failed to show steps")
@@ -845,12 +851,14 @@ func ShowSteps(stepIds string, queryAll bool) error {
 		return nil
 	}
 
+	requestedSteps := requestedStepIdentifiers(selectors)
 	if len(reply.JobInfoList) == 0 {
 		if queryAll {
 			fmt.Println("No step is running.")
+		} else if len(requestedSteps) > 0 {
+			printMissingSteps(requestedSteps, nil)
 		} else {
-			jobIdListString := util.JobStepListToString(jobStepMap)
-			fmt.Printf("Step %s is not running.\n", jobIdListString)
+			fmt.Printf("Step %s is not running.\n", stepIds)
 		}
 		return nil
 	}
@@ -863,14 +871,14 @@ func ShowSteps(stepIds string, queryAll bool) error {
 		return s
 	}
 
-	// Track if any step requested is not returned
-	printed := map[StepIdentifier]bool{}
-
+	printedSteps := 0
+	printed := make(map[util.StepIdentifier]bool)
 	for _, jobInfo := range reply.JobInfoList {
 		// Iterate through all steps in this job
 		for _, stepInfo := range jobInfo.StepInfoList {
+			printedSteps++
+			printed[util.StepIdentifierFromStepInfo(jobInfo, stepInfo)] = true
 			stepId := stepInfo.StepId
-			printed[StepIdentifier{JobId: jobInfo.JobId, StepId: stepId}] = true
 
 			var timeStartStr string
 			timeStart := stepInfo.StartTime.AsTime()
@@ -927,11 +935,7 @@ func ShowSteps(stepIds string, queryAll bool) error {
 				gresStr = "(null)"
 			}
 
-			fullStepId := fmt.Sprintf("%d.%d", stepInfo.JobId, stepId)
-
-			printed[StepIdentifier{
-				JobId: stepInfo.JobId, StepId: stepInfo.StepId,
-			}] = true
+			fullStepId := util.FormatStepId(jobInfo.JobId, jobInfo.ArrayTask, stepId)
 
 			fmt.Printf("StepId=%v UserId=%v StartTime=%v TimeLimit=%v\n",
 				fullStepId, stepInfo.Uid, timeStartStr, timeLimitStr)
@@ -949,26 +953,37 @@ func ShowSteps(stepIds string, queryAll bool) error {
 			fmt.Println()
 		}
 	}
-
 	if !queryAll {
-		notRunningSteps := []StepIdentifier{}
-		for jobId, jobSteps := range jobStepMap {
-			for _, stepId := range jobSteps.Steps {
-				if !printed[StepIdentifier{JobId: jobId, StepId: stepId}] {
-					notRunningSteps = append(notRunningSteps, StepIdentifier{JobId: jobId, StepId: stepId})
-				}
-			}
-		}
-		if len(notRunningSteps) > 0 {
-			id_strs := make([]string, len(notRunningSteps))
-			for i, step := range notRunningSteps {
-				id_strs[i] = step.String()
-			}
-			fmt.Printf("Step %s is not running.\n", strings.Join(id_strs, ", "))
+		if len(requestedSteps) > 0 {
+			printMissingSteps(requestedSteps, printed)
+		} else if printedSteps == 0 {
+			fmt.Printf("Step %s is not running.\n", stepIds)
 		}
 	}
 
 	return nil
+}
+
+func requestedStepIdentifiers(selectors []*protos.JobIdSelector) []util.StepIdentifier {
+	requestedSteps := make([]util.StepIdentifier, 0)
+	for _, selector := range selectors {
+		for _, stepId := range selector.Steps {
+			requestedSteps = append(requestedSteps, util.StepIdentifierFromSelector(selector, stepId))
+		}
+	}
+	return requestedSteps
+}
+
+func printMissingSteps(requestedSteps []util.StepIdentifier, printed map[util.StepIdentifier]bool) {
+	missing := make([]string, 0)
+	for _, step := range requestedSteps {
+		if printed == nil || !printed[step] {
+			missing = append(missing, step.String())
+		}
+	}
+	if len(missing) > 0 {
+		fmt.Printf("Step %s is not running.\n", strings.Join(missing, ", "))
+	}
 }
 
 func ShowLicenses(licenseName string, queryAll bool) error {

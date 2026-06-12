@@ -47,7 +47,7 @@ var (
 )
 
 // BuildCbatchJob reads flags and script file to build a job
-func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error) {
+func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*protos.JobToCtld, error) {
 	job := new(protos.JobToCtld)
 
 	// Parse the script file or use wrapped script
@@ -91,7 +91,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 
 	structExtraFromScript := util.JobExtraAttrs{}
 	structExtraFromCli := util.JobExtraAttrs{}
-	podOpts := podOptions{}
+	podOpts := podOptions{userns: config.Container.UserNsEnabledByDefault}
 
 	// Set args from the script
 	if err := applyScriptArgs(cmd, cbatchArgs, job, &structExtraFromScript, &podOpts); err != nil {
@@ -127,6 +127,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string) (*protos.JobToCtld, error
 			return nil, fmt.Errorf("invalid argument: --ntasks must be > 0")
 		}
 		job.Ntasks = FlagNtasks
+	}
+	if cmd.Flags().Changed("array") {
+		arraySpec, err := util.ParseArrayRangeSpec(FlagArray)
+		if err != nil {
+			return nil, err
+		}
+		job.ArraySpec = arraySpec
 	}
 	if cmd.Flags().Changed("gres") {
 		gresMap, err := util.ParseGres(FlagGres)
@@ -386,6 +393,12 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
 			}
 			job.Ntasks = uint32(num)
+		case "--array", "-a":
+			arraySpec, err := util.ParseArrayRangeSpec(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+			}
+			job.ArraySpec = arraySpec
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {
@@ -529,8 +542,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 	return nil
 }
 
-func SendRequest(job *protos.JobToCtld) error {
-	config := util.ParseConfig(FlagConfigFilePath)
+func SendRequest(config *util.Config, job *protos.JobToCtld) error {
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchJobRequest{Job: job}
 
@@ -560,8 +572,7 @@ func SendRequest(job *protos.JobToCtld) error {
 	}
 }
 
-func SendMultipleRequests(job *protos.JobToCtld, count uint32) error {
-	config := util.ParseConfig(FlagConfigFilePath)
+func SendMultipleRequests(config *util.Config, job *protos.JobToCtld, count uint32) error {
 	stub := util.GetStubToCtldByConfig(config)
 	req := &protos.SubmitBatchJobsRequest{Job: job, Count: count}
 
@@ -656,8 +667,6 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	filteredArgs := make([]CbatchArg, 0, len(args))
 	unsupportedFlags := map[string]string{
-		"array":             "The feature --array/-a is not yet supported by Crane, the use is ignored.",
-		"a":                 "The feature --array/-a is not yet supported by Crane, the use is ignored.",
 		"no-requeue":        "The feature --no-requeue is not yet supported by Crane, the use is ignored.",
 		"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
 		"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",

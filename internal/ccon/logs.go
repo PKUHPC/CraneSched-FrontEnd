@@ -56,10 +56,8 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "step 0 is reserved for pods, please specify a valid container step ID")
 	}
 
-	idFilter := map[uint32]*protos.JobStepIds{}
-	idFilter[uint32(jobID)] = &protos.JobStepIds{Steps: []uint32{uint32(stepID)}}
 	request := protos.QueryJobsInfoRequest{
-		FilterIds:                  idFilter,
+		FilterJobIds:               []*protos.JobIdSelector{{JobId: jobID, Steps: []uint32{stepID}}},
 		FilterJobTypes:             []protos.JobType{protos.JobType_Container},
 		OptionIncludeCompletedJobs: true,
 	}

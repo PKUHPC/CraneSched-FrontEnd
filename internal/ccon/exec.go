@@ -123,7 +123,7 @@ func execExecute(cmd *cobra.Command, args []string) error {
 		// Start streaming
 		ctx := context.Background()
 		if err := StreamWithURL(ctx, reply.Url, streamOpts); err != nil {
-			return util.WrapCraneErr(util.ErrorBackend, "Failed to establish stream connection: %v", err)
+			return util.WrapCraneErr(util.ErrorBackend, "Stream connection lost. Please check container status with 'ccon ps' or reattach with 'ccon attach': %v", err)
 		}
 	}
 

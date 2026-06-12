@@ -59,10 +59,24 @@ type GlobalVariables struct {
 	// A calloc is identified by its pid.
 	ctldReplyChannelMapByPid map[int32]chan *protos.StreamCtldReply
 
+	// Used for cattach processes waiting for STEP_META_REPLY (before job id
+	// is confirmed). Kept separate from ctldReplyChannelMapByPid so that
+	// WaitAllFrontEnd can send the correct termination message type to each
+	// class (JOB_ID_REPLY for crun/calloc, STEP_META_REPLY(Ok=false) for cattach
+	// that are still waiting for step metadata).
+	// The map key (int32) is the cattach process PID.
+	ctldReplyChannelMapForCattachByPid map[int32]chan *protos.StreamCtldReply
+
 	// Used by Cfored <--> Ctld state machine to de-multiplex messages from CraneCtld.
 	// Cfored <--> Ctld state machine GUARANTEES that NO `nil` will be sent into these channels.
 	// Used for calloc/crun with job id allocated.
 	ctldReplyChannelMapByStep map[StepIdentifier]chan *protos.StreamCtldReply
+
+	// Used by Cfored <--> Ctld state machine to de-multiplex messages from CraneCtld.
+	// Cfored <--> Ctld state machine GUARANTEES that NO `nil` will be sent into these channels.
+	// Used for cattach with job id allocated.
+	// The map key (int32) is the cattach process PID.
+	ctldReplyChannelMapForCattachByStep map[StepIdentifier]map[int32]chan *protos.StreamCtldReply
 
 	// Used by Calloc/Crun <--> Cfored state machine to multiplex messages
 	// these messages will be sent to CraneCtld
@@ -136,7 +150,9 @@ func StartCfored(cmd *cobra.Command) {
 	gVars.cforedRequestCtldChannel = make(chan *protos.StreamCforedRequest, 8)
 
 	gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
+	gVars.ctldReplyChannelMapForCattachByPid = make(map[int32]chan *protos.StreamCtldReply)
 	gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
+	gVars.ctldReplyChannelMapForCattachByStep = make(map[StepIdentifier]map[int32]chan *protos.StreamCtldReply)
 	gVars.pidStepMap = make(map[int32]StepIdentifier)
 
 	gSupervisorChanKeeper = NewCranedChannelKeeper()

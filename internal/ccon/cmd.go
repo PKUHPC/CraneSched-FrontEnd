@@ -35,6 +35,9 @@ func ParseCmdArgs() {
 func initConfigAndStub(cmd *cobra.Command, args []string) {
 	f := GetFlags()
 	config = util.ParseConfig(f.Global.ConfigPath)
+	if cmd != nil && cmd.Name() == "run" && !flagChanged(cmd, "userns") {
+		f.Run.UserNS = config.Container.UserNsEnabledByDefault
+	}
 	stub = util.GetStubToCtldByConfig(config)
 }
 
@@ -200,7 +203,8 @@ func InitializeCommandFlags() {
 	RunCmd.Flags().BoolVarP(&f.Run.Tty, "tty", "t", false, "Allocate a pseudo-TTY for container")
 	RunCmd.Flags().StringVar(&f.Run.Entrypoint, "entrypoint", "", "Override the default entrypoint of the image")
 	RunCmd.Flags().StringVarP(&f.Run.User, "user", "u", "", "UID (format: <uid>[:<gid>]). With --userns=false, only current user and accessible groups are allowed")
-	RunCmd.Flags().BoolVar(&f.Run.UserNS, "userns", true, "Enable user namespace (default user becomes the faked root, enabled by default)")
+	RunCmd.Flags().BoolVar(&f.Run.UserNS, "userns", util.DefaultUserNsEnabledByDefault, "Enable user namespace; default follows Container.UserNsEnabledByDefault in config")
+	RunCmd.Flags().Lookup("userns").DefValue = "from config"
 	RunCmd.Flags().StringVarP(&f.Run.Workdir, "workdir", "w", "", "Working directory inside the container")
 	RunCmd.Flags().StringVar(&f.Run.PullPolicy, "pull-policy", "", "Image pull policy: Always, IfNotPresent, or Never")
 	RunCmd.Flags().StringVar(&f.Run.Network, "network", "default", "Network mode for the container (currently only 'host' and 'default' is supported)")

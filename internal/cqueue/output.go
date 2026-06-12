@@ -61,7 +61,7 @@ func GenerateTableConfig() TableConfig {
 					timeLimit = FormatTimeLimit(job.TimeLimit.Seconds)
 				}
 				return []string{
-					strconv.FormatUint(uint64(job.JobId), 10),
+					util.FormatJobId(job.JobId, job.ArrayTask),
 					job.Name,
 					job.Username,
 					job.Partition,
@@ -94,7 +94,7 @@ func GenerateTableConfig() TableConfig {
 			},
 			RowMapper: func(job *protos.JobInfo) []string {
 				return []string{
-					strconv.FormatUint(uint64(job.JobId), 10),
+					util.FormatJobId(job.JobId, job.ArrayTask),
 					job.Partition,
 					job.Name,
 					job.Username,

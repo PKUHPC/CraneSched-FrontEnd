@@ -20,6 +20,7 @@ package calloc
 
 import (
 	"CraneFrontEnd/internal/util"
+
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +51,7 @@ var (
 	FlagMailUser   string
 	FlagComment    string
 	FlagDependency string
+	FlagMpi        string
 
 	FlagConfigFilePath string
 	FlagDebugLevel     string

@@ -200,7 +200,7 @@ message CancelJobRequest {
   uint32 operator_uid = 1;
 
   // Filters
-  map<uint32, JobStepIds> filter_ids = 2;
+  repeated JobIdSelector filter_job_ids = 2;
   string filter_partition = 3;
   string filter_account = 4;
   JobStatus filter_state = 5;
@@ -209,14 +209,22 @@ message CancelJobRequest {
   string filter_username = 8;
 }
 
+message CancelledJobStep {
+  uint32 job_id = 1;
+  optional uint32 array_task_id = 2;
+  repeated uint32 steps = 3;
+}
+
+message NotCancelledJobStep {
+  uint32 job_id = 1;
+  optional uint32 array_task_id = 2;
+  optional uint32 step_id = 3;
+  string reason = 4;
+}
+
 message CancelJobReply {
-  map<uint32, JobStepIds> cancelled_steps = 1;
-  message NotCancelledJobSteps {
-    string reason = 1;
-    repeated uint32 step_ids = 2;
-    repeated string step_reasons = 3;
-  }
-  map<uint32, NotCancelledJobSteps> not_cancelled_job_steps = 2;
+  repeated CancelledJobStep cancelled = 1;
+  repeated NotCancelledJobStep not_cancelled = 2;
 }
 
 message QueryStepFromPortRequest {
@@ -288,7 +296,7 @@ message ModifyJobRequest {
   }
 
   uint32 uid = 1;
-  repeated uint32 job_ids = 2;
+  repeated JobIdSelector job_ids = 2;
 
   TargetAttributes attribute = 3;
 
@@ -615,7 +623,7 @@ message QueryClusterInfoReply {
 }
 
 message QueryJobsInfoRequest {
-  map<uint32 /*JobId*/, JobStepIds> filter_ids = 1;
+  repeated JobIdSelector filter_job_ids = 1;
   repeated string filter_partitions = 2;
   uint32 num_limit = 3;
   repeated string filter_job_names = 4;
@@ -804,6 +812,7 @@ message StreamCforedRequest {
     STEP_REQUEST = 4;
     JOB_COMPLETION_REQUEST = 2;
     CFORED_GRACEFUL_EXIT = 3;
+    STEP_META_REQUEST      = 5;
   }
   CforedRequestType type = 1;
 
@@ -835,12 +844,20 @@ message StreamCforedRequest {
     string cfored_name = 1;
   }
 
+  message StepMetaReq {
+    uint32 uid = 1;
+    uint32 job_id = 2;
+    uint32 step_id = 3;
+    int32 cattach_pid = 4;
+  }
+
   oneof payload {
     CforedReg payload_cfored_reg = 2;
     JobReq payload_job_req = 3;
     StepReq payload_step_req = 6;
     JobCompleteReq payload_job_complete_req = 4;
     GracefulExitReq payload_graceful_exit_req = 5;
+    StepMetaReq     payload_step_meta_req     = 7;
   }
 }
 
@@ -852,6 +869,7 @@ message StreamCtldReply {
     JOB_COMPLETION_ACK_REPLY = 3;
     CFORED_REGISTRATION_ACK = 4;
     CFORED_GRACEFUL_EXIT_ACK = 5;
+    STEP_META_REPLY          = 6;
   }
 
   message JobIdReply {
@@ -895,6 +913,13 @@ message StreamCtldReply {
     bool ok = 1;
   }
 
+  message StepMetaReply {
+    bool            ok             = 1;
+    string          failure_reason = 2;
+    CattachStepInfo step_info      = 3;  // replaces StepToCtld; minimal fields only
+    int32           cattach_pid    = 4;
+  }
+
   CtldReplyType type = 1;
 
   oneof payload {
@@ -904,6 +929,7 @@ message StreamCtldReply {
     JobCompletionAckReply payload_job_completion_ack = 5;
     JobIdReply payload_job_id_reply = 6;
     CforedGracefulExitAck payload_graceful_exit_ack = 7;
+    StepMetaReply         payload_step_meta_reply     = 8;
   }
 }
 
@@ -1044,6 +1070,99 @@ message StreamCrunReply {
   }
 }
 
+
+message CattachStepInfo {
+  bool            pty           = 1;  // from InteractiveMeta.Pty
+  optional uint32 input_task_id = 2;  // set when crun used --input=<task_id>
+  uint32          ntasks        = 3;  // for --layout
+  uint32          node_num      = 4;  // for --layout
+  string          nodelist      = 5;  // for --layout and execCranedIds parsing
+  message NodeTasks {
+    repeated uint32 task_ids = 1;
+  }
+  map<string, NodeTasks> craned_task_map = 6;
+}
+
+message StreamCattachRequest {
+  enum CattachRequestType {
+    STEP_CONNECT_REQUEST    = 0;
+    STEP_COMPLETION_REQUEST = 1;
+    TASK_IO_FORWARD         = 2;
+  }
+
+  message StepConnectReq {
+    int32  cattach_pid = 1;
+    uint32 job_id      = 2;
+    uint32 step_id     = 3;
+    uint32 uid         = 4;
+  }
+
+  message StepCompleteReq {
+    JobStatus status = 1;
+  }
+
+  message TaskIOForwardReq {
+    bytes           msg     = 1;
+    bool            eof     = 2;
+    optional uint32 task_id = 3;  // If set, forward stdin only to the specified task; otherwise broadcast.
+  }
+
+  CattachRequestType type = 1;
+
+  oneof payload {
+    StepConnectReq   payload_step_connect_req    = 2;
+    StepCompleteReq  payload_step_complete_req   = 3;
+    TaskIOForwardReq payload_task_io_forward_req = 4;
+  }
+}
+
+message StreamCattachReply {
+  enum CforedCattachReplyType {
+    STEP_CONNECT_REPLY        = 0;
+    STEP_CANCEL_REQUEST       = 1;
+    STEP_COMPLETION_ACK_REPLY = 2;
+    TASK_IO_FORWARD           = 3;
+    TASK_IO_FORWARD_READY     = 4;
+    TASK_ERR_OUTPUT_FORWARD   = 9;
+  }
+
+  message StepConnectReply {
+    bool            ok             = 1;
+    CattachStepInfo step_info      = 2;  // replaces StepToCtld; minimal fields only
+    string          failure_reason = 3;
+  }
+
+  message StepCancelRequest {}
+
+  message StepCompletionAckReply {
+    bool ok = 1;
+  }
+
+  message TaskIOForwardReadyReply {
+    bool ok = 1;
+  }
+
+  message TaskIOForwardReply {
+    bytes  msg     = 1;
+    uint32 task_id = 2;
+  }
+
+  message TaskIOErrOutputForwardReply {
+    bytes msg = 1;
+  }
+
+  CforedCattachReplyType type = 1;
+
+  oneof payload {
+    StepConnectReply            payload_step_connect_reply               = 2;
+    StepCancelRequest           payload_step_cancel_request              = 3;
+    StepCompletionAckReply      payload_step_completion_ack_reply        = 4;
+    TaskIOForwardReadyReply     payload_task_io_forward_ready_reply      = 5;
+    TaskIOForwardReply          payload_task_io_forward_reply            = 6;
+    TaskIOErrOutputForwardReply payload_task_io_err_output_forward_reply = 11;
+  }
+}
+
 message StreamStepIORequest {
   enum SupervisorRequestType {
     SUPERVISOR_REGISTER = 0;
@@ -1064,6 +1183,7 @@ message StreamStepIORequest {
 
   message TaskOutputReq {
     bytes msg = 1;
+    uint32 task_id = 2; // The rank/id of the task that produced this output.
   }
 
   message TaskErrOutputReq {
@@ -1491,6 +1611,7 @@ service CranedForPam {
 service CraneForeD {
   rpc CallocStream(stream StreamCallocRequest) returns (stream StreamCallocReply);
   rpc CrunStream(stream StreamCrunRequest) returns (stream StreamCrunReply);
+  rpc CattachStream(stream StreamCattachRequest) returns (stream StreamCattachReply);
   rpc StepIOStream(stream StreamStepIORequest) returns (stream StreamStepIOReply);
   rpc QueryStepFromPort(QueryStepFromPortRequest) returns (QueryStepFromPortReply);
 }

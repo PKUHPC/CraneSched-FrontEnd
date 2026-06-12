@@ -49,15 +49,6 @@ const (
 	DeadlineTypeFlag
 )
 
-type StepIdentifier struct {
-	JobId  uint32
-	StepId uint32
-}
-
-func (step *StepIdentifier) String() string {
-	return fmt.Sprintf("%d.%d", step.JobId, step.StepId)
-}
-
 func SummarizeReply(proto interface{}) error {
 	switch reply := proto.(type) {
 	case *protos.ModifyJobReply:
@@ -110,7 +101,7 @@ func ChangeJobTimeLimit(jobStr string, timeLimit string) error {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	jobIds, err := util.ParseJobIdSelectorList(jobStr, ",")
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
@@ -149,12 +140,9 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 			Message: err.Error(),
 		}
 	}
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	jobIds, err := util.ParseJobIdSelectorList(jobStr, ",")
 	if err != nil {
-		return &util.CraneError{
-			Code:    util.ErrorCmdArg,
-			Message: fmt.Sprintf("Invalid job list specified: %s.\n", err),
-		}
+		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
 
 	req := &protos.ModifyJobRequest{
@@ -185,14 +173,14 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 }
 
 func HoldReleaseJobs(jobs string, hold bool) error {
-	jobList, err := util.ParseJobIdList(jobs, ",")
+	jobIds, err := util.ParseJobIdSelectorList(jobs, ",")
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorCmdArg, "Invalid job list specified: %s.\n", err)
 	}
 
 	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:    jobList,
+		JobIds:    jobIds,
 		Attribute: protos.ModifyJobRequest_Hold,
 	}
 	if hold {
@@ -234,7 +222,7 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 }
 
 func SuspendJobs(jobs string) error {
-	jobList, err := util.ParseJobIdList(jobs, ",")
+	jobIds, err := util.ParseJobIdSelectorList(jobs, ",")
 	if err != nil {
 		log.Errorf("invalid job list: %s", err)
 		return &util.CraneError{Code: util.ErrorCmdArg}
@@ -242,7 +230,7 @@ func SuspendJobs(jobs string) error {
 
 	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:    jobList,
+		JobIds:    jobIds,
 		Attribute: protos.ModifyJobRequest_Suspend,
 	}
 
@@ -265,7 +253,7 @@ func SuspendJobs(jobs string) error {
 }
 
 func ResumeJobs(jobs string) error {
-	jobList, err := util.ParseJobIdList(jobs, ",")
+	jobIds, err := util.ParseJobIdSelectorList(jobs, ",")
 	if err != nil {
 		log.Errorf("invalid job list: %s", err)
 		return &util.CraneError{Code: util.ErrorCmdArg}
@@ -273,7 +261,7 @@ func ResumeJobs(jobs string) error {
 
 	req := &protos.ModifyJobRequest{
 		Uid:       uint32(os.Getuid()),
-		JobIds:    jobList,
+		JobIds:    jobIds,
 		Attribute: protos.ModifyJobRequest_Resume,
 	}
 
@@ -300,7 +288,7 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 		return util.NewCraneErr(util.ErrorCmdArg, "Priority must be greater than or equal to 0.")
 	}
 
-	jobIds, err := util.ParseJobIdList(jobStr, ",")
+	jobIds, err := util.ParseJobIdSelectorList(jobStr, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
@@ -340,13 +328,13 @@ func ChangeJobPriority(jobStr string, priority float64) error {
 }
 
 func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string) error {
-	stepIdList, err := util.ParseStepIdList(jobStr, ",")
+	selectors, err := util.ParseJobIdSelectorList(jobStr, ",")
 	if err != nil {
 		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
 	}
 
 	req := &protos.QueryJobsInfoRequest{
-		FilterIds:                  stepIdList,
+		FilterJobIds:               selectors,
 		OptionIncludeCompletedJobs: false,
 	}
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
@@ -359,8 +347,7 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	}
 
 	if len(reply.JobInfoList) == 0 {
-		jobIdListString := util.JobStepListToString(stepIdList)
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("%s is completed or does not exist", jobIdListString))
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("%s is completed or does not exist", jobStr))
 	}
 
 	updateJobExtraAttr := func(origin string, JobParamvalMap map[UpdateJobParamFlags]string) (string, error) {
@@ -383,25 +370,25 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	}
 
 	pdOrRJobMap := make(map[uint32]string)
-	validJobList := map[uint32]bool{}
+	validJobList := map[util.JobIdentifier]bool{}
 	for _, jobInfo := range reply.JobInfoList {
 		newJsonStr, err := updateJobExtraAttr(jobInfo.ExtraAttr, valueMap)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Failed to set extra attributes JSON: %s", err)
 		}
 		pdOrRJobMap[jobInfo.JobId] = newJsonStr
-		validJobList[jobInfo.JobId] = true
+		validJobList[util.JobIdentifierFromJobInfo(jobInfo)] = true
 	}
 
-	notGetInfoJobs := []uint32{}
-	for jobId, _ := range stepIdList {
-		if !validJobList[jobId] {
-			notGetInfoJobs = append(notGetInfoJobs, jobId)
+	notGetInfoJobs := make([]string, 0)
+	for _, selector := range selectors {
+		id := util.JobIdentifierFromSelector(selector)
+		if !validJobList[id] {
+			notGetInfoJobs = append(notGetInfoJobs, id.String())
 		}
 	}
 	if len(notGetInfoJobs) > 0 {
-		notGetInfoJobsString := util.ConvertSliceToString(notGetInfoJobs, ", ")
-		log.Warnf("Job %s is completed or does not exist.\n", notGetInfoJobsString)
+		log.Warnf("Job %s is completed or does not exist.\n", strings.Join(notGetInfoJobs, ", "))
 	}
 
 	request := &protos.ModifyJobsExtraAttrsRequest{

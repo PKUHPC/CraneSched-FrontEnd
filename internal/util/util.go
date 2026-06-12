@@ -39,8 +39,9 @@ type Config struct {
 
 	JobLifecycleHook JobLifecycleHookConfig `yaml:"JobLifecycleHook"`
 
-	Plugin PluginConfig `yaml:"Plugin"`
-	Cfored CforedConfig `yaml:"Cfored"`
+	Container ContainerConfig `yaml:"Container"`
+	Plugin    PluginConfig    `yaml:"Plugin"`
+	Cfored    CforedConfig    `yaml:"Cfored"`
 }
 
 type TLSConfig struct {
@@ -73,6 +74,10 @@ type JobLifecycleHookConfig struct {
 	PrologTimeout       uint64 `yaml:"PrologTimeout"`
 	EpilogTimeout       uint64 `yaml:"EpilogTimeout"`
 	PrologEpilogTimeout uint64 `yaml:"PrologEpilogTimeout"`
+}
+
+type ContainerConfig struct {
+	UserNsEnabledByDefault bool `yaml:"UserNsEnabledByDefault"`
 }
 
 // InfluxDB Config represents the structure of the database configuration
@@ -108,6 +113,7 @@ const (
 	DefaultCforedServerListenPort    = "10012"
 
 	DefaultWrappedJobName          = "Wrap"
+	DefaultUserNsEnabledByDefault  = true
 	GresGpuName                    = "gpu"
 	MaxRepliedJobs                 = 1000 // See kDefaultQueryJobNumLimit for details
 	MaxJobNameLength               = 60
@@ -121,6 +127,7 @@ const (
 	MaxEntityNameLength = 30
 
 	MaxJobMemoryBytes = 10737418240000 // 10000GB
+	MaxArrayTaskCount = 10000          // Keep in sync with backend kMaxArrayTaskCount.
 
 	// UnlimitedCpuThreshold is used to detect "unlimited" CPU values from backend.
 	// Backend kUnlimitedCpu raw = (1<<53)-1, as double ≈ 3.5e13.
