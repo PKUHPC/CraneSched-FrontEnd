@@ -119,6 +119,7 @@ message InitSupervisorRequest {
   };
   JobLifecycleHookConfig job_lifecycle_hook_config = 30;
   bool enable_slurm_compatible_env = 31;
+  uint32 thread_pool_size = 32;
 
   bool tracing_enabled = 41;
   optional string traceparent = 42;  // W3C traceparent for distributed tracing
@@ -182,6 +183,18 @@ message ShutdownSupervisorRequest {}
 
 message ShutdownSupervisorReply {}
 
+message ReceivePmixPortRequest {
+  message PmixPort {
+    bytes port = 1;
+    string craned_id = 2;
+  }
+  repeated PmixPort pmix_ports = 1;
+}
+
+message ReceivePmixPortReply {
+  bool ok = 1;
+}
+
 service Supervisor {
   rpc ExecuteStep(StepExecutionRequest) returns (StepExecutionReply);
   rpc QueryEnvMap(QueryStepEnvRequest) returns (QueryStepEnvReply);
@@ -190,4 +203,5 @@ service Supervisor {
   rpc TerminateStep(TerminateStepRequest) returns (TerminateStepReply);
   rpc MigrateSshProcToCgroup(MigrateSshProcToCgroupRequest) returns (MigrateSshProcToCgroupReply);
   rpc ShutdownSupervisor(ShutdownSupervisorRequest) returns (ShutdownSupervisorReply);
+  rpc ReceivePmixPort(ReceivePmixPortRequest) returns (ReceivePmixPortReply);
 }
