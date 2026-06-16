@@ -220,9 +220,6 @@ func queryMissingArrayTaskReason(missingSelectors []*protos.JobIdSelector) (stri
 		}
 
 		displayID := util.FormatJobIdFromArrayTaskId(selector.GetJobId(), selector.ArrayTaskId)
-		if pendingReason := parent.GetPendingReason(); pendingReason != "" {
-			return fmt.Sprintf("Array task %s has not been materialized yet: %s", displayID, pendingReason), nil
-		}
 		return fmt.Sprintf("Array task %s has not been materialized yet", displayID), nil
 	}
 
