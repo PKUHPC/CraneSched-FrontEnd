@@ -65,14 +65,24 @@ func FillReqByCobraFlags() (*protos.QueryJobsInfoRequest, error) {
 }
 
 func QueryJobsInfo() (*protos.QueryJobsInfoReply, error) {
+	reply, _, err := queryJobsInfoFromFlags()
+	return reply, err
+}
+
+func queryJobsInfoFromFlags() (*protos.QueryJobsInfoReply, *protos.QueryJobsInfoRequest, error) {
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 
 	req, err := FillReqByCobraFlags()
 	if err != nil {
-		return &protos.QueryJobsInfoReply{}, err
+		return &protos.QueryJobsInfoReply{}, nil, err
 	}
 
+	reply, err := queryJobsInfo(req)
+	return reply, req, err
+}
+
+func queryJobsInfo(req *protos.QueryJobsInfoRequest) (*protos.QueryJobsInfoReply, error) {
 	// set 10 seconds limit
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -103,8 +113,11 @@ func QueryJobsInfo() (*protos.QueryJobsInfoReply, error) {
 }
 
 func Query() error {
-	reply, err := QueryJobsInfo()
+	reply, req, err := queryJobsInfoFromFlags()
 	if err != nil {
+		return err
+	}
+	if err := reportMissingArrayTaskReason(req, reply); err != nil {
 		return err
 	}
 
@@ -115,6 +128,135 @@ func Query() error {
 	} else {
 		return QueryTableOutput(reply)
 	}
+}
+
+func reportMissingArrayTaskReason(req *protos.QueryJobsInfoRequest, reply *protos.QueryJobsInfoReply) error {
+	if req == nil || reply == nil || len(reply.GetJobInfoList()) > 0 {
+		return nil
+	}
+
+	missingSelectors := missingArrayTaskSelectors(req.GetFilterJobIds(), reply.GetJobInfoList())
+	if len(missingSelectors) == 0 {
+		return nil
+	}
+
+	reason, err := queryMissingArrayTaskReason(missingSelectors)
+	if err != nil || reason == "" {
+		return err
+	}
+	return util.NewCraneErr(util.ErrorBackend, reason)
+}
+
+func missingArrayTaskSelectors(selectors []*protos.JobIdSelector, jobs []*protos.JobInfo) []*protos.JobIdSelector {
+	if len(selectors) == 0 {
+		return nil
+	}
+
+	returned := make(map[string]bool, len(jobs))
+	for _, job := range jobs {
+		if job == nil || job.GetArrayTask() == nil {
+			continue
+		}
+		arrayTask := job.GetArrayTask()
+		returned[arrayTaskSelectorKey(arrayTask.GetArrayJobId(), arrayTask.GetTaskId())] = true
+	}
+
+	var missing []*protos.JobIdSelector
+	for _, selector := range selectors {
+		if selector == nil || selector.ArrayTaskId == nil {
+			continue
+		}
+		key := arrayTaskSelectorKey(selector.GetJobId(), selector.GetArrayTaskId())
+		if !returned[key] {
+			missing = append(missing, selector)
+		}
+	}
+	return missing
+}
+
+func queryMissingArrayTaskReason(missingSelectors []*protos.JobIdSelector) (string, error) {
+	unmaterializedSelectors, err := unmaterializedArrayTaskSelectors(missingSelectors)
+	if err != nil || len(unmaterializedSelectors) == 0 {
+		return "", err
+	}
+
+	parentSelectors := make([]*protos.JobIdSelector, 0, len(unmaterializedSelectors))
+	seenParents := make(map[uint32]bool, len(unmaterializedSelectors))
+	for _, selector := range unmaterializedSelectors {
+		parentID := selector.GetJobId()
+		if seenParents[parentID] {
+			continue
+		}
+		seenParents[parentID] = true
+		parentSelectors = append(parentSelectors, &protos.JobIdSelector{JobId: parentID})
+	}
+	if len(parentSelectors) == 0 {
+		return "", nil
+	}
+
+	parentReq := &protos.QueryJobsInfoRequest{
+		FilterJobIds:               parentSelectors,
+		NumLimit:                   uint32(len(parentSelectors)),
+		OptionIncludeCompletedJobs: true,
+	}
+
+	parentReply, err := queryJobsInfo(parentReq)
+	if err != nil {
+		return "", err
+	}
+
+	parentByID := make(map[uint32]*protos.JobInfo, len(parentReply.GetJobInfoList()))
+	for _, parent := range parentReply.GetJobInfoList() {
+		if parent == nil || parent.GetArraySpec() == nil {
+			continue
+		}
+		parentByID[parent.GetJobId()] = parent
+	}
+
+	for _, selector := range unmaterializedSelectors {
+		parent := parentByID[selector.GetJobId()]
+		if parent == nil || !arraySpecContainsTask(parent.GetArraySpec(), selector.GetArrayTaskId()) {
+			continue
+		}
+
+		displayID := util.FormatJobIdFromArrayTaskId(selector.GetJobId(), selector.ArrayTaskId)
+		if pendingReason := parent.GetPendingReason(); pendingReason != "" {
+			return fmt.Sprintf("Array task %s has not been materialized yet: %s", displayID, pendingReason), nil
+		}
+		return fmt.Sprintf("Array task %s has not been materialized yet", displayID), nil
+	}
+
+	return "", nil
+}
+
+func unmaterializedArrayTaskSelectors(selectors []*protos.JobIdSelector) ([]*protos.JobIdSelector, error) {
+	req := &protos.QueryJobsInfoRequest{
+		FilterJobIds:               selectors,
+		NumLimit:                   uint32(len(selectors)),
+		OptionIncludeCompletedJobs: true,
+	}
+
+	reply, err := queryJobsInfo(req)
+	if err != nil {
+		return nil, err
+	}
+	return missingArrayTaskSelectors(selectors, reply.GetJobInfoList()), nil
+}
+
+func arraySpecContainsTask(arraySpec *protos.ArraySpec, taskID uint32) bool {
+	if arraySpec == nil || taskID < arraySpec.GetStart() || taskID > arraySpec.GetEnd() {
+		return false
+	}
+
+	stride := arraySpec.GetStride()
+	if stride == 0 {
+		stride = 1
+	}
+	return (taskID-arraySpec.GetStart())%stride == 0
+}
+
+func arrayTaskSelectorKey(jobID uint32, arrayTaskID uint32) string {
+	return strconv.FormatUint(uint64(jobID), 10) + "_" + strconv.FormatUint(uint64(arrayTaskID), 10)
 }
 
 func loopedQuery(iterate uint64) error {
