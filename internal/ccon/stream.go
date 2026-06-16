@@ -157,8 +157,9 @@ func (d *DetachDetector) Read(p []byte) (int, error) {
 			}
 			return nOut, nil
 		case d.first:
-			// "P P" re-arms with a fresh timestamp; the first P is
-			// consumed as part of the re-arm, not forwarded.
+			// "P P" means the first held P did not start a detach sequence.
+			// Forward it and keep the second P armed for the next byte.
+			out = append(out, d.first)
 			d.armed = true
 			d.armedAt = time.Now()
 		default:

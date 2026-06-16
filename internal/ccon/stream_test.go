@@ -142,6 +142,48 @@ func TestPendingCtrlPFlushesOnEOF(t *testing.T) {
 	}
 }
 
+// TestRepeatedCtrlPForwardsPreviousKey verifies a second Ctrl-P releases the
+// first held Ctrl-P and keeps the second Ctrl-P armed for the next byte.
+func TestRepeatedCtrlPForwardsPreviousKey(t *testing.T) {
+	inner := bytes.NewReader([]byte{DetachFirstKey, DetachFirstKey, 'x'})
+	d := NewDetachDetector(inner)
+
+	buf := make([]byte, 16)
+	n, err := d.Read(buf)
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+	if got := string(buf[:n]); got != string([]byte{DetachFirstKey, DetachFirstKey, 'x'}) {
+		t.Fatalf("forwarded bytes = %q, want %q", got, string([]byte{DetachFirstKey, DetachFirstKey, 'x'}))
+	}
+	select {
+	case <-d.Detached():
+		t.Fatal("Detached() should not close on Ctrl-P Ctrl-P x")
+	default:
+	}
+}
+
+// TestRepeatedCtrlPThenQDetaches verifies Ctrl-P Ctrl-P Ctrl-Q forwards the
+// first Ctrl-P, then treats the second Ctrl-P plus Ctrl-Q as the detach key.
+func TestRepeatedCtrlPThenQDetaches(t *testing.T) {
+	inner := bytes.NewReader([]byte{'a', DetachFirstKey, DetachFirstKey, DetachSecondKey, 'b'})
+	d := NewDetachDetector(inner)
+
+	buf := make([]byte, 16)
+	n, err := d.Read(buf)
+	if err != nil {
+		t.Fatalf("Read returned error: %v", err)
+	}
+	if got := string(buf[:n]); got != string([]byte{'a', DetachFirstKey}) {
+		t.Fatalf("forwarded bytes = %q, want %q", got, string([]byte{'a', DetachFirstKey}))
+	}
+	select {
+	case <-d.Detached():
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Detached() did not close after second Ctrl-P plus Ctrl-Q")
+	}
+}
+
 // TestPostDetachEOF verifies subsequent Reads after detach return EOF
 // without consulting the inner reader.
 func TestPostDetachEOF(t *testing.T) {
