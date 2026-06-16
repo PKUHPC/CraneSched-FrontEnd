@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -36,6 +37,145 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 )
+
+const (
+	DetachFirstKey   byte = 0x10 // Ctrl-P
+	DetachSecondKey  byte = 0x11 // Ctrl-Q
+	DetachKeyTimeout      = 1 * time.Second
+)
+
+// DetachDetector wraps an io.Reader, scanning for a Ctrl-P then Ctrl-Q sequence
+// within DetachKeyTimeout. On match, Detached() closes and subsequent Read
+// calls return io.EOF.
+//
+// It is intended to be placed between os.Stdin and remotecommand's
+// StreamOptions.Stdin so that the streaming goroutine observes an EOF on
+// stdin and shuts down the SPDY/WS stream, leaving the remote container
+// running.
+//
+// Read is called serially by remotecommand's stdin goroutine, but Detached()
+// may be selected from a different goroutine; the mutex protects the
+// detached/detachCh fields from a data race.
+type DetachDetector struct {
+	inner  io.Reader
+	first  byte
+	second byte
+
+	mu       sync.Mutex
+	armed    bool
+	armedAt  time.Time
+	detached bool
+	detachCh chan struct{}
+}
+
+func NewDetachDetector(inner io.Reader) *DetachDetector {
+	return &DetachDetector{
+		inner:    inner,
+		first:    DetachFirstKey,
+		second:   DetachSecondKey,
+		detachCh: make(chan struct{}),
+	}
+}
+
+// Detached returns a channel that is closed when the user has pressed
+// Ctrl-P then Ctrl-Q within DetachKeyTimeout.
+func (d *DetachDetector) Detached() <-chan struct{} { return d.detachCh }
+
+func (d *DetachDetector) IsDetached() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.detached
+}
+
+func (d *DetachDetector) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	d.mu.Lock()
+	if d.detached {
+		d.mu.Unlock()
+		return 0, io.EOF
+	}
+	d.mu.Unlock()
+
+	n, err := d.inner.Read(p)
+	if n <= 0 {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.detached {
+			return 0, io.EOF
+		}
+		if err == io.EOF && d.armed {
+			d.armed = false
+			p[0] = d.first
+			return 1, nil
+		}
+		return n, err
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.detached {
+		return 0, io.EOF
+	}
+
+	out := make([]byte, 0, n)
+	for i := 0; i < n; i++ {
+		b := p[i]
+
+		// If armed has timed out, flush the held Ctrl-P into the output
+		// before processing this byte. This implements the "timeout
+		// auto-flush" semantics required for the cross-Read case.
+		if d.armed && time.Since(d.armedAt) > DetachKeyTimeout {
+			out = append(out, d.first)
+			d.armed = false
+		}
+
+		if !d.armed {
+			if b == d.first {
+				d.armed = true
+				d.armedAt = time.Now()
+				continue
+			}
+			out = append(out, b)
+			continue
+		}
+
+		// armed == true
+		switch b {
+		case d.second:
+			d.detached = true
+			close(d.detachCh)
+			// Flush any pending output bytes that were accumulated
+			// earlier in this same Read (e.g. the "a" in "aPQ"), then
+			// signal EOF. If there is nothing to flush, return EOF
+			// directly.
+			nOut := copy(p, out)
+			if nOut == 0 {
+				return 0, io.EOF
+			}
+			return nOut, nil
+		case d.first:
+			// "P P" re-arms with a fresh timestamp; the first P is
+			// consumed as part of the re-arm, not forwarded.
+			d.armed = true
+			d.armedAt = time.Now()
+		default:
+			// Armed P was not followed by Q within the sequence; emit
+			// the held P together with this byte and disarm.
+			out = append(out, d.first)
+			d.armed = false
+			out = append(out, b)
+		}
+	}
+	nOut := copy(p, out)
+	return nOut, nil
+}
+
+func shouldEnableDetach(opts StreamOptions, stdinIsTerminal bool) bool {
+	return opts.Stdin && opts.Tty && stdinIsTerminal
+}
 
 type StreamOptions struct {
 	Stdin     bool
@@ -119,17 +259,45 @@ func (t *TerminalSizeQueue) getTerminalSize() *remotecommand.TerminalSize {
 	}
 }
 
-func StreamWithURL(ctx context.Context, streamURL string, opts StreamOptions) error {
-	return streamWithRetry(ctx, streamURL, opts, 3)
-}
-
-func streamWithRetry(ctx context.Context, streamURL string, opts StreamOptions, maxRetries int) error {
+// streamWithURL is the single ccon streaming entry point. It preserves retry
+// for ordinary stream failures and exits without retry after Ctrl-P-Q detach.
+func streamWithURL(ctx context.Context, streamURL string,
+	opts StreamOptions, jobID, stepID uint32) error {
 	var lastErr error
+	const maxRetries = 3
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Debugf("Stream attempt %d/%d for URL: %s", attempt, maxRetries, streamURL)
 
-		err := doStream(ctx, streamURL, opts)
+		streamCtx := ctx
+		cancel := func() {}
+		var stdin io.Reader
+		var detector *DetachDetector
+		if opts.Stdin {
+			stdin = os.Stdin
+			if shouldEnableDetach(opts, term.IsTerminal(int(os.Stdin.Fd()))) {
+				streamCtx, cancel = context.WithCancel(ctx)
+				detector = NewDetachDetector(os.Stdin)
+				stdin = detector
+				go func() {
+					select {
+					case <-detector.Detached():
+						cancel()
+					case <-streamCtx.Done():
+					}
+				}()
+			}
+		}
+
+		err := streamOnce(streamCtx, streamURL, opts, stdin)
+		cancel()
+		if detector != nil && detector.IsDetached() {
+			fmt.Fprintf(os.Stderr,
+				"\nDetached from container %d.%d. The container is still running; "+
+					"re-attach with: ccon attach %d.%d\n",
+				jobID, stepID, jobID, stepID)
+			return nil
+		}
 		if err == nil || errors.Is(err, context.Canceled) {
 			return nil
 		}
@@ -150,7 +318,9 @@ func streamWithRetry(ctx context.Context, streamURL string, opts StreamOptions, 
 	return fmt.Errorf("stream failed after %d attempts, last error: %w", maxRetries, lastErr)
 }
 
-func doStream(ctx context.Context, streamURL string, opts StreamOptions) error {
+func streamOnce(ctx context.Context, streamURL string,
+	opts StreamOptions, stdin io.Reader) error {
+
 	parsedURL, err := url.Parse(streamURL)
 	if err != nil {
 		return fmt.Errorf("invalid stream URL: %w", err)
@@ -163,13 +333,9 @@ func doStream(ctx context.Context, streamURL string, opts StreamOptions) error {
 		},
 	}
 
-	var stdin io.Reader
 	var stdout, stderr io.Writer
 	var tty bool
 
-	if opts.Stdin {
-		stdin = os.Stdin
-	}
 	if opts.Stdout {
 		stdout = os.Stdout
 	}
