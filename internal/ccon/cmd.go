@@ -26,6 +26,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const detachKeysHelp = "Detach key: in an interactive TTY session, press Ctrl-P + Ctrl-Q to detach without stopping the container."
+
 func ParseCmdArgs() {
 	cobra.EnableTraverseRunHooks = true
 	util.RunEWrapperForLeafCommand(RootCmd)
@@ -73,6 +75,7 @@ var (
 	RunCmd = &cobra.Command{
 		Use:              "run [flags] IMAGE [COMMAND] [ARG...]",
 		Short:            "Create and run a new container",
+		Long:             "Create and run a new container.\n\n" + detachKeysHelp,
 		PersistentPreRun: initConfigAndStub,
 		RunE:             runExecute,
 	}
@@ -129,6 +132,7 @@ var (
 	AttachCmd = &cobra.Command{
 		Use:              "attach [flags] CONTAINER",
 		Short:            "Attach local standard input, output, and error streams to a running container",
+		Long:             "Attach local standard input, output, and error streams to a running container.\n\n" + detachKeysHelp,
 		PersistentPreRun: initConfigAndStub,
 		RunE:             attachExecute,
 	}
@@ -136,6 +140,7 @@ var (
 	ExecCmd = &cobra.Command{
 		Use:              "exec [flags] CONTAINER COMMAND [ARG...]",
 		Short:            "Execute a command in a running container",
+		Long:             "Execute a command in a running container.\n\n" + detachKeysHelp,
 		PersistentPreRun: initConfigAndStub,
 		RunE:             execExecute,
 	}

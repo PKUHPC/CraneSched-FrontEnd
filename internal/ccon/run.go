@@ -942,7 +942,7 @@ func attachAfterRun(f *Flags, reply protoreflect.ProtoMessage) error {
 
 		if reply.GetOk() {
 			// Case 1: Success - execute expected operation
-			return StreamWithURL(ctx, reply.GetUrl(), streamOpt)
+			return streamWithURL(ctx, reply.GetUrl(), streamOpt, jobId, stepId)
 		}
 
 		switch reply.GetStatus().GetCode() {
