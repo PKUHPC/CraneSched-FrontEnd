@@ -111,6 +111,7 @@ type EntityType struct {
 	NextStepDbId bool `parser:"| @'next-step-db-id'"`
 	PartitionAcl bool `parser:"| @'partition-acl'"`
 	JobHistory   bool `parser:"| @'job-history'"`
+	Trace        bool `parser:"| @'trace'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -156,6 +157,8 @@ func (e EntityType) String() string {
 		return "partition-acl"
 	case e.JobHistory:
 		return "job-history"
+	case e.Trace:
+		return "trace"
 	default:
 		return ""
 	}
@@ -324,6 +327,27 @@ func preParseGlobalFlags(args []string) []string {
 			FlagJson = true
 		case "--force":
 			FlagForce = true
+		case "--enabled", "--level":
+			key := strings.TrimPrefix(flagName, "--")
+			if hasValueInSameArg {
+				remainingArgs = append(remainingArgs, key+"="+flagValue)
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				remainingArgs = append(remainingArgs, key+"="+args[i+1])
+				i++
+			} else {
+				remainingArgs = append(remainingArgs, arg)
+			}
+		case "--no-propagate":
+			remainingArgs = append(remainingArgs, "propagate=false")
+		case "--propagate":
+			if hasValueInSameArg {
+				remainingArgs = append(remainingArgs, "propagate="+flagValue)
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				remainingArgs = append(remainingArgs, "propagate="+args[i+1])
+				i++
+			} else {
+				remainingArgs = append(remainingArgs, "propagate=true")
+			}
 		case "-C", "--config":
 			if hasValueInSameArg {
 				FlagConfigFilePath = flagValue
@@ -348,6 +372,11 @@ func unquoteIfQuoted(s string) string {
 }
 
 func getCmdStringByArgs(commandArgs []string) string {
+	if len(commandArgs) >= 2 && commandArgs[0] == "update" &&
+		commandArgs[1] == "trace" {
+		commandArgs[1] = "trace=true"
+	}
+
 	var processedArgs []string
 	for _, arg := range commandArgs {
 		if arg == "" {

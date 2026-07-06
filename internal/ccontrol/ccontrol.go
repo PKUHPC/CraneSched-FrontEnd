@@ -793,6 +793,39 @@ func ResetPartitionAcl() error {
 	return nil
 }
 
+func UpdateTraceConfig(enabled *bool, level string, propagate bool) error {
+	req := &protos.SetTraceConfigRequest{
+		Uid:               uint32(os.Getuid()),
+		Enabled:           enabled,
+		PropagateToCraned: &propagate,
+	}
+	if level != "" {
+		req.Level = &level
+	}
+
+	reply, err := stub.SetTraceConfig(context.Background(), req)
+	if err != nil {
+		return util.NewCraneErrFromGrpc(
+			util.ErrorNetwork, err, "Failed to update trace config")
+	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+	if !reply.GetOk() {
+		message := reply.GetReason()
+		if len(reply.GetFailedCranedIds()) > 0 {
+			message += fmt.Sprintf("; failed craned nodes: %s",
+				strings.Join(reply.GetFailedCranedIds(), ","))
+		}
+		return util.NewCraneErr(util.ErrorBackend, message)
+	}
+
+	fmt.Println("Trace config updated successfully.")
+	printTraceConfig(reply.GetConfig())
+	return nil
+}
+
 func EnableAutoPowerControl(nodeRegex string, enableStr string) error {
 	nodeNames, ok := util.ParseHostList(nodeRegex)
 	if !ok {

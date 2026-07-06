@@ -42,6 +42,7 @@ ENTITIES:
   job         - Jobs
   reservation - Reservations
   lic         - Licenses
+  trace       - Runtime tracing configuration
 
 COMMANDS:
   show node [<nodename>]
@@ -64,6 +65,9 @@ COMMANDS:
    Show information about licenses.
    if no license name is specified, information for all licenses will be displayed.
 
+  show trace
+    Show runtime tracing configuration and the compiled tracing limit.
+
   update nodeName=<nodename> state=<state> [reason=<reason>]
     Update attributes of a node.
     state: Valid states are 'drain' or 'resume'
@@ -83,6 +87,9 @@ COMMANDS:
     Update partition attributes.
     accounts: List of accounts allowed to use the partition
     deniedaccounts: List of accounts denied from using the partition
+
+  update trace [--enabled true|false] [--level basic|detailed|debug] [--no-propagate]
+    Update runtime tracing config on ctld and, by default, online craned nodes.
 
   hold <jobid> [timelimit=<duration>]
     Hold specified job(s).

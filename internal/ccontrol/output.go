@@ -76,6 +76,39 @@ func ShowConfig(path string) error {
 	return nil
 }
 
+func printTraceConfig(config *protos.RuntimeTraceConfig) {
+	if config == nil {
+		fmt.Println("trace config is unavailable")
+		return
+	}
+	fmt.Printf("compiled_with_tracing = %t\n", config.GetCompiledWithTracing())
+	fmt.Printf("compiled_max_level = %s\n", config.GetCompiledMaxLevel())
+	fmt.Printf("runtime_enabled = %t\n", config.GetRuntimeEnabled())
+	fmt.Printf("runtime_level = %s\n", config.GetRuntimeLevel())
+	fmt.Printf("effective_level = %s\n", config.GetEffectiveLevel())
+	fmt.Printf("clamped = %t\n", config.GetClamped())
+}
+
+func ShowTraceConfig() error {
+	req := &protos.QueryTraceConfigRequest{Uid: userUid}
+	reply, err := stub.QueryTraceConfig(context.Background(), req)
+	if err != nil {
+		return util.NewCraneErrFromGrpc(
+			util.ErrorNetwork, err, "Failed to show trace config")
+	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		return nil
+	}
+	if !reply.GetOk() {
+		return util.NewCraneErr(
+			util.ErrorBackend,
+			fmt.Sprintf("Failed to show trace config: %s", reply.GetReason()))
+	}
+	printTraceConfig(reply.GetConfig())
+	return nil
+}
+
 // show Nodes
 func formatGresMap(data *protos.GresMap) string {
 	if data == nil {
