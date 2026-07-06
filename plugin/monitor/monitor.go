@@ -83,7 +83,6 @@ type GlobalMonitor struct {
 	config       *config.Config
 	monitor      *monitor.Monitor
 	queryService *QueryService
-	traceWriter  *TraceWriter
 }
 
 var globalMonitor GlobalMonitor
@@ -135,11 +134,6 @@ func (p MonitorPlugin) Unload(meta api.PluginMeta) error {
 	if globalMonitor.monitor != nil {
 		globalMonitor.monitor.Close()
 		globalMonitor.monitor = nil
-	}
-
-	if globalMonitor.traceWriter != nil {
-		globalMonitor.traceWriter.Close()
-		globalMonitor.traceWriter = nil
 	}
 
 	if db.GetInstance() != nil {
@@ -219,23 +213,6 @@ func (p MonitorPlugin) UpdateLicensesHook(ctx *api.PluginContext) {
 	}
 }
 
-func (p MonitorPlugin) TraceHook(ctx *api.PluginContext) {
-	req, ok := ctx.Request().(*protos.TraceHookRequest)
-	if !ok {
-		log.Error("Invalid request type, expected TraceHookRequest")
-		return
-	}
-
-	if globalMonitor.traceWriter == nil {
-		log.Error("Trace writer is not initialized")
-		return
-	}
-
-	if err := globalMonitor.traceWriter.Enqueue(ctx.GrpcCtx, req.GetSpans()); err != nil {
-		log.Errorf("Failed to enqueue trace spans: %v", err)
-	}
-}
-
 func (p MonitorPlugin) RegisterGrpcServices(server grpc.ServiceRegistrar) error {
 	if globalMonitor.queryService == nil {
 		return fmt.Errorf("monitor query service is not initialized")
@@ -260,10 +237,6 @@ func (p MonitorPlugin) ensureInitialized() error {
 
 	if globalMonitor.queryService == nil {
 		globalMonitor.queryService = NewQueryService(globalMonitor.config)
-	}
-
-	if globalMonitor.traceWriter == nil {
-		globalMonitor.traceWriter = NewTraceWriter(db.GetInstance(), globalMonitor.config.DB.TraceWriter)
 	}
 
 	return nil

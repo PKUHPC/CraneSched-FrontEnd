@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/plugin/monitor/pkg/config"
-	"CraneFrontEnd/plugin/monitor/pkg/types"
 )
 
 type fakeTraceDB struct {
@@ -23,22 +21,6 @@ func newFakeTraceDB() *fakeTraceDB {
 	return &fakeTraceDB{writes: make(map[string]int), failOnce: make(map[string]bool)}
 }
 
-func (f *fakeTraceDB) SaveNodeEnergy(*types.NodeData) error { return nil }
-func (f *fakeTraceDB) SaveJobEnergy(*types.JobData) error   { return nil }
-func (f *fakeTraceDB) SaveNodeEvents([]*protos.CranedEventInfo) error {
-	return nil
-}
-func (f *fakeTraceDB) SaveLicenseUsage([]*protos.LicenseInfo) error { return nil }
-func (f *fakeTraceDB) SaveSpans(spans []*protos.SpanInfo) error {
-	for _, span := range spans {
-		for _, bucket := range f.TraceBucketsForSpan(span) {
-			if err := f.SaveSpansToBucket(bucket, []*protos.SpanInfo{span}); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
 func (f *fakeTraceDB) SaveSpansToBucket(bucket string, spans []*protos.SpanInfo) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -49,13 +31,6 @@ func (f *fakeTraceDB) SaveSpansToBucket(bucket string, spans []*protos.SpanInfo)
 	f.writes[bucket] += len(spans)
 	f.writeSequence = append(f.writeSequence, bucket)
 	return nil
-}
-func (f *fakeTraceDB) TraceBucketForSpan(span *protos.SpanInfo) string {
-	buckets := f.TraceBucketsForSpan(span)
-	if len(buckets) == 0 {
-		return "legacy"
-	}
-	return buckets[0]
 }
 func (f *fakeTraceDB) TraceBucketsForSpan(span *protos.SpanInfo) []string {
 	if span.GetName() == "job/end" {
@@ -70,7 +45,7 @@ func (f *fakeTraceDB) Close() error { return nil }
 
 func TestTraceWriterWritesFailedCoreSpanToCoreAndErrorBuckets(t *testing.T) {
 	db := newFakeTraceDB()
-	writer := NewTraceWriter(db, config.TraceWriterConfig{
+	writer := NewTraceWriter(db, TraceWriterConfig{
 		Shards:          1,
 		BatchSpans:      8,
 		QueueBatches:    8,
@@ -98,7 +73,7 @@ func TestTraceWriterWritesFailedCoreSpanToCoreAndErrorBuckets(t *testing.T) {
 func TestTraceWriterRetriesOnlyFailedBucket(t *testing.T) {
 	db := newFakeTraceDB()
 	db.failOnce["error"] = true
-	writer := NewTraceWriter(db, config.TraceWriterConfig{
+	writer := NewTraceWriter(db, TraceWriterConfig{
 		Shards:            1,
 		BatchSpans:        8,
 		QueueBatches:      8,

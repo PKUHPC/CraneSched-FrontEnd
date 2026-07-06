@@ -98,7 +98,7 @@ else
 endif
 
 # Targets
-.PHONY: all build protos clean install plugin plugin-monitor plugin-other tool service format package check-goreleaser
+.PHONY: all build protos clean install plugin plugin-monitor plugin-trace plugin-other tool service format package check-goreleaser
 
 all: build plugin service
 
@@ -126,7 +126,7 @@ build: protos
 	@echo "    - Commit hash: $(GIT_COMMIT_HASH)"
 	@echo "    - Binaries are in ./$(BIN_DIR)/"
 
-plugin: plugin-monitor plugin-other
+plugin: plugin-monitor plugin-trace plugin-other
 
 plugin-monitor: protos
 	@echo "- Building monitor plugin with $(GO_VERSION)..."
@@ -143,11 +143,18 @@ plugin-monitor: protos
 		$(GO) build $(BUILD_FLAGS) $(LDFLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/monitor.so .; \
 	fi
 
+plugin-trace: protos
+	@echo "- Building trace plugin with $(GO_VERSION)..."
+	@mkdir -p $(PLUGIN_DIR)
+	@cd plugin/trace && \
+		CGO_ENABLED=1 \
+		$(GO) build $(BUILD_FLAGS) $(LDFLAGS) -buildmode=plugin -o ../../$(PLUGIN_DIR)/trace.so .
+
 plugin-other: protos
 	@echo "- Building other plugins..."
 	@mkdir -p $(PLUGIN_DIR)
 	@for dir in plugin/*/ ; do \
-		if [ "$$(basename $$dir)" != "monitor" ]; then \
+		if [ "$$(basename $$dir)" != "monitor" ] && [ "$$(basename $$dir)" != "trace" ]; then \
 			echo "  - Building: $$(basename $$dir).so"; \
 			(cd $$dir && $(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
 				-buildmode=plugin -o ../../$(PLUGIN_DIR)/$$(basename $$dir).so) || exit 1; \

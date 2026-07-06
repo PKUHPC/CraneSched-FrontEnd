@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"CraneFrontEnd/generated/protos"
-	"CraneFrontEnd/plugin/monitor/pkg/config"
-	"CraneFrontEnd/plugin/monitor/pkg/db"
 )
 
 const (
@@ -20,8 +18,8 @@ const (
 )
 
 type TraceWriter struct {
-	db     db.DBInterface
-	cfg    config.TraceWriterConfig
+	db     TraceStore
+	cfg    TraceWriterConfig
 	shards []*traceWriterShard
 
 	stop    chan struct{}
@@ -31,8 +29,8 @@ type TraceWriter struct {
 
 type traceWriterShard struct {
 	id    int
-	db    db.DBInterface
-	cfg   config.TraceWriterConfig
+	db    TraceStore
+	cfg   TraceWriterConfig
 	queue chan []*protos.SpanInfo
 
 	enqueuedBatches atomic.Uint64
@@ -45,7 +43,7 @@ type traceSpanWrite struct {
 	span   *protos.SpanInfo
 }
 
-func NewTraceWriter(database db.DBInterface, writerConfig config.TraceWriterConfig) *TraceWriter {
+func NewTraceWriter(database TraceStore, writerConfig TraceWriterConfig) *TraceWriter {
 	normalizeTraceWriterConfig(&writerConfig)
 	writer := &TraceWriter{
 		db:     database,
@@ -71,30 +69,6 @@ func NewTraceWriter(database db.DBInterface, writerConfig config.TraceWriterConf
 		close(writer.done)
 	}()
 	return writer
-}
-
-func normalizeTraceWriterConfig(cfg *config.TraceWriterConfig) {
-	if cfg.Shards <= 0 {
-		cfg.Shards = 1
-	}
-	if cfg.BatchSpans <= 0 {
-		cfg.BatchSpans = 1024
-	}
-	if cfg.QueueBatches <= 0 {
-		cfg.QueueBatches = 4096
-	}
-	if cfg.FlushIntervalMs <= 0 {
-		cfg.FlushIntervalMs = 50
-	}
-	if cfg.RetryBackoffMs <= 0 {
-		cfg.RetryBackoffMs = 200
-	}
-	if cfg.MaxRetryBackoffMs <= 0 {
-		cfg.MaxRetryBackoffMs = 5000
-	}
-	if cfg.MaxRetryBackoffMs < cfg.RetryBackoffMs {
-		cfg.MaxRetryBackoffMs = cfg.RetryBackoffMs
-	}
 }
 
 func (w *TraceWriter) Enqueue(ctx context.Context, spans []*protos.SpanInfo) error {

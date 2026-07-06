@@ -202,6 +202,10 @@ nfpms:
         dst: /usr/lib/crane/plugin/monitor.so
         file_info:
           mode: 0755
+      - src: build/plugin/trace.so
+        dst: /usr/lib/crane/plugin/trace.so
+        file_info:
+          mode: 0755
       - src: build/plugin/powerControl.so
         dst: /usr/lib/crane/plugin/powerControl.so
         file_info:
