@@ -44,6 +44,7 @@ If any error occurs, please refer to original commands.`,
 	}
 	wrappers = []Wrapper{
 		LSFWrapper{},
+		SGEWrapper{},
 		SlurmWrapper{},
 	}
 )

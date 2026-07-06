@@ -550,14 +550,15 @@ func DeleteLicenseResource(name string, server string, clusters string) error {
 	}
 }
 
-func ModifyAccount(params []ModifyParam, name string) error {
+func ModifyAccount(params []ModifyParam, partition string, name string) error {
 	var valueList []string
 	var err error
 
 	req := protos.ModifyAccountRequest{
-		Uid:   userUid,
-		Name:  name,
-		Force: FlagForce,
+		Uid:       userUid,
+		Name:      name,
+		Force:     FlagForce,
+		Partition: partition,
 	}
 
 	for _, param := range params {
