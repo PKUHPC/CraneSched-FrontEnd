@@ -125,6 +125,8 @@ func executeShowCommand(command *CControlCommand) error {
 		return executeShowReservationCommand(command)
 	case "lic":
 		return executeShowLicenseCommand(command)
+	case "trace":
+		return executeShowTraceCommand(command)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
@@ -208,8 +210,21 @@ func executeShowLicenseCommand(command *CControlCommand) error {
 	return nil
 }
 
+func executeShowTraceCommand(command *CControlCommand) error {
+	if err := ShowTraceConfig(); err != nil {
+		return util.WrapCraneErr(util.ErrorGeneric, "show trace failed: %s", err)
+	}
+	return nil
+}
+
 func executeUpdateCommand(command *CControlCommand) error {
 	kvParams := command.GetKVMaps()
+	for key := range kvParams {
+		if strings.EqualFold(key, "trace") {
+			delete(kvParams, key)
+			return executeUpdateTraceCommand(kvParams)
+		}
+	}
 
 	for key := range kvParams {
 		lowerKey := strings.ToLower(key)
@@ -343,6 +358,52 @@ func executeUpdateJobCommand(command *CControlCommand) error {
 	}
 
 	return craneError
+}
+
+func executeUpdateTraceCommand(kvParams map[string]string) error {
+	if len(kvParams) == 0 {
+		return util.NewCraneErr(
+			util.ErrorCmdArg,
+			"trace update requires enabled=<bool> or level=<basic|detailed|debug>")
+	}
+
+	var enabled *bool
+	level := ""
+	propagate := true
+	for key, value := range kvParams {
+		switch strings.ToLower(key) {
+		case "enabled":
+			parsed, err := strconv.ParseBool(value)
+			if err != nil {
+				return util.NewCraneErr(
+					util.ErrorCmdArg,
+					fmt.Sprintf("invalid enabled value: %s", value))
+			}
+			enabled = &parsed
+		case "level":
+			level = strings.ToLower(value)
+			switch level {
+			case "basic", "detailed", "debug":
+			default:
+				return util.NewCraneErr(
+					util.ErrorCmdArg,
+					fmt.Sprintf("invalid trace level: %s", value))
+			}
+		case "propagate", "propagatetocraned":
+			parsed, err := strconv.ParseBool(value)
+			if err != nil {
+				return util.NewCraneErr(
+					util.ErrorCmdArg,
+					fmt.Sprintf("invalid propagate value: %s", value))
+			}
+			propagate = parsed
+		default:
+			return util.NewCraneErr(
+				util.ErrorCmdArg, fmt.Sprintf("unknown trace attribute: %s", key))
+		}
+	}
+
+	return UpdateTraceConfig(enabled, level, propagate)
 }
 
 func executeUpdatePartitionCommand(command *CControlCommand) error {

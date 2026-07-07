@@ -102,7 +102,6 @@ func validateConfig(cfg *Config) error {
 	if cfg.DB.BufferSize <= 0 {
 		cfg.DB.BufferSize = 32
 	}
-
 	return nil
 }
 

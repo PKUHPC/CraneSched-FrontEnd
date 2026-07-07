@@ -25,6 +25,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
+	"strconv"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
@@ -106,9 +108,12 @@ var RootCmd = &cobra.Command{
 		// Prepare listeners based on configuration
 		listeners := make([]net.Listener, 0, 2)
 
-		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath, 0600)
+		unixSocket, err := util.GetUnixSocket(gPluginConfig.SockPath, 0660)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorGeneric, fmt.Sprintf("Failed to get UNIX socket: %s", err))
+		}
+		if err := setSocketGroup(gPluginConfig.SockPath, "crane"); err != nil {
+			log.Warnf("Failed to set UNIX socket group for %s: %v", gPluginConfig.SockPath, err)
 		}
 		listeners = append(listeners, unixSocket)
 		log.Infof("gRPC server listening on UNIX socket %s.", gPluginConfig.SockPath)
@@ -153,6 +158,20 @@ var RootCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func setSocketGroup(path string, groupName string) error {
+	group, err := user.LookupGroup(groupName)
+	if err != nil {
+		return err
+	}
+
+	gid, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return err
+	}
+
+	return os.Chown(path, -1, gid)
 }
 
 func init() {

@@ -22,6 +22,7 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -102,7 +103,81 @@ func QueryJobsInfo() (*protos.QueryJobsInfoReply, error) {
 	return reply, nil
 }
 
+func FillQueueStateSummaryReqByCobraFlags() (*protos.QueryQueueStateSummaryRequest, error) {
+	stateList, err := util.ParseInRamJobStatusList(FlagFilterStates)
+	if err != nil {
+		return nil, util.NewCraneErr(util.ErrorCmdArg, err.Error())
+	}
+	return &protos.QueryQueueStateSummaryRequest{FilterStates: stateList}, nil
+}
+
+func QueryQueueStateSummary() (*protos.QueryQueueStateSummaryReply, error) {
+	config := util.ParseConfig(FlagConfigFilePath)
+	stub = util.GetStubToCtldByConfig(config)
+
+	req, err := FillQueueStateSummaryReqByCobraFlags()
+	if err != nil {
+		return &protos.QueryQueueStateSummaryReply{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	reply, err := stub.QueryQueueStateSummary(ctx, req)
+	if err != nil {
+		util.GrpcErrorPrintf(err, "Failed to query queue state summary")
+		return nil, &util.CraneError{Code: util.ErrorNetwork}
+	}
+	return reply, nil
+}
+
+func QueryQueueStateSummaryOutput() error {
+	reply, err := QueryQueueStateSummary()
+	if err != nil {
+		return err
+	}
+
+	states := map[string]uint64{
+		protos.JobStatus_Pending.String():    0,
+		protos.JobStatus_Running.String():    0,
+		protos.JobStatus_Completing.String(): 0,
+	}
+	for _, stateCount := range reply.GetStateCounts() {
+		states[stateCount.GetState().String()] = stateCount.GetCount()
+	}
+
+	if FlagJson {
+		out := struct {
+			OK     bool              `json:"ok"`
+			Total  uint64            `json:"total"`
+			States map[string]uint64 `json:"states"`
+		}{
+			OK:     reply.GetOk(),
+			Total:  reply.GetTotalCount(),
+			States: states,
+		}
+		data, err := json.Marshal(out)
+		if err != nil {
+			return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to marshal queue count json: %v", err))
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	if !FlagNoHeader {
+		fmt.Println("STATE COUNT")
+	}
+	fmt.Printf("Total %d\n", reply.GetTotalCount())
+	for _, stateCount := range reply.GetStateCounts() {
+		fmt.Printf("%s %d\n", stateCount.GetState().String(), stateCount.GetCount())
+	}
+	return nil
+}
+
 func Query() error {
+	if FlagCount {
+		return QueryQueueStateSummaryOutput()
+	}
 	reply, err := QueryJobsInfo()
 	if err != nil {
 		return err
