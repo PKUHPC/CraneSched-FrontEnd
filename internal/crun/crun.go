@@ -43,6 +43,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -130,8 +131,9 @@ type StateMachineOfCrun struct {
 	jobLifecycleHook        JobLifecycleHook
 }
 type CforedReplyReceiver struct {
-	stream       protos.CraneForeD_CrunStreamClient
-	replyChannel chan ReplyReceiveItem
+	stream        protos.CraneForeD_CrunStreamClient
+	replyChannel  chan ReplyReceiveItem
+	expectedClose atomic.Bool
 }
 
 type JobLifecycleHook struct {
@@ -159,15 +161,22 @@ func (r *CforedReplyReceiver) StartReplyReceiveRoutine(stream protos.CraneForeD_
 	go r.ReplyReceiveRoutine()
 }
 
+func (r *CforedReplyReceiver) MarkExpectedClose() {
+	r.expectedClose.Store(true)
+}
+
 func (r *CforedReplyReceiver) ReplyReceiveRoutine() {
 	for {
 		cforedReply, err := r.stream.Recv()
+		if err == nil && cforedReply.Type == protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY {
+			r.MarkExpectedClose()
+		}
 		r.replyChannel <- ReplyReceiveItem{
 			reply: cforedReply,
 			err:   err,
 		}
 		if err != nil {
-			if err != io.EOF {
+			if err != io.EOF && !r.expectedClose.Load() {
 				log.Errorf("Failed to receive CforedReply: %s. "+
 					"Connection to Cfored is broken. "+
 					"ReplyReceiveRoutine is exiting...", err)
@@ -188,14 +197,18 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 }
 
 func (m *StateMachineOfCrun) Close() {
-	err := m.conn.Close()
-	if err != nil {
-		log.Errorf("Failed to close grpc conn: %s", err)
+	if m.cforedReplyReceiver != nil {
+		m.cforedReplyReceiver.MarkExpectedClose()
+	}
+	if m.conn != nil {
+		err := m.conn.Close()
+		if err != nil {
+			log.Errorf("Failed to close grpc conn: %s", err)
+		}
 	}
 
 	if FlagPty {
-		err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &m.savedPtyAttr)
-		if err != nil {
+		if err := termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &m.savedPtyAttr); err != nil {
 			log.Errorf("Failed to restore stdin attr: %s", err.Error())
 		}
 	}
@@ -759,6 +772,7 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 
 	case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
 		log.Debug("Job completed.")
+		m.cforedReplyReceiver.MarkExpectedClose()
 		m.state = End
 	default:
 		log.Errorf("Unexpected message type %s in WaitAck state.", cforedReply.Type.String())
