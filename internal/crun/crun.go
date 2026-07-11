@@ -26,7 +26,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 
 	"github.com/gogo/protobuf/proto"
@@ -1136,14 +1135,6 @@ func (m *StateMachineOfCrun) ParseFilePattern(pattern string) (string, bool, err
 	currentUser, err := user.LookupId(fmt.Sprintf("%d", uid))
 	if err != nil {
 		return pattern, true, fmt.Errorf("failed to lookup user by uid %d: %s", uid, err)
-	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		return pattern, true, fmt.Errorf("failed to get hostname:%s", err)
-	}
-	nodeId := slices.Index(m.cranedId, hostname)
-	if nodeId == -1 {
-		return pattern, true, fmt.Errorf("failed to find hostname %s in allocated craned nodes", hostname)
 	}
 	// User input two backslash , but we will only get one.
 	if strings.Contains(pattern, "\\") {
