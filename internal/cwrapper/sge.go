@@ -132,6 +132,11 @@ Currently supports a practical subset of qsub options that can be mapped to Cran
 			return cobra.ExactArgs(1)(cmd, args)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			if sgeHelpRequested(cmd) {
+				_ = cmd.Help()
+				os.Exit(util.ErrorSuccess)
+			}
+
 			cbatchArgs := make([]string, 0)
 
 			if FlagQsubA != "" {
@@ -246,6 +251,11 @@ func qdel() *cobra.Command {
 			return cobra.MinimumNArgs(1)(cmd, args)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			if sgeHelpRequested(cmd) {
+				_ = cmd.Help()
+				os.Exit(util.ErrorSuccess)
+			}
+
 			ccancelArgs := []string{strings.Join(args, ",")}
 			ccancel.RootCmd.SetArgs(ccancelArgs)
 			err := ccancel.RootCmd.Execute()
@@ -279,6 +289,11 @@ func qacct() *cobra.Command {
 			return cobra.NoArgs(cmd, args)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			if sgeHelpRequested(cmd) {
+				_ = cmd.Help()
+				os.Exit(util.ErrorSuccess)
+			}
+
 			cacctArgs := make([]string, 0)
 
 			if FlagQacctA != "" {
@@ -356,6 +371,11 @@ func qstat() *cobra.Command {
 		GroupID: "sge",
 		Args:    cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
+			if sgeHelpRequested(cmd) {
+				_ = cmd.Help()
+				os.Exit(util.ErrorSuccess)
+			}
+
 			if FlagQstatI && FlagQstatR {
 				log.Error("options -i and -r are mutually exclusive")
 				os.Exit(util.ErrorCmdArg)
