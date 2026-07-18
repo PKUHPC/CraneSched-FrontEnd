@@ -33,6 +33,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
+	grpccodes "google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 var (
@@ -44,8 +46,8 @@ const (
 	kCraneExitCodeBase     = 320
 )
 
-// QueryJob will query all pending, running and completed jobs
-func QueryJob() error {
+// QueryJob will query all pending, running and completed jobs.
+func QueryJob(maxLinesSpecified bool) error {
 	request := protos.QueryJobsInfoRequest{OptionIncludeCompletedJobs: true}
 
 	if FlagFilterStartTime != "" {
@@ -148,6 +150,10 @@ func QueryJob() error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
+		if grpcstatus.Code(err) == grpccodes.ResourceExhausted {
+			return util.NewCraneErr(util.ErrorNetwork,
+				"No results returned: response exceeded the gRPC limit. Please reduce -m or narrow the query scope.")
+		}
 		util.GrpcErrorPrintf(err, "Failed to show jobs")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
@@ -155,6 +161,7 @@ func QueryJob() error {
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
+			printIncompleteQueryWarning(reply.GetHasMore(), maxLinesSpecified)
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
@@ -279,7 +286,22 @@ func QueryJob() error {
 
 	table.AppendBulk(tableData)
 	table.Render()
+	printIncompleteQueryWarning(reply.GetHasMore(), maxLinesSpecified)
 	return nil
+}
+
+func printIncompleteQueryWarning(hasMore, maxLinesSpecified bool) {
+	if !hasMore {
+		return
+	}
+
+	if maxLinesSpecified {
+		fmt.Fprintln(os.Stderr,
+			"More matching records exist; this query did not return all results.")
+		return
+	}
+	fmt.Fprintln(os.Stderr,
+		"Query result is incomplete. Please narrow the filter or explicitly adjust -m.")
 }
 
 // JobOrStep represents either a job (JobInfo) or a step (StepInfo)
