@@ -59,6 +59,11 @@ func (w SGEWrapper) HasCommand(cmd string) bool {
 }
 
 func (w SGEWrapper) Preprocess() error {
+	subCommand := ""
+	if len(os.Args) > 1 {
+		subCommand = os.Args[1]
+	}
+
 	for i, v := range os.Args {
 		// Skip program name and subcommand
 		if i <= 1 {
@@ -73,6 +78,11 @@ func (w SGEWrapper) Preprocess() error {
 		case "-?":
 			os.Args[i] = "--help"
 			continue
+		case "-h":
+			if sgeHelpShortAliasEnabled(subCommand) {
+				os.Args[i] = "--help"
+				continue
+			}
 		}
 
 		if len(v) >= 2 && v[0] == '-' && v[1] != '-' {
@@ -81,6 +91,10 @@ func (w SGEWrapper) Preprocess() error {
 	}
 
 	return nil
+}
+
+func sgeHelpShortAliasEnabled(subCommand string) bool {
+	return slices.Contains([]string{"qacct", "qdel", "qstat"}, subCommand)
 }
 
 var (
