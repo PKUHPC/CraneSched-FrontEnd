@@ -24,9 +24,13 @@ import (
 )
 
 func showHelp() {
-	help := `Crane Account Manager (cacctmgr) - version ` + util.Version() + `
+	commandName := "cacctmgr"
+	if util.IsSlurmOutputMode() {
+		commandName = "sacctmgr"
+	}
+	help := fmt.Sprintf(`Crane Account Manager (%[1]s) - version %[2]s
   
-  USAGE: cacctmgr <ACTION> <ENTITY> [OPTIONS]
+  USAGE: %[1]s <ACTION> <ENTITY> [OPTIONS]
   
   ACTIONS:
 	add       - Create a new account, user, or QoS
@@ -70,7 +74,7 @@ func showHelp() {
       (If not specified, all accounts will be displayed)
       format=<Name,Description,AllowedPartition,Users,DefaultQos,AllowedQosList,
               Coordinators,Blocked> (Spelling must be correct, case is not important)
-              For Example: cacctmgr show account format=name,users,coordinators
+              For Example: %[1]s show account format=name,users,coordinators
       --partition-limit, -P      Also display partition resource limits for each account
   
 	add user <name> Account=<account> [Coordinator=true|false] [Level=<level>] 
@@ -98,7 +102,7 @@ func showHelp() {
       (If not specified, all users will be displayed)
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
               AdminLevel,Blocked> (Spelling must be correct, case is not important)
-              For Example: cacctmgr show user format=account,defaultqos,adminlevel
+              For Example: %[1]s show user format=account,defaultqos,adminlevel
       --partition-limit, -P      Also display partition resource limits for each user
 
 	add wckey <name> user=<user>
@@ -214,7 +218,7 @@ func showHelp() {
               MaxSubmitJobsPerUser,MaxSubmitJobsPerAccount,MaxTresPerUser,MaxTresPerAccount,
               MaxTres,MaxJobs,MaxSubmitJobs,MaxWall,Flags,MaxTimeLimitPerJob,Preempt,PreemptMode>
               (Spelling must be correct, case is not important)
-      For Example: cacctmgr show qos format=name,Priority,Preempt,PreemptMode
+      For Example: %[1]s show qos format=name,Priority,Preempt,PreemptMode
 
     show transaction [Actor=<actor>] [Target=<target>] [Action=<action>] [Info=<info>] [StartTime=<start_time>]
     Display transaction log records.
@@ -309,6 +313,6 @@ func showHelp() {
 	--partition-limit, -P   Display partition resource limits (for show account/user)
 
   NOTE: Parameters in [] are optional. Parameters in <> should be replaced with actual values.
-  `
+`, commandName, util.Version())
 	fmt.Println(help)
 }
