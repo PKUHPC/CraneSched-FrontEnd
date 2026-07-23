@@ -167,7 +167,7 @@ func ParseCmdArgs(args []string) {
 }
 
 func executeCommand(command *CAcctMgrCommand) error {
-	config := util.ParseConfig(FlagConfigFilePath)
+	config = util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	userUid = uint32(os.Getuid())
 
