@@ -22,12 +22,10 @@ import (
 	"CraneFrontEnd/api"
 	"CraneFrontEnd/internal/util"
 	"fmt"
-	"os"
 	"path/filepath"
 	"plugin"
 
 	log "github.com/sirupsen/logrus"
-	yaml "gopkg.in/yaml.v3"
 )
 
 type PluginLoaded struct {
@@ -43,15 +41,12 @@ var (
 )
 
 func ParsePluginConfig(basedir string, path string) error {
-	config, err := os.ReadFile(path)
+	config, err := util.ParsePluginConfig(path)
 	if err != nil {
 		return err
 	}
 
-	// Parse plugin config directly from standalone plugin.yaml file
-	if err = yaml.Unmarshal(config, &gPluginConfig); err != nil {
-		return err
-	}
+	gPluginConfig = *config
 	if gPluginConfig.LogLevel == "" {
 		gPluginConfig.LogLevel = "info"
 	}

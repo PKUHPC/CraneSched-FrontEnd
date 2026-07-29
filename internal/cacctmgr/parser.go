@@ -393,6 +393,13 @@ func preParseGlobalFlags(args []string) []string {
 				FlagConfigFilePath = args[i+1]
 				i++
 			}
+		case "-p", "--plugin-config":
+			if hasValueInSameArg {
+				FlagPluginConfigFilePath = flagValue
+			} else if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				FlagPluginConfigFilePath = args[i+1]
+				i++
+			}
 		case "--force", "-f":
 			FlagForce = true
 		case "--partition-limit", "-P":
