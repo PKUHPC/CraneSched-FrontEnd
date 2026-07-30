@@ -303,6 +303,7 @@ func showHelp() {
   GLOBAL OPTIONS:
 	--help, -h              Display this help message
 	--config, -C            Specify config file path (default: /etc/crane/config.yaml)
+	--plugin-config, -p     Specify plugin config file path (default: /etc/crane/plugin.yaml)
 	--json, -J              Format output as JSON
 	--version, -v           Display program version
 	--force, -f             Force operation without confirmation

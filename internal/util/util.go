@@ -40,7 +40,6 @@ type Config struct {
 	JobLifecycleHook JobLifecycleHookConfig `yaml:"JobLifecycleHook"`
 
 	Container ContainerConfig `yaml:"Container"`
-	Plugin    PluginConfig    `yaml:"Plugin"`
 	Cfored    CforedConfig    `yaml:"Cfored"`
 }
 
