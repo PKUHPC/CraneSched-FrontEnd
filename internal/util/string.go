@@ -111,6 +111,20 @@ func ParseConfig(configFilePath string) *Config {
 	return config
 }
 
+func ParsePluginConfig(configFilePath string) (*PluginConfig, error) {
+	confFile, err := os.ReadFile(configFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &PluginConfig{}
+	if err = yaml.Unmarshal(confFile, config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
 func ParseMemStringAsByte(mem string) (uint64, error) {
 	re := regexp.MustCompile(`^([0-9]+(\.?[0-9]*))([MmGgKkB]?)$`)
 	result := re.FindAllStringSubmatch(mem, -1)
