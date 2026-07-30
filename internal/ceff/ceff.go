@@ -77,13 +77,13 @@ type CeffJobInfo struct {
 var isFirstCall = true //Used for multi-job print
 
 // Connect to cplugind for querying efficiency data
-func GetPlugindClient(config *util.Config) (protos.PluginQueryServiceClient, *grpc.ClientConn, error) {
-	if !config.Plugin.Enabled {
+func GetPlugindClient(config *util.Config, pluginConfig *util.PluginConfig) (protos.PluginQueryServiceClient, *grpc.ClientConn, error) {
+	if !pluginConfig.Enabled {
 		return nil, nil, util.NewCraneErr(util.ErrorCmdArg, "Plugin is not enabled")
 	}
 
-	addr := config.Plugin.ListenAddress
-	port := config.Plugin.ListenPort
+	addr := pluginConfig.ListenAddress
+	port := pluginConfig.ListenPort
 	if addr == "" || port == "" {
 		return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
 			"PlugindListenAddress and PlugindListenPort must be configured for ceff")

@@ -20,13 +20,15 @@ package ceff
 
 import (
 	"CraneFrontEnd/internal/util"
+	"fmt"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	FlagConfigFilePath string
-	FlagJson           bool
+	FlagConfigFilePath       string
+	FlagPluginConfigFilePath string
+	FlagJson                 bool
 
 	RootCmd = &cobra.Command{
 		Use:     "ceff [flags] [job_id, ...]",
@@ -37,8 +39,13 @@ var (
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)
+			pluginConfig, err := util.ParsePluginConfig(FlagPluginConfigFilePath)
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg,
+					fmt.Sprintf("Failed to parse plugin config from %s: %v", FlagPluginConfigFilePath, err))
+			}
 			stub = util.GetStubToCtldByConfig(config)
-			client, conn, err := GetPlugindClient(config)
+			client, conn, err := GetPlugindClient(config, pluginConfig)
 			if err != nil {
 				return err
 			}
@@ -70,6 +77,8 @@ func init() {
 	RootCmd.SetVersionTemplate(util.VersionTemplate())
 	RootCmd.PersistentFlags().StringVarP(&FlagConfigFilePath, "config", "C",
 		util.DefaultConfigPath, "Path to configuration file")
+	RootCmd.PersistentFlags().StringVarP(&FlagPluginConfigFilePath, "plugin-config", "p",
+		util.DefaultPluginConfigPath, "Path to plugin configuration file")
 	RootCmd.PersistentFlags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	util.InitCraneLogger()
 }

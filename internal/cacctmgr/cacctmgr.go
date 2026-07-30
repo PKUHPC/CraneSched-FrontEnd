@@ -974,13 +974,13 @@ func UnblockAccountOrUser(value string, entityType protos.EntityType, account st
 }
 
 // GetPlugindClient connects to cplugind for querying event data via RPC
-func GetPlugindClient(config *util.Config) (protos.PluginQueryServiceClient, *grpc.ClientConn, error) {
-	if !config.Plugin.Enabled {
+func GetPlugindClient(config *util.Config, pluginConfig *util.PluginConfig) (protos.PluginQueryServiceClient, *grpc.ClientConn, error) {
+	if !pluginConfig.Enabled {
 		return nil, nil, util.NewCraneErr(util.ErrorCmdArg, "Plugin is not enabled")
 	}
 
-	addr := config.Plugin.ListenAddress
-	port := config.Plugin.ListenPort
+	addr := pluginConfig.ListenAddress
+	port := pluginConfig.ListenPort
 	if addr == "" || port == "" {
 		return nil, nil, util.NewCraneErr(util.ErrorCmdArg,
 			"PlugindListenAddress and PlugindListenPort must be configured")
@@ -1104,8 +1104,14 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) error {
 	}
 	// If no nodes specified, nodeNames will be empty and query all nodes
 
+	pluginConfig, err := util.ParsePluginConfig(FlagPluginConfigFilePath)
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg,
+			fmt.Sprintf("Failed to parse plugin config from %s: %v", FlagPluginConfigFilePath, err))
+	}
+
 	// Connect to cplugind
-	pluginClient, pluginConn, err := GetPlugindClient(config)
+	pluginClient, pluginConn, err := GetPlugindClient(config, pluginConfig)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorNetwork, "Failed to connect to cplugind: %v", err)
 	}
