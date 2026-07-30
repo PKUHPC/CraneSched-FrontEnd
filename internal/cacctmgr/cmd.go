@@ -66,10 +66,11 @@ var (
 	FlagUserPartitions  []string
 	FlagUserQosList     []string
 
-	FlagForce          bool
-	FlagFull           bool
-	FlagJson           bool
-	FlagConfigFilePath string = util.DefaultConfigPath
+	FlagForce                bool
+	FlagFull                 bool
+	FlagJson                 bool
+	FlagConfigFilePath       string = util.DefaultConfigPath
+	FlagPluginConfigFilePath string = util.DefaultPluginConfigPath
 
 	// These flags are implemented,
 	// but not added to any cmd!
