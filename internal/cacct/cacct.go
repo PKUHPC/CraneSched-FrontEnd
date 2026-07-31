@@ -33,8 +33,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
-	grpccodes "google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
 )
 
 var (
@@ -150,10 +148,6 @@ func QueryJob(maxLinesSpecified bool) error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		if grpcstatus.Code(err) == grpccodes.ResourceExhausted {
-			return util.NewCraneErr(util.ErrorNetwork,
-				"No results returned: response exceeded the gRPC limit. Please reduce -m or narrow the query scope.")
-		}
 		util.GrpcErrorPrintf(err, "Failed to show jobs")
 		return &util.CraneError{Code: util.ErrorNetwork}
 	}
