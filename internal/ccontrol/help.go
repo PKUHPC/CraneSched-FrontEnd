@@ -116,6 +116,13 @@ COMMANDS:
     user: User to associate with the reservation
     nodeCnt: Number of nodes to reserve (valid when nodes is not specified)
 
+  create node <nodelist> Cpu=<count> Memory=<size> Sockets=<count> Partitions=<list>
+    Create preconfigured dynamic nodes without restarting CraneCtld.
+    Memory accepts K, M, G, or B suffixes. Partitions is a comma-separated list.
+
+  delete node <nodelist>
+    Delete offline dynamic nodes that are no longer referenced by jobs or reservations.
+
   delete reservation <name>
     Delete an existing reservation.
 

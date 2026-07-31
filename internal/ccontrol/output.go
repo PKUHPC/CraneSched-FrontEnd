@@ -208,16 +208,20 @@ func printNodeDetails(node *protos.CranedInfo) {
 	memInfo := formatMemInfo(node)
 	gresInfo := formatGresInfo(node)
 
+	fmt.Printf("NodeName=%v State=%v %s\n", node.Hostname, stateStr, cpuInfo)
+	if node.GetDynamic() {
+		fmt.Printf("\tDynamic=true Generation=%d DynamicState=%s\n",
+			node.GetGeneration(),
+			strings.TrimPrefix(node.GetDynamicState().String(), "DYNAMIC_NODE_RUNTIME_STATE_"))
+	}
 	fmt.Printf(
-		"NodeName=%v State=%v %s\n"+
-			"\t%s\n"+
+		"\t%s\n"+
 			"\t%s\n"+
 			"\tSockets=%d\n"+
 			"\tPartition=%s RunningJob=%d Version=%s\n"+
 			"\tOs=%s\n"+
 			"\tBootTime=%s CranedStartTime=%s\n"+
 			"\tLastBusyTime=%s\n",
-		node.Hostname, stateStr, cpuInfo,
 		memInfo,
 		gresInfo,
 		node.GetNodeTopoInfo().GetSockets(),

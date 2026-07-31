@@ -558,6 +558,68 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 	return SummarizeReply(reply)
 }
 
+func CreateNodes(nodeRegex string, cpuCount uint32, memoryBytes uint64,
+	sockets uint32, partitionNames []string) error {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok || len(nodeNames) == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", nodeRegex))
+	}
+
+	req := &protos.CreateNodesRequest{
+		Uid:       userUid,
+		NodeNames: nodeNames,
+		Spec: &protos.DynamicNodeSpec{
+			CpuCount:    cpuCount,
+			MemoryBytes: memoryBytes,
+			Sockets:     sockets,
+		},
+		PartitionNames: partitionNames,
+	}
+	reply, err := stub.CreateNodes(context.Background(), req)
+	if err != nil {
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to create nodes")
+	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return nil
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to create nodes: %s.", reply.GetReason()))
+	}
+
+	fmt.Printf("Nodes %s created successfully.\n", strings.Join(nodeNames, ","))
+	return nil
+}
+
+func DeleteNodes(nodeRegex string) error {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok || len(nodeNames) == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", nodeRegex))
+	}
+
+	req := &protos.DeleteNodesRequest{Uid: userUid, NodeNames: nodeNames}
+	reply, err := stub.DeleteNodes(context.Background(), req)
+	if err != nil {
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to delete nodes")
+	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return nil
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete nodes: %s.", reply.GetReason()))
+	}
+
+	fmt.Printf("Nodes %s deleted successfully.\n", strings.Join(nodeNames, ","))
+	return nil
+}
+
 func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) error {
 	var accountList []string
 	accountList, _ = util.ParseStringParamList(accounts, ",")

@@ -525,11 +525,65 @@ func executeResumeCommand(command *CControlCommand) error {
 func executeCreateCommand(command *CControlCommand) error {
 	entity := command.GetEntity()
 	switch entity {
+	case "node":
+		return executeCreateNodeCommand(command)
 	case "reservation":
 		return executeCreateReservationCommand(command)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
+}
+
+func executeCreateNodeCommand(command *CControlCommand) error {
+	nodeRegex := command.GetID()
+	if nodeRegex == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, "no node name specified")
+	}
+
+	kvParams := command.GetKVMaps()
+	if err := checkEmptyKVParams(kvParams, []string{"cpu", "memory", "sockets", "partitions"}); err != nil {
+		return err
+	}
+
+	var cpuCount uint32
+	var memoryBytes uint64
+	var sockets uint32
+	var partitionNames []string
+	for key, value := range kvParams {
+		switch strings.ToLower(key) {
+		case "cpu":
+			parsed, err := strconv.ParseUint(value, 10, 32)
+			if err != nil || parsed == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid CPU value: %s", value))
+			}
+			cpuCount = uint32(parsed)
+		case "memory":
+			parsed, err := util.ParseMemStringAsByte(value)
+			if err != nil || parsed == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid memory value: %s", value))
+			}
+			memoryBytes = parsed
+		case "sockets":
+			parsed, err := strconv.ParseUint(value, 10, 32)
+			if err != nil || parsed == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid sockets value: %s", value))
+			}
+			sockets = uint32(parsed)
+		case "partitions":
+			parsed, err := util.ParseStringParamList(value, ",")
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid partitions value: %s", value))
+			}
+			partitionNames = parsed
+		default:
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown node attribute: %s", key))
+		}
+	}
+
+	if sockets > cpuCount {
+		return util.NewCraneErr(util.ErrorCmdArg, "sockets cannot exceed CPU count")
+	}
+	return CreateNodes(nodeRegex, cpuCount, memoryBytes, sockets, partitionNames)
 }
 
 func executeCreateReservationCommand(command *CControlCommand) error {
@@ -579,11 +633,21 @@ func executeCreateReservationCommand(command *CControlCommand) error {
 func executeDeleteCommand(command *CControlCommand) error {
 	entity := command.GetEntity()
 	switch entity {
+	case "node":
+		return executeDeleteNodeCommand(command)
 	case "reservation":
 		return executeDeleteReservationCommand(command)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
+}
+
+func executeDeleteNodeCommand(command *CControlCommand) error {
+	nodeRegex := command.GetID()
+	if nodeRegex == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, "no node name specified")
+	}
+	return DeleteNodes(nodeRegex)
 }
 
 func executeDeleteReservationCommand(command *CControlCommand) error {
