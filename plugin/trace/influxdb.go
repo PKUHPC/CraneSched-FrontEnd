@@ -2,9 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"os"
+	"regexp"
 	"sort"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"CraneFrontEnd/generated/protos"
@@ -14,8 +19,18 @@ import (
 )
 
 const (
-	maxRetries    = 3
-	retryInterval = 5 * time.Second
+	maxRetries           = 3
+	retryInterval        = 5 * time.Second
+	flowTraceSpanPrefix  = "flow/v1/"
+	flowEnvironmentIDEnv = "CRANE_EXECUTION_FLOW_ENVIRONMENT_ID"
+)
+
+var (
+	flowIDTagPattern            = regexp.MustCompile(`^[0-9a-f]{32}$`)
+	flowSpanIDTagPattern        = regexp.MustCompile(`^[0-9a-f]{16}$`)
+	flowEnvironmentIDTagPattern = regexp.MustCompile(
+		`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`,
+	)
 )
 
 type TraceStore interface {
@@ -25,13 +40,26 @@ type TraceStore interface {
 }
 
 type InfluxTraceStore struct {
-	client            influxdb2.Client
-	org               string
-	traceBucket       string
-	traceCoreBucket   string
-	traceDetailBucket string
-	traceErrorBucket  string
-	traceShardBuckets []string
+	client             influxdb2.Client
+	org                string
+	traceBucket        string
+	traceCoreBucket    string
+	traceDetailBucket  string
+	traceErrorBucket   string
+	traceShardBuckets  []string
+	flowEnvironmentID  string
+	rejectedSpanWrites atomic.Uint64
+}
+
+type flowPointValidationError struct {
+	reason  string
+	message string
+}
+
+func (e *flowPointValidationError) Error() string { return e.message }
+
+func newFlowPointValidationError(reason, message string) error {
+	return &flowPointValidationError{reason: reason, message: message}
 }
 
 var coreTraceSpanNames = map[string]struct{}{
@@ -51,8 +79,12 @@ func NewTraceStore(cfg *Config) (TraceStore, error) {
 }
 
 func NewInfluxTraceStore(cfg *Config) (*InfluxTraceStore, error) {
+	flowEnvironmentID, err := executionFlowEnvironmentIDFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
 	var client influxdb2.Client
-	var err error
 
 	for i := 0; i < maxRetries; i++ {
 		client = influxdb2.NewClient(cfg.DB.InfluxDB.URL, cfg.DB.InfluxDB.Token)
@@ -82,6 +114,7 @@ func NewInfluxTraceStore(cfg *Config) (*InfluxTraceStore, error) {
 		traceDetailBucket: cfg.DB.InfluxDB.TraceDetailBucket,
 		traceErrorBucket:  cfg.DB.InfluxDB.TraceErrorBucket,
 		traceShardBuckets: append([]string(nil), cfg.DB.InfluxDB.TraceShardBuckets...),
+		flowEnvironmentID: flowEnvironmentID,
 	}
 
 	for _, bucket := range store.traceBuckets() {
@@ -102,39 +135,18 @@ func (s *InfluxTraceStore) SaveSpansToBucket(bucket string, spans []*protos.Span
 		bucket = s.traceBucket
 	}
 
+	points, err := s.influxPointsForSpans(bucket, spans)
+	if err != nil {
+		return err
+	}
+	if len(points) == 0 {
+		return nil
+	}
+
 	start := time.Now()
 	writeAPI := s.client.WriteAPIBlocking(s.org, bucket)
 	ctx := context.Background()
-	points := make([]*write.Point, 0, len(spans))
-
-	for _, span := range spans {
-		tags := map[string]string{
-			"name": span.Name,
-		}
-		if span.ServiceName != "" {
-			tags["service"] = span.ServiceName
-		}
-
-		startTime := span.StartTime.AsTime()
-		endTime := span.EndTime.AsTime()
-		duration := endTime.Sub(startTime).Microseconds()
-
-		fields := map[string]interface{}{
-			"trace_id":       span.TraceId,
-			"span_id":        span.SpanId,
-			"parent_span_id": span.ParentSpanId,
-			"duration_us":    duration,
-		}
-
-		for k, v := range span.Attributes {
-			fields[k] = v
-		}
-
-		point := influxdb2.NewPoint("spans", tags, fields, endTime)
-		points = append(points, point)
-	}
-
-	if err := writeAPI.WritePoint(ctx, points...); err != nil {
+	if err = writeAPI.WritePoint(ctx, points...); err != nil {
 		log.Errorf("Failed to write %d spans to InfluxDB bucket=%s: %v", len(points), bucket, err)
 		return fmt.Errorf("failed to write spans to bucket %s: %v", bucket, err)
 	}
@@ -148,13 +160,158 @@ func (s *InfluxTraceStore) SaveSpansToBucket(bucket string, spans []*protos.Span
 	return nil
 }
 
+func (s *InfluxTraceStore) influxPointsForSpans(
+	bucket string,
+	spans []*protos.SpanInfo,
+) ([]*write.Point, error) {
+	points := make([]*write.Point, 0, len(spans))
+	for _, span := range spans {
+		point, err := influxPointForSpanWithEnvironment(span, s.flowEnvironmentID)
+		if err == nil {
+			points = append(points, point)
+			continue
+		}
+
+		var validationError *flowPointValidationError
+		if !errors.As(err, &validationError) {
+			return nil, fmt.Errorf("failed to construct InfluxDB point: %w", err)
+		}
+
+		rejected := s.rejectedSpanWrites.Add(1)
+		if rejected == 1 || rejected%128 == 0 {
+			// Do not log span attributes or rejected values. Point validation is
+			// permanent, so retrying the same span would block this writer shard.
+			log.Warnf(
+				"Rejected invalid execution-flow span write bucket=%s reason=%s rejected_writes=%d",
+				bucket,
+				validationError.reason,
+				rejected,
+			)
+		}
+	}
+	return points, nil
+}
+
+func influxPointForSpan(span *protos.SpanInfo) *write.Point {
+	point, err := influxPointForSpanWithEnvironment(span, "")
+	if err != nil {
+		panic(err)
+	}
+	return point
+}
+
+func influxPointForSpanWithEnvironment(
+	span *protos.SpanInfo,
+	flowEnvironmentID string,
+) (*write.Point, error) {
+	tags := map[string]string{
+		"name": span.Name,
+	}
+	if span.ServiceName != "" {
+		tags["service"] = span.ServiceName
+	}
+
+	startTime := span.StartTime.AsTime()
+	endTime := span.EndTime.AsTime()
+	isFlowSpan := strings.HasPrefix(span.Name, flowTraceSpanPrefix)
+	duration := endTime.Sub(startTime).Microseconds()
+	if isFlowSpan {
+		duration = 0
+	}
+	fields := map[string]interface{}{
+		"trace_id":       span.TraceId,
+		"span_id":        span.SpanId,
+		"parent_span_id": span.ParentSpanId,
+		"duration_us":    duration,
+	}
+	if isFlowSpan {
+		if flowEnvironmentID == "" {
+			return nil, newFlowPointValidationError(
+				"missing_flow_environment_id",
+				fmt.Sprintf("%s is required for execution-flow spans", flowEnvironmentIDEnv),
+			)
+		}
+		if !flowEnvironmentIDTagPattern.MatchString(flowEnvironmentID) {
+			return nil, newFlowPointValidationError(
+				"invalid_flow_environment_id",
+				fmt.Sprintf(
+					"%s must match %s",
+					flowEnvironmentIDEnv,
+					flowEnvironmentIDTagPattern.String(),
+				),
+			)
+		}
+		if !flowSpanIDTagPattern.MatchString(span.SpanId) {
+			return nil, newFlowPointValidationError(
+				"invalid_span_id",
+				fmt.Sprintf("flow span_id must match %s", flowSpanIDTagPattern.String()),
+			)
+		}
+		if callerValue, ok := span.Attributes["flow_environment_id"]; ok &&
+			callerValue != flowEnvironmentID {
+			return nil, newFlowPointValidationError(
+				"flow_environment_id_mismatch",
+				"flow_environment_id does not match process environment",
+			)
+		}
+		tags["flow_environment_id"] = flowEnvironmentID
+		// Influx identifies a point by measurement, tag set, and timestamp.
+		// Preserve the real event time and use the validated span ID to
+		// distinguish flow points emitted at the same instant.
+		tags["span_id"] = span.SpanId
+		delete(fields, "span_id")
+		fields["event_time_unix_nano"] = endTime.UnixNano()
+	}
+
+	for key, value := range span.Attributes {
+		if isFlowSpan && (key == "flow_environment_id" || key == "span_id") {
+			continue
+		}
+		if tagValue, ok := flowAttributeTag(span.Name, key, value); ok {
+			tags[key] = tagValue
+			continue
+		}
+		fields[key] = value
+	}
+
+	return influxdb2.NewPoint("spans", tags, fields, endTime), nil
+}
+
+func executionFlowEnvironmentIDFromEnv() (string, error) {
+	value, present := os.LookupEnv(flowEnvironmentIDEnv)
+	if !present {
+		return "", nil
+	}
+	if !flowEnvironmentIDTagPattern.MatchString(value) {
+		return "", fmt.Errorf(
+			"%s must match %s",
+			flowEnvironmentIDEnv,
+			flowEnvironmentIDTagPattern.String(),
+		)
+	}
+	return value, nil
+}
+
+func flowAttributeTag(spanName, key, value string) (string, bool) {
+	if !strings.HasPrefix(spanName, flowTraceSpanPrefix) {
+		return "", false
+	}
+	switch key {
+	case "flow_id":
+		if flowIDTagPattern.MatchString(value) {
+			return value, true
+		}
+	}
+	return "", false
+}
+
 func (s *InfluxTraceStore) TraceBucketsForSpan(span *protos.SpanInfo) []string {
 	if span == nil {
 		return []string{s.traceBucket}
 	}
 
 	primary := s.traceBucket
-	if _, ok := coreTraceSpanNames[span.Name]; ok {
+	if isCoreTraceSpanName(span.Name) {
 		if len(s.traceShardBuckets) > 0 {
 			primary = s.traceShardBuckets[stableTraceShardKey(span)%uint32(len(s.traceShardBuckets))]
 		} else if s.traceCoreBucket != "" {
@@ -182,6 +339,14 @@ func (s *InfluxTraceStore) TraceBucketsForSpan(span *protos.SpanInfo) []string {
 		primary = s.traceDetailBucket
 	}
 	return []string{primary}
+}
+
+func isCoreTraceSpanName(name string) bool {
+	if strings.HasPrefix(name, flowTraceSpanPrefix) {
+		return true
+	}
+	_, ok := coreTraceSpanNames[name]
+	return ok
 }
 
 func spanShouldWriteErrorBucket(span *protos.SpanInfo) bool {
