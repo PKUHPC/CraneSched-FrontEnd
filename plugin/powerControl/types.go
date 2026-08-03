@@ -34,6 +34,7 @@ type NetworkInterface struct {
 
 type PowerTool interface {
 	RegisterNode(nodeID string, interfaces []NetworkInterface) error
+	UnregisterNode(nodeID string)
 	GetPowerState(nodeID string) (bool, error)
 	CheckNodeAlive(nodeID string) bool
 

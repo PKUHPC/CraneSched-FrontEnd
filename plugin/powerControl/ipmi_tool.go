@@ -44,8 +44,8 @@ func NewIPMITool(config *Config) *IPMITool {
 }
 
 func (i *IPMITool) RegisterNode(nodeID string, interfaces []NetworkInterface) error {
-	if nodeID == "" || len(interfaces) == 0 {
-		return fmt.Errorf("nodeID and interfaces are required")
+	if nodeID == "" {
+		return fmt.Errorf("nodeID is required")
 	}
 
 	i.mu.Lock()
@@ -55,13 +55,29 @@ func (i *IPMITool) RegisterNode(nodeID string, interfaces []NetworkInterface) er
 	if !exists {
 		return fmt.Errorf("no BMC mapping found for node %s", nodeID)
 	}
+	if info.BMCHost == "" {
+		return fmt.Errorf("empty BMC mapping for node %s", nodeID)
+	}
 
-	info.Interfaces = interfaces
-	i.hostInfos[nodeID] = info
+	if len(interfaces) != 0 {
+		info.Interfaces = interfaces
+		i.hostInfos[nodeID] = info
+	}
 
-	log.Infof("Node registered: %s (BMC: %s) with %d valid interfaces",
-		nodeID, info.BMCHost, len(interfaces))
+	log.Infof("Node registered: %s (BMC: %s)", nodeID, info.BMCHost)
 	return nil
+}
+
+func (i *IPMITool) UnregisterNode(nodeID string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	info, exists := i.hostInfos[nodeID]
+	if !exists {
+		return
+	}
+	info.Interfaces = nil
+	i.hostInfos[nodeID] = info
 }
 
 func (i *IPMITool) PowerOn(nodeID string) error {
@@ -130,22 +146,18 @@ func (i *IPMITool) WakeUp(nodeID string) error {
 	if !ok {
 		return fmt.Errorf("no configuration found for node %s", nodeID)
 	}
+	if len(info.Interfaces) == 0 {
+		return fmt.Errorf("no network interface found for node %s", nodeID)
+	}
 
+	sent := false
+	var lastErr error
 	for _, iface := range info.Interfaces {
-		mac := make([]byte, 6)
-		macParts := strings.Split(iface.MAC, ":")
-		if len(macParts) != 6 {
-			log.Errorf("invalid MAC address format: %s", iface.MAC)
+		mac, err := net.ParseMAC(iface.MAC)
+		if err != nil || len(mac) != 6 {
+			lastErr = fmt.Errorf("invalid MAC address %q", iface.MAC)
+			log.Error(lastErr)
 			continue
-		}
-
-		for i := 0; i < 6; i++ {
-			var value byte
-			if _, err := fmt.Sscanf(macParts[i], "%02x", &value); err != nil {
-				log.Errorf("invalid MAC address part: %s", macParts[i])
-				continue
-			}
-			mac[i] = value
 		}
 
 		packet := make([]byte, 102)
@@ -158,21 +170,30 @@ func (i *IPMITool) WakeUp(nodeID string) error {
 
 		conn, err := net.Dial("udp", "255.255.255.255:9")
 		if err != nil {
-			log.Errorf("failed to create UDP connection: %v", err)
+			lastErr = fmt.Errorf("failed to create UDP connection: %w", err)
+			log.Error(lastErr)
 			continue
 		}
-		defer conn.Close()
 
 		_, err = conn.Write(packet)
+		closeErr := conn.Close()
 		if err != nil {
-			log.Errorf("failed to send WoL packet: %v", err)
+			lastErr = fmt.Errorf("failed to send WoL packet: %w", err)
+			log.Error(lastErr)
 			continue
+		}
+		sent = true
+		if closeErr != nil {
+			log.Warnf("failed to close WoL connection: %v", closeErr)
 		}
 
 		log.Infof("Wake-on-LAN packet sent to %s (%s)", nodeID, iface.MAC)
 	}
 
-	return nil
+	if sent {
+		return nil
+	}
+	return fmt.Errorf("failed to send Wake-on-LAN packet for node %s: %w", nodeID, lastErr)
 }
 
 func (i *IPMITool) Sleep(nodeID string) error {
@@ -182,6 +203,9 @@ func (i *IPMITool) Sleep(nodeID string) error {
 
 	if !ok {
 		return fmt.Errorf("no configuration found for node %s", nodeID)
+	}
+	if len(info.Interfaces) == 0 {
+		return fmt.Errorf("no network interface found for node %s", nodeID)
 	}
 
 	sshCmd := exec.Command("sshpass", "-p", i.sshPass,
@@ -230,7 +254,7 @@ func (i *IPMITool) CheckNodeAlive(nodeID string) bool {
 	info, ok := i.hostInfos[nodeID]
 	i.mu.RUnlock()
 
-	if !ok {
+	if !ok || len(info.Interfaces) == 0 {
 		return false
 	}
 

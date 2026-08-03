@@ -210,9 +210,27 @@ func printNodeDetails(node *protos.CranedInfo) {
 
 	fmt.Printf("NodeName=%v State=%v %s\n", node.Hostname, stateStr, cpuInfo)
 	if node.GetDynamic() {
-		fmt.Printf("\tDynamic=true Generation=%d DynamicState=%s\n",
-			node.GetGeneration(),
-			strings.TrimPrefix(node.GetDynamicState().String(), "DYNAMIC_NODE_RUNTIME_STATE_"))
+		dynamicDetails := []string{
+			"Dynamic=true",
+			"Origin=" + strings.TrimPrefix(node.GetDynamicOrigin().String(), "DYNAMIC_NODE_ORIGIN_"),
+			"Lifecycle=" + strings.TrimPrefix(node.GetLifecycle().String(), "DYNAMIC_NODE_LIFECYCLE_"),
+			"DynamicPowerState=" + strings.TrimPrefix(node.GetDynamicPowerState().String(), "DYNAMIC_NODE_POWER_STATE_"),
+			fmt.Sprintf("Generation=%d", node.GetGeneration()),
+			"DynamicState=" + strings.TrimPrefix(node.GetDynamicState().String(), "DYNAMIC_NODE_RUNTIME_STATE_"),
+		}
+		if node.GetDynamicPool() != "" {
+			dynamicDetails = append(dynamicDetails, "Pool="+node.GetDynamicPool())
+		}
+		if node.GetPhysicalHostname() != "" {
+			dynamicDetails = append(dynamicDetails, "PhysicalHost="+node.GetPhysicalHostname())
+		}
+		if node.GetProvider() != "" {
+			dynamicDetails = append(dynamicDetails, "Provider="+node.GetProvider())
+		}
+		if node.GetProviderProfile() != "" {
+			dynamicDetails = append(dynamicDetails, "ProviderProfile="+node.GetProviderProfile())
+		}
+		fmt.Printf("\t%s\n", strings.Join(dynamicDetails, " "))
 	}
 	fmt.Printf(
 		"\t%s\n"+

@@ -6,6 +6,7 @@ PowerControl:
   IdleReserveRatio: 0.2               
   CheckIntervalSeconds: 60   
   NodeStateCheckIntervalSeconds: 30
+  ActionTimeoutSeconds: 300
   PowerControlLogFile: "YOUR_LOG_FILE_PATH"
   NodeStateChangeFile: "YOUR_NODE_STATE_CHANGE_FILE_PATH"
   ClusterStateFile: "YOUR_CLUSTER_STATE_FILE_PATH"
@@ -40,4 +41,3 @@ IPMI:
 SSH:
   User: "YOUR_SSH_USER"
   Password: "YOUR_SSH_PASSWORD"
-  

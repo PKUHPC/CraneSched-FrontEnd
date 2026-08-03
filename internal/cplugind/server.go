@@ -198,6 +198,23 @@ func (pd *PluginDaemon) RegisterCranedHook(ctx context.Context, req *protos.Regi
 	return reply, nil
 }
 
+func (pd *PluginDaemon) NodeDefinitionHook(ctx context.Context, req *protos.NodeDefinitionHookRequest) (*protos.NodeDefinitionHookReply, error) {
+	log.Info("Received NodeDefinitionHook request for node: ", req.CranedId)
+	reply := &protos.NodeDefinitionHookReply{}
+	hs := make([]api.PluginHandler, 0)
+
+	for _, p := range gPluginMap {
+		if handler, ok := p.Plugin.(api.NodeDefinitionHooks); ok {
+			hs = append(hs, handler.NodeDefinitionHook)
+		}
+	}
+
+	c := api.NewContext(ctx, req, api.NodeDefinitionHook, &hs)
+	c.Start()
+
+	return reply, nil
+}
+
 func (pd *PluginDaemon) UpdateLicensesHook(ctx context.Context, req *protos.UpdateLicensesHookRequest) (*protos.UpdateLicensesHookReply, error) {
 	log.Tracef("UpdateLicensesHook request received")
 	reply := &protos.UpdateLicensesHookReply{}

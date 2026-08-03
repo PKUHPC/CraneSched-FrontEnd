@@ -21,6 +21,7 @@ var _ api.Plugin = PowerControlPlugin{}
 var _ api.JobLifecycleHooks = PowerControlPlugin{}
 var _ api.PowerManagementHooks = PowerControlPlugin{}
 var _ api.CranedLifecycleHooks = PowerControlPlugin{}
+var _ api.NodeDefinitionHooks = PowerControlPlugin{}
 
 var (
 	PluginInstance = PowerControlPlugin{}
@@ -135,6 +136,9 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 		log.Errorf("invalid request type, expected UpdatePowerStateHookRequest")
 		return
 	}
+	if req.Dynamic && req.Provider != "powerControl" {
+		return
+	}
 
 	var err error
 	log.Infof("Updating power state to %v on node %s, enable_auto_power_control=%v", req.State, req.CranedId, req.EnableAutoPowerControl)
@@ -175,14 +179,75 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 
 	if err != nil {
 		log.Errorf("Failed to change power state: %v", err)
+		if _, exists := manager.nodesInfo.Load(req.CranedId); !exists {
+			switch req.State {
+			case protos.CranedControlState_CRANE_POWERON:
+				manager.reportCtldPowerStateChange(req.CranedId, PoweredOff)
+			case protos.CranedControlState_CRANE_WAKE:
+				manager.reportCtldPowerStateChange(req.CranedId, Sleep)
+			case protos.CranedControlState_CRANE_SLEEP:
+				manager.reportCtldPowerStateChange(req.CranedId, Idle)
+			case protos.CranedControlState_CRANE_POWEROFF:
+				manager.reportCtldPowerStateChange(req.CranedId, Sleep)
+			}
+		}
 	} else {
 		log.Infof("Successfully changed power state to %v on node %s", req.State, req.CranedId)
+	}
+}
+
+func (p PowerControlPlugin) NodeDefinitionHook(ctx *api.PluginContext) {
+	req, ok := ctx.Request().(*protos.NodeDefinitionHookRequest)
+	if !ok {
+		log.Errorf("invalid request type, expected NodeDefinitionHookRequest")
+		return
+	}
+	if req.Provider != "powerControl" {
+		manager.RemoveNode(req.CranedId)
+		return
+	}
+
+	switch req.Action {
+	case protos.NodeDefinitionAction_NODE_DEFINITION_ACTION_UPSERT:
+		var initialState NodeState
+		switch req.PowerState {
+		case protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_ON:
+			initialState = Idle
+		case protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_OFF:
+			initialState = PoweredOff
+		case protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_POWERING_ON:
+			initialState = PoweringOn
+		case protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_POWERING_OFF:
+			initialState = PoweringOff
+		case protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_SLEEPING:
+			initialState = Sleep
+		case protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_WAKING_UP:
+			initialState = Wakingup
+		case protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_TO_SLEEPING:
+			initialState = ToSleeping
+		default:
+			log.Errorf("invalid power state for node %s: %v", req.CranedId, req.PowerState)
+			return
+		}
+		if err := manager.powerTool.RegisterNode(req.CranedId, nil); err != nil {
+			log.Errorf("failed to register node definition %s: %v", req.CranedId, err)
+			return
+		}
+		manager.RegisterNode(req.CranedId, initialState, nil)
+	case protos.NodeDefinitionAction_NODE_DEFINITION_ACTION_REMOVE:
+		manager.RemoveNode(req.CranedId)
+	default:
+		log.Errorf("invalid node definition action for node %s: %v", req.CranedId, req.Action)
 	}
 }
 
 func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 	req, ok := ctx.Request().(*protos.RegisterCranedHookRequest)
 	if !ok {
+		return
+	}
+	if req.Dynamic && req.Provider != "powerControl" {
+		manager.RemoveNode(req.CranedId)
 		return
 	}
 
@@ -246,13 +311,39 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 		return
 	}
 
-	manager.RegisterNode(req.CranedId)
-
 	err := manager.powerTool.RegisterNode(req.CranedId, validInterfaces)
 	if err != nil {
 		log.Errorf("failed to register node %s: %v", req.CranedId, err)
 		return
 	}
+	jobs := make(map[string]struct{}, len(req.RunningJobIds))
+	for _, jobID := range req.RunningJobIds {
+		jobs[strconv.FormatUint(uint64(jobID), 10)] = struct{}{}
+	}
+
+	var state NodeState
+	switch req.PowerState {
+	case protos.CranedPowerState_CRANE_POWER_ACTIVE:
+		state = Active
+	case protos.CranedPowerState_CRANE_POWER_IDLE:
+		state = Idle
+	case protos.CranedPowerState_CRANE_POWER_SLEEPING:
+		state = Sleep
+	case protos.CranedPowerState_CRANE_POWER_POWEREDOFF:
+		state = PoweredOff
+	case protos.CranedPowerState_CRANE_POWER_TO_SLEEPING:
+		state = ToSleeping
+	case protos.CranedPowerState_CRANE_POWER_WAKING_UP:
+		state = Wakingup
+	case protos.CranedPowerState_CRANE_POWER_POWERING_ON:
+		state = PoweringOn
+	case protos.CranedPowerState_CRANE_POWER_POWERING_OFF:
+		state = PoweringOff
+	default:
+		log.Errorf("invalid power state for node %s: %v", req.CranedId, req.PowerState)
+		return
+	}
+	manager.RegisterNode(req.CranedId, state, jobs)
 
 	log.Infof("Successfully registered node %s", req.CranedId)
 }

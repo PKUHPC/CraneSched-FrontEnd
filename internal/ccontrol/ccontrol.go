@@ -77,6 +77,19 @@ func SummarizeReply(proto interface{}) error {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
+	case *protos.DeleteNodesReply:
+		if len(reply.DeletedNodes) > 0 {
+			nodeListString := util.ConvertSliceToString(reply.DeletedNodes, ", ")
+			fmt.Printf("Nodes %s deleted successfully.\n", nodeListString)
+		}
+		if len(reply.NotDeletedNodes) > 0 {
+			msg := ""
+			for i := 0; i < len(reply.NotDeletedNodes); i++ {
+				msg += fmt.Sprintf("Failed to delete node: %s. Reason: %s.\n", reply.NotDeletedNodes[i], reply.NotDeletedReasons[i])
+			}
+			return util.NewCraneErr(util.ErrorBackend, msg)
+		}
+		return nil
 	case *protos.ModifyJobsExtraAttrsReply:
 		if len(reply.ModifiedJobs) > 0 {
 			modifiedJobsString := util.ConvertSliceToString(reply.ModifiedJobs, ", ")
@@ -558,8 +571,20 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 	return SummarizeReply(reply)
 }
 
-func CreateNodes(nodeRegex string, cpuCount uint32, memoryBytes uint64,
-	sockets uint32, partitionNames []string) error {
+type dynamicNodeCreateOptions struct {
+	cpuCount        uint32
+	memoryBytes     uint64
+	sockets         uint32
+	partitionNames  []string
+	gres            *protos.DedicatedResourceInNode
+	pool            string
+	features        []string
+	powerState      protos.DynamicNodePowerState
+	provider        string
+	providerProfile string
+}
+
+func CreateNodes(nodeRegex string, options dynamicNodeCreateOptions) error {
 	nodeNames, ok := util.ParseHostList(nodeRegex)
 	if !ok || len(nodeNames) == 0 {
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", nodeRegex))
@@ -569,11 +594,19 @@ func CreateNodes(nodeRegex string, cpuCount uint32, memoryBytes uint64,
 		Uid:       userUid,
 		NodeNames: nodeNames,
 		Spec: &protos.DynamicNodeSpec{
-			CpuCount:    cpuCount,
-			MemoryBytes: memoryBytes,
-			Sockets:     sockets,
+			CpuCount:    options.cpuCount,
+			MemoryBytes: options.memoryBytes,
+			Sockets:     options.sockets,
+			Gres:        options.gres,
+			Features:    options.features,
 		},
-		PartitionNames: partitionNames,
+		PartitionNames:  options.partitionNames,
+		Origin:          protos.DynamicNodeOrigin_DYNAMIC_NODE_ORIGIN_DYNAMIC_ADMIN,
+		Lifecycle:       protos.DynamicNodeLifecycle_DYNAMIC_NODE_LIFECYCLE_FUTURE,
+		Pool:            options.pool,
+		PowerState:      options.powerState,
+		Provider:        options.provider,
+		ProviderProfile: options.providerProfile,
 	}
 	reply, err := stub.CreateNodes(context.Background(), req)
 	if err != nil {
@@ -607,17 +640,12 @@ func DeleteNodes(nodeRegex string) error {
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
-		if reply.GetOk() {
+		if len(reply.NotDeletedNodes) == 0 {
 			return nil
 		}
 		return &util.CraneError{Code: util.ErrorBackend}
 	}
-	if !reply.GetOk() {
-		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to delete nodes: %s.", reply.GetReason()))
-	}
-
-	fmt.Printf("Nodes %s deleted successfully.\n", strings.Join(nodeNames, ","))
-	return nil
+	return SummarizeReply(reply)
 }
 
 func ModifyPartitionAcl(partition string, isAllowedList bool, accounts string) error {

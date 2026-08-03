@@ -27,7 +27,8 @@ func (c *PowerManager) filterExcludedNodes(nodeIDs []string) []string {
 }
 
 func (c *PowerManager) wakeupNodes(nodeIDs []string) error {
-	for _, nodeID := range nodeIDs {
+	allowedNodes := c.filterExcludedNodes(nodeIDs)
+	for _, nodeID := range allowedNodes {
 		err := c.wakeUpNode(nodeID)
 		if err != nil {
 			return err
@@ -114,16 +115,21 @@ func (c *PowerManager) wakeUpNode(nodeID string) error {
 	}
 
 	info := value.(*NodeInfo)
-	if info.State != Sleep {
+	if info.State != Sleep && info.State != Wakingup {
 		return fmt.Errorf("node %s is not in sleeping state", nodeID)
 	}
 
-	c.updateNodeState(nodeID, Wakingup)
+	if info.State == Sleep {
+		info = c.updateNodeStateIfCurrent(nodeID, info, Wakingup)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before wake-up", nodeID)
+		}
+	}
 
 	err := c.powerTool.WakeUp(nodeID)
 	if err != nil {
 		log.Errorf("Failed to wake up node %s: %v", nodeID, err)
-		c.updateNodeState(nodeID, Sleep)
+		c.updateNodeStateIfCurrent(nodeID, info, Sleep)
 		return err
 	}
 
@@ -133,20 +139,37 @@ func (c *PowerManager) wakeUpNode(nodeID string) error {
 func (c *PowerManager) powerOnNode(nodeID string) error {
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
-		return fmt.Errorf("node %s not found", nodeID)
+		if err := c.powerTool.RegisterNode(nodeID, nil); err != nil {
+			return err
+		}
+		c.RegisterNode(nodeID, PoweredOff, nil)
+		value, exists = c.nodesInfo.Load(nodeID)
+		if !exists {
+			return fmt.Errorf("node %s not found", nodeID)
+		}
 	}
 
 	info := value.(*NodeInfo)
-	if info.State != PoweredOff {
-		return fmt.Errorf("node %s is not in powered off state", nodeID)
+	oldState := info.State
+	if oldState != PoweredOff && oldState != Sleep && oldState != PoweringOn {
+		return fmt.Errorf("node %s is not powered off or sleeping", nodeID)
 	}
 
-	c.updateNodeState(nodeID, PoweringOn)
+	if oldState != PoweringOn {
+		info = c.updateNodeStateIfCurrent(nodeID, info, PoweringOn)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before power-on", nodeID)
+		}
+	}
 
 	err := c.powerTool.PowerOn(nodeID)
 	if err != nil {
 		log.Errorf("Failed to power on node %s: %v", nodeID, err)
-		c.updateNodeState(nodeID, PoweredOff)
+		if oldState == PoweringOn {
+			c.updateNodeStateIfCurrent(nodeID, info, PoweredOff)
+		} else {
+			c.updateNodeStateIfCurrent(nodeID, info, oldState)
+		}
 		return err
 	}
 
@@ -160,16 +183,21 @@ func (c *PowerManager) sleepNode(nodeID string) error {
 	}
 
 	info := value.(*NodeInfo)
-	if info.State != Idle {
+	if info.State != Idle && info.State != ToSleeping {
 		return fmt.Errorf("node %s is not in idle state", nodeID)
 	}
 
-	c.updateNodeState(nodeID, ToSleeping)
+	if info.State == Idle {
+		info = c.updateNodeStateIfCurrent(nodeID, info, ToSleeping)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before sleep", nodeID)
+		}
+	}
 
 	err := c.powerTool.Sleep(nodeID)
 	if err != nil {
 		log.Errorf("Failed to put node %s to sleep: %v", nodeID, err)
-		c.updateNodeState(nodeID, Idle)
+		c.updateNodeStateIfCurrent(nodeID, info, Idle)
 		return err
 	}
 
@@ -184,16 +212,25 @@ func (c *PowerManager) powerOffNode(nodeID string) error {
 
 	info := value.(*NodeInfo)
 	oldState := info.State
-	if oldState != Sleep && oldState != Idle {
+	if oldState != Sleep && oldState != Idle && oldState != PoweringOff {
 		return fmt.Errorf("node %s is not in sleep or idle state", nodeID)
 	}
 
-	c.updateNodeState(nodeID, PoweringOff)
+	if oldState != PoweringOff {
+		info = c.updateNodeStateIfCurrent(nodeID, info, PoweringOff)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before power-off", nodeID)
+		}
+	}
 
 	err := c.powerTool.PowerOff(nodeID)
 	if err != nil {
 		log.Errorf("Failed to power off node %s: %v", nodeID, err)
-		c.updateNodeState(nodeID, oldState)
+		if oldState == PoweringOff {
+			c.updateNodeStateIfCurrent(nodeID, info, Sleep)
+		} else {
+			c.updateNodeStateIfCurrent(nodeID, info, oldState)
+		}
 		return err
 	}
 

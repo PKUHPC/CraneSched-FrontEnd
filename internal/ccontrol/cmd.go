@@ -19,6 +19,7 @@
 package ccontrol
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"fmt"
@@ -545,10 +546,9 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 		return err
 	}
 
-	var cpuCount uint32
-	var memoryBytes uint64
-	var sockets uint32
-	var partitionNames []string
+	options := dynamicNodeCreateOptions{
+		powerState: protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_OFF,
+	}
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
 		case "cpu":
@@ -556,34 +556,103 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 			if err != nil || parsed == 0 {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid CPU value: %s", value))
 			}
-			cpuCount = uint32(parsed)
+			options.cpuCount = uint32(parsed)
 		case "memory":
 			parsed, err := util.ParseMemStringAsByte(value)
 			if err != nil || parsed == 0 {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid memory value: %s", value))
 			}
-			memoryBytes = parsed
+			options.memoryBytes = parsed
 		case "sockets":
 			parsed, err := strconv.ParseUint(value, 10, 32)
 			if err != nil || parsed == 0 {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid sockets value: %s", value))
 			}
-			sockets = uint32(parsed)
+			options.sockets = uint32(parsed)
 		case "partitions":
 			parsed, err := util.ParseStringParamList(value, ",")
 			if err != nil {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid partitions value: %s", value))
 			}
-			partitionNames = parsed
+			options.partitionNames = parsed
+		case "gres":
+			gres, err := parseDynamicNodeGres(value)
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid GRES value: %s", value))
+			}
+			options.gres = gres
+		case "pool":
+			options.pool = value
+		case "features":
+			parsed, err := util.ParseStringParamList(value, ",")
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid features value: %s", value))
+			}
+			options.features = parsed
+		case "state":
+			if !strings.EqualFold(value, "future") {
+				return util.NewCraneErr(util.ErrorCmdArg, "new dynamic nodes must use state=future")
+			}
+		case "powerstate":
+			if !strings.EqualFold(value, "off") {
+				return util.NewCraneErr(util.ErrorCmdArg, "new dynamic nodes must use powerstate=off")
+			}
+		case "provider":
+			options.provider = value
+		case "providerprofile":
+			options.providerProfile = value
 		default:
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown node attribute: %s", key))
 		}
 	}
 
-	if sockets > cpuCount {
+	if options.sockets > options.cpuCount {
 		return util.NewCraneErr(util.ErrorCmdArg, "sockets cannot exceed CPU count")
 	}
-	return CreateNodes(nodeRegex, cpuCount, memoryBytes, sockets, partitionNames)
+	return CreateNodes(nodeRegex, options)
+}
+
+func parseDynamicNodeGres(value string) (*protos.DedicatedResourceInNode, error) {
+	gres, err := util.ParseGres(value)
+	if err != nil {
+		return nil, err
+	}
+	if len(gres.NameGresMap) == 0 {
+		return nil, fmt.Errorf("GRES must contain a positive resource count")
+	}
+
+	result := &protos.DedicatedResourceInNode{
+		NameTypeMap: make(map[string]*protos.DeviceTypeSlotsMap),
+	}
+	for name, count := range gres.NameGresMap {
+		if name == "" {
+			return nil, fmt.Errorf("GRES name cannot be empty")
+		}
+		typeSlots := &protos.DeviceTypeSlotsMap{
+			TypeSlotsMap: make(map[string]*protos.Slots),
+		}
+		var specified uint64
+		for typ, slots := range count.Specified {
+			if typ == "" {
+				continue
+			}
+			specified += slots
+			typeSlots.TypeSlotsMap[typ] = dynamicNodeSlots(name, typ, slots)
+		}
+		if count.Total > specified {
+			typeSlots.TypeSlotsMap[""] = dynamicNodeSlots(name, "", count.Total-specified)
+		}
+		result.NameTypeMap[name] = typeSlots
+	}
+	return result, nil
+}
+
+func dynamicNodeSlots(name string, typ string, count uint64) *protos.Slots {
+	var slots []string
+	for index := uint64(0); index < count; index++ {
+		slots = append(slots, fmt.Sprintf("%s:%s:%d", name, typ, index))
+	}
+	return &protos.Slots{Slots: slots}
 }
 
 func executeCreateReservationCommand(command *CControlCommand) error {

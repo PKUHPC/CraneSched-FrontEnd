@@ -31,6 +31,7 @@ const (
 
 	UpdatePowerStateHook
 	RegisterCranedHook
+	NodeDefinitionHook
 	UpdateLicensesHook
 	TraceHook
 )
@@ -93,6 +94,11 @@ type PowerManagementHooks interface {
 // CranedLifecycleHooks handles craned daemon lifecycle events
 type CranedLifecycleHooks interface {
 	RegisterCranedHook(ctx *PluginContext)
+}
+
+// NodeDefinitionHooks handles dynamic node catalog changes
+type NodeDefinitionHooks interface {
+	NodeDefinitionHook(ctx *PluginContext)
 }
 
 // GrpcServiceRegistrar allows a plugin to register its own gRPC services
