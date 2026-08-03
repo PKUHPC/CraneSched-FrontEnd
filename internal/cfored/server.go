@@ -61,6 +61,11 @@ type TaskIOBuffer struct {
 	capacity int // maximum number of entries the buffer can hold
 }
 
+type stepDoneSignal struct {
+	channel chan struct{}
+	once    sync.Once
+}
+
 // Push appends item to the circular buffer. If the buffer is already full, the
 // oldest entry is overwritten and the effective window slides forward by one.
 func (t *TaskIOBuffer) Push(item *protos.StreamStepIORequest) {
@@ -97,8 +102,8 @@ type SupervisorChannelKeeper struct {
 
 	// Closed when all supervisors for a step have normally unregistered,
 	// signaling that no more I/O messages will arrive for that step.
-	stepDoneChannelMap map[StepIdentifier]chan struct{}
-	taskIOBufferMap    map[StepIdentifier]*TaskIOBuffer
+	stepDoneSignalMap map[StepIdentifier]*stepDoneSignal
+	taskIOBufferMap   map[StepIdentifier]*TaskIOBuffer
 }
 
 var gSupervisorChanKeeper *SupervisorChannelKeeper
@@ -108,7 +113,7 @@ func NewCranedChannelKeeper() *SupervisorChannelKeeper {
 	keeper.toSupervisorChannelCV = sync.NewCond(&keeper.toSupervisorChannelMtx)
 	keeper.toSupervisorChannels = make(map[StepIdentifier]map[string]*RequestSupervisorChannel)
 	keeper.stepIORequestChannelMap = make(map[StepIdentifier]map[int32]chan *protos.StreamStepIORequest)
-	keeper.stepDoneChannelMap = make(map[StepIdentifier]chan struct{})
+	keeper.stepDoneSignalMap = make(map[StepIdentifier]*stepDoneSignal)
 	keeper.taskIOBufferMap = make(map[StepIdentifier]*TaskIOBuffer)
 	return keeper
 }
@@ -124,36 +129,60 @@ func (keeper *SupervisorChannelKeeper) supervisorUpAndSetMsgToSupervisorChannel(
 	keeper.toSupervisorChannelMtx.Unlock()
 }
 
-func (keeper *SupervisorChannelKeeper) supervisorDownAndRemoveChannelToSupervisor(jobId uint32, stepId uint32, cranedId string) {
+// Each StepIOStream handler calls this synchronously, but gRPC runs handlers for
+// the old and reconnected streams concurrently. connectionValid is allocated per
+// stream and therefore also serves as an ownership token for the map entry.
+func (keeper *SupervisorChannelKeeper) supervisorDownAndRemoveChannelToSupervisor(
+	jobId uint32,
+	stepId uint32,
+	cranedId string,
+	connectionValid *atomic.Bool,
+	normallyUnregistered bool,
+) {
 	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
 	allGone := false
+	// This invalidates only the calling stream. A replacement stream has its own
+	// atomic.Bool and remains valid if it has already registered.
+	connectionValid.Store(false)
 
 	keeper.toSupervisorChannelMtx.Lock()
-	if _, exist := keeper.toSupervisorChannels[stepIdentity]; !exist {
-		log.Errorf("Trying to remove a non-exist crun channel")
+	stepChannels, exist := keeper.toSupervisorChannels[stepIdentity]
+	if !exist {
 		keeper.toSupervisorChannelMtx.Unlock()
 		return
 	}
-	if _, exist := keeper.toSupervisorChannels[stepIdentity][cranedId]; !exist {
-		log.Errorf("Trying to remove a non-exist crun channel")
+	currentChannel, exist := stepChannels[cranedId]
+	if !exist || currentChannel.valid != connectionValid {
+		// A reconnect won the race and replaced this entry with its own token.
+		// Cleanup from the old handler no longer owns the entry and must not delete it.
 		keeper.toSupervisorChannelMtx.Unlock()
 		return
 	}
-	delete(keeper.toSupervisorChannels[stepIdentity], cranedId)
-	if len(keeper.toSupervisorChannels[stepIdentity]) == 0 {
+	if !normallyUnregistered {
+		// EOF or a send failure only means that this stream disconnected. Keep its
+		// invalid entry as a placeholder so the step cannot look complete before a
+		// reconnect; final crun cleanup removes the placeholder if no reconnect occurs.
+		keeper.toSupervisorChannelMtx.Unlock()
+		return
+	}
+
+	delete(stepChannels, cranedId)
+	if len(stepChannels) == 0 {
 		delete(keeper.toSupervisorChannels, stepIdentity)
 		allGone = true
 	}
 	keeper.toSupervisorChannelMtx.Unlock()
 
-	// Close the step-done channel AFTER releasing toSupervisorChannelMtx to
-	// avoid the nested lock order: toSupervisorChannelMtx → stepIORequestChannelMtx.
-	// Closing from outside the outer mutex is safe: the done channel reference is
-	// stable (only created once in setRemoteIoToFrontChannel, never reassigned).
+	// Close the step-done signal AFTER releasing toSupervisorChannelMtx to avoid
+	// the nested lock order: toSupervisorChannelMtx → stepIORequestChannelMtx.
+	// Only normal unregisters can make the channel map empty. Keep the close
+	// idempotent as a final guard against duplicate terminal notifications.
 	if allGone {
 		keeper.stepIORequestChannelMtx.Lock()
-		if ch, ok := keeper.stepDoneChannelMap[stepIdentity]; ok {
-			close(ch)
+		if signal, ok := keeper.stepDoneSignalMap[stepIdentity]; ok {
+			signal.once.Do(func() {
+				close(signal.channel)
+			})
 		}
 		keeper.stepIORequestChannelMtx.Unlock()
 	}
@@ -167,8 +196,8 @@ func (keeper *SupervisorChannelKeeper) waitSupervisorChannelsReady(cranedIds []s
 	for !stopWaiting.Load() {
 		allReady := true
 		for _, node := range cranedIds {
-			_, exits := keeper.toSupervisorChannels[stepIdentity][node]
-			if !exits {
+			channel, exists := keeper.toSupervisorChannels[stepIdentity][node]
+			if !exists || !channel.valid.Load() {
 				allReady = false
 				break
 			}
@@ -202,7 +231,7 @@ func (keeper *SupervisorChannelKeeper) waitAnySupervisorReady(
 
 	for !stopWaiting.Load() {
 		for _, node := range cranedIds {
-			if _, exists := keeper.toSupervisorChannels[stepIdentity][node]; exists {
+			if channel, exists := keeper.toSupervisorChannels[stepIdentity][node]; exists && channel.valid.Load() {
 				log.Debugf("[Cfored<->Cattach][Step #%d.%d] Found active supervisor on Craned %s, proceeding",
 					jobId, stepId, node)
 				readyChan <- true
@@ -421,8 +450,10 @@ func (keeper *SupervisorChannelKeeper) setRemoteIoToFrontChannel(frontId int32, 
 	// Only create the done channel when the step is first registered (crun sets it up).
 	// Subsequent calls from cattach must NOT overwrite it — crun is already waiting on
 	// the original channel and would leak forever if a new channel were substituted.
-	if keeper.stepDoneChannelMap[step] == nil {
-		keeper.stepDoneChannelMap[step] = make(chan struct{})
+	if keeper.stepDoneSignalMap[step] == nil {
+		keeper.stepDoneSignalMap[step] = &stepDoneSignal{
+			channel: make(chan struct{}),
+		}
 	}
 	if keeper.taskIOBufferMap[step] == nil {
 		keeper.taskIOBufferMap[step] = &TaskIOBuffer{
@@ -442,7 +473,10 @@ func (keeper *SupervisorChannelKeeper) getStepDoneChannel(taskId uint32, stepId 
 	step := StepIdentifier{JobId: taskId, StepId: stepId}
 	keeper.stepIORequestChannelMtx.Lock()
 	defer keeper.stepIORequestChannelMtx.Unlock()
-	return keeper.stepDoneChannelMap[step]
+	if signal := keeper.stepDoneSignalMap[step]; signal != nil {
+		return signal.channel
+	}
+	return nil
 }
 
 func (keeper *SupervisorChannelKeeper) getRemoteHistory(jobId uint32, stepId uint32) []*protos.StreamStepIORequest {
@@ -512,9 +546,18 @@ func (keeper *SupervisorChannelKeeper) forwardRemoteIoToFront(jobId uint32, step
 
 func (keeper *SupervisorChannelKeeper) crunStepStopAndRemoveChannel(jobId uint32, stepId uint32) {
 	step := StepIdentifier{JobId: jobId, StepId: stepId}
+	keeper.toSupervisorChannelMtx.Lock()
+	if channels := keeper.toSupervisorChannels[step]; channels != nil {
+		for _, channel := range channels {
+			channel.valid.Store(false)
+		}
+		delete(keeper.toSupervisorChannels, step)
+	}
+	keeper.toSupervisorChannelMtx.Unlock()
+
 	keeper.stepIORequestChannelMtx.Lock()
 	delete(keeper.stepIORequestChannelMap, step)
-	delete(keeper.stepDoneChannelMap, step)
+	delete(keeper.stepDoneSignalMap, step)
 	delete(keeper.taskIOBufferMap, step)
 	keeper.stepIORequestChannelMtx.Unlock()
 }
@@ -586,6 +629,9 @@ func (cforedServer *GrpcCforedServer) StepIOStream(toSupervisorStream protos.Cra
 
 	var valid = &atomic.Bool{}
 	valid.Store(true)
+	// Only an explicit SUPERVISOR_UNREGISTER is a terminal event. EOF and send
+	// failures leave this false so stream cleanup preserves a reconnectable entry.
+	normallyUnregistered := false
 	state := SupervisorReg
 
 CforedSupervisorStateMachineLoop:
@@ -627,7 +673,9 @@ CforedSupervisorStateMachineLoop:
 			stepId = cranedReq.GetPayloadRegisterReq().GetStepId()
 			log.Debugf("[Supervisor->Cfored][Step #%d.%d] Receive SupervisorReg from node %s", jobId, stepId, cranedId)
 
-			gSupervisorChanKeeper.supervisorUpAndSetMsgToSupervisorChannel(jobId, stepId, cranedId, pendingCrunReqToSupervisorChannel, pendingCattachReqToSupervisorChannel, valid)
+			gSupervisorChanKeeper.supervisorUpAndSetMsgToSupervisorChannel(
+				jobId, stepId, cranedId, pendingCrunReqToSupervisorChannel,
+				pendingCattachReqToSupervisorChannel, valid)
 
 			reply = &protos.StreamStepIOReply{
 				Type: protos.StreamStepIOReply_SUPERVISOR_REGISTER_REPLY,
@@ -698,6 +746,7 @@ CforedSupervisorStateMachineLoop:
 							},
 						}
 						state = SupervisorUnReg
+						normallyUnregistered = true
 						valid.Store(false)
 						err := toSupervisorStream.Send(reply)
 						if err != nil {
@@ -799,7 +848,8 @@ CforedSupervisorStateMachineLoop:
 
 		case SupervisorUnReg:
 			log.Debugf("[Cfored<->Supervisor][Step #%d.%d] Enter State SupervisorUnReg", jobId, stepId)
-			gSupervisorChanKeeper.supervisorDownAndRemoveChannelToSupervisor(jobId, stepId, cranedId)
+			gSupervisorChanKeeper.supervisorDownAndRemoveChannelToSupervisor(
+				jobId, stepId, cranedId, valid, normallyUnregistered)
 			log.Debugf("[Cfored<->Supervisor][Step #%d.%d] Supervisor on Craned %s exit", jobId, stepId, cranedId)
 			break CforedSupervisorStateMachineLoop
 		}
