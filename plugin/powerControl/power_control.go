@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -136,8 +137,16 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 		log.Errorf("invalid request type, expected UpdatePowerStateHookRequest")
 		return
 	}
-	if req.Dynamic && req.Provider != "powerControl" {
-		return
+	generation := uint64(0)
+	if req.Dynamic {
+		if req.Provider != "powerControl" {
+			return
+		}
+		if req.Generation == 0 {
+			log.Errorf("dynamic power state update for node %s has no generation", req.CranedId)
+			return
+		}
+		generation = req.Generation
 	}
 
 	var err error
@@ -145,6 +154,13 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 
 	// Handle auto power control setting if this is a CRANE_NONE state with enable_auto_power_control parameter
 	if req.State == protos.CranedControlState_CRANE_NONE {
+		unlock := manager.lockNodeOperation(req.CranedId)
+		defer unlock()
+		if generation != 0 && !manager.IsNodeGenerationCurrent(req.CranedId, generation) {
+			log.Debugf("Ignoring power state update for stale dynamic node %s generation %d", req.CranedId, generation)
+			return
+		}
+
 		// This is a request to set the auto power control status
 		// Note: enable_auto_power_control=true means enable auto power control (exclude=false)
 		// enable_auto_power_control=false means disable auto power control (exclude=true)
@@ -165,30 +181,41 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 	// Handle normal power state changes
 	switch req.State {
 	case protos.CranedControlState_CRANE_POWERON:
-		err = manager.powerOnNode(req.CranedId)
+		err = manager.powerOnNode(req.CranedId, generation)
 	case protos.CranedControlState_CRANE_POWEROFF:
-		err = manager.powerOffNode(req.CranedId)
+		err = manager.powerOffNode(req.CranedId, generation)
 	case protos.CranedControlState_CRANE_SLEEP:
-		err = manager.sleepNode(req.CranedId)
+		err = manager.sleepNode(req.CranedId, generation)
 	case protos.CranedControlState_CRANE_WAKE:
-		err = manager.wakeUpNode(req.CranedId)
+		err = manager.wakeUpNode(req.CranedId, generation)
 	default:
 		log.Errorf("Unsupported power state: %v", req.State)
 		return
 	}
 
 	if err != nil {
+		if errors.Is(err, errStaleNodeGeneration) {
+			log.Debugf("Ignoring power state update for stale dynamic node %s generation %d", req.CranedId, generation)
+			return
+		}
 		log.Errorf("Failed to change power state: %v", err)
-		if _, exists := manager.nodesInfo.Load(req.CranedId); !exists {
+		if value, exists := manager.nodesInfo.Load(req.CranedId); exists {
+			info := value.(*NodeInfo)
+			if info.Generation != generation {
+				log.Debugf("Skipping power state failure report for stale dynamic node %s generation %d", req.CranedId, generation)
+				return
+			}
+			manager.notifyCtldPowerStateChange(req.CranedId, info.State, generation)
+		} else {
 			switch req.State {
 			case protos.CranedControlState_CRANE_POWERON:
-				manager.reportCtldPowerStateChange(req.CranedId, PoweredOff)
+				manager.reportCtldPowerStateChange(req.CranedId, PoweredOff, generation)
 			case protos.CranedControlState_CRANE_WAKE:
-				manager.reportCtldPowerStateChange(req.CranedId, Sleep)
+				manager.reportCtldPowerStateChange(req.CranedId, Sleep, generation)
 			case protos.CranedControlState_CRANE_SLEEP:
-				manager.reportCtldPowerStateChange(req.CranedId, Idle)
+				manager.reportCtldPowerStateChange(req.CranedId, Idle, generation)
 			case protos.CranedControlState_CRANE_POWEROFF:
-				manager.reportCtldPowerStateChange(req.CranedId, Sleep)
+				manager.reportCtldPowerStateChange(req.CranedId, Sleep, generation)
 			}
 		}
 	} else {
@@ -202,8 +229,17 @@ func (p PowerControlPlugin) NodeDefinitionHook(ctx *api.PluginContext) {
 		log.Errorf("invalid request type, expected NodeDefinitionHookRequest")
 		return
 	}
+	if req.Generation == 0 {
+		log.Errorf("node definition for %s has no generation", req.CranedId)
+		return
+	}
+	unlock := manager.lockNodeOperation(req.CranedId)
+	defer unlock()
+
 	if req.Provider != "powerControl" {
-		manager.RemoveNode(req.CranedId)
+		if manager.ApplyNodeDefinitionVersion(req.CranedId, req.Generation, req.Revision, false) {
+			manager.RemoveNode(req.CranedId, req.Generation)
+		}
 		return
 	}
 
@@ -229,13 +265,22 @@ func (p PowerControlPlugin) NodeDefinitionHook(ctx *api.PluginContext) {
 			log.Errorf("invalid power state for node %s: %v", req.CranedId, req.PowerState)
 			return
 		}
+		if !manager.ApplyNodeDefinitionVersion(req.CranedId, req.Generation, req.Revision, true) {
+			log.Debugf("Ignoring stale node definition for %s generation %d revision %d", req.CranedId, req.Generation, req.Revision)
+			return
+		}
+		manager.ResetNodeForNewGeneration(req.CranedId, req.Generation)
 		if err := manager.powerTool.RegisterNode(req.CranedId, nil); err != nil {
 			log.Errorf("failed to register node definition %s: %v", req.CranedId, err)
 			return
 		}
-		manager.RegisterNode(req.CranedId, initialState, nil)
+		manager.RegisterNode(req.CranedId, initialState, nil, req.Generation, req.Revision)
 	case protos.NodeDefinitionAction_NODE_DEFINITION_ACTION_REMOVE:
-		manager.RemoveNode(req.CranedId)
+		if !manager.ApplyNodeDefinitionVersion(req.CranedId, req.Generation, req.Revision, false) {
+			log.Debugf("Ignoring stale node removal for %s generation %d revision %d", req.CranedId, req.Generation, req.Revision)
+			return
+		}
+		manager.RemoveNode(req.CranedId, req.Generation)
 	default:
 		log.Errorf("invalid node definition action for node %s: %v", req.CranedId, req.Action)
 	}
@@ -246,9 +291,24 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 	if !ok {
 		return
 	}
-	if req.Dynamic && req.Provider != "powerControl" {
-		manager.RemoveNode(req.CranedId)
-		return
+	unlock := manager.lockNodeOperation(req.CranedId)
+	defer unlock()
+
+	generation := uint64(0)
+	revision := uint64(0)
+	if req.Dynamic {
+		if req.Generation == 0 {
+			log.Errorf("dynamic craned registration for %s has no generation", req.CranedId)
+			return
+		}
+		generation = req.Generation
+		revision = req.Revision
+		if req.Provider != "powerControl" {
+			if manager.ApplyNodeDefinitionVersion(req.CranedId, generation, revision, false) {
+				manager.RemoveNode(req.CranedId, generation)
+			}
+			return
+		}
 	}
 
 	var validInterfaces []NetworkInterface
@@ -311,11 +371,6 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 		return
 	}
 
-	err := manager.powerTool.RegisterNode(req.CranedId, validInterfaces)
-	if err != nil {
-		log.Errorf("failed to register node %s: %v", req.CranedId, err)
-		return
-	}
 	jobs := make(map[string]struct{}, len(req.RunningJobIds))
 	for _, jobID := range req.RunningJobIds {
 		jobs[strconv.FormatUint(uint64(jobID), 10)] = struct{}{}
@@ -343,7 +398,17 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 		log.Errorf("invalid power state for node %s: %v", req.CranedId, req.PowerState)
 		return
 	}
-	manager.RegisterNode(req.CranedId, state, jobs)
+	if generation != 0 && !manager.AcceptNodeVersion(req.CranedId, generation, revision) {
+		log.Debugf("Ignoring stale craned registration for %s generation %d revision %d", req.CranedId, generation, revision)
+		return
+	}
+
+	manager.ResetNodeForNewGeneration(req.CranedId, generation)
+	if err := manager.powerTool.RegisterNode(req.CranedId, validInterfaces); err != nil {
+		log.Errorf("failed to register node %s: %v", req.CranedId, err)
+		return
+	}
+	manager.RegisterNode(req.CranedId, state, jobs, generation, revision)
 
 	log.Infof("Successfully registered node %s", req.CranedId)
 }

@@ -1,6 +1,12 @@
 package main
 
-import "time"
+import (
+	"errors"
+	"sync"
+	"time"
+)
+
+var errStaleNodeGeneration = errors.New("stale node generation")
 
 type NodeState string
 
@@ -20,6 +26,18 @@ type NodeInfo struct {
 	State               NodeState
 	LastStateChangeTime time.Time
 	Jobs                map[string]struct{}
+	Generation          uint64
+	Revision            uint64
+}
+
+type nodeVersion struct {
+	generation uint64
+	revision   uint64
+}
+
+type nodeOperationLock struct {
+	mutex sync.Mutex
+	users int
 }
 
 type PredictionResponse struct {

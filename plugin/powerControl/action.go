@@ -7,29 +7,33 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (c *PowerManager) filterExcludedNodes(nodeIDs []string) []string {
-	var allowedNodes []string
-	for _, nodeID := range nodeIDs {
-		value, exists := c.nodesInfo.Load(nodeID)
+func (c *PowerManager) filterExcludedNodes(nodes []nodeTarget) []nodeTarget {
+	var allowedNodes []nodeTarget
+	for _, node := range nodes {
+		value, exists := c.nodesInfo.Load(node.nodeID)
 		if !exists {
-			log.Warnf("Node %s not found in nodesInfo, skipping", nodeID)
+			log.Warnf("Node %s not found in nodesInfo, skipping", node.nodeID)
 			continue
 		}
 
 		info := value.(*NodeInfo)
+		if info.Generation != node.generation {
+			log.Debugf("Skipping stale power decision for node %s generation %d", node.nodeID, node.generation)
+			continue
+		}
 		if !info.Exclude {
-			allowedNodes = append(allowedNodes, nodeID)
+			allowedNodes = append(allowedNodes, node)
 		} else {
-			log.Infof("Node %s is excluded from power management", nodeID)
+			log.Infof("Node %s is excluded from power management", node.nodeID)
 		}
 	}
 	return allowedNodes
 }
 
-func (c *PowerManager) wakeupNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
-	for _, nodeID := range allowedNodes {
-		err := c.wakeUpNode(nodeID)
+func (c *PowerManager) wakeupNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
+	for _, node := range allowedNodes {
+		err := c.wakeUpNode(node.nodeID, node.generation)
 		if err != nil {
 			return err
 		}
@@ -37,17 +41,17 @@ func (c *PowerManager) wakeupNodes(nodeIDs []string) error {
 	return nil
 }
 
-func (c *PowerManager) sleepNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
-	for _, nodeID := range allowedNodes {
-		if err := c.sleepNode(nodeID); err != nil {
+func (c *PowerManager) sleepNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
+	for _, node := range allowedNodes {
+		if err := c.sleepNode(node.nodeID, node.generation); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *PowerManager) processBatchNodes(nodes []string, operation string, nodeFunc func(string) error,
+func (c *PowerManager) processBatchNodes(nodes []nodeTarget, operation string, nodeFunc func(string, uint64) error,
 	maxNodesPerBatch int, batchIntervalSeconds int) error {
 
 	if len(nodes) == 0 {
@@ -66,11 +70,11 @@ func (c *PowerManager) processBatchNodes(nodes []string, operation string, nodeF
 			currentBatch := nodes[i:end]
 			log.Infof("Processing %s batch %d-%d of %d nodes", operation, i, end-1, len(nodes))
 
-			for _, nodeID := range currentBatch {
-				if err := nodeFunc(nodeID); err != nil {
-					log.Errorf("Failed to %s node %s: %v", operation, nodeID, err)
+			for _, node := range currentBatch {
+				if err := nodeFunc(node.nodeID, node.generation); err != nil {
+					log.Errorf("Failed to %s node %s: %v", operation, node.nodeID, err)
 				} else {
-					log.Infof("Successfully %s node %s", operation, nodeID)
+					log.Infof("Successfully %s node %s", operation, node.nodeID)
 				}
 			}
 
@@ -85,8 +89,8 @@ func (c *PowerManager) processBatchNodes(nodes []string, operation string, nodeF
 	return nil
 }
 
-func (c *PowerManager) powerOnNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
+func (c *PowerManager) powerOnNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
 
 	maxNodesPerBatch := c.config.IPMI.MaxNodesPerBatch
 	batchIntervalSeconds := c.config.IPMI.BatchIntervalSeconds
@@ -98,8 +102,8 @@ func (c *PowerManager) powerOnNodes(nodeIDs []string) error {
 		maxNodesPerBatch, batchIntervalSeconds)
 }
 
-func (c *PowerManager) powerOffNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
+func (c *PowerManager) powerOffNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
 
 	maxNodesPerBatch := c.config.IPMI.MaxNodesPerBatch
 	batchIntervalSeconds := c.config.IPMI.BatchIntervalSeconds
@@ -108,7 +112,13 @@ func (c *PowerManager) powerOffNodes(nodeIDs []string) error {
 		maxNodesPerBatch, batchIntervalSeconds)
 }
 
-func (c *PowerManager) wakeUpNode(nodeID string) error {
+func (c *PowerManager) wakeUpNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
+		return errStaleNodeGeneration
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
 		return fmt.Errorf("node %s not found", nodeID)
@@ -136,13 +146,19 @@ func (c *PowerManager) wakeUpNode(nodeID string) error {
 	return nil
 }
 
-func (c *PowerManager) powerOnNode(nodeID string) error {
+func (c *PowerManager) powerOnNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
+		return errStaleNodeGeneration
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
 		if err := c.powerTool.RegisterNode(nodeID, nil); err != nil {
 			return err
 		}
-		c.RegisterNode(nodeID, PoweredOff, nil)
+		c.RegisterNode(nodeID, PoweredOff, nil, 0, 0)
 		value, exists = c.nodesInfo.Load(nodeID)
 		if !exists {
 			return fmt.Errorf("node %s not found", nodeID)
@@ -176,7 +192,13 @@ func (c *PowerManager) powerOnNode(nodeID string) error {
 	return nil
 }
 
-func (c *PowerManager) sleepNode(nodeID string) error {
+func (c *PowerManager) sleepNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
+		return errStaleNodeGeneration
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
 		return fmt.Errorf("node %s not found", nodeID)
@@ -204,7 +226,13 @@ func (c *PowerManager) sleepNode(nodeID string) error {
 	return nil
 }
 
-func (c *PowerManager) powerOffNode(nodeID string) error {
+func (c *PowerManager) powerOffNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
+		return errStaleNodeGeneration
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
 		return fmt.Errorf("node %s not found", nodeID)

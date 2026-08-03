@@ -33,6 +33,10 @@ type PowerManager struct {
 
 	nodesInfo      sync.Map
 	nodesInfoMutex sync.Mutex
+	nodeVersions   map[string]nodeVersion
+
+	nodeOperations      map[string]*nodeOperationLock
+	nodeOperationsMutex sync.Mutex
 
 	ctldClient      protos.CraneCtldClient
 	ctldClientMutex sync.Mutex
@@ -45,8 +49,17 @@ type PredictionRequest struct {
 }
 
 type nodeSnapshot struct {
-	nodeID              string
+	nodeTarget
 	lastStateChangeTime time.Time
+}
+
+type nodeTarget struct {
+	nodeID     string
+	generation uint64
+}
+
+func (n nodeTarget) String() string {
+	return n.nodeID
 }
 
 func sortByLastStateChange(nodes []nodeSnapshot) {
@@ -60,9 +73,11 @@ func sortByLastStateChange(nodes []nodeSnapshot) {
 
 func NewPowerManager(config *Config) *PowerManager {
 	manager := &PowerManager{
-		config:    config,
-		powerTool: NewIPMITool(config),
-		stopChan:  make(chan struct{}),
+		config:         config,
+		powerTool:      NewIPMITool(config),
+		nodeVersions:   make(map[string]nodeVersion),
+		nodeOperations: make(map[string]*nodeOperationLock),
+		stopChan:       make(chan struct{}),
 	}
 
 	manager.initCtldClient()
@@ -90,13 +105,125 @@ func cloneJobs(jobs map[string]struct{}) map[string]struct{} {
 	return result
 }
 
-func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs map[string]struct{}) bool {
+func compareNodeVersion(generation, revision uint64, current nodeVersion) int {
+	if generation < current.generation ||
+		(generation == current.generation && revision < current.revision) {
+		return -1
+	}
+	if generation == current.generation && revision == current.revision {
+		return 0
+	}
+	return 1
+}
+
+func (c *PowerManager) lockNodeOperation(nodeID string) func() {
+	c.nodeOperationsMutex.Lock()
+	operation, exists := c.nodeOperations[nodeID]
+	if !exists {
+		operation = &nodeOperationLock{}
+		c.nodeOperations[nodeID] = operation
+	}
+	operation.users++
+	c.nodeOperationsMutex.Unlock()
+
+	operation.mutex.Lock()
+	return func() {
+		operation.mutex.Unlock()
+
+		c.nodeOperationsMutex.Lock()
+		operation.users--
+		if operation.users == 0 {
+			delete(c.nodeOperations, nodeID)
+		}
+		c.nodeOperationsMutex.Unlock()
+	}
+}
+
+func (c *PowerManager) ApplyNodeDefinitionVersion(nodeID string, generation, revision uint64, present bool) bool {
+	c.nodesInfoMutex.Lock()
+	defer c.nodesInfoMutex.Unlock()
+
+	version := nodeVersion{generation: generation, revision: revision}
+	if current, exists := c.nodeVersions[nodeID]; exists {
+		comparison := compareNodeVersion(generation, revision, current)
+		if comparison < 0 {
+			return false
+		}
+		if comparison == 0 {
+			value, nodePresent := c.nodesInfo.Load(nodeID)
+			if !present {
+				return nodePresent
+			}
+			if !nodePresent {
+				return true
+			}
+			info := value.(*NodeInfo)
+			return info.Generation != generation || info.Revision != revision
+		}
+	}
+	c.nodeVersions[nodeID] = version
+	return true
+}
+
+func (c *PowerManager) AcceptNodeVersion(nodeID string, generation, revision uint64) bool {
+	c.nodesInfoMutex.Lock()
+	defer c.nodesInfoMutex.Unlock()
+
+	version := nodeVersion{generation: generation, revision: revision}
+	if current, exists := c.nodeVersions[nodeID]; exists &&
+		compareNodeVersion(generation, revision, current) < 0 {
+		return false
+	}
+	c.nodeVersions[nodeID] = version
+	return true
+}
+
+func (c *PowerManager) IsNodeGenerationCurrent(nodeID string, generation uint64) bool {
+	c.nodesInfoMutex.Lock()
+	defer c.nodesInfoMutex.Unlock()
+
+	if current, exists := c.nodeVersions[nodeID]; exists &&
+		current.generation != generation {
+		return false
+	}
+	value, exists := c.nodesInfo.Load(nodeID)
+	return exists && value.(*NodeInfo).Generation == generation
+}
+
+func (c *PowerManager) ResetNodeForNewGeneration(nodeID string, generation uint64) {
+	if generation == 0 {
+		return
+	}
+
+	c.nodesInfoMutex.Lock()
+	value, exists := c.nodesInfo.Load(nodeID)
+	stale := exists && value.(*NodeInfo).Generation != generation
+	if stale {
+		c.nodesInfo.Delete(nodeID)
+	}
+	c.nodesInfoMutex.Unlock()
+	if stale {
+		c.powerTool.UnregisterNode(nodeID)
+	}
+}
+
+func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs map[string]struct{}, generation, revision uint64) bool {
 	now := time.Now()
 	hasJobSnapshot := jobs != nil
 	jobs = cloneJobs(jobs)
 
 	c.nodesInfoMutex.Lock()
-	if value, exists := c.nodesInfo.Load(nodeID); exists {
+	if generation != 0 {
+		version := nodeVersion{generation: generation, revision: revision}
+		if current, exists := c.nodeVersions[nodeID]; exists &&
+			compareNodeVersion(generation, revision, current) < 0 {
+			c.nodesInfoMutex.Unlock()
+			return false
+		}
+		c.nodeVersions[nodeID] = version
+	}
+	if value, exists := c.nodesInfo.Load(nodeID); exists &&
+		value.(*NodeInfo).Generation == generation {
 		info := value.(*NodeInfo)
 		if !hasJobSnapshot {
 			jobs = info.Jobs
@@ -114,6 +241,8 @@ func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs 
 			State:               initialState,
 			LastStateChangeTime: lastStateChangeTime,
 			Jobs:                jobs,
+			Generation:          generation,
+			Revision:            revision,
 		})
 		c.nodesInfoMutex.Unlock()
 		if stateChanged {
@@ -142,6 +271,8 @@ func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs 
 		State:               initialState,
 		LastStateChangeTime: now,
 		Jobs:                jobs,
+		Generation:          generation,
+		Revision:            revision,
 	})
 	c.nodesInfoMutex.Unlock()
 	c.recordStateChange(now, nodeID, "", initialState)
@@ -154,12 +285,15 @@ func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs 
 	return true
 }
 
-func (c *PowerManager) RemoveNode(nodeID string) {
+func (c *PowerManager) RemoveNode(nodeID string, generation uint64) {
 	c.nodesInfoMutex.Lock()
-	if _, exists := c.nodesInfo.LoadAndDelete(nodeID); !exists {
+	value, exists := c.nodesInfo.Load(nodeID)
+	if !exists || (generation != 0 &&
+		(value.(*NodeInfo).Generation == 0 || value.(*NodeInfo).Generation > generation)) {
 		c.nodesInfoMutex.Unlock()
 		return
 	}
+	c.nodesInfo.Delete(nodeID)
 	c.nodesInfoMutex.Unlock()
 	c.powerTool.UnregisterNode(nodeID)
 	log.Infof("Removed node %s from power management", nodeID)
@@ -179,6 +313,8 @@ func (c *PowerManager) SetNodeExclude(nodeID string, exclude bool) error {
 		State:               info.State,
 		LastStateChangeTime: info.LastStateChangeTime,
 		Jobs:                info.Jobs,
+		Generation:          info.Generation,
+		Revision:            info.Revision,
 	})
 	c.nodesInfoMutex.Unlock()
 
@@ -317,13 +453,15 @@ func (c *PowerManager) updateNodeJob(nodeID string, jobID string, isAdd bool) bo
 		State:               newState,
 		LastStateChangeTime: lastStateChangeTime,
 		Jobs:                jobs,
+		Generation:          info.Generation,
+		Revision:            info.Revision,
 	})
 	c.nodesInfoMutex.Unlock()
 
 	if stateChanged {
 		logNodeStateChange(nodeID, info.State, newState)
 		c.recordStateChange(now, nodeID, info.State, newState)
-		c.notifyCtldPowerStateChange(nodeID, newState)
+		c.notifyCtldPowerStateChange(nodeID, newState, info.Generation)
 	}
 	return true
 }
@@ -358,38 +496,29 @@ func (c *PowerManager) updateNodeStateIfCurrent(nodeID string, expected *NodeInf
 		State:               newState,
 		LastStateChangeTime: now,
 		Jobs:                info.Jobs,
+		Generation:          info.Generation,
+		Revision:            info.Revision,
 	}
 	c.nodesInfo.Store(nodeID, updated)
 	c.nodesInfoMutex.Unlock()
 
 	logNodeStateChange(nodeID, info.State, newState)
 	c.recordStateChange(now, nodeID, info.State, newState)
-	c.notifyCtldPowerStateChange(nodeID, newState)
+	c.notifyCtldPowerStateChange(nodeID, newState, info.Generation)
 	return updated
 }
 
-func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState) {
-	c.sendCtldPowerStateChange(nodeID, state, true)
+func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState, generation uint64) {
+	c.sendCtldPowerStateChange(nodeID, state, generation, true)
 }
 
-func (c *PowerManager) reportCtldPowerStateChange(nodeID string, state NodeState) {
-	c.sendCtldPowerStateChange(nodeID, state, false)
+func (c *PowerManager) reportCtldPowerStateChange(nodeID string, state NodeState, generation uint64) {
+	c.sendCtldPowerStateChange(nodeID, state, generation, false)
 }
 
-func (c *PowerManager) sendCtldPowerStateChange(nodeID string, state NodeState, onlyIfCurrent bool) {
+func (c *PowerManager) sendCtldPowerStateChange(nodeID string, state NodeState, generation uint64, onlyIfCurrent bool) {
 	c.ctldClientMutex.Lock()
 	defer c.ctldClientMutex.Unlock()
-
-	if onlyIfCurrent {
-		value, exists := c.nodesInfo.Load(nodeID)
-		if !exists || value.(*NodeInfo).State != state {
-			return
-		}
-	}
-
-	if c.ctldClient == nil {
-		c.initCtldClient()
-	}
 
 	var powerType protos.CranedPowerState
 	switch state {
@@ -415,15 +544,25 @@ func (c *PowerManager) sendCtldPowerStateChange(nodeID string, state NodeState, 
 	}
 
 	req := &protos.PowerStateChangeRequest{
-		CranedId: nodeID,
-		State:    powerType,
-		Reason:   fmt.Sprintf("Node %s power state changed to %s by power manager(plugin/powerControl)", nodeID, state),
+		CranedId:   nodeID,
+		State:      powerType,
+		Reason:     fmt.Sprintf("Node %s power state changed to %s by power manager(plugin/powerControl)", nodeID, state),
+		Generation: generation,
 	}
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
 			log.Warnf("Retrying PowerStateChange for node %s, attempt %d/%d", nodeID, attempt, maxRetries)
 			time.Sleep(retryInterval)
+		}
+		if onlyIfCurrent {
+			value, exists := c.nodesInfo.Load(nodeID)
+			if !exists || value.(*NodeInfo).State != state ||
+				value.(*NodeInfo).Generation != generation {
+				return
+			}
+		}
+		if c.ctldClient == nil || attempt > 1 {
 			c.initCtldClient()
 		}
 
@@ -443,14 +582,19 @@ func (c *PowerManager) sendCtldPowerStateChange(nodeID string, state NodeState, 
 		}
 
 		if !reply.Ok {
-			log.Errorf("Failed to update node %s power state in CraneCtld", nodeID)
-		} else {
-			// Log at Debug level for routine Idle <-> Active transitions, Info for power state changes
-			if state == Idle || state == Active {
-				log.Debugf("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
-			} else {
-				log.Infof("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
+			log.Warnf("Attempt %d/%d: CraneCtld rejected the power state update for node %s",
+				attempt, maxRetries, nodeID)
+			if attempt == maxRetries {
+				log.Errorf("All retry attempts failed to update node %s power state in CraneCtld", nodeID)
 			}
+			continue
+		}
+
+		// Log at Debug level for routine Idle <-> Active transitions, Info for power state changes
+		if state == Idle || state == Active {
+			log.Debugf("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
+		} else {
+			log.Infof("Successfully updated node %s power state to %s in CraneCtld", nodeID, powerType)
 		}
 
 		return
@@ -516,7 +660,7 @@ func (c *PowerManager) getPredictedActiveNodeCount(totalNodes int) int {
 	return predResp.Prediction
 }
 
-func (c *PowerManager) makeDecision() ([]string, []string, []string, []string) {
+func (c *PowerManager) makeDecision() ([]nodeTarget, []nodeTarget, []nodeTarget, []nodeTarget) {
 	currentTime := time.Now()
 
 	predictionNodeCount := 0
@@ -537,7 +681,10 @@ func (c *PowerManager) makeDecision() ([]string, []string, []string, []string) {
 		}
 		totalNodes++
 		node := nodeSnapshot{
-			nodeID:              key.(string),
+			nodeTarget: nodeTarget{
+				nodeID:     key.(string),
+				generation: info.Generation,
+			},
 			lastStateChangeTime: info.LastStateChangeTime,
 		}
 		switch info.State {
@@ -568,7 +715,7 @@ func (c *PowerManager) makeDecision() ([]string, []string, []string, []string) {
 	currentIdleNodeCount := len(idleNodes)
 	currentActiveNodeCount := len(activeNodes)
 
-	var nodesToWake, nodesToPowerOn, nodesToSleep, nodesToPowerOff []string
+	var nodesToWake, nodesToPowerOn, nodesToSleep, nodesToPowerOff []nodeTarget
 	nodesToWake, nodesToPowerOn = c.getNodesForWakeUpOrPowerOn(
 		currentTime,
 		totalNodes,
@@ -620,7 +767,7 @@ func (c *PowerManager) getNodesForWakeUpOrPowerOn(
 	currentIdleNodeCount int,
 	sleepingNodes []nodeSnapshot,
 	poweredOffNodes []nodeSnapshot,
-) ([]string, []string) {
+) ([]nodeTarget, []nodeTarget) {
 	requiredIdleNodeCount := int(math.Ceil(float64(totalNodes) * c.config.PowerControl.IdleReserveRatio))
 	totalAvailableNodeCount := currentActiveNodeCount + currentIdleNodeCount
 	requiredTotalNodeCount := predictedActiveNodeCount + requiredIdleNodeCount
@@ -630,8 +777,8 @@ func (c *PowerManager) getNodesForWakeUpOrPowerOn(
 		return nil, nil
 	}
 
-	var nodesToWake []string
-	var nodesToPowerOn []string
+	var nodesToWake []nodeTarget
+	var nodesToPowerOn []nodeTarget
 
 	if len(sleepingNodes) > 0 {
 		sortedNodes := make([]nodeSnapshot, len(sleepingNodes))
@@ -640,7 +787,7 @@ func (c *PowerManager) getNodesForWakeUpOrPowerOn(
 
 		selectedCount := min(len(sortedNodes), neededNodeCount)
 		for _, node := range sortedNodes[:selectedCount] {
-			nodesToWake = append(nodesToWake, node.nodeID)
+			nodesToWake = append(nodesToWake, node.nodeTarget)
 		}
 		neededNodeCount -= selectedCount
 	}
@@ -652,7 +799,7 @@ func (c *PowerManager) getNodesForWakeUpOrPowerOn(
 
 		selectedCount := min(len(sortedNodes), neededNodeCount)
 		for _, node := range sortedNodes[:selectedCount] {
-			nodesToPowerOn = append(nodesToPowerOn, node.nodeID)
+			nodesToPowerOn = append(nodesToPowerOn, node.nodeTarget)
 		}
 		neededNodeCount -= selectedCount
 	}
@@ -688,9 +835,9 @@ func (c *PowerManager) getNodesForSleepOrPowerOff(
 	currentActiveNodeCount int,
 	idleNodes []nodeSnapshot,
 	sleepingNodes []nodeSnapshot,
-) ([]string, []string) {
-	var nodesToSleep []string
-	var nodesToPowerOff []string
+) ([]nodeTarget, []nodeTarget) {
+	var nodesToSleep []nodeTarget
+	var nodesToPowerOff []nodeTarget
 
 	if len(idleNodes) > 0 {
 		requiredIdleCount := int(math.Ceil(float64(totalNodes) * c.config.PowerControl.IdleReserveRatio))
@@ -706,11 +853,11 @@ func (c *PowerManager) getNodesForSleepOrPowerOff(
 
 			if c.config.PowerControl.EnableSleep {
 				for _, node := range sortedIdleNodes[:nodesCanSleepCount] {
-					nodesToSleep = append(nodesToSleep, node.nodeID)
+					nodesToSleep = append(nodesToSleep, node.nodeTarget)
 				}
 			} else {
 				for _, node := range sortedIdleNodes[:nodesCanSleepCount] {
-					nodesToPowerOff = append(nodesToPowerOff, node.nodeID)
+					nodesToPowerOff = append(nodesToPowerOff, node.nodeTarget)
 				}
 			}
 		}
@@ -722,7 +869,7 @@ func (c *PowerManager) getNodesForSleepOrPowerOff(
 		log.Debugf("node %s sleep time: %s", node.nodeID, sleepTime)
 
 		if sleepTime >= time.Duration(c.config.PowerControl.SleepTimeThresholdSeconds)*time.Second {
-			nodesToPowerOff = append(nodesToPowerOff, node.nodeID)
+			nodesToPowerOff = append(nodesToPowerOff, node.nodeTarget)
 		}
 	}
 
