@@ -64,3 +64,6 @@ jobs:
     
     - name: Run go vet
       run: go vet ./...
+
+    - name: Run trace pipeline tests
+      run: go test -race ./plugin/trace
