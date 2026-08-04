@@ -116,51 +116,40 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 			executionFlowReasonInvalidEventTime, "flow event time is invalid",
 		)
 	}
-	if callerValue, ok := stringTraceAttribute(point, "flow_environment_id"); ok &&
-		callerValue != v.flowEnvironmentID {
+	if _, ok := point.attributes[executionFlowStorageFlowEnvironmentID]; ok {
 		return validatedTracePoint{}, newFlowPointValidationError(
-			executionFlowReasonFlowEnvironmentIdMismatch,
-			"flow_environment_id does not match process environment",
+			executionFlowReasonUnexpectedAttribute,
+			"flow_environment_id is trusted storage metadata and cannot be supplied by a producer",
 		)
 	}
-	flowSchema, _ := stringTraceAttribute(point, "flow_schema")
+	pointID := strings.TrimPrefix(point.name, v.wirePrefix)
+	isHeartbeat := point.name == v.heartbeatPoint
+	isPipelineFault := point.name == v.pipelineFaultPoint
+	if err := v.validateRequiredEnvelope(point, !isHeartbeat && !isPipelineFault); err != nil {
+		return validatedTracePoint{}, err
+	}
+	flowSchema, _ := stringTraceAttribute(point, executionFlowEnvelopeFlowSchema)
 	if flowSchema != v.schemaVersion {
 		return validatedTracePoint{}, newFlowPointValidationError(
 			executionFlowReasonInvalidFlowSchema, "flow_schema is invalid",
 		)
 	}
-	pointID := strings.TrimPrefix(point.name, v.wirePrefix)
-	declaredPoint, _ := stringTraceAttribute(point, "point")
+	declaredPoint, _ := stringTraceAttribute(point, executionFlowEnvelopePoint)
 	if pointID == "" || declaredPoint != pointID {
 		return validatedTracePoint{}, newFlowPointValidationError(
 			executionFlowReasonPointNameMismatch, "point does not match span name",
 		)
 	}
-	producer, _ := stringTraceAttribute(point, "producer")
-	logicalInstance, _ := stringTraceAttribute(point, "service_logical_instance")
-	serviceInstance, _ := stringTraceAttribute(point, "service_instance")
-	for _, required := range []struct {
-		name   string
-		value  string
-		reason executionFlowReasonCode
-	}{
-		{name: "producer", value: producer, reason: executionFlowReasonMissingProducer},
-		{
-			name: "service_logical_instance", value: logicalInstance,
-			reason: executionFlowReasonMissingServiceLogicalInstance,
-		},
-		{
-			name: "service_instance", value: serviceInstance,
-			reason: executionFlowReasonMissingServiceInstance,
-		},
-	} {
-		if required.value == "" {
-			return validatedTracePoint{}, newFlowPointValidationError(
-				required.reason, required.name+" is required",
-			)
-		}
-	}
-	eventSequenceText, _ := stringTraceAttribute(point, "event_sequence")
+	producer, _ := stringTraceAttribute(point, executionFlowEnvelopeProducer)
+	logicalInstance, _ := stringTraceAttribute(
+		point, executionFlowEnvelopeServiceLogicalInstance,
+	)
+	serviceInstance, _ := stringTraceAttribute(
+		point, executionFlowEnvelopeServiceInstance,
+	)
+	eventSequenceText, _ := stringTraceAttribute(
+		point, executionFlowEnvelopeEventSequence,
+	)
 	eventSequence, err := parseCanonicalInt64(eventSequenceText, false)
 	if err != nil {
 		return validatedTracePoint{}, newFlowPointValidationError(
@@ -168,30 +157,17 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 		)
 	}
 
-	flowID, _ := stringTraceAttribute(point, "flow_id")
-	isHeartbeat := point.name == v.heartbeatPoint
-	isPipelineFault := point.name == v.pipelineFaultPoint
+	flowID, _ := stringTraceAttribute(point, executionFlowEnvelopeFlowID)
 	if isHeartbeat {
 		for key := range point.attributes {
-			if !isFlowEnvelopeAttribute(key) {
+			if !v.isFlowMetadataAttribute(key) {
 				return validatedTracePoint{}, newFlowPointValidationError(
 					executionFlowReasonUnexpectedAttribute,
 					"pipeline heartbeat contains an unexpected attribute",
 				)
 			}
 		}
-		if flowID != "" && !flowIDTagPattern.MatchString(flowID) {
-			return validatedTracePoint{}, newFlowPointValidationError(
-				executionFlowReasonInvalidFlowId, "flow_id is invalid",
-			)
-		}
 	} else {
-		if (!isPipelineFault && !flowIDTagPattern.MatchString(flowID)) ||
-			(isPipelineFault && flowID != "" && !flowIDTagPattern.MatchString(flowID)) {
-			return validatedTracePoint{}, newFlowPointValidationError(
-				executionFlowReasonInvalidFlowId, "flow_id is required and must be valid",
-			)
-		}
 		spec, known := v.catalog.Point(pointID)
 		if !known {
 			return validatedTracePoint{}, newFlowPointValidationError(
@@ -213,9 +189,14 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 			}
 		}
 	}
+	if flowID != "" && !flowIDTagPattern.MatchString(flowID) {
+		return validatedTracePoint{}, newFlowPointValidationError(
+			executionFlowReasonInvalidFlowId, "flow_id is invalid",
+		)
+	}
 
 	for key, value := range point.attributes {
-		if isFlowEnvelopeAttribute(key) {
+		if v.isFlowMetadataAttribute(key) {
 			continue
 		}
 		text, ok := value.(string)
@@ -254,7 +235,7 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 			)
 		}
 	}
-	point.attributes["event_sequence"] = eventSequence
+	point.attributes[executionFlowEnvelopeEventSequence] = eventSequence
 	point.durationUS = 0
 	point.flow = &executionFlowEnvelope{
 		environmentID:          v.flowEnvironmentID,
@@ -270,14 +251,42 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 	return validatedTracePoint{point: point}, nil
 }
 
-func isFlowEnvelopeAttribute(key string) bool {
-	switch key {
-	case "event_sequence", "flow_environment_id", "flow_id", "flow_schema", "point",
-		"producer", "service_instance", "service_logical_instance":
-		return true
-	default:
-		return false
+func (v *schemaExecutionFlowValidator) isFlowMetadataAttribute(key string) bool {
+	return v.catalog.AllowsEnvelopeAttribute(key)
+}
+
+func (v *schemaExecutionFlowValidator) validateRequiredEnvelope(
+	point typedTracePoint,
+	business bool,
+) error {
+	for _, attribute := range v.catalog.EnvelopeAttributes() {
+		var required bool
+		switch attribute.Requirement {
+		case executionFlowEnvelopeRequiredAlways:
+			required = true
+		case executionFlowEnvelopeRequiredBusiness:
+			required = business
+		case executionFlowEnvelopeOptional:
+			required = false
+		default:
+			return newFlowPointValidationError(
+				executionFlowReasonInvalidAttributeType,
+				"canonical flow schema contains an unsupported envelope requirement",
+			)
+		}
+		if !required {
+			continue
+		}
+		value, ok := stringTraceAttribute(point, attribute.Name)
+		if ok && value != "" {
+			continue
+		}
+		return newFlowPointValidationError(
+			attribute.MissingReason,
+			"required execution-flow envelope attribute "+attribute.Name+" is missing",
+		)
 	}
+	return nil
 }
 
 func parseCanonicalInt64(value string, signed bool) (int64, error) {

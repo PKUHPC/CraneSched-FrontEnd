@@ -108,7 +108,7 @@ func validateUnixSocket(path string) error {
 	return nil
 }
 
-func invalidFlowRequest(environmentID string, observedAt time.Time) *protos.TraceHookRequest {
+func invalidFlowRequest(observedAt time.Time) *protos.TraceHookRequest {
 	timestamp := timestamppb.New(observedAt.UTC())
 	return &protos.TraceHookRequest{Spans: []*protos.SpanInfo{{
 		TraceId:     "00000000000000000000000000000001",
@@ -120,7 +120,6 @@ func invalidFlowRequest(environmentID string, observedAt time.Time) *protos.Trac
 		ServiceName: "cranectld",
 		Attributes: map[string]string{
 			"event_sequence":           "1",
-			"flow_environment_id":      environmentID,
 			"flow_id":                  rejectedCanary,
 			"flow_schema":              "v1",
 			"job_id":                   "1",
@@ -137,10 +136,9 @@ func invalidFlowRequest(environmentID string, observedAt time.Time) *protos.Trac
 func submitInvalidFlowPoint(
 	ctx context.Context,
 	client traceHookClient,
-	environmentID string,
 	observedAt time.Time,
 ) error {
-	_, err := client.TraceHook(ctx, invalidFlowRequest(environmentID, observedAt))
+	_, err := client.TraceHook(ctx, invalidFlowRequest(observedAt))
 	if err != nil {
 		return fmt.Errorf("TraceHook RPC failed: %w", err)
 	}
@@ -173,7 +171,6 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) er
 	if err := submitInvalidFlowPoint(
 		ctx,
 		protos.NewCranePluginDClient(conn),
-		opts.environmentID,
 		time.Now(),
 	); err != nil {
 		return err

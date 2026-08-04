@@ -42,6 +42,88 @@ func TestGeneratedFlowCatalogMetadata(t *testing.T) {
 	) {
 		t.Fatal("generated catalog does not allow its invalid-flow-id reason")
 	}
+	for name, wantType := range map[string]string{
+		executionFlowEnvelopeEventSequence:          "int64",
+		executionFlowEnvelopeFlowID:                 "string",
+		executionFlowEnvelopeFlowSchema:             "string",
+		executionFlowEnvelopePoint:                  "string",
+		executionFlowEnvelopeProducer:               "string",
+		executionFlowEnvelopeServiceInstance:        "string",
+		executionFlowEnvelopeServiceLogicalInstance: "string",
+	} {
+		gotType, ok := generatedExecutionFlowCatalog.EnvelopeAttributeType(name)
+		if !ok || gotType != wantType ||
+			!generatedExecutionFlowCatalog.AllowsEnvelopeAttribute(name) {
+			t.Fatalf("envelope attribute %q = %q, present=%t", name, gotType, ok)
+		}
+		if generatedExecutionFlowCatalog.AllowsAttribute(name) {
+			t.Fatalf("envelope attribute %q leaked into point attributes", name)
+		}
+	}
+	envelope := generatedExecutionFlowCatalog.EnvelopeAttributes()
+	if len(envelope) != 7 {
+		t.Fatalf("envelope attribute count = %d, want 7", len(envelope))
+	}
+	for index := 1; index < len(envelope); index++ {
+		if envelope[index-1].Name >= envelope[index].Name {
+			t.Fatalf("envelope catalog is not ordered: %#v", envelope)
+		}
+	}
+	for _, attribute := range envelope {
+		if attribute.Name == executionFlowEnvelopeFlowID {
+			if attribute.Requirement != executionFlowEnvelopeRequiredBusiness ||
+				attribute.MissingReason != executionFlowReasonInvalidFlowId {
+				t.Fatalf("flow_id requirement = %#v", attribute)
+			}
+		} else if attribute.Requirement != executionFlowEnvelopeRequiredAlways {
+			t.Fatalf("always-required envelope attribute = %#v", attribute)
+		}
+	}
+	for _, storageOnly := range []string{
+		executionFlowStorageEventTimeUnixNano,
+		executionFlowStorageFlowEnvironmentID,
+		executionFlowStorageFlowSlot,
+		executionFlowStorageFlowInstanceSlot,
+	} {
+		if generatedExecutionFlowCatalog.AllowsEnvelopeAttribute(storageOnly) ||
+			generatedExecutionFlowCatalog.AllowsAttribute(storageOnly) {
+			t.Fatalf("storage-only attribute %q leaked into the wire schema", storageOnly)
+		}
+	}
+	storage := generatedExecutionFlowCatalog.StorageAttributes()
+	if len(storage) != 4 {
+		t.Fatalf("storage attribute count = %d, want 4", len(storage))
+	}
+	for index := 1; index < len(storage); index++ {
+		if storage[index-1].Name >= storage[index].Name {
+			t.Fatalf("storage catalog is not ordered: %#v", storage)
+		}
+	}
+	for _, test := range []struct {
+		name          string
+		attributeType string
+		kind          executionFlowStorageKind
+		minimum       int64
+		maximum       int64
+		hasMinimum    bool
+		hasMaximum    bool
+	}{
+		{executionFlowStorageEventTimeUnixNano, "int64", executionFlowStorageField, 1, 0, true, false},
+		{executionFlowStorageFlowEnvironmentID, "string", executionFlowStorageTag, 0, 0, false, false},
+		{executionFlowStorageFlowInstanceSlot, "int64", executionFlowStorageTag, 0, 63, true, true},
+		{executionFlowStorageFlowSlot, "int64", executionFlowStorageTag, 0, 63, true, true},
+	} {
+		attribute, ok := generatedExecutionFlowCatalog.StorageAttribute(test.name)
+		if !ok || !generatedExecutionFlowCatalog.AllowsStorageAttribute(test.name) {
+			t.Fatalf("storage attribute %q is missing", test.name)
+		}
+		if attribute.Type != test.attributeType || attribute.Kind != test.kind ||
+			attribute.Source != "frontend" || attribute.Wire ||
+			attribute.Minimum != test.minimum || attribute.Maximum != test.maximum ||
+			attribute.HasMinimum != test.hasMinimum || attribute.HasMaximum != test.hasMaximum {
+			t.Fatalf("storage attribute %q = %#v", test.name, attribute)
+		}
+	}
 }
 
 func TestGeneratedFlowCatalogPointIsImmutable(t *testing.T) {

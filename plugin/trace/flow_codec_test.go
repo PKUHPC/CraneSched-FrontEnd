@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,6 +40,10 @@ func TestInvalidFlowPointBecomesQueryableSanitizedFault(t *testing.T) {
 	if slot, err := strconv.Atoi(tags["flow_slot"]); err != nil ||
 		slot < 0 || slot >= flowCollisionSlots {
 		t.Fatalf("fault flow_slot = %q", tags["flow_slot"])
+	}
+	if slot, err := strconv.Atoi(tags["flow_instance_slot"]); err != nil ||
+		slot < 0 || slot >= flowInstanceSlots {
+		t.Fatalf("fault flow_instance_slot = %q", tags["flow_instance_slot"])
 	}
 	fields := pointFields(point)
 	if fields["reason_code"] != "invalid_flow_id" {
@@ -120,41 +126,58 @@ func TestPipelineFaultIdentityDoesNotDependOnRejectedData(t *testing.T) {
 	}
 }
 
-func TestFlowSlotsUseCanonicalEventSequenceModulo(t *testing.T) {
+func TestFlowInstanceSlotIsStableAndBounded(t *testing.T) {
 	pipeline, err := newTracePointPipeline("run-1.shard-0", generatedExecutionFlowCatalog)
 	if err != nil {
 		t.Fatalf("newTracePointPipeline() error = %v", err)
 	}
-	seen := make(map[string]struct{}, flowCollisionSlots)
-	for index := 0; index < flowCollisionSlots; index++ {
+	encode := func(serviceInstance string, sequence int) encodedTracePoint {
+		t.Helper()
 		span := testSpan("flow/v1/ctld/job/accepted", map[string]string{
-			"flow_id":        "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
-			"event_sequence": strconv.Itoa(index),
+			"flow_id":          "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+			"service_instance": serviceInstance,
+			"event_sequence":   strconv.Itoa(sequence),
 		})
 		point, err := pipeline.Process(rawTracePoint{span: span})
 		if err != nil {
-			t.Fatalf("encode point %d: %v", index, err)
+			t.Fatalf("encode instance %q sequence %d: %v", serviceInstance, sequence, err)
 		}
-		slot := point.tags["flow_slot"]
-		if slot != strconv.Itoa(index) {
-			t.Fatalf("event sequence %d produced flow_slot %q", index, slot)
-		}
-		if _, duplicate := seen[slot]; duplicate {
-			t.Fatalf("duplicate allocated flow_slot %s", slot)
-		}
-		seen[slot] = struct{}{}
+		return point
 	}
 
-	wrapped := testSpan("flow/v1/ctld/job/accepted", map[string]string{
-		"flow_id":        "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
-		"event_sequence": strconv.Itoa(flowCollisionSlots),
-	})
-	point, err := pipeline.Process(rawTracePoint{span: wrapped})
-	if err != nil {
-		t.Fatalf("encode wrapped event sequence: %v", err)
+	first := encode("ctld#instance-a", 7)
+	repeated := encode("ctld#instance-a", 7)
+	secondInstance := encode("ctld#instance-b", 7)
+	secondSequence := encode("ctld#instance-a", 8)
+	if first.tags["flow_instance_slot"] != repeated.tags["flow_instance_slot"] {
+		t.Fatalf("identical service instance is unstable: %v != %v", first.tags, repeated.tags)
 	}
-	if point.tags["flow_slot"] != "0" {
-		t.Fatalf("wrapped flow_slot = %q, want 0", point.tags["flow_slot"])
+	if first.tags["flow_instance_slot"] != secondSequence.tags["flow_instance_slot"] {
+		t.Fatalf("same service instance changed slot across sequences: %v != %v", first.tags, secondSequence.tags)
+	}
+	if first.tags["flow_slot"] != "7" || secondInstance.tags["flow_slot"] != "7" ||
+		secondSequence.tags["flow_slot"] != "8" {
+		t.Fatalf("event sequence slots are not canonical modulo values: first=%v second_instance=%v second_sequence=%v",
+			first.tags, secondInstance.tags, secondSequence.tags)
+	}
+	if _, promoted := first.tags["service_instance"]; promoted {
+		t.Fatal("unbounded service_instance must remain a field, not a tag")
+	}
+	if !first.time.Equal(secondInstance.time) {
+		t.Fatal("test points do not share an event timestamp")
+	}
+	seen := make(map[string]struct{}, flowInstanceSlots)
+	for instance := 0; instance < flowInstanceSlots*4; instance++ {
+		point := encode("ctld#sample-"+strconv.Itoa(instance), 7)
+		slot, parseErr := strconv.Atoi(point.tags["flow_instance_slot"])
+		if parseErr != nil || slot < 0 || slot >= flowInstanceSlots {
+			t.Fatalf("instance %d produced out-of-domain slot %q",
+				instance, point.tags["flow_instance_slot"])
+		}
+		seen[point.tags["flow_instance_slot"]] = struct{}{}
+	}
+	if len(seen) < 2 {
+		t.Fatalf("service identity hash did not separate the sample set: %v", seen)
 	}
 }
 
@@ -187,32 +210,197 @@ func TestEqualNanosecondFlowPointsUseDistinctSequenceSlots(t *testing.T) {
 	}
 }
 
-func TestFlowSlotCardinalityIsBoundedWithoutMovingEventTime(t *testing.T) {
+func TestFlowCollisionTagCardinalityHasStrictUpperBoundWithoutMovingEventTime(t *testing.T) {
 	pipeline, err := newTracePointPipeline("run-1.shard-0", generatedExecutionFlowCatalog)
 	if err != nil {
 		t.Fatalf("newTracePointPipeline() error = %v", err)
 	}
 
-	slots := make(map[string]struct{}, flowCollisionSlots)
+	tagPairs := make(map[string]struct{}, flowCollisionSlots*flowInstanceSlots)
 	wantEventTime := testSpan("flow/v1/ctld/job/accepted", nil).EndTime.AsTime()
-	for sequence := 0; sequence < flowCollisionSlots*3; sequence++ {
+	for instance := 0; instance < flowInstanceSlots*4; instance++ {
+		for sequence := 0; sequence < flowCollisionSlots; sequence++ {
+			span := testSpan("flow/v1/ctld/job/accepted", map[string]string{
+				"flow_id":          "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+				"service_instance": "ctld#instance-" + strconv.Itoa(instance),
+				"event_sequence":   strconv.Itoa(sequence),
+			})
+			point, processErr := pipeline.Process(rawTracePoint{span: span})
+			if processErr != nil {
+				t.Fatalf("process instance %d sequence %d: %v", instance, sequence, processErr)
+			}
+			sequenceSlot, parseErr := strconv.Atoi(point.tags["flow_slot"])
+			if parseErr != nil || sequenceSlot != sequence {
+				t.Fatalf("sequence %d produced flow_slot %q", sequence, point.tags["flow_slot"])
+			}
+			instanceSlot, parseErr := strconv.Atoi(point.tags["flow_instance_slot"])
+			if parseErr != nil || instanceSlot < 0 || instanceSlot >= flowInstanceSlots {
+				t.Fatalf("instance %d produced out-of-domain flow_instance_slot %q",
+					instance, point.tags["flow_instance_slot"])
+			}
+			tagPairs[point.tags["flow_instance_slot"]+"/"+point.tags["flow_slot"]] = struct{}{}
+			if !point.time.Equal(wantEventTime) {
+				t.Fatalf("instance %d sequence %d moved storage time to %s, want %s",
+					instance, sequence, point.time, wantEventTime)
+			}
+			if got := point.fields["event_time_unix_nano"]; got != wantEventTime.UnixNano() {
+				t.Fatalf("instance %d sequence %d event time = %#v", instance, sequence, got)
+			}
+		}
+	}
+	maxPairs := flowCollisionSlots * flowInstanceSlots
+	if len(tagPairs) > maxPairs {
+		t.Fatalf("collision tag pair cardinality = %d, want at most %d", len(tagPairs), maxPairs)
+	}
+	if len(tagPairs) <= flowCollisionSlots {
+		t.Fatalf("instance dimension did not separate the sample set: pairs=%d", len(tagPairs))
+	}
+	if _, promoted := testSpan("flow/v1/ctld/job/accepted", nil).Attributes["flow_instance_slot"]; promoted {
+		t.Fatal("storage-only flow_instance_slot leaked into the wire schema")
+	}
+}
+
+func TestFlowInstanceSlotHasNoProcessLifetimeCapacity(t *testing.T) {
+	pipeline, err := newTracePointPipeline("run-1.shard-0", generatedExecutionFlowCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const flows = 16*1024 + 1
+	for flow := 0; flow < flows; flow++ {
 		span := testSpan("flow/v1/ctld/job/accepted", map[string]string{
-			"flow_id":        "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
-			"event_sequence": strconv.Itoa(sequence),
+			"flow_id":          fmt.Sprintf("%032x", flow),
+			"service_instance": "ctld#instance-" + strconv.Itoa(flow%97),
 		})
 		point, processErr := pipeline.Process(rawTracePoint{span: span})
 		if processErr != nil {
-			t.Fatalf("process sequence %d: %v", sequence, processErr)
+			t.Fatalf("flow %d failed: %v", flow, processErr)
 		}
-		slots[point.tags["flow_slot"]] = struct{}{}
-		if !point.time.Equal(wantEventTime) {
-			t.Fatalf("sequence %d moved storage time to %s, want %s", sequence, point.time, wantEventTime)
-		}
-		if got := point.fields["event_time_unix_nano"]; got != wantEventTime.UnixNano() {
-			t.Fatalf("sequence %d event time = %#v", sequence, got)
+		if point.tags["name"] == generatedExecutionFlowCatalog.PipelineFaultPoint() {
+			t.Fatalf("flow %d became a pipeline fault", flow)
 		}
 	}
-	if len(slots) != flowCollisionSlots {
-		t.Fatalf("flow slot cardinality = %d, want %d", len(slots), flowCollisionSlots)
+}
+
+func TestFlowInstanceSlotIsConcurrentAndConsistent(t *testing.T) {
+	pipeline, err := newTracePointPipeline("run-1.shard-0", generatedExecutionFlowCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		slot string
+		err  error
+	}
+	const goroutines = 256
+	results := make(chan result, goroutines)
+	var wg sync.WaitGroup
+	for instance := 0; instance < goroutines; instance++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			span := testSpan("flow/v1/ctld/job/accepted", map[string]string{
+				"flow_id":          "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+				"service_instance": "ctld#concurrent-stable",
+				"event_sequence":   "9",
+			})
+			point, processErr := pipeline.Process(rawTracePoint{span: span})
+			results <- result{slot: point.tags["flow_instance_slot"], err: processErr}
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	var wantSlot string
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("concurrent encoding failed: %v", result.err)
+		}
+		if wantSlot == "" {
+			wantSlot = result.slot
+		} else if result.slot != wantSlot {
+			t.Fatalf("same identity mapped inconsistently: got %q, want %q", result.slot, wantSlot)
+		}
+	}
+	slot, parseErr := strconv.Atoi(wantSlot)
+	if parseErr != nil || slot < 0 || slot >= flowInstanceSlots {
+		t.Fatalf("concurrent identity produced out-of-domain slot %q", wantSlot)
+	}
+}
+
+func TestUnboundPipelinePointsUseFixedInstanceSlotWithoutExhaustion(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		producer string
+	}{
+		{name: generatedExecutionFlowCatalog.HeartbeatPoint(), producer: "craned"},
+		{name: generatedExecutionFlowCatalog.PipelineFaultPoint(), producer: "frontend"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			encoder := &influxTracePointEncoder{}
+			for instance := 0; instance < flowInstanceSlots*2; instance++ {
+				point := typedTracePoint{
+					name:      test.name,
+					service:   test.producer,
+					eventTime: time.Unix(100, 25_000),
+					flow: &executionFlowEnvelope{
+						environmentID:          "run-1.shard-0",
+						producer:               test.producer,
+						serviceLogicalInstance: test.producer,
+						serviceInstance:        test.producer + "#" + strconv.Itoa(instance),
+						eventSequence:          int64(instance),
+						pipelineFault:          test.name == generatedExecutionFlowCatalog.PipelineFaultPoint(),
+					},
+				}
+				encoded, err := encoder.Encode(routedTracePoint{point: point})
+				if err != nil {
+					t.Fatalf("unbound instance %d failed: %v", instance, err)
+				}
+				if encoded.tags["flow_instance_slot"] != "0" {
+					t.Fatalf("unbound instance %d slot = %q, want 0",
+						instance, encoded.tags["flow_instance_slot"])
+				}
+			}
+
+			business := typedTracePoint{
+				name:      "flow/v1/ctld/job/accepted",
+				service:   test.producer,
+				eventTime: time.Unix(100, 25_000),
+				flow: &executionFlowEnvelope{
+					environmentID:          "run-1.shard-0",
+					flowID:                 "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+					producer:               test.producer,
+					serviceLogicalInstance: test.producer,
+					serviceInstance:        test.producer + "#business",
+				},
+			}
+			encoded, err := encoder.Encode(routedTracePoint{point: business})
+			if err != nil {
+				t.Fatalf("unbound points consumed business capacity: %v", err)
+			}
+			slot, parseErr := strconv.Atoi(encoded.tags["flow_instance_slot"])
+			if parseErr != nil || slot < 0 || slot >= flowInstanceSlots {
+				t.Fatalf("business instance slot = %q", encoded.tags["flow_instance_slot"])
+			}
+		})
+	}
+}
+
+func TestMissingEnvironmentRejectsWithoutInventingFaultEnvironment(t *testing.T) {
+	pipeline, err := newTracePointPipeline("", generatedExecutionFlowCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	span := testSpan("flow/v1/ctld/job/accepted", map[string]string{
+		"flow_environment_id": "producer-claimed-environment",
+	})
+
+	point, err := pipeline.Process(rawTracePoint{span: span})
+	if err == nil || !strings.Contains(err.Error(), flowEnvironmentIDEnv) {
+		t.Fatalf("Process() error = %v, want missing environment failure", err)
+	}
+	if len(point.tags) != 0 || len(point.fields) != 0 {
+		t.Fatalf("unscoped rejection produced a persisted point: %+v", point)
+	}
+	if got := pipeline.rejected.Load(); got != 1 {
+		t.Fatalf("unscoped rejection count = %d, want 1", got)
 	}
 }

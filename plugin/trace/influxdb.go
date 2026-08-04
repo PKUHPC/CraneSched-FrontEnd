@@ -203,7 +203,7 @@ func influxPointForSpanWithEnvironment(
 		return nil, err
 	}
 	routed := NewTracePointRouter().Route(validated)
-	encoded, err := (influxTracePointEncoder{}).Encode(routed)
+	encoded, err := (&influxTracePointEncoder{}).Encode(routed)
 	if err != nil {
 		return nil, err
 	}

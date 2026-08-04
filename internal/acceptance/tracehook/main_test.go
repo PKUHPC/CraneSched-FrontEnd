@@ -111,9 +111,11 @@ func TestRunSubmitsInvalidPointThroughTraceHookWithoutPrintingCanary(t *testing.
 	}
 	span := request.GetSpans()[0]
 	if span.GetName() != "flow/v1/ctld/job/accepted" ||
-		span.GetAttributes()["flow_environment_id"] != "run-1.shard-0" ||
 		span.GetAttributes()["flow_id"] != rejectedCanary {
 		t.Fatalf("captured invalid flow span = %#v", span)
+	}
+	if _, supplied := span.GetAttributes()["flow_environment_id"]; supplied {
+		t.Fatal("acceptance fixture supplied frontend-owned flow_environment_id on the wire")
 	}
 	if span.GetEndTime() == nil || span.GetEndTime().CheckValid() != nil {
 		t.Fatalf("captured event time = %#v", span.GetEndTime())
@@ -136,7 +138,7 @@ func TestRunSubmitsInvalidPointThroughTraceHookWithoutPrintingCanary(t *testing.
 }
 
 func TestInvalidFlowRequestContainsCanaryOnlyInRejectedFlowID(t *testing.T) {
-	request := invalidFlowRequest("run-2.shard-7", time.Unix(1, 2))
+	request := invalidFlowRequest(time.Unix(1, 2))
 	encoded, err := protojson.Marshal(request)
 	if err != nil {
 		t.Fatal(err)
@@ -145,8 +147,8 @@ func TestInvalidFlowRequestContainsCanaryOnlyInRejectedFlowID(t *testing.T) {
 		t.Fatalf("rejected canary count = %d, request=%s", count, encoded)
 	}
 	span := request.GetSpans()[0]
-	if span.GetAttributes()["flow_environment_id"] != "run-2.shard-7" {
-		t.Fatalf("flow environment = %q", span.GetAttributes()["flow_environment_id"])
+	if _, supplied := span.GetAttributes()["flow_environment_id"]; supplied {
+		t.Fatal("frontend-owned flow environment leaked into producer wire attributes")
 	}
 	if span.GetAttributes()["flow_schema"] != "v1" ||
 		span.GetAttributes()["point"] != "ctld/job/accepted" {

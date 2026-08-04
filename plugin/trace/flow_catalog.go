@@ -8,6 +8,40 @@ type executionFlowPointSpec struct {
 	RequiredAttributes []string
 }
 
+type executionFlowEnvelopeRequirement string
+
+const (
+	executionFlowEnvelopeRequiredAlways   executionFlowEnvelopeRequirement = "always"
+	executionFlowEnvelopeRequiredBusiness executionFlowEnvelopeRequirement = "business"
+	executionFlowEnvelopeOptional         executionFlowEnvelopeRequirement = "optional"
+)
+
+type executionFlowEnvelopeAttributeSpec struct {
+	Name          string
+	Type          string
+	Requirement   executionFlowEnvelopeRequirement
+	MissingReason executionFlowReasonCode
+}
+
+type executionFlowStorageKind string
+
+const (
+	executionFlowStorageField executionFlowStorageKind = "field"
+	executionFlowStorageTag   executionFlowStorageKind = "tag"
+)
+
+type executionFlowStorageAttributeSpec struct {
+	Name       string
+	Type       string
+	Kind       executionFlowStorageKind
+	Source     string
+	Wire       bool
+	Minimum    int64
+	Maximum    int64
+	HasMinimum bool
+	HasMaximum bool
+}
+
 type executionFlowSchemaCatalog interface {
 	SchemaName() string
 	SchemaSHA256() string
@@ -16,6 +50,12 @@ type executionFlowSchemaCatalog interface {
 	HeartbeatPoint() string
 	PipelineFaultPoint() string
 	Point(string) (executionFlowPointSpec, bool)
+	AllowsEnvelopeAttribute(string) bool
+	EnvelopeAttributeType(string) (string, bool)
+	EnvelopeAttributes() []executionFlowEnvelopeAttributeSpec
+	AllowsStorageAttribute(string) bool
+	StorageAttribute(string) (executionFlowStorageAttributeSpec, bool)
+	StorageAttributes() []executionFlowStorageAttributeSpec
 	AllowsAttribute(string) bool
 	AttributeType(string) (string, bool)
 	AllowsEnumValue(string, string) bool

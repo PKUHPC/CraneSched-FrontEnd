@@ -104,21 +104,27 @@ func (w *TraceWriter) Enqueue(ctx context.Context, spans []*protos.SpanInfo) err
 	}
 
 	for shardID, shardPoints := range byShard {
-		batch := append([]encodedTracePoint(nil), shardPoints...)
 		worker := w.workers[shardID]
-		select {
-		case worker.queue <- batch:
-			worker.enqueuedBatches.Add(1)
-			worker.enqueuedSpans.Add(uint64(len(batch)))
-		case <-ctx.Done():
-			failed := worker.failedEnqueues.Add(1)
-			if failed == 1 || failed%128 == 0 {
-				log.Warnf("Trace writer enqueue canceled shard_id=%d count=%d err=%v",
-					shardID, failed, ctx.Err())
+		for start := 0; start < len(shardPoints); start += worker.cfg.BatchSpans {
+			end := start + worker.cfg.BatchSpans
+			if end > len(shardPoints) {
+				end = len(shardPoints)
 			}
-			return ctx.Err()
-		case <-w.stop:
-			return errors.New("trace writer is stopping")
+			batch := append([]encodedTracePoint(nil), shardPoints[start:end]...)
+			select {
+			case worker.queue <- batch:
+				worker.enqueuedBatches.Add(1)
+				worker.enqueuedSpans.Add(uint64(len(batch)))
+			case <-ctx.Done():
+				failed := worker.failedEnqueues.Add(1)
+				if failed == 1 || failed%128 == 0 {
+					log.Warnf("Trace writer enqueue canceled shard_id=%d count=%d err=%v",
+						shardID, failed, ctx.Err())
+				}
+				return errors.Join(errors.Join(pointErrors...), ctx.Err())
+			case <-w.stop:
+				return errors.Join(errors.Join(pointErrors...), errors.New("trace writer is stopping"))
+			}
 		}
 	}
 	return errors.Join(pointErrors...)
@@ -194,6 +200,20 @@ func (s *traceBatchWorker) run(
 	var oldestPending time.Time
 	var lastWriteError error
 	var shutdownDeadline time.Time
+	var retryTimer *time.Timer
+	stopRetryTimer := func() {
+		if retryTimer == nil {
+			return
+		}
+		if !retryTimer.Stop() {
+			select {
+			case <-retryTimer.C:
+			default:
+			}
+		}
+		retryTimer = nil
+	}
+	defer stopRetryTimer()
 
 	logStats := func(final bool) {
 		enqueuedBatches := s.enqueuedBatches.Load()
@@ -325,8 +345,23 @@ func (s *traceBatchWorker) run(
 	}
 
 	for {
+		var queue <-chan []encodedTracePoint
+		var retry <-chan time.Time
+		if len(pending) > 0 && !nextRetry.IsZero() {
+			if retryTimer == nil {
+				delay := time.Until(nextRetry)
+				if delay < 0 {
+					delay = 0
+				}
+				retryTimer = time.NewTimer(delay)
+			}
+			retry = retryTimer.C
+		} else {
+			stopRetryTimer()
+			queue = s.queue
+		}
 		select {
-		case spans := <-s.queue:
+		case spans := <-queue:
 			appendPending(spans)
 			for len(pending) >= s.cfg.BatchSpans {
 				before := len(pending)
@@ -335,11 +370,17 @@ func (s *traceBatchWorker) run(
 					break
 				}
 			}
-		case <-ticker.C:
+		case <-retry:
+			retryTimer = nil
 			flush(false)
+		case <-ticker.C:
+			if retry == nil {
+				flush(false)
+			}
 		case <-statsTicker.C:
 			logStats(false)
 		case <-stop:
+			stopRetryTimer()
 			shutdownBudget := time.Duration(s.cfg.CloseTimeoutMs) * time.Millisecond
 			margin := 10 * time.Millisecond
 			if margin >= shutdownBudget {

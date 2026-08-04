@@ -34,7 +34,7 @@ func newTracePointPipeline(
 		decoder:       protobufTracePointDecoder{},
 		flowValidator: validator,
 		router:        NewTracePointRouter(),
-		encoder:       influxTracePointEncoder{},
+		encoder:       &influxTracePointEncoder{},
 		now:           time.Now,
 	}, nil
 }
@@ -73,7 +73,7 @@ func (p *tracePointPipeline) Process(raw rawTracePoint) (encodedTracePoint, erro
 		if !errors.As(err, &validationError) {
 			return encodedTracePoint{}, err
 		}
-		validated, err = p.pipelineFault(validationError)
+		validated, err = p.pipelineFault(validationError.reason)
 		if err != nil {
 			return encodedTracePoint{}, err
 		}
@@ -83,11 +83,28 @@ func (p *tracePointPipeline) Process(raw rawTracePoint) (encodedTracePoint, erro
 }
 
 func (p *tracePointPipeline) pipelineFault(
-	validationError *flowPointValidationError,
+	reason executionFlowReasonCode,
 ) (validatedTracePoint, error) {
+	rejected := p.rejected.Add(1)
+	if rejected > uint64(^uint64(0)>>1) {
+		return validatedTracePoint{}, fmt.Errorf("execution-flow rejection counter overflow")
+	}
 	environmentID := p.flowValidator.EnvironmentID()
 	if environmentID == "" {
-		return validatedTracePoint{}, validationError
+		if rejected == 1 || rejected%128 == 0 {
+			// There is no trustworthy environment to attach to a persisted flow
+			// fault. Fail closed and emit only a sanitized operational diagnostic;
+			// assigning a sentinel or producer-supplied environment could make an
+			// unrelated validator session report a false pipeline fault.
+			log.Errorf(
+				"Rejected unscoped execution-flow span reason=%s rejected_spans=%d",
+				reason,
+				rejected,
+			)
+		}
+		return validatedTracePoint{}, newFlowPointValidationError(
+			reason, fmt.Sprintf("%s is required for execution-flow spans", flowEnvironmentIDEnv),
+		)
 	}
 
 	now := p.now
@@ -95,10 +112,6 @@ func (p *tracePointPipeline) pipelineFault(
 		now = time.Now
 	}
 	eventTime := now().UTC()
-	rejected := p.rejected.Add(1)
-	if rejected > uint64(^uint64(0)>>1) {
-		return validatedTracePoint{}, fmt.Errorf("execution-flow rejection counter overflow")
-	}
 	sequence := int64(rejected)
 	// A pipeline fault must not retain, log, or derive persisted identifiers
 	// from the rejected point. The environment, reason, observation time, and
@@ -106,7 +119,7 @@ func (p *tracePointPipeline) pipelineFault(
 	seed := fmt.Sprintf(
 		"%s\x00%s\x00%d\x00%d",
 		environmentID,
-		validationError.reason,
+		reason,
 		sequence,
 		eventTime.UnixNano(),
 	)
@@ -114,7 +127,7 @@ func (p *tracePointPipeline) pipelineFault(
 	if rejected == 1 || rejected%128 == 0 {
 		log.Warnf(
 			"Rejected invalid execution-flow span reason=%s rejected_spans=%d",
-			validationError.reason,
+			reason,
 			rejected,
 		)
 	}
@@ -130,13 +143,13 @@ func (p *tracePointPipeline) pipelineFault(
 		eventTime:      eventTime,
 		eventTimeValid: true,
 		attributes: map[string]any{
-			"flow_schema":              p.flowValidator.SchemaVersion(),
-			"point":                    pointID,
-			"producer":                 "frontend",
-			"service_logical_instance": flowFrontendLogicalInstance,
-			"service_instance":         flowFrontendLogicalInstance,
-			"event_sequence":           strconv.FormatInt(sequence, 10),
-			"reason_code":              string(validationError.reason),
+			executionFlowEnvelopeFlowSchema:             p.flowValidator.SchemaVersion(),
+			executionFlowEnvelopePoint:                  pointID,
+			executionFlowEnvelopeProducer:               "frontend",
+			executionFlowEnvelopeServiceLogicalInstance: flowFrontendLogicalInstance,
+			executionFlowEnvelopeServiceInstance:        flowFrontendLogicalInstance,
+			executionFlowEnvelopeEventSequence:          strconv.FormatInt(sequence, 10),
+			"reason_code":                               string(reason),
 		},
 	}
 	return p.flowValidator.Validate(fault)

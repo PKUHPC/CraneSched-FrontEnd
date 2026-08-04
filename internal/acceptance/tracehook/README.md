@@ -24,3 +24,7 @@ the generated pipeline fault may contain that rejected value. A successful RPC
 only reports `{"ok":true}` after cplugind accepts the request; the acceptance test must query
 the environment-scoped Influx data through the Go validator and require
 `trace_pipeline_inconclusive`.
+
+`--environment-id` identifies the target environment for that query. It is not
+sent as a producer attribute: `flow_environment_id` is trusted storage metadata
+injected by the target trace plugin from its own process configuration.

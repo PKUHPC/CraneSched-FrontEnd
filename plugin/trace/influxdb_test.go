@@ -283,9 +283,8 @@ func TestInfluxCloseDeadlineWaitsForSingleClientCloseWithoutMarkingClosed(t *tes
 func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
 	point, err := influxPointForSpanWithEnvironment(
 		testSpan("flow/v1/ctld/job/accepted", map[string]string{
-			"flow_id":             "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
-			"flow_environment_id": "gh-123_ABC.1",
-			"job_id":              "42",
+			"flow_id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+			"job_id":  "42",
 		}),
 		"gh-123_ABC.1",
 	)
@@ -302,6 +301,9 @@ func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
 	}
 	if got := tags["flow_slot"]; got == "" {
 		t.Fatal("flow_slot tag is missing")
+	}
+	if got := tags["flow_instance_slot"]; got == "" {
+		t.Fatal("flow_instance_slot tag is missing")
 	}
 	if _, ok := tags["span_id"]; ok {
 		t.Fatal("unique span_id must not be an Influx tag")
@@ -384,34 +386,18 @@ func TestFlowPointInjectsCanonicalEnvironment(t *testing.T) {
 	}
 }
 
-func TestFlowPointRejectsCallerEnvironmentMismatch(t *testing.T) {
+func TestFlowPointRejectsProducerControlledEnvironment(t *testing.T) {
 	_, err := influxPointForSpanWithEnvironment(
 		testSpan("flow/v1/ctld/job/accepted", map[string]string{
-			"flow_environment_id": "caller-environment",
+			"flow_environment_id": "canonical-environment",
 		}),
 		"canonical-environment",
 	)
 	if err == nil {
-		t.Fatal("influxPointForSpanWithEnvironment() accepted a caller environment mismatch")
+		t.Fatal("influxPointForSpanWithEnvironment() accepted producer-controlled storage metadata")
 	}
-	if !strings.Contains(err.Error(), "does not match process environment") {
-		t.Fatalf("mismatch error = %q", err)
-	}
-}
-
-func TestFlowPointAcceptsMatchingCanonicalEnvironment(t *testing.T) {
-	point, err := influxPointForSpanWithEnvironment(
-		testSpan("flow/v1/ctld/job/accepted", map[string]string{
-			"flow_environment_id": "canonical-environment",
-			"flow_id":             "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
-		}),
-		"canonical-environment",
-	)
-	if err != nil {
-		t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
-	}
-	if got := pointTags(point)["flow_environment_id"]; got != "canonical-environment" {
-		t.Fatalf("flow_environment_id tag = %q, want %q", got, "canonical-environment")
+	if !strings.Contains(err.Error(), "trusted storage metadata") {
+		t.Fatalf("producer environment error = %q", err)
 	}
 }
 
@@ -547,7 +533,7 @@ func TestFlowPointRejectsInvalidSpanID(t *testing.T) {
 	}
 }
 
-func TestFlowPointsWithWrappedSlotsKeepOriginalStorageTime(t *testing.T) {
+func TestFlowPointsWithDifferentSequencesKeepOriginalStorageTime(t *testing.T) {
 	firstSpan := testSpan("flow/v1/ctld/job/accepted", map[string]string{
 		"flow_id":        "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
 		"event_sequence": "1",
@@ -575,10 +561,13 @@ func TestFlowPointsWithWrappedSlotsKeepOriginalStorageTime(t *testing.T) {
 	firstTags := pointTags(firstPoint)
 	secondTags := pointTags(secondPoint)
 	if firstTags["flow_slot"] != secondTags["flow_slot"] {
-		t.Fatalf("wrapped flow slots differ: %v != %v", firstTags, secondTags)
+		t.Fatalf("wrapped sequence slots differ: %v != %v", firstTags, secondTags)
+	}
+	if firstTags["flow_instance_slot"] != secondTags["flow_instance_slot"] {
+		t.Fatalf("same service instance changed slots: %v != %v", firstTags, secondTags)
 	}
 	if !firstPoint.Time().Equal(secondPoint.Time()) {
-		t.Fatalf("wrapped flow points moved storage time: %s != %s", firstPoint.Time(), secondPoint.Time())
+		t.Fatalf("flow points moved storage time: %s != %s", firstPoint.Time(), secondPoint.Time())
 	}
 	wantEventTime := firstSpan.EndTime.AsTime().UnixNano()
 	for index, point := range []*write.Point{firstPoint, secondPoint} {

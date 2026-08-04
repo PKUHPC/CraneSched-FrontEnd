@@ -62,7 +62,7 @@ func (fakeTraceProcessor) Process(raw rawTracePoint) (encodedTracePoint, error) 
 		flowID, _ := stringTraceAttribute(point, "flow_id")
 		point.flow = &executionFlowEnvelope{flowID: flowID}
 	}
-	return (influxTracePointEncoder{}).Encode(
+	return (&influxTracePointEncoder{}).Encode(
 		NewTracePointRouter().Route(validatedTracePoint{point: point}),
 	)
 }
@@ -175,6 +175,138 @@ func TestTraceWriterKeepsValidSiblingWhenOnePointIsMalformed(t *testing.T) {
 	}
 	if got := db.writes["detail"]; got != 1 {
 		t.Fatalf("valid sibling writes = %d, want 1", got)
+	}
+}
+
+type batchRecordingTraceSink struct {
+	mu    sync.Mutex
+	sizes []int
+}
+
+func (s *batchRecordingTraceSink) WriteBatch(
+	ctx context.Context,
+	points []encodedTracePoint,
+) (traceSinkBatchResult, error) {
+	if err := ctx.Err(); err != nil {
+		return traceSinkBatchResult{failed: points}, err
+	}
+	s.mu.Lock()
+	s.sizes = append(s.sizes, len(points))
+	s.mu.Unlock()
+	return traceSinkBatchResult{}, nil
+}
+
+func (*batchRecordingTraceSink) Close(context.Context) error { return nil }
+
+func TestTraceWriterChunksEnqueueAtBatchSpans(t *testing.T) {
+	sink := &batchRecordingTraceSink{}
+	writer := testTraceWriter(sink, TraceWriterConfig{
+		Shards: 1, BatchSpans: 3, QueueBatches: 8, FlushIntervalMs: 1000,
+		CloseTimeoutMs: 1000,
+	})
+	spans := make([]*protos.SpanInfo, 8)
+	for index := range spans {
+		spans[index] = &protos.SpanInfo{Name: "step/detail"}
+	}
+	if err := writer.Enqueue(context.Background(), spans); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	sink.mu.Lock()
+	sizes := append([]int(nil), sink.sizes...)
+	sink.mu.Unlock()
+	total := 0
+	for _, size := range sizes {
+		total += size
+		if size > 3 {
+			t.Fatalf("sink batch size = %d, want at most 3; all=%v", size, sizes)
+		}
+	}
+	if total != len(spans) {
+		t.Fatalf("written spans = %d, want %d; batches=%v", total, len(spans), sizes)
+	}
+}
+
+type recoverableFailureTraceSink struct {
+	failureStarted  chan struct{}
+	releaseFailure  chan struct{}
+	failureReturned chan struct{}
+	startOnce       sync.Once
+	returnOnce      sync.Once
+	recovered       atomic.Bool
+	attempts        atomic.Int64
+}
+
+func newRecoverableFailureTraceSink() *recoverableFailureTraceSink {
+	return &recoverableFailureTraceSink{
+		failureStarted:  make(chan struct{}),
+		releaseFailure:  make(chan struct{}),
+		failureReturned: make(chan struct{}),
+	}
+}
+
+func (s *recoverableFailureTraceSink) WriteBatch(
+	_ context.Context,
+	points []encodedTracePoint,
+) (traceSinkBatchResult, error) {
+	s.attempts.Add(1)
+	if s.recovered.Load() {
+		return traceSinkBatchResult{}, nil
+	}
+	s.startOnce.Do(func() { close(s.failureStarted) })
+	<-s.releaseFailure
+	s.returnOnce.Do(func() { close(s.failureReturned) })
+	return traceSinkBatchResult{failed: append([]encodedTracePoint(nil), points...)},
+		errors.New("injected outage")
+}
+
+func (*recoverableFailureTraceSink) Close(context.Context) error { return nil }
+
+func TestTraceWriterRetryBackoffKeepsQueueBounded(t *testing.T) {
+	sink := newRecoverableFailureTraceSink()
+	writer := testTraceWriter(sink, TraceWriterConfig{
+		Shards: 1, BatchSpans: 2, QueueBatches: 2, FlushIntervalMs: 1,
+		RetryBackoffMs: 500, MaxRetryBackoffMs: 500,
+		WriteTimeoutMs: 1000, CloseTimeoutMs: 1000,
+	})
+	makeSpans := func(count int) []*protos.SpanInfo {
+		spans := make([]*protos.SpanInfo, count)
+		for index := range spans {
+			spans[index] = &protos.SpanInfo{Name: "step/detail"}
+		}
+		return spans
+	}
+	if err := writer.Enqueue(context.Background(), makeSpans(2)); err != nil {
+		t.Fatal(err)
+	}
+	<-sink.failureStarted
+	// Fill the two bounded queue slots while the first write is still active.
+	if err := writer.Enqueue(context.Background(), makeSpans(4)); err != nil {
+		t.Fatal(err)
+	}
+	close(sink.releaseFailure)
+	<-sink.failureReturned
+	time.Sleep(20 * time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	err := writer.Enqueue(ctx, makeSpans(2))
+	cancel()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("enqueue during retry backoff = %v, want deadline exceeded", err)
+	}
+	if got := len(writer.workers[0].queue); got != cap(writer.workers[0].queue) {
+		t.Fatalf("retry queue length = %d, capacity = %d", got, cap(writer.workers[0].queue))
+	}
+	if got := sink.attempts.Load(); got != 1 {
+		t.Fatalf("write attempts during backoff = %d, want 1", got)
+	}
+
+	sink.recovered.Store(true)
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 
