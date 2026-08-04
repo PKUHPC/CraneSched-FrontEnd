@@ -32,21 +32,30 @@ func (c *PowerManager) filterExcludedNodes(nodes []nodeTarget) []nodeTarget {
 
 func (c *PowerManager) wakeupNodes(nodes []nodeTarget) error {
 	allowedNodes := c.filterExcludedNodes(nodes)
+	var failedNodes []string
 	for _, node := range allowedNodes {
-		err := c.wakeUpNode(node.nodeID, node.generation)
-		if err != nil {
-			return err
+		if err := c.wakeUpNode(node.nodeID, node.generation); err != nil {
+			log.Errorf("Failed to wake up node %s: %v", node.nodeID, err)
+			failedNodes = append(failedNodes, node.nodeID)
 		}
+	}
+	if len(failedNodes) > 0 {
+		return fmt.Errorf("failed to wake up nodes: %v", failedNodes)
 	}
 	return nil
 }
 
 func (c *PowerManager) sleepNodes(nodes []nodeTarget) error {
 	allowedNodes := c.filterExcludedNodes(nodes)
+	var failedNodes []string
 	for _, node := range allowedNodes {
 		if err := c.sleepNode(node.nodeID, node.generation); err != nil {
-			return err
+			log.Errorf("Failed to sleep node %s: %v", node.nodeID, err)
+			failedNodes = append(failedNodes, node.nodeID)
 		}
+	}
+	if len(failedNodes) > 0 {
+		return fmt.Errorf("failed to sleep nodes: %v", failedNodes)
 	}
 	return nil
 }

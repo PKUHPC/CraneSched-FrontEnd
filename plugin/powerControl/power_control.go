@@ -24,6 +24,9 @@ var _ api.PowerManagementHooks = PowerControlPlugin{}
 var _ api.CranedLifecycleHooks = PowerControlPlugin{}
 var _ api.NodeDefinitionHooks = PowerControlPlugin{}
 
+// Must match kPowerControlProvider in CraneCtld (CtldPublicDefs.h).
+const powerControlProvider = "powerControl"
+
 var (
 	PluginInstance = PowerControlPlugin{}
 	manager        *PowerManager
@@ -139,7 +142,8 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 	}
 	generation := uint64(0)
 	if req.Dynamic {
-		if req.Provider != "powerControl" {
+		if !strings.EqualFold(req.Provider, powerControlProvider) {
+			log.Debugf("Skipping power state update for node %s managed by provider %q", req.CranedId, req.Provider)
 			return
 		}
 		if req.Generation == 0 {
@@ -207,16 +211,9 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 			}
 			manager.notifyCtldPowerStateChange(req.CranedId, info.State, generation)
 		} else {
-			switch req.State {
-			case protos.CranedControlState_CRANE_POWERON:
-				manager.reportCtldPowerStateChange(req.CranedId, PoweredOff, generation)
-			case protos.CranedControlState_CRANE_WAKE:
-				manager.reportCtldPowerStateChange(req.CranedId, Sleep, generation)
-			case protos.CranedControlState_CRANE_SLEEP:
-				manager.reportCtldPowerStateChange(req.CranedId, Idle, generation)
-			case protos.CranedControlState_CRANE_POWEROFF:
-				manager.reportCtldPowerStateChange(req.CranedId, Sleep, generation)
-			}
+			// Only observed states are reported; CraneCtld's
+			// PowerActionTimeout converges unknown nodes.
+			log.Warnf("Node %s not tracked by power manager; no power state reported for failed %v", req.CranedId, req.State)
 		}
 	} else {
 		log.Infof("Successfully changed power state to %v on node %s", req.State, req.CranedId)
@@ -236,7 +233,8 @@ func (p PowerControlPlugin) NodeDefinitionHook(ctx *api.PluginContext) {
 	unlock := manager.lockNodeOperation(req.CranedId)
 	defer unlock()
 
-	if req.Provider != "powerControl" {
+	if !strings.EqualFold(req.Provider, powerControlProvider) {
+		log.Debugf("Node %s definition belongs to provider %q; not managing it", req.CranedId, req.Provider)
 		if manager.ApplyNodeDefinitionVersion(req.CranedId, req.Generation, req.Revision, false) {
 			manager.RemoveNode(req.CranedId, req.Generation)
 		}
@@ -303,7 +301,8 @@ func (p PowerControlPlugin) RegisterCranedHook(ctx *api.PluginContext) {
 		}
 		generation = req.Generation
 		revision = req.Revision
-		if req.Provider != "powerControl" {
+		if !strings.EqualFold(req.Provider, powerControlProvider) {
+			log.Debugf("Node %s registered under provider %q; not managing it", req.CranedId, req.Provider)
 			if manager.ApplyNodeDefinitionVersion(req.CranedId, generation, revision, false) {
 				manager.RemoveNode(req.CranedId, generation)
 			}

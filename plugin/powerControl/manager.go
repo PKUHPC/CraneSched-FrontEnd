@@ -25,6 +25,10 @@ import (
 const (
 	maxRetries    = 3
 	retryInterval = 5 * time.Second
+
+	// How long a version entry of a node absent from nodesInfo is kept so
+	// that late stale hooks are still rejected.
+	nodeVersionRetention = 24 * time.Hour
 )
 
 type PowerManager struct {
@@ -39,7 +43,7 @@ type PowerManager struct {
 	nodeOperationsMutex sync.Mutex
 
 	ctldClient      protos.CraneCtldClient
-	ctldClientMutex sync.Mutex
+	ctldClientMutex sync.Mutex // only guards the ctldClient reference
 
 	stopChan chan struct{}
 }
@@ -143,7 +147,7 @@ func (c *PowerManager) ApplyNodeDefinitionVersion(nodeID string, generation, rev
 	c.nodesInfoMutex.Lock()
 	defer c.nodesInfoMutex.Unlock()
 
-	version := nodeVersion{generation: generation, revision: revision}
+	version := nodeVersion{generation: generation, revision: revision, updatedAt: time.Now()}
 	if current, exists := c.nodeVersions[nodeID]; exists {
 		comparison := compareNodeVersion(generation, revision, current)
 		if comparison < 0 {
@@ -165,16 +169,18 @@ func (c *PowerManager) ApplyNodeDefinitionVersion(nodeID string, generation, rev
 	return true
 }
 
+// AcceptNodeVersion is the check-and-claim primitive for node versions:
+// it rejects stale generations/revisions and records the accepted one.
+// Callers must claim the version before calling RegisterNode.
 func (c *PowerManager) AcceptNodeVersion(nodeID string, generation, revision uint64) bool {
 	c.nodesInfoMutex.Lock()
 	defer c.nodesInfoMutex.Unlock()
 
-	version := nodeVersion{generation: generation, revision: revision}
 	if current, exists := c.nodeVersions[nodeID]; exists &&
 		compareNodeVersion(generation, revision, current) < 0 {
 		return false
 	}
-	c.nodeVersions[nodeID] = version
+	c.nodeVersions[nodeID] = nodeVersion{generation: generation, revision: revision, updatedAt: time.Now()}
 	return true
 }
 
@@ -207,21 +213,15 @@ func (c *PowerManager) ResetNodeForNewGeneration(nodeID string, generation uint6
 	}
 }
 
-func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs map[string]struct{}, generation, revision uint64) bool {
+// RegisterNode stores the node runtime info. For dynamic nodes the version
+// must already be claimed via AcceptNodeVersion/ApplyNodeDefinitionVersion
+// under the same node operation lock.
+func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs map[string]struct{}, generation, revision uint64) {
 	now := time.Now()
 	hasJobSnapshot := jobs != nil
 	jobs = cloneJobs(jobs)
 
 	c.nodesInfoMutex.Lock()
-	if generation != 0 {
-		version := nodeVersion{generation: generation, revision: revision}
-		if current, exists := c.nodeVersions[nodeID]; exists &&
-			compareNodeVersion(generation, revision, current) < 0 {
-			c.nodesInfoMutex.Unlock()
-			return false
-		}
-		c.nodeVersions[nodeID] = version
-	}
 	if value, exists := c.nodesInfo.Load(nodeID); exists &&
 		value.(*NodeInfo).Generation == generation {
 		info := value.(*NodeInfo)
@@ -249,7 +249,7 @@ func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs 
 			logNodeStateChange(nodeID, info.State, initialState)
 			c.recordStateChange(now, nodeID, info.State, initialState)
 		}
-		return false
+		return
 	}
 	if jobs == nil {
 		jobs = make(map[string]struct{})
@@ -282,7 +282,6 @@ func (c *PowerManager) RegisterNode(nodeID string, initialState NodeState, jobs 
 	} else {
 		log.Infof("Initialized node %s in %s state", nodeID, initialState)
 	}
-	return true
 }
 
 func (c *PowerManager) RemoveNode(nodeID string, generation uint64) {
@@ -360,7 +359,32 @@ func (c *PowerManager) RemoveJobFromNode(nodeID string, jobID string) bool {
 func (c *PowerManager) initCtldClient() {
 	configPath := util.DefaultConfigPath
 	config := util.ParseConfig(configPath)
-	c.ctldClient = util.GetStubToCtldByConfig(config)
+	client := util.GetStubToCtldByConfig(config)
+
+	c.ctldClientMutex.Lock()
+	c.ctldClient = client
+	c.ctldClientMutex.Unlock()
+}
+
+func (c *PowerManager) getCtldClient() protos.CraneCtldClient {
+	c.ctldClientMutex.Lock()
+	defer c.ctldClientMutex.Unlock()
+	return c.ctldClient
+}
+
+func (c *PowerManager) rebuildCtldClient(stale protos.CraneCtldClient) protos.CraneCtldClient {
+	configPath := util.DefaultConfigPath
+	config := util.ParseConfig(configPath)
+	client := util.GetStubToCtldByConfig(config)
+
+	c.ctldClientMutex.Lock()
+	defer c.ctldClientMutex.Unlock()
+	if c.ctldClient != stale {
+		// Another goroutine already replaced the stale client; reuse it.
+		return c.ctldClient
+	}
+	c.ctldClient = client
+	return client
 }
 
 func (c *PowerManager) start() (int, int, int, int) {
@@ -508,18 +532,9 @@ func (c *PowerManager) updateNodeStateIfCurrent(nodeID string, expected *NodeInf
 	return updated
 }
 
+// notifyCtldPowerStateChange reports the state to CraneCtld as long as it is
+// still the node's current state at send time.
 func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState, generation uint64) {
-	c.sendCtldPowerStateChange(nodeID, state, generation, true)
-}
-
-func (c *PowerManager) reportCtldPowerStateChange(nodeID string, state NodeState, generation uint64) {
-	c.sendCtldPowerStateChange(nodeID, state, generation, false)
-}
-
-func (c *PowerManager) sendCtldPowerStateChange(nodeID string, state NodeState, generation uint64, onlyIfCurrent bool) {
-	c.ctldClientMutex.Lock()
-	defer c.ctldClientMutex.Unlock()
-
 	var powerType protos.CranedPowerState
 	switch state {
 	case Active:
@@ -548,27 +563,27 @@ func (c *PowerManager) sendCtldPowerStateChange(nodeID string, state NodeState, 
 		State:      powerType,
 		Reason:     fmt.Sprintf("Node %s power state changed to %s by power manager(plugin/powerControl)", nodeID, state),
 		Generation: generation,
+		Uid:        uint32(os.Getuid()),
 	}
 
+	client := c.getCtldClient()
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
 			log.Warnf("Retrying PowerStateChange for node %s, attempt %d/%d", nodeID, attempt, maxRetries)
 			time.Sleep(retryInterval)
 		}
-		if onlyIfCurrent {
-			value, exists := c.nodesInfo.Load(nodeID)
-			if !exists || value.(*NodeInfo).State != state ||
-				value.(*NodeInfo).Generation != generation {
-				return
-			}
+		value, exists := c.nodesInfo.Load(nodeID)
+		if !exists || value.(*NodeInfo).State != state ||
+			value.(*NodeInfo).Generation != generation {
+			return
 		}
-		if c.ctldClient == nil || attempt > 1 {
-			c.initCtldClient()
+		if client == nil || attempt > 1 {
+			client = c.rebuildCtldClient(client)
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
-		reply, err := c.ctldClient.PowerStateChange(ctx, req)
+		reply, err := client.PowerStateChange(ctx, req)
 		cancel()
 
 		if err != nil {
@@ -913,6 +928,12 @@ func (c *PowerManager) checkPowerState() {
 		nodeID := key.(string)
 		info := value.(*NodeInfo)
 
+		// Nodes registered without network interfaces (e.g. via
+		// NodeDefinitionHook before the craned first registers) cannot be
+		// pinged, so liveness-based inference would misreport them as Sleep.
+		// For such nodes only act on what the BMC power status can determine.
+		canPing := c.powerTool.HasNetworkInfo(nodeID)
+
 		switch info.State {
 		case PoweringOn, Wakingup:
 			timedOut := time.Since(info.LastStateChangeTime) >= actionTimeout
@@ -933,6 +954,9 @@ func (c *PowerManager) checkPowerState() {
 				if timedOut {
 					c.updateNodeStateIfCurrent(nodeID, info, PoweredOff)
 				}
+				return true
+			}
+			if !canPing {
 				return true
 			}
 
@@ -962,7 +986,7 @@ func (c *PowerManager) checkPowerState() {
 				if c.updateNodeStateIfCurrent(nodeID, info, PoweredOff) != nil {
 					log.Infof("Node %s is now powered off", nodeID)
 				}
-			} else if timedOut {
+			} else if timedOut && canPing {
 				var updated *NodeInfo
 				if c.powerTool.CheckNodeAlive(nodeID) {
 					updated = c.updateNodeStateIfCurrent(nodeID, info, Idle)
@@ -975,6 +999,9 @@ func (c *PowerManager) checkPowerState() {
 			}
 
 		case ToSleeping:
+			if !canPing {
+				return true
+			}
 			alive := c.powerTool.CheckNodeAlive(nodeID)
 			if !alive {
 				if c.updateNodeStateIfCurrent(nodeID, info, Sleep) != nil {
@@ -987,7 +1014,7 @@ func (c *PowerManager) checkPowerState() {
 			}
 
 		case Idle, Active:
-			alive := c.powerTool.CheckNodeAlive(nodeID)
+			alive := canPing && c.powerTool.CheckNodeAlive(nodeID)
 			if !alive {
 				powered, err := c.powerTool.GetPowerState(nodeID)
 				if err != nil {
@@ -998,7 +1025,7 @@ func (c *PowerManager) checkPowerState() {
 					if c.updateNodeStateIfCurrent(nodeID, info, PoweredOff) != nil {
 						log.Warnf("Node %s was idle but found powered off", nodeID)
 					}
-				} else {
+				} else if canPing {
 					if c.updateNodeStateIfCurrent(nodeID, info, Sleep) != nil {
 						log.Warnf("Node %s was idle but found sleeping", nodeID)
 					}
@@ -1030,7 +1057,7 @@ func (c *PowerManager) checkPowerState() {
 				log.Errorf("Failed to check power status for node %s: %v", nodeID, err)
 				return true
 			}
-			if powered {
+			if powered && canPing {
 				alive := c.powerTool.CheckNodeAlive(nodeID)
 				if alive {
 					if c.updateNodeStateIfCurrent(nodeID, info, Idle) != nil {
@@ -1045,6 +1072,25 @@ func (c *PowerManager) checkPowerState() {
 		}
 		return true
 	})
+
+	c.pruneStaleNodeVersions()
+}
+
+// pruneStaleNodeVersions drops version entries of nodes that left nodesInfo
+// long ago so the map does not grow without bound.
+func (c *PowerManager) pruneStaleNodeVersions() {
+	cutoff := time.Now().Add(-nodeVersionRetention)
+
+	c.nodesInfoMutex.Lock()
+	defer c.nodesInfoMutex.Unlock()
+	for nodeID, version := range c.nodeVersions {
+		if !version.updatedAt.Before(cutoff) {
+			continue
+		}
+		if _, exists := c.nodesInfo.Load(nodeID); !exists {
+			delete(c.nodeVersions, nodeID)
+		}
+	}
 }
 
 func (c *PowerManager) recordClusterState(

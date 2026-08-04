@@ -33,6 +33,7 @@ type NodeInfo struct {
 type nodeVersion struct {
 	generation uint64
 	revision   uint64
+	updatedAt  time.Time
 }
 
 type nodeOperationLock struct {
@@ -55,6 +56,7 @@ type PowerTool interface {
 	UnregisterNode(nodeID string)
 	GetPowerState(nodeID string) (bool, error)
 	CheckNodeAlive(nodeID string) bool
+	HasNetworkInfo(nodeID string) bool
 
 	WakeUp(nodeID string) error
 	Sleep(nodeID string) error

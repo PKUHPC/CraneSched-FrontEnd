@@ -84,8 +84,8 @@ func SummarizeReply(proto interface{}) error {
 		}
 		if len(reply.NotDeletedNodes) > 0 {
 			msg := ""
-			for i := 0; i < len(reply.NotDeletedNodes); i++ {
-				msg += fmt.Sprintf("Failed to delete node: %s. Reason: %s.\n", reply.NotDeletedNodes[i], reply.NotDeletedReasons[i])
+			for _, result := range reply.NotDeletedNodes {
+				msg += fmt.Sprintf("Failed to delete node: %s. Reason: %s.\n", result.NodeName, result.Reason)
 			}
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
@@ -576,7 +576,7 @@ type dynamicNodeCreateOptions struct {
 	memoryBytes     uint64
 	sockets         uint32
 	partitionNames  []string
-	gres            *protos.DedicatedResourceInNode
+	gres            *protos.GresMap
 	pool            string
 	features        []string
 	powerState      protos.DynamicNodePowerState
@@ -623,7 +623,7 @@ func CreateNodes(nodeRegex string, options dynamicNodeCreateOptions) error {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to create nodes: %s.", reply.GetReason()))
 	}
 
-	fmt.Printf("Nodes %s created successfully.\n", strings.Join(nodeNames, ","))
+	fmt.Printf("Nodes %s created successfully.\n", util.ConvertSliceToString(nodeNames, ", "))
 	return nil
 }
 

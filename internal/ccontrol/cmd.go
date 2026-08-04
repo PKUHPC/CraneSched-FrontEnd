@@ -542,7 +542,7 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 	}
 
 	kvParams := command.GetKVMaps()
-	if err := checkEmptyKVParams(kvParams, []string{"cpu", "memory", "sockets", "partitions"}); err != nil {
+	if err := checkEmptyKVParams(kvParams, []string{"cpu", "memory", "partitions"}); err != nil {
 		return err
 	}
 
@@ -565,7 +565,7 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 			options.memoryBytes = parsed
 		case "sockets":
 			parsed, err := strconv.ParseUint(value, 10, 32)
-			if err != nil || parsed == 0 {
+			if err != nil {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid sockets value: %s", value))
 			}
 			options.sockets = uint32(parsed)
@@ -606,13 +606,10 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 		}
 	}
 
-	if options.sockets > options.cpuCount {
-		return util.NewCraneErr(util.ErrorCmdArg, "sockets cannot exceed CPU count")
-	}
 	return CreateNodes(nodeRegex, options)
 }
 
-func parseDynamicNodeGres(value string) (*protos.DedicatedResourceInNode, error) {
+func parseDynamicNodeGres(value string) (*protos.GresMap, error) {
 	gres, err := util.ParseGres(value)
 	if err != nil {
 		return nil, err
@@ -620,39 +617,12 @@ func parseDynamicNodeGres(value string) (*protos.DedicatedResourceInNode, error)
 	if len(gres.NameGresMap) == 0 {
 		return nil, fmt.Errorf("GRES must contain a positive resource count")
 	}
-
-	result := &protos.DedicatedResourceInNode{
-		NameTypeMap: make(map[string]*protos.DeviceTypeSlotsMap),
-	}
-	for name, count := range gres.NameGresMap {
+	for name := range gres.NameGresMap {
 		if name == "" {
 			return nil, fmt.Errorf("GRES name cannot be empty")
 		}
-		typeSlots := &protos.DeviceTypeSlotsMap{
-			TypeSlotsMap: make(map[string]*protos.Slots),
-		}
-		var specified uint64
-		for typ, slots := range count.Specified {
-			if typ == "" {
-				continue
-			}
-			specified += slots
-			typeSlots.TypeSlotsMap[typ] = dynamicNodeSlots(name, typ, slots)
-		}
-		if count.Total > specified {
-			typeSlots.TypeSlotsMap[""] = dynamicNodeSlots(name, "", count.Total-specified)
-		}
-		result.NameTypeMap[name] = typeSlots
 	}
-	return result, nil
-}
-
-func dynamicNodeSlots(name string, typ string, count uint64) *protos.Slots {
-	var slots []string
-	for index := uint64(0); index < count; index++ {
-		slots = append(slots, fmt.Sprintf("%s:%s:%d", name, typ, index))
-	}
-	return &protos.Slots{Slots: slots}
+	return gres, nil
 }
 
 func executeCreateReservationCommand(command *CControlCommand) error {

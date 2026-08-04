@@ -116,15 +116,15 @@ COMMANDS:
     user: User to associate with the reservation
     nodeCnt: Number of nodes to reserve (valid when nodes is not specified)
 
-  create node <nodelist> Cpu=<count> Memory=<size> Sockets=<count> Partitions=<list>
-              [Gres=<name:type:count>] [Pool=<pool>] [Features=<list>]
-              [State=future] [PowerState=off] [Provider=<provider>]
-              [ProviderProfile=<profile>]
+  create node <nodelist> Cpu=<count> Memory=<size> Partitions=<list>
+              [Sockets=<count>] [Gres=<name:type:count>] [Pool=<pool>]
+              [Features=<list>] [State=future] [PowerState=off]
+              [Provider=<provider>] [ProviderProfile=<profile>]
     Create FUTURE dynamic node definitions without restarting CraneCtld.
     Memory accepts K, M, G, or B suffixes. Lists are comma-separated.
 
   delete node <nodelist>
-    Delete offline dynamic nodes that are no longer referenced by jobs or reservations.
+    Delete dynamic nodes that are no longer referenced by jobs or reservations.
     Nodes are deleted individually; the command reports which nodes were
     deleted and which were rejected with a per-node reason.
 

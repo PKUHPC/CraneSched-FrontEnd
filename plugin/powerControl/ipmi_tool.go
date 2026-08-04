@@ -249,6 +249,14 @@ func (i *IPMITool) GetPowerState(nodeID string) (bool, error) {
 	return strings.Contains(string(output), "on"), nil
 }
 
+func (i *IPMITool) HasNetworkInfo(nodeID string) bool {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	info, ok := i.hostInfos[nodeID]
+	return ok && len(info.Interfaces) != 0
+}
+
 func (i *IPMITool) CheckNodeAlive(nodeID string) bool {
 	i.mu.RLock()
 	info, ok := i.hostInfos[nodeID]
