@@ -67,3 +67,6 @@ jobs:
 
     - name: Run trace pipeline tests
       run: go test -race ./plugin/trace
+
+    - name: Build and test execution-flow acceptance helper
+      run: go test -race -tags execution_flow_acceptance ./internal/acceptance/tracehook
