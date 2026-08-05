@@ -25,19 +25,34 @@ type TracePointRouter interface {
 
 type tracePointRouter struct{}
 
+var coreTracePointNames = map[string]struct{}{
+	"job/pending":   {},
+	"job/lifecycle": {},
+	"step/execute":  {},
+	"job/end":       {},
+}
+
 func NewTracePointRouter() TracePointRouter {
 	return tracePointRouter{}
 }
 
 func (tracePointRouter) Route(validated validatedTracePoint) routedTracePoint {
 	point := validated.point
-	destinations := []traceDestination{traceDestinationDetail}
-	if point.flow != nil {
-		destinations[0] = traceDestinationCore
-	}
-	if point.status == protos.SpanStatus_SPAN_STATUS_ERROR ||
-		(point.flow != nil && point.flow.pipelineFault) {
-		destinations = append(destinations, traceDestinationError)
+	_, legacyCore := coreTracePointNames[point.name]
+	isCore := point.flow != nil || legacyCore
+	isError := tracePointIsError(point)
+
+	var destinations []traceDestination
+	switch {
+	case isCore:
+		destinations = []traceDestination{traceDestinationCore}
+		if isError {
+			destinations = append(destinations, traceDestinationError)
+		}
+	case isError:
+		destinations = []traceDestination{traceDestinationError}
+	default:
+		destinations = []traceDestination{traceDestinationDetail}
 	}
 	return routedTracePoint{
 		point: point,
@@ -48,10 +63,26 @@ func (tracePointRouter) Route(validated validatedTracePoint) routedTracePoint {
 	}
 }
 
+func tracePointIsError(point typedTracePoint) bool {
+	if point.status == protos.SpanStatus_SPAN_STATUS_ERROR ||
+		(point.flow != nil && point.flow.pipelineFault) {
+		return true
+	}
+	finalStatus, ok := stringTraceAttribute(point, "final_status")
+	return ok && finalStatus != "" && finalStatus != "2" &&
+		finalStatus != "Completed" && finalStatus != "completed"
+}
+
 func stableTraceShardKey(point typedTracePoint) uint32 {
-	key := point.traceID
+	key := ""
 	if point.flow != nil && point.flow.flowID != "" {
 		key = point.flow.flowID
+	}
+	if key == "" {
+		key, _ = stringTraceAttribute(point, "job_id")
+	}
+	if key == "" {
+		key = point.traceID
 	}
 	if key == "" {
 		key = point.spanID

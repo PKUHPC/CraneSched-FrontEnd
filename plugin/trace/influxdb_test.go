@@ -86,7 +86,15 @@ func TestGenericErrorBucketRouting(t *testing.T) {
 				Name:   "step/prepare",
 				Status: protos.SpanStatus_SPAN_STATUS_ERROR,
 			},
-			want: []string{"detail", "error"},
+			want: []string{"error"},
+		},
+		{
+			name: "final status error",
+			span: &protos.SpanInfo{
+				Name:       "step/prepare",
+				Attributes: map[string]string{"final_status": "Failed"},
+			},
+			want: []string{"error"},
 		},
 	}
 
@@ -105,18 +113,59 @@ func TestGenericErrorBucketRouting(t *testing.T) {
 	}
 }
 
-func TestRoutingDoesNotInterpretBusinessNamesOrStatuses(t *testing.T) {
+func TestLegacyCoreRoutingAndFinalStatusArePreserved(t *testing.T) {
 	router := &traceBucketRouter{
 		traceBucket: "trace", traceCoreBucket: "core",
 		traceDetailBucket: "detail", traceErrorBucket: "error",
 	}
-	span := &protos.SpanInfo{
-		Name:       "job/end",
-		Attributes: map[string]string{"final_status": "Failed"},
+	tests := []struct {
+		name string
+		span *protos.SpanInfo
+		want []string
+	}{
+		{name: "job pending", span: &protos.SpanInfo{Name: "job/pending"}, want: []string{"core"}},
+		{name: "job lifecycle", span: &protos.SpanInfo{Name: "job/lifecycle"}, want: []string{"core"}},
+		{name: "step execute", span: &protos.SpanInfo{Name: "step/execute"}, want: []string{"core"}},
+		{
+			name: "completed job end",
+			span: &protos.SpanInfo{
+				Name:       "job/end",
+				Attributes: map[string]string{"final_status": "Completed"},
+			},
+			want: []string{"core"},
+		},
+		{
+			name: "failed job end",
+			span: &protos.SpanInfo{
+				Name:       "job/end",
+				Attributes: map[string]string{"final_status": "Failed"},
+			},
+			want: []string{"core", "error"},
+		},
 	}
-	got := router.TraceBucketsForDecision(routedDecision(span))
-	if len(got) != 1 || got[0] != "detail" {
-		t.Fatalf("business-shaped span buckets = %v, want [detail]", got)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := router.TraceBucketsForDecision(routedDecision(test.span))
+			if strings.Join(got, ",") != strings.Join(test.want, ",") {
+				t.Fatalf("buckets = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestLegacyCoreShardingRemainsStableByJobID(t *testing.T) {
+	first := typedTracePoint{
+		traceID:    "trace-a",
+		spanID:     "span-a",
+		attributes: map[string]any{"job_id": "42"},
+	}
+	second := typedTracePoint{
+		traceID:    "trace-b",
+		spanID:     "span-b",
+		attributes: map[string]any{"job_id": "42"},
+	}
+	if stableTraceShardKey(first) != stableTraceShardKey(second) {
+		t.Fatal("spans for the same job were routed to different core shards")
 	}
 }
 
