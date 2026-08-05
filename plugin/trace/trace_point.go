@@ -102,10 +102,11 @@ func stringTraceAttribute(point typedTracePoint, key string) (string, bool) {
 // encodedTracePoint is the Influx storage ABI. It is intentionally defined
 // after routing and remains opaque to decoders and validators.
 type encodedTracePoint struct {
-	tags    map[string]string
-	fields  map[string]interface{}
-	time    time.Time
-	routing traceRoutingDecision
+	measurement string
+	tags        map[string]string
+	fields      map[string]interface{}
+	time        time.Time
+	routing     traceRoutingDecision
 }
 
 type TracePointProcessor interface {

@@ -344,6 +344,54 @@ func TestTraceWriterRetriesTransientFailureDuringBoundedClose(t *testing.T) {
 	}
 }
 
+type permanentRejectThenSuccessSink struct {
+	attempts   atomic.Int64
+	successful atomic.Int64
+}
+
+func (s *permanentRejectThenSuccessSink) WriteBatch(
+	_ context.Context,
+	points []encodedTracePoint,
+) (traceSinkBatchResult, error) {
+	if s.attempts.Add(1) == 1 {
+		return traceSinkBatchResult{dropped: append([]encodedTracePoint(nil), points...)},
+			errors.New("injected permanent rejection")
+	}
+	s.successful.Add(int64(len(points)))
+	return traceSinkBatchResult{}, nil
+}
+
+func (*permanentRejectThenSuccessSink) Close(context.Context) error { return nil }
+
+func TestTraceWriterPermanentFailureDoesNotBlockLaterBatch(t *testing.T) {
+	sink := &permanentRejectThenSuccessSink{}
+	writer := testTraceWriter(sink, TraceWriterConfig{
+		Shards: 1, BatchSpans: 1, QueueBatches: 2, FlushIntervalMs: 1,
+		RetryBackoffMs: 5000, MaxRetryBackoffMs: 5000, CloseTimeoutMs: 500,
+	})
+	if err := writer.Enqueue(context.Background(), []*protos.SpanInfo{{Name: "first"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Enqueue(context.Background(), []*protos.SpanInfo{{Name: "second"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	started := time.Now()
+	err := writer.Close()
+	if err == nil || !strings.Contains(err.Error(), "permanently rejected") {
+		t.Fatalf("close error = %v, want permanent rejection", err)
+	}
+	if elapsed := time.Since(started); elapsed >= time.Second {
+		t.Fatalf("permanent rejection observed retry backoff: %s", elapsed)
+	}
+	if got := sink.attempts.Load(); got != 2 {
+		t.Fatalf("write attempts = %d, want 2 without retrying the rejected batch", got)
+	}
+	if got := sink.successful.Load(); got != 1 {
+		t.Fatalf("later successful points = %d, want 1", got)
+	}
+}
+
 type blockingTraceStore struct {
 	started     chan struct{}
 	release     chan struct{}

@@ -130,6 +130,7 @@ func (s *InfluxTraceStore) WriteBatch(
 
 	var writeErrors []error
 	failed := make([]encodedTracePoint, 0)
+	dropped := make([]encodedTracePoint, 0)
 	for _, bucket := range buckets {
 		bucketPoints := byBucket[bucket]
 		influxPoints := make([]*write.Point, 0, len(bucketPoints))
@@ -142,8 +143,12 @@ func (s *InfluxTraceStore) WriteBatch(
 		if err := writeAPI.WritePoint(ctx, influxPoints...); err != nil {
 			log.Errorf("Failed to write %d spans to InfluxDB bucket=%s: %v", len(bucketPoints), bucket, err)
 			writeErrors = append(writeErrors, fmt.Errorf("write spans to bucket %s: %w", bucket, err))
+			target := &failed
+			if isPermanentInfluxWriteError(err) {
+				target = &dropped
+			}
 			for _, point := range bucketPoints {
-				failed = append(failed, s.retryPointForBucket(point, bucket))
+				*target = append(*target, s.retryPointForBucket(point, bucket))
 			}
 			continue
 		}
@@ -155,7 +160,7 @@ func (s *InfluxTraceStore) WriteBatch(
 				len(bucketPoints), bucket, elapsed)
 		}
 	}
-	return traceSinkBatchResult{failed: failed}, errors.Join(writeErrors...)
+	return traceSinkBatchResult{failed: failed, dropped: dropped}, errors.Join(writeErrors...)
 }
 
 func (s *InfluxTraceStore) retryPointForBucket(
@@ -212,7 +217,7 @@ func influxPointForSpanWithEnvironment(
 }
 
 func influxPoint(point encodedTracePoint) *write.Point {
-	return influxdb2.NewPoint("spans", point.tags, point.fields, point.time)
+	return influxdb2.NewPoint(point.measurement, point.tags, point.fields, point.time)
 }
 
 func (s *InfluxTraceStore) Close(ctx context.Context) error {
@@ -400,6 +405,20 @@ func findBucketByName(
 func isInfluxResourceNotFound(err error) bool {
 	var httpErr *influxhttp.Error
 	return errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound
+}
+
+func isPermanentInfluxWriteError(err error) bool {
+	var httpErr *influxhttp.Error
+	if !errors.As(err, &httpErr) || httpErr.StatusCode < http.StatusBadRequest ||
+		httpErr.StatusCode >= http.StatusInternalServerError {
+		return false
+	}
+	switch httpErr.StatusCode {
+	case http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests:
+		return false
+	default:
+		return true
+	}
 }
 
 func queryInfluxResource(

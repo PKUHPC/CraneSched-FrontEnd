@@ -17,6 +17,9 @@ func TestGeneratedFlowCatalogMetadata(t *testing.T) {
 	if got := generatedExecutionFlowCatalog.WirePrefix(); got != "flow/v1/" {
 		t.Fatalf("wire prefix = %q", got)
 	}
+	if got := generatedExecutionFlowCatalog.StorageMeasurement(); got != "execution_flow_points" {
+		t.Fatalf("storage measurement = %q", got)
+	}
 	if got := generatedExecutionFlowCatalog.HeartbeatPoint(); got != "flow/v1/pipeline/heartbeat" {
 		t.Fatalf("heartbeat point = %q", got)
 	}

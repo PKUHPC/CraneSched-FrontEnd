@@ -275,10 +275,11 @@ func TestInfluxWriteHonorsContextDeadlineAndReportsRetryBatch(t *testing.T) {
 		router: &traceBucketRouter{traceBucket: "trace", traceDetailBucket: "detail"},
 	}
 	point := encodedTracePoint{
-		tags:    map[string]string{"name": "step/detail"},
-		fields:  map[string]interface{}{"span_id": "span-1"},
-		time:    time.Unix(100, 0),
-		routing: traceRoutingDecision{destinations: []traceDestination{traceDestinationDetail}},
+		measurement: traceSpanMeasurement,
+		tags:        map[string]string{"name": "step/detail"},
+		fields:      map[string]interface{}{"span_id": "span-1"},
+		time:        time.Unix(100, 0),
+		routing:     traceRoutingDecision{destinations: []traceDestination{traceDestinationDetail}},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -288,6 +289,93 @@ func TestInfluxWriteHonorsContextDeadlineAndReportsRetryBatch(t *testing.T) {
 	}
 	if len(result.failed) != 1 {
 		t.Fatalf("failed retry points = %d, want 1", len(result.failed))
+	}
+}
+
+func TestInfluxPermanentWriteFailureDropsOnlyRejectedDestination(t *testing.T) {
+	var mu sync.Mutex
+	writes := make(map[string]int)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		bucket := request.URL.Query().Get("bucket")
+		mu.Lock()
+		writes[bucket]++
+		mu.Unlock()
+		if bucket == "error" {
+			writer.Header().Set("Content-Type", "application/json")
+			writer.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = io.WriteString(writer,
+				`{"code":"unprocessable entity","message":"field type conflict"}`)
+			return
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	client := influxdb2.NewClient(server.URL, "test-token")
+	t.Cleanup(client.Close)
+	router := &traceBucketRouter{traceCoreBucket: "core", traceErrorBucket: "error"}
+	store := &InfluxTraceStore{client: client, org: "test-org", router: router}
+	point := encodedTracePoint{
+		measurement: traceSpanMeasurement,
+		tags:        map[string]string{"name": "flow/v1/ctld/job/accepted"},
+		fields:      map[string]interface{}{"span_id": "span-1", "job_id": int64(1)},
+		time:        time.Unix(100, 0),
+		routing: traceRoutingDecision{
+			destinations: []traceDestination{traceDestinationCore, traceDestinationError},
+		},
+	}
+
+	result, err := store.WriteBatch(context.Background(), []encodedTracePoint{point})
+	var httpErr *influxhttp.Error
+	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("write error = %#v, want typed HTTP 422", err)
+	}
+	if len(result.failed) != 0 || len(result.dropped) != 1 {
+		t.Fatalf("write result = failed:%d dropped:%d, want 0/1", len(result.failed), len(result.dropped))
+	}
+	if got := router.TraceBucketsForDecision(result.dropped[0].routing); len(got) != 1 || got[0] != "error" {
+		t.Fatalf("dropped destinations = %v, want [error]", got)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if writes["core"] != 1 || writes["error"] != 1 {
+		t.Fatalf("bucket writes = %v, want core:1 error:1", writes)
+	}
+}
+
+func TestInfluxRetryableWriteFailureKeepsOnlyRejectedDestination(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("bucket") == "error" {
+			writer.Header().Set("Content-Type", "application/json")
+			writer.WriteHeader(http.StatusTooManyRequests)
+			_, _ = io.WriteString(writer, `{"code":"too many requests","message":"retry later"}`)
+			return
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	client := influxdb2.NewClient(server.URL, "test-token")
+	t.Cleanup(client.Close)
+	router := &traceBucketRouter{traceCoreBucket: "core", traceErrorBucket: "error"}
+	store := &InfluxTraceStore{client: client, org: "test-org", router: router}
+	point := encodedTracePoint{
+		measurement: traceSpanMeasurement,
+		tags:        map[string]string{"name": "flow/v1/ctld/job/accepted"},
+		fields:      map[string]interface{}{"span_id": "span-1", "job_id": int64(1)},
+		time:        time.Unix(100, 0),
+		routing: traceRoutingDecision{
+			destinations: []traceDestination{traceDestinationCore, traceDestinationError},
+		},
+	}
+
+	result, err := store.WriteBatch(context.Background(), []encodedTracePoint{point})
+	if err == nil {
+		t.Fatal("write unexpectedly succeeded")
+	}
+	if len(result.failed) != 1 || len(result.dropped) != 0 {
+		t.Fatalf("write result = failed:%d dropped:%d, want 1/0", len(result.failed), len(result.dropped))
+	}
+	if got := router.TraceBucketsForDecision(result.failed[0].routing); len(got) != 1 || got[0] != "error" {
+		t.Fatalf("retry destinations = %v, want [error]", got)
 	}
 }
 
@@ -416,6 +504,37 @@ func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
 	}
 	if got := fields["job_id"]; got != int64(42) {
 		t.Fatalf("job_id field = %#v, want int64(42)", got)
+	}
+}
+
+func TestFlowAndGenericSpansUseDistinctMeasurements(t *testing.T) {
+	flowPoint, err := influxPointForSpanWithEnvironment(
+		testSpan("flow/v1/ctld/job/accepted", map[string]string{
+			"flow_id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+			"job_id":  "42",
+		}),
+		"canonical-environment",
+	)
+	if err != nil {
+		t.Fatalf("encode flow point: %v", err)
+	}
+	genericPoint := influxPointForSpan(
+		testSpan("job/lifecycle", map[string]string{"job_id": "42"}),
+	)
+
+	flowLine := write.PointToLineProtocol(flowPoint, time.Nanosecond)
+	genericLine := write.PointToLineProtocol(genericPoint, time.Nanosecond)
+	if !strings.HasPrefix(flowLine, executionFlowStorageMeasurement+",") {
+		t.Fatalf("flow line uses wrong measurement: %s", flowLine)
+	}
+	if !strings.HasPrefix(genericLine, traceSpanMeasurement+",") {
+		t.Fatalf("generic line uses wrong measurement: %s", genericLine)
+	}
+	if !strings.Contains(flowLine, `job_id=42i`) {
+		t.Fatalf("flow line lost its canonical int64 job_id: %s", flowLine)
+	}
+	if !strings.Contains(genericLine, `job_id="42"`) {
+		t.Fatalf("generic line changed its legacy string job_id: %s", genericLine)
 	}
 }
 

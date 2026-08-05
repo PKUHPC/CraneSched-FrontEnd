@@ -292,36 +292,47 @@ func (s *traceBatchWorker) run(
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		result, err := s.sink.WriteBatch(ctx, batch)
 		cancel()
-		if err == nil && len(result.failed) > 0 {
-			err = errors.New("trace sink returned failed points without an error")
+		if err == nil && (len(result.failed) > 0 || len(result.dropped) > 0) {
+			err = errors.New("trace sink returned rejected points without an error")
+		}
+		if len(result.dropped) > 0 {
+			stats.droppedSpans += uint64(len(result.dropped))
+			finalError = errors.Join(finalError, fmt.Errorf(
+				"trace sink permanently rejected %d destination writes: %w",
+				len(result.dropped), err,
+			))
 		}
 		if err != nil {
 			lastWriteError = err
 			failed := result.failed
-			if len(failed) == 0 {
+			if len(failed) == 0 && len(result.dropped) == 0 {
 				failed = append([]encodedTracePoint(nil), batch...)
 			}
 			stats.writeErrors++
-			stats.retryCount++
-			stats.retrySpans += uint64(len(failed))
-			if retryBackoff == 0 {
-				retryBackoff = time.Duration(s.cfg.RetryBackoffMs) * time.Millisecond
-			} else {
-				retryBackoff *= 2
-				maxBackoff := time.Duration(s.cfg.MaxRetryBackoffMs) * time.Millisecond
-				if retryBackoff > maxBackoff {
-					retryBackoff = maxBackoff
+			if len(failed) > 0 {
+				stats.retryCount++
+				stats.retrySpans += uint64(len(failed))
+				if retryBackoff == 0 {
+					retryBackoff = time.Duration(s.cfg.RetryBackoffMs) * time.Millisecond
+				} else {
+					retryBackoff *= 2
+					maxBackoff := time.Duration(s.cfg.MaxRetryBackoffMs) * time.Millisecond
+					if retryBackoff > maxBackoff {
+						retryBackoff = maxBackoff
+					}
 				}
+				nextRetry = time.Now().Add(retryBackoff)
+				log.Errorf("Failed to save async trace spans shard_id=%d batch_spans=%d retry_backoff_ms=%d: %v",
+					s.id, len(failed), retryBackoff.Milliseconds(), err)
+				nextPending := make([]encodedTracePoint, 0, len(failed)+len(pending)-limit)
+				nextPending = append(nextPending, failed...)
+				nextPending = append(nextPending, pending[limit:]...)
+				pending = nextPending
+				stats.record(len(batch), time.Since(begin))
+				return
 			}
-			nextRetry = time.Now().Add(retryBackoff)
-			log.Errorf("Failed to save async trace spans shard_id=%d batch_spans=%d retry_backoff_ms=%d: %v",
-				s.id, len(failed), retryBackoff.Milliseconds(), err)
-			nextPending := make([]encodedTracePoint, 0, len(failed)+len(pending)-limit)
-			nextPending = append(nextPending, failed...)
-			nextPending = append(nextPending, pending[limit:]...)
-			pending = nextPending
-			stats.record(len(batch), time.Since(begin))
-			return
+			log.Errorf("Dropped permanently rejected trace destinations shard_id=%d dropped=%d: %v",
+				s.id, len(result.dropped), err)
 		}
 
 		stats.record(len(batch), time.Since(begin))

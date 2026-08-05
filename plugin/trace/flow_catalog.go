@@ -47,6 +47,7 @@ type executionFlowSchemaCatalog interface {
 	SchemaSHA256() string
 	SchemaVersion() string
 	WirePrefix() string
+	StorageMeasurement() string
 	HeartbeatPoint() string
 	PipelineFaultPoint() string
 	Point(string) (executionFlowPointSpec, bool)

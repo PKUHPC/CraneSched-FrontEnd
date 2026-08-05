@@ -5,7 +5,10 @@ import (
 	"strconv"
 )
 
-const flowCollisionSlots = 64
+const (
+	flowCollisionSlots   = 64
+	traceSpanMeasurement = "spans"
+)
 
 type TracePointEncoder interface {
 	Encode(routedTracePoint) (encodedTracePoint, error)
@@ -17,6 +20,7 @@ func (*influxTracePointEncoder) Encode(
 	routed routedTracePoint,
 ) (encodedTracePoint, error) {
 	point := routed.point
+	measurement := traceSpanMeasurement
 	tags := map[string]string{"name": point.name}
 	if point.service != "" {
 		tags["service"] = point.service
@@ -28,6 +32,7 @@ func (*influxTracePointEncoder) Encode(
 		"duration_us":    point.durationUS,
 	}
 	if point.flow != nil {
+		measurement = executionFlowStorageMeasurement
 		fields["duration_us"] = int64(0)
 		fields[executionFlowStorageEventTimeUnixNano] = point.eventTime.UnixNano()
 		tags[executionFlowStorageFlowEnvironmentID] = point.flow.environmentID
@@ -59,6 +64,10 @@ func (*influxTracePointEncoder) Encode(
 		fields[key] = value
 	}
 	return encodedTracePoint{
-		tags: tags, fields: fields, time: point.eventTime, routing: routed.routing,
+		measurement: measurement,
+		tags:        tags,
+		fields:      fields,
+		time:        point.eventTime,
+		routing:     routed.routing,
 	}, nil
 }
