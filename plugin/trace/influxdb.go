@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -364,6 +365,9 @@ func findOrganizationByName(
 	if err := queryInfluxResource(ctx, client.HTTPService(), "orgs", url.Values{
 		"org": {name}, "limit": {"1"},
 	}, &response); err != nil {
+		if isInfluxResourceNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if response.Orgs == nil || len(*response.Orgs) == 0 {
@@ -382,12 +386,20 @@ func findBucketByName(
 	if err := queryInfluxResource(ctx, client.HTTPService(), "buckets", url.Values{
 		"org": {organization}, "name": {name}, "limit": {"1"},
 	}, &response); err != nil {
+		if isInfluxResourceNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if response.Buckets == nil || len(*response.Buckets) == 0 {
 		return nil, nil
 	}
 	return &(*response.Buckets)[0], nil
+}
+
+func isInfluxResourceNotFound(err error) bool {
+	var httpErr *influxhttp.Error
+	return errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound
 }
 
 func queryInfluxResource(
@@ -410,7 +422,11 @@ func queryInfluxResource(
 	if err != nil {
 		return fmt.Errorf("create InfluxDB lookup request: %w", err)
 	}
-	if requestErr := service.DoHTTPRequest(request, nil, func(response *http.Response) error {
+	if requestErr := service.DoHTTPRequest(request, nil, func(response *http.Response) (err error) {
+		defer func() {
+			_, drainErr := io.Copy(io.Discard, response.Body)
+			err = errors.Join(err, drainErr, response.Body.Close())
+		}()
 		return json.NewDecoder(response.Body).Decode(destination)
 	}); requestErr != nil {
 		return requestErr

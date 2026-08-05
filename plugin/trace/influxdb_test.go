@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -138,6 +139,101 @@ func TestInfluxLookupPropagatesTypedHTTPError(t *testing.T) {
 	httpErr = nil
 	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("bucket lookup error = %#v, want typed HTTP 503", err)
+	}
+}
+
+func TestInfluxLookupTreatsTypedNotFoundAsMissingResource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(writer, `{"code":"not found","message":"resource not found"}`)
+	}))
+	t.Cleanup(server.Close)
+	client := influxdb2.NewClient(server.URL, "test-token")
+	t.Cleanup(client.Close)
+
+	organization, err := findOrganizationByName(context.Background(), client, "crane")
+	if err != nil || organization != nil {
+		t.Fatalf("missing organization = (%#v, %v), want (nil, nil)", organization, err)
+	}
+	bucket, err := findBucketByName(context.Background(), client, "crane", "trace")
+	if err != nil || bucket != nil {
+		t.Fatalf("missing bucket = (%#v, %v), want (nil, nil)", bucket, err)
+	}
+}
+
+func TestCreateBucketContinuesAfterTypedNotFoundLookup(t *testing.T) {
+	var createCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v2/orgs":
+			_, _ = io.WriteString(writer, `{"orgs":[{"id":"org-id","name":"crane"}]}`)
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v2/buckets":
+			writer.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(writer, `{"code":"not found","message":"bucket not found"}`)
+		case request.Method == http.MethodPost && request.URL.Path == "/api/v2/buckets":
+			createCalls.Add(1)
+			writer.WriteHeader(http.StatusCreated)
+			_, _ = io.WriteString(writer,
+				`{"id":"bucket-id","orgID":"org-id","name":"trace","retentionRules":[]}`)
+		default:
+			t.Errorf("unexpected Influx request: %s %s", request.Method, request.URL.String())
+			writer.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := influxdb2.NewClient(server.URL, "test-token")
+	t.Cleanup(client.Close)
+	store := &InfluxTraceStore{client: client, org: "crane"}
+
+	if err := store.createBucketIfNotExists(context.Background(), "trace"); err != nil {
+		t.Fatalf("create missing bucket: %v", err)
+	}
+	if got := createCalls.Load(); got != 1 {
+		t.Fatalf("bucket create calls = %d, want 1", got)
+	}
+}
+
+type trackingResponseBody struct {
+	io.Reader
+	closed atomic.Bool
+}
+
+func (b *trackingResponseBody) Close() error {
+	b.closed.Store(true)
+	return nil
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func TestInfluxLookupClosesSuccessfulResponseBody(t *testing.T) {
+	body := &trackingResponseBody{Reader: strings.NewReader(`{"orgs":[]}`)}
+	client := influxdb2.NewClientWithOptions(
+		"http://influx.invalid",
+		"test-token",
+		influxdb2.DefaultOptions().SetHTTPClient(&http.Client{Transport: roundTripFunc(
+			func(request *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       body,
+					Request:    request,
+				}, nil
+			},
+		)}),
+	)
+	t.Cleanup(client.Close)
+
+	if _, err := findOrganizationByName(context.Background(), client, "crane"); err != nil {
+		t.Fatalf("lookup organization: %v", err)
+	}
+	if !body.closed.Load() {
+		t.Fatal("successful Influx lookup response body was not closed")
 	}
 }
 
