@@ -118,10 +118,11 @@ COMMANDS:
 
   create node <nodelist> Cpu=<count> Memory=<size> Partitions=<list>
               [Sockets=<count>] [Gres=<name:type:count>] [Pool=<pool>]
-              [Features=<list>] [State=future] [PowerState=off]
+              [Features=<list>] [State=future]
               [Provider=<provider>] [ProviderProfile=<profile>]
     Create FUTURE dynamic node definitions without restarting CraneCtld.
     Memory accepts K, M, G, or B suffixes. Lists are comma-separated.
+    Sockets defaults to 1 when omitted.
 
   delete node <nodelist>
     Delete dynamic nodes that are no longer referenced by jobs or reservations.

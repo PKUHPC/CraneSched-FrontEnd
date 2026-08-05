@@ -160,9 +160,15 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 	if req.State == protos.CranedControlState_CRANE_NONE {
 		unlock := manager.lockNodeOperation(req.CranedId)
 		defer unlock()
-		if generation != 0 && !manager.IsNodeGenerationCurrent(req.CranedId, generation) {
-			log.Debugf("Ignoring power state update for stale dynamic node %s generation %d", req.CranedId, generation)
-			return
+		if generation != 0 {
+			switch manager.NodeTrackingStatus(req.CranedId, generation) {
+			case nodeTrackingStale:
+				log.Debugf("Ignoring power state update for stale dynamic node %s generation %d", req.CranedId, generation)
+				return
+			case nodeTrackingUntracked:
+				log.Errorf("Dynamic node %s generation %d is defined but not tracked by the power manager; check its BMC configuration", req.CranedId, generation)
+				return
+			}
 		}
 
 		// This is a request to set the auto power control status
@@ -200,6 +206,10 @@ func (p PowerControlPlugin) UpdatePowerStateHook(ctx *api.PluginContext) {
 	if err != nil {
 		if errors.Is(err, errStaleNodeGeneration) {
 			log.Debugf("Ignoring power state update for stale dynamic node %s generation %d", req.CranedId, generation)
+			return
+		}
+		if errors.Is(err, errNodeNotTracked) {
+			log.Errorf("Dynamic node %s generation %d is defined but not tracked by the power manager; check its BMC configuration", req.CranedId, generation)
 			return
 		}
 		log.Errorf("Failed to change power state: %v", err)

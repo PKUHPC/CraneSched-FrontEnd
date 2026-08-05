@@ -35,17 +35,37 @@ type PowerManager struct {
 	config    *Config
 	powerTool PowerTool
 
-	nodesInfo      sync.Map
+	nodesInfo sync.Map
+	// Guards compound read-modify-write access to nodesInfo and the
+	// nodeVersions map.
 	nodesInfoMutex sync.Mutex
 	nodeVersions   map[string]nodeVersion
 
 	nodeOperations      map[string]*nodeOperationLock
 	nodeOperationsMutex sync.Mutex
 
+	powerReporters      map[string]*nodeReporter
+	powerReportersMutex sync.Mutex
+
 	ctldClient      protos.CraneCtldClient
 	ctldClientMutex sync.Mutex // only guards the ctldClient reference
 
 	stopChan chan struct{}
+}
+
+// nodeReporter serializes the PowerStateChange reports of one node and
+// stamps them with a monotonically increasing sequence, so concurrent
+// reporters cannot deliver reports to CraneCtld out of order.
+type nodeReporter struct {
+	mu       sync.Mutex
+	queue    []powerReport
+	draining bool
+	sequence uint64
+}
+
+type powerReport struct {
+	state      NodeState
+	generation uint64
 }
 
 type PredictionRequest struct {
@@ -81,6 +101,7 @@ func NewPowerManager(config *Config) *PowerManager {
 		powerTool:      NewIPMITool(config),
 		nodeVersions:   make(map[string]nodeVersion),
 		nodeOperations: make(map[string]*nodeOperationLock),
+		powerReporters: make(map[string]*nodeReporter),
 		stopChan:       make(chan struct{}),
 	}
 
@@ -143,29 +164,74 @@ func (c *PowerManager) lockNodeOperation(nodeID string) func() {
 	}
 }
 
+// tryLockNodeOperation is the non-blocking variant of lockNodeOperation.
+// It returns (nil, false) when an operation on the node is in flight.
+func (c *PowerManager) tryLockNodeOperation(nodeID string) (func(), bool) {
+	c.nodeOperationsMutex.Lock()
+	operation, exists := c.nodeOperations[nodeID]
+	if !exists {
+		operation = &nodeOperationLock{}
+		c.nodeOperations[nodeID] = operation
+	}
+	operation.users++
+	c.nodeOperationsMutex.Unlock()
+
+	release := func() {
+		c.nodeOperationsMutex.Lock()
+		operation.users--
+		if operation.users == 0 {
+			delete(c.nodeOperations, nodeID)
+		}
+		c.nodeOperationsMutex.Unlock()
+	}
+
+	if !operation.mutex.TryLock() {
+		release()
+		return nil, false
+	}
+	return func() {
+		operation.mutex.Unlock()
+		release()
+	}, true
+}
+
+// claimNodeVersionLocked rejects a stale generation/revision and records
+// the accepted one. Returns the comparison against the previously recorded
+// version (1 when none was recorded).
+func (c *PowerManager) claimNodeVersionLocked(nodeID string, generation, revision uint64) int {
+	comparison := 1
+	if current, exists := c.nodeVersions[nodeID]; exists {
+		comparison = compareNodeVersion(generation, revision, current)
+		if comparison < 0 {
+			return comparison
+		}
+	}
+	c.nodeVersions[nodeID] = nodeVersion{generation: generation, revision: revision, updatedAt: time.Now()}
+	return comparison
+}
+
+// ApplyNodeDefinitionVersion additionally reports whether a redelivered
+// (equal-version) hook still has work to do, making hook processing
+// idempotent: an UPSERT whose RegisterNode failed can be retried.
 func (c *PowerManager) ApplyNodeDefinitionVersion(nodeID string, generation, revision uint64, present bool) bool {
 	c.nodesInfoMutex.Lock()
 	defer c.nodesInfoMutex.Unlock()
 
-	version := nodeVersion{generation: generation, revision: revision, updatedAt: time.Now()}
-	if current, exists := c.nodeVersions[nodeID]; exists {
-		comparison := compareNodeVersion(generation, revision, current)
-		if comparison < 0 {
-			return false
-		}
-		if comparison == 0 {
-			value, nodePresent := c.nodesInfo.Load(nodeID)
-			if !present {
-				return nodePresent
-			}
-			if !nodePresent {
-				return true
-			}
-			info := value.(*NodeInfo)
-			return info.Generation != generation || info.Revision != revision
-		}
+	comparison := c.claimNodeVersionLocked(nodeID, generation, revision)
+	if comparison < 0 {
+		return false
 	}
-	c.nodeVersions[nodeID] = version
+	if comparison == 0 {
+		value, nodePresent := c.nodesInfo.Load(nodeID)
+		if !present {
+			return nodePresent
+		}
+		if !nodePresent {
+			return true
+		}
+		info := value.(*NodeInfo)
+		return info.Generation != generation || info.Revision != revision
+	}
 	return true
 }
 
@@ -176,24 +242,38 @@ func (c *PowerManager) AcceptNodeVersion(nodeID string, generation, revision uin
 	c.nodesInfoMutex.Lock()
 	defer c.nodesInfoMutex.Unlock()
 
-	if current, exists := c.nodeVersions[nodeID]; exists &&
-		compareNodeVersion(generation, revision, current) < 0 {
-		return false
-	}
-	c.nodeVersions[nodeID] = nodeVersion{generation: generation, revision: revision, updatedAt: time.Now()}
-	return true
+	return c.claimNodeVersionLocked(nodeID, generation, revision) >= 0
 }
 
-func (c *PowerManager) IsNodeGenerationCurrent(nodeID string, generation uint64) bool {
+type nodeTrackingStatus int
+
+const (
+	nodeTrackingCurrent nodeTrackingStatus = iota
+	// A newer definition of the node took over; the caller's generation is
+	// obsolete and its request can be ignored silently.
+	nodeTrackingStale
+	// The definition was accepted but the node has no runtime info, e.g.
+	// the power tool registration failed for lack of a BMC mapping. Such a
+	// node can never be powered; the caller must surface this loudly.
+	nodeTrackingUntracked
+)
+
+func (c *PowerManager) NodeTrackingStatus(nodeID string, generation uint64) nodeTrackingStatus {
 	c.nodesInfoMutex.Lock()
 	defer c.nodesInfoMutex.Unlock()
 
 	if current, exists := c.nodeVersions[nodeID]; exists &&
 		current.generation != generation {
-		return false
+		return nodeTrackingStale
 	}
 	value, exists := c.nodesInfo.Load(nodeID)
-	return exists && value.(*NodeInfo).Generation == generation
+	if !exists {
+		return nodeTrackingUntracked
+	}
+	if value.(*NodeInfo).Generation != generation {
+		return nodeTrackingStale
+	}
+	return nodeTrackingCurrent
 }
 
 func (c *PowerManager) ResetNodeForNewGeneration(nodeID string, generation uint64) {
@@ -295,6 +375,13 @@ func (c *PowerManager) RemoveNode(nodeID string, generation uint64) {
 	c.nodesInfo.Delete(nodeID)
 	c.nodesInfoMutex.Unlock()
 	c.powerTool.UnregisterNode(nodeID)
+
+	// A running drainer keeps its own reference and exits when its queue is
+	// empty; a later re-created node starts with a fresh reporter.
+	c.powerReportersMutex.Lock()
+	delete(c.powerReporters, nodeID)
+	c.powerReportersMutex.Unlock()
+
 	log.Infof("Removed node %s from power management", nodeID)
 }
 
@@ -532,9 +619,52 @@ func (c *PowerManager) updateNodeStateIfCurrent(nodeID string, expected *NodeInf
 	return updated
 }
 
-// notifyCtldPowerStateChange reports the state to CraneCtld as long as it is
-// still the node's current state at send time.
+// notifyCtldPowerStateChange enqueues a state report for the node. Reports
+// of one node are delivered by a single drainer goroutine in enqueue order
+// and carry a monotonic sequence, so a reordered or replayed report can
+// never regress the state CraneCtld holds.
 func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState, generation uint64) {
+	c.powerReportersMutex.Lock()
+	reporter, exists := c.powerReporters[nodeID]
+	if !exists {
+		// Seed the sequence with wall-clock nanoseconds so a restarted
+		// plugin keeps producing sequences above the previous run's.
+		reporter = &nodeReporter{sequence: uint64(time.Now().UnixNano())}
+		c.powerReporters[nodeID] = reporter
+	}
+	c.powerReportersMutex.Unlock()
+
+	reporter.mu.Lock()
+	reporter.queue = append(reporter.queue, powerReport{state: state, generation: generation})
+	if reporter.draining {
+		reporter.mu.Unlock()
+		return
+	}
+	reporter.draining = true
+	reporter.mu.Unlock()
+	go c.drainPowerReports(nodeID, reporter)
+}
+
+func (c *PowerManager) drainPowerReports(nodeID string, reporter *nodeReporter) {
+	for {
+		reporter.mu.Lock()
+		if len(reporter.queue) == 0 {
+			reporter.draining = false
+			reporter.mu.Unlock()
+			return
+		}
+		report := reporter.queue[0]
+		reporter.queue = reporter.queue[1:]
+		reporter.sequence++
+		sequence := reporter.sequence
+		reporter.mu.Unlock()
+
+		c.sendPowerStateChange(nodeID, report, sequence)
+	}
+}
+
+func (c *PowerManager) sendPowerStateChange(nodeID string, report powerReport, sequence uint64) {
+	state, generation := report.state, report.generation
 	var powerType protos.CranedPowerState
 	switch state {
 	case Active:
@@ -559,11 +689,12 @@ func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState
 	}
 
 	req := &protos.PowerStateChangeRequest{
-		CranedId:   nodeID,
-		State:      powerType,
-		Reason:     fmt.Sprintf("Node %s power state changed to %s by power manager(plugin/powerControl)", nodeID, state),
-		Generation: generation,
-		Uid:        uint32(os.Getuid()),
+		CranedId:       nodeID,
+		State:          powerType,
+		Reason:         fmt.Sprintf("Node %s power state changed to %s by power manager(plugin/powerControl)", nodeID, state),
+		Generation:     generation,
+		Uid:            uint32(os.Getuid()),
+		ReportSequence: sequence,
 	}
 
 	client := c.getCtldClient()
@@ -572,6 +703,8 @@ func (c *PowerManager) notifyCtldPowerStateChange(nodeID string, state NodeState
 			log.Warnf("Retrying PowerStateChange for node %s, attempt %d/%d", nodeID, attempt, maxRetries)
 			time.Sleep(retryInterval)
 		}
+		// Fast-forward an obsolete backlog entry: skipping is safe because a
+		// report of the newer state is already queued behind this one.
 		value, exists := c.nodesInfo.Load(nodeID)
 		if !exists || value.(*NodeInfo).State != state ||
 			value.(*NodeInfo).Generation != generation {
@@ -678,15 +811,6 @@ func (c *PowerManager) getPredictedActiveNodeCount(totalNodes int) int {
 func (c *PowerManager) makeDecision() ([]nodeTarget, []nodeTarget, []nodeTarget, []nodeTarget) {
 	currentTime := time.Now()
 
-	predictionNodeCount := 0
-	c.nodesInfo.Range(func(key, value interface{}) bool {
-		if !value.(*NodeInfo).Exclude {
-			predictionNodeCount++
-		}
-		return true
-	})
-	predictedActiveNodeCount := c.getPredictedActiveNodeCount(predictionNodeCount)
-
 	var activeNodes, idleNodes, sleepNodes, poweredOffNodes []nodeSnapshot
 	totalNodes := 0
 	c.nodesInfo.Range(func(key, value interface{}) bool {
@@ -714,6 +838,8 @@ func (c *PowerManager) makeDecision() ([]nodeTarget, []nodeTarget, []nodeTarget,
 		}
 		return true
 	})
+
+	predictedActiveNodeCount := c.getPredictedActiveNodeCount(totalNodes)
 
 	log.Debugf("Current total node count: %d", totalNodes)
 	log.Debugf("Predicted active node count: %d", predictedActiveNodeCount)
@@ -927,6 +1053,23 @@ func (c *PowerManager) checkPowerState() {
 	c.nodesInfo.Range(func(key, value interface{}) bool {
 		nodeID := key.(string)
 		info := value.(*NodeInfo)
+
+		// While a power action holds the node operation lock its outcome is
+		// undecided; checking now would race the action and misreport a
+		// transient state. Skip the node until the next round.
+		switch info.State {
+		case PoweringOn, Wakingup, PoweringOff, ToSleeping:
+			unlock, ok := c.tryLockNodeOperation(nodeID)
+			if !ok {
+				return true
+			}
+			defer unlock()
+			latest, exists := c.nodesInfo.Load(nodeID)
+			if !exists {
+				return true
+			}
+			info = latest.(*NodeInfo)
+		}
 
 		// Nodes registered without network interfaces (e.g. via
 		// NodeDefinitionHook before the craned first registers) cannot be

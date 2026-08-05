@@ -6,7 +6,12 @@ import (
 	"time"
 )
 
-var errStaleNodeGeneration = errors.New("stale node generation")
+var (
+	errStaleNodeGeneration = errors.New("stale node generation")
+	// The node's definition is current but it has no runtime info, e.g. the
+	// power tool registration failed for lack of a BMC mapping.
+	errNodeNotTracked = errors.New("node not tracked by power manager")
+)
 
 type NodeState string
 

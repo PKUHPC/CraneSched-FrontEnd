@@ -579,7 +579,6 @@ type dynamicNodeCreateOptions struct {
 	gres            *protos.GresMap
 	pool            string
 	features        []string
-	powerState      protos.DynamicNodePowerState
 	provider        string
 	providerProfile string
 }
@@ -601,10 +600,7 @@ func CreateNodes(nodeRegex string, options dynamicNodeCreateOptions) error {
 			Features:    options.features,
 		},
 		PartitionNames:  options.partitionNames,
-		Origin:          protos.DynamicNodeOrigin_DYNAMIC_NODE_ORIGIN_DYNAMIC_ADMIN,
-		Lifecycle:       protos.DynamicNodeLifecycle_DYNAMIC_NODE_LIFECYCLE_FUTURE,
 		Pool:            options.pool,
-		PowerState:      options.powerState,
 		Provider:        options.provider,
 		ProviderProfile: options.providerProfile,
 	}

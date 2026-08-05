@@ -124,8 +124,13 @@ func (c *PowerManager) powerOffNodes(nodes []nodeTarget) error {
 func (c *PowerManager) wakeUpNode(nodeID string, generation uint64) error {
 	unlock := c.lockNodeOperation(nodeID)
 	defer unlock()
-	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
-		return errStaleNodeGeneration
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
 	}
 
 	value, exists := c.nodesInfo.Load(nodeID)
@@ -158,8 +163,13 @@ func (c *PowerManager) wakeUpNode(nodeID string, generation uint64) error {
 func (c *PowerManager) powerOnNode(nodeID string, generation uint64) error {
 	unlock := c.lockNodeOperation(nodeID)
 	defer unlock()
-	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
-		return errStaleNodeGeneration
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
 	}
 
 	value, exists := c.nodesInfo.Load(nodeID)
@@ -204,8 +214,13 @@ func (c *PowerManager) powerOnNode(nodeID string, generation uint64) error {
 func (c *PowerManager) sleepNode(nodeID string, generation uint64) error {
 	unlock := c.lockNodeOperation(nodeID)
 	defer unlock()
-	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
-		return errStaleNodeGeneration
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
 	}
 
 	value, exists := c.nodesInfo.Load(nodeID)
@@ -238,8 +253,13 @@ func (c *PowerManager) sleepNode(nodeID string, generation uint64) error {
 func (c *PowerManager) powerOffNode(nodeID string, generation uint64) error {
 	unlock := c.lockNodeOperation(nodeID)
 	defer unlock()
-	if generation != 0 && !c.IsNodeGenerationCurrent(nodeID, generation) {
-		return errStaleNodeGeneration
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
 	}
 
 	value, exists := c.nodesInfo.Load(nodeID)
@@ -264,6 +284,9 @@ func (c *PowerManager) powerOffNode(nodeID string, generation uint64) error {
 	if err != nil {
 		log.Errorf("Failed to power off node %s: %v", nodeID, err)
 		if oldState == PoweringOff {
+			// A re-entered power-off does not know the pre-transition state;
+			// Sleep is a guess that the power state monitor converges to the
+			// observed state on its next round.
 			c.updateNodeStateIfCurrent(nodeID, info, Sleep)
 		} else {
 			c.updateNodeStateIfCurrent(nodeID, info, oldState)

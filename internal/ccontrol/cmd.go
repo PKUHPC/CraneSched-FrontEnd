@@ -547,7 +547,8 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 	}
 
 	options := dynamicNodeCreateOptions{
-		powerState: protos.DynamicNodePowerState_DYNAMIC_NODE_POWER_STATE_OFF,
+		// Sockets is optional; the backend rejects a node spec with 0 sockets.
+		sockets: 1,
 	}
 	for key, value := range kvParams {
 		switch strings.ToLower(key) {
@@ -565,7 +566,7 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 			options.memoryBytes = parsed
 		case "sockets":
 			parsed, err := strconv.ParseUint(value, 10, 32)
-			if err != nil {
+			if err != nil || parsed == 0 {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid sockets value: %s", value))
 			}
 			options.sockets = uint32(parsed)
@@ -589,13 +590,11 @@ func executeCreateNodeCommand(command *CControlCommand) error {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid features value: %s", value))
 			}
 			options.features = parsed
+		// Admin-created nodes always start as FUTURE; the key is accepted
+		// for compatibility but carries no information.
 		case "state":
 			if !strings.EqualFold(value, "future") {
 				return util.NewCraneErr(util.ErrorCmdArg, "new dynamic nodes must use state=future")
-			}
-		case "powerstate":
-			if !strings.EqualFold(value, "off") {
-				return util.NewCraneErr(util.ErrorCmdArg, "new dynamic nodes must use powerstate=off")
 			}
 		case "provider":
 			options.provider = value

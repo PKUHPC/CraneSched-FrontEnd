@@ -22,6 +22,8 @@ import "google.golang.org/grpc"
 
 type HookType uint8
 
+// New hook types must be appended at the end: inserting in the middle
+// shifts the iota values of the following entries.
 const (
 	StartHook HookType = iota
 	EndHook
@@ -31,9 +33,9 @@ const (
 
 	UpdatePowerStateHook
 	RegisterCranedHook
-	NodeDefinitionHook
 	UpdateLicensesHook
 	TraceHook
+	NodeDefinitionHook
 )
 
 type PluginHandler func(*PluginContext)
