@@ -83,21 +83,17 @@ func QueryJobsInfo() (*protos.QueryJobsInfoReply, error) {
 		if rpcErr, ok := grpcstatus.FromError(err); ok {
 			switch rpcErr.Code() {
 			case grpccodes.DeadlineExceeded:
-				util.GrpcErrorPrintf(err, "Query time out, due to too many jobs")
-				return nil, util.NewCraneErr(util.ErrorBackend,
+				return nil, util.NewCraneErrFromGrpc(util.ErrorBackend, err,
 					"Query timed out due to large number of jobs. Please try with a smaller scope or use filters.",
 				)
 			case grpccodes.ResourceExhausted:
-				util.GrpcErrorPrintf(err, "Response too large")
-				return nil, util.NewCraneErr(util.ErrorNetwork,
+				return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err,
 					"Response too large for gRPC. Please reduce the query scope or avoid using -m with huge values.")
 			default:
-				util.GrpcErrorPrintf(err, "Failed to query job queue")
-				return nil, &util.CraneError{Code: util.ErrorNetwork}
+				return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query job queue")
 			}
 		} else {
-			util.GrpcErrorPrintf(err, "Failed to query job queue, grpcstatus get error failed.")
-			return nil, &util.CraneError{Code: util.ErrorNetwork}
+			return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query job queue: %v", err)
 		}
 	}
 	return reply, nil
