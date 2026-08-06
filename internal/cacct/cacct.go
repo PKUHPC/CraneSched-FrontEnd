@@ -44,8 +44,8 @@ const (
 	kCraneExitCodeBase     = 320
 )
 
-// QueryJob will query all pending, running and completed jobs
-func QueryJob() error {
+// QueryJob will query all pending, running and completed jobs.
+func QueryJob(maxLinesSpecified bool) error {
 	request := protos.QueryJobsInfoRequest{OptionIncludeCompletedJobs: true}
 
 	if FlagFilterStartTime != "" {
@@ -155,6 +155,7 @@ func QueryJob() error {
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
 		if reply.GetOk() {
+			printIncompleteQueryWarning(reply.GetHasMore(), maxLinesSpecified)
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
@@ -279,7 +280,22 @@ func QueryJob() error {
 
 	table.AppendBulk(tableData)
 	table.Render()
+	printIncompleteQueryWarning(reply.GetHasMore(), maxLinesSpecified)
 	return nil
+}
+
+func printIncompleteQueryWarning(hasMore, maxLinesSpecified bool) {
+	if !hasMore {
+		return
+	}
+
+	if maxLinesSpecified {
+		fmt.Fprintln(os.Stderr,
+			"More matching records exist; this query did not return all results.")
+		return
+	}
+	fmt.Fprintln(os.Stderr,
+		"Query result is incomplete. Please narrow the filter or explicitly adjust -m.")
 }
 
 // JobOrStep represents either a job (JobInfo) or a step (StepInfo)

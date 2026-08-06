@@ -57,13 +57,14 @@ var (
 			stub = util.GetStubToCtldByConfig(config)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("max-lines") {
+			maxLinesSpecified := cmd.Flags().Changed("max-lines")
+			if maxLinesSpecified {
 				if FlagNumLimit == 0 {
 					return util.NewCraneErr(util.ErrorCmdArg, "Output line number limit must be greater than 0.")
 				}
 			}
 
-			return QueryJob()
+			return QueryJob(maxLinesSpecified)
 		},
 	}
 )
