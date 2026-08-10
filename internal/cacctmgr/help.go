@@ -90,10 +90,10 @@ func showHelp() {
       Name=<name1,name2,...>    Name of users to delete (comma-separated)
     (if name is 'ALL' and set --force, all users from a specific account will be delete.)
   
-	show user [Accounts=<account>] [Name=<name1,name2,...>] [format=<Account,UserName,...>]
+	show user [Account=<account>] [Name=<name1,name2,...>] [format=<Account,UserName,...>]
     Display information about users.
     Parameter details:
-      Accounts=<account>         Show users of this account only
+      Account=<account>          Show users of this account only
       Name=<name1,name2,...>    Show only these users (comma-separated)
       (If not specified, all users will be displayed)
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,

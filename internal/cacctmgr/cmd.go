@@ -1542,7 +1542,7 @@ func executeShowUserCommand(command *CAcctMgrCommand) error {
 		name = nameParam
 	}
 
-	account := command.GetKVParamValue("accounts")
+	account := command.GetKVParamValue("account")
 	return ShowUser(name, account)
 }
 
