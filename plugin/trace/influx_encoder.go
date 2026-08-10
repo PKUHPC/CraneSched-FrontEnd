@@ -10,6 +10,28 @@ const (
 	traceSpanMeasurement = "spans"
 )
 
+// reservedTraceFields are written from the span itself for every point, so a
+// producer attribute of the same name must never replace them. Flow points
+// cannot reach here with one -- the validator rejects any attribute outside the
+// canonical catalog -- but legacy non-flow spans are unvalidated, and letting
+// one overwrite span_id or duration_us would make a point misreport its own
+// identity.
+var reservedTraceFields = map[string]struct{}{
+	"trace_id":       {},
+	"span_id":        {},
+	"parent_span_id": {},
+	"duration_us":    {},
+}
+
+// reservedFlowFields are storage metadata this encoder owns on flow points only.
+// On a non-flow point no such tag or field is written, so an attribute of the
+// same name is ordinary data and must be kept rather than dropped.
+var reservedFlowFields = map[string]struct{}{
+	executionFlowStorageFlowEnvironmentID: {},
+	executionFlowStorageEventTimeUnixNano: {},
+	executionFlowEnvelopeFlowID:           {},
+}
+
 type TracePointEncoder interface {
 	Encode(routedTracePoint) (encodedTracePoint, error)
 }
@@ -57,9 +79,13 @@ func (*influxTracePointEncoder) Encode(
 	}
 
 	for key, value := range point.attributes {
-		if point.flow != nil && (key == executionFlowStorageFlowEnvironmentID ||
-			key == executionFlowEnvelopeFlowID || key == "span_id") {
+		if _, reserved := reservedTraceFields[key]; reserved {
 			continue
+		}
+		if point.flow != nil {
+			if _, reserved := reservedFlowFields[key]; reserved {
+				continue
+			}
 		}
 		fields[key] = value
 	}

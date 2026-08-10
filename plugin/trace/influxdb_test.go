@@ -1207,3 +1207,34 @@ func requirePipelineFault(
 		}
 	}
 }
+
+// TestNonFlowPointAttributesCannotOverwriteSpanIdentity covers the unvalidated
+// path. Flow points are screened against the canonical catalog, but a legacy
+// span's attributes are written straight through, so one named span_id or
+// duration_us used to replace the value taken from the span itself and the point
+// would misreport its own identity.
+func TestNonFlowPointAttributesCannotOverwriteSpanIdentity(t *testing.T) {
+	span := testSpan("job/lifecycle", map[string]string{
+		"trace_id":       "deadbeefdeadbeefdeadbeefdeadbeef",
+		"span_id":        "ffffffffffffffff",
+		"parent_span_id": "eeeeeeeeeeeeeeee",
+		"duration_us":    "999999",
+	})
+	span.TraceId = "0123456789abcdef0123456789abcdef"
+	span.SpanId = "0123456789abcdef"
+	span.ParentSpanId = "fedcba9876543210"
+
+	fields := pointFields(encodeSpan(t, span))
+	for _, test := range []struct{ key, want string }{
+		{"trace_id", "0123456789abcdef0123456789abcdef"},
+		{"span_id", "0123456789abcdef"},
+		{"parent_span_id", "fedcba9876543210"},
+	} {
+		if got := fields[test.key]; got != test.want {
+			t.Fatalf("%s field = %#v, want %q from the span", test.key, got, test.want)
+		}
+	}
+	if got, ok := fields["duration_us"].(int64); !ok || got == 999999 {
+		t.Fatalf("duration_us field = %#v, want the span's computed duration", fields["duration_us"])
+	}
+}
