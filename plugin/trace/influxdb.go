@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"CraneFrontEnd/generated/protos"
-
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	influxhttp "github.com/influxdata/influxdb-client-go/v2/api/http"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
@@ -182,38 +180,6 @@ func (s *InfluxTraceStore) retryPointForBucket(
 	}
 	point.routing.destinations = destinations
 	return point
-}
-
-func influxPointForSpan(span *protos.SpanInfo) *write.Point {
-	point, err := influxPointForSpanWithEnvironment(span, "")
-	if err != nil {
-		panic(err)
-	}
-	return point
-}
-
-func influxPointForSpanWithEnvironment(
-	span *protos.SpanInfo,
-	flowEnvironmentID string,
-) (*write.Point, error) {
-	validator, err := newExecutionFlowValidator(flowEnvironmentID, generatedExecutionFlowCatalog)
-	if err != nil {
-		return nil, err
-	}
-	point, err := (protobufTracePointDecoder{}).Decode(rawTracePoint{span: span})
-	if err != nil {
-		return nil, err
-	}
-	validated, err := validator.Validate(point)
-	if err != nil {
-		return nil, err
-	}
-	routed := NewTracePointRouter().Route(validated)
-	encoded, err := (&influxTracePointEncoder{}).Encode(routed)
-	if err != nil {
-		return nil, err
-	}
-	return influxPoint(encoded), nil
 }
 
 func influxPoint(point encodedTracePoint) *write.Point {

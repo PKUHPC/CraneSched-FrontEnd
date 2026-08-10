@@ -514,7 +514,7 @@ func TestInfluxCloseDeadlineWaitsForSingleClientCloseWithoutMarkingClosed(t *tes
 }
 
 func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
-	point, err := influxPointForSpanWithEnvironment(
+	point, err := encodeSpanForEnvironment(
 		testSpan("flow/v1/ctld/job/accepted", map[string]string{
 			"flow_id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
 			"job_id":  "42",
@@ -522,7 +522,7 @@ func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
 		"gh-123_ABC.1",
 	)
 	if err != nil {
-		t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
+		t.Fatalf("encodeSpanForEnvironment() error = %v", err)
 	}
 
 	tags := pointTags(point)
@@ -557,7 +557,7 @@ func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
 }
 
 func TestFlowAndGenericSpansUseDistinctMeasurements(t *testing.T) {
-	flowPoint, err := influxPointForSpanWithEnvironment(
+	flowPoint, err := encodeSpanForEnvironment(
 		testSpan("flow/v1/ctld/job/accepted", map[string]string{
 			"flow_id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
 			"job_id":  "42",
@@ -567,7 +567,7 @@ func TestFlowAndGenericSpansUseDistinctMeasurements(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode flow point: %v", err)
 	}
-	genericPoint := influxPointForSpan(
+	genericPoint := encodeSpan(t,
 		testSpan("job/lifecycle", map[string]string{"job_id": "42"}),
 	)
 
@@ -631,14 +631,14 @@ func TestFlowPointInjectsCanonicalEnvironment(t *testing.T) {
 		"flow/v1/pipeline/heartbeat",
 	} {
 		t.Run(spanName, func(t *testing.T) {
-			point, err := influxPointForSpanWithEnvironment(
+			point, err := encodeSpanForEnvironment(
 				testSpan(spanName, map[string]string{
 					"flow_id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
 				}),
 				"run-935.shard_3",
 			)
 			if err != nil {
-				t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
+				t.Fatalf("encodeSpanForEnvironment() error = %v", err)
 			}
 			if got := pointTags(point)["flow_environment_id"]; got != "run-935.shard_3" {
 				t.Fatalf("flow_environment_id tag = %q, want %q", got, "run-935.shard_3")
@@ -651,17 +651,18 @@ func TestFlowPointInjectsCanonicalEnvironment(t *testing.T) {
 }
 
 func TestFlowPointRejectsProducerControlledEnvironment(t *testing.T) {
-	_, err := influxPointForSpanWithEnvironment(
+	// A producer-supplied flow_environment_id is not merely refused: the span is
+	// replaced by a sanitized fault point, so the injected value never reaches
+	// storage while the rejection itself stays observable.
+	point, err := encodeSpanForEnvironment(
 		testSpan("flow/v1/ctld/job/accepted", map[string]string{
 			"flow_environment_id": "canonical-environment",
 		}),
 		"canonical-environment",
 	)
-	if err == nil {
-		t.Fatal("influxPointForSpanWithEnvironment() accepted producer-controlled storage metadata")
-	}
-	if !strings.Contains(err.Error(), "trusted storage metadata") {
-		t.Fatalf("producer environment error = %q", err)
+	requirePipelineFault(t, point, err, executionFlowReasonUnexpectedAttribute)
+	if got := pointTags(point)["flow_environment_id"]; got != "canonical-environment" {
+		t.Fatalf("fault flow_environment_id = %q, want the trusted value", got)
 	}
 }
 
@@ -681,7 +682,7 @@ func TestFlowPointRequiresCanonicalEnvironment(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := influxPointForSpanWithEnvironment(
+			_, err := encodeSpanForEnvironment(
 				testSpan("flow/v1/ctld/job/accepted", test.attributes),
 				"",
 			)
@@ -696,12 +697,12 @@ func TestFlowPointRequiresCanonicalEnvironment(t *testing.T) {
 }
 
 func TestNonFlowPointDoesNotInjectCanonicalEnvironment(t *testing.T) {
-	point, err := influxPointForSpanWithEnvironment(
+	point, err := encodeSpanForEnvironment(
 		testSpan("job/lifecycle", map[string]string{"job_id": "42"}),
 		"canonical-environment",
 	)
 	if err != nil {
-		t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
+		t.Fatalf("encodeSpanForEnvironment() error = %v", err)
 	}
 	if _, ok := pointTags(point)["flow_environment_id"]; ok {
 		t.Fatal("non-flow span received a flow_environment_id tag")
@@ -712,7 +713,7 @@ func TestNonFlowPointDoesNotInjectCanonicalEnvironment(t *testing.T) {
 }
 
 func TestNonFlowPointKeepsFlowAttributesAsFields(t *testing.T) {
-	point := influxPointForSpan(testSpan("job/lifecycle", map[string]string{
+	point := encodeSpan(t, testSpan("job/lifecycle", map[string]string{
 		"flow_id":             "A1b2C3d4",
 		"flow_environment_id": "gh-123",
 	}))
@@ -734,12 +735,12 @@ func TestNonFlowPointKeepsFlowAttributesAsFields(t *testing.T) {
 }
 
 func TestNonFlowPointKeepsSpanIDAsField(t *testing.T) {
-	point, err := influxPointForSpanWithEnvironment(
+	point, err := encodeSpanForEnvironment(
 		testSpan("job/lifecycle", nil),
 		"",
 	)
 	if err != nil {
-		t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
+		t.Fatalf("encodeSpanForEnvironment() error = %v", err)
 	}
 	if _, ok := pointTags(point)["span_id"]; ok {
 		t.Fatal("non-flow span_id must not be promoted")
@@ -762,13 +763,11 @@ func TestFlowPointRejectsInvalidFlowIDs(t *testing.T) {
 
 	for _, value := range tests {
 		t.Run(value, func(t *testing.T) {
-			_, err := influxPointForSpanWithEnvironment(testSpan(
+			point, err := encodeSpanForEnvironment(testSpan(
 				"flow/v1/ctld/job/accepted",
 				map[string]string{"flow_id": value},
 			), "canonical-environment")
-			if err == nil {
-				t.Fatalf("invalid flow_id value %q was accepted", value)
-			}
+			requirePipelineFault(t, point, err, executionFlowReasonInvalidFlowId)
 		})
 	}
 }
@@ -786,12 +785,10 @@ func TestFlowPointRejectsInvalidSpanID(t *testing.T) {
 		t.Run(value, func(t *testing.T) {
 			span := testSpan("flow/v1/ctld/job/accepted", nil)
 			span.SpanId = value
-			_, err := influxPointForSpanWithEnvironment(span, "canonical-environment")
-			if err == nil {
-				t.Fatalf("accepted invalid flow span_id %q", value)
-			}
-			if !strings.Contains(err.Error(), "span_id") {
-				t.Fatalf("invalid span_id error = %q", err)
+			point, err := encodeSpanForEnvironment(span, "canonical-environment")
+			requirePipelineFault(t, point, err, executionFlowReasonInvalidSpanId)
+			if got := pointFields(point)["span_id"]; got == value {
+				t.Fatalf("fault reused the rejected span_id %q", value)
 			}
 		})
 	}
@@ -866,9 +863,9 @@ func TestMaximumFlowSequenceDoesNotDriftPastQueryStop(t *testing.T) {
 	span.StartTime = timestamppb.New(queryStop)
 	span.EndTime = timestamppb.New(queryStop)
 
-	point, err := influxPointForSpanWithEnvironment(span, "canonical-environment")
+	point, err := encodeSpanForEnvironment(span, "canonical-environment")
 	if err != nil {
-		t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
+		t.Fatalf("encodeSpanForEnvironment() error = %v", err)
 	}
 	if !point.Time().Equal(queryStop) {
 		t.Fatalf("maximum sequence moved point time to %s, want %s", point.Time(), queryStop)
@@ -884,9 +881,9 @@ func TestFlowPointRetainsEventTimeAtQueryStartBoundary(t *testing.T) {
 	span.EndTime = timestamppb.New(boundary)
 	span.SpanId = "0000000000000001"
 
-	point, err := influxPointForSpanWithEnvironment(span, "canonical-environment")
+	point, err := encodeSpanForEnvironment(span, "canonical-environment")
 	if err != nil {
-		t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
+		t.Fatalf("encodeSpanForEnvironment() error = %v", err)
 	}
 	if !point.Time().Equal(boundary) {
 		t.Fatalf("point time = %s, want exact query boundary %s", point.Time(), boundary)
@@ -912,9 +909,9 @@ func TestFlowPrimaryAndErrorCopiesHaveIdenticalPointData(t *testing.T) {
 
 	encoded := make([]string, 0, len(buckets))
 	for range buckets {
-		point, err := influxPointForSpanWithEnvironment(span, "canonical-environment")
+		point, err := encodeSpanForEnvironment(span, "canonical-environment")
 		if err != nil {
-			t.Fatalf("influxPointForSpanWithEnvironment() error = %v", err)
+			t.Fatalf("encodeSpanForEnvironment() error = %v", err)
 		}
 		encoded = append(encoded, write.PointToLineProtocol(point, time.Nanosecond))
 	}
@@ -1146,4 +1143,67 @@ func unsetEnvironmentForTest(t *testing.T, key string) {
 			t.Errorf("os.Unsetenv(%q): %v", key, err)
 		}
 	})
+}
+
+// encodeSpanForEnvironment runs a span through the production trace point
+// pipeline and returns the Influx point it would persist.
+//
+// These tests deliberately go through tracePointPipeline rather than building
+// their own decoder/validator/router/encoder chain. A private chain drifts from
+// production and, worse, skips the pipelineFault fallback: a flow point that
+// fails validation is not dropped, it is replaced by a sanitized
+// flow/v1/pipeline/fault point. Callers that expect a rejection must therefore
+// assert on that fault, which is what production actually stores.
+func encodeSpanForEnvironment(
+	span *protos.SpanInfo,
+	environmentID string,
+) (*write.Point, error) {
+	pipeline, err := newTracePointPipeline(environmentID, generatedExecutionFlowCatalog)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := pipeline.Process(rawTracePoint{span: span})
+	if err != nil {
+		return nil, err
+	}
+	return influxPoint(encoded), nil
+}
+
+// encodeSpan is the unscoped form, for non-flow spans that need no environment.
+func encodeSpan(t *testing.T, span *protos.SpanInfo) *write.Point {
+	t.Helper()
+	point, err := encodeSpanForEnvironment(span, "")
+	if err != nil {
+		t.Fatalf("encodeSpan() error = %v", err)
+	}
+	return point
+}
+
+// requirePipelineFault asserts that a rejected flow span was converted into the
+// sanitized fault point, and that nothing from the rejected span leaked into it.
+func requirePipelineFault(
+	t *testing.T,
+	point *write.Point,
+	err error,
+	reason executionFlowReasonCode,
+) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("expected a pipeline fault point, got error: %v", err)
+	}
+	tags := pointTags(point)
+	if got := tags["name"]; got != generatedExecutionFlowCatalog.PipelineFaultPoint() {
+		t.Fatalf("point name = %q, want %q", got, generatedExecutionFlowCatalog.PipelineFaultPoint())
+	}
+	if got := pointFields(point)["reason_code"]; got != string(reason) {
+		t.Fatalf("reason_code = %#v, want %q", got, reason)
+	}
+	if _, leaked := tags["flow_id"]; leaked {
+		t.Fatal("pipeline fault carried a flow_id from the rejected span")
+	}
+	for _, key := range []string{"job_id", "step_id", "task_id", "node_id"} {
+		if _, leaked := pointFields(point)[key]; leaked {
+			t.Fatalf("pipeline fault leaked %q from the rejected span", key)
+		}
+	}
 }
