@@ -20,6 +20,13 @@ var (
 	)
 )
 
+// convertedFlowAttribute is one integer attribute decoded from its wire string,
+// held until the whole point has validated.
+type convertedFlowAttribute struct {
+	key   string
+	value int64
+}
+
 type flowPointValidationError struct {
 	reason  executionFlowReasonCode
 	message string
@@ -195,6 +202,12 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 		)
 	}
 
+	// Validation rewrites integer attributes from their wire strings, but the
+	// caller still owns this map. Rewriting as we go would leave a rejected point
+	// half converted, and a second Validate on it would then report
+	// invalid_attribute_type instead of the reason it actually failed for.
+	// Collect the conversions and apply them only once every attribute passed.
+	var converted []convertedFlowAttribute
 	for key, value := range point.attributes {
 		if v.isFlowMetadataAttribute(key) {
 			continue
@@ -220,7 +233,7 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 			if parseErr != nil {
 				return validatedTracePoint{}, parseErr
 			}
-			point.attributes[key] = parsed
+			converted = append(converted, convertedFlowAttribute{key: key, value: parsed})
 		case "enum":
 			if text != "" && !v.catalog.AllowsEnumValue(key, text) {
 				return validatedTracePoint{}, newFlowPointValidationError(
@@ -234,6 +247,9 @@ func (v *schemaExecutionFlowValidator) Validate(point typedTracePoint) (validate
 				"canonical flow schema contains an unsupported attribute type",
 			)
 		}
+	}
+	for _, attribute := range converted {
+		point.attributes[attribute.key] = attribute.value
 	}
 	point.attributes[executionFlowEnvelopeEventSequence] = eventSequence
 	point.durationUS = 0

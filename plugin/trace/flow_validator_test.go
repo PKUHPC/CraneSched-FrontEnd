@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGeneratedFlowCatalogMetadata(t *testing.T) {
@@ -274,5 +275,72 @@ func TestHeartbeatUsesGeneratedDescriptorAndTypedSequence(t *testing.T) {
 	}
 	if !strings.HasPrefix(point.name, generatedExecutionFlowCatalog.WirePrefix()) {
 		t.Fatalf("heartbeat name = %q", point.name)
+	}
+}
+
+// TestValidateLeavesRejectedPointUnconvertedForRetry pins that a rejected point
+// is handed back exactly as it arrived. Validate rewrites integer attributes from
+// their wire strings, so converting in place meant a rejected point kept some
+// attributes as int64; validating it again then failed on the wire type rather
+// than the reason it actually failed for, hiding the real diagnosis.
+func TestValidateLeavesRejectedPointUnconvertedForRetry(t *testing.T) {
+	validator, err := newExecutionFlowValidator("env-1", generatedExecutionFlowCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	integers := map[string]string{
+		"job_id": "42", "step_id": "0", "task_id": "1", "attempt": "0", "status": "2",
+	}
+	newAttributes := func() map[string]any {
+		attributes := map[string]any{
+			executionFlowEnvelopeFlowSchema:             "v1",
+			executionFlowEnvelopePoint:                  "ctld/job/accepted",
+			executionFlowEnvelopeProducer:               "cranectld",
+			executionFlowEnvelopeServiceLogicalInstance: "ctld",
+			executionFlowEnvelopeServiceInstance:        "ctld#pid=1",
+			executionFlowEnvelopeEventSequence:          "7",
+			executionFlowEnvelopeFlowID:                 "0123456789abcdef0123456789abcdef",
+			"operation":                                 "submit",
+			// Outside the canonical enum, so the point is rejected mid-loop.
+			"outcome": "not-a-canonical-outcome",
+		}
+		for key, value := range integers {
+			attributes[key] = value
+		}
+		return attributes
+	}
+
+	// Go randomizes map iteration, so a single pass only converts an integer
+	// before reaching the bad enum some of the time. Repeat until that ordering
+	// is a certainty rather than a coin flip: with five integer attributes the
+	// odds of every pass drawing the enum first are (1/6)^64.
+	for attempt := 0; attempt < 64; attempt++ {
+		attributes := newAttributes()
+		point := typedTracePoint{
+			name:           generatedExecutionFlowCatalog.WirePrefix() + "ctld/job/accepted",
+			spanID:         "0123456789abcdef",
+			eventTime:      time.Unix(100, 0),
+			eventTimeValid: true,
+			attributes:     attributes,
+		}
+
+		var validationError *flowPointValidationError
+		if _, err := validator.Validate(point); !errors.As(err, &validationError) ||
+			validationError.reason != executionFlowReasonInvalidEnumValue {
+			t.Fatalf("Validate error = %v, want an invalid_enum_value rejection", err)
+		}
+		for key, want := range integers {
+			got, ok := attributes[key].(string)
+			if !ok || got != want {
+				t.Fatalf("attempt %d: %s = %#v, want the untouched wire string %q",
+					attempt, key, attributes[key], want)
+			}
+		}
+		// The same point must fail for the same reason, not on a converted value.
+		validationError = nil
+		if _, err := validator.Validate(point); !errors.As(err, &validationError) ||
+			validationError.reason != executionFlowReasonInvalidEnumValue {
+			t.Fatalf("attempt %d: repeat Validate error = %v, want the same reason", attempt, err)
+		}
 	}
 }
