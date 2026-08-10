@@ -102,17 +102,17 @@ type EntityType struct {
 
 type Flag struct {
 	Name  string `parser:"'-' '-'? @Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @Number) | (@String | @Ident | @Number) )?"`
+	Value string `parser:"( '=' (@String | @Time | @Ident | @Number) | (@String | @Time | @Ident | @Number) )?"`
 }
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @Number | @Duration) | (@String | @Ident | @Number | @Duration) )?"`
+	Value string `parser:"( '=' (@String | @Time | @Ident | @Number | @Duration) | (@String | @Time | @Ident | @Number | @Duration) )?"`
 }
 
 type WhereParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' ( @String | @Ident | @Number) | @String | @Ident | @Number )"`
+	Value string `parser:"( '=' ( @String | @Time | @Ident | @Number) | @String | @Time | @Ident | @Number )"`
 }
 
 type WhereClause struct {
