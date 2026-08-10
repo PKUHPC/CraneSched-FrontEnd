@@ -155,7 +155,36 @@ func (w *TraceWriter) Close() error {
 		})
 		return w.closeErr
 	case <-timer.C:
-		return fmt.Errorf("trace writer did not drain within %s", w.closeTimeout)
+		// Workers are still running, so workerErrors is not closed and cannot be
+		// ranged over. Take what they have already published: a shard that gave
+		// up on undrained spans reports how many it dropped, and that is the
+		// only signal that the exported trace is incomplete. Losing it here
+		// turns a known gap into an unexplained one downstream.
+		reported := w.reportedShardErrors()
+		return errors.Join(append(
+			[]error{fmt.Errorf("trace writer did not drain within %s", w.closeTimeout)},
+			reported...,
+		)...)
+	}
+}
+
+// reportedShardErrors removes the shard errors published so far without
+// blocking. Each shard publishes at most one error into a buffer sized for every
+// shard, so this collects everything reported up to this instant.
+func (w *TraceWriter) reportedShardErrors() []error {
+	var shardErrors []error
+	for {
+		select {
+		case err, ok := <-w.workerErrors:
+			if !ok {
+				return shardErrors
+			}
+			if err != nil {
+				shardErrors = append(shardErrors, err)
+			}
+		default:
+			return shardErrors
+		}
 	}
 }
 

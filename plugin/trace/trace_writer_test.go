@@ -592,6 +592,102 @@ func TestTraceWriterCloseUnblocksBlockedEnqueue(t *testing.T) {
 	}
 }
 
+// wedgedShardSink blocks one shard forever and permanently rejects the other,
+// so a Close timeout coexists with a shard that has already reported an error.
+type wedgedShardSink struct {
+	blockedTrace string
+	started      chan struct{}
+	startOnce    sync.Once
+	release      chan struct{}
+	rejected     chan struct{}
+	rejectOnce   sync.Once
+}
+
+func (s *wedgedShardSink) WriteBatch(
+	_ context.Context,
+	points []encodedTracePoint,
+) (traceSinkBatchResult, error) {
+	if len(points) > 0 && points[0].fields["trace_id"] == s.blockedTrace {
+		s.startOnce.Do(func() { close(s.started) })
+		<-s.release
+		return traceSinkBatchResult{}, nil
+	}
+	s.rejectOnce.Do(func() { close(s.rejected) })
+	return traceSinkBatchResult{dropped: append([]encodedTracePoint(nil), points...)},
+		errors.New("injected permanent rejection")
+}
+
+func (*wedgedShardSink) Close(context.Context) error { return nil }
+
+// TestTraceWriterCloseTimeoutReportsShardErrors covers the diagnosis, not just
+// the timeout. A shard that permanently loses spans records why; if Close only
+// returned "did not drain", that record would be discarded and the resulting
+// gap in exported flow points would look unexplained downstream.
+func TestTraceWriterCloseTimeoutReportsShardErrors(t *testing.T) {
+	const shards = 2
+	shardFor := func(traceID string) uint32 {
+		return stableTraceShardKey(typedTracePoint{traceID: traceID}) % shards
+	}
+	var blockedTrace, rejectedTrace string
+	for index := 0; index < 64 && (blockedTrace == "" || rejectedTrace == ""); index++ {
+		candidate := "trace-" + string(rune('a'+index))
+		if shardFor(candidate) == 0 {
+			if blockedTrace == "" {
+				blockedTrace = candidate
+			}
+			continue
+		}
+		if rejectedTrace == "" {
+			rejectedTrace = candidate
+		}
+	}
+	if blockedTrace == "" || rejectedTrace == "" {
+		t.Fatal("could not find trace IDs routing to two distinct shards")
+	}
+
+	sink := &wedgedShardSink{
+		blockedTrace: blockedTrace,
+		started:      make(chan struct{}),
+		release:      make(chan struct{}),
+		rejected:     make(chan struct{}),
+	}
+	writer := testTraceWriter(sink, TraceWriterConfig{
+		Shards: shards, BatchSpans: 1, QueueBatches: 4, FlushIntervalMs: 1,
+		WriteTimeoutMs: 1000, CloseTimeoutMs: 300,
+	})
+	for _, traceID := range []string{blockedTrace, rejectedTrace} {
+		if err := writer.Enqueue(context.Background(), []*protos.SpanInfo{
+			{Name: "step/detail", TraceId: traceID},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, wait := range []struct {
+		name string
+		ch   chan struct{}
+	}{{"blocked shard write", sink.started}, {"rejected shard write", sink.rejected}} {
+		select {
+		case <-wait.ch:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%s did not happen", wait.name)
+		}
+	}
+
+	err := writer.Close()
+	if err == nil || !strings.Contains(err.Error(), "did not drain") {
+		t.Fatalf("Close error = %v, want a drain timeout", err)
+	}
+	if !strings.Contains(err.Error(), "permanently rejected") {
+		t.Fatalf("Close error = %v, want it to carry the shard's rejection report", err)
+	}
+
+	// Let the wedged shard finish so it does not outlive the test.
+	close(sink.release)
+	if err := writer.Close(); err != nil {
+		t.Fatalf("retry Close failed: %v", err)
+	}
+}
+
 func TestTraceRuntimeDoesNotCloseActiveSinkAndRetries(t *testing.T) {
 	sink := newUncooperativeTraceSink()
 	writer := testTraceWriter(sink, TraceWriterConfig{
