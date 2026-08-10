@@ -350,14 +350,12 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 			if count >= int(countMax) {
 				break
 			}
-			// Lookup proper name, skip if not found
 			properName, ok := usernameToName[summary.Username]
 			if !ok {
-				usr, err := user.Lookup(summary.Username)
-				if err != nil || usr.Name == "" {
-					continue // skip this user if lookup failed
+				properName = ""
+				if usr, err := user.Lookup(summary.Username); err == nil {
+					properName = usr.Name
 				}
-				properName = usr.Name
 				usernameToName[summary.Username] = properName
 			}
 			summary.ProperName = properName
@@ -371,14 +369,12 @@ func PrintUsersTopSumList(JobSummaryItemList []*protos.JobSummaryItem, startTime
 			if count >= int(countMax) {
 				break
 			}
-			// Lookup proper name, skip if not found
 			properName, ok := usernameToName[item.Username]
 			if !ok {
-				usr, err := user.Lookup(item.Username)
-				if err != nil {
-					continue // skip this user if lookup failed
+				properName = ""
+				if usr, err := user.Lookup(item.Username); err == nil {
+					properName = usr.Name
 				}
-				properName = usr.Name
 				usernameToName[item.Username] = properName
 			}
 			outputList = append(outputList, UserTopSummaryJson{
