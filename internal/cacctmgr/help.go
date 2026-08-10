@@ -126,7 +126,6 @@ func showHelp() {
       type=<notset|license>     License type (default is 'notset')
       count=<count>             Total number of license resource
       lastconsumed=<lastconsumed>  Usage count obtained from external source
-      allocated=<allocated>     Total number of allocated license resource
       flags=<none|absolute>     License resource flags (default is 'none')
       allowed=<allowed>         Amount available to the cluster license resource
       cluster=<cluster>         Cluster name
