@@ -153,6 +153,7 @@ func (keeper *SupervisorChannelKeeper) supervisorDownAndRemoveChannelToSuperviso
 	}
 	currentChannel, exist := stepChannels[cranedId]
 	if !exist || currentChannel.valid != connectionValid {
+		// Current unregister channel is a stale channel
 		// A reconnect won the race and replaced this entry with its own token.
 		// Cleanup from the old handler no longer owns the entry and must not delete it.
 		keeper.toSupervisorChannelMtx.Unlock()
