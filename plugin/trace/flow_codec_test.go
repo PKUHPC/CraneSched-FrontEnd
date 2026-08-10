@@ -326,7 +326,7 @@ func TestFlowInstanceSlotIsConcurrentAndConsistent(t *testing.T) {
 	}
 }
 
-func TestUnboundPipelinePointsUseFixedInstanceSlotWithoutExhaustion(t *testing.T) {
+func TestUnboundPipelinePointsUseBoundedInstanceSlotWithoutExhaustion(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		producer string
@@ -336,6 +336,12 @@ func TestUnboundPipelinePointsUseFixedInstanceSlotWithoutExhaustion(t *testing.T
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			encoder := &influxTracePointEncoder{}
+			// Heartbeat and fault points carry no flow_id, so they used to fall
+			// back to a single fixed slot. That is where cross-instance
+			// collisions are most likely, not least: every Supervisor on one
+			// node shares the "service" tag. Require the slot to stay bounded
+			// and stateless, but also to actually separate producer instances.
+			unboundSlots := make(map[string]struct{}, flowInstanceSlots)
 			for instance := 0; instance < flowInstanceSlots*2; instance++ {
 				point := typedTracePoint{
 					name:      test.name,
@@ -354,10 +360,18 @@ func TestUnboundPipelinePointsUseFixedInstanceSlotWithoutExhaustion(t *testing.T
 				if err != nil {
 					t.Fatalf("unbound instance %d failed: %v", instance, err)
 				}
-				if encoded.tags["flow_instance_slot"] != "0" {
-					t.Fatalf("unbound instance %d slot = %q, want 0",
+				slot, parseErr := strconv.Atoi(encoded.tags["flow_instance_slot"])
+				if parseErr != nil || slot < 0 || slot >= flowInstanceSlots {
+					t.Fatalf("unbound instance %d slot = %q is out of domain",
 						instance, encoded.tags["flow_instance_slot"])
 				}
+				unboundSlots[encoded.tags["flow_instance_slot"]] = struct{}{}
+			}
+			// A hash-independent floor: distinct producer instances must not all
+			// collapse onto one series.
+			if len(unboundSlots) < flowInstanceSlots/4 {
+				t.Fatalf("unbound points used only %d of %d instance slots",
+					len(unboundSlots), flowInstanceSlots)
 			}
 
 			business := typedTracePoint{
@@ -381,6 +395,58 @@ func TestUnboundPipelinePointsUseFixedInstanceSlotWithoutExhaustion(t *testing.T
 				t.Fatalf("business instance slot = %q", encoded.tags["flow_instance_slot"])
 			}
 		})
+	}
+}
+
+// TestConcurrentInstanceHeartbeatsKeepDistinctPointIdentity covers the exact
+// overwrite this slot dimension exists to prevent. Influx identifies a point by
+// measurement, tag set, and timestamp. Two Supervisors on one node share the
+// "service" tag, heartbeats carry no flow_id, and their per-process sequence
+// counters both restart at zero, so a same-nanosecond pair agrees on every
+// other tag. If the instance slot did not separate them, one heartbeat would
+// silently replace the other and the validator would report a pipeline gap.
+func TestConcurrentInstanceHeartbeatsKeepDistinctPointIdentity(t *testing.T) {
+	encoder := &influxTracePointEncoder{}
+	heartbeat := func(serviceInstance string) encodedTracePoint {
+		t.Helper()
+		encoded, err := encoder.Encode(routedTracePoint{point: typedTracePoint{
+			name:      generatedExecutionFlowCatalog.HeartbeatPoint(),
+			service:   "Supervisor@node1",
+			eventTime: time.Unix(100, 25_000),
+			flow: &executionFlowEnvelope{
+				environmentID:          "run-1.shard-0",
+				producer:               "supervisor",
+				serviceLogicalInstance: "node1",
+				serviceInstance:        serviceInstance,
+				eventSequence:          3,
+			},
+		}})
+		if err != nil {
+			t.Fatalf("encode heartbeat for %q: %v", serviceInstance, err)
+		}
+		return encoded
+	}
+
+	firstInstance := "node1#pid=101:start=1700000000000000000"
+	secondInstance := "node1#pid=202:start=1700000000000000001"
+	first := heartbeat(firstInstance)
+	second := heartbeat(secondInstance)
+
+	if !first.time.Equal(second.time) {
+		t.Fatal("test must compare two heartbeats at the same timestamp")
+	}
+	if first.tags["flow_slot"] != second.tags["flow_slot"] {
+		t.Fatal("test must compare two heartbeats sharing a sequence slot")
+	}
+	if first.measurement != second.measurement {
+		t.Fatal("test must compare two heartbeats in the same measurement")
+	}
+	if first.tags["flow_instance_slot"] == second.tags["flow_instance_slot"] {
+		t.Fatalf(
+			"heartbeats from service instances %q and %q share instance slot %q; "+
+				"their Influx point identity collides and one would overwrite the other",
+			firstInstance, secondInstance, first.tags["flow_instance_slot"],
+		)
 	}
 }
 
