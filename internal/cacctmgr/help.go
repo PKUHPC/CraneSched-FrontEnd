@@ -90,10 +90,10 @@ func showHelp() {
       Name=<name1,name2,...>    Name of users to delete (comma-separated)
     (if name is 'ALL' and set --force, all users from a specific account will be delete.)
   
-	show user [Accounts=<account>] [Name=<name1,name2,...>] [format=<Account,UserName,...>]
+	show user [Account=<account>] [Name=<name1,name2,...>] [format=<Account,UserName,...>]
     Display information about users.
     Parameter details:
-      Accounts=<account>         Show users of this account only
+      Account=<account>          Show users of this account only
       Name=<name1,name2,...>    Show only these users (comma-separated)
       (If not specified, all users will be displayed)
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
@@ -126,7 +126,6 @@ func showHelp() {
       type=<notset|license>     License type (default is 'notset')
       count=<count>             Total number of license resource
       lastconsumed=<lastconsumed>  Usage count obtained from external source
-      allocated=<allocated>     Total number of allocated license resource
       flags=<none|absolute>     License resource flags (default is 'none')
       allowed=<allowed>         Amount available to the cluster license resource
       cluster=<cluster>         Cluster name
@@ -216,7 +215,7 @@ func showHelp() {
               (Spelling must be correct, case is not important)
       For Example: cacctmgr show qos format=name,Priority,Preempt,PreemptMode
 
-    show transaction [Actor=<actor>] [Target=<target>] [Action=<action>] [Info=<info>] [StartTime=<start_time>]
+    show transaction [where] [Actor=<actor>] [Target=<target>] [Action=<action>] [Info=<info>] [StartTime=<start_time>]
     Display transaction log records.
     Parameter details:
       Actor=<actor>           Filter by actor (who performed the action)
@@ -224,6 +223,7 @@ func showHelp() {
       Action=<action>         Filter by action type (e.g. adduser, deleteaccount)
       Info=<info>             Filter by additional info (fuzzy query)
       StartTime=<start_time>  Filter by start time (format: ~YYYY-MM-DDTHH:MM:SS or YYYY-MM-DDTHH:MM:SS~)
+      Example: cacctmgr show transaction where StartTime ~2026-08-04T00:00:00
       (If not specified, all transactions will be displayed, limit 1000)
     show event where [Maxlines=<maxlines>] [Nodes=<Nodes>] 
     Display node event records.
