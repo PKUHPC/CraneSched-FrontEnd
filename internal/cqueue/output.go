@@ -184,7 +184,15 @@ func QueryTableOutput(reply *protos.QueryJobsInfoReply) error {
 }
 
 func JsonOutput(reply *protos.QueryJobsInfoReply) error {
-	fmt.Println(util.FmtJson.FormatReply(reply))
+	if util.IsSlurmOutputMode() {
+		output, err := util.FormatSlurmJobsJSON(reply)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+		}
+		fmt.Println(output)
+	} else {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+	}
 	if reply.GetOk() {
 		return nil
 	} else {

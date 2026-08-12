@@ -153,7 +153,15 @@ func QueryJob(maxLinesSpecified bool) error {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		if util.IsSlurmOutputMode() {
+			output, err := util.FormatSlurmJobsJSON(reply)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+			}
+			fmt.Println(output)
+		} else {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
 		if reply.GetOk() {
 			printIncompleteQueryWarning(reply.GetHasMore(), maxLinesSpecified)
 			return nil
@@ -189,9 +197,13 @@ func QueryJob(maxLinesSpecified bool) error {
 	var header []string
 	tableData := make([][]string, len(items))
 	if FlagFull {
+		nodeListHeader := "CranedList"
+		if util.IsSlurmOutputMode() {
+			nodeListHeader = "NodeList"
+		}
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey", "Deadline"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", nodeListHeader, "ExitCode", "wckey", "Deadline"}
 		for i, jobOrStep := range items {
 			tableData[i] = []string{
 				ProcessJobID(jobOrStep),

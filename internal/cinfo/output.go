@@ -18,10 +18,11 @@ type FlattenedData struct {
 	PartitionName   string
 	Avail           string
 	CranedListRegex string
-	ResourceState   string
-	ControlState    string
-	PowerState      string
+	ResourceState   protos.CranedResourceState
+	ControlState    protos.CranedControlState
+	PowerState      protos.CranedPowerState
 	CranedListCount uint64
+	HasNodes        bool
 }
 
 func GetFlattenedData(
@@ -31,10 +32,11 @@ func GetFlattenedData(
 		PartitionName:   partitionCraned.Name,
 		Avail:           strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
 		CranedListRegex: commonCranedStateList.CranedListRegex,
-		ResourceState:   strings.ToLower(strings.TrimPrefix(commonCranedStateList.ResourceState.String(), "CRANE_")),
-		ControlState:    strings.ToLower(strings.TrimPrefix(commonCranedStateList.ControlState.String(), "CRANE_")),
-		PowerState:      strings.ToLower(strings.TrimPrefix(commonCranedStateList.PowerState.String(), "CRANE_")),
+		ResourceState:   commonCranedStateList.ResourceState,
+		ControlState:    commonCranedStateList.ControlState,
+		PowerState:      commonCranedStateList.PowerState,
 		CranedListCount: uint64(commonCranedStateList.Count),
+		HasNodes:        true,
 	}
 }
 func GetValidFlattenedData(partitionCraned *protos.TrimmedPartitionInfo) FlattenedData {
@@ -42,10 +44,8 @@ func GetValidFlattenedData(partitionCraned *protos.TrimmedPartitionInfo) Flatten
 		PartitionName:   partitionCraned.Name,
 		Avail:           strings.ToLower(strings.TrimPrefix(partitionCraned.State.String(), "PARTITION_")),
 		CranedListRegex: "",
-		ResourceState:   "n/a",
-		ControlState:    "",
-		PowerState:      "",
 		CranedListCount: 0,
+		HasNodes:        false,
 	}
 }
 
@@ -114,15 +114,30 @@ func ProcessNodes(flattened []FlattenedData, tableOutputCell [][]string) {
 // State
 func ProcessState(flattened []FlattenedData, tableOutputCell [][]string) {
 	for idx, data := range flattened {
-		stateStr := data.ResourceState
-		if data.ControlState != "" && data.ControlState != "none" {
-			stateStr += "(" + data.ControlState + ")"
+		if !data.HasNodes {
+			tableOutputCell[idx] = append(tableOutputCell[idx], "n/a")
+			continue
 		}
 
-		if data.ResourceState == "down" && (data.PowerState == "power_idle" || data.PowerState == "power_active") {
+		if util.IsSlurmOutputMode() {
+			tableOutputCell[idx] = append(tableOutputCell[idx],
+				util.FormatSlurmNodeState(data.ResourceState, data.ControlState, data.PowerState))
+			continue
+		}
+
+		stateStr := strings.ToLower(strings.TrimPrefix(data.ResourceState.String(), "CRANE_"))
+		if data.ControlState != protos.CranedControlState_CRANE_NONE {
+			controlState := strings.ToLower(strings.TrimPrefix(data.ControlState.String(), "CRANE_"))
+			stateStr += "(" + controlState + ")"
+		}
+
+		if data.ResourceState == protos.CranedResourceState_CRANE_DOWN &&
+			(data.PowerState == protos.CranedPowerState_CRANE_POWER_IDLE ||
+				data.PowerState == protos.CranedPowerState_CRANE_POWER_ACTIVE) {
 			stateStr += "[failed]"
-		} else if data.PowerState != "" {
-			stateStr += "[" + data.PowerState + "]"
+		} else {
+			powerState := strings.ToLower(strings.TrimPrefix(data.PowerState.String(), "CRANE_"))
+			stateStr += "[" + powerState + "]"
 		}
 		tableOutputCell[idx] = append(tableOutputCell[idx], stateStr)
 	}
@@ -239,6 +254,10 @@ func GetInvalidMsg(partitionCraned *protos.TrimmedPartitionInfo) []string {
 }
 
 func BuildStateString(cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo) string {
+	if util.IsSlurmOutputMode() {
+		return util.FormatSlurmNodeState(
+			cranedList.ResourceState, cranedList.ControlState, cranedList.PowerState)
+	}
 	stateStr := strings.ToLower(strings.TrimPrefix(cranedList.ResourceState.String(), "CRANE_"))
 
 	if cranedList.ControlState != protos.CranedControlState_CRANE_NONE {
@@ -389,7 +408,15 @@ func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
 }
 
 func JsonOutput(reply *protos.QueryClusterInfoReply) error {
-	fmt.Println(util.FmtJson.FormatReply(reply))
+	if util.IsSlurmOutputMode() {
+		output, err := formatSlurmClusterJSON(reply)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+		}
+		fmt.Println(output)
+	} else {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+	}
 	if reply.GetOk() {
 		return nil
 	} else {
