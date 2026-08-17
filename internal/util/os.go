@@ -78,6 +78,14 @@ func DetectNetworkProxy() {
 	}
 }
 
+func GetShortHostname(hostName string) string {
+	shortName, _, _ := strings.Cut(hostName, ".")
+	if shortName == "" {
+		return hostName
+	}
+	return shortName
+}
+
 func GetPidFromPort(port uint16) (int, error) {
 	// 1. Find inode number for the port
 	portHex := fmt.Sprintf("%04X", port)
