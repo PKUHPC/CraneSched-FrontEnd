@@ -163,7 +163,7 @@ func QueryJob() error {
 			fmt.Println(util.FmtJson.FormatReply(reply))
 		}
 		if reply.GetOk() {
-			util.PrintIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
+			printIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
@@ -292,8 +292,18 @@ func QueryJob() error {
 
 	table.AppendBulk(tableData)
 	table.Render()
-	util.PrintIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
+	printIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
 	return nil
+}
+
+func printIncompleteQueryWarning(hasMore bool, returnedJobs int) {
+	if !hasMore {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr,
+		"Query returned %d jobs, and more matching jobs exist. Use -m to adjust the number of jobs returned.\n",
+		returnedJobs)
 }
 
 // JobOrStep represents either a job (JobInfo) or a step (StepInfo)

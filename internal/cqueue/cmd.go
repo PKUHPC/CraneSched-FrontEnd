@@ -181,7 +181,7 @@ Note: If the format is invalid or unrecognized, the program will terminate with 
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false,
 		"Display full information (If not set, only display 30 characters per cell)")
 	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", util.MaxRepliedJobs,
-		"Limit the number of jobs returned")
+		"Limit the number of lines in the output, 0 means no limit")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false,
 		"Output in JSON format")
 	RootCmd.Flags().BoolVar(&FlagCount, "count", false,
