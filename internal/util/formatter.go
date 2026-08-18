@@ -19,7 +19,6 @@
 package util
 
 import (
-	"fmt"
 	"os"
 
 	log "github.com/sirupsen/logrus"
@@ -61,13 +60,3 @@ func MarshalProtoJSON(msg protoreflect.ProtoMessage) ([]byte, error) {
 }
 
 var FmtJson = FormatterJson{}
-
-func PrintIncompleteQueryWarning(hasMore bool, returnedJobs int) {
-	if !hasMore {
-		return
-	}
-
-	fmt.Fprintf(os.Stderr,
-		"Query returned %d jobs, and more matching jobs exist. Use -m to adjust the number of jobs returned.\n",
-		returnedJobs)
-}

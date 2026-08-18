@@ -179,20 +179,13 @@ func Query() error {
 		return err
 	}
 
-	var outputErr error
 	if FlagJson {
-		outputErr = JsonOutput(reply)
+		return JsonOutput(reply)
 	} else if FlagStep {
-		outputErr = QueryStepsTableOutput(reply)
+		return QueryStepsTableOutput(reply)
 	} else {
-		outputErr = QueryTableOutput(reply)
+		return QueryTableOutput(reply)
 	}
-	if outputErr != nil {
-		return outputErr
-	}
-
-	util.PrintIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
-	return nil
 }
 
 func loopedQuery(iterate uint64) error {
