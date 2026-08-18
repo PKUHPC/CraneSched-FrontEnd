@@ -111,14 +111,15 @@ const (
 	DefaultCforedServerListenAddress = "0.0.0.0"
 	DefaultCforedServerListenPort    = "10012"
 
-	DefaultWrappedJobName          = "Wrap"
-	DefaultUserNsEnabledByDefault  = true
-	GresGpuName                    = "gpu"
-	MaxRepliedJobs                 = 1000 // See kDefaultQueryJobNumLimit for details
-	MaxJobNameLength               = 60
-	MaxJobFileNameLength           = 127
-	MaxJobFilePathLengthForWindows = 260 - MaxJobFileNameLength
-	MaxJobFilePathLengthForUnix    = 4096 - MaxJobFileNameLength
+	DefaultWrappedJobName                 = "Wrap"
+	DefaultUserNsEnabledByDefault         = true
+	DefaultCacctMaxLines           uint32 = 20
+	DefaultCqueueMaxLines          uint32 = 10000
+	GresGpuName                           = "gpu"
+	MaxJobNameLength                      = 60
+	MaxJobFileNameLength                  = 127
+	MaxJobFilePathLengthForWindows        = 260 - MaxJobFileNameLength
+	MaxJobFilePathLengthForUnix           = 4096 - MaxJobFileNameLength
 
 	MaxJobTimeLimit = 315576000000 // 10000 years
 	MaxJobTimeStamp = 253402300799 // 9999-12-31 23:59:59
