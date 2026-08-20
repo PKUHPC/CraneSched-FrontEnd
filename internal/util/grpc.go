@@ -194,8 +194,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var stub protos.CraneCtldClient
 
 	if config.TlsConfig.Enabled {
-		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
 
 		if config.TlsConfig.UserTlsCertPath == "" {
 			home, err := os.UserHomeDir()
@@ -262,8 +261,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 	var stub protos.CraneCtldForInternalClient
 
 	if config.TlsConfig.Enabled {
-		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldForInternalListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForInternalListenPort)
 
 		ServerCertContent, err := os.ReadFile(config.TlsConfig.InternalCertFilePath)
 		if err != nil {

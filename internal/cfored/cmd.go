@@ -32,6 +32,7 @@ import (
 var (
 	FlagConfigFilePath string
 	FlagDebugLevel     string
+	FlagHostname       string
 	FlagReload         bool
 )
 
@@ -54,6 +55,8 @@ func ParseCmdArgs() {
 		util.DefaultConfigPath, "Path to configuration file")
 	rootCmd.PersistentFlags().StringVarP(&FlagDebugLevel, "debug-level", "D",
 		"info", "Available debug level: trace,debug,info")
+	rootCmd.PersistentFlags().StringVar(&FlagHostname, "hostname", "",
+		"Hostname used to register cfored")
 	rootCmd.PersistentFlags().BoolVar(&FlagReload, "reload", false, "Reload configuration")
 
 	if err := rootCmd.Execute(); err != nil {
