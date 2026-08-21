@@ -95,6 +95,7 @@ func (session *X11Session) SendEofToSupervisor(data []byte) {
 			Payload: &protos.StreamCrunRequest_PayloadStepX11ForwardReq{
 				PayloadStepX11ForwardReq: &protos.StreamCrunRequest_StepX11ForwardReq{
 					Msg:      data,
+					Eof:      true,
 					CranedId: session.X11Id.CranedId,
 					LocalId:  session.X11Id.LocalId,
 				},

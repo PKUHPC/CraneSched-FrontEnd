@@ -111,8 +111,13 @@ type StateMachineOfCrun struct {
 	stream grpc.BidiStreamingClient[protos.StreamCrunRequest, protos.StreamCrunReply]
 	sender *crunStreamSender
 
-	sigs         chan os.Signal
-	savedPtyAttr unix.Termios
+	sigs          chan os.Signal
+	savedPtyAttr  unix.Termios
+	ptyRawEnabled bool
+
+	stdinFd         int
+	savedStdinFlags int
+	stdinFlagsSaved bool
 
 	cforedReplyReceiver *CforedReplyReceiver
 
@@ -210,9 +215,19 @@ func (m *StateMachineOfCrun) Close() {
 		}
 	}
 
-	if FlagPty {
+	if m.stdinFlagsSaved {
+		if err := restoreFileStatusFlags(m.stdinFd, m.savedStdinFlags); err != nil {
+			log.Errorf("Failed to restore stdin flags: %s", err)
+		} else {
+			m.stdinFlagsSaved = false
+		}
+	}
+
+	if m.ptyRawEnabled {
 		if err := termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &m.savedPtyAttr); err != nil {
 			log.Errorf("Failed to restore stdin attr: %s", err.Error())
+		} else {
+			m.ptyRawEnabled = false
 		}
 	}
 }
@@ -528,6 +543,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			m.err = util.ErrorSystem
 			return
 		}
+		m.ptyRawEnabled = true
 	}
 
 	m.StartIOForward()
@@ -1040,12 +1056,38 @@ func (m *StateMachineOfCrun) StderrFileWriterRoutine(filePattern string) {
 	m.FileWriterRoutine(parsedFilePath, m.chanErrOutputFromRemote)
 }
 
-func (m *StateMachineOfCrun) StdinReaderRoutine() {
-
-	err := syscall.SetNonblock(int(os.Stdin.Fd()), true)
+func setFileNonblocking(fd int) (int, error) {
+	originalFlags, err := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
 	if err != nil {
+		return 0, err
+	}
+	if _, err := unix.FcntlInt(uintptr(fd), unix.F_SETFL, originalFlags|unix.O_NONBLOCK); err != nil {
+		return 0, err
+	}
+	return originalFlags, nil
+}
+
+func restoreFileStatusFlags(fd int, flags int) error {
+	_, err := unix.FcntlInt(uintptr(fd), unix.F_SETFL, flags)
+	return err
+}
+
+func (m *StateMachineOfCrun) startStdinReader() {
+	fd := int(os.Stdin.Fd())
+	originalFlags, err := setFileNonblocking(fd)
+	if err != nil {
+		log.Errorf("Failed to set stdin nonblocking: %s", err)
+		close(m.chanInputFromLocal)
 		return
 	}
+	m.stdinFd = fd
+	m.savedStdinFlags = originalFlags
+	m.stdinFlagsSaved = true
+	go m.StdinReaderRoutine()
+}
+
+func (m *StateMachineOfCrun) StdinReaderRoutine() {
+	defer close(m.chanInputFromLocal)
 
 	epfd, err := syscall.EpollCreate1(0)
 	if err != nil {
@@ -1064,7 +1106,6 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	}
 
 	defer syscall.Close(epfd)
-	defer close(m.chanInputFromLocal)
 	events := make([]syscall.EpollEvent, 10)
 	buf := make([]byte, 4096)
 reading:
@@ -1302,7 +1343,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	go m.forwardingSigHandlerRoutine()
 	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
 		log.Debugf("Input from stdin to all tasks")
-		go m.StdinReaderRoutine()
+		m.startStdinReader()
 	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
 		log.Debugf("No input forwarding")
 	} else {
@@ -1313,7 +1354,7 @@ func (m *StateMachineOfCrun) StartIOForward() {
 		} else {
 			if taskId < uint64(m.ntasksTotal) {
 				log.Debugf("Input from stdin to %d", taskId)
-				go m.StdinReaderRoutine()
+				m.startStdinReader()
 			} else {
 				log.Debugf("Input from file %s, num but greater than ntasksTotal %d", m.inputFlag, m.ntasksTotal)
 				go m.FileReaderRoutine(m.inputFlag)
