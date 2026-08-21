@@ -49,6 +49,16 @@ type CraneError struct {
 	cause   error
 }
 
+// CommandExitError carries a user command's exit status separately from
+// CraneError so it is not interpreted as a Crane CLI error code.
+type CommandExitError struct {
+	Code ExitCode
+}
+
+func (e *CommandExitError) Error() string {
+	return ""
+}
+
 func (e *CraneError) Error() string {
 	if e == nil {
 		return "<nil>"
@@ -109,6 +119,12 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			if originalRunE != nil {
 				err := originalRunE(cmd, args)
+				var commandExitErr *CommandExitError
+				if errors.As(err, &commandExitErr) {
+					cmd.SilenceUsage = true
+					cmd.SilenceErrors = true
+					return err
+				}
 				var craneErr *CraneError
 				if errors.As(err, &craneErr) {
 					if craneErr != nil {
@@ -132,6 +148,10 @@ func RunEWrapperForLeafCommand(cmd *cobra.Command) {
 
 func RunAndHandleExit(cmd *cobra.Command) {
 	if err := cmd.Execute(); err != nil {
+		var commandExitErr *CommandExitError
+		if errors.As(err, &commandExitErr) {
+			os.Exit(commandExitErr.Code)
+		}
 		var craneErr *CraneError
 		if errors.As(err, &craneErr) {
 			if craneErr.Error() != "" && craneErr.Code != ErrorCmdArg {

@@ -102,8 +102,9 @@ type StateMachineOfCrun struct {
 	outputFlag string // Crun --output flag, used to determine how to write output to stdout
 	errorFlag  string // Crun --err flag, used to determine how to write error to stderr
 
-	state StateOfCrun
-	err   util.ExitCode // Hold the final error of the state machine if any
+	state        StateOfCrun
+	err          util.ExitCode // Hold the final Crane error of the state machine if any
+	taskExitCode util.ExitCode // Hold the exit status reported by the user task
 
 	// Hold grpc resources and will be freed in Close.
 	conn   *grpc.ClientConn
@@ -195,6 +196,7 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 	m.step = step
 	m.state = ConnectCfored
 	m.err = util.ErrorSuccess
+	m.taskExitCode = 0
 
 	m.sigs = make(chan os.Signal, 1)
 	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
@@ -644,16 +646,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					}
 
 				case protos.StreamCrunReply_TASK_EXIT_STATUS:
-					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
-					if exitStatus.ExitCode != 0 {
-						if exitStatus.Signaled {
-							fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
-						} else {
-							fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
-								exitStatus.TaskId, exitStatus.ExitCode)
-						}
-						m.err = int(exitStatus.ExitCode)
-					}
+					m.handleTaskExitStatus(cforedReply.GetPayloadTaskExitStatusReply())
 
 				case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
 					m.stopStepCb()
@@ -788,6 +781,28 @@ func validTerminalSize(rows, columns int) bool {
 		columns > 0 && columns <= maxTerminalDimension
 }
 
+func (m *StateMachineOfCrun) handleTaskExitStatus(exitStatus *protos.StreamCrunReply_TaskExitStatusReply) {
+	if exitStatus.ExitCode != 0 {
+		if exitStatus.Signaled {
+			fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+		} else {
+			fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+				exitStatus.TaskId, exitStatus.ExitCode)
+		}
+		m.taskExitCode = int(exitStatus.ExitCode)
+	}
+}
+
+func (m *StateMachineOfCrun) resultError() error {
+	if m.err != util.ErrorSuccess {
+		return &util.CraneError{Code: m.err}
+	}
+	if m.taskExitCode != 0 {
+		return &util.CommandExitError{Code: m.taskExitCode}
+	}
+	return nil
+}
+
 func (m *StateMachineOfCrun) StateJobKilling() {
 	request := &protos.StreamCrunRequest{
 		Type: protos.StreamCrunRequest_STEP_COMPLETION_REQUEST,
@@ -864,16 +879,7 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_TASK_EXIT_STATUS:
-		exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
-		if exitStatus.ExitCode != 0 {
-			if exitStatus.Signaled {
-				fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
-			} else {
-				fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
-					exitStatus.TaskId, exitStatus.ExitCode)
-			}
-			m.err = int(exitStatus.ExitCode)
-		}
+		m.handleTaskExitStatus(cforedReply.GetPayloadTaskExitStatusReply())
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
@@ -881,7 +887,11 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		return
 
 	case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
-		log.Debug("Job completed.")
+		if cforedReply.GetPayloadStepCompletionAckReply().GetOk() {
+			log.Debug("Job completed.")
+		} else {
+			log.Error("Cfored reported job completion failure.")
+		}
 		m.cforedReplyReceiver.MarkExpectedClose()
 		m.state = End
 	default:
@@ -1162,7 +1172,6 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	}
 
 	defer syscall.Close(epfd)
-	defer close(m.chanInputFromLocal)
 	events := make([]syscall.EpollEvent, 10)
 	buf := make([]byte, 4096)
 reading:
@@ -2068,8 +2077,5 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	defer m.Close()
 	m.Run()
 
-	if m.err == util.ErrorSuccess {
-		return nil
-	}
-	return &util.CraneError{Code: m.err}
+	return m.resultError()
 }
