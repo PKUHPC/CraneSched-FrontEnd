@@ -2,10 +2,12 @@ package crun
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -16,15 +18,41 @@ func TestHandleTaskExitStatusRecordsExitCode(t *testing.T) {
 		TaskId:   0,
 		ExitCode: 7,
 	})
-	if m.err != 7 {
-		t.Fatalf("exit code = %d, want 7", m.err)
+	if m.taskExitCode != 7 {
+		t.Fatalf("task exit code = %d, want 7", m.taskExitCode)
 	}
 
 	m.handleTaskExitStatus(&protos.StreamCrunReply_TaskExitStatusReply{
 		TaskId: 1,
 	})
-	if m.err != 7 {
-		t.Fatalf("zero exit status changed saved exit code to %d", m.err)
+	if m.taskExitCode != 7 {
+		t.Fatalf("zero exit status changed saved task exit code to %d", m.taskExitCode)
+	}
+	if m.err != util.ErrorSuccess {
+		t.Fatalf("task exit status changed Crane error to %d", m.err)
+	}
+}
+
+func TestResultErrorKeepsTaskExitCodeSeparateFromCraneErrors(t *testing.T) {
+	m := &StateMachineOfCrun{taskExitCode: 2}
+
+	err := m.resultError()
+	var commandExitErr *util.CommandExitError
+	if !errors.As(err, &commandExitErr) {
+		t.Fatalf("result error = %T, want *util.CommandExitError", err)
+	}
+	if commandExitErr.Code != 2 {
+		t.Fatalf("command exit code = %d, want 2", commandExitErr.Code)
+	}
+
+	m.err = util.ErrorBackend
+	err = m.resultError()
+	var craneErr *util.CraneError
+	if !errors.As(err, &craneErr) {
+		t.Fatalf("result error = %T, want *util.CraneError", err)
+	}
+	if craneErr.Code != util.ErrorBackend {
+		t.Fatalf("Crane error code = %d, want %d", craneErr.Code, util.ErrorBackend)
 	}
 }
 

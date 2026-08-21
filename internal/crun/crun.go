@@ -102,8 +102,9 @@ type StateMachineOfCrun struct {
 	outputFlag string // Crun --output flag, used to determine how to write output to stdout
 	errorFlag  string // Crun --err flag, used to determine how to write error to stderr
 
-	state StateOfCrun
-	err   util.ExitCode // Hold the final error of the state machine if any
+	state        StateOfCrun
+	err          util.ExitCode // Hold the final Crane error of the state machine if any
+	taskExitCode util.ExitCode // Hold the exit status reported by the user task
 
 	// Hold grpc resources and will be freed in Close.
 	conn   *grpc.ClientConn
@@ -196,6 +197,7 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 	m.step = step
 	m.state = ConnectCfored
 	m.err = util.ErrorSuccess
+	m.taskExitCode = 0
 
 	m.sigs = make(chan os.Signal, 1)
 	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
@@ -707,8 +709,18 @@ func (m *StateMachineOfCrun) handleTaskExitStatus(exitStatus *protos.StreamCrunR
 			fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
 				exitStatus.TaskId, exitStatus.ExitCode)
 		}
-		m.err = int(exitStatus.ExitCode)
+		m.taskExitCode = int(exitStatus.ExitCode)
 	}
+}
+
+func (m *StateMachineOfCrun) resultError() error {
+	if m.err != util.ErrorSuccess {
+		return &util.CraneError{Code: m.err}
+	}
+	if m.taskExitCode != 0 {
+		return &util.CommandExitError{Code: m.taskExitCode}
+	}
+	return nil
 }
 
 func (m *StateMachineOfCrun) StateJobKilling() {
@@ -2003,8 +2015,5 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	m.writerWg.Wait()
 	defer m.Close()
 
-	if m.err == util.ErrorSuccess {
-		return nil
-	}
-	return &util.CraneError{Code: m.err}
+	return m.resultError()
 }
