@@ -109,6 +109,7 @@ type StateMachineOfCrun struct {
 	conn   *grpc.ClientConn
 	client protos.CraneForeDClient
 	stream grpc.BidiStreamingClient[protos.StreamCrunRequest, protos.StreamCrunReply]
+	sender *crunStreamSender
 
 	sigs         chan os.Signal
 	savedPtyAttr unix.Termios
@@ -199,6 +200,9 @@ func (m *StateMachineOfCrun) Close() {
 	if m.cforedReplyReceiver != nil {
 		m.cforedReplyReceiver.MarkExpectedClose()
 	}
+	if m.sender != nil {
+		m.sender.Close()
+	}
 	if m.conn != nil {
 		err := m.conn.Close()
 		if err != nil {
@@ -283,6 +287,7 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		m.state = End
 		return
 	}
+	m.sender = newCrunStreamSender(m.stream)
 
 	m.cforedReplyReceiver = new(CforedReplyReceiver)
 	m.cforedReplyReceiver.StartReplyReceiveRoutine(m.stream)
@@ -309,7 +314,7 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		}
 	}
 
-	if err := m.stream.Send(request); err != nil {
+	if err := m.sender.Send(request); err != nil {
 		log.Errorf("Failed to send Request to CrunStream: %s. "+
 			"Connection to Crun is broken", err)
 		gVars.connectionBroken = true
@@ -552,7 +557,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				if !ok {
 					msg = nil
 				}
-				request = &protos.StreamCrunRequest{
+				inputRequest := &protos.StreamCrunRequest{
 					Type: protos.StreamCrunRequest_TASK_IO_FORWARD,
 					Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
 						PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
@@ -562,7 +567,10 @@ func (m *StateMachineOfCrun) StateForwarding() {
 						},
 					},
 				}
-				if err := m.stream.Send(request); err != nil {
+				if err := m.sender.Send(inputRequest); err != nil {
+					if errors.Is(err, errCrunStreamSenderClosed) {
+						return
+					}
 					log.Errorf("Failed to send Job Request to CrunStream: %s. "+
 						"Connection to Crun is broken", err)
 					gVars.connectionBroken = true
@@ -572,8 +580,11 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					return
 				}
 
-			case request := <-x11ReqFromLocal:
-				if err := m.stream.Send(request); err != nil {
+			case x11Request := <-x11ReqFromLocal:
+				if err := m.sender.Send(x11Request); err != nil {
+					if errors.Is(err, errCrunStreamSenderClosed) {
+						return
+					}
 					log.Errorf("Failed to send Job X11 Input to CrunStream: %s. "+
 						"Connection to Crun is broken", err)
 					gVars.connectionBroken = true
@@ -606,7 +617,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			}
 
 			log.Debug("Sending JOB_COMPLETION_REQUEST with COMPLETED state...")
-			if err := m.stream.Send(request); err != nil {
+			if err := m.sender.SendTerminal(request); err != nil {
 				log.Errorf("The connection to Cfored was broken: %s. "+
 					"Exiting...", err)
 				gVars.connectionBroken = true
@@ -655,16 +666,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					}
 
 				case protos.StreamCrunReply_TASK_EXIT_STATUS:
-					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
-					if exitStatus.ExitCode != 0 {
-						if exitStatus.Signaled {
-							fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
-						} else {
-							fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
-								exitStatus.TaskId, exitStatus.ExitCode)
-						}
-						m.err = int(exitStatus.ExitCode)
-					}
+					m.handleTaskExitStatus(cforedReply.GetPayloadTaskExitStatusReply())
 
 				case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
 					m.stopStepCb()
@@ -679,6 +681,18 @@ func (m *StateMachineOfCrun) StateForwarding() {
 		}
 	}
 
+}
+
+func (m *StateMachineOfCrun) handleTaskExitStatus(exitStatus *protos.StreamCrunReply_TaskExitStatusReply) {
+	if exitStatus.ExitCode != 0 {
+		if exitStatus.Signaled {
+			fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+		} else {
+			fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+				exitStatus.TaskId, exitStatus.ExitCode)
+		}
+		m.err = int(exitStatus.ExitCode)
+	}
 }
 
 func (m *StateMachineOfCrun) StateJobKilling() {
@@ -699,7 +713,7 @@ func (m *StateMachineOfCrun) StateJobKilling() {
 	}
 
 	log.Debug("Sending JOB_COMPLETION_REQUEST with CANCELLED state...")
-	if err := m.stream.Send(request); err != nil {
+	if err := m.sender.SendTerminal(request); err != nil {
 		log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
 		gVars.connectionBroken = true
 		m.err = util.ErrorNetwork
@@ -757,16 +771,7 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_TASK_EXIT_STATUS:
-		exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
-		if exitStatus.ExitCode != 0 {
-			if exitStatus.Signaled {
-				fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
-			} else {
-				fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
-					exitStatus.TaskId, exitStatus.ExitCode)
-			}
-			m.err = int(exitStatus.ExitCode)
-		}
+		m.handleTaskExitStatus(cforedReply.GetPayloadTaskExitStatusReply())
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_STEP_CANCEL_REQUEST:

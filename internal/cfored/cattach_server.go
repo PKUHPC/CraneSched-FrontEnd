@@ -62,11 +62,11 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 
 	// Use capacity 8 for ctldReplyChannel: WaitAllFrontEnd may pre-send
 	// JOB_COMPLETION_ACK_REPLY while there may already be a message in it.
-	// Use capacity 64 for TaskIoRequestChannel to reduce the drop rate in
+	// Use the configured buffer for TaskIoRequestChannel to reduce the drop rate in
 	// forwardRemoteIoToFront when the supervisor produces output faster than
 	// cattach consumes it.
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 8)
-	TaskIoRequestChannel := make(chan *protos.StreamStepIORequest, 64)
+	TaskIoRequestChannel := cforedServer.newTaskIORequestChannel()
 	jobId = math.MaxUint32
 	cattachPid = -1
 

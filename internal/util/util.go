@@ -54,8 +54,9 @@ type TLSConfig struct {
 }
 
 type CforedConfig struct {
-	DebugLevel  string `yaml:"DebugLevel"`
-	PidFilePath string `yaml:"PidFilePath"`
+	DebugLevel            string `yaml:"DebugLevel"`
+	PidFilePath           string `yaml:"PidFilePath"`
+	TaskIOChannelCapacity int    `yaml:"TaskIOChannelCapacity"`
 }
 
 type PluginConfig struct {
@@ -106,10 +107,11 @@ const (
 
 	DefaultUserConfigPrefix = ".config/crane"
 
-	DefaultCforedSocketPath          = "craned/cfored.sock"
-	DefaultCforedPidFilePath         = "cfored/cfored.pid"
-	DefaultCforedServerListenAddress = "0.0.0.0"
-	DefaultCforedServerListenPort    = "10012"
+	DefaultCforedSocketPath            = "craned/cfored.sock"
+	DefaultCforedPidFilePath           = "cfored/cfored.pid"
+	DefaultCforedServerListenAddress   = "0.0.0.0"
+	DefaultCforedServerListenPort      = "10012"
+	DefaultCforedTaskIOChannelCapacity = 4096
 
 	DefaultWrappedJobName                 = "Wrap"
 	DefaultUserNsEnabledByDefault         = true

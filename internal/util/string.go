@@ -108,6 +108,14 @@ func ParseConfig(configFilePath string) *Config {
 		config.Cfored.DebugLevel = *config.CforedDebugLevel
 	}
 
+	if config.Cfored.TaskIOChannelCapacity < 0 {
+		log.Errorf("Cfored.TaskIOChannelCapacity must not be negative in config file %s", configFilePath)
+		os.Exit(ErrorCmdArg)
+	}
+	if config.Cfored.TaskIOChannelCapacity == 0 {
+		config.Cfored.TaskIOChannelCapacity = DefaultCforedTaskIOChannelCapacity
+	}
+
 	return config
 }
 

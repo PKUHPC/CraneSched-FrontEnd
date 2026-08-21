@@ -583,6 +583,11 @@ func (keeper *SupervisorChannelKeeper) cattachStopAndRemoveChannel(taskId uint32
 
 type GrpcCforedServer struct {
 	protos.CraneForeDServer
+	taskIOChannelCapacity int
+}
+
+func (cforedServer *GrpcCforedServer) newTaskIORequestChannel() chan *protos.StreamStepIORequest {
+	return make(chan *protos.StreamStepIORequest, cforedServer.taskIOChannelCapacity)
 }
 
 type grpcMessage[T any] struct {
@@ -913,7 +918,9 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 	}
 
 	unixGrpcServer := grpc.NewServer(serverOptions...)
-	cforedServer := GrpcCforedServer{}
+	cforedServer := GrpcCforedServer{
+		taskIOChannelCapacity: config.Cfored.TaskIOChannelCapacity,
+	}
 	protos.RegisterCraneForeDServer(unixGrpcServer, &cforedServer)
 
 	// 2. TCP gRPC Server
