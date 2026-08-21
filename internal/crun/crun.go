@@ -795,7 +795,11 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		return
 
 	case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
-		log.Debug("Job completed.")
+		if cforedReply.GetPayloadStepCompletionAckReply().GetOk() {
+			log.Debug("Job completed.")
+		} else {
+			log.Error("Cfored reported job completion failure.")
+		}
 		m.cforedReplyReceiver.MarkExpectedClose()
 		m.state = End
 	default:
@@ -1087,6 +1091,10 @@ func (m *StateMachineOfCrun) startStdinReader() {
 }
 
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
+	m.stdinReaderRoutine(int(os.Stdin.Fd()))
+}
+
+func (m *StateMachineOfCrun) stdinReaderRoutine(stdinFd int) {
 	defer close(m.chanInputFromLocal)
 
 	epfd, err := syscall.EpollCreate1(0)
@@ -1096,11 +1104,11 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	}
 
 	event := &syscall.EpollEvent{
-		Events: syscall.EPOLLIN,
-		Fd:     int32(int(os.Stdin.Fd())),
+		Events: syscall.EPOLLIN | syscall.EPOLLHUP | syscall.EPOLLERR,
+		Fd:     int32(stdinFd),
 	}
 
-	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, int(os.Stdin.Fd()), event); err != nil {
+	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, stdinFd, event); err != nil {
 		log.Tracef("EpollCtl: %v", err)
 		return
 	}
@@ -1139,12 +1147,17 @@ reading:
 			return
 		}
 		for i := 0; i < n; i++ {
-			if events[i].Fd == int32(os.Stdin.Fd()) && events[i].Events&syscall.EPOLLIN != 0 {
-				nr, err := syscall.Read(int(os.Stdin.Fd()), buf)
+			if events[i].Fd != int32(stdinFd) ||
+				events[i].Events&(syscall.EPOLLIN|syscall.EPOLLHUP|syscall.EPOLLERR) == 0 {
+				continue
+			}
+
+			for {
+				nr, err := syscall.Read(stdinFd, buf)
 				if err != nil {
 					if errors.Is(err, syscall.EAGAIN) {
 						log.Trace("Read EAGAIN, no data available now")
-						continue
+						break
 					}
 					if errors.Is(err, syscall.EINTR) {
 						log.Trace("Read interrupted by signal, retrying")
@@ -1152,7 +1165,7 @@ reading:
 					}
 					if errors.Is(err, syscall.EIO) {
 						log.Trace("Read EIO.")
-						continue
+						return
 					}
 					return
 				}
@@ -1160,7 +1173,9 @@ reading:
 					log.Trace("Read 0 bytes (EOF), closing channel and exiting goroutine")
 					return
 				}
-				m.chanInputFromLocal <- buf[:nr]
+				input := make([]byte, nr)
+				copy(input, buf[:nr])
+				m.chanInputFromLocal <- input
 				log.Tracef("Sent %d bytes to channel", nr)
 			}
 		}

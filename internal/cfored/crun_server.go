@@ -791,6 +791,7 @@ CforedCrunStateMachineLoop:
 			// After receiving CraneCtld ACK, drain remaining supervisor I/O
 			// (e.g. TASK_EXIT_STATUS) before sending ACK to crun. Wait until
 			// all supervisors have unregistered (stepDoneCh closed) or timeout.
+			drainFailed := false
 			if gotReply {
 				stepDoneCh := gSupervisorChanKeeper.getStepDoneChannel(jobId, stepId)
 				drainTimeout := time.After(5 * time.Second)
@@ -814,6 +815,7 @@ CforedCrunStateMachineLoop:
 					select {
 					case stepMsg := <-StepIoRequestChannel:
 						if !forwardDrainMessage(stepMsg) {
+							drainFailed = true
 							break drainLoop
 						}
 					case <-stepDoneCh:
@@ -823,6 +825,8 @@ CforedCrunStateMachineLoop:
 						if drainReadyStepIO(StepIoRequestChannel, forwardDrainMessage) {
 							log.Debugf("[Cfored<->Crun][Step #%d.%d] All supervisors unregistered, drain complete.",
 								jobId, stepId)
+						} else {
+							drainFailed = true
 						}
 						break drainLoop
 					case <-drainTimeout:
@@ -837,17 +841,28 @@ CforedCrunStateMachineLoop:
 			delete(gVars.ctldReplyChannelMapByStep, step)
 			gVars.ctldReplyChannelMapMtx.Unlock()
 			gSupervisorChanKeeper.crunStepStopAndRemoveChannel(jobId, stepId)
+			if gotReply && drainFailed {
+				log.Errorf("[Cfored<->Crun][Step #%d.%d] Supervisor I/O drain failed; sending a failed completion result.",
+					jobId, stepId)
+				completionAckReply.GetPayloadStepCompletionAckReply().Ok = false
+			}
 			if gotReply {
 				if err := toCrunStream.Send(completionAckReply); err != nil {
 					log.Errorf("[Cfored->Crun][Step #%d.%d] Failed to send CompletionAck to crun: %s. "+
 						"The connection to crun was broken.", jobId, stepId, err.Error())
 				} else {
-					log.Debugf("[Cfored->Crun][Step #%d.%d] JOB_COMPLETION_ACK_REPLY sent to Crun", jobId, stepId)
+					log.Debugf("[Cfored->Crun][Step #%d.%d] Completion result sent to Crun (ok=%v)",
+						jobId, stepId, completionAckReply.GetPayloadStepCompletionAckReply().Ok)
 				}
 			} else {
 				log.Debugf("[Cfored->Crun][Step #%d.%d] No need to send CompletionAck to crun as crun already down.", jobId, stepId)
 			}
-			log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
+			if gotReply && drainFailed {
+				log.Errorf("[Cfored<->Crun][Step #%d.%d] Step completion failed because supervisor I/O could not be drained.",
+					jobId, stepId)
+			} else {
+				log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
+			}
 
 			break CforedCrunStateMachineLoop
 

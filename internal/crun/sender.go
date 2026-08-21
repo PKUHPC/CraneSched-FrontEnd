@@ -21,7 +21,6 @@ package crun
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	"CraneFrontEnd/generated/protos"
 )
@@ -39,18 +38,20 @@ type crunStreamSendItem struct {
 }
 
 type crunStreamSender struct {
-	requestChannel chan crunStreamSendItem
-	done           chan struct{}
-	closeOnce      sync.Once
-	accepting      atomic.Bool
+	mu               sync.Mutex
+	requestQueue     []crunStreamSendItem
+	requestAvailable chan struct{}
+	done             chan struct{}
+	closeOnce        sync.Once
+	closed           bool
+	terminalAdmitted bool
 }
 
 func newCrunStreamSender(stream crunRequestStream) *crunStreamSender {
 	sender := &crunStreamSender{
-		requestChannel: make(chan crunStreamSendItem),
-		done:           make(chan struct{}),
+		requestAvailable: make(chan struct{}, 1),
+		done:             make(chan struct{}),
 	}
-	sender.accepting.Store(true)
 	go sender.run(stream)
 	return sender
 }
@@ -64,43 +65,87 @@ func (s *crunStreamSender) SendTerminal(request *protos.StreamCrunRequest) error
 }
 
 func (s *crunStreamSender) send(request *protos.StreamCrunRequest, terminal bool) error {
-	if !s.accepting.Load() {
-		return errCrunStreamSenderClosed
-	}
-
 	item := crunStreamSendItem{
 		request:  request,
 		terminal: terminal,
 		result:   make(chan error, 1),
 	}
 
-	select {
-	case s.requestChannel <- item:
-		return <-item.result
-	case <-s.done:
+	s.mu.Lock()
+	if s.closed || s.terminalAdmitted {
+		s.mu.Unlock()
 		return errCrunStreamSenderClosed
 	}
+	if terminal {
+		s.terminalAdmitted = true
+	}
+	s.requestQueue = append(s.requestQueue, item)
+	s.mu.Unlock()
+
+	s.notifyWorker()
+	return <-item.result
 }
 
 func (s *crunStreamSender) Close() {
 	s.closeOnce.Do(func() {
-		s.accepting.Store(false)
+		s.mu.Lock()
+		s.closed = true
+		pending := s.requestQueue
+		s.requestQueue = nil
+		s.mu.Unlock()
+
+		for _, item := range pending {
+			item.result <- errCrunStreamSenderClosed
+		}
 		close(s.done)
+		s.notifyWorker()
 	})
 }
 
 func (s *crunStreamSender) run(stream crunRequestStream) {
 	for {
-		select {
-		case item := <-s.requestChannel:
-			err := stream.Send(item.request)
-			item.result <- err
-			if item.terminal || err != nil {
-				s.Close()
-				return
-			}
-		case <-s.done:
+		item, ok := s.nextRequest()
+		if !ok {
 			return
 		}
+
+		err := stream.Send(item.request)
+		item.result <- err
+		if item.terminal || err != nil {
+			s.Close()
+			return
+		}
+	}
+}
+
+func (s *crunStreamSender) nextRequest() (crunStreamSendItem, bool) {
+	for {
+		s.mu.Lock()
+		if len(s.requestQueue) > 0 {
+			item := s.requestQueue[0]
+			s.requestQueue[0] = crunStreamSendItem{}
+			s.requestQueue = s.requestQueue[1:]
+			s.mu.Unlock()
+			return item, true
+		}
+		closed := s.closed
+		s.mu.Unlock()
+
+		if closed {
+			return crunStreamSendItem{}, false
+		}
+
+		select {
+		case <-s.requestAvailable:
+		case <-s.done:
+			return crunStreamSendItem{}, false
+		}
+	}
+}
+
+func (s *crunStreamSender) notifyWorker() {
+	select {
+	case s.requestAvailable <- struct{}{}:
+	default:
 	}
 }
