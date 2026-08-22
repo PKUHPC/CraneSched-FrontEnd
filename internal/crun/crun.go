@@ -1588,6 +1588,15 @@ func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
 	return ExitCode
 }
 
+// shellJoinArgs serializes argv so a POSIX shell reconstructs each argument exactly.
+func shellJoinArgs(args []string) string {
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		quoted[i] = "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
+	}
+	return strings.Join(quoted, " ")
+}
+
 func MainCrun(cmd *cobra.Command, args []string) error {
 	util.InitDiagLogger(FlagDebugLevel)
 
@@ -1639,7 +1648,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.JobToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveJobAdditionalMeta{},
 			},
-			ShScript: strings.Join(args, " "),
+			ShScript: shellJoinArgs(args),
 			IoMeta:   &protos.IoMeta{},
 			CmdLine:  strings.Join(args, " "),
 			Cwd:      gVars.cwd,
@@ -1663,7 +1672,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveJobAdditionalMeta{},
 			},
-			ShScript: strings.Join(args, " "),
+			ShScript: shellJoinArgs(args),
 			IoMeta:   &protos.IoMeta{},
 			CmdLine:  strings.Join(args, " "),
 			Cwd:      gVars.cwd,

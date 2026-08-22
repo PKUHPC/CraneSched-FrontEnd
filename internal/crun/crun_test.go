@@ -3,6 +3,7 @@ package crun
 import (
 	"context"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,40 @@ import (
 
 	"CraneFrontEnd/generated/protos"
 )
+
+func TestShellJoinArgsPreservesArguments(t *testing.T) {
+	testCases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "nested shell command",
+			args: []string{"sh", "-c", "printf a"},
+			want: "a",
+		},
+		{
+			name: "argument boundaries and shell metacharacters",
+			args: []string{
+				"printf", "<%s>\\n", "", "two words", "single'quote",
+				"$HOME", "$(printf expanded)", "*",
+			},
+			want: "<>\n<two words>\n<single'quote>\n<$HOME>\n<$(printf expanded)>\n<*>\n",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			output, err := exec.Command("/bin/sh", "-c", shellJoinArgs(testCase.args)).CombinedOutput()
+			if err != nil {
+				t.Fatalf("execute quoted command: %v: %s", err, output)
+			}
+			if string(output) != testCase.want {
+				t.Fatalf("command output = %q, want %q", output, testCase.want)
+			}
+		})
+	}
+}
 
 func TestStateWaitAckHandlesOutputBeforeIOForwardReady(t *testing.T) {
 	originalQuiet := FlagQuiet
