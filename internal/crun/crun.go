@@ -119,7 +119,7 @@ type StateMachineOfCrun struct {
 
 	cforedReplyReceiver *CforedReplyReceiver
 
-	// These fields are used under Forwarding State.
+	// I/O forwarding spans resource allocation through completion acknowledgement.
 	stopStepCtx context.Context
 	stopStepCb  context.CancelFunc
 	//stop step will stop reading from local stdin/file/x11
@@ -197,6 +197,7 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 	m.state = ConnectCfored
 	m.err = util.ErrorSuccess
 	m.taskExitCode = 0
+	m.initIOForwarding()
 
 	m.sigs = make(chan os.Signal, 1)
 	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
@@ -533,6 +534,7 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 				return
 			}
 		case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
+			m.startOutputForwarding()
 			m.state = JobKilling
 		case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
 			// Job launch failed !
@@ -542,10 +544,12 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 			return
 		default:
 			log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
+			m.startOutputForwarding()
 			m.state = JobKilling
 		}
 
 	case sig := <-m.sigs:
+		m.startOutputForwarding()
 		if sig == syscall.SIGINT {
 			m.state = JobKilling
 		} else {
@@ -566,7 +570,8 @@ func (m *StateMachineOfCrun) StateForwarding() {
 		return
 	}
 
-	m.StartIOForward()
+	m.startInputForwarding()
+	m.startOutputForwarding()
 
 	parsedId, err := strconv.ParseUint(m.inputFlag, 10, 32)
 	if err == nil {
@@ -1104,22 +1109,37 @@ func (m *StateMachineOfCrun) FileWriterRoutine(filePath string, src <-chan []byt
 
 	writer := bufio.NewWriter(file)
 
-writing:
+	writeMessage := func(msg []byte) bool {
+		if _, err := writer.Write(msg); err != nil {
+			log.Errorf("Failed to write to file %s: %s", filePath, err)
+			m.stopStepCb()
+			return false
+		}
+		if err := writer.Flush(); err != nil {
+			log.Errorf("Failed to flush file %s: %s", filePath, err)
+			m.stopStepCb()
+			return false
+		}
+		return true
+	}
+
 	for {
 		select {
 		case msg := <-src:
-			if _, err := writer.Write(msg); err != nil {
-				log.Errorf("Failed to write to file %s: %s", filePath, err)
-				m.stopStepCb()
-				break writing
-			}
-			if err := writer.Flush(); err != nil {
-				log.Errorf("Failed to flush file %s: %s", filePath, err)
-				m.stopStepCb()
-				break writing
+			if !writeMessage(msg) {
+				return
 			}
 		case <-m.stopWriteCtx.Done():
-			break writing
+			for {
+				select {
+				case msg := <-src:
+					if !writeMessage(msg) {
+						return
+					}
+				default:
+					return
+				}
+			}
 		}
 	}
 }
@@ -1392,7 +1412,7 @@ reading:
 	}
 }
 
-func (m *StateMachineOfCrun) StartIOForward() {
+func (m *StateMachineOfCrun) initIOForwarding() {
 	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
 	m.stopReadCtx, m.stopReadCb = context.WithCancel(m.stopStepCtx)
 	// stopWriteCtx is independent of stopStepCtx: it is only cancelled after
@@ -1406,29 +1426,9 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanInputFromLocal = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
 	m.chanErrOutputFromRemote = make(chan []byte, 20)
-	m.startInputRoutine(m.forwardingSigHandlerRoutine)
-	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
-		log.Debugf("Input from stdin to all tasks")
-		m.startInputRoutine(m.StdinReaderRoutine)
-	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
-		log.Debugf("No input forwarding")
-	} else {
-		taskId, err := strconv.ParseUint(m.inputFlag, 10, 32)
-		if err != nil {
-			log.Debugf("Input from file %s, filepath is not a number", m.inputFlag)
-			m.startInputRoutine(func() { m.FileReaderRoutine(m.inputFlag) })
-		} else {
-			if taskId < uint64(m.ntasksTotal) {
-				log.Debugf("Input from stdin to %d", taskId)
-				m.startInputRoutine(m.StdinReaderRoutine)
-			} else {
-				log.Debugf("Input from file %s, num but greater than ntasksTotal %d", m.inputFlag, m.ntasksTotal)
-				m.startInputRoutine(func() { m.FileReaderRoutine(m.inputFlag) })
+}
 
-			}
-		}
-	}
-
+func (m *StateMachineOfCrun) startOutputForwarding() {
 	startWriter := func(f func()) {
 		m.writerWg.Add(1)
 		go func() {
@@ -1480,6 +1480,31 @@ func (m *StateMachineOfCrun) StartIOForward() {
 			}
 		}
 	}
+}
+
+func (m *StateMachineOfCrun) startInputForwarding() {
+	go m.forwardingSigHandlerRoutine()
+	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
+		log.Debugf("Input from stdin to all tasks")
+		m.startStdinReader()
+	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
+		log.Debugf("No input forwarding")
+	} else {
+		taskId, err := strconv.ParseUint(m.inputFlag, 10, 32)
+		if err != nil {
+			log.Debugf("Input from file %s, filepath is not a number", m.inputFlag)
+			go m.FileReaderRoutine(m.inputFlag)
+		} else {
+			if taskId < uint64(m.ntasksTotal) {
+				log.Debugf("Input from stdin to %d", taskId)
+				m.startStdinReader()
+			} else {
+				log.Debugf("Input from file %s, num but greater than ntasksTotal %d", m.inputFlag, m.ntasksTotal)
+				go m.FileReaderRoutine(m.inputFlag)
+
+			}
+		}
+	}
 
 	var iaMeta *protos.InteractiveJobAdditionalMeta
 	if m.job != nil {
@@ -1491,6 +1516,10 @@ func (m *StateMachineOfCrun) StartIOForward() {
 		m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.stopReadCtx)
 		m.startInputRoutine(m.X11SessionMgr.SessionMgrRoutine)
 	}
+}
+
+func (m *StateMachineOfCrun) startStdinReader() {
+	m.startInputRoutine(m.StdinReaderRoutine)
 }
 
 func (m *StateMachineOfCrun) startInputRoutine(routine func()) {
