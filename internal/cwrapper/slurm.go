@@ -865,7 +865,12 @@ func collectScontrolJobIDs(args []string, idx int, firstValue string) (string, i
 }
 
 func normalizeScontrolShowEntity(arg string) (string, bool) {
-	switch strings.ToLower(arg) {
+	lowerArg := strings.ToLower(arg)
+	if len(lowerArg) >= 5 && strings.HasPrefix("hostnames", lowerArg) {
+		return "hostnames", true
+	}
+
+	switch lowerArg {
 	case "jobid":
 		return "job", true
 	case "job":

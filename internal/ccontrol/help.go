@@ -48,6 +48,7 @@ ENTITIES:
   job         - Jobs
   reservation - Reservations
   lic         - Licenses
+  hostnames   - Expand a hostlist expression
   trace       - Runtime tracing configuration
 
 COMMANDS:
@@ -70,6 +71,10 @@ COMMANDS:
   show lic [<licenseName>]
    Show information about licenses.
    if no license name is specified, information for all licenses will be displayed.
+
+  show hostnames [<hostlist>]
+    Expand a hostlist expression and print one hostname per line.
+    If omitted, use the job nodelist environment variable.
 
   show trace
     Show runtime tracing configuration and the compiled tracing limit.

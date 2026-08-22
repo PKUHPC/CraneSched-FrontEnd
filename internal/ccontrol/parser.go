@@ -106,6 +106,7 @@ type EntityType struct {
 	Step         bool `parser:"| @'step'"`
 	Reservation  bool `parser:"| @'reservation'"`
 	Lic          bool `parser:"| @'lic'"`
+	Hostnames    bool `parser:"| @('hostname' | 'hostnames')"`
 	NextJobId    bool `parser:"| @'next-job-id'"`
 	NextJobDbId  bool `parser:"| @'next-job-db-id'"`
 	NextStepDbId bool `parser:"| @'next-step-db-id'"`
@@ -147,6 +148,8 @@ func (e EntityType) String() string {
 		return "reservation"
 	case e.Lic:
 		return "lic"
+	case e.Hostnames:
+		return "hostnames"
 	case e.NextJobId:
 		return "next-job-id"
 	case e.NextJobDbId:
@@ -363,10 +366,8 @@ func preParseGlobalFlags(args []string) []string {
 }
 
 func unquoteIfQuoted(s string) string {
-	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-			return s[1 : len(s)-1]
-		}
+	if isQuoted(s) {
+		return s[1 : len(s)-1]
 	}
 	return s
 }
@@ -377,10 +378,17 @@ func getCmdStringByArgs(commandArgs []string) string {
 		commandArgs[1] = "trace=true"
 	}
 
+	showHostnames := len(commandArgs) >= 2 && commandArgs[0] == "show" &&
+		(commandArgs[1] == "hostname" || commandArgs[1] == "hostnames")
+
 	var processedArgs []string
-	for _, arg := range commandArgs {
+	for i, arg := range commandArgs {
 		if arg == "" {
 			processedArgs = append(processedArgs, "\"\"")
+			continue
+		}
+		if showHostnames && i == 2 && !isQuoted(arg) {
+			processedArgs = append(processedArgs, strconv.Quote(arg))
 			continue
 		}
 
@@ -393,8 +401,7 @@ func getCmdStringByArgs(commandArgs []string) string {
 				processedArgs = append(processedArgs, key+"=\"\"")
 				continue
 			}
-			if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
-				(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
+			if isQuoted(value) {
 				processedArgs = append(processedArgs, arg)
 			} else if strings.Contains(value, " ") {
 				processedArgs = append(processedArgs, key+"="+strconv.Quote(value))
@@ -409,4 +416,9 @@ func getCmdStringByArgs(commandArgs []string) string {
 	}
 	cmdStr := strings.Join(processedArgs, " ")
 	return cmdStr
+}
+
+func isQuoted(value string) bool {
+	return len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') ||
+		(value[0] == '"' && value[len(value)-1] == '"'))
 }

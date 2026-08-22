@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/user"
@@ -35,6 +36,54 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
+
+func resolveHostlistArgument(hostlist string, slurmMode bool) (string, error) {
+	if hostlist != "" {
+		return hostlist, nil
+	}
+
+	envKeys := []string{"CRANE_JOB_NODELIST", "SLURM_JOB_NODELIST", "SLURM_NODELIST"}
+	if slurmMode {
+		envKeys = []string{"SLURM_JOB_NODELIST", "SLURM_NODELIST", "CRANE_JOB_NODELIST"}
+	}
+	for _, key := range envKeys {
+		if value := os.Getenv(key); value != "" {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("host list is empty")
+}
+
+func expandHostlist(hostlist string) ([]string, error) {
+	normalized := strings.ReplaceAll(hostlist, ";", ",")
+	normalized = strings.Join(strings.Fields(normalized), " ")
+	normalized = strings.ReplaceAll(normalized, ", ", ",")
+	normalized = strings.ReplaceAll(normalized, " ,", ",")
+	normalized = strings.ReplaceAll(normalized, " ", ",")
+	if normalized == "" {
+		return nil, fmt.Errorf("host list is empty")
+	}
+
+	hostnames, ok := util.ParseHostList(normalized)
+	if !ok || len(hostnames) == 0 {
+		return nil, fmt.Errorf("invalid hostlist: %s", hostlist)
+	}
+	for _, hostname := range hostnames {
+		if hostname == "" {
+			return nil, fmt.Errorf("invalid hostlist: %s", hostlist)
+		}
+	}
+	return hostnames, nil
+}
+
+func printHostnames(writer io.Writer, hostnames []string) error {
+	for _, hostname := range hostnames {
+		if _, err := fmt.Fprintln(writer, hostname); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // show Config
 func PrintFlattenYAML(prefix string, m interface{}) {
