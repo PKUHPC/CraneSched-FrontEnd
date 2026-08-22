@@ -102,17 +102,17 @@ type EntityType struct {
 
 type Flag struct {
 	Name  string `parser:"'-' '-'? @Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @Number) | (@String | @Ident | @Number) )?"`
+	Value string `parser:"( '=' (@String | @Time | @Ident | @Number) | (@String | @Time | @Ident | @Number) )?"`
 }
 
 type KeyValueParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' (@String | @Ident | @Number | @Duration) | (@String | @Ident | @Number | @Duration) )?"`
+	Value string `parser:"( '=' (@String | @Time | @Ident | @Number | @Duration) | (@String | @Time | @Ident | @Number | @Duration) )?"`
 }
 
 type WhereParam struct {
 	Key   string `parser:"@Ident"`
-	Value string `parser:"( '=' ( @String | @Ident | @Number) | @String | @Ident | @Number )"`
+	Value string `parser:"( '=' ( @String | @Time | @Ident | @Number) | @String | @Time | @Ident | @Number )"`
 }
 
 type WhereClause struct {
@@ -421,6 +421,8 @@ func unquoteIfQuoted(s string) string {
 }
 
 func getCmdStringByArgs(commandArgs []string) string {
+	commandArgs = normalizeShowCommandArgs(commandArgs)
+
 	var processedArgs []string
 	for _, arg := range commandArgs {
 		if arg == "" {
@@ -459,4 +461,39 @@ func getCmdStringByArgs(commandArgs []string) string {
 	}
 	cmdStr := strings.Join(processedArgs, " ")
 	return cmdStr
+}
+
+func normalizeShowCommandArgs(commandArgs []string) []string {
+	if len(commandArgs) < 3 || !strings.EqualFold(commandArgs[0], "show") {
+		return commandArgs
+	}
+
+	if !strings.EqualFold(commandArgs[1], "transaction") {
+		return commandArgs
+	}
+
+	if strings.EqualFold(commandArgs[2], "where") || !isTxnFilterArg(commandArgs[2]) {
+		return commandArgs
+	}
+
+	normalizedArgs := make([]string, 0, len(commandArgs)+1)
+	normalizedArgs = append(normalizedArgs, commandArgs[:2]...)
+	normalizedArgs = append(normalizedArgs, "where")
+	normalizedArgs = append(normalizedArgs, commandArgs[2:]...)
+	return normalizedArgs
+}
+
+func isTxnFilterArg(arg string) bool {
+	key := arg
+	if strings.Contains(arg, "=") {
+		parts := strings.SplitN(arg, "=", 2)
+		key = parts[0]
+	}
+
+	switch strings.ToLower(key) {
+	case "actor", "target", "action", "info", "starttime":
+		return true
+	default:
+		return false
+	}
 }

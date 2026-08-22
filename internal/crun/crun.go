@@ -407,7 +407,11 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 
 			if Ok {
 				if !FlagQuiet {
-					fmt.Printf("Allocated craned nodes: %s\n", cforedPayload.AllocatedCranedRegex)
+					nodeLabel := "craned nodes"
+					if util.IsSlurmOutputMode() {
+						nodeLabel = "nodes"
+					}
+					fmt.Printf("Allocated %s: %s\n", nodeLabel, cforedPayload.AllocatedCranedRegex)
 				}
 				m.cranedId = cforedPayload.CranedIds
 				m.cranedTaskMap = make(map[string][]uint32)

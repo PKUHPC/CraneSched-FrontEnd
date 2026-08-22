@@ -55,7 +55,7 @@ func ParseCmdArgs() {
 	for _, wrapper := range wrappers {
 		rootCmd.AddGroup(wrapper.Group())
 		rootCmd.AddCommand(wrapper.SubCommands()...)
-		if len(os.Args) > 2 && !strings.HasPrefix(os.Args[1], "-") && wrapper.HasCommand(os.Args[1]) {
+		if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") && wrapper.HasCommand(os.Args[1]) {
 			wrapper.Preprocess()
 		}
 	}

@@ -166,8 +166,8 @@ Examples:
 Note: If the format is invalid or unrecognized, the program will terminate with an error message.
 `)
 	RootCmd.Flags().BoolVarP(&FlagFull, "full", "F", false, "Display full information (If not set, only display 30 characters per cell)")
-	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", util.MaxRepliedJobs,
-		"Limit the number of lines in the output, 0 means no limit") // See kDefaultQueryJobNumLimit
+	RootCmd.Flags().Uint32VarP(&FlagNumLimit, "max-lines", "m", util.DefaultCacctMaxLines,
+		"Limit the number of jobs returned")
 	RootCmd.Flags().BoolVar(&FlagJson, "json", false, "Output in JSON format")
 	RootCmd.Flags().StringVarP(&FlagFilterNodeNames, "nodelist", "w", "",
 		"Specify node names to view (comma separated list or patterns like node[1-10]), default is all")

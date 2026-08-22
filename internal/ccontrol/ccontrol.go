@@ -809,13 +809,25 @@ func UpdateTraceConfig(enabled *bool, level string, propagate bool) error {
 			util.ErrorNetwork, err, "Failed to update trace config")
 	}
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		if util.IsSlurmOutputMode() {
+			output, err := formatSlurmTraceConfigJSON(reply)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+			}
+			fmt.Println(output)
+		} else {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
 		return nil
 	}
 	if !reply.GetOk() {
 		message := reply.GetReason()
 		if len(reply.GetFailedCranedIds()) > 0 {
-			message += fmt.Sprintf("; failed craned nodes: %s",
+			failedNodesLabel := "failed craned nodes"
+			if util.IsSlurmOutputMode() {
+				failedNodesLabel = "failed nodes"
+			}
+			message += fmt.Sprintf("; %s: %s", failedNodesLabel,
 				strings.Join(reply.GetFailedCranedIds(), ","))
 		}
 		return util.NewCraneErr(util.ErrorBackend, message)

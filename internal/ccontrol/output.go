@@ -194,6 +194,10 @@ func outputNodes(nodes []*protos.CranedInfo) {
 
 func printNodeDetails(node *protos.CranedInfo) {
 	stateStr := formatNodeState(node)
+	startTimeField := "CranedStartTime"
+	if util.IsSlurmOutputMode() {
+		startTimeField = "SlurmdStartTime"
+	}
 	cranedVersion := "unknown"
 	if len(node.CranedVersion) > 0 {
 		cranedVersion = node.CranedVersion
@@ -215,7 +219,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 			"\tSockets=%d\n"+
 			"\tPartition=%s RunningJob=%d Version=%s\n"+
 			"\tOs=%s\n"+
-			"\tBootTime=%s CranedStartTime=%s\n"+
+			"\tBootTime=%s %s=%s\n"+
 			"\tLastBusyTime=%s\n",
 		node.Hostname, stateStr, cpuInfo,
 		memInfo,
@@ -223,7 +227,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 		node.GetNodeTopoInfo().GetSockets(),
 		strings.Join(node.PartitionNames, ","), node.RunningJobNum, cranedVersion,
 		cranedOs,
-		timeInfo.bootTime, timeInfo.startTime, timeInfo.lastBusyTime,
+		timeInfo.bootTime, startTimeField, timeInfo.startTime, timeInfo.lastBusyTime,
 	)
 }
 
@@ -248,6 +252,9 @@ func formatNodeTimes(node *protos.CranedInfo) nodeTimes {
 }
 
 func formatNodeState(node *protos.CranedInfo) string {
+	if util.IsSlurmOutputMode() {
+		return util.FormatSlurmNodeState(node.ResourceState, node.ControlState, node.PowerState)
+	}
 	stateStr := strings.ToLower(node.ResourceState.String()[6:])
 	if node.ControlState != protos.CranedControlState_CRANE_NONE {
 		stateStr += "(" + strings.ToLower(node.ControlState.String()[6:]) + ")"
@@ -289,7 +296,15 @@ func ShowNodes(nodeName string, queryAll bool) error {
 		return err
 	}
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		if util.IsSlurmOutputMode() {
+			output, err := formatSlurmNodesJSON(reply)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+			}
+			fmt.Println(output)
+		} else {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
 		return nil
 	}
 	if len(reply.CranedInfoList) == 0 {
@@ -437,12 +452,16 @@ func formatReservationDetails(res *protos.ReservationInfo) string {
 }
 
 func formatReservationTarget(res *protos.ReservationInfo) string {
+	nodeField := "CranedRegex"
+	if util.IsSlurmOutputMode() {
+		nodeField = "Nodes"
+	}
 	if res.Partition != "" && res.CranedRegex != "" {
-		return fmt.Sprintf("\tPartition=%v CranedRegex=%v\n", res.Partition, res.CranedRegex)
+		return fmt.Sprintf("\tPartition=%v %s=%v\n", res.Partition, nodeField, res.CranedRegex)
 	} else if res.Partition != "" {
 		return fmt.Sprintf("\tPartition=%v\n", res.Partition)
 	} else if res.CranedRegex != "" {
-		return fmt.Sprintf("\tCranedRegex=%v\n", res.CranedRegex)
+		return fmt.Sprintf("\t%s=%v\n", nodeField, res.CranedRegex)
 	}
 	return ""
 }
@@ -491,7 +510,15 @@ func ShowReservations(reservationName string, queryAll bool) error {
 		return err
 	}
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		if util.IsSlurmOutputMode() {
+			output, err := formatSlurmReservationsJSON(reply)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+			}
+			fmt.Println(output)
+		} else {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
 		return nil
 	}
 	if len(reply.ReservationInfoList) == 0 {
@@ -846,7 +873,15 @@ func ShowJobs(jobIds string, queryAll bool) error {
 		return err
 	}
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		if util.IsSlurmOutputMode() {
+			output, err := util.FormatSlurmJobsJSON(reply)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+			}
+			fmt.Println(output)
+		} else {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
 		return nil
 	}
 	if len(reply.JobInfoList) == 0 {
@@ -880,7 +915,15 @@ func ShowSteps(stepIds string, queryAll bool) error {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		if util.IsSlurmOutputMode() {
+			output, err := util.FormatSlurmJobsJSON(reply)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+			}
+			fmt.Println(output)
+		} else {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
 		return nil
 	}
 

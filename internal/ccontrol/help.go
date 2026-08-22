@@ -24,9 +24,15 @@ import (
 )
 
 func showHelp() {
-	help := `CraneSched Control Tool (ccontrol) - version ` + util.Version() + `
+	commandName := "ccontrol"
+	traceTargets := "online craned nodes"
+	if util.IsSlurmOutputMode() {
+		commandName = "scontrol"
+		traceTargets = "online nodes"
+	}
+	help := fmt.Sprintf(`CraneSched Control Tool (%s) - version %s
 
-USAGE: ccontrol <ACTION> <ENTITIES> [OPTIONS]
+USAGE: %s <ACTION> <ENTITIES> [OPTIONS]
 
 ACTIONS:
   show      - Display information about entities
@@ -89,7 +95,7 @@ COMMANDS:
     deniedaccounts: List of accounts denied from using the partition
 
   update trace [--enabled true|false] [--level basic|detailed|debug] [--no-propagate]
-    Update runtime tracing config on ctld and, by default, online craned nodes.
+    Update runtime tracing config on ctld and, by default, %s.
 
   hold <jobid> [timelimit=<duration>]
     Hold specified job(s).
@@ -125,6 +131,6 @@ GLOBAL OPTIONS:
   --json, -J     Format output as JSON
   --config, -C   Specify an alternative configuration file
   
-`
+`, commandName, util.Version(), commandName, traceTargets)
 	fmt.Println(help)
 }

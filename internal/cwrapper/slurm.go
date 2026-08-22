@@ -19,7 +19,6 @@
 package cwrapper
 
 import (
-	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/cacct"
 	"CraneFrontEnd/internal/cacctmgr"
 	"CraneFrontEnd/internal/calloc"
@@ -32,16 +31,12 @@ import (
 	"CraneFrontEnd/internal/creport"
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -103,18 +98,19 @@ func (w SlurmWrapper) HasCommand(cmd string) bool {
 }
 
 func (w SlurmWrapper) Preprocess() error {
-	// Slurm commands do not need any preprocessing for os.Args
+	util.SetOutputMode(util.OutputModeSlurm)
 	return nil
 }
 
 func sacct() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "sacct",
-		Short:              "Wrapper of cacct command",
+		Short:              "Display job accounting data",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
+			cacct.RootCmd.Use = "sacct [flags]"
 			convertedArgs := make([]string, 0, len(args))
 			for _, arg := range args {
 				switch arg {
@@ -159,7 +155,7 @@ func sacct() *cobra.Command {
 func sacctmgr() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "sacctmgr",
-		Short:              "Wrapper of cacctmgr command",
+		Short:              "Manage accounting records",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
@@ -539,11 +535,12 @@ func wrapperFlagConsumesValue(arg string) bool {
 func salloc() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "salloc",
-		Short:              "Wrapper of calloc command",
+		Short:              "Allocate resources for a job",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			calloc.RootCmd.Use = "salloc"
 			// Add --help from calloc
 			calloc.RootCmd.InitDefaultHelpFlag()
 
@@ -591,7 +588,7 @@ func scancel() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:     "scancel",
-		Short:   "Wrapper of ccancel command",
+		Short:   "Cancel jobs",
 		Long:    "",
 		GroupID: "slurm",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -662,11 +659,12 @@ func scancel() *cobra.Command {
 func sbatch() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "sbatch",
-		Short:              "Wrapper of cbatch command",
+		Short:              "Submit a batch job",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cbatch.RootCmd.Use = "sbatch [flags] file"
 			cbatch.RootCmd.InitDefaultHelpFlag()
 
 			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
@@ -708,7 +706,7 @@ func sbatch() *cobra.Command {
 func scontrol() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "scontrol",
-		Short:              "Wrapper of ccontrol command",
+		Short:              "View or modify scheduler state",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
@@ -915,11 +913,12 @@ func normalizeScontrolUpdateKey(key string) string {
 func seff() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "seff",
-		Short:              "Wrapper of ceff command",
+		Short:              "Report job efficiency",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ceff.RootCmd.Use = "seff [flags] [job_id, ...]"
 			wrapCeffLeafRunEOnce.Do(func() {
 				util.RunEWrapperForLeafCommand(ceff.RootCmd)
 			})
@@ -934,7 +933,7 @@ func seff() *cobra.Command {
 func sinfo() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sinfo",
-		Short:   "Wrapper of cinfo command",
+		Short:   "View node and partition information",
 		Long:    "",
 		GroupID: "slurm",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -962,6 +961,7 @@ func sinfo() *cobra.Command {
 
 	cmd.Flags().Uint64VarP(&cinfo.FlagIterate, "iterate", "i", 0,
 		"Print the state on a periodic basis. Sleep for the indicated number of seconds between reports.")
+	cmd.Flags().BoolVar(&cinfo.FlagJson, "json", false, "Output in JSON format")
 
 	return cmd
 }
@@ -969,11 +969,12 @@ func sinfo() *cobra.Command {
 func squeue() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "squeue",
-		Short:              "Wrapper of cqueue command",
+		Short:              "View job queue information",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
+			cqueue.RootCmd.Use = "squeue [flags]"
 			convertedArgs := make([]string, 0, len(args))
 			for _, arg := range args {
 				switch arg {
@@ -1065,107 +1066,6 @@ Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum w
 	return cmd
 }
 
-func squeueQueryTableOutput(reply *protos.QueryJobsInfoReply) util.ExitCode {
-	table := tablewriter.NewWriter(os.Stdout)
-	util.SetBorderlessTable(table)
-	header := []string{"JOBID", "PARTITION", "NAME", "USER",
-		"ST", "TIME", "NODES", "NODELIST(REASON)"}
-	tableData := make([][]string, len(reply.JobInfoList))
-	i := 0
-	for _, jobInfo := range reply.JobInfoList {
-		var timeElapsedStr string
-		if jobInfo.Status == protos.JobStatus_Running {
-			timeElapsedStr = util.SecondTimeFormat(jobInfo.ElapsedTime.Seconds)
-		} else {
-			timeElapsedStr = "-"
-		}
-
-		var reasonOrListStr string
-		if jobInfo.Status == protos.JobStatus_Pending {
-			reasonOrListStr = jobInfo.GetPendingReason()
-		} else {
-			reasonOrListStr = jobInfo.GetCranedList()
-		}
-
-		tableData[i] = []string{
-			util.FormatJobId(jobInfo.JobId, jobInfo.ArrayTask),
-			jobInfo.Partition,
-			jobInfo.Name,
-			jobInfo.Username,
-			jobInfo.Status.String(),
-			timeElapsedStr,
-			strconv.FormatUint(uint64(jobInfo.NodeNum), 10),
-			reasonOrListStr,
-		}
-
-		i += 1
-	}
-
-	if cqueue.FlagStartTime {
-		header = append(header, "StartTime")
-		i = 0
-		for _, jobInfo := range reply.JobInfoList {
-			startTime := jobInfo.StartTime
-			if startTime.Seconds != 0 {
-				tableData[i] = append(tableData[i],
-					startTime.AsTime().In(time.Local).
-						Format("2006-01-02 15:04:05"))
-			} else {
-				tableData[i] = append(tableData[i], "")
-			}
-			i += 1
-		}
-	}
-	if cqueue.FlagFilterQos != "" {
-		header = append(header, "QoS")
-		i = 0
-		for _, jobInfo := range reply.JobInfoList {
-			tableData[i] = append(tableData[i], jobInfo.Qos)
-			i += 1
-		}
-	}
-
-	if !cqueue.FlagNoHeader {
-		table.SetHeader(header)
-	}
-
-	table.AppendBulk(tableData)
-	table.Render()
-	return util.ErrorSuccess
-}
-
-func squeueQuery() util.ExitCode {
-	reply, err := cqueue.QueryJobsInfo()
-	if err != nil {
-		var craneErr *util.CraneError
-		if errors.As(err, &craneErr) {
-			return craneErr.Code
-		} else {
-			log.Errorf("Unknown error occurred: %s.", err)
-			return util.ErrorGeneric
-		}
-	}
-
-	return squeueQueryTableOutput(reply)
-}
-
-func squeueLoopedQuery(iterate uint64) util.ExitCode {
-	interval, err := time.ParseDuration(strconv.FormatUint(iterate, 10) + "s")
-	if err != nil {
-		log.Errorf("Invalid time interval: %v.\n", err)
-		return util.ErrorCmdArg
-	}
-	for {
-		fmt.Println(time.Now().String()[0:19])
-		err := squeueQuery()
-		if err != util.ErrorSuccess {
-			return err
-		}
-		time.Sleep(time.Duration(interval.Nanoseconds()))
-		fmt.Println()
-	}
-}
-
 func sreport() *cobra.Command {
 	sreportCommandTokens := map[string]struct{}{
 		"user":                     {},
@@ -1184,17 +1084,18 @@ func sreport() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:                "sreport",
-		Short:              "Wrapper of creport command",
+		Short:              "Generate accounting reports",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			creport.RootCmd.Use = "sreport"
 			convertedArgs := make([]string, 0, len(args))
 			normalizeCommandToken := true
 			for _, arg := range args {
 				if strings.Contains(arg, "=") && !strings.HasPrefix(arg, "-") {
 					log.Warningf("Slurm-style key=value argument %q is not supported in sreport wrapper. "+
-						"Please use creport with explicit flags, e.g. --start-time/--end-time.", arg)
+						"Please use sreport with explicit flags, e.g. --start-time/--end-time.", arg)
 					os.Exit(util.ErrorCmdArg)
 				}
 				if strings.HasPrefix(arg, "-") {
@@ -1227,11 +1128,12 @@ func sreport() *cobra.Command {
 func srun() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "srun",
-		Short:              "Wrapper of crun command",
+		Short:              "Run a job step",
 		Long:               "",
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			crun.RootCmd.Use = "srun [flags] executable"
 			crun.RootCmd.InitDefaultHelpFlag()
 
 			if err := crun.RootCmd.ParseFlags(args); err != nil {

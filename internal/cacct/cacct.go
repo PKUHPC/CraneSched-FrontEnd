@@ -44,7 +44,7 @@ const (
 	kCraneExitCodeBase     = 320
 )
 
-// QueryJob will query all pending, running and completed jobs
+// QueryJob will query all pending, running and completed jobs.
 func QueryJob() error {
 	request := protos.QueryJobsInfoRequest{OptionIncludeCompletedJobs: true}
 
@@ -153,8 +153,17 @@ func QueryJob() error {
 	}
 
 	if FlagJson {
-		fmt.Println(util.FmtJson.FormatReply(reply))
+		if util.IsSlurmOutputMode() {
+			output, err := util.FormatSlurmJobsJSON(reply)
+			if err != nil {
+				return util.WrapCraneErr(util.ErrorInvalidFormat, "%v", err)
+			}
+			fmt.Println(output)
+		} else {
+			fmt.Println(util.FmtJson.FormatReply(reply))
+		}
 		if reply.GetOk() {
+			printIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
 			return nil
 		} else {
 			return &util.CraneError{Code: util.ErrorBackend}
@@ -188,9 +197,13 @@ func QueryJob() error {
 	var header []string
 	tableData := make([][]string, len(items))
 	if FlagFull {
+		nodeListHeader := "CranedList"
+		if util.IsSlurmOutputMode() {
+			nodeListHeader = "NodeList"
+		}
 		header = []string{"JobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
-			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", "CranedList", "ExitCode", "wckey", "Deadline"}
+			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", nodeListHeader, "ExitCode", "wckey", "Deadline"}
 		for i, jobOrStep := range items {
 			tableData[i] = []string{
 				ProcessJobID(jobOrStep),
@@ -279,7 +292,18 @@ func QueryJob() error {
 
 	table.AppendBulk(tableData)
 	table.Render()
+	printIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
 	return nil
+}
+
+func printIncompleteQueryWarning(hasMore bool, returnedJobs int) {
+	if !hasMore {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr,
+		"Query returned %d jobs, and more matching jobs exist. Use -m to adjust the number of jobs returned.\n",
+		returnedJobs)
 }
 
 // JobOrStep represents either a job (JobInfo) or a step (StepInfo)
