@@ -1024,7 +1024,7 @@ func ParseHostList(hostStr string) ([]string, bool) {
 		return nil, false
 	}
 
-	regex := regexp.MustCompile(`.*\[(.*)\](\..*)*$`)
+	regex := regexp.MustCompile(`.*\[(.*)\].*`)
 	var hostList []string
 
 	for _, str := range strList {

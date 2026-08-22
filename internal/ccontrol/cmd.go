@@ -97,11 +97,15 @@ func ParseCmdArgs(args []string) {
 }
 
 func executeCommand(command *CControlCommand) error {
+	action := command.GetAction()
+	if action == "show" && command.GetEntity() == "hostnames" {
+		return executeShowCommand(command)
+	}
+
 	config := util.ParseConfig(FlagConfigFilePath)
 	stub = util.GetStubToCtldByConfig(config)
 	userUid = uint32(os.Getuid())
 
-	action := command.GetAction()
 	executeAction, exists := actionToExecute[action]
 	if exists {
 		return executeAction(command)
@@ -125,11 +129,29 @@ func executeShowCommand(command *CControlCommand) error {
 		return executeShowReservationCommand(command)
 	case "lic":
 		return executeShowLicenseCommand(command)
+	case "hostnames":
+		return executeShowHostnamesCommand(command)
 	case "trace":
 		return executeShowTraceCommand(command)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
+}
+
+func executeShowHostnamesCommand(command *CControlCommand) error {
+	hostlist, err := resolveHostlistArgument(unquoteIfQuoted(command.GetID()), util.IsSlurmOutputMode())
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
+	}
+
+	hostnames, err := expandHostlist(hostlist)
+	if err != nil {
+		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
+	}
+	if err := printHostnames(os.Stdout, hostnames); err != nil {
+		return util.WrapCraneErr(util.ErrorSystem, "failed to write hostnames: %s", err)
+	}
+	return nil
 }
 
 func executeShowNodeCommand(command *CControlCommand) error {
