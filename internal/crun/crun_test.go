@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"CraneFrontEnd/generated/protos"
+	"golang.org/x/sys/unix"
 )
 
 func TestShellJoinArgsPreservesArguments(t *testing.T) {
@@ -44,6 +45,69 @@ func TestShellJoinArgsPreservesArguments(t *testing.T) {
 				t.Fatalf("command output = %q, want %q", output, testCase.want)
 			}
 		})
+	}
+}
+
+func TestStartStdinReaderDoesNotChangeSharedFileFlags(t *testing.T) {
+	originalStdin := os.Stdin
+	pipeReader, pipeWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdin pipe: %v", err)
+	}
+	defer func() {
+		os.Stdin = originalStdin
+		_ = pipeReader.Close()
+		_ = pipeWriter.Close()
+	}()
+
+	observedFd, err := unix.Dup(int(pipeReader.Fd()))
+	if err != nil {
+		t.Fatalf("duplicate shared fd: %v", err)
+	}
+	defer unix.Close(observedFd)
+
+	originalFlags, err := unix.FcntlInt(uintptr(observedFd), unix.F_GETFL, 0)
+	if err != nil {
+		t.Fatalf("read original fd flags: %v", err)
+	}
+
+	os.Stdin = pipeReader
+	stopReadCtx, cancelRead := context.WithCancel(context.Background())
+	defer cancelRead()
+	m := &StateMachineOfCrun{
+		chanInputFromLocal: make(chan []byte, 1),
+		stopReadCtx:        stopReadCtx,
+	}
+	m.startStdinReader()
+
+	gotFlags, err := unix.FcntlInt(uintptr(observedFd), unix.F_GETFL, 0)
+	if err != nil {
+		t.Fatalf("read updated fd flags: %v", err)
+	}
+	if gotFlags != originalFlags {
+		t.Errorf("shared fd flags changed from %#x to %#x", originalFlags, gotFlags)
+	}
+	if m.stdinFlagsSaved {
+		t.Error("stdin flags were saved even though the reader did not change them")
+	}
+
+	if _, err := pipeWriter.Write([]byte("input")); err != nil {
+		t.Fatalf("write stdin input: %v", err)
+	}
+	if err := pipeWriter.Close(); err != nil {
+		t.Fatalf("close stdin writer: %v", err)
+	}
+	if _, ok := <-m.chanInputFromLocal; !ok {
+		t.Fatal("stdin reader closed without forwarding input")
+	}
+	cancelRead()
+	select {
+	case _, ok := <-m.chanInputFromLocal:
+		if ok {
+			t.Fatal("stdin reader forwarded unexpected extra input")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stdin reader did not stop after cancellation")
 	}
 }
 

@@ -116,6 +116,8 @@ type StateMachineOfCrun struct {
 	savedTerminalState *term.State
 	savedStdinFlags    int
 	terminalConfigured bool
+	stdinFd            int
+	stdinFlagsSaved    bool
 
 	cforedReplyReceiver *CforedReplyReceiver
 
@@ -1174,7 +1176,31 @@ func (m *StateMachineOfCrun) StderrFileWriterRoutine(filePattern string) {
 	m.FileWriterRoutine(parsedFilePath, m.chanErrOutputFromRemote)
 }
 
+func setFileNonblocking(fd int) (int, error) {
+	originalFlags, err := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := unix.FcntlInt(uintptr(fd), unix.F_SETFL, originalFlags|unix.O_NONBLOCK); err != nil {
+		return 0, err
+	}
+	return originalFlags, nil
+}
+
+func restoreFileStatusFlags(fd int, flags int) error {
+	_, err := unix.FcntlInt(uintptr(fd), unix.F_SETFL, flags)
+	return err
+}
+
+func (m *StateMachineOfCrun) startStdinReader() {
+	fd := int(os.Stdin.Fd())
+	m.stdinFd = fd
+	go m.StdinReaderRoutine()
+}
+
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
+	defer close(m.chanInputFromLocal)
+	fd := m.stdinFd
 	epfd, err := syscall.EpollCreate1(0)
 	if err != nil {
 		log.Tracef("EpollCreate1: %v", err)
@@ -1183,10 +1209,10 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 
 	event := &syscall.EpollEvent{
 		Events: syscall.EPOLLIN,
-		Fd:     int32(int(os.Stdin.Fd())),
+		Fd:     int32(fd),
 	}
 
-	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, int(os.Stdin.Fd()), event); err != nil {
+	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, fd, event); err != nil {
 		log.Tracef("EpollCtl: %v", err)
 		return
 	}
@@ -1212,8 +1238,8 @@ reading:
 			return
 		}
 		for i := 0; i < n; i++ {
-			if events[i].Fd == int32(os.Stdin.Fd()) && events[i].Events&syscall.EPOLLIN != 0 {
-				nr, err := syscall.Read(int(os.Stdin.Fd()), buf)
+			if events[i].Fd == int32(fd) && events[i].Events&syscall.EPOLLIN != 0 {
+				nr, err := syscall.Read(fd, buf)
 				if err != nil {
 					if errors.Is(err, syscall.EAGAIN) {
 						log.Trace("Read EAGAIN, no data available now")
