@@ -589,6 +589,27 @@ CforedCrunStateMachineLoop:
 								jobId, stepId, payload.GetLocalId(), payload.GetCranedId())
 							gSupervisorChanKeeper.forwardCrunRequestToSingleSupervisor(jobId, stepId, payload.GetCranedId(), crunRequest)
 
+						case protos.StreamCrunRequest_TERMINAL_RESIZE:
+							payload := crunRequest.GetPayloadTerminalResizeReq()
+							taskId := payload.GetTaskId()
+							node, ok := task_craned_map[taskId]
+							if !ok {
+								if shouldLogTerminalResizeDiagnostic() {
+									log.Warningf(
+										"[Crun->Cfored][Step #%d.%d] Ignoring terminal resize for unknown task #%d",
+										jobId, stepId, taskId,
+									)
+								}
+								break
+							}
+							log.Tracef(
+								"[Crun->Cfored->Supervisor][Step #%d.%d] Forwarding terminal resize for task #%d to Craned %s",
+								jobId, stepId, taskId, node,
+							)
+							gSupervisorChanKeeper.forwardTerminalResizeToSingleSupervisor(
+								jobId, stepId, node, crunRequest,
+							)
+
 						case protos.StreamCrunRequest_STEP_COMPLETION_REQUEST:
 							log.Debugf("[Crun->Cfored->Ctld][Step #%d.%d] Receive JobCompletionRequest", jobId, stepId)
 							toCtldRequest := &protos.StreamCforedRequest{
@@ -606,7 +627,7 @@ CforedCrunStateMachineLoop:
 							state = CrunWaitCtldAck
 							break forwarding
 						default:
-							log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST or TASK_IO_FORWARD",
+							log.Fatalf("[Crun->Cfored][Step #%d.%d] Expect JOB_COMPLETION_REQUEST, TASK_IO_FORWARD, STEP_X11_FORWARD or TERMINAL_RESIZE",
 								jobId, stepId)
 							break forwarding
 						}

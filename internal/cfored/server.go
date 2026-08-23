@@ -36,9 +36,18 @@ import (
 )
 
 type RequestSupervisorChannel struct {
-	valid                 *atomic.Bool
-	crunRequestChannel    chan *protos.StreamCrunRequest
-	cattachRequestChannel chan *protos.StreamCattachRequest
+	valid                  *atomic.Bool
+	supportsTerminalResize bool
+	crunRequestChannel     chan *protos.StreamCrunRequest
+	cattachRequestChannel  chan *protos.StreamCattachRequest
+}
+
+const terminalResizeDiagnosticLimit = 8
+
+var terminalResizeDiagnosticCount atomic.Uint32
+
+func shouldLogTerminalResizeDiagnostic() bool {
+	return terminalResizeDiagnosticCount.Add(1) <= terminalResizeDiagnosticLimit
 }
 
 type FrontRequest interface {
@@ -118,13 +127,18 @@ func NewCranedChannelKeeper() *SupervisorChannelKeeper {
 	return keeper
 }
 
-func (keeper *SupervisorChannelKeeper) supervisorUpAndSetMsgToSupervisorChannel(jobId uint32, stepId uint32, cranedId string, msgChannel chan *protos.StreamCrunRequest, cattachMsgChannel chan *protos.StreamCattachRequest, valid *atomic.Bool) {
+func (keeper *SupervisorChannelKeeper) supervisorUpAndSetMsgToSupervisorChannel(jobId uint32, stepId uint32, cranedId string, msgChannel chan *protos.StreamCrunRequest, cattachMsgChannel chan *protos.StreamCattachRequest, valid *atomic.Bool, supportsTerminalResize bool) {
 	keeper.toSupervisorChannelMtx.Lock()
 	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
 	if _, exist := keeper.toSupervisorChannels[stepIdentity]; !exist {
 		keeper.toSupervisorChannels[stepIdentity] = make(map[string]*RequestSupervisorChannel)
 	}
-	keeper.toSupervisorChannels[stepIdentity][cranedId] = &RequestSupervisorChannel{crunRequestChannel: msgChannel, valid: valid, cattachRequestChannel: cattachMsgChannel}
+	keeper.toSupervisorChannels[stepIdentity][cranedId] = &RequestSupervisorChannel{
+		crunRequestChannel:     msgChannel,
+		valid:                  valid,
+		cattachRequestChannel:  cattachMsgChannel,
+		supportsTerminalResize: supportsTerminalResize,
+	}
 	keeper.toSupervisorChannelCV.Broadcast()
 	keeper.toSupervisorChannelMtx.Unlock()
 }
@@ -333,6 +347,7 @@ func forwardRequestToSingleSupervisorByChannel[T FrontRequest](
 	cranedId string,
 	request T,
 	getChannel func(*RequestSupervisorChannel) chan T,
+	allow func(*RequestSupervisorChannel) bool,
 ) {
 	stepIdentity := StepIdentifier{JobId: jobId, StepId: stepId}
 
@@ -365,6 +380,9 @@ func forwardRequestToSingleSupervisorByChannel[T FrontRequest](
 		)
 		return
 	}
+	if allow != nil && !allow(supervisorChannel) {
+		return
+	}
 
 	ch := getChannel(supervisorChannel)
 
@@ -391,6 +409,38 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSupervisor(jobId uint
 	)
 }
 
+func (keeper *SupervisorChannelKeeper) forwardTerminalResizeToSingleSupervisor(
+	jobId uint32,
+	stepId uint32,
+	cranedId string,
+	request *protos.StreamCrunRequest,
+) {
+	forwardRequestToSingleSupervisorByChannel(
+		keeper,
+		jobId,
+		stepId,
+		cranedId,
+		request,
+		func(ch *RequestSupervisorChannel) chan *protos.StreamCrunRequest {
+			return ch.crunRequestChannel
+		},
+		func(ch *RequestSupervisorChannel) bool {
+			if ch.supportsTerminalResize {
+				return true
+			}
+			if shouldLogTerminalResizeDiagnostic() {
+				log.Debugf(
+					"[Step #%d.%d] Supervisor on Craned %s does not support terminal resize; dropping request",
+					jobId,
+					stepId,
+					cranedId,
+				)
+			}
+			return false
+		},
+	)
+}
+
 func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSingleSupervisor(jobId uint32, stepId uint32,
 	cranedId string, request *protos.StreamCrunRequest) {
 	forwardRequestToSingleSupervisorByChannel(
@@ -402,6 +452,7 @@ func (keeper *SupervisorChannelKeeper) forwardCrunRequestToSingleSupervisor(jobI
 		func(ch *RequestSupervisorChannel) chan *protos.StreamCrunRequest {
 			return ch.crunRequestChannel
 		},
+		nil,
 	)
 }
 
@@ -428,6 +479,7 @@ func (keeper *SupervisorChannelKeeper) forwardCattachRequestToSingleSupervisor(j
 		func(ch *RequestSupervisorChannel) chan *protos.StreamCattachRequest {
 			return ch.cattachRequestChannel
 		},
+		nil,
 	)
 }
 
@@ -676,7 +728,8 @@ CforedSupervisorStateMachineLoop:
 
 			gSupervisorChanKeeper.supervisorUpAndSetMsgToSupervisorChannel(
 				jobId, stepId, cranedId, pendingCrunReqToSupervisorChannel,
-				pendingCattachReqToSupervisorChannel, valid)
+				pendingCattachReqToSupervisorChannel, valid,
+				cranedReq.GetPayloadRegisterReq().GetSupportsTerminalResize())
 
 			reply = &protos.StreamStepIOReply{
 				Type: protos.StreamStepIOReply_SUPERVISOR_REGISTER_REPLY,
@@ -792,6 +845,18 @@ CforedSupervisorStateMachineLoop:
 									Msg:     msg,
 									Eof:     payload.Eof,
 									LocalId: payload.LocalId,
+								},
+							},
+						}
+
+					case protos.StreamCrunRequest_TERMINAL_RESIZE:
+						payload := crunReq.GetPayloadTerminalResizeReq()
+						reply = &protos.StreamStepIOReply{
+							Type: protos.StreamStepIOReply_TERMINAL_RESIZE,
+							Payload: &protos.StreamStepIOReply_PayloadTerminalResizeReq{
+								PayloadTerminalResizeReq: &protos.StreamStepIOReply_TerminalResizeReq{
+									TerminalSize: payload.GetTerminalSize(),
+									TaskId:       payload.GetTaskId(),
 								},
 							},
 						}
