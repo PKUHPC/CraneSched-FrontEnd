@@ -98,8 +98,8 @@ func ParseCmdArgs(args []string) {
 
 func executeCommand(command *CControlCommand) error {
 	action := command.GetAction()
-	if action == "show" &&
-		(command.GetEntity() == "hostnames" || command.GetEntity() == "config") {
+	if action == "show" && (command.GetEntity() == "config" ||
+		(command.GetEntity() == "hostnames" && command.GetID() != "")) {
 		return executeShowCommand(command)
 	}
 
@@ -142,9 +142,16 @@ func executeShowCommand(command *CControlCommand) error {
 }
 
 func executeShowHostnamesCommand(command *CControlCommand) error {
-	hostlist, err := resolveHostlistArgument(unquoteIfQuoted(command.GetID()), util.IsSlurmOutputMode())
-	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
+	hostlist := unquoteIfQuoted(command.GetID())
+	if hostlist == "" {
+		reply, err := getCranedNodesReply("")
+		if err != nil {
+			return err
+		}
+		if err := printHostnames(os.Stdout, nodeHostnames(reply.CranedInfoList)); err != nil {
+			return util.WrapCraneErr(util.ErrorSystem, "failed to write hostnames: %s", err)
+		}
+		return nil
 	}
 
 	hostnames, err := expandHostlist(hostlist)

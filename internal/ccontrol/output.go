@@ -37,23 +37,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func resolveHostlistArgument(hostlist string, slurmMode bool) (string, error) {
-	if hostlist != "" {
-		return hostlist, nil
-	}
-
-	envKeys := []string{"CRANE_JOB_NODELIST", "SLURM_JOB_NODELIST", "SLURM_NODELIST"}
-	if slurmMode {
-		envKeys = []string{"SLURM_JOB_NODELIST", "SLURM_NODELIST", "CRANE_JOB_NODELIST"}
-	}
-	for _, key := range envKeys {
-		if value := os.Getenv(key); value != "" {
-			return value, nil
-		}
-	}
-	return "", fmt.Errorf("host list is empty")
-}
-
 func expandHostlist(hostlist string) ([]string, error) {
 	normalized := strings.ReplaceAll(hostlist, ";", ",")
 	normalized = strings.Join(strings.Fields(normalized), " ")
@@ -83,6 +66,16 @@ func printHostnames(writer io.Writer, hostnames []string) error {
 		}
 	}
 	return nil
+}
+
+func nodeHostnames(nodes []*protos.CranedInfo) []string {
+	hostnames := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if hostname := node.GetHostname(); hostname != "" {
+			hostnames = append(hostnames, hostname)
+		}
+	}
+	return hostnames
 }
 
 // show Config
