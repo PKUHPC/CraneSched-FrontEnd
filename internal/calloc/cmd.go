@@ -125,4 +125,6 @@ func init() {
 	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R}:]<sig_num>[@sig_time]")
+	RootCmd.Flags().StringVarP(&FlagNoKill, "no-kill", "k", "", "")
+	RootCmd.Flags().StringVarP(&FlagVerbose, "verbose", "v", "", "")
 }
