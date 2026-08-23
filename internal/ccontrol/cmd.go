@@ -99,7 +99,7 @@ func ParseCmdArgs(args []string) {
 func executeCommand(command *CControlCommand) error {
 	action := command.GetAction()
 	if action == "show" && (command.GetEntity() == "config" ||
-		(command.GetEntity() == "hostnames" && command.GetID() != "")) {
+		(command.GetEntity() == "hostnames" && resolveHostlistArgument(command) != "")) {
 		return executeShowCommand(command)
 	}
 
@@ -142,7 +142,7 @@ func executeShowCommand(command *CControlCommand) error {
 }
 
 func executeShowHostnamesCommand(command *CControlCommand) error {
-	hostlist := unquoteIfQuoted(command.GetID())
+	hostlist := resolveHostlistArgument(command)
 	if hostlist == "" {
 		reply, err := getCranedNodesReply("")
 		if err != nil {
@@ -162,6 +162,13 @@ func executeShowHostnamesCommand(command *CControlCommand) error {
 		return util.WrapCraneErr(util.ErrorSystem, "failed to write hostnames: %s", err)
 	}
 	return nil
+}
+
+func resolveHostlistArgument(command *CControlCommand) string {
+	if hostlist := unquoteIfQuoted(command.GetID()); hostlist != "" {
+		return hostlist
+	}
+	return os.Getenv("SLURM_JOB_NODELIST")
 }
 
 func executeShowNodeCommand(command *CControlCommand) error {

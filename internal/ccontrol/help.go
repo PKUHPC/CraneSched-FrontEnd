@@ -75,7 +75,7 @@ COMMANDS:
 
   show hostnames [<hostlist>]
     Expand a hostlist expression and print one hostname per line.
-    If omitted, print all configured node hostnames.
+    If omitted, use SLURM_JOB_NODELIST when set; otherwise print all configured node hostnames.
 
   show trace
     Show runtime tracing configuration and the compiled tracing limit.
