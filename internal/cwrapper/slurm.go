@@ -31,7 +31,6 @@ import (
 	"CraneFrontEnd/internal/creport"
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
-	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -566,9 +565,6 @@ func salloc() *cobra.Command {
 		},
 	}
 	// not implement feature:
-	cmd.Flags().StringVarP(&calloc.FlagNTasks, "ntasks", "n", "", "")
-	cmd.Flags().StringVarP(&calloc.FlagDependency, "dependency", "d", "", "")
-	cmd.Flags().StringVar(&calloc.FlagMemPerCpu, "mem-per-cpu", "", "")
 	cmd.Flags().StringVarP(&calloc.FlagNoKill, "no-kill", "k", "", "")
 	cmd.Flags().StringVarP(&calloc.FlagVerbose, "verbose", "v", "", "")
 
@@ -685,17 +681,12 @@ func sbatch() *cobra.Command {
 		},
 	}
 	// not implement feature:
-	cmd.Flags().StringVarP(&cbatch.FlagNTasks, "ntasks", "n", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagParsable, "parsable", "", "")
-	cmd.Flags().StringVar(&cbatch.FlagGpusPerNode, "gpus-per-node", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagNTasksPerSocket, "ntasks-per-socket", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCpuFreq, "cpu-freq", "", "")
-	cmd.Flags().StringVarP(&cbatch.FlagDependency, "dependency", "d", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagPriority, "priority", "", "")
-	cmd.Flags().StringVar(&cbatch.FlagMemPerCpu, "mem-per-cpu", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagThreadsPerCore, "threads-per-core", "", "")
 	cmd.Flags().StringVarP(&cbatch.FlagDistribution, "distribution", "m", "", "")
-	cmd.Flags().StringVarP(&cbatch.FlagInput, "input", "i", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagSocketsPerNode, "sockets-per-node", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCoresPerSocket, "cores-per-socket", "", "")
 	cmd.Flags().BoolVar(&cbatch.FlagRequeue, "requeue", false, "")
@@ -1173,6 +1164,8 @@ func srun() *cobra.Command {
 	cmd.Flags().StringVarP(&crun.FlagExtraNodeInfo, "extra-node-info", "B", "", "")
 	cmd.Flags().StringVar(&crun.FlagNTasksPerCore, "ntasks-per-core", "", "")
 	cmd.Flags().StringVarP(&crun.FlagConstraint, "constraint", "C", "", "")
+	cmd.Flags().StringVar(&crun.FlagDistribution, "distribution", "", "")
+	cmd.Flags().BoolVar(&crun.FlagLabel, "label", false, "")
 	return cmd
 }
 
@@ -1191,105 +1184,87 @@ func Validate(c *cobra.Command, args []string) error {
 
 func PrintSrunIgnoreDummyArgsMessage() {
 	if crun.FlagNTasks != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagMultiProg != "" {
-		fmt.Fprintln(os.Stderr, "The feature --multi-prog is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --multi-prog is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagOversubscribe != "" {
-		fmt.Fprintln(os.Stderr, "The feature --oversubscribe/-s is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --oversubscribe/-s is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagCpuBind != "" {
-		fmt.Fprintln(os.Stderr, "The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --cpu-bind is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagWait != "" {
-		fmt.Fprintln(os.Stderr, "The feature --wait/-w is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --wait/-w is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagMpi != "" {
-		fmt.Fprintln(os.Stderr, "The feature --mpi is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --mpi is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagDependency != "" {
-		fmt.Fprintln(os.Stderr, "The feature --dependency/-d is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --dependency/-d is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagVerbose != "" {
-		fmt.Fprintln(os.Stderr, "The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagError != "" {
-		fmt.Fprintln(os.Stderr, "The feature --error/-e is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --error/-e is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagKillOnBadExit != "" {
-		fmt.Fprintln(os.Stderr, "The feature --kill-on-bad-exit/-k is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --kill-on-bad-exit/-k is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagExtraNodeInfo != "" {
-		fmt.Fprintln(os.Stderr, "The feature --extra-node-info/-B is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --extra-node-info/-B is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagNTasksPerCore != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-core is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --ntasks-per-core is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagConstraint != "" {
-		fmt.Fprintln(os.Stderr, "The feature --constraint/-C is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --constraint/-C is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagDistribution != "" {
+		log.Warning("The feature --distribution is not yet supported by Crane, the use is ignored.")
+	}
+	if crun.FlagLabel {
+		log.Warning("The feature --label is not yet supported by Crane, the use is ignored.")
 	}
 }
 
 func PrintSallocIgnoreDummyArgsMessage() {
-	if calloc.FlagNTasks != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
-	}
-	if calloc.FlagDependency != "" {
-		fmt.Fprintln(os.Stderr, "The feature --dependency/-d is not yet supported by Crane, the use is ignored.")
-	}
-	if calloc.FlagMemPerCpu != "" {
-		fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
-	}
 	if calloc.FlagNoKill != "" {
-		fmt.Fprintln(os.Stderr, "The feature --no-kill/-k is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --no-kill/-k is not yet supported by Crane, the use is ignored.")
 	}
 	if calloc.FlagVerbose != "" {
-		fmt.Fprintln(os.Stderr, "The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 	}
 }
 
 func PrintSbatchIgnoreArgsMessage() {
-	if cbatch.FlagNTasks != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks/-n is not yet supported by Crane, the use is ignored.")
-	}
 	if cbatch.FlagParsable != "" {
-		fmt.Fprintln(os.Stderr, "The feature --parsable is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagGpusPerNode != "" {
-		fmt.Fprintln(os.Stderr, "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --parsable is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagNTasksPerSocket != "" {
-		fmt.Fprintln(os.Stderr, "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagCpuFreq != "" {
-		fmt.Fprintln(os.Stderr, "The feature --cpu-freq is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagDependency != "" {
-		fmt.Fprintln(os.Stderr, "The feature --dependency/-d is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --cpu-freq is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagPriority != "" {
-		fmt.Fprintln(os.Stderr, "The feature --priority is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagMemPerCpu != "" {
-		fmt.Fprintln(os.Stderr, "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --priority is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagThreadsPerCore != "" {
-		fmt.Fprintln(os.Stderr, "The feature --threads-per-core is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --threads-per-core is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagDistribution != "" {
-		fmt.Fprintln(os.Stderr, "The feature --distribution/-m is not yet supported by Crane, the use is ignored.")
-	}
-	if cbatch.FlagInput != "" {
-		fmt.Fprintln(os.Stderr, "The feature --input/-i is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --distribution/-m is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagSocketsPerNode != "" {
-		fmt.Fprintln(os.Stderr, "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --sockets-per-node is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagCoresPerSocket != "" {
-		fmt.Fprintln(os.Stderr, "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --cores-per-socket is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagWait != "" {
-		fmt.Fprintln(os.Stderr, "The feature --wait/-W is not yet supported by Crane, the use is ignored.")
+		log.Warning("The feature --wait/-W is not yet supported by Crane, the use is ignored.")
 	}
 }
