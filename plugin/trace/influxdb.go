@@ -297,6 +297,16 @@ func (s *InfluxTraceStore) createBucketIfNotExists(
 
 	_, err = bucketsAPI.CreateBucketWithName(ctx, org, bucketName)
 	if err != nil {
+		// Creation is check-then-act, so two instances starting together both
+		// see the bucket missing and both POST; the loser gets 409. The client
+		// flattens HTTP errors into a plain string and discards the status
+		// code, so re-read instead of matching on the message: if the bucket
+		// exists now, a peer created exactly what this instance wanted.
+		existing, findErr := findBucketByName(ctx, s.client, s.org, bucketName)
+		if findErr == nil && existing != nil {
+			log.Infof("Bucket created concurrently by another instance: %s", bucketName)
+			return nil
+		}
 		return fmt.Errorf("failed to create bucket: %w", err)
 	}
 
@@ -320,6 +330,12 @@ func (s *InfluxTraceStore) createOrgIfNotExists(ctx context.Context) error {
 	log.Infof("Creating organization: %s", s.org)
 	_, err = orgAPI.CreateOrganizationWithName(ctx, s.org)
 	if err != nil {
+		// Same concurrent-create race as buckets; see createBucketIfNotExists.
+		existing, findErr := findOrganizationByName(ctx, s.client, s.org)
+		if findErr == nil && existing != nil {
+			log.Infof("Organization created concurrently by another instance: %s", s.org)
+			return nil
+		}
 		return fmt.Errorf("failed to create organization: %w", err)
 	}
 

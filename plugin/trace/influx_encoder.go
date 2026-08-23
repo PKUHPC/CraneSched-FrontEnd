@@ -58,14 +58,21 @@ func (*influxTracePointEncoder) Encode(
 		fields["duration_us"] = int64(0)
 		fields[executionFlowStorageEventTimeUnixNano] = point.eventTime.UnixNano()
 		tags[executionFlowStorageFlowEnvironmentID] = point.flow.environmentID
+		// flow_id is a field, not a tag. It takes a new value on every
+		// execution, so tagging it would add one series per flow to a bucket
+		// created without a retention rule -- unbounded growth, and the exact
+		// thing the slot dimensions below exist to avoid. Nothing needs it
+		// indexed: the validator selects on flow_environment_id plus a time
+		// watermark and filters active flows in Go.
 		if point.flow.flowID != "" {
-			tags["flow_id"] = point.flow.flowID
+			fields[executionFlowEnvelopeFlowID] = point.flow.flowID
 		}
 		if point.flow.eventSequence < 0 {
 			return encodedTracePoint{}, fmt.Errorf("execution-flow sequence cannot be negative")
 		}
-		// Influx identifies points by measurement, tag set, and timestamp. Keep
-		// both collision dimensions in fixed 64-value domains: sequence slots
+		// Influx identifies points by measurement, tag set, and timestamp. With
+		// flow_id kept out of the tag set above, these two slots are the only
+		// varying dimensions. Keep both in fixed 64-value domains: sequence slots
 		// separate same-instance events and a stateless service-identity hash
 		// separates the practical cross-instance collision set. Both dimensions
 		// are deliberately bounded; span_id remains a field instead of creating a

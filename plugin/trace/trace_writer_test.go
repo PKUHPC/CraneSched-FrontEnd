@@ -523,6 +523,60 @@ func (s *uncooperativeTraceSink) Close(context.Context) error {
 	return nil
 }
 
+// A shard that permanently loses spans publishes that loss when it exits. If
+// the timeout path consumes those published errors, a later successful Close()
+// finds the channel empty and reports nil -- so an operator who retries a
+// timed-out shutdown is told the export was clean when spans were lost.
+func TestTraceWriterCloseRetryStillReportsShardErrors(t *testing.T) {
+	const shards = 2
+	blockedTrace, rejectedTrace := traceIDsForDistinctShards(t, shards)
+
+	sink := &wedgedShardSink{
+		blockedTrace: blockedTrace,
+		started:      make(chan struct{}),
+		release:      make(chan struct{}),
+		rejected:     make(chan struct{}),
+	}
+	writer := testTraceWriter(sink, TraceWriterConfig{
+		Shards: shards, BatchSpans: 1, QueueBatches: 4, FlushIntervalMs: 1,
+		WriteTimeoutMs: 1000, CloseTimeoutMs: 60,
+	})
+	for _, traceID := range []string{blockedTrace, rejectedTrace} {
+		if err := writer.Enqueue(context.Background(), []*protos.SpanInfo{
+			{Name: "step/detail", TraceId: traceID},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, ch := range map[string]chan struct{}{
+		"blocked shard write":  sink.started,
+		"rejected shard write": sink.rejected,
+	} {
+		select {
+		case <-ch:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%s did not happen", name)
+		}
+	}
+
+	first := writer.Close()
+	if first == nil || !strings.Contains(first.Error(), "did not drain") {
+		t.Fatalf("first Close error = %v, want a drain timeout", first)
+	}
+	if !strings.Contains(first.Error(), "permanently rejected") {
+		t.Fatalf("first Close error = %v, want it to name the dropped spans", first)
+	}
+
+	close(sink.release)
+	second := writer.Close()
+	if second == nil {
+		t.Fatal("retried Close reported success after a shard permanently dropped spans")
+	}
+	if !strings.Contains(second.Error(), "permanently rejected") {
+		t.Fatalf("retried Close error = %v, want it to still name the dropped spans", second)
+	}
+}
+
 func TestTraceWriterCloseTimeoutCanBeRetried(t *testing.T) {
 	sink := newUncooperativeTraceSink()
 	writer := testTraceWriter(sink, TraceWriterConfig{
@@ -592,6 +646,29 @@ func TestTraceWriterCloseUnblocksBlockedEnqueue(t *testing.T) {
 	}
 }
 
+// traceIDsForDistinctShards returns two trace IDs that route to different
+// shards, so a test can wedge one shard while the other reports independently.
+func traceIDsForDistinctShards(t *testing.T, shards uint32) (string, string) {
+	t.Helper()
+	var first, second string
+	for index := 0; index < 64 && (first == "" || second == ""); index++ {
+		candidate := "trace-" + string(rune('a'+index))
+		if stableTraceShardKey(typedTracePoint{traceID: candidate})%shards == 0 {
+			if first == "" {
+				first = candidate
+			}
+			continue
+		}
+		if second == "" {
+			second = candidate
+		}
+	}
+	if first == "" || second == "" {
+		t.Fatal("could not find trace IDs routing to two distinct shards")
+	}
+	return first, second
+}
+
 // wedgedShardSink blocks one shard forever and permanently rejects the other,
 // so a Close timeout coexists with a shard that has already reported an error.
 type wedgedShardSink struct {
@@ -625,25 +702,7 @@ func (*wedgedShardSink) Close(context.Context) error { return nil }
 // gap in exported flow points would look unexplained downstream.
 func TestTraceWriterCloseTimeoutReportsShardErrors(t *testing.T) {
 	const shards = 2
-	shardFor := func(traceID string) uint32 {
-		return stableTraceShardKey(typedTracePoint{traceID: traceID}) % shards
-	}
-	var blockedTrace, rejectedTrace string
-	for index := 0; index < 64 && (blockedTrace == "" || rejectedTrace == ""); index++ {
-		candidate := "trace-" + string(rune('a'+index))
-		if shardFor(candidate) == 0 {
-			if blockedTrace == "" {
-				blockedTrace = candidate
-			}
-			continue
-		}
-		if rejectedTrace == "" {
-			rejectedTrace = candidate
-		}
-	}
-	if blockedTrace == "" || rejectedTrace == "" {
-		t.Fatal("could not find trace IDs routing to two distinct shards")
-	}
+	blockedTrace, rejectedTrace := traceIDsForDistinctShards(t, shards)
 
 	sink := &wedgedShardSink{
 		blockedTrace: blockedTrace,
@@ -681,10 +740,17 @@ func TestTraceWriterCloseTimeoutReportsShardErrors(t *testing.T) {
 		t.Fatalf("Close error = %v, want it to carry the shard's rejection report", err)
 	}
 
-	// Let the wedged shard finish so it does not outlive the test.
+	// Let the wedged shard finish so it does not outlive the test. The retry
+	// must still carry the rejection: the spans stay lost, and reading the
+	// report once must not erase it. See
+	// TestTraceWriterCloseRetryStillReportsShardErrors.
 	close(sink.release)
-	if err := writer.Close(); err != nil {
-		t.Fatalf("retry Close failed: %v", err)
+	retry := writer.Close()
+	if retry == nil || !strings.Contains(retry.Error(), "permanently rejected") {
+		t.Fatalf("retry Close error = %v, want it to still report the loss", retry)
+	}
+	if strings.Contains(retry.Error(), "did not drain") {
+		t.Fatalf("retry Close error = %v, want no drain timeout once the shard finished", retry)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,8 @@ type TraceWriter struct {
 	stopped      atomic.Bool
 	stopOnce     sync.Once
 	resultOnce   sync.Once
+	shardErrMu   sync.Mutex
+	shardErrs    []error
 	closeErr     error
 	closeTimeout time.Duration
 }
@@ -147,11 +150,7 @@ func (w *TraceWriter) Close() error {
 	select {
 	case <-w.done:
 		w.resultOnce.Do(func() {
-			var shardErrors []error
-			for err := range w.workerErrors {
-				shardErrors = append(shardErrors, err)
-			}
-			w.closeErr = errors.Join(shardErrors...)
+			w.closeErr = errors.Join(w.collectShardErrors()...)
 		})
 		return w.closeErr
 	case <-timer.C:
@@ -160,30 +159,32 @@ func (w *TraceWriter) Close() error {
 		// up on undrained spans reports how many it dropped, and that is the
 		// only signal that the exported trace is incomplete. Losing it here
 		// turns a known gap into an unexplained one downstream.
-		reported := w.reportedShardErrors()
 		return errors.Join(append(
 			[]error{fmt.Errorf("trace writer did not drain within %s", w.closeTimeout)},
-			reported...,
+			w.collectShardErrors()...,
 		)...)
 	}
 }
 
-// reportedShardErrors removes the shard errors published so far without
-// blocking. Each shard publishes at most one error into a buffer sized for every
-// shard, so this collects everything reported up to this instant.
-func (w *TraceWriter) reportedShardErrors() []error {
-	var shardErrors []error
+// collectShardErrors moves everything shards have published so far into
+// w.shardErrs and returns the accumulated set. Reading the channel is
+// destructive, so a Close() that times out would otherwise consume the only
+// record of a shard's lost spans and let a later retry report a clean shutdown.
+// Accumulating instead keeps every report available to every caller.
+func (w *TraceWriter) collectShardErrors() []error {
+	w.shardErrMu.Lock()
+	defer w.shardErrMu.Unlock()
 	for {
 		select {
 		case err, ok := <-w.workerErrors:
 			if !ok {
-				return shardErrors
+				return slices.Clone(w.shardErrs)
 			}
 			if err != nil {
-				shardErrors = append(shardErrors, err)
+				w.shardErrs = append(w.shardErrs, err)
 			}
 		default:
-			return shardErrors
+			return slices.Clone(w.shardErrs)
 		}
 	}
 }

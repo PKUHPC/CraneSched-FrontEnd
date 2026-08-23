@@ -211,6 +211,74 @@ func TestInfluxLookupTreatsTypedNotFoundAsMissingResource(t *testing.T) {
 	}
 }
 
+// Two cplugind instances starting together both see the resource missing and
+// both POST it; one gets 409. That is not a failure -- the peer created exactly
+// what this instance wanted. Treating it as fatal fails plugin Load and takes
+// the whole trace pipeline down over a benign race.
+//
+// The server models the race faithfully: the lookup misses until the peer's
+// create lands, then succeeds.
+func TestCreateBucketTreatsConflictAsSuccess(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		resource string
+	}{
+		{name: "bucket", resource: "/api/v2/buckets"},
+		{name: "organization", resource: "/api/v2/orgs"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var peerCreated atomic.Bool
+			server := httptest.NewServer(http.HandlerFunc(
+				func(writer http.ResponseWriter, request *http.Request) {
+					writer.Header().Set("Content-Type", "application/json")
+					orgBody := `{"orgs":[{"id":"org-id","name":"crane"}]}`
+					bucketBody := `{"buckets":[{"id":"bucket-id","orgID":"org-id",` +
+						`"name":"trace","retentionRules":[]}]}`
+					switch {
+					case request.Method == http.MethodGet && request.URL.Path == "/api/v2/orgs":
+						if tc.resource == "/api/v2/orgs" && !peerCreated.Load() {
+							writer.WriteHeader(http.StatusNotFound)
+							_, _ = io.WriteString(writer,
+								`{"code":"not found","message":"organization not found"}`)
+							return
+						}
+						_, _ = io.WriteString(writer, orgBody)
+					case request.Method == http.MethodGet && request.URL.Path == "/api/v2/buckets":
+						if tc.resource == "/api/v2/buckets" && !peerCreated.Load() {
+							writer.WriteHeader(http.StatusNotFound)
+							_, _ = io.WriteString(writer,
+								`{"code":"not found","message":"bucket not found"}`)
+							return
+						}
+						_, _ = io.WriteString(writer, bucketBody)
+					case request.Method == http.MethodPost && request.URL.Path == tc.resource:
+						// The peer won the race between our lookup and our POST.
+						peerCreated.Store(true)
+						writer.WriteHeader(http.StatusConflict)
+						_, _ = io.WriteString(writer,
+							`{"code":"conflict","message":"already exists"}`)
+					case request.Method == http.MethodPost && request.URL.Path == "/api/v2/buckets":
+						writer.WriteHeader(http.StatusCreated)
+						_, _ = io.WriteString(writer,
+							`{"id":"bucket-id","orgID":"org-id","name":"trace","retentionRules":[]}`)
+					default:
+						t.Errorf("unexpected Influx request: %s %s",
+							request.Method, request.URL.String())
+						writer.WriteHeader(http.StatusNotFound)
+					}
+				}))
+			t.Cleanup(server.Close)
+			client := influxdb2.NewClient(server.URL, "test-token")
+			t.Cleanup(client.Close)
+			store := &InfluxTraceStore{client: client, org: "crane"}
+
+			if err := store.createBucketIfNotExists(context.Background(), "trace"); err != nil {
+				t.Fatalf("concurrent %s creation must not fail: %v", tc.name, err)
+			}
+		})
+	}
+}
+
 func TestCreateBucketContinuesAfterTypedNotFoundLookup(t *testing.T) {
 	var createCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -513,7 +581,7 @@ func TestInfluxCloseDeadlineWaitsForSingleClientCloseWithoutMarkingClosed(t *tes
 	}
 }
 
-func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
+func TestFlowPointPromotesOnlyBoundedAttributesToTags(t *testing.T) {
 	point, err := encodeSpanForEnvironment(
 		testSpan("flow/v1/ctld/job/accepted", map[string]string{
 			"flow_id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
@@ -526,8 +594,11 @@ func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
 	}
 
 	tags := pointTags(point)
-	if got := tags["flow_id"]; got != "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4" {
-		t.Fatalf("flow_id tag = %q, want a normalized 32-character ID", got)
+	// flow_id takes a new value per execution, so it stays out of the tag set
+	// -- see TestFlowStorageTagSetDoesNotScaleWithFlowCount. Only the bounded
+	// environment and slot dimensions are promoted.
+	if _, ok := tags["flow_id"]; ok {
+		t.Fatal("per-execution flow_id must not be an Influx tag")
 	}
 	if got := tags["flow_environment_id"]; got != "gh-123_ABC.1" {
 		t.Fatalf("flow_environment_id tag = %q, want %q", got, "gh-123_ABC.1")
@@ -542,8 +613,8 @@ func TestFlowPointPromotesValidatedAttributesToTags(t *testing.T) {
 		t.Fatal("unique span_id must not be an Influx tag")
 	}
 	fields := pointFields(point)
-	if _, ok := fields["flow_id"]; ok {
-		t.Fatal("promoted flow_id must not remain a field")
+	if got := fields["flow_id"]; got != "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4" {
+		t.Fatalf("flow_id field = %#v, want the normalized 32-character ID", got)
 	}
 	if _, ok := fields["flow_environment_id"]; ok {
 		t.Fatal("promoted flow_environment_id must not remain a field")

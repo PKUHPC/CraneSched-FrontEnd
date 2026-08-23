@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -207,6 +208,61 @@ func TestEqualNanosecondFlowPointsUseDistinctSequenceSlots(t *testing.T) {
 	}
 	if firstPoint.tags["flow_slot"] == secondPoint.tags["flow_slot"] {
 		t.Fatalf("equal-nanosecond points share slot %q", firstPoint.tags["flow_slot"])
+	}
+}
+
+// InfluxDB series cardinality is the number of distinct tag sets, not the
+// number of distinct slot pairs. A per-execution identifier in the tag set
+// therefore costs one series per flow, forever -- exactly what the bounded slot
+// design exists to prevent. Buckets are created without a retention rule, so
+// those series never age out either.
+//
+// The sibling slot test deliberately holds flow_id constant to isolate the slot
+// dimensions, which means it cannot observe this. Vary flow_id here.
+func TestFlowStorageTagSetDoesNotScaleWithFlowCount(t *testing.T) {
+	pipeline, err := newTracePointPipeline("run-1.shard-0", generatedExecutionFlowCatalog)
+	if err != nil {
+		t.Fatalf("newTracePointPipeline() error = %v", err)
+	}
+
+	const flows = 512
+	tagSets := make(map[string]struct{})
+	for flow := 0; flow < flows; flow++ {
+		flowID := fmt.Sprintf("%032x", flow)
+		for sequence := 0; sequence < 4; sequence++ {
+			span := testSpan("flow/v1/ctld/job/accepted", map[string]string{
+				"flow_id":          flowID,
+				"service_instance": "ctld#instance-0",
+				"event_sequence":   strconv.Itoa(sequence),
+			})
+			point, processErr := pipeline.Process(rawTracePoint{span: span})
+			if processErr != nil {
+				t.Fatalf("process flow %d sequence %d: %v", flow, sequence, processErr)
+			}
+			if _, tagged := point.tags["flow_id"]; tagged {
+				t.Fatal("flow_id is a tag; every execution would open a new series")
+			}
+			if got := point.fields["flow_id"]; got != flowID {
+				t.Fatalf("flow_id field = %#v, want %q", got, flowID)
+			}
+			keys := make([]string, 0, len(point.tags))
+			for key := range point.tags {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			var key strings.Builder
+			for _, name := range keys {
+				fmt.Fprintf(&key, "%s=%s,", name, point.tags[name])
+			}
+			tagSets[key.String()] = struct{}{}
+		}
+	}
+
+	if len(tagSets) >= flows {
+		t.Fatalf("tag set cardinality %d scales with the %d distinct flows", len(tagSets), flows)
+	}
+	if maxTagSets := flowCollisionSlots * flowInstanceSlots; len(tagSets) > maxTagSets {
+		t.Fatalf("tag set cardinality = %d, want at most %d", len(tagSets), maxTagSets)
 	}
 }
 
