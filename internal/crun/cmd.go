@@ -89,6 +89,8 @@ var (
 	FlagNTasksPerCore string
 	FlagConstraint    string
 	FlagSignal        string
+	FlagDistribution  string
+	FlagLabel         bool
 
 	FlagProlog     string
 	FlagEpilog     string
@@ -161,6 +163,18 @@ func init() {
 	RootCmd.MarkFlagsMutuallyExclusive("mem", "mem-per-cpu")
 	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
+	RootCmd.Flags().StringVar(&FlagMultiProg, "multi-prog", "", "")
+	RootCmd.Flags().StringVar(&FlagOversubscribe, "oversubscribe", "", "")
+	RootCmd.Flags().StringVar(&FlagCpuBind, "cpu-bind", "", "")
+	RootCmd.Flags().StringVar(&FlagWait, "wait", "", "")
+	RootCmd.Flags().StringVar(&FlagVerbose, "verbose", "", "")
+	RootCmd.Flags().StringVar(&FlagError, "error", "", "")
+	RootCmd.Flags().StringVar(&FlagKillOnBadExit, "kill-on-bad-exit", "", "")
+	RootCmd.Flags().StringVar(&FlagExtraNodeInfo, "extra-node-info", "", "")
+	RootCmd.Flags().StringVar(&FlagNTasksPerCore, "ntasks-per-core", "", "")
+	RootCmd.Flags().StringVar(&FlagConstraint, "constraint", "", "")
+	RootCmd.Flags().StringVar(&FlagDistribution, "distribution", "", "")
+	RootCmd.Flags().BoolVar(&FlagLabel, "label", false, "")
 
 	RootCmd.Flags().StringVarP(&FlagProlog, "prolog", "", "", "Prolog of the job")
 	RootCmd.Flags().StringVarP(&FlagEpilog, "epilog", "", "", "Epilog of the job")
