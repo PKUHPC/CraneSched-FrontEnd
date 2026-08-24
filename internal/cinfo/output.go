@@ -396,6 +396,10 @@ func ExtraDealNodeList(reply *protos.QueryClusterInfoReply) {
 func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
 	table := tablewriter.NewWriter(os.Stdout)
 	util.SetBorderlessTable(table)
+	if FlagFormat == "" {
+		// Keep long node lists from widening the whole table past the terminal.
+		table.SetAutoWrapText(true)
+	}
 
 	if err := FillTable(reply, table); err != nil {
 		return err
