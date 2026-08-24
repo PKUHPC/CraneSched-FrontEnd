@@ -66,8 +66,8 @@ var (
 	FlagLicenses string
 	// not implement feature:
 	FlagNTasks  string
-	FlagNoKill  string
-	FlagVerbose string
+	FlagNoKill  bool
+	FlagVerbose bool
 
 	RootCmd = &cobra.Command{
 		Use:     "calloc",
@@ -125,6 +125,6 @@ func init() {
 	RootCmd.Flags().BoolVarP(&FlagQuiet, "quiet", "Q", false, "Quiet mode (suppress informational messages)")
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R}:]<sig_num>[@sig_time]")
-	RootCmd.Flags().StringVarP(&FlagNoKill, "no-kill", "k", "", "")
-	RootCmd.Flags().StringVarP(&FlagVerbose, "verbose", "v", "", "")
+	RootCmd.Flags().BoolVarP(&FlagNoKill, "no-kill", "k", false, "")
+	RootCmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
 }
