@@ -50,6 +50,7 @@ ENTITIES:
   lic         - Licenses
   hostnames   - Expand a hostlist expression
   trace       - Runtime tracing configuration
+  config      - Configuration file contents
 
 COMMANDS:
   show node [<nodename>]
@@ -78,6 +79,9 @@ COMMANDS:
 
   show trace
     Show runtime tracing configuration and the compiled tracing limit.
+
+  show config
+    Show the contents of the configuration file.
 
   update nodeName=<nodename> state=<state> [reason=<reason>]
     Update attributes of a node.

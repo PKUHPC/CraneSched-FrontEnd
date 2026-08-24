@@ -113,6 +113,7 @@ type EntityType struct {
 	PartitionAcl bool `parser:"| @'partition-acl'"`
 	JobHistory   bool `parser:"| @'job-history'"`
 	Trace        bool `parser:"| @'trace'"`
+	Config       bool `parser:"| @'config'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -162,6 +163,8 @@ func (e EntityType) String() string {
 		return "job-history"
 	case e.Trace:
 		return "trace"
+	case e.Config:
+		return "config"
 	default:
 		return ""
 	}

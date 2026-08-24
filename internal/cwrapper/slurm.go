@@ -31,7 +31,9 @@ import (
 	"CraneFrontEnd/internal/creport"
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -111,16 +113,26 @@ func sacct() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cacct.RootCmd.Use = "sacct [flags]"
 			convertedArgs := make([]string, 0, len(args))
-			for _, arg := range args {
-				switch arg {
-				case "--jobs":
+			for i := 0; i < len(args); i++ {
+				arg := args[i]
+				switch {
+				case arg == "--jobs":
 					convertedArgs = append(convertedArgs, "--job")
-				case "--starttime":
+				case arg == "--starttime":
 					convertedArgs = append(convertedArgs, "--start-time")
-				case "--endtime":
+				case arg == "--endtime":
 					convertedArgs = append(convertedArgs, "--end-time")
-				case "-n":
+				case arg == "-n":
 					convertedArgs = append(convertedArgs, "-N")
+				case arg == "-o" || arg == "--format":
+					convertedArgs = append(convertedArgs, arg)
+					if i+1 < len(args) {
+						convertedArgs = append(convertedArgs, convertSacctFormat(args[i+1]))
+						i++
+					}
+				case strings.HasPrefix(arg, "--format="):
+					convertedArgs = append(convertedArgs,
+						"--format="+convertSacctFormat(strings.TrimPrefix(arg, "--format=")))
 				default:
 					convertedArgs = append(convertedArgs, arg)
 				}
@@ -149,6 +161,37 @@ func sacct() *cobra.Command {
 		"Use this comma separated list of user names to select jobs to display.")
 
 	return cmd
+}
+
+var sacctFormatSpecRegex = regexp.MustCompile(`%\.?\d*[a-zA-Z]`)
+
+// Field names that Slurm and cacct spell differently.
+var sacctFieldAliases = map[string]string{
+	"elapsed": "ElapsedTime",
+	"user":    "UserName",
+	"nnodes":  "NodeNum",
+	"start":   "StartTime",
+	"end":     "EndTime",
+	"submit":  "SubmitTime",
+}
+
+// convertSacctFormat converts a Slurm-style comma separated field name list
+// (e.g. "JobID,JobName%20,Elapsed") into the %-specifier format accepted by
+// cacct. Values already written in the %-specifier format are left unchanged.
+func convertSacctFormat(format string) string {
+	if sacctFormatSpecRegex.MatchString(format) {
+		return format
+	}
+	fields := strings.Split(format, ",")
+	specifiers := make([]string, 0, len(fields))
+	for _, field := range fields {
+		name, width, _ := strings.Cut(field, "%")
+		if alias, ok := sacctFieldAliases[strings.ToLower(name)]; ok {
+			name = alias
+		}
+		specifiers = append(specifiers, "%"+width+name)
+	}
+	return strings.Join(specifiers, " ")
 }
 
 func sacctmgr() *cobra.Command {
@@ -667,6 +710,14 @@ func sbatch() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cbatch.RootCmd.Use = "sbatch [flags] file"
 			cbatch.RootCmd.InitDefaultHelpFlag()
+			cbatch.RootCmd.InitDefaultVersionFlag()
+			for i, arg := range args {
+				if (arg == "-t" || arg == "--time") && i+1 < len(args) {
+					args[i+1] = cbatch.ConvertSlurmTimeFormat(args[i+1])
+				} else if strings.HasPrefix(arg, "--time=") {
+					args[i] = "--time=" + cbatch.ConvertSlurmTimeFormat(strings.TrimPrefix(arg, "--time="))
+				}
+			}
 
 			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
 				log.Error(err)
@@ -675,6 +726,10 @@ func sbatch() *cobra.Command {
 			args = cbatch.RootCmd.Flags().Args()
 			if help, err := cbatch.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return cbatch.RootCmd.Help()
+			}
+			if version, err := cbatch.RootCmd.Flags().GetBool("version"); err == nil && version {
+				fmt.Println(util.Version())
+				return nil
 			}
 			PrintSbatchIgnoreArgsMessage()
 			cbatch.RootCmd.PersistentPreRun(cmd, args)
@@ -893,6 +948,8 @@ func normalizeScontrolShowEntity(arg string) (string, bool) {
 		return "lic", true
 	case "lic":
 		return "lic", true
+	case "config":
+		return "config", true
 	default:
 		return "", false
 	}
@@ -937,17 +994,19 @@ func sinfo() *cobra.Command {
 		Short:   "View node and partition information",
 		Long:    "",
 		GroupID: "slurm",
+		Version: util.Version(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cinfo.RootCmd.PersistentPreRun(cmd, args)
 			return cinfo.RootCmd.RunE(cmd, args)
 		},
 	}
+	cmd.SetVersionTemplate(util.VersionTemplate())
 
 	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
 	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
 	// 	"List only a partition state summary with no node state details.")
-	// cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
-	// 	"List reasons nodes are in the down, drained, fail or failing state.")
+	cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
+		"List reasons nodes are in the down, drained, fail or failing state.")
 
 	cmd.Flags().BoolVarP(&cinfo.FlagFilterDownOnly, "dead", "d", false,
 		"If set, only report state information for non-responding (dead) nodes.")
@@ -977,14 +1036,24 @@ func squeue() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cqueue.RootCmd.Use = "squeue [flags]"
 			convertedArgs := make([]string, 0, len(args))
-			for _, arg := range args {
-				switch arg {
-				case "-h":
+			for i := 0; i < len(args); i++ {
+				arg := args[i]
+				switch {
+				case arg == "-h":
 					convertedArgs = append(convertedArgs, "-N")
-				case "--jobs":
+				case arg == "--jobs":
 					convertedArgs = append(convertedArgs, "--job")
-				case "--states":
+				case arg == "--states":
 					convertedArgs = append(convertedArgs, "--state")
+				case arg == "-o" || arg == "--format":
+					convertedArgs = append(convertedArgs, arg)
+					if i+1 < len(args) {
+						convertedArgs = append(convertedArgs, convertSqueueFormat(args[i+1]))
+						i++
+					}
+				case strings.HasPrefix(arg, "--format="):
+					convertedArgs = append(convertedArgs,
+						"--format="+convertSqueueFormat(strings.TrimPrefix(arg, "--format=")))
 				default:
 					convertedArgs = append(convertedArgs, arg)
 				}
@@ -1065,6 +1134,35 @@ Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum w
          Name with a minimum width of 20, and the State.
 `)
 	return cmd
+}
+
+var squeueFormatSpecRegex = regexp.MustCompile(`%(\.?\d*)([a-zA-Z]+)`)
+
+// Single-letter format specifiers that Slurm and cqueue assign different
+// meanings to. Letters sharing the same meaning need no entry.
+var squeueFormatSpecMapping = map[string]string{
+	"i": "j", // job id
+	"j": "n", // job name
+	"n": "r", // requested nodes
+	"M": "e", // elapsed time
+	"m": "M", // requested memory per node
+	"D": "N", // number of nodes
+	"N": "L", // node list
+	"T": "t", // job state
+	"V": "s", // submit time
+}
+
+// convertSqueueFormat rewrites the Slurm single-letter format specifiers in a
+// format string to their cqueue equivalents. Multi-letter (cqueue-style)
+// specifiers and unmapped letters are left unchanged.
+func convertSqueueFormat(format string) string {
+	return squeueFormatSpecRegex.ReplaceAllStringFunc(format, func(spec string) string {
+		sub := squeueFormatSpecRegex.FindStringSubmatch(spec)
+		if converted, ok := squeueFormatSpecMapping[sub[2]]; ok {
+			return "%" + sub[1] + converted
+		}
+		return spec
+	})
 }
 
 func sreport() *cobra.Command {
