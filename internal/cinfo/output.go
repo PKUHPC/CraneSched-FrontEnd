@@ -316,6 +316,23 @@ func FindTableDataByReply(reply *protos.QueryClusterInfoReply) [][]string {
 	return tableData
 }
 
+const nodeListLineWidth = 40
+
+func wrapNodeList(nodeList string) string {
+	var lines []string
+	for len(nodeList) > nodeListLineWidth {
+		commaOffset := strings.Index(nodeList[nodeListLineWidth:], ",")
+		if commaOffset < 0 {
+			break
+		}
+		lineEnd := nodeListLineWidth + commaOffset + 1
+		lines = append(lines, nodeList[:lineEnd])
+		nodeList = nodeList[lineEnd:]
+	}
+	lines = append(lines, nodeList)
+	return strings.Join(lines, "\n")
+}
+
 func FillTable(reply *protos.QueryClusterInfoReply, table *tablewriter.Table) error {
 	var err error
 	header := []string{"PARTITION", "AVAIL", "NODES", "STATE", "NODELIST"}
@@ -332,6 +349,10 @@ func FillTable(reply *protos.QueryClusterInfoReply, table *tablewriter.Table) er
 		}
 		table.SetTablePadding("")
 		table.SetAutoFormatHeaders(false)
+	} else {
+		for i := range tableData {
+			tableData[i][4] = wrapNodeList(tableData[i][4])
+		}
 	}
 	table.AppendBulk(tableData)
 	if !FlagNoHeader {
