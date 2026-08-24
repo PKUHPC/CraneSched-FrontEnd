@@ -82,7 +82,7 @@ var (
 	FlagDeadline      string
 	FlagWait          string
 	FlagMpi           string
-	FlagVerbose       string
+	FlagVerbose       bool
 	FlagError         string
 	FlagKillOnBadExit string
 	FlagExtraNodeInfo string
@@ -167,7 +167,7 @@ func init() {
 	RootCmd.Flags().StringVar(&FlagOversubscribe, "oversubscribe", "", "")
 	RootCmd.Flags().StringVar(&FlagCpuBind, "cpu-bind", "", "")
 	RootCmd.Flags().StringVar(&FlagWait, "wait", "", "")
-	RootCmd.Flags().StringVar(&FlagVerbose, "verbose", "", "")
+	RootCmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
 	RootCmd.Flags().StringVar(&FlagError, "error", "", "")
 	RootCmd.Flags().StringVar(&FlagKillOnBadExit, "kill-on-bad-exit", "", "")
 	RootCmd.Flags().StringVar(&FlagExtraNodeInfo, "extra-node-info", "", "")

@@ -542,6 +542,11 @@ func salloc() *cobra.Command {
 			calloc.RootCmd.Use = "salloc"
 			// Add --help from calloc
 			calloc.RootCmd.InitDefaultHelpFlag()
+			for i, arg := range args {
+				if arg == "-v" {
+					args[i] = "--verbose"
+				}
+			}
 
 			// Parse flags
 			if err := calloc.RootCmd.ParseFlags(args); err != nil {
@@ -565,8 +570,8 @@ func salloc() *cobra.Command {
 		},
 	}
 	// not implement feature:
-	cmd.Flags().StringVarP(&calloc.FlagNoKill, "no-kill", "k", "", "")
-	cmd.Flags().StringVarP(&calloc.FlagVerbose, "verbose", "v", "", "")
+	cmd.Flags().BoolVarP(&calloc.FlagNoKill, "no-kill", "k", false, "")
+	cmd.Flags().BoolVarP(&calloc.FlagVerbose, "verbose", "v", false, "")
 
 	return cmd
 }
@@ -681,7 +686,7 @@ func sbatch() *cobra.Command {
 		},
 	}
 	// not implement feature:
-	cmd.Flags().StringVar(&cbatch.FlagParsable, "parsable", "", "")
+	cmd.Flags().BoolVar(&cbatch.FlagParsable, "parsable", false, "")
 	cmd.Flags().StringVar(&cbatch.FlagNTasksPerSocket, "ntasks-per-socket", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCpuFreq, "cpu-freq", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagPriority, "priority", "", "")
@@ -1131,6 +1136,11 @@ func srun() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			crun.RootCmd.Use = "srun [flags] executable"
 			crun.RootCmd.InitDefaultHelpFlag()
+			for i, arg := range args {
+				if arg == "-v" {
+					args[i] = "--verbose"
+				}
+			}
 
 			if err := crun.RootCmd.ParseFlags(args); err != nil {
 				log.Error(err)
@@ -1158,7 +1168,7 @@ func srun() *cobra.Command {
 	cmd.Flags().StringVarP(&crun.FlagWait, "wait", "w", "", "")
 	cmd.Flags().StringVar(&crun.FlagMpi, "mpi", "", "")
 	cmd.Flags().StringVarP(&crun.FlagDependency, "dependency", "d", "", "")
-	cmd.Flags().StringVarP(&crun.FlagVerbose, "verbose", "v", "", "")
+	cmd.Flags().BoolVarP(&crun.FlagVerbose, "verbose", "v", false, "")
 	cmd.Flags().StringVarP(&crun.FlagError, "error", "e", "", "")
 	cmd.Flags().StringVarP(&crun.FlagKillOnBadExit, "kill-on-bad-exit", "k", "", "")
 	cmd.Flags().StringVarP(&crun.FlagExtraNodeInfo, "extra-node-info", "B", "", "")
@@ -1204,7 +1214,7 @@ func PrintSrunIgnoreDummyArgsMessage() {
 	if crun.FlagDependency != "" {
 		log.Warning("The feature --dependency/-d is not yet supported by Crane, the use is ignored.")
 	}
-	if crun.FlagVerbose != "" {
+	if crun.FlagVerbose {
 		log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 	}
 	if crun.FlagError != "" {
@@ -1231,16 +1241,16 @@ func PrintSrunIgnoreDummyArgsMessage() {
 }
 
 func PrintSallocIgnoreDummyArgsMessage() {
-	if calloc.FlagNoKill != "" {
+	if calloc.FlagNoKill {
 		log.Warning("The feature --no-kill/-k is not yet supported by Crane, the use is ignored.")
 	}
-	if calloc.FlagVerbose != "" {
+	if calloc.FlagVerbose {
 		log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 	}
 }
 
 func PrintSbatchIgnoreArgsMessage() {
-	if cbatch.FlagParsable != "" {
+	if cbatch.FlagParsable {
 		log.Warning("The feature --parsable is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagNTasksPerSocket != "" {
