@@ -95,7 +95,8 @@ func SetFieldsFromEnv(job *protos.JobToCtld, step *protos.StepToCtld) error {
 				return util.NewCraneErr(util.ErrorInvalidFormat, "invalid CRANE_JOB_NUM_NODES from env")
 			}
 			if job != nil {
-				job.NodeNum = uint32(numNodes)
+				job.NodeNumMin = uint32(numNodes)
+				job.NodeNumMax = uint32(numNodes)
 			} else {
 				step.NodeNum = uint32(numNodes)
 			}
