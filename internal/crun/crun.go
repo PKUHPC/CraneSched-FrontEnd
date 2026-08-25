@@ -31,8 +31,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/spf13/cobra"
 
-	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 
 	"bufio"
 	"context"
@@ -78,7 +78,7 @@ type GlobalVariables struct {
 	globalCtx       context.Context
 	globalCtxCancel context.CancelFunc
 
-	connectionBroken bool
+	connectionBroken atomic.Bool
 }
 
 var gVars GlobalVariables
@@ -109,9 +109,12 @@ type StateMachineOfCrun struct {
 	conn   *grpc.ClientConn
 	client protos.CraneForeDClient
 	stream grpc.BidiStreamingClient[protos.StreamCrunRequest, protos.StreamCrunReply]
+	sender *crunStreamSender
 
-	sigs         chan os.Signal
-	savedPtyAttr unix.Termios
+	sigs               chan os.Signal
+	savedTerminalState *term.State
+	savedStdinFlags    int
+	terminalConfigured bool
 
 	cforedReplyReceiver *CforedReplyReceiver
 
@@ -120,8 +123,10 @@ type StateMachineOfCrun struct {
 	stopStepCb  context.CancelFunc
 	//stop step will stop reading from local stdin/file/x11
 	stopReadCtx             context.Context
+	stopReadCb              context.CancelFunc
 	stopWriteCtx            context.Context
 	stopWriteCb             context.CancelFunc
+	inputWg                 sync.WaitGroup
 	writerWg                sync.WaitGroup
 	chanInputFromLocal      chan []byte
 	chanOutputFromRemote    chan []byte
@@ -196,8 +201,30 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 }
 
 func (m *StateMachineOfCrun) Close() {
+	if m.stopReadCb != nil {
+		m.stopReadCb()
+	}
+	m.inputWg.Wait()
+	if m.stopWriteCb != nil {
+		m.stopWriteCb()
+	}
+	m.writerWg.Wait()
+
+	if m.terminalConfigured {
+		if err := term.Restore(int(os.Stdin.Fd()), m.savedTerminalState); err != nil {
+			log.Errorf("Failed to restore stdin terminal state: %s", err)
+		}
+		if _, err := unix.FcntlInt(os.Stdin.Fd(), unix.F_SETFL, m.savedStdinFlags); err != nil {
+			log.Errorf("Failed to restore stdin flags: %s", err)
+		}
+		m.terminalConfigured = false
+	}
+
 	if m.cforedReplyReceiver != nil {
 		m.cforedReplyReceiver.MarkExpectedClose()
+	}
+	if gVars.globalCtxCancel != nil {
+		gVars.globalCtxCancel()
 	}
 	if m.conn != nil {
 		err := m.conn.Close()
@@ -205,12 +232,38 @@ func (m *StateMachineOfCrun) Close() {
 			log.Errorf("Failed to close grpc conn: %s", err)
 		}
 	}
-
-	if FlagPty {
-		if err := termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &m.savedPtyAttr); err != nil {
-			log.Errorf("Failed to restore stdin attr: %s", err.Error())
-		}
+	if m.sender != nil {
+		m.sender.Close()
 	}
+	signal.Stop(m.sigs)
+}
+
+func (m *StateMachineOfCrun) sendRequest(
+	ctx context.Context,
+	request *protos.StreamCrunRequest,
+) error {
+	if m.sender == nil {
+		return errors.New("crun stream sender is not initialized")
+	}
+	return m.sender.Send(ctx, request)
+}
+
+func (m *StateMachineOfCrun) configureTerminal() error {
+	if !FlagPty || m.terminalConfigured {
+		return nil
+	}
+	flags, err := unix.FcntlInt(os.Stdin.Fd(), unix.F_GETFL, 0)
+	if err != nil {
+		return fmt.Errorf("get stdin flags: %w", err)
+	}
+	state, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("set stdin raw mode: %w", err)
+	}
+	m.savedStdinFlags = flags
+	m.savedTerminalState = state
+	m.terminalConfigured = true
+	return nil
 }
 
 func (m *StateMachineOfCrun) StateConnectCfored() {
@@ -283,6 +336,7 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		m.state = End
 		return
 	}
+	m.sender = newCrunStreamSender(gVars.globalCtx, m.stream)
 
 	m.cforedReplyReceiver = new(CforedReplyReceiver)
 	m.cforedReplyReceiver.StartReplyReceiveRoutine(m.stream)
@@ -309,10 +363,10 @@ func (m *StateMachineOfCrun) StateConnectCfored() {
 		}
 	}
 
-	if err := m.stream.Send(request); err != nil {
+	if err := m.sendRequest(gVars.globalCtx, request); err != nil {
 		log.Errorf("Failed to send Request to CrunStream: %s. "+
 			"Connection to Crun is broken", err)
-		gVars.connectionBroken = true
+		gVars.connectionBroken.Store(true)
 
 		m.state = End
 		m.err = util.ErrorNetwork
@@ -335,7 +389,7 @@ func (m *StateMachineOfCrun) StateReqJobId() {
 			default:
 				log.Errorf("Connection to Cfored broken when requesting "+
 					"job id: %s. Exiting...", err)
-				gVars.connectionBroken = true
+				gVars.connectionBroken.Store(true)
 				m.state = End
 				m.err = util.ErrorNetwork
 				return
@@ -393,7 +447,7 @@ func (m *StateMachineOfCrun) StateWaitRes() {
 			default:
 				log.Errorf("Connection to Cfored broken when waiting "+
 					"resource allocated: %s. Exiting...", err)
-				gVars.connectionBroken = true
+				gVars.connectionBroken.Store(true)
 				m.state = End
 				m.err = util.ErrorNetwork
 				return
@@ -454,7 +508,7 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 			default:
 				log.Errorf("Connection to Cfored broken when waiting for forwarding user i/o "+
 					"%s. Exiting...", err)
-				gVars.connectionBroken = true
+				gVars.connectionBroken.Store(true)
 				m.state = End
 				m.err = util.ErrorNetwork
 				return
@@ -503,35 +557,14 @@ func (m *StateMachineOfCrun) StateForwarding() {
 	var request *protos.StreamCrunRequest
 	var taskIdWithInput *uint32
 
-	if FlagPty {
-		ptyAttr := unix.Termios{}
-		err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
-		if err != nil {
-			log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
-			m.state = JobKilling
-			m.err = util.ErrorSystem
-			return
-		}
-		m.savedPtyAttr = ptyAttr
-
-		termios.Cfmakeraw(&ptyAttr)
-		termios.Cfmakecbreak(&ptyAttr)
-		err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
-		if err != nil {
-			log.Errorf("Failed to get stdin attr: %s,killing", err.Error())
-			m.state = JobKilling
-			m.err = util.ErrorSystem
-			return
-		}
+	if err := m.configureTerminal(); err != nil {
+		log.Errorf("Failed to initialize local terminal: %s; killing", err)
+		m.state = JobKilling
+		m.err = util.ErrorSystem
+		return
 	}
 
 	m.StartIOForward()
-	var x11ReqFromLocal chan *protos.StreamCrunRequest
-	if m.X11SessionMgr != nil {
-		x11ReqFromLocal = m.X11SessionMgr.X11RequestChan
-	} else {
-		x11ReqFromLocal = nil
-	}
 
 	parsedId, err := strconv.ParseUint(m.inputFlag, 10, 32)
 	if err == nil {
@@ -544,54 +577,10 @@ func (m *StateMachineOfCrun) StateForwarding() {
 		}
 	}
 
-	// Forward input to Cfored.
-	go func() {
-		for {
-			select {
-			case msg, ok := <-m.chanInputFromLocal:
-				if !ok {
-					msg = nil
-				}
-				request = &protos.StreamCrunRequest{
-					Type: protos.StreamCrunRequest_TASK_IO_FORWARD,
-					Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
-						PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
-							Msg:    msg,
-							Eof:    msg == nil,
-							TaskId: taskIdWithInput,
-						},
-					},
-				}
-				if err := m.stream.Send(request); err != nil {
-					log.Errorf("Failed to send Job Request to CrunStream: %s. "+
-						"Connection to Crun is broken", err)
-					gVars.connectionBroken = true
-					return
-				}
-				if msg == nil {
-					return
-				}
-
-			case request := <-x11ReqFromLocal:
-				if err := m.stream.Send(request); err != nil {
-					log.Errorf("Failed to send Job X11 Input to CrunStream: %s. "+
-						"Connection to Crun is broken", err)
-					gVars.connectionBroken = true
-					return
-				}
-
-			//If stop reading, no more input allowed to send, otherwise may cause cfored blocked forever.
-			case <-m.stopReadCtx.Done():
-				for range m.chanInputFromLocal {
-					log.Tracef("Drained 1 msg from chanInputFromLocal after stopReadCtx done")
-				}
-				for range x11ReqFromLocal {
-					log.Tracef("Drained 1 msg from x11ReqFromLocal after stopReadCtx done")
-				}
-				return
-			}
-		}
-	}()
+	m.startInputRoutine(func() { m.forwardLocalRequests(taskIdWithInput) })
+	if FlagPty {
+		m.startInputRoutine(m.forwardTerminalResize)
+	}
 
 	for m.state == Forwarding {
 		select {
@@ -606,11 +595,11 @@ func (m *StateMachineOfCrun) StateForwarding() {
 			}
 
 			log.Debug("Sending JOB_COMPLETION_REQUEST with COMPLETED state...")
-			if err := m.stream.Send(request); err != nil {
+			if err := m.sendRequest(gVars.globalCtx, request); err != nil {
 				log.Errorf("The connection to Cfored was broken: %s. "+
 					"Exiting...", err)
-				gVars.connectionBroken = true
-				m.state = End
+				gVars.connectionBroken.Store(true)
+				m.state = JobKilling
 				m.err = util.ErrorNetwork
 			} else {
 				m.state = WaitAck
@@ -625,7 +614,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 				default:
 					log.Errorf("The connection to Cfored was broken: %s. "+
 						"Killing job...", err)
-					gVars.connectionBroken = true
+					gVars.connectionBroken.Store(true)
 					m.err = util.ErrorNetwork
 					m.state = JobKilling
 				}
@@ -681,6 +670,124 @@ func (m *StateMachineOfCrun) StateForwarding() {
 
 }
 
+func (m *StateMachineOfCrun) forwardLocalRequests(taskIdWithInput *uint32) {
+	var x11Requests <-chan *protos.StreamCrunRequest
+	if m.X11SessionMgr != nil {
+		x11Requests = m.X11SessionMgr.X11RequestChan
+	}
+
+	for {
+		select {
+		case <-m.stopReadCtx.Done():
+			return
+		case msg, ok := <-m.chanInputFromLocal:
+			eof := !ok || msg == nil
+			request := &protos.StreamCrunRequest{
+				Type: protos.StreamCrunRequest_TASK_IO_FORWARD,
+				Payload: &protos.StreamCrunRequest_PayloadTaskIoForwardReq{
+					PayloadTaskIoForwardReq: &protos.StreamCrunRequest_TaskIOForwardReq{
+						Msg:    msg,
+						Eof:    eof,
+						TaskId: taskIdWithInput,
+					},
+				},
+			}
+			if err := m.sendRequest(m.stopReadCtx, request); err != nil {
+				if m.stopReadCtx.Err() == nil {
+					log.Errorf("Failed to send task input to Cfored: %s", err)
+					gVars.connectionBroken.Store(true)
+					m.stopStepCb()
+				}
+				return
+			}
+			if eof {
+				return
+			}
+		case request := <-x11Requests:
+			if err := m.sendRequest(m.stopReadCtx, request); err != nil {
+				if m.stopReadCtx.Err() == nil {
+					log.Errorf("Failed to send X11 input to Cfored: %s", err)
+					gVars.connectionBroken.Store(true)
+					m.stopStepCb()
+				}
+				return
+			}
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) forwardTerminalResize() {
+	resizeSignals := make(chan os.Signal, 1)
+	signal.Notify(resizeSignals, syscall.SIGWINCH)
+	defer signal.Stop(resizeSignals)
+
+	var previousRows, previousColumns uint32
+	var interactiveMeta *protos.InteractiveJobAdditionalMeta
+	if m.job != nil {
+		interactiveMeta = m.job.GetInteractiveMeta()
+	} else {
+		interactiveMeta = m.step.GetInteractiveMeta()
+	}
+	if initialSize := interactiveMeta.GetTerminalSize(); initialSize != nil {
+		previousRows = initialSize.GetRows()
+		previousColumns = initialSize.GetColumns()
+	}
+
+	for {
+		select {
+		case <-m.stopReadCtx.Done():
+			return
+		case <-resizeSignals:
+			// A one-element signal channel already coalesces bursts. Drain any signal
+			// queued while GetSize was running before publishing the newest size.
+			select {
+			case <-resizeSignals:
+			default:
+			}
+			columns, rows, err := term.GetSize(int(os.Stdin.Fd()))
+			if err != nil {
+				log.Warningf("Failed to read resized terminal dimensions: %s", err)
+				continue
+			}
+			if !validTerminalSize(rows, columns) {
+				log.Warningf("Ignoring invalid resized terminal dimensions %dx%d", rows, columns)
+				continue
+			}
+			if uint32(rows) == previousRows && uint32(columns) == previousColumns {
+				continue
+			}
+
+			request := &protos.StreamCrunRequest{
+				Type: protos.StreamCrunRequest_TERMINAL_RESIZE,
+				Payload: &protos.StreamCrunRequest_PayloadTerminalResizeReq{
+					PayloadTerminalResizeReq: &protos.StreamCrunRequest_TerminalResizeReq{
+						TerminalSize: &protos.TerminalSize{
+							Rows:    uint32(rows),
+							Columns: uint32(columns),
+						},
+						TaskId: 0,
+					},
+				},
+			}
+			if err := m.sendRequest(m.stopReadCtx, request); err != nil {
+				if m.stopReadCtx.Err() == nil {
+					log.Errorf("Failed to send terminal resize to Cfored: %s", err)
+					gVars.connectionBroken.Store(true)
+					m.stopStepCb()
+				}
+				return
+			}
+			previousRows, previousColumns = uint32(rows), uint32(columns)
+		}
+	}
+}
+
+func validTerminalSize(rows, columns int) bool {
+	const maxTerminalDimension = int(^uint16(0))
+	return rows > 0 && rows <= maxTerminalDimension &&
+		columns > 0 && columns <= maxTerminalDimension
+}
+
 func (m *StateMachineOfCrun) StateJobKilling() {
 	request := &protos.StreamCrunRequest{
 		Type: protos.StreamCrunRequest_STEP_COMPLETION_REQUEST,
@@ -691,7 +798,7 @@ func (m *StateMachineOfCrun) StateJobKilling() {
 		},
 	}
 
-	if gVars.connectionBroken {
+	if gVars.connectionBroken.Load() {
 		log.Errorf("The connection to Cfored was broken. Exiting...")
 		m.err = util.ErrorNetwork
 		m.state = End
@@ -699,9 +806,9 @@ func (m *StateMachineOfCrun) StateJobKilling() {
 	}
 
 	log.Debug("Sending JOB_COMPLETION_REQUEST with CANCELLED state...")
-	if err := m.stream.Send(request); err != nil {
+	if err := m.sendRequest(gVars.globalCtx, request); err != nil {
 		log.Errorf("The connection to Cfored was broken: %s. Exiting...", err)
-		gVars.connectionBroken = true
+		gVars.connectionBroken.Store(true)
 		m.err = util.ErrorNetwork
 		m.state = End
 		return
@@ -722,7 +829,7 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		default:
 			log.Errorf("The connection to Cfored was broken: %s. "+
 				"Exiting...", err)
-			gVars.connectionBroken = true
+			gVars.connectionBroken.Store(true)
 			m.err = util.ErrorNetwork
 			m.state = End
 			return
@@ -860,6 +967,8 @@ func (m *StateMachineOfCrun) forwardingSigHandlerRoutine() {
 loop:
 	for {
 		select {
+		case <-m.stopReadCtx.Done():
+			break loop
 		case sig := <-m.sigs:
 			switch sig {
 			/*
@@ -1036,12 +1145,6 @@ func (m *StateMachineOfCrun) StderrFileWriterRoutine(filePattern string) {
 }
 
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
-
-	err := syscall.SetNonblock(int(os.Stdin.Fd()), true)
-	if err != nil {
-		return
-	}
-
 	epfd, err := syscall.EpollCreate1(0)
 	if err != nil {
 		log.Tracef("EpollCreate1: %v", err)
@@ -1064,19 +1167,6 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 	buf := make([]byte, 4096)
 reading:
 	for {
-		if FlagPty {
-			ptyAttr := unix.Termios{}
-			err := termios.Tcgetattr(os.Stdin.Fd(), &ptyAttr)
-			if err != nil {
-				log.Errorf("Failed to get stdin attr")
-			}
-			termios.Cfmakeraw(&ptyAttr)
-			err = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &ptyAttr)
-			if err != nil {
-				log.Errorf("Failed to set stdin attr")
-			}
-		}
-
 		select {
 		case <-m.stopReadCtx.Done():
 			break reading
@@ -1114,7 +1204,12 @@ reading:
 					log.Trace("Read 0 bytes (EOF), closing channel and exiting goroutine")
 					return
 				}
-				m.chanInputFromLocal <- buf[:nr]
+				data := append([]byte(nil), buf[:nr]...)
+				select {
+				case m.chanInputFromLocal <- data:
+				case <-m.stopReadCtx.Done():
+					break reading
+				}
 				log.Tracef("Sent %d bytes to channel", nr)
 			}
 		}
@@ -1268,21 +1363,29 @@ reading:
 			n, err := reader.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
-					m.chanInputFromLocal <- buffer[:n]
-					m.chanInputFromLocal <- nil
+					data := append([]byte(nil), buffer[:n]...)
+					select {
+					case m.chanInputFromLocal <- data:
+					case <-m.stopReadCtx.Done():
+					}
 					break reading
 				}
 				log.Errorf("Failed to read from fd: %v", err)
 				break reading
 			}
-			m.chanInputFromLocal <- buffer[:n]
+			data := append([]byte(nil), buffer[:n]...)
+			select {
+			case m.chanInputFromLocal <- data:
+			case <-m.stopReadCtx.Done():
+				break reading
+			}
 		}
 	}
 }
 
 func (m *StateMachineOfCrun) StartIOForward() {
 	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
-	m.stopReadCtx = context.WithoutCancel(m.stopStepCtx)
+	m.stopReadCtx, m.stopReadCb = context.WithCancel(m.stopStepCtx)
 	// stopWriteCtx is independent of stopStepCtx: it is only cancelled after
 	// Run() returns, at which point no more data will be written to the output
 	// channels.  This avoids a race where stopStepCtx is cancelled inside
@@ -1294,24 +1397,24 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanInputFromLocal = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
 	m.chanErrOutputFromRemote = make(chan []byte, 20)
-	go m.forwardingSigHandlerRoutine()
+	m.startInputRoutine(m.forwardingSigHandlerRoutine)
 	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
 		log.Debugf("Input from stdin to all tasks")
-		go m.StdinReaderRoutine()
+		m.startInputRoutine(m.StdinReaderRoutine)
 	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
 		log.Debugf("No input forwarding")
 	} else {
 		taskId, err := strconv.ParseUint(m.inputFlag, 10, 32)
 		if err != nil {
 			log.Debugf("Input from file %s, filepath is not a number", m.inputFlag)
-			go m.FileReaderRoutine(m.inputFlag)
+			m.startInputRoutine(func() { m.FileReaderRoutine(m.inputFlag) })
 		} else {
 			if taskId < uint64(m.ntasksTotal) {
 				log.Debugf("Input from stdin to %d", taskId)
-				go m.StdinReaderRoutine()
+				m.startInputRoutine(m.StdinReaderRoutine)
 			} else {
 				log.Debugf("Input from file %s, num but greater than ntasksTotal %d", m.inputFlag, m.ntasksTotal)
-				go m.FileReaderRoutine(m.inputFlag)
+				m.startInputRoutine(func() { m.FileReaderRoutine(m.inputFlag) })
 
 			}
 		}
@@ -1377,8 +1480,16 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	}
 	if iaMeta.X11 && iaMeta.GetX11Meta().EnableForwarding {
 		m.X11SessionMgr = NewX11SessionMgr(iaMeta.GetX11Meta(), &m.stopReadCtx)
-		go m.X11SessionMgr.SessionMgrRoutine()
+		m.startInputRoutine(m.X11SessionMgr.SessionMgrRoutine)
 	}
+}
+
+func (m *StateMachineOfCrun) startInputRoutine(routine func()) {
+	m.inputWg.Add(1)
+	go func() {
+		defer m.inputWg.Done()
+		routine()
+	}()
 }
 
 func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
@@ -1861,6 +1972,25 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		iaMeta = step.GetInteractiveMeta()
 	}
 	iaMeta.Pty = FlagPty
+	if FlagPty {
+		columns, rows, err := term.GetSize(int(os.Stdin.Fd()))
+		if err != nil {
+			return util.NewCraneErr(
+				util.ErrorSystem,
+				fmt.Sprintf("Failed to read terminal size: %s.", err),
+			)
+		}
+		if !validTerminalSize(rows, columns) {
+			return util.NewCraneErr(
+				util.ErrorSystem,
+				fmt.Sprintf("Invalid terminal size %dx%d.", rows, columns),
+			)
+		}
+		iaMeta.TerminalSize = &protos.TerminalSize{
+			Rows:    uint32(rows),
+			Columns: uint32(columns),
+		}
+	}
 
 	if FlagX11 {
 		target, port, err := util.GetX11DisplayEx(!FlagX11Fwd)
@@ -1933,14 +2063,8 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	ioMeta.ErrorFilePattern = m.errorFlag
 
 	m.Init(job, step)
-	m.Run()
-	// After Run() returns, no more data will be sent to output channels.
-	// Cancel stopWriteCtx to signal writer goroutines to drain and flush.
-	if m.stopWriteCb != nil {
-		m.stopWriteCb()
-	}
-	m.writerWg.Wait()
 	defer m.Close()
+	m.Run()
 
 	if m.err == util.ErrorSuccess {
 		return nil
