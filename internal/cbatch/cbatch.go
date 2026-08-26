@@ -49,6 +49,7 @@ var (
 // BuildCbatchJob reads flags and script file to build a job
 func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*protos.JobToCtld, error) {
 	job := new(protos.JobToCtld)
+	warnUnsupportedCLIFlags(cmd)
 
 	// Parse the script file or use wrapped script
 	cbatchArgs := make([]CbatchArg, 0)
@@ -436,7 +437,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			job.Name = arg.val
 		case "-A", "--account":
 			job.Account = arg.val
-		case "--qos", "-Q":
+		case "--qos", "-q":
 			job.Qos = arg.val
 		case "--licenses", "-L":
 			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
@@ -445,7 +446,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			}
 			job.LicensesCount = licCount
 			job.IsLicensesOr = isLicenseOr
-		case "--chdir":
+		case "-D", "--chdir":
 			job.Cwd = arg.val
 		case "--exclude", "-x":
 			job.Excludes = arg.val
@@ -484,6 +485,8 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			default:
 				return fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			}
+		case "--wrap":
+			job.ShScript = arg.val
 		case "-r", "--reservation":
 			job.Reservation = arg.val
 		case "--exclusive":
@@ -543,6 +546,12 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			for _, signal := range signals {
 				job.Signals = append(job.Signals, signal)
 			}
+		case "--deadline":
+			deadlineTime, err := util.ParseTime(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: invalid --deadline value '%s' in script: %w", arg.val, err)
+			}
+			job.DeadlineTime = timestamppb.New(deadlineTime)
 		case "--requeue":
 			val, err := parseScriptBool(arg)
 			if err != nil {
@@ -700,11 +709,9 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 
 var unsupportedFlags = map[string]string{
 	"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
-	"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",
 	"ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
 	"cpu-freq":          "The feature --cpu-freq is not yet supported by Crane, the use is ignored.",
 	"priority":          "The feature --priority is not yet supported by Crane, the use is ignored.",
-	"mem-per-cpu":       "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.",
 	"threads-per-core":  "The feature --threads-per-core is not yet supported by Crane, the use is ignored.",
 	"distribution":      "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
 	"m":                 "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
@@ -714,12 +721,34 @@ var unsupportedFlags = map[string]string{
 	"W":                 "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
 }
 
+func warnUnsupportedCLIFlags(cmd *cobra.Command) {
+	for name, message := range unsupportedFlags {
+		if cmd.Flags().Changed(name) {
+			fmt.Fprintln(os.Stderr, message)
+		}
+	}
+}
+
+func unsupportedFlagMessage(name string) (string, bool) {
+	var key string
+	switch {
+	case len(name) == 2 && name[0] == '-':
+		key = name[1:]
+	case len(name) > 3 && strings.HasPrefix(name, "--"):
+		key = name[2:]
+	default:
+		return "", false
+	}
+
+	message, found := unsupportedFlags[key]
+	return message, found
+}
+
 func FilterDummyArgs(args []CbatchArg) []CbatchArg {
 	filteredArgs := make([]CbatchArg, 0, len(args))
 
 	for _, arg := range args {
-		nameWithoutPrefix := strings.TrimLeft(arg.name, "-")
-		if message, found := unsupportedFlags[nameWithoutPrefix]; found {
+		if message, found := unsupportedFlagMessage(arg.name); found {
 			fmt.Fprintln(os.Stderr, message)
 		} else {
 			filteredArgs = append(filteredArgs, arg)
