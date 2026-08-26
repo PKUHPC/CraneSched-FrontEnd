@@ -161,7 +161,7 @@ func StartCfored(cmd *cobra.Command) {
 	if err != nil {
 		log.Fatalf("Failed to get hostname: %s", err.Error())
 	}
-	gVars.hostName = util.GetShortHostname(hostName)
+	gVars.hostName = hostName
 	if FlagHostname != "" {
 		gVars.hostName = FlagHostname
 	}
