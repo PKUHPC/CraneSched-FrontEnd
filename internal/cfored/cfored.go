@@ -162,6 +162,10 @@ func StartCfored(cmd *cobra.Command) {
 		log.Fatalf("Failed to get hostname: %s", err.Error())
 	}
 	gVars.hostName = hostName
+	if FlagHostname != "" {
+		gVars.hostName = FlagHostname
+	}
+	log.Infof("Using %s as cfored name (system hostname: %s).", gVars.hostName, hostName)
 
 	var wgAllRoutines sync.WaitGroup
 

@@ -26,6 +26,7 @@ import (
 type Config struct {
 	ClusterName                    string            `yaml:"ClusterName"`
 	ControlMachine                 string            `yaml:"ControlMachine"`
+	ControlMachineAddr             string            `yaml:"ControlMachineAddr"`
 	CraneCtldListenPort            string            `yaml:"CraneCtldListenPort"`
 	CraneCtldForInternalListenPort string            `yaml:"CraneCtldForInternalListenPort"`
 	CranedNodeList                 []ConfigNodesList `yaml:"Nodes"`
@@ -41,6 +42,13 @@ type Config struct {
 
 	Container ContainerConfig `yaml:"Container"`
 	Cfored    CforedConfig    `yaml:"Cfored"`
+}
+
+func (c *Config) ControlMachineConnectAddr() string {
+	if c.ControlMachineAddr != "" {
+		return c.ControlMachineAddr
+	}
+	return c.ControlMachine
 }
 
 type TLSConfig struct {

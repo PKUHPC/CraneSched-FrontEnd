@@ -71,8 +71,7 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 		return err
 	}
 
-	serverAddr := fmt.Sprintf("%s.%s:%s",
-		config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldListenPort)
+	serverAddr := fmt.Sprintf("%s:%s", config.ControlMachineConnectAddr(), config.CraneCtldListenPort)
 
 	creds, err := credentials.NewClientTLSFromFile(config.TlsConfig.CaFilePath, "*."+config.TlsConfig.DomainSuffix)
 	if err != nil {

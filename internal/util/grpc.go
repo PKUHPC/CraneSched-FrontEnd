@@ -194,8 +194,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 	var stub protos.CraneCtldClient
 
 	if config.TlsConfig.Enabled {
-		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachineConnectAddr(), config.CraneCtldListenPort)
 
 		if config.TlsConfig.UserTlsCertPath == "" {
 			home, err := os.UserHomeDir()
@@ -236,7 +235,7 @@ func GetStubToCtldByConfig(config *Config) protos.CraneCtldClient {
 
 		stub = protos.NewCraneCtldClient(conn)
 	} else {
-		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachineConnectAddr(), config.CraneCtldListenPort)
 
 		conn, err := grpc.NewClient(serverAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -262,8 +261,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 	var stub protos.CraneCtldForInternalClient
 
 	if config.TlsConfig.Enabled {
-		serverAddr = fmt.Sprintf("%s.%s:%s",
-			config.ControlMachine, config.TlsConfig.DomainSuffix, config.CraneCtldForInternalListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachineConnectAddr(), config.CraneCtldForInternalListenPort)
 
 		ServerCertContent, err := os.ReadFile(config.TlsConfig.InternalCertFilePath)
 		if err != nil {
@@ -298,6 +296,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 		creds := credentials.NewTLS(&tls.Config{
 			Certificates:       []tls.Certificate{tlsKeyPair},
 			RootCAs:            caPool,
+			ServerName:         config.ControlMachine,
 			InsecureSkipVerify: false,
 			// NextProtos is a list of supported application level protocols, in
 			// order of preference.
@@ -316,7 +315,7 @@ func GetStubToCtldForInternalByConfig(config *Config) (*grpc.ClientConn, protos.
 
 		stub = protos.NewCraneCtldForInternalClient(conn)
 	} else {
-		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachine, config.CraneCtldForInternalListenPort)
+		serverAddr = fmt.Sprintf("%s:%s", config.ControlMachineConnectAddr(), config.CraneCtldForInternalListenPort)
 
 		conn, err = grpc.NewClient(serverAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -378,6 +377,7 @@ func UpdateTLSConfig(config *Config) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caPool,
+		ServerName:   "*." + config.TlsConfig.DomainSuffix,
 		MinVersion:   tls.VersionTLS13,
 	}
 

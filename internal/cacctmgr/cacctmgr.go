@@ -50,6 +50,7 @@ var (
 
 type ServerAddr struct {
 	ControlMachine      string `yaml:"ControlMachine"`
+	ControlMachineAddr  string `yaml:"ControlMachineAddr"`
 	CraneCtldListenPort string `yaml:"CraneCtldListenPort"`
 }
 
