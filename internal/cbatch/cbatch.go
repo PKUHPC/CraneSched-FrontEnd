@@ -49,6 +49,7 @@ var (
 // BuildCbatchJob reads flags and script file to build a job
 func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*protos.JobToCtld, error) {
 	job := new(protos.JobToCtld)
+	warnUnsupportedCLIFlags(cmd)
 
 	// Parse the script file or use wrapped script
 	cbatchArgs := make([]CbatchArg, 0)
@@ -165,37 +166,37 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		job.Wckey = &FlagWckey
 	}
 
-	if FlagTime != "" {
+	if cmd.Flags().Changed("time") {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --time value '%s': %w", FlagTime, err)
 		}
 		job.TimeLimit.Seconds = seconds
 	}
-	if FlagMem != "" {
+	if cmd.Flags().Changed("mem") {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --mem value '%s': %w", FlagMem, err)
 		}
 		job.MemPerNode = &memInByte
 	}
-	if FlagMemPerCpu != "" {
+	if cmd.Flags().Changed("mem-per-cpu") {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --mem-per-cpu value '%s': %w", FlagMemPerCpu, err)
 		}
 		job.MemPerCpu = &memInBytePerCpu
 	}
-	if FlagPartition != "" {
+	if cmd.Flags().Changed("partition") {
 		job.PartitionName = FlagPartition
 	}
-	if FlagJob != "" {
+	if cmd.Flags().Changed("job-name") {
 		job.Name = FlagJob
 	}
-	if FlagQos != "" {
+	if cmd.Flags().Changed("qos") {
 		job.Qos = FlagQos
 	}
-	if FlagLicenses != "" {
+	if cmd.Flags().Changed("licenses") {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --licenses value '%s': %w", FlagLicenses, err)
@@ -203,34 +204,34 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		job.LicensesCount = licCount
 		job.IsLicensesOr = isLicenseOr
 	}
-	if FlagCwd != "" {
+	if cmd.Flags().Changed("chdir") {
 		job.Cwd = FlagCwd
 	}
-	if FlagAccount != "" {
+	if cmd.Flags().Changed("account") {
 		job.Account = FlagAccount
 	}
-	if FlagNodelist != "" {
+	if cmd.Flags().Changed("nodelist") {
 		job.Nodelist = FlagNodelist
 	}
-	if FlagExcludes != "" {
+	if cmd.Flags().Changed("exclude") {
 		job.Excludes = FlagExcludes
 	}
-	if FlagGetUserEnv {
-		job.GetUserEnv = true
+	if cmd.Flags().Changed("get-user-env") {
+		job.GetUserEnv = FlagGetUserEnv
 	}
-	if FlagExport != "" {
+	if cmd.Flags().Changed("export") {
 		job.Env["CRANE_EXPORT_ENV"] = FlagExport
 	}
-	if FlagStdinPath != "" {
+	if cmd.Flags().Changed("input") {
 		job.GetIoMeta().InputFilePattern = FlagStdinPath
 	}
-	if FlagStdoutPath != "" {
+	if cmd.Flags().Changed("output") {
 		job.GetIoMeta().OutputFilePattern = FlagStdoutPath
 	}
-	if FlagStderrPath != "" {
+	if cmd.Flags().Changed("error") {
 		job.GetIoMeta().ErrorFilePattern = FlagStderrPath
 	}
-	if FlagInterpreter != "" {
+	if cmd.Flags().Changed("interpreter") {
 		job.GetBatchMeta().Interpreter = FlagInterpreter
 	}
 
@@ -246,7 +247,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	if FlagComment != "" {
 		structExtraFromCli.Comment = FlagComment
 	}
-	if FlagOpenMode != "" {
+	if cmd.Flags().Changed("open-mode") {
 		switch FlagOpenMode {
 		case util.OpenModeAppend:
 			job.GetIoMeta().OpenModeAppend = proto.Bool(true)
@@ -256,38 +257,35 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 			return nil, fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 		}
 	}
-	if FlagBeginTime != "" {
+	if cmd.Flags().Changed("begin") {
 		beginTime, err := util.ParseTime(FlagBeginTime)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --begin value '%s': %w", FlagBeginTime, err)
 		}
 		job.BeginTime = timestamppb.New(beginTime)
 	}
-	if FlagDeadlineTime != "" {
+	if cmd.Flags().Changed("deadline") {
 		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: invalid --deadline value '%s': %w", FlagDeadlineTime, err)
 		}
 		job.DeadlineTime = timestamppb.New(deadlineTime)
 	}
-	if FlagExclusive {
-		job.Exclusive = true
+	if cmd.Flags().Changed("exclusive") {
+		job.Exclusive = FlagExclusive
 	}
-	if FlagHold {
-		job.Hold = true
+	if cmd.Flags().Changed("hold") {
+		job.Hold = FlagHold
 	}
-	if FlagNoRequeue {
-		job.NoRequeue = true
-		job.RequeueIfFailed = false
-	} else if FlagRequeue {
-		job.NoRequeue = false
-		job.RequeueIfFailed = true
+	if cmd.Flags().Changed("no-requeue") || cmd.Flags().Changed("requeue") {
+		job.NoRequeue = FlagNoRequeue
+		job.RequeueIfFailed = FlagRequeue
 	}
-	if FlagReservation != "" {
+	if cmd.Flags().Changed("reservation") {
 		job.Reservation = FlagReservation
 	}
 
-	if FlagSignal != "" {
+	if cmd.Flags().Changed("signal") {
 		signals, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: signal value '%s' : %w", FlagSignal, err)
@@ -320,7 +318,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		return nil, fmt.Errorf("Failed to get hostname of the submitting host: %v", err)
 	}
 	job.SubmitHostname = submitHostname
-	if FlagDependency != "" {
+	if cmd.Flags().Changed("dependency") {
 		err := util.SetJobDependencies(job, FlagDependency)
 		if err != nil {
 			return nil, fmt.Errorf("invalid argument: failed to set dependencies: %w", err)
@@ -439,7 +437,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			job.Name = arg.val
 		case "-A", "--account":
 			job.Account = arg.val
-		case "--qos", "-Q":
+		case "--qos", "-q":
 			job.Qos = arg.val
 		case "--licenses", "-L":
 			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
@@ -448,22 +446,18 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			}
 			job.LicensesCount = licCount
 			job.IsLicensesOr = isLicenseOr
-		case "--chdir":
+		case "-D", "--chdir":
 			job.Cwd = arg.val
 		case "--exclude", "-x":
 			job.Excludes = arg.val
 		case "--nodelist", "-w":
 			job.Nodelist = arg.val
 		case "--get-user-env":
-			if arg.val == "" {
-				job.GetUserEnv = true
-			} else {
-				val, err := strconv.ParseBool(arg.val)
-				if err != nil {
-					return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
-				}
-				job.GetUserEnv = val
+			val, err := parseScriptBool(arg)
+			if err != nil {
+				return err
 			}
+			job.GetUserEnv = val
 		case "--export":
 			job.Env["CRANE_EXPORT_ENV"] = arg.val
 		case "-i", "--input":
@@ -491,14 +485,22 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			default:
 				return fmt.Errorf("invalid argument: --open-mode must be either '%s' or '%s'", util.OpenModeAppend, util.OpenModeTruncate)
 			}
+		case "--wrap":
+			job.ShScript = arg.val
 		case "-r", "--reservation":
 			job.Reservation = arg.val
 		case "--exclusive":
-			val, err := strconv.ParseBool(arg.val)
+			val, err := parseScriptBool(arg)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return err
 			}
 			job.Exclusive = val
+		case "-H", "--hold":
+			val, err := parseScriptBool(arg)
+			if err != nil {
+				return err
+			}
+			job.Hold = val
 		case "--wckey":
 			wckey := arg.val
 			job.Wckey = &wckey
@@ -544,11 +546,25 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			for _, signal := range signals {
 				job.Signals = append(job.Signals, signal)
 			}
+		case "--deadline":
+			deadlineTime, err := util.ParseTime(arg.val)
+			if err != nil {
+				return fmt.Errorf("invalid argument: invalid --deadline value '%s' in script: %w", arg.val, err)
+			}
+			job.DeadlineTime = timestamppb.New(deadlineTime)
 		case "--requeue":
+			val, err := parseScriptBool(arg)
+			if err != nil {
+				return err
+			}
 			job.NoRequeue = false
-			job.RequeueIfFailed = true
+			job.RequeueIfFailed = val
 		case "--no-requeue":
-			job.NoRequeue = true
+			val, err := parseScriptBool(arg)
+			if err != nil {
+				return err
+			}
+			job.NoRequeue = val
 			job.RequeueIfFailed = false
 		default:
 			return fmt.Errorf("invalid argument: unrecognized '%s' in script", arg.name)
@@ -556,6 +572,17 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 	}
 
 	return nil
+}
+
+func parseScriptBool(arg CbatchArg) (bool, error) {
+	if arg.val == "" {
+		return true, nil
+	}
+	val, err := strconv.ParseBool(arg.val)
+	if err != nil {
+		return false, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+	}
+	return val, nil
 }
 
 func SendRequest(config *util.Config, job *protos.JobToCtld) error {
@@ -680,30 +707,48 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 	return nil
 }
 
-func FilterDummyArgs(args []CbatchArg) []CbatchArg {
-	filteredArgs := make([]CbatchArg, 0, len(args))
-	unsupportedFlags := map[string]string{
-		"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
-		"gpus-per-node":     "The feature --gpus-per-node is not yet supported by Crane, the use is ignored.",
-		"ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
-		"wckey":             "The feature --wckey is not yet supported by Crane, the use is ignored.",
-		"cpu-freq":          "The feature --cpu-freq is not yet supported by Crane, the use is ignored.",
-		"priority":          "The feature --priority is not yet supported by Crane, the use is ignored.",
-		"mem-per-cpu":       "The feature --mem-per-cpu is not yet supported by Crane, the use is ignored.",
-		"threads-per-core":  "The feature --threads-per-core is not yet supported by Crane, the use is ignored.",
-		"distribution":      "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
-		"m":                 "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
-		"input":             "The feature --input/-i is not yet supported by Crane, the use is ignored.",
-		"i":                 "The feature --input/-i is not yet supported by Crane, the use is ignored.",
-		"sockets-per-node":  "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.",
-		"cores-per-socket":  "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.",
-		"wait":              "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
-		"W":                 "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
+var unsupportedFlags = map[string]string{
+	"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
+	"ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
+	"cpu-freq":          "The feature --cpu-freq is not yet supported by Crane, the use is ignored.",
+	"priority":          "The feature --priority is not yet supported by Crane, the use is ignored.",
+	"threads-per-core":  "The feature --threads-per-core is not yet supported by Crane, the use is ignored.",
+	"distribution":      "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
+	"m":                 "The feature --distribution/-m is not yet supported by Crane, the use is ignored.",
+	"sockets-per-node":  "The feature --sockets-per-node is not yet supported by Crane, the use is ignored.",
+	"cores-per-socket":  "The feature --cores-per-socket is not yet supported by Crane, the use is ignored.",
+	"wait":              "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
+	"W":                 "The feature --wait/-W is not yet supported by Crane, the use is ignored.",
+}
+
+func warnUnsupportedCLIFlags(cmd *cobra.Command) {
+	for name, message := range unsupportedFlags {
+		if cmd.Flags().Changed(name) {
+			fmt.Fprintln(os.Stderr, message)
+		}
+	}
+}
+
+func unsupportedFlagMessage(name string) (string, bool) {
+	var key string
+	switch {
+	case len(name) == 2 && name[0] == '-':
+		key = name[1:]
+	case len(name) > 3 && strings.HasPrefix(name, "--"):
+		key = name[2:]
+	default:
+		return "", false
 	}
 
+	message, found := unsupportedFlags[key]
+	return message, found
+}
+
+func FilterDummyArgs(args []CbatchArg) []CbatchArg {
+	filteredArgs := make([]CbatchArg, 0, len(args))
+
 	for _, arg := range args {
-		nameWithoutPrefix := strings.TrimLeft(arg.name, "-")
-		if message, found := unsupportedFlags[nameWithoutPrefix]; found {
+		if message, found := unsupportedFlagMessage(arg.name); found {
 			fmt.Fprintln(os.Stderr, message)
 		} else {
 			filteredArgs = append(filteredArgs, arg)

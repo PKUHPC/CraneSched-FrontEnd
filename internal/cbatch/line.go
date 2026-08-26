@@ -59,13 +59,15 @@ type sLineProcessor struct {
 
 func (s *sLineProcessor) init() {
 	s.supported = map[string]bool{
-		"-c": true, "--cpus-per-task": true, "-J": true, "--job-name": true, "-N": true, "--qos": true, "Q": true,
-		"--nodes": true, "-A": true, "--account": true, "-e": true, "--exclude": true, "--chdir": true,
+		"-c": true, "--cpus-per-task": true, "-J": true, "--job-name": true, "-N": true, "-q": true, "--qos": true,
+		"--nodes": true, "-A": true, "--account": true, "-e": true, "-x": true, "--exclude": true, "-D": true, "--chdir": true,
 		"--export": true, "--mem": true, "-p": true, "--partition": true, "-i": true, "--input": true, "-o": true, "--output": true,
 		"--nodelist": true, "-w": true, "--get-user-env": true, "--time": true, "-t": true, "--ntasks-per-node": true,
 		"--ntasks": true, "-n": true, "--mail-type": true, "--mail-user": true, "--comment": true, "--open-mode": true,
-		"--reservation": true, "-r": true, "--wrap": true, "--gres": true, "--exclusive": true, "--begin": true, "-b": true, "--deadline": true,
-		"--array": true, "-a": true,
+		"-H": true, "--hold": true, "--requeue": true, "--no-requeue": true,
+		"--reservation": true, "-r": true, "--wrap": true, "--gres": true, "--gpus-per-node": true, "--mem-per-cpu": true,
+		"--exclusive": true, "--wckey": true, "--licenses": true, "-L": true, "--dependency": true, "-d": true,
+		"--begin": true, "-b": true, "--deadline": true, "--array": true, "-a": true, "-s": true, "--signal": true,
 	}
 }
 
@@ -75,21 +77,25 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	}
 	split := strings.Fields(line)
 	if len(split) == 3 {
-		ok := s.supported[split[1]]
-		if ok {
-			*args = append(*args, CbatchArg{name: split[1], val: split[2]})
+		name := split[1]
+		if s.supported[name] {
+			*args = append(*args, CbatchArg{name: name, val: split[2]})
+		} else if _, found := unsupportedFlagMessage(name); found {
+			log.Warnf("Slurm option %v is not supported", name)
 		} else {
-			log.Warnf("Slurm option %v is not supported", split[1])
+			return fmt.Errorf("line `%v` is not supported by cwrapper", line)
 		}
 	} else if len(split) == 2 {
 		parts := strings.SplitN(split[1], "=", 2)
-		ok := s.supported[parts[0]]
-		if ok {
+		name := parts[0]
+		if s.supported[name] {
 			if len(parts) > 1 {
-				*args = append(*args, CbatchArg{name: parts[0], val: parts[1]})
+				*args = append(*args, CbatchArg{name: name, val: parts[1]})
 			} else {
-				*args = append(*args, CbatchArg{name: parts[0]})
+				*args = append(*args, CbatchArg{name: name})
 			}
+		} else if _, found := unsupportedFlagMessage(name); found {
+			log.Warnf("Slurm option %v is not supported", name)
 		} else {
 			return fmt.Errorf("line `%v` is not supported by cwrapper", line)
 		}
