@@ -710,9 +710,13 @@ func sbatch() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cbatch.RootCmd.Use = "sbatch [flags] file"
 			cbatch.RootCmd.InitDefaultHelpFlag()
-			cbatch.RootCmd.InitDefaultVersionFlag()
+			// Slurm uses -V for version and -v for verbose.
+			cbatch.RootCmd.Flags().BoolP("version", "V", false, "version for sbatch")
 			for i, arg := range args {
-				if (arg == "-t" || arg == "--time") && i+1 < len(args) {
+				// Slurm allows repeated -v options such as -vv.
+				if len(arg) > 1 && strings.TrimRight(arg, "v") == "-" {
+					args[i] = "--verbose"
+				} else if (arg == "-t" || arg == "--time") && i+1 < len(args) {
 					args[i+1] = cbatch.ConvertSlurmTimeFormat(args[i+1])
 				} else if strings.HasPrefix(arg, "--time=") {
 					args[i] = "--time=" + cbatch.ConvertSlurmTimeFormat(strings.TrimPrefix(arg, "--time="))
@@ -742,6 +746,7 @@ func sbatch() *cobra.Command {
 	}
 	// not implement feature:
 	cmd.Flags().BoolVar(&cbatch.FlagParsable, "parsable", false, "")
+	cmd.Flags().BoolVarP(&cbatch.FlagVerbose, "verbose", "v", false, "")
 	cmd.Flags().StringVar(&cbatch.FlagNTasksPerSocket, "ntasks-per-socket", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCpuFreq, "cpu-freq", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagPriority, "priority", "", "")
@@ -1001,6 +1006,9 @@ func sinfo() *cobra.Command {
 		},
 	}
 	cmd.SetVersionTemplate(util.VersionTemplate())
+	// Slurm uses -V for version; register it explicitly so that
+	// cobra does not bind version to the -v shorthand.
+	cmd.Flags().BoolP("version", "V", false, "version for sinfo")
 
 	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
 	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
@@ -1048,12 +1056,21 @@ func squeue() *cobra.Command {
 				case arg == "-o" || arg == "--format":
 					convertedArgs = append(convertedArgs, arg)
 					if i+1 < len(args) {
-						convertedArgs = append(convertedArgs, convertSqueueFormat(args[i+1]))
+						converted, err := convertSqueueFormat(args[i+1])
+						if err != nil {
+							log.Error(err)
+							os.Exit(util.ErrorCmdArg)
+						}
+						convertedArgs = append(convertedArgs, converted)
 						i++
 					}
 				case strings.HasPrefix(arg, "--format="):
-					convertedArgs = append(convertedArgs,
-						"--format="+convertSqueueFormat(strings.TrimPrefix(arg, "--format=")))
+					converted, err := convertSqueueFormat(strings.TrimPrefix(arg, "--format="))
+					if err != nil {
+						log.Error(err)
+						os.Exit(util.ErrorCmdArg)
+					}
+					convertedArgs = append(convertedArgs, "--format="+converted)
 				default:
 					convertedArgs = append(convertedArgs, arg)
 				}
@@ -1138,31 +1155,58 @@ Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum w
 
 var squeueFormatSpecRegex = regexp.MustCompile(`%(\.?\d*)([a-zA-Z]+)`)
 
-// Single-letter format specifiers that Slurm and cqueue assign different
-// meanings to. Letters sharing the same meaning need no entry.
+// Slurm single-letter format specifiers that cqueue supports with the same
+// meaning, mapped to their cqueue specifiers.
 var squeueFormatSpecMapping = map[string]string{
+	"a": "a", // account
+	"C": "C", // requested cpus
+	"D": "N", // number of nodes
 	"i": "j", // job id
 	"j": "n", // job name
-	"n": "r", // requested nodes
+	"k": "k", // comment
+	"l": "l", // time limit
 	"M": "e", // elapsed time
 	"m": "M", // requested memory per node
-	"D": "N", // number of nodes
 	"N": "L", // node list
+	"n": "r", // requested nodes
+	"o": "o", // command
+	"P": "P", // partition
+	"p": "p", // priority
+	"q": "q", // qos
+	"r": "R", // reason
+	"S": "S", // start time
 	"T": "t", // job state
+	"t": "t", // state
+	"u": "u", // user
+	"U": "U", // user id
 	"V": "s", // submit time
 }
 
 // convertSqueueFormat rewrites the Slurm single-letter format specifiers in a
 // format string to their cqueue equivalents. Multi-letter (cqueue-style)
-// specifiers and unmapped letters are left unchanged.
-func convertSqueueFormat(format string) string {
-	return squeueFormatSpecRegex.ReplaceAllStringFunc(format, func(spec string) string {
+// specifiers are passed through unchanged. Slurm specifiers that have no
+// cqueue field with the same meaning (e.g. %L time left, %e end time) are
+// rejected instead of silently displaying different data.
+func convertSqueueFormat(format string) (string, error) {
+	var invalid string
+	converted := squeueFormatSpecRegex.ReplaceAllStringFunc(format, func(spec string) string {
 		sub := squeueFormatSpecRegex.FindStringSubmatch(spec)
-		if converted, ok := squeueFormatSpecMapping[sub[2]]; ok {
-			return "%" + sub[1] + converted
+		if len(sub[2]) > 1 {
+			return spec
 		}
-		return spec
+		mapped, ok := squeueFormatSpecMapping[sub[2]]
+		if !ok {
+			if invalid == "" {
+				invalid = sub[2]
+			}
+			return spec
+		}
+		return "%" + sub[1] + mapped
 	})
+	if invalid != "" {
+		return "", fmt.Errorf("format specifier %%%s is not supported by cwrapper", invalid)
+	}
+	return converted, nil
 }
 
 func sreport() *cobra.Command {
@@ -1350,6 +1394,9 @@ func PrintSallocIgnoreDummyArgsMessage() {
 func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagParsable {
 		log.Warning("The feature --parsable is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagVerbose {
+		log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagNTasksPerSocket != "" {
 		log.Warning("The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")

@@ -82,6 +82,7 @@ var (
 	// not implement feature:
 	FlagNTasks          string
 	FlagParsable        bool
+	FlagVerbose         bool
 	FlagNTasksPerSocket string
 	FlagCpuFreq         string
 	FlagPriority        string
@@ -198,6 +199,7 @@ func init() {
 	RootCmd.Flags().StringVarP(&FlagDependency, "dependency", "d", "", "Conditions for job to execute")
 	RootCmd.Flags().StringVarP(&FlagSignal, "signal", "s", "", "Send signal when time limit within time seconds, format: [{R|B}:]<sig_num>[@sig_time]")
 	RootCmd.Flags().BoolVar(&FlagParsable, "parsable", false, "")
+	RootCmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
 	RootCmd.Flags().StringVar(&FlagNTasksPerSocket, "ntasks-per-socket", "", "")
 	RootCmd.Flags().StringVar(&FlagCpuFreq, "cpu-freq", "", "")
 	RootCmd.Flags().StringVar(&FlagPriority, "priority", "", "")

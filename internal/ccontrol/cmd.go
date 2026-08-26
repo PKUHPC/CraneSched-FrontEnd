@@ -243,10 +243,8 @@ func executeShowTraceCommand(command *CControlCommand) error {
 }
 
 func executeShowConfigCommand(command *CControlCommand) error {
-	if err := ShowConfig(FlagConfigFilePath); err != nil {
-		return util.WrapCraneErr(util.ErrorGeneric, "show config failed: %s", err)
-	}
-	return nil
+	// ShowConfig already returns *util.CraneError with a specific code.
+	return ShowConfig(FlagConfigFilePath)
 }
 
 func executeUpdateCommand(command *CControlCommand) error {
