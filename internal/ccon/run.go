@@ -381,7 +381,7 @@ func applyStepResourceOptions(cmd *cobra.Command, f *Flags, step *protos.StepToC
 }
 
 // applySchedulingOptions applies cluster scheduling options to the job
-func applySchedulingOptions(f *Flags, job *protos.JobToCtld) error {
+func applySchedulingOptions(cmd *cobra.Command, f *Flags, job *protos.JobToCtld) error {
 	// Partition/queue assignment
 	if f.Crane.Partition != "" {
 		job.PartitionName = f.Crane.Partition
@@ -406,10 +406,16 @@ func applySchedulingOptions(f *Flags, job *protos.JobToCtld) error {
 		job.Qos = f.Crane.Qos
 	}
 
-	// Node allocation - validate parameters
-	job.NodeNum = f.Crane.Nodes
-	job.NtasksPerNode = f.Crane.NtasksPerNode
-	job.Ntasks = f.Crane.Ntasks
+	if flagChanged(cmd, "nodes") {
+		job.NodeNumMin = f.Crane.Nodes
+		job.NodeNumMax = f.Crane.Nodes
+	}
+	if flagChanged(cmd, "ntasks-per-node") {
+		job.NtasksPerNode = f.Crane.NtasksPerNode
+	}
+	if flagChanged(cmd, "ntasks") {
+		job.Ntasks = f.Crane.Ntasks
+	}
 
 	// Node list (specific nodes)
 	if f.Crane.Nodelist != "" {
@@ -635,7 +641,8 @@ func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []str
 	job := &protos.JobToCtld{
 		Type:          protos.JobType_Container,
 		TimeLimit:     util.InvalidDuration(),
-		NodeNum:       0,
+		NodeNumMin:    0,
+		NodeNumMax:    0,
 		NtasksPerNode: 0,
 		Ntasks:        0,
 		GetUserEnv:    false,
@@ -646,7 +653,7 @@ func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []str
 		return nil, fmt.Errorf("failed to apply resource options: %v", err)
 	}
 
-	if err := applySchedulingOptions(f, job); err != nil {
+	if err := applySchedulingOptions(cmd, f, job); err != nil {
 		return nil, fmt.Errorf("failed to apply scheduling options: %v", err)
 	}
 

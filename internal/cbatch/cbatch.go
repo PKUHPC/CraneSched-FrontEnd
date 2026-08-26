@@ -83,7 +83,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 
 	// Set default values
 	job.NtasksPerNode = 0
-	job.NodeNum = 0
+	job.NodeNumMin = 0
+	job.NodeNumMax = 0
 	job.Ntasks = 0
 	job.GetUserEnv = false
 	job.Env = make(map[string]string)
@@ -109,7 +110,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		if FlagNodes == 0 {
 			return nil, fmt.Errorf("invalid argument: --nodes must be > 0")
 		}
-		job.NodeNum = FlagNodes
+		job.NodeNumMin = FlagNodes
+		job.NodeNumMax = FlagNodes
 	}
 	if cmd.Flags().Changed("cpus-per-task") {
 		cpuPerTask := float64(FlagCpuPerTask)
@@ -353,7 +355,8 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			if num == 0 {
 				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
 			}
-			job.NodeNum = uint32(num)
+			job.NodeNumMin = uint32(num)
+			job.NodeNumMax = uint32(num)
 		case "--cpus-per-task", "-c":
 			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {

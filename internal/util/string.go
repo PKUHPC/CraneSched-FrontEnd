@@ -805,32 +805,46 @@ func CheckJobArgs(job *protos.JobToCtld) error {
 		return fmt.Errorf("--mem and --mem-per-cpu are mutually exclusive, " +
 			"please check your command line options, submission script, and environment variables")
 	}
-	if job.NodeNum == 0 {
+
+	if job.NodeNumMin == 0 {
 		if job.Ntasks == 0 {
 			if job.NtasksPerNode == 0 {
 				job.Ntasks = 1
+				job.NtasksPerNode = 1
 			} else {
 				job.Ntasks = job.NtasksPerNode
 			}
 		}
 		if job.NtasksPerNode == 0 {
-			job.NodeNum = 1
+			job.NtasksPerNode = job.Ntasks
+			job.NodeNumMin = 1
+			job.NodeNumMax = job.Ntasks
 		} else {
-			job.NodeNum = (job.Ntasks-1)/job.NtasksPerNode + 1
+			job.NodeNumMin = (job.Ntasks-1)/job.NtasksPerNode + 1
+			job.NodeNumMax = job.NodeNumMin
 		}
 	}
+
 	if job.Ntasks == 0 {
 		if job.NtasksPerNode == 0 {
-			job.Ntasks = job.NodeNum
+			job.Ntasks = job.NodeNumMin
 		} else {
-			job.Ntasks = job.NodeNum * job.NtasksPerNode
+			job.Ntasks = job.NodeNumMin * job.NtasksPerNode
 		}
 	}
-	if job.NodeNum > job.Ntasks {
-		log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", job.Ntasks, job.NodeNum)
-		job.NodeNum = job.Ntasks
+
+	if job.NodeNumMax == 0 {
+		job.NodeNumMax = job.NodeNumMin
 	}
-	if job.NtasksPerNode > 0 && job.NtasksPerNode*job.NodeNum < job.Ntasks {
+	if job.NodeNumMin > job.Ntasks {
+		log.Warnf("Warning: can't run %d tasks on %d nodes, setting NodeNum to ntasks.", job.Ntasks, job.NodeNumMin)
+		job.NodeNumMin = job.Ntasks
+		job.NodeNumMax = job.Ntasks
+	} else if job.NodeNumMax > job.Ntasks {
+		log.Warnf("Warning: can't run %d tasks on up to %d nodes, setting NodeNumMax to ntasks.", job.Ntasks, job.NodeNumMax)
+		job.NodeNumMax = job.Ntasks
+	}
+	if job.NtasksPerNode > 0 && job.NtasksPerNode*job.NodeNumMax < job.Ntasks {
 		return fmt.Errorf("invalid argument: NtasksPerNode * NodeNum < Ntasks, unable to allocate resources")
 	}
 	if job.CpusPerTask != nil && *job.CpusPerTask <= 0 {
@@ -839,7 +853,7 @@ func CheckJobArgs(job *protos.JobToCtld) error {
 	if err := CheckJobNameLength(job.Name); err != nil {
 		return err
 	}
-	if job.NodeNum <= 0 {
+	if job.NodeNumMin <= 0 {
 		return fmt.Errorf("--nodes must > 0")
 	}
 	if job.TimeLimit.AsDuration() <= 0 {

@@ -379,7 +379,8 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		Type:            protos.JobType_Interactive,
 		Uid:             uint32(uid),
 		Gid:             uint32(gid),
-		NodeNum:         0,
+		NodeNumMin:      0,
+		NodeNumMax:      0,
 		NtasksPerNode:   0,
 		Ntasks:          0,
 		RequeueIfFailed: false,
@@ -395,7 +396,8 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		if FlagNodes == 0 {
 			return util.NewCraneErr(util.ErrorCmdArg, "Invalid argument: --nodes must be > 0")
 		}
-		job.NodeNum = FlagNodes
+		job.NodeNumMin = FlagNodes
+		job.NodeNumMax = FlagNodes
 	}
 	if cmd.Flags().Changed("ntasks-per-node") {
 		if FlagNtasksPerNode == 0 {
