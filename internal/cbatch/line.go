@@ -65,7 +65,7 @@ func (s *sLineProcessor) init() {
 		"--nodelist": true, "-w": true, "--get-user-env": true, "--time": true, "-t": true, "--ntasks-per-node": true,
 		"--ntasks": true, "-n": true, "--mail-type": true, "--mail-user": true, "--comment": true, "--open-mode": true,
 		"-H": true, "--hold": true, "--requeue": true, "--no-requeue": true,
-		"--reservation": true, "-r": true, "--wrap": true, "--gres": true, "--exclusive": true, "--begin": true, "-b": true, "--deadline": true,
+		"--reservation": true, "-r": true, "--wrap": true, "--gres": true, "--exclusive": true, "--wckey": true, "--begin": true, "-b": true, "--deadline": true,
 		"--array": true, "-a": true,
 	}
 }
