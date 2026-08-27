@@ -98,7 +98,8 @@ func ParseCmdArgs(args []string) {
 
 func executeCommand(command *CControlCommand) error {
 	action := command.GetAction()
-	if action == "show" && command.GetEntity() == "hostnames" {
+	if action == "show" &&
+		(command.GetEntity() == "hostnames" || command.GetEntity() == "config") {
 		return executeShowCommand(command)
 	}
 
@@ -133,6 +134,8 @@ func executeShowCommand(command *CControlCommand) error {
 		return executeShowHostnamesCommand(command)
 	case "trace":
 		return executeShowTraceCommand(command)
+	case "config":
+		return executeShowConfigCommand(command)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
@@ -237,6 +240,11 @@ func executeShowTraceCommand(command *CControlCommand) error {
 		return util.WrapCraneErr(util.ErrorGeneric, "show trace failed: %s", err)
 	}
 	return nil
+}
+
+func executeShowConfigCommand(command *CControlCommand) error {
+	// ShowConfig already returns *util.CraneError with a specific code.
+	return ShowConfig(FlagConfigFilePath)
 }
 
 func executeUpdateCommand(command *CControlCommand) error {

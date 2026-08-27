@@ -60,7 +60,7 @@ type sLineProcessor struct {
 func (s *sLineProcessor) init() {
 	s.supported = map[string]bool{
 		"-c": true, "--cpus-per-task": true, "-J": true, "--job-name": true, "-N": true, "-q": true, "--qos": true,
-		"--nodes": true, "-A": true, "--account": true, "-e": true, "-x": true, "--exclude": true, "-D": true, "--chdir": true,
+		"--nodes": true, "-A": true, "--account": true, "-e": true, "--error": true, "-x": true, "--exclude": true, "-D": true, "--chdir": true,
 		"--export": true, "--mem": true, "-p": true, "--partition": true, "-i": true, "--input": true, "-o": true, "--output": true,
 		"--nodelist": true, "-w": true, "--get-user-env": true, "--time": true, "-t": true, "--ntasks-per-node": true,
 		"--ntasks": true, "-n": true, "--mail-type": true, "--mail-user": true, "--comment": true, "--open-mode": true,
@@ -79,7 +79,11 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 	if len(split) == 3 {
 		name := split[1]
 		if s.supported[name] {
-			*args = append(*args, CbatchArg{name: name, val: split[2]})
+			val := split[2]
+			if name == "-t" || name == "--time" {
+				val = ConvertSlurmTimeFormat(val)
+			}
+			*args = append(*args, CbatchArg{name: name, val: val})
 		} else if _, found := unsupportedFlagMessage(name); found {
 			log.Warnf("Slurm option %v is not supported", name)
 		} else {
@@ -90,7 +94,11 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 		name := parts[0]
 		if s.supported[name] {
 			if len(parts) > 1 {
-				*args = append(*args, CbatchArg{name: name, val: parts[1]})
+				val := parts[1]
+				if name == "-t" || name == "--time" {
+					val = ConvertSlurmTimeFormat(val)
+				}
+				*args = append(*args, CbatchArg{name: name, val: val})
 			} else {
 				*args = append(*args, CbatchArg{name: name})
 			}
@@ -103,6 +111,27 @@ func (s *sLineProcessor) Process(line string, sh *[]string, args *[]CbatchArg) e
 		return errors.New("fields out of bound")
 	}
 	return nil
+}
+
+func ConvertSlurmTimeFormat(t string) string {
+	// minutes | minutes:seconds | days-hours | days-hours:minutes
+	re := regexp.MustCompile(`^(?:(\d+)-(\d+)(?::(\d+))?|(\d+)(?::(\d+))?)$`)
+	x := re.FindStringSubmatch(t)
+	if x == nil {
+		return t
+	}
+	if x[1] != "" {
+		M := x[3]
+		if M == "" {
+			M = "0"
+		}
+		return fmt.Sprintf("%s-%s:%s:0", x[1], x[2], M)
+	}
+	S := x[5]
+	if S == "" {
+		S = "0"
+	}
+	return fmt.Sprintf("0:%s:%s", x[4], S)
 }
 
 // for LSF args

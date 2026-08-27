@@ -113,6 +113,7 @@ type EntityType struct {
 	PartitionAcl bool `parser:"| @'partition-acl'"`
 	JobHistory   bool `parser:"| @'job-history'"`
 	Trace        bool `parser:"| @'trace'"`
+	Config       bool `parser:"| @'config'"`
 }
 
 var CControlLexer = lexer.MustSimple([]lexer.SimpleRule{
@@ -162,6 +163,8 @@ func (e EntityType) String() string {
 		return "job-history"
 	case e.Trace:
 		return "trace"
+	case e.Config:
+		return "config"
 	default:
 		return ""
 	}
@@ -323,7 +326,7 @@ func preParseGlobalFlags(args []string) []string {
 		case "-h", "--help":
 			showHelp()
 			os.Exit(0)
-		case "-v", "--version":
+		case "-v", "-V", "--version":
 			fmt.Println(util.Version())
 			os.Exit(0)
 		case "-J", "--json":

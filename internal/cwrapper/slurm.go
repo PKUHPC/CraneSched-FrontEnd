@@ -31,7 +31,9 @@ import (
 	"CraneFrontEnd/internal/creport"
 	"CraneFrontEnd/internal/crun"
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -110,17 +112,31 @@ func sacct() *cobra.Command {
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			cacct.RootCmd.Use = "sacct [flags]"
+			// Slurm uses -V for version and -v for verbose.
+			cacct.RootCmd.Flags().BoolP("version", "V", false, "version for sacct")
 			convertedArgs := make([]string, 0, len(args))
-			for _, arg := range args {
-				switch arg {
-				case "--jobs":
+			for i := 0; i < len(args); i++ {
+				arg := args[i]
+				switch {
+				case isSlurmVerboseArg(arg) || arg == "--verbose":
+					log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+				case arg == "--jobs":
 					convertedArgs = append(convertedArgs, "--job")
-				case "--starttime":
+				case arg == "--starttime":
 					convertedArgs = append(convertedArgs, "--start-time")
-				case "--endtime":
+				case arg == "--endtime":
 					convertedArgs = append(convertedArgs, "--end-time")
-				case "-n":
+				case arg == "-n":
 					convertedArgs = append(convertedArgs, "-N")
+				case arg == "-o" || arg == "--format":
+					convertedArgs = append(convertedArgs, arg)
+					if i+1 < len(args) {
+						convertedArgs = append(convertedArgs, convertSacctFormat(args[i+1]))
+						i++
+					}
+				case strings.HasPrefix(arg, "--format="):
+					convertedArgs = append(convertedArgs,
+						"--format="+convertSacctFormat(strings.TrimPrefix(arg, "--format=")))
 				default:
 					convertedArgs = append(convertedArgs, arg)
 				}
@@ -151,6 +167,37 @@ func sacct() *cobra.Command {
 	return cmd
 }
 
+var sacctFormatSpecRegex = regexp.MustCompile(`%\.?\d*[a-zA-Z]`)
+
+// Field names that Slurm and cacct spell differently.
+var sacctFieldAliases = map[string]string{
+	"elapsed": "ElapsedTime",
+	"user":    "UserName",
+	"nnodes":  "NodeNum",
+	"start":   "StartTime",
+	"end":     "EndTime",
+	"submit":  "SubmitTime",
+}
+
+// convertSacctFormat converts a Slurm-style comma separated field name list
+// (e.g. "JobID,JobName%20,Elapsed") into the %-specifier format accepted by
+// cacct. Values already written in the %-specifier format are left unchanged.
+func convertSacctFormat(format string) string {
+	if sacctFormatSpecRegex.MatchString(format) {
+		return format
+	}
+	fields := strings.Split(format, ",")
+	specifiers := make([]string, 0, len(fields))
+	for _, field := range fields {
+		name, width, _ := strings.Cut(field, "%")
+		if alias, ok := sacctFieldAliases[strings.ToLower(name)]; ok {
+			name = alias
+		}
+		specifiers = append(specifiers, "%"+width+name)
+	}
+	return strings.Join(specifiers, " ")
+}
+
 func sacctmgr() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "sacctmgr",
@@ -179,6 +226,14 @@ func normalizeSacctmgrArgs(args []string) []string {
 		arg := args[i]
 
 		if strings.HasPrefix(arg, "-") {
+			// Slurm uses -V for version and -v for verbose.
+			if isSlurmVerboseArg(arg) || arg == "--verbose" {
+				log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+				continue
+			}
+			if arg == "-V" {
+				arg = "--version"
+			}
 			convertedArgs = append(convertedArgs, arg)
 			if wrapperFlagConsumesValue(arg) && i+1 < len(args) {
 				convertedArgs = append(convertedArgs, args[i+1])
@@ -531,6 +586,12 @@ func wrapperFlagConsumesValue(arg string) bool {
 	}
 }
 
+// isSlurmVerboseArg reports whether arg is Slurm's -v verbose option,
+// which allows repeated forms such as -vv.
+func isSlurmVerboseArg(arg string) bool {
+	return len(arg) > 1 && strings.TrimRight(arg, "v") == "-"
+}
+
 func salloc() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "salloc",
@@ -542,8 +603,10 @@ func salloc() *cobra.Command {
 			calloc.RootCmd.Use = "salloc"
 			// Add --help from calloc
 			calloc.RootCmd.InitDefaultHelpFlag()
+			// Slurm uses -V for version and -v for verbose.
+			calloc.RootCmd.Flags().BoolP("version", "V", false, "version for salloc")
 			for i, arg := range args {
-				if arg == "-v" {
+				if isSlurmVerboseArg(arg) {
 					args[i] = "--verbose"
 				}
 			}
@@ -556,6 +619,10 @@ func salloc() *cobra.Command {
 			args = calloc.RootCmd.Flags().Args()
 			if help, err := calloc.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return calloc.RootCmd.Help()
+			}
+			if version, err := calloc.RootCmd.Flags().GetBool("version"); err == nil && version {
+				fmt.Println(util.Version())
+				return nil
 			}
 
 			PrintSallocIgnoreDummyArgsMessage()
@@ -586,13 +653,18 @@ func scancel() *cobra.Command {
 		FlagNodeList       []string
 		FlagConfigFilePath string
 		FlagJson           bool
+		FlagVerbose        bool
 	)
 	cmd := &cobra.Command{
 		Use:     "scancel",
 		Short:   "Cancel jobs",
 		Long:    "",
 		GroupID: "slurm",
+		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
+			if FlagVerbose {
+				log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+			}
 			// scancel uses spaced arguments,
 			// we need to convert it into a comma-separated list.
 			ccancelArgs := make([]string, 0)
@@ -637,6 +709,11 @@ func scancel() *cobra.Command {
 			}
 		},
 	}
+	cmd.SetVersionTemplate(util.VersionTemplate())
+	// Slurm uses -V for version and -v for verbose.
+	cmd.Flags().BoolP("version", "V", false, "version for scancel")
+	cmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
+
 	addConfigPathFlag(cmd, &FlagConfigFilePath)
 	cmd.Flags().StringVarP(&FlagJobName, "name", "n", "",
 		"Cancel jobs with the specified job name")
@@ -667,6 +744,17 @@ func sbatch() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cbatch.RootCmd.Use = "sbatch [flags] file"
 			cbatch.RootCmd.InitDefaultHelpFlag()
+			// Slurm uses -V for version and -v for verbose.
+			cbatch.RootCmd.Flags().BoolP("version", "V", false, "version for sbatch")
+			for i, arg := range args {
+				if isSlurmVerboseArg(arg) {
+					args[i] = "--verbose"
+				} else if (arg == "-t" || arg == "--time") && i+1 < len(args) {
+					args[i+1] = cbatch.ConvertSlurmTimeFormat(args[i+1])
+				} else if strings.HasPrefix(arg, "--time=") {
+					args[i] = "--time=" + cbatch.ConvertSlurmTimeFormat(strings.TrimPrefix(arg, "--time="))
+				}
+			}
 
 			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
 				log.Error(err)
@@ -675,6 +763,10 @@ func sbatch() *cobra.Command {
 			args = cbatch.RootCmd.Flags().Args()
 			if help, err := cbatch.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return cbatch.RootCmd.Help()
+			}
+			if version, err := cbatch.RootCmd.Flags().GetBool("version"); err == nil && version {
+				fmt.Println(util.Version())
+				return nil
 			}
 			PrintSbatchIgnoreArgsMessage()
 			cbatch.RootCmd.PersistentPreRun(cmd, args)
@@ -687,6 +779,7 @@ func sbatch() *cobra.Command {
 	}
 	// not implement feature:
 	cmd.Flags().BoolVar(&cbatch.FlagParsable, "parsable", false, "")
+	cmd.Flags().BoolVarP(&cbatch.FlagVerbose, "verbose", "v", false, "")
 	cmd.Flags().StringVar(&cbatch.FlagNTasksPerSocket, "ntasks-per-socket", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagCpuFreq, "cpu-freq", "", "")
 	cmd.Flags().StringVar(&cbatch.FlagPriority, "priority", "", "")
@@ -725,6 +818,14 @@ func normalizeScontrolArgs(args []string) []string {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
+			// Slurm uses -V for version and -v for verbose.
+			if isSlurmVerboseArg(arg) || arg == "--verbose" {
+				log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+				continue
+			}
+			if arg == "-V" {
+				arg = "--version"
+			}
 			convertedArgs = append(convertedArgs, arg)
 			if wrapperFlagConsumesValue(arg) && i+1 < len(args) {
 				convertedArgs = append(convertedArgs, args[i+1])
@@ -893,6 +994,8 @@ func normalizeScontrolShowEntity(arg string) (string, bool) {
 		return "lic", true
 	case "lic":
 		return "lic", true
+	case "config":
+		return "config", true
 	default:
 		return "", false
 	}
@@ -920,6 +1023,7 @@ func seff() *cobra.Command {
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ceff.RootCmd.Use = "seff [flags] [job_id, ...]"
+			ceff.RootCmd.Flags().BoolP("version", "V", false, "version for seff")
 			wrapCeffLeafRunEOnce.Do(func() {
 				util.RunEWrapperForLeafCommand(ceff.RootCmd)
 			})
@@ -932,22 +1036,31 @@ func seff() *cobra.Command {
 }
 
 func sinfo() *cobra.Command {
+	var FlagVerbose bool
 	cmd := &cobra.Command{
 		Use:     "sinfo",
 		Short:   "View node and partition information",
 		Long:    "",
 		GroupID: "slurm",
+		Version: util.Version(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if FlagVerbose {
+				log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+			}
 			cinfo.RootCmd.PersistentPreRun(cmd, args)
 			return cinfo.RootCmd.RunE(cmd, args)
 		},
 	}
+	cmd.SetVersionTemplate(util.VersionTemplate())
+	// Slurm uses -V for version and -v for verbose.
+	cmd.Flags().BoolP("version", "V", false, "version for sinfo")
+	cmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
 
 	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
 	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
 	// 	"List only a partition state summary with no node state details.")
-	// cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
-	// 	"List reasons nodes are in the down, drained, fail or failing state.")
+	cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
+		"List reasons nodes are in the down, drained, fail or failing state.")
 
 	cmd.Flags().BoolVarP(&cinfo.FlagFilterDownOnly, "dead", "d", false,
 		"If set, only report state information for non-responding (dead) nodes.")
@@ -976,15 +1089,38 @@ func squeue() *cobra.Command {
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			cqueue.RootCmd.Use = "squeue [flags]"
+			// Slurm uses -V for version and -v for verbose.
+			cqueue.RootCmd.Flags().BoolP("version", "V", false, "version for squeue")
 			convertedArgs := make([]string, 0, len(args))
-			for _, arg := range args {
-				switch arg {
-				case "-h":
+			for i := 0; i < len(args); i++ {
+				arg := args[i]
+				switch {
+				case isSlurmVerboseArg(arg) || arg == "--verbose":
+					log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+				case arg == "-h":
 					convertedArgs = append(convertedArgs, "-N")
-				case "--jobs":
+				case arg == "--jobs":
 					convertedArgs = append(convertedArgs, "--job")
-				case "--states":
+				case arg == "--states":
 					convertedArgs = append(convertedArgs, "--state")
+				case arg == "-o" || arg == "--format":
+					convertedArgs = append(convertedArgs, arg)
+					if i+1 < len(args) {
+						converted, err := convertSqueueFormat(args[i+1])
+						if err != nil {
+							log.Error(err)
+							os.Exit(util.ErrorCmdArg)
+						}
+						convertedArgs = append(convertedArgs, converted)
+						i++
+					}
+				case strings.HasPrefix(arg, "--format="):
+					converted, err := convertSqueueFormat(strings.TrimPrefix(arg, "--format="))
+					if err != nil {
+						log.Error(err)
+						os.Exit(util.ErrorCmdArg)
+					}
+					convertedArgs = append(convertedArgs, "--format="+converted)
 				default:
 					convertedArgs = append(convertedArgs, arg)
 				}
@@ -1067,6 +1203,62 @@ Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum w
 	return cmd
 }
 
+var squeueFormatSpecRegex = regexp.MustCompile(`%(\.?\d*)([a-zA-Z]+)`)
+
+// Slurm single-letter format specifiers that cqueue supports with the same
+// meaning, mapped to their cqueue specifiers.
+var squeueFormatSpecMapping = map[string]string{
+	"a": "a", // account
+	"C": "C", // requested cpus
+	"D": "N", // number of nodes
+	"i": "j", // job id
+	"j": "n", // job name
+	"k": "k", // comment
+	"l": "l", // time limit
+	"M": "e", // elapsed time
+	"m": "M", // requested memory per node
+	"N": "L", // node list
+	"n": "r", // requested nodes
+	"o": "o", // command
+	"P": "P", // partition
+	"p": "p", // priority
+	"q": "q", // qos
+	"r": "R", // reason
+	"S": "S", // start time
+	"T": "t", // job state
+	"t": "t", // state
+	"u": "u", // user
+	"U": "U", // user id
+	"V": "s", // submit time
+}
+
+// convertSqueueFormat rewrites the Slurm single-letter format specifiers in a
+// format string to their cqueue equivalents. Multi-letter (cqueue-style)
+// specifiers are passed through unchanged. Slurm specifiers that have no
+// cqueue field with the same meaning (e.g. %L time left, %e end time) are
+// rejected instead of silently displaying different data.
+func convertSqueueFormat(format string) (string, error) {
+	var invalid string
+	converted := squeueFormatSpecRegex.ReplaceAllStringFunc(format, func(spec string) string {
+		sub := squeueFormatSpecRegex.FindStringSubmatch(spec)
+		if len(sub[2]) > 1 {
+			return spec
+		}
+		mapped, ok := squeueFormatSpecMapping[sub[2]]
+		if !ok {
+			if invalid == "" {
+				invalid = sub[2]
+			}
+			return spec
+		}
+		return "%" + sub[1] + mapped
+	})
+	if invalid != "" {
+		return "", fmt.Errorf("format specifier %%%s is not supported by cwrapper", invalid)
+	}
+	return converted, nil
+}
+
 func sreport() *cobra.Command {
 	sreportCommandTokens := map[string]struct{}{
 		"user":                     {},
@@ -1091,9 +1283,15 @@ func sreport() *cobra.Command {
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			creport.RootCmd.Use = "sreport"
+			// Slurm uses -V for version and -v for verbose.
+			creport.RootCmd.Flags().BoolP("version", "V", false, "version for sreport")
 			convertedArgs := make([]string, 0, len(args))
 			normalizeCommandToken := true
 			for _, arg := range args {
+				if isSlurmVerboseArg(arg) || arg == "--verbose" {
+					log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
+					continue
+				}
 				if strings.Contains(arg, "=") && !strings.HasPrefix(arg, "-") {
 					log.Warningf("Slurm-style key=value argument %q is not supported in sreport wrapper. "+
 						"Please use sreport with explicit flags, e.g. --start-time/--end-time.", arg)
@@ -1136,8 +1334,10 @@ func srun() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			crun.RootCmd.Use = "srun [flags] executable"
 			crun.RootCmd.InitDefaultHelpFlag()
+			// Slurm uses -V for version and -v for verbose.
+			crun.RootCmd.Flags().BoolP("version", "V", false, "version for srun")
 			for i, arg := range args {
-				if arg == "-v" {
+				if isSlurmVerboseArg(arg) {
 					args[i] = "--verbose"
 				}
 			}
@@ -1149,6 +1349,10 @@ func srun() *cobra.Command {
 			args = crun.RootCmd.Flags().Args()
 			if help, err := crun.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return crun.RootCmd.Help()
+			}
+			if version, err := crun.RootCmd.Flags().GetBool("version"); err == nil && version {
+				fmt.Println(util.Version())
+				return nil
 			}
 			PrintSrunIgnoreDummyArgsMessage()
 			crun.RootCmd.PersistentPreRun(cmd, args)
@@ -1252,6 +1456,9 @@ func PrintSallocIgnoreDummyArgsMessage() {
 func PrintSbatchIgnoreArgsMessage() {
 	if cbatch.FlagParsable {
 		log.Warning("The feature --parsable is not yet supported by Crane, the use is ignored.")
+	}
+	if cbatch.FlagVerbose {
+		log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 	}
 	if cbatch.FlagNTasksPerSocket != "" {
 		log.Warning("The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.")
