@@ -154,7 +154,7 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, 2)
+	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, 64)
 	jobId = math.MaxUint32
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
@@ -747,6 +747,7 @@ CforedCrunStateMachineLoop:
 			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CTLD_ACK", jobId, stepId)
 
 			gotReply := false
+			var completionAckReply *protos.StreamCrunReply
 		waitingAck:
 			for {
 				select {
@@ -782,7 +783,7 @@ CforedCrunStateMachineLoop:
 							jobId, stepId)
 					}
 
-					reply = &protos.StreamCrunReply{
+					completionAckReply = &protos.StreamCrunReply{
 						Type: protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY,
 						Payload: &protos.StreamCrunReply_PayloadStepCompletionAckReply{
 							PayloadStepCompletionAckReply: &protos.StreamCrunReply_StepCompletionAckReply{
@@ -807,10 +808,11 @@ CforedCrunStateMachineLoop:
 						if stepMsg == nil {
 							break drainLoop
 						}
-						if err := HandleSupervisorRequest(jobId, stepId, stepMsg, &reply); err != nil {
+						var drainReply *protos.StreamCrunReply
+						if err := HandleSupervisorRequest(jobId, stepId, stepMsg, &drainReply); err != nil {
 							break
 						}
-						if err := toCrunStream.Send(reply); err != nil {
+						if err := toCrunStream.Send(drainReply); err != nil {
 							log.Debugf("[Cfored->Crun][Step #%d.%d] Drain: failed to send %s to crun: %s.",
 								jobId, stepId, stepMsg.Type.String(), err.Error())
 							break drainLoop
@@ -832,7 +834,7 @@ CforedCrunStateMachineLoop:
 			gVars.ctldReplyChannelMapMtx.Unlock()
 			gSupervisorChanKeeper.crunStepStopAndRemoveChannel(jobId, stepId)
 			if gotReply {
-				if err := toCrunStream.Send(reply); err != nil {
+				if err := toCrunStream.Send(completionAckReply); err != nil {
 					log.Errorf("[Cfored->Crun][Step #%d.%d] Failed to send CompletionAck to crun: %s. "+
 						"The connection to crun was broken.", jobId, stepId, err.Error())
 				} else {
