@@ -168,10 +168,17 @@ func resolveHostlistArgument(command *CControlCommand) string {
 	if hostlist := unquoteIfQuoted(command.GetID()); hostlist != "" {
 		return hostlist
 	}
-	if hostlist := os.Getenv("SLURM_JOB_NODELIST"); hostlist != "" {
-		return hostlist
+	for _, name := range []string{
+		"SLURM_JOB_NODELIST",
+		"SLURM_NODELIST",
+		"CRANE_JOB_NODELIST",
+		"CRANE_NODELIST",
+	} {
+		if hostlist := os.Getenv(name); hostlist != "" {
+			return hostlist
+		}
 	}
-	return os.Getenv("CRANE_JOB_NODELIST")
+	return ""
 }
 
 func executeShowNodeCommand(command *CControlCommand) error {
