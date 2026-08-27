@@ -585,8 +585,11 @@ func salloc() *cobra.Command {
 			calloc.RootCmd.Use = "salloc"
 			// Add --help from calloc
 			calloc.RootCmd.InitDefaultHelpFlag()
+			// Slurm uses -V for version and -v for verbose.
+			calloc.RootCmd.Flags().BoolP("version", "V", false, "version for salloc")
 			for i, arg := range args {
-				if arg == "-v" {
+				// Slurm allows repeated -v options such as -vv.
+				if len(arg) > 1 && strings.TrimRight(arg, "v") == "-" {
 					args[i] = "--verbose"
 				}
 			}
@@ -599,6 +602,10 @@ func salloc() *cobra.Command {
 			args = calloc.RootCmd.Flags().Args()
 			if help, err := calloc.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return calloc.RootCmd.Help()
+			}
+			if version, err := calloc.RootCmd.Flags().GetBool("version"); err == nil && version {
+				fmt.Println(util.Version())
+				return nil
 			}
 
 			PrintSallocIgnoreDummyArgsMessage()
@@ -635,6 +642,7 @@ func scancel() *cobra.Command {
 		Short:   "Cancel jobs",
 		Long:    "",
 		GroupID: "slurm",
+		Version: util.Version(),
 		Run: func(cmd *cobra.Command, args []string) {
 			// scancel uses spaced arguments,
 			// we need to convert it into a comma-separated list.
@@ -680,6 +688,11 @@ func scancel() *cobra.Command {
 			}
 		},
 	}
+	cmd.SetVersionTemplate(util.VersionTemplate())
+	// Slurm uses -V for version; register it explicitly so that
+	// cobra does not bind version to the -v shorthand.
+	cmd.Flags().BoolP("version", "V", false, "version for scancel")
+
 	addConfigPathFlag(cmd, &FlagConfigFilePath)
 	cmd.Flags().StringVarP(&FlagJobName, "name", "n", "",
 		"Cancel jobs with the specified job name")
@@ -1278,8 +1291,11 @@ func srun() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			crun.RootCmd.Use = "srun [flags] executable"
 			crun.RootCmd.InitDefaultHelpFlag()
+			// Slurm uses -V for version and -v for verbose.
+			crun.RootCmd.Flags().BoolP("version", "V", false, "version for srun")
 			for i, arg := range args {
-				if arg == "-v" {
+				// Slurm allows repeated -v options such as -vv.
+				if len(arg) > 1 && strings.TrimRight(arg, "v") == "-" {
 					args[i] = "--verbose"
 				}
 			}
@@ -1291,6 +1307,10 @@ func srun() *cobra.Command {
 			args = crun.RootCmd.Flags().Args()
 			if help, err := crun.RootCmd.Flags().GetBool("help"); err != nil || help {
 				return crun.RootCmd.Help()
+			}
+			if version, err := crun.RootCmd.Flags().GetBool("version"); err == nil && version {
+				fmt.Println(util.Version())
+				return nil
 			}
 			PrintSrunIgnoreDummyArgsMessage()
 			crun.RootCmd.PersistentPreRun(cmd, args)
