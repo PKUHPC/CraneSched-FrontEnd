@@ -1544,10 +1544,6 @@ func (m *StateMachineOfCrun) startInputForwarding() {
 	}
 }
 
-func (m *StateMachineOfCrun) startStdinReader() {
-	m.startInputRoutine(m.StdinReaderRoutine)
-}
-
 func (m *StateMachineOfCrun) startInputRoutine(routine func()) {
 	m.inputWg.Add(1)
 	go func() {
