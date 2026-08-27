@@ -712,7 +712,7 @@ func scancel() *cobra.Command {
 	cmd.SetVersionTemplate(util.VersionTemplate())
 	// Slurm uses -V for version and -v for verbose.
 	cmd.Flags().BoolP("version", "V", false, "version for scancel")
-	cmd.Flags().BoolVarP(&FlagVerbose, "verbose", "v", false, "")
+	cmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
 
 	addConfigPathFlag(cmd, &FlagConfigFilePath)
 	cmd.Flags().StringVarP(&FlagJobName, "name", "n", "",
@@ -1023,6 +1023,7 @@ func seff() *cobra.Command {
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ceff.RootCmd.Use = "seff [flags] [job_id, ...]"
+			ceff.RootCmd.Flags().BoolP("version", "V", false, "version for seff")
 			wrapCeffLeafRunEOnce.Do(func() {
 				util.RunEWrapperForLeafCommand(ceff.RootCmd)
 			})
@@ -1053,7 +1054,7 @@ func sinfo() *cobra.Command {
 	cmd.SetVersionTemplate(util.VersionTemplate())
 	// Slurm uses -V for version and -v for verbose.
 	cmd.Flags().BoolP("version", "V", false, "version for sinfo")
-	cmd.Flags().BoolVarP(&FlagVerbose, "verbose", "v", false, "")
+	cmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
 
 	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
 	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,

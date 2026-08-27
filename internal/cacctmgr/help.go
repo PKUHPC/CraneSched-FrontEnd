@@ -309,7 +309,7 @@ func showHelp() {
 	--config, -C            Specify config file path (default: /etc/crane/config.yaml)
 	--plugin-config, -p     Specify plugin config file path (default: /etc/crane/plugin.yaml)
 	--json, -J              Format output as JSON
-	--version, -v           Display program version
+	-V, --version           Display program version
 	--force, -f             Force operation without confirmation
 	--partition-limit, -P   Display partition resource limits (for show account/user)
 

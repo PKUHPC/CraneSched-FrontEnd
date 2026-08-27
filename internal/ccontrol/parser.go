@@ -326,7 +326,7 @@ func preParseGlobalFlags(args []string) []string {
 		case "-h", "--help":
 			showHelp()
 			os.Exit(0)
-		case "-v", "--version":
+		case "-v", "-V", "--version":
 			fmt.Println(util.Version())
 			os.Exit(0)
 		case "-J", "--json":
