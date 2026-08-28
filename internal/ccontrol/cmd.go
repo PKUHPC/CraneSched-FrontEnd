@@ -98,8 +98,8 @@ func ParseCmdArgs(args []string) {
 
 func executeCommand(command *CControlCommand) error {
 	action := command.GetAction()
-	if action == "show" &&
-		(command.GetEntity() == "hostnames" || command.GetEntity() == "config") {
+	if action == "show" && (command.GetEntity() == "config" ||
+		(command.GetEntity() == "hostnames" && resolveHostlistArgument(command) != "")) {
 		return executeShowCommand(command)
 	}
 
@@ -142,9 +142,16 @@ func executeShowCommand(command *CControlCommand) error {
 }
 
 func executeShowHostnamesCommand(command *CControlCommand) error {
-	hostlist, err := resolveHostlistArgument(unquoteIfQuoted(command.GetID()), util.IsSlurmOutputMode())
-	if err != nil {
-		return util.NewCraneErr(util.ErrorCmdArg, err.Error())
+	hostlist := resolveHostlistArgument(command)
+	if hostlist == "" {
+		reply, err := getCranedNodesReply("")
+		if err != nil {
+			return err
+		}
+		if err := printHostnames(os.Stdout, nodeHostnames(reply.CranedInfoList)); err != nil {
+			return util.WrapCraneErr(util.ErrorSystem, "failed to write hostnames: %s", err)
+		}
+		return nil
 	}
 
 	hostnames, err := expandHostlist(hostlist)
@@ -155,6 +162,23 @@ func executeShowHostnamesCommand(command *CControlCommand) error {
 		return util.WrapCraneErr(util.ErrorSystem, "failed to write hostnames: %s", err)
 	}
 	return nil
+}
+
+func resolveHostlistArgument(command *CControlCommand) string {
+	if hostlist := unquoteIfQuoted(command.GetID()); hostlist != "" {
+		return hostlist
+	}
+	for _, name := range []string{
+		"SLURM_JOB_NODELIST",
+		"SLURM_NODELIST",
+		"CRANE_JOB_NODELIST",
+		"CRANE_NODELIST",
+	} {
+		if hostlist := os.Getenv(name); hostlist != "" {
+			return hostlist
+		}
+	}
+	return ""
 }
 
 func executeShowNodeCommand(command *CControlCommand) error {

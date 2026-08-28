@@ -43,6 +43,8 @@ const (
 	CrunWaitJobCancel      StateOfCrunServer = 5
 	CrunWaitCtldAck        StateOfCrunServer = 6
 	CancelJobOfDeadCrun    StateOfCrunServer = 7
+
+	crunTaskIOChannelCapacity = 4096
 )
 
 func HandleSupervisorRequest(jobId uint32, stepId uint32, msg *protos.StreamStepIORequest, reply **protos.StreamCrunReply) error {
@@ -137,6 +139,20 @@ func HandleSupervisorRequest(jobId uint32, stepId uint32, msg *protos.StreamStep
 	return nil
 }
 
+func drainReadyStepIO(channel <-chan *protos.StreamStepIORequest,
+	forward func(*protos.StreamStepIORequest) bool) bool {
+	for {
+		select {
+		case message := <-channel:
+			if !forward(message) {
+				return false
+			}
+		default:
+			return true
+		}
+	}
+}
+
 func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_CrunStreamServer) error {
 	var crunPid int32
 	var jobId uint32
@@ -154,7 +170,7 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
-	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, 64)
+	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, crunTaskIOChannelCapacity)
 	jobId = math.MaxUint32
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
@@ -798,28 +814,42 @@ CforedCrunStateMachineLoop:
 			// After receiving CraneCtld ACK, drain remaining supervisor I/O
 			// (e.g. TASK_EXIT_STATUS) before sending ACK to crun. Wait until
 			// all supervisors have unregistered (stepDoneCh closed) or timeout.
+			drainFailed := false
 			if gotReply {
 				stepDoneCh := gSupervisorChanKeeper.getStepDoneChannel(jobId, stepId)
 				drainTimeout := time.After(5 * time.Second)
+				forwardDrainMessage := func(stepMsg *protos.StreamStepIORequest) bool {
+					if stepMsg == nil {
+						return false
+					}
+					var drainReply *protos.StreamCrunReply
+					if err := HandleSupervisorRequest(jobId, stepId, stepMsg, &drainReply); err != nil {
+						return false
+					}
+					if err := toCrunStream.Send(drainReply); err != nil {
+						log.Debugf("[Cfored->Crun][Step #%d.%d] Drain: failed to send %s to crun: %s.",
+							jobId, stepId, stepMsg.Type.String(), err.Error())
+						return false
+					}
+					return true
+				}
 			drainLoop:
 				for {
 					select {
 					case stepMsg := <-StepIoRequestChannel:
-						if stepMsg == nil {
-							break drainLoop
-						}
-						var drainReply *protos.StreamCrunReply
-						if err := HandleSupervisorRequest(jobId, stepId, stepMsg, &drainReply); err != nil {
-							break
-						}
-						if err := toCrunStream.Send(drainReply); err != nil {
-							log.Debugf("[Cfored->Crun][Step #%d.%d] Drain: failed to send %s to crun: %s.",
-								jobId, stepId, stepMsg.Type.String(), err.Error())
+						if !forwardDrainMessage(stepMsg) {
+							drainFailed = true
 							break drainLoop
 						}
 					case <-stepDoneCh:
-						log.Debugf("[Cfored<->Crun][Step #%d.%d] All supervisors unregistered, drain complete.",
-							jobId, stepId)
+						// SUPERVISOR_UNREGISTER is ordered after that supervisor's I/O.
+						// Once all supervisors are done, drain everything already queued.
+						if drainReadyStepIO(StepIoRequestChannel, forwardDrainMessage) {
+							log.Debugf("[Cfored<->Crun][Step #%d.%d] All supervisors unregistered, drain complete.",
+								jobId, stepId)
+						} else {
+							drainFailed = true
+						}
 						break drainLoop
 					case <-drainTimeout:
 						log.Warningf("[Cfored<->Crun][Step #%d.%d] Drain timeout (5s), proceeding with cleanup.",
@@ -833,17 +863,28 @@ CforedCrunStateMachineLoop:
 			delete(gVars.ctldReplyChannelMapByStep, step)
 			gVars.ctldReplyChannelMapMtx.Unlock()
 			gSupervisorChanKeeper.crunStepStopAndRemoveChannel(jobId, stepId)
+			if gotReply && drainFailed {
+				log.Errorf("[Cfored<->Crun][Step #%d.%d] Supervisor I/O drain failed; sending a failed completion result.",
+					jobId, stepId)
+				completionAckReply.GetPayloadStepCompletionAckReply().Ok = false
+			}
 			if gotReply {
 				if err := toCrunStream.Send(completionAckReply); err != nil {
 					log.Errorf("[Cfored->Crun][Step #%d.%d] Failed to send CompletionAck to crun: %s. "+
 						"The connection to crun was broken.", jobId, stepId, err.Error())
 				} else {
-					log.Debugf("[Cfored->Crun][Step #%d.%d] JOB_COMPLETION_ACK_REPLY sent to Crun", jobId, stepId)
+					log.Debugf("[Cfored->Crun][Step #%d.%d] Completion result sent to Crun (ok=%v)",
+						jobId, stepId, completionAckReply.GetPayloadStepCompletionAckReply().Ok)
 				}
 			} else {
 				log.Debugf("[Cfored->Crun][Step #%d.%d] No need to send CompletionAck to crun as crun already down.", jobId, stepId)
 			}
-			log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
+			if gotReply && drainFailed {
+				log.Errorf("[Cfored<->Crun][Step #%d.%d] Step completion failed because supervisor I/O could not be drained.",
+					jobId, stepId)
+			} else {
+				log.Infof("[Cfored<->Crun][Step #%d.%d] Step completed successfully", jobId, stepId)
+			}
 
 			break CforedCrunStateMachineLoop
 

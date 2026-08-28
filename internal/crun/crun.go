@@ -102,8 +102,9 @@ type StateMachineOfCrun struct {
 	outputFlag string // Crun --output flag, used to determine how to write output to stdout
 	errorFlag  string // Crun --err flag, used to determine how to write error to stderr
 
-	state StateOfCrun
-	err   util.ExitCode // Hold the final error of the state machine if any
+	state        StateOfCrun
+	err          util.ExitCode // Hold the final Crane error of the state machine if any
+	taskExitCode util.ExitCode // Hold the exit status reported by the user task
 
 	// Hold grpc resources and will be freed in Close.
 	conn   *grpc.ClientConn
@@ -115,10 +116,12 @@ type StateMachineOfCrun struct {
 	savedTerminalState *term.State
 	savedStdinFlags    int
 	terminalConfigured bool
+	stdinFd            int
+	stdinFlagsSaved    bool
 
 	cforedReplyReceiver *CforedReplyReceiver
 
-	// These fields are used under Forwarding State.
+	// I/O forwarding spans resource allocation through completion acknowledgement.
 	stopStepCtx context.Context
 	stopStepCb  context.CancelFunc
 	//stop step will stop reading from local stdin/file/x11
@@ -195,6 +198,8 @@ func (m *StateMachineOfCrun) Init(job *protos.JobToCtld, step *protos.StepToCtld
 	m.step = step
 	m.state = ConnectCfored
 	m.err = util.ErrorSuccess
+	m.taskExitCode = 0
+	m.initIOForwarding()
 
 	m.sigs = make(chan os.Signal, 1)
 	signal.Notify(m.sigs, syscall.SIGINT, syscall.SIGTTOU)
@@ -531,6 +536,7 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 				return
 			}
 		case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
+			m.startOutputForwarding()
 			m.state = JobKilling
 		case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
 			// Job launch failed !
@@ -540,10 +546,12 @@ func (m *StateMachineOfCrun) StateWaitForward() {
 			return
 		default:
 			log.Errorf("Received unhandeled msg type %s", cforedReply.Type.String())
+			m.startOutputForwarding()
 			m.state = JobKilling
 		}
 
 	case sig := <-m.sigs:
+		m.startOutputForwarding()
 		if sig == syscall.SIGINT {
 			m.state = JobKilling
 		} else {
@@ -564,7 +572,8 @@ func (m *StateMachineOfCrun) StateForwarding() {
 		return
 	}
 
-	m.StartIOForward()
+	m.startInputForwarding()
+	m.startOutputForwarding()
 
 	parsedId, err := strconv.ParseUint(m.inputFlag, 10, 32)
 	if err == nil {
@@ -644,16 +653,7 @@ func (m *StateMachineOfCrun) StateForwarding() {
 					}
 
 				case protos.StreamCrunReply_TASK_EXIT_STATUS:
-					exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
-					if exitStatus.ExitCode != 0 {
-						if exitStatus.Signaled {
-							fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
-						} else {
-							fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
-								exitStatus.TaskId, exitStatus.ExitCode)
-						}
-						m.err = int(exitStatus.ExitCode)
-					}
+					m.handleTaskExitStatus(cforedReply.GetPayloadTaskExitStatusReply())
 
 				case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
 					m.stopStepCb()
@@ -788,6 +788,28 @@ func validTerminalSize(rows, columns int) bool {
 		columns > 0 && columns <= maxTerminalDimension
 }
 
+func (m *StateMachineOfCrun) handleTaskExitStatus(exitStatus *protos.StreamCrunReply_TaskExitStatusReply) {
+	if exitStatus.ExitCode != 0 {
+		if exitStatus.Signaled {
+			fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
+		} else {
+			fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
+				exitStatus.TaskId, exitStatus.ExitCode)
+		}
+		m.taskExitCode = int(exitStatus.ExitCode)
+	}
+}
+
+func (m *StateMachineOfCrun) resultError() error {
+	if m.err != util.ErrorSuccess {
+		return &util.CraneError{Code: m.err}
+	}
+	if m.taskExitCode != 0 {
+		return &util.CommandExitError{Code: m.taskExitCode}
+	}
+	return nil
+}
+
 func (m *StateMachineOfCrun) StateJobKilling() {
 	request := &protos.StreamCrunRequest{
 		Type: protos.StreamCrunRequest_STEP_COMPLETION_REQUEST,
@@ -864,16 +886,7 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_TASK_EXIT_STATUS:
-		exitStatus := cforedReply.GetPayloadTaskExitStatusReply()
-		if exitStatus.ExitCode != 0 {
-			if exitStatus.Signaled {
-				fmt.Fprintf(os.Stderr, "error: task %d: Terminated\n", exitStatus.TaskId)
-			} else {
-				fmt.Fprintf(os.Stderr, "error: task %d: Exited with exit code %d\n",
-					exitStatus.TaskId, exitStatus.ExitCode)
-			}
-			m.err = int(exitStatus.ExitCode)
-		}
+		m.handleTaskExitStatus(cforedReply.GetPayloadTaskExitStatusReply())
 		return // Still in WaitAck state
 
 	case protos.StreamCrunReply_STEP_CANCEL_REQUEST:
@@ -881,7 +894,11 @@ func (m *StateMachineOfCrun) StateWaitAck() {
 		return
 
 	case protos.StreamCrunReply_STEP_COMPLETION_ACK_REPLY:
-		log.Debug("Job completed.")
+		if cforedReply.GetPayloadStepCompletionAckReply().GetOk() {
+			log.Debug("Job completed.")
+		} else {
+			log.Error("Cfored reported job completion failure.")
+		}
 		m.cforedReplyReceiver.MarkExpectedClose()
 		m.state = End
 	default:
@@ -1094,22 +1111,37 @@ func (m *StateMachineOfCrun) FileWriterRoutine(filePath string, src <-chan []byt
 
 	writer := bufio.NewWriter(file)
 
-writing:
+	writeMessage := func(msg []byte) bool {
+		if _, err := writer.Write(msg); err != nil {
+			log.Errorf("Failed to write to file %s: %s", filePath, err)
+			m.stopStepCb()
+			return false
+		}
+		if err := writer.Flush(); err != nil {
+			log.Errorf("Failed to flush file %s: %s", filePath, err)
+			m.stopStepCb()
+			return false
+		}
+		return true
+	}
+
 	for {
 		select {
 		case msg := <-src:
-			if _, err := writer.Write(msg); err != nil {
-				log.Errorf("Failed to write to file %s: %s", filePath, err)
-				m.stopStepCb()
-				break writing
-			}
-			if err := writer.Flush(); err != nil {
-				log.Errorf("Failed to flush file %s: %s", filePath, err)
-				m.stopStepCb()
-				break writing
+			if !writeMessage(msg) {
+				return
 			}
 		case <-m.stopWriteCtx.Done():
-			break writing
+			for {
+				select {
+				case msg := <-src:
+					if !writeMessage(msg) {
+						return
+					}
+				default:
+					return
+				}
+			}
 		}
 	}
 }
@@ -1144,7 +1176,31 @@ func (m *StateMachineOfCrun) StderrFileWriterRoutine(filePattern string) {
 	m.FileWriterRoutine(parsedFilePath, m.chanErrOutputFromRemote)
 }
 
+func setFileNonblocking(fd int) (int, error) {
+	originalFlags, err := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := unix.FcntlInt(uintptr(fd), unix.F_SETFL, originalFlags|unix.O_NONBLOCK); err != nil {
+		return 0, err
+	}
+	return originalFlags, nil
+}
+
+func restoreFileStatusFlags(fd int, flags int) error {
+	_, err := unix.FcntlInt(uintptr(fd), unix.F_SETFL, flags)
+	return err
+}
+
+func (m *StateMachineOfCrun) startStdinReader() {
+	fd := int(os.Stdin.Fd())
+	m.stdinFd = fd
+	go m.StdinReaderRoutine()
+}
+
 func (m *StateMachineOfCrun) StdinReaderRoutine() {
+	defer close(m.chanInputFromLocal)
+	fd := m.stdinFd
 	epfd, err := syscall.EpollCreate1(0)
 	if err != nil {
 		log.Tracef("EpollCreate1: %v", err)
@@ -1153,16 +1209,15 @@ func (m *StateMachineOfCrun) StdinReaderRoutine() {
 
 	event := &syscall.EpollEvent{
 		Events: syscall.EPOLLIN,
-		Fd:     int32(int(os.Stdin.Fd())),
+		Fd:     int32(fd),
 	}
 
-	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, int(os.Stdin.Fd()), event); err != nil {
+	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, fd, event); err != nil {
 		log.Tracef("EpollCtl: %v", err)
 		return
 	}
 
 	defer syscall.Close(epfd)
-	defer close(m.chanInputFromLocal)
 	events := make([]syscall.EpollEvent, 10)
 	buf := make([]byte, 4096)
 reading:
@@ -1183,8 +1238,8 @@ reading:
 			return
 		}
 		for i := 0; i < n; i++ {
-			if events[i].Fd == int32(os.Stdin.Fd()) && events[i].Events&syscall.EPOLLIN != 0 {
-				nr, err := syscall.Read(int(os.Stdin.Fd()), buf)
+			if events[i].Fd == int32(fd) && events[i].Events&syscall.EPOLLIN != 0 {
+				nr, err := syscall.Read(fd, buf)
 				if err != nil {
 					if errors.Is(err, syscall.EAGAIN) {
 						log.Trace("Read EAGAIN, no data available now")
@@ -1383,7 +1438,7 @@ reading:
 	}
 }
 
-func (m *StateMachineOfCrun) StartIOForward() {
+func (m *StateMachineOfCrun) initIOForwarding() {
 	m.stopStepCtx, m.stopStepCb = context.WithCancel(context.Background())
 	m.stopReadCtx, m.stopReadCb = context.WithCancel(m.stopStepCtx)
 	// stopWriteCtx is independent of stopStepCtx: it is only cancelled after
@@ -1397,29 +1452,9 @@ func (m *StateMachineOfCrun) StartIOForward() {
 	m.chanInputFromLocal = make(chan []byte, 100)
 	m.chanOutputFromRemote = make(chan []byte, 20)
 	m.chanErrOutputFromRemote = make(chan []byte, 20)
-	m.startInputRoutine(m.forwardingSigHandlerRoutine)
-	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
-		log.Debugf("Input from stdin to all tasks")
-		m.startInputRoutine(m.StdinReaderRoutine)
-	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
-		log.Debugf("No input forwarding")
-	} else {
-		taskId, err := strconv.ParseUint(m.inputFlag, 10, 32)
-		if err != nil {
-			log.Debugf("Input from file %s, filepath is not a number", m.inputFlag)
-			m.startInputRoutine(func() { m.FileReaderRoutine(m.inputFlag) })
-		} else {
-			if taskId < uint64(m.ntasksTotal) {
-				log.Debugf("Input from stdin to %d", taskId)
-				m.startInputRoutine(m.StdinReaderRoutine)
-			} else {
-				log.Debugf("Input from file %s, num but greater than ntasksTotal %d", m.inputFlag, m.ntasksTotal)
-				m.startInputRoutine(func() { m.FileReaderRoutine(m.inputFlag) })
+}
 
-			}
-		}
-	}
-
+func (m *StateMachineOfCrun) startOutputForwarding() {
 	startWriter := func(f func()) {
 		m.writerWg.Add(1)
 		go func() {
@@ -1468,6 +1503,31 @@ func (m *StateMachineOfCrun) StartIOForward() {
 			} else {
 				log.Debugf("Stderr output to file %s (task id %d >= ntasksTotal %d)", m.errorFlag, taskId, m.ntasksTotal)
 				startWriter(func() { m.StderrFileWriterRoutine(m.errorFlag) })
+			}
+		}
+	}
+}
+
+func (m *StateMachineOfCrun) startInputForwarding() {
+	go m.forwardingSigHandlerRoutine()
+	if strings.ToLower(m.inputFlag) == FlagIOForwardALL {
+		log.Debugf("Input from stdin to all tasks")
+		m.startStdinReader()
+	} else if strings.ToLower(m.inputFlag) == FlagIOForwardNONE {
+		log.Debugf("No input forwarding")
+	} else {
+		taskId, err := strconv.ParseUint(m.inputFlag, 10, 32)
+		if err != nil {
+			log.Debugf("Input from file %s, filepath is not a number", m.inputFlag)
+			go m.FileReaderRoutine(m.inputFlag)
+		} else {
+			if taskId < uint64(m.ntasksTotal) {
+				log.Debugf("Input from stdin to %d", taskId)
+				m.startStdinReader()
+			} else {
+				log.Debugf("Input from file %s, num but greater than ntasksTotal %d", m.inputFlag, m.ntasksTotal)
+				go m.FileReaderRoutine(m.inputFlag)
+
 			}
 		}
 	}
@@ -1550,6 +1610,15 @@ func (m *StateMachineOfCrun) RunCommand(runCommandArgs RunCommandArgs) int {
 	return ExitCode
 }
 
+// shellJoinArgs serializes argv so a POSIX shell reconstructs each argument exactly.
+func shellJoinArgs(args []string) string {
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		quoted[i] = "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
+	}
+	return strings.Join(quoted, " ")
+}
+
 func MainCrun(cmd *cobra.Command, args []string) error {
 	util.InitDiagLogger(FlagDebugLevel)
 
@@ -1601,7 +1670,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.JobToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveJobAdditionalMeta{},
 			},
-			ShScript: strings.Join(args, " "),
+			ShScript: shellJoinArgs(args),
 			IoMeta:   &protos.IoMeta{},
 			CmdLine:  strings.Join(args, " "),
 			Cwd:      gVars.cwd,
@@ -1625,7 +1694,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Payload: &protos.StepToCtld_InteractiveMeta{
 				InteractiveMeta: &protos.InteractiveJobAdditionalMeta{},
 			},
-			ShScript: strings.Join(args, " "),
+			ShScript: shellJoinArgs(args),
 			IoMeta:   &protos.IoMeta{},
 			CmdLine:  strings.Join(args, " "),
 			Cwd:      gVars.cwd,
@@ -2068,8 +2137,5 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	defer m.Close()
 	m.Run()
 
-	if m.err == util.ErrorSuccess {
-		return nil
-	}
-	return &util.CraneError{Code: m.err}
+	return m.resultError()
 }

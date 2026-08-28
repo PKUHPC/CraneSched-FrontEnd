@@ -508,11 +508,7 @@ func (m *StateMachineOfCattach) StartIOForward() {
 }
 
 func (m *StateMachineOfCattach) StdinReaderRoutine() {
-
-	err := syscall.SetNonblock(int(os.Stdin.Fd()), true)
-	if err != nil {
-		return
-	}
+	fd := int(os.Stdin.Fd())
 
 	epfd, err := syscall.EpollCreate1(0)
 	if err != nil {
@@ -522,10 +518,10 @@ func (m *StateMachineOfCattach) StdinReaderRoutine() {
 
 	event := &syscall.EpollEvent{
 		Events: syscall.EPOLLIN,
-		Fd:     int32(int(os.Stdin.Fd())),
+		Fd:     int32(fd),
 	}
 
-	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, int(os.Stdin.Fd()), event); err != nil {
+	if err := syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, fd, event); err != nil {
 		log.Tracef("EpollCtl: %v", err)
 		return
 	}
@@ -565,8 +561,8 @@ reading:
 			return
 		}
 		for i := 0; i < n; i++ {
-			if events[i].Fd == int32(os.Stdin.Fd()) && events[i].Events&syscall.EPOLLIN != 0 {
-				nr, err := syscall.Read(int(os.Stdin.Fd()), buf)
+			if events[i].Fd == int32(fd) && events[i].Events&syscall.EPOLLIN != 0 {
+				nr, err := syscall.Read(fd, buf)
 				if err != nil {
 					if errors.Is(err, syscall.EAGAIN) {
 						log.Trace("Read EAGAIN, no data available now")
