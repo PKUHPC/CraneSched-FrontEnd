@@ -136,7 +136,7 @@ COMMANDS:
 
 GLOBAL OPTIONS:
   --help, -h     Display this help message
-  -V, --version  Show version information
+  --version, -v  Show version information
   --json, -J     Format output as JSON
   --config, -C   Specify an alternative configuration file
   
