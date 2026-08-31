@@ -127,6 +127,11 @@ func ProcessState(flattened []FlattenedData, tableOutputCell [][]string) {
 		}
 
 		stateStr := strings.ToLower(strings.TrimPrefix(data.ResourceState.String(), "CRANE_"))
+		if data.ResourceState == protos.CranedResourceState_CRANE_FUTURE {
+			// An unmapped FUTURE node has no craned attached, so no power state.
+			tableOutputCell[idx] = append(tableOutputCell[idx], stateStr)
+			continue
+		}
 		if data.ControlState != protos.CranedControlState_CRANE_NONE {
 			controlState := strings.ToLower(strings.TrimPrefix(data.ControlState.String(), "CRANE_"))
 			stateStr += "(" + controlState + ")"
@@ -260,6 +265,10 @@ func BuildStateString(cranedList *protos.TrimmedPartitionInfo_TrimmedCranedInfo)
 			cranedList.ResourceState, cranedList.ControlState, cranedList.PowerState)
 	}
 	stateStr := strings.ToLower(strings.TrimPrefix(cranedList.ResourceState.String(), "CRANE_"))
+	if cranedList.ResourceState == protos.CranedResourceState_CRANE_FUTURE {
+		// An unmapped FUTURE node has no craned attached, so no power state.
+		return stateStr
+	}
 
 	if cranedList.ControlState != protos.CranedControlState_CRANE_NONE {
 		controlState := strings.ToLower(strings.TrimPrefix(cranedList.ControlState.String(), "CRANE_"))
