@@ -867,17 +867,12 @@ func CheckJobArgs(job *protos.JobToCtld) error {
 	if job.TimeLimit.AsDuration() <= 0 {
 		return fmt.Errorf("--time must > 0")
 	}
-	normalizedNodeList, err := NormalizeNodeList(job.Nodelist)
-	if err != nil {
+	if !CheckNodeList(job.Nodelist) {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
-	job.Nodelist = normalizedNodeList
-
-	normalizedExcludeList, err := NormalizeNodeList(job.Excludes)
-	if err != nil {
+	if !CheckNodeList(job.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	job.Excludes = normalizedExcludeList
 	// Calculate total CPUs if cpus_per_task is specified
 	if job.CpusPerTask != nil && job.Ntasks > 0 {
 		CpusTotal := *job.CpusPerTask * float64(job.Ntasks)
@@ -955,17 +950,12 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if step.TimeLimit.AsDuration() <= 0 {
 		return fmt.Errorf("--time must > 0")
 	}
-	normalizedNodeList, err := NormalizeNodeList(step.Nodelist)
-	if err != nil {
+	if !CheckNodeList(step.Nodelist) {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
-	step.Nodelist = normalizedNodeList
-
-	normalizedExcludeList, err := NormalizeNodeList(step.Excludes)
-	if err != nil {
+	if !CheckNodeList(step.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
 	}
-	step.Excludes = normalizedExcludeList
 	// Calculate total CPUs if cpus_per_task is specified
 	if step.CpusPerTask != nil && step.Ntasks > 0 {
 		CpusTotal := *step.CpusPerTask * float64(step.Ntasks)
@@ -1072,41 +1062,6 @@ func ParseHostList(hostStr string) ([]string, bool) {
 		}
 	}
 	return hostList, true
-}
-
-// ExpandHostList parses a hostlist expression and rejects empty elements.
-func ExpandHostList(hostStr string) ([]string, error) {
-	if strings.TrimSpace(hostStr) == "" {
-		return nil, nil
-	}
-
-	hostList, ok := ParseHostList(hostStr)
-	if !ok || len(hostList) == 0 {
-		return nil, fmt.Errorf("invalid host list")
-	}
-	for _, host := range hostList {
-		if host == "" {
-			return nil, fmt.Errorf("invalid host list")
-		}
-	}
-	return hostList, nil
-}
-
-// NormalizeNodeList expands a node expression for submission to the backend.
-func NormalizeNodeList(nodeStr string) (string, error) {
-	hostList, err := ExpandHostList(nodeStr)
-	if err != nil {
-		return "", err
-	}
-	if len(hostList) == 0 {
-		return "", nil
-	}
-
-	normalized := strings.Join(hostList, ",")
-	if !CheckNodeList(normalized) {
-		return "", fmt.Errorf("invalid host list")
-	}
-	return normalized, nil
 }
 
 func parseNodeList(nodeStr string) ([]string, bool) {
