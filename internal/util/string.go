@@ -1107,9 +1107,7 @@ func parseNodeList(nodeStr string) ([]string, bool) {
 	resList := []string{""}
 
 	for _, str := range unitStrList {
-		nodeNum := strings.FieldsFunc(str, func(r rune) bool {
-			return r == '[' || r == ','
-		})
+		nodeNum := strings.Split(strings.ReplaceAll(str, "[", ","), ",")
 		if len(nodeNum) == 0 {
 			return nil, false
 		}

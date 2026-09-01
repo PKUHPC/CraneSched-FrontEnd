@@ -69,4 +69,13 @@ func TestCheckNodeListRejectsMalformedExpression(t *testing.T) {
 	if CheckNodeList("[]") {
 		t.Fatal("CheckNodeList accepted empty expression")
 	}
+	if CheckNodeList("node[01,]") {
+		t.Fatal("CheckNodeList accepted a trailing empty member")
+	}
+	if CheckNodeList("node[,01]") {
+		t.Fatal("CheckNodeList accepted a leading empty member")
+	}
+	if CheckNodeList("node[01,,02]") {
+		t.Fatal("CheckNodeList accepted a repeated delimiter")
+	}
 }
