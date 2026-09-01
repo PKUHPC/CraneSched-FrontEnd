@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"hash/fnv"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -14,121 +14,212 @@ import (
 
 const (
 	traceWriterStatsInterval = 5 * time.Second
-	traceWriterCloseTimeout  = 10 * time.Second
 )
 
 type TraceWriter struct {
-	db     TraceStore
-	cfg    TraceWriterConfig
-	shards []*traceWriterShard
+	workers   []*traceBatchWorker
+	processor TracePointProcessor
 
-	stop    chan struct{}
-	done    chan struct{}
-	stopped atomic.Bool
+	stop         chan struct{}
+	enqueuesDone chan struct{}
+	done         chan struct{}
+	workerErrors chan error
+	lifecycle    sync.RWMutex
+	stopped      atomic.Bool
+	stopOnce     sync.Once
+	resultOnce   sync.Once
+	closeErr     error
+	closeTimeout time.Duration
 }
 
-type traceWriterShard struct {
+type traceBatchWorker struct {
 	id    int
-	db    TraceStore
+	sink  TraceSink
 	cfg   TraceWriterConfig
-	queue chan []*protos.SpanInfo
+	queue chan []encodedTracePoint
 
 	enqueuedBatches atomic.Uint64
 	enqueuedSpans   atomic.Uint64
 	failedEnqueues  atomic.Uint64
 }
 
-type traceSpanWrite struct {
-	bucket string
-	span   *protos.SpanInfo
-}
-
-func NewTraceWriter(database TraceStore, writerConfig TraceWriterConfig) *TraceWriter {
+func NewTraceWriter(
+	sink TraceSink,
+	processor TracePointProcessor,
+	writerConfig TraceWriterConfig,
+) *TraceWriter {
 	normalizeTraceWriterConfig(&writerConfig)
 	writer := &TraceWriter{
-		db:     database,
-		cfg:    writerConfig,
-		shards: make([]*traceWriterShard, writerConfig.Shards),
-		stop:   make(chan struct{}),
-		done:   make(chan struct{}),
+		workers:      make([]*traceBatchWorker, writerConfig.Shards),
+		processor:    processor,
+		stop:         make(chan struct{}),
+		enqueuesDone: make(chan struct{}),
+		done:         make(chan struct{}),
+		workerErrors: make(chan error, writerConfig.Shards),
+		closeTimeout: time.Duration(writerConfig.CloseTimeoutMs) * time.Millisecond,
 	}
 	var wg sync.WaitGroup
 	wg.Add(writerConfig.Shards)
-	for i := range writer.shards {
-		shard := &traceWriterShard{
+	for i := range writer.workers {
+		worker := &traceBatchWorker{
 			id:    i,
-			db:    database,
+			sink:  sink,
 			cfg:   writerConfig,
-			queue: make(chan []*protos.SpanInfo, writerConfig.QueueBatches),
+			queue: make(chan []encodedTracePoint, writerConfig.QueueBatches),
 		}
-		writer.shards[i] = shard
-		go shard.run(writer.stop, &wg)
+		writer.workers[i] = worker
+		go worker.run(writer.stop, writer.enqueuesDone, writer.workerErrors, &wg)
 	}
 	go func() {
 		wg.Wait()
+		close(writer.workerErrors)
 		close(writer.done)
 	}()
 	return writer
 }
 
 func (w *TraceWriter) Enqueue(ctx context.Context, spans []*protos.SpanInfo) error {
-	if len(spans) == 0 || w == nil || w.stopped.Load() {
+	if w == nil || len(spans) == 0 {
 		return nil
 	}
-
-	byShard := make(map[int][]*protos.SpanInfo)
-	for _, span := range spans {
-		shardID := traceShardID(span, len(w.shards))
-		byShard[shardID] = append(byShard[shardID], span)
+	w.lifecycle.RLock()
+	defer w.lifecycle.RUnlock()
+	if w.stopped.Load() {
+		return errors.New("trace writer is stopping")
+	}
+	if w.processor == nil {
+		return errors.New("trace point processor is not configured")
 	}
 
-	for shardID, shardSpans := range byShard {
-		batch := append([]*protos.SpanInfo(nil), shardSpans...)
-		shard := w.shards[shardID]
-		select {
-		case shard.queue <- batch:
-			shard.enqueuedBatches.Add(1)
-			shard.enqueuedSpans.Add(uint64(len(batch)))
-		case <-ctx.Done():
-			failed := shard.failedEnqueues.Add(1)
-			if failed == 1 || failed%128 == 0 {
-				log.Warnf("Trace writer enqueue canceled shard_id=%d count=%d err=%v",
-					shardID, failed, ctx.Err())
+	byShard := make(map[int][]encodedTracePoint)
+	var pointErrors []error
+	for index, span := range spans {
+		point, err := w.processor.Process(rawTracePoint{span: span})
+		if err != nil {
+			pointErrors = append(pointErrors, fmt.Errorf("normalize trace span %d: %w", index, err))
+			continue
+		}
+		shardID := int(point.routing.shard % uint32(len(w.workers)))
+		byShard[shardID] = append(byShard[shardID], point)
+	}
+
+	for shardID, shardPoints := range byShard {
+		worker := w.workers[shardID]
+		for start := 0; start < len(shardPoints); start += worker.cfg.BatchSpans {
+			end := start + worker.cfg.BatchSpans
+			if end > len(shardPoints) {
+				end = len(shardPoints)
 			}
-			return ctx.Err()
-		case <-w.stop:
-			return errors.New("trace writer is stopping")
+			batch := append([]encodedTracePoint(nil), shardPoints[start:end]...)
+			select {
+			case worker.queue <- batch:
+				worker.enqueuedBatches.Add(1)
+				worker.enqueuedSpans.Add(uint64(len(batch)))
+			case <-ctx.Done():
+				failed := worker.failedEnqueues.Add(1)
+				if failed == 1 || failed%128 == 0 {
+					log.Warnf("Trace writer enqueue canceled shard_id=%d count=%d err=%v",
+						shardID, failed, ctx.Err())
+				}
+				return errors.Join(errors.Join(pointErrors...), ctx.Err())
+			case <-w.stop:
+				return errors.Join(errors.Join(pointErrors...), errors.New("trace writer is stopping"))
+			}
 		}
 	}
-	return nil
+	return errors.Join(pointErrors...)
 }
 
-func (w *TraceWriter) Close() {
-	if w == nil || w.stopped.Swap(true) {
-		return
+func (w *TraceWriter) Close() error {
+	if w == nil {
+		return nil
 	}
+	w.stopped.Store(true)
+	w.stopOnce.Do(func() {
+		close(w.stop)
+		w.lifecycle.Lock()
+		close(w.enqueuesDone)
+		w.lifecycle.Unlock()
+	})
 
-	close(w.stop)
-
-	timer := time.NewTimer(traceWriterCloseTimeout)
+	timer := time.NewTimer(w.closeTimeout)
 	defer timer.Stop()
-
 	select {
 	case <-w.done:
+		w.resultOnce.Do(func() {
+			var shardErrors []error
+			for err := range w.workerErrors {
+				shardErrors = append(shardErrors, err)
+			}
+			w.closeErr = errors.Join(shardErrors...)
+		})
+		return w.closeErr
 	case <-timer.C:
-		log.Warnf("Trace writer did not finish draining within %s", traceWriterCloseTimeout)
+		// Workers are still running, so workerErrors is not closed and cannot be
+		// ranged over. Take what they have already published: a shard that gave
+		// up on undrained spans reports how many it dropped, and that is the
+		// only signal that the exported trace is incomplete. Losing it here
+		// turns a known gap into an unexplained one downstream.
+		reported := w.reportedShardErrors()
+		return errors.Join(append(
+			[]error{fmt.Errorf("trace writer did not drain within %s", w.closeTimeout)},
+			reported...,
+		)...)
 	}
 }
 
-func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
+// reportedShardErrors removes the shard errors published so far without
+// blocking. Each shard publishes at most one error into a buffer sized for every
+// shard, so this collects everything reported up to this instant.
+func (w *TraceWriter) reportedShardErrors() []error {
+	var shardErrors []error
+	for {
+		select {
+		case err, ok := <-w.workerErrors:
+			if !ok {
+				return shardErrors
+			}
+			if err != nil {
+				shardErrors = append(shardErrors, err)
+			}
+		default:
+			return shardErrors
+		}
+	}
+}
+
+func (w *TraceWriter) Drained() bool {
+	if w == nil {
+		return true
+	}
+	select {
+	case <-w.done:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *traceBatchWorker) run(
+	stop <-chan struct{},
+	enqueuesDone <-chan struct{},
+	shardErrors chan<- error,
+	wg *sync.WaitGroup,
+) {
 	defer wg.Done()
+	var finalError error
+	defer func() {
+		if finalError != nil {
+			shardErrors <- finalError
+		}
+	}()
 
 	ticker := time.NewTicker(time.Duration(s.cfg.FlushIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 	statsTicker := time.NewTicker(traceWriterStatsInterval)
 	defer statsTicker.Stop()
 
-	pending := make([]traceSpanWrite, 0, s.cfg.BatchSpans)
+	pending := make([]encodedTracePoint, 0, s.cfg.BatchSpans)
 	stats := traceWriterStats{}
 	var lastEnqueuedBatches uint64
 	var lastEnqueuedSpans uint64
@@ -136,6 +227,22 @@ func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
 	var retryBackoff time.Duration
 	var nextRetry time.Time
 	var oldestPending time.Time
+	var lastWriteError error
+	var shutdownDeadline time.Time
+	var retryTimer *time.Timer
+	stopRetryTimer := func() {
+		if retryTimer == nil {
+			return
+		}
+		if !retryTimer.Stop() {
+			select {
+			case <-retryTimer.C:
+			default:
+			}
+		}
+		retryTimer = nil
+	}
+	defer stopRetryTimer()
 
 	logStats := func(final bool) {
 		enqueuedBatches := s.enqueuedBatches.Load()
@@ -200,23 +307,40 @@ func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
 			limit = len(pending)
 		}
 		batch := pending[:limit]
-		byBucket := make(map[string][]*protos.SpanInfo)
-		for _, item := range batch {
-			byBucket[item.bucket] = append(byBucket[item.bucket], item.span)
-		}
-		buckets := make([]string, 0, len(byBucket))
-		for bucket := range byBucket {
-			buckets = append(buckets, bucket)
-		}
-		sort.Strings(buckets)
-
 		begin := time.Now()
-		failed := make([]traceSpanWrite, 0)
-		for _, bucket := range buckets {
-			if err := s.db.SaveSpansToBucket(bucket, byBucket[bucket]); err != nil {
-				stats.writeErrors++
+		writeTimeout := time.Duration(s.cfg.WriteTimeoutMs) * time.Millisecond
+		if !shutdownDeadline.IsZero() {
+			remaining := time.Until(shutdownDeadline)
+			if remaining <= 0 {
+				return
+			}
+			if writeTimeout > remaining {
+				writeTimeout = remaining
+			}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+		result, err := s.sink.WriteBatch(ctx, batch)
+		cancel()
+		if err == nil && (len(result.failed) > 0 || len(result.dropped) > 0) {
+			err = errors.New("trace sink returned rejected points without an error")
+		}
+		if len(result.dropped) > 0 {
+			stats.droppedSpans += uint64(len(result.dropped))
+			finalError = errors.Join(finalError, fmt.Errorf(
+				"trace sink permanently rejected %d destination writes: %w",
+				len(result.dropped), err,
+			))
+		}
+		if err != nil {
+			lastWriteError = err
+			failed := result.failed
+			if len(failed) == 0 && len(result.dropped) == 0 {
+				failed = append([]encodedTracePoint(nil), batch...)
+			}
+			stats.writeErrors++
+			if len(failed) > 0 {
 				stats.retryCount++
-				stats.retrySpans += uint64(len(byBucket[bucket]))
+				stats.retrySpans += uint64(len(failed))
 				if retryBackoff == 0 {
 					retryBackoff = time.Duration(s.cfg.RetryBackoffMs) * time.Millisecond
 				} else {
@@ -227,23 +351,21 @@ func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
 					}
 				}
 				nextRetry = time.Now().Add(retryBackoff)
-				log.Errorf("Failed to save async trace spans shard_id=%d bucket=%s batch_spans=%d retry_backoff_ms=%d: %v",
-					s.id, bucket, len(byBucket[bucket]), retryBackoff.Milliseconds(), err)
-				for _, span := range byBucket[bucket] {
-					failed = append(failed, traceSpanWrite{bucket: bucket, span: span})
-				}
+				log.Errorf("Failed to save async trace spans shard_id=%d batch_spans=%d retry_backoff_ms=%d: %v",
+					s.id, len(failed), retryBackoff.Milliseconds(), err)
+				nextPending := make([]encodedTracePoint, 0, len(failed)+len(pending)-limit)
+				nextPending = append(nextPending, failed...)
+				nextPending = append(nextPending, pending[limit:]...)
+				pending = nextPending
+				stats.record(len(batch), time.Since(begin))
+				return
 			}
+			log.Errorf("Dropped permanently rejected trace destinations shard_id=%d dropped=%d: %v",
+				s.id, len(result.dropped), err)
 		}
 
 		stats.record(len(batch), time.Since(begin))
-		if len(failed) > 0 {
-			nextPending := make([]traceSpanWrite, 0, len(failed)+len(pending)-limit)
-			nextPending = append(nextPending, failed...)
-			nextPending = append(nextPending, pending[limit:]...)
-			pending = nextPending
-			return
-		}
-
+		lastWriteError = nil
 		pending = pending[limit:]
 		if len(pending) == 0 {
 			oldestPending = time.Time{}
@@ -252,23 +374,34 @@ func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
 		nextRetry = time.Time{}
 	}
 
-	appendPending := func(spans []*protos.SpanInfo) {
-		if len(spans) == 0 {
+	appendPending := func(points []encodedTracePoint) {
+		if len(points) == 0 {
 			return
 		}
 		if len(pending) == 0 {
 			oldestPending = time.Now()
 		}
-		for _, span := range spans {
-			for _, bucket := range s.db.TraceBucketsForSpan(span) {
-				pending = append(pending, traceSpanWrite{bucket: bucket, span: span})
-			}
-		}
+		pending = append(pending, points...)
 	}
 
 	for {
+		var queue <-chan []encodedTracePoint
+		var retry <-chan time.Time
+		if len(pending) > 0 && !nextRetry.IsZero() {
+			if retryTimer == nil {
+				delay := time.Until(nextRetry)
+				if delay < 0 {
+					delay = 0
+				}
+				retryTimer = time.NewTimer(delay)
+			}
+			retry = retryTimer.C
+		} else {
+			stopRetryTimer()
+			queue = s.queue
+		}
 		select {
-		case spans := <-s.queue:
+		case spans := <-queue:
 			appendPending(spans)
 			for len(pending) >= s.cfg.BatchSpans {
 				before := len(pending)
@@ -277,11 +410,35 @@ func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
 					break
 				}
 			}
-		case <-ticker.C:
+		case <-retry:
+			retryTimer = nil
 			flush(false)
+		case <-ticker.C:
+			if retry == nil {
+				flush(false)
+			}
 		case <-statsTicker.C:
 			logStats(false)
 		case <-stop:
+			stopRetryTimer()
+			shutdownBudget := time.Duration(s.cfg.CloseTimeoutMs) * time.Millisecond
+			margin := 10 * time.Millisecond
+			if margin >= shutdownBudget {
+				margin = shutdownBudget / 4
+			}
+			shutdownDeadline = time.Now().Add(shutdownBudget - margin)
+			// Close signals producers before waiting for their read locks. Keep
+			// consuming until every in-flight Enqueue has either sent or observed
+			// stop, then drain the remaining buffered batches.
+			for {
+				select {
+				case points := <-s.queue:
+					appendPending(points)
+				case <-enqueuesDone:
+					goto drainQueue
+				}
+			}
+		drainQueue:
 			for {
 				select {
 				case spans := <-s.queue:
@@ -298,8 +455,25 @@ func (s *traceWriterShard) run(stop <-chan struct{}, wg *sync.WaitGroup) {
 						before := len(pending)
 						flush(true)
 						if len(pending) == before {
+							if time.Now().Before(shutdownDeadline) {
+								wait := time.Until(nextRetry)
+								if wait <= 0 {
+									wait = time.Millisecond
+								}
+								if remaining := time.Until(shutdownDeadline); wait > remaining {
+									wait = remaining
+								}
+								time.Sleep(wait)
+								continue
+							}
 							stats.droppedSpans += uint64(len(pending))
 							log.Warnf("Trace writer shard_id=%d stopped with %d undrained spans", s.id, len(pending))
+							finalError = fmt.Errorf(
+								"trace writer shard %d dropped %d spans during shutdown: %w",
+								s.id,
+								len(pending),
+								lastWriteError,
+							)
 							pending = pending[:0]
 						}
 					}
@@ -377,25 +551,6 @@ func (s *traceWriterStats) snapshot() traceWriterStatsSnapshot {
 		elapsedP99Ms: percentileInt64(s.elapsedMs, 99),
 		elapsedMaxMs: percentileInt64(s.elapsedMs, 100),
 	}
-}
-
-func traceShardID(span *protos.SpanInfo, shardCount int) int {
-	if shardCount <= 1 {
-		return 0
-	}
-	key := ""
-	if span != nil {
-		if jobID := span.Attributes["job_id"]; jobID != "" {
-			key = jobID
-		} else if span.TraceId != "" {
-			key = span.TraceId
-		} else {
-			key = span.SpanId
-		}
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(key))
-	return int(h.Sum32() % uint32(shardCount))
 }
 
 func percentileInt(values []int, percentile int) int {
