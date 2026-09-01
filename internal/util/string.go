@@ -870,8 +870,22 @@ func CheckJobArgs(job *protos.JobToCtld) error {
 	if !CheckNodeList(job.Nodelist) {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
+	if job.Nodelist != "" {
+		hostList, ok := ParseHostList(job.Nodelist)
+		if !ok {
+			return fmt.Errorf("invalid format for --nodelist")
+		}
+		job.Nodelist = strings.Join(hostList, ",")
+	}
 	if !CheckNodeList(job.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
+	}
+	if job.Excludes != "" {
+		hostList, ok := ParseHostList(job.Excludes)
+		if !ok {
+			return fmt.Errorf("invalid format for --exclude")
+		}
+		job.Excludes = strings.Join(hostList, ",")
 	}
 	// Calculate total CPUs if cpus_per_task is specified
 	if job.CpusPerTask != nil && job.Ntasks > 0 {
@@ -953,8 +967,22 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if !CheckNodeList(step.Nodelist) {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
+	if step.Nodelist != "" {
+		hostList, ok := ParseHostList(step.Nodelist)
+		if !ok {
+			return fmt.Errorf("invalid format for --nodelist")
+		}
+		step.Nodelist = strings.Join(hostList, ",")
+	}
 	if !CheckNodeList(step.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
+	}
+	if step.Excludes != "" {
+		hostList, ok := ParseHostList(step.Excludes)
+		if !ok {
+			return fmt.Errorf("invalid format for --exclude")
+		}
+		step.Excludes = strings.Join(hostList, ",")
 	}
 	// Calculate total CPUs if cpus_per_task is specified
 	if step.CpusPerTask != nil && step.Ntasks > 0 {

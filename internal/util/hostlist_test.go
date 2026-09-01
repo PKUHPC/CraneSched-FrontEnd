@@ -21,7 +21,7 @@ func TestParseHostListExpandsNodeNameExpression(t *testing.T) {
 	}
 }
 
-func TestCheckJobArgsAcceptsAggregatedNodeLists(t *testing.T) {
+func TestCheckJobArgsExpandsAggregatedNodeLists(t *testing.T) {
 	job := &protos.JobToCtld{
 		NodeNumMin: 1,
 		NodeNumMax: 1,
@@ -34,15 +34,15 @@ func TestCheckJobArgsAcceptsAggregatedNodeLists(t *testing.T) {
 	if err := CheckJobArgs(job); err != nil {
 		t.Fatalf("CheckJobArgs returned error: %v", err)
 	}
-	if job.Nodelist != "b2u[05,02]n3" {
-		t.Fatalf("Nodelist = %q, want %q", job.Nodelist, "b2u[05,02]n3")
+	if job.Nodelist != "b2u05n3,b2u02n3" {
+		t.Fatalf("Nodelist = %q, want %q", job.Nodelist, "b2u05n3,b2u02n3")
 	}
-	if job.Excludes != "b3u[03-04]n4" {
-		t.Fatalf("Excludes = %q, want %q", job.Excludes, "b3u[03-04]n4")
+	if job.Excludes != "b3u03n4,b3u04n4" {
+		t.Fatalf("Excludes = %q, want %q", job.Excludes, "b3u03n4,b3u04n4")
 	}
 }
 
-func TestCheckStepArgsAcceptsAggregatedNodeLists(t *testing.T) {
+func TestCheckStepArgsExpandsAggregatedNodeLists(t *testing.T) {
 	step := &protos.StepToCtld{
 		NodeNum:   1,
 		Ntasks:    1,
@@ -54,11 +54,11 @@ func TestCheckStepArgsAcceptsAggregatedNodeLists(t *testing.T) {
 	if err := CheckStepArgs(step); err != nil {
 		t.Fatalf("CheckStepArgs returned error: %v", err)
 	}
-	if step.Nodelist != "b2u[05,02]n3" {
-		t.Fatalf("Nodelist = %q, want %q", step.Nodelist, "b2u[05,02]n3")
+	if step.Nodelist != "b2u05n3,b2u02n3" {
+		t.Fatalf("Nodelist = %q, want %q", step.Nodelist, "b2u05n3,b2u02n3")
 	}
-	if step.Excludes != "b3u[03-04]n4" {
-		t.Fatalf("Excludes = %q, want %q", step.Excludes, "b3u[03-04]n4")
+	if step.Excludes != "b3u03n4,b3u04n4" {
+		t.Fatalf("Excludes = %q, want %q", step.Excludes, "b3u03n4,b3u04n4")
 	}
 }
 
