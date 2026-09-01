@@ -762,8 +762,7 @@ func ParseLicensesString(val string) ([]*protos.JobToCtld_License, bool, error) 
 	return licCount, hasPipe, nil
 }
 
-// CheckNodeList check if the node list is comma separated node names.
-// The node name should contain only letters and numbers, and start with a letter, end with a number.
+// CheckNodeList checks a comma-separated node list or hostlist expression.
 func CheckNodeList(nodeStr string) bool {
 	nameStr := strings.ReplaceAll(nodeStr, " ", "")
 	if nameStr == "" {
@@ -772,7 +771,16 @@ func CheckNodeList(nodeStr string) bool {
 	ValidHostnameRegex := "(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])"
 	ValidHostListRegex := "^(" + ValidHostnameRegex + ")(," + ValidHostnameRegex + ")*$"
 	re := regexp.MustCompile(ValidHostListRegex)
-	return re.MatchString(nameStr)
+	hostList, ok := ParseHostList(nameStr)
+	if !ok || len(hostList) == 0 {
+		return false
+	}
+	for _, host := range hostList {
+		if host == "" || !re.MatchString(host) {
+			return false
+		}
+	}
+	return true
 }
 
 // CheckFileLength check if the file length is within the limit.
@@ -859,12 +867,17 @@ func CheckJobArgs(job *protos.JobToCtld) error {
 	if job.TimeLimit.AsDuration() <= 0 {
 		return fmt.Errorf("--time must > 0")
 	}
-	if !CheckNodeList(job.Nodelist) {
+	normalizedNodeList, err := NormalizeNodeList(job.Nodelist)
+	if err != nil {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
-	if !CheckNodeList(job.Excludes) {
+	job.Nodelist = normalizedNodeList
+
+	normalizedExcludeList, err := NormalizeNodeList(job.Excludes)
+	if err != nil {
 		return fmt.Errorf("invalid format for --exclude")
 	}
+	job.Excludes = normalizedExcludeList
 	// Calculate total CPUs if cpus_per_task is specified
 	if job.CpusPerTask != nil && job.Ntasks > 0 {
 		CpusTotal := *job.CpusPerTask * float64(job.Ntasks)
@@ -942,12 +955,17 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if step.TimeLimit.AsDuration() <= 0 {
 		return fmt.Errorf("--time must > 0")
 	}
-	if !CheckNodeList(step.Nodelist) {
+	normalizedNodeList, err := NormalizeNodeList(step.Nodelist)
+	if err != nil {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
-	if !CheckNodeList(step.Excludes) {
+	step.Nodelist = normalizedNodeList
+
+	normalizedExcludeList, err := NormalizeNodeList(step.Excludes)
+	if err != nil {
 		return fmt.Errorf("invalid format for --exclude")
 	}
+	step.Excludes = normalizedExcludeList
 	// Calculate total CPUs if cpus_per_task is specified
 	if step.CpusPerTask != nil && step.Ntasks > 0 {
 		CpusTotal := *step.CpusPerTask * float64(step.Ntasks)
@@ -1046,7 +1064,7 @@ func ParseHostList(hostStr string) ([]string, bool) {
 		if !regex.MatchString(strS) {
 			hostList = append(hostList, strS)
 		} else {
-			nodes, ok := ParseNodeList(strS)
+			nodes, ok := parseNodeList(strS)
 			if !ok {
 				return nil, false
 			}
@@ -1056,7 +1074,42 @@ func ParseHostList(hostStr string) ([]string, bool) {
 	return hostList, true
 }
 
-func ParseNodeList(nodeStr string) ([]string, bool) {
+// ExpandHostList parses a hostlist expression and rejects empty elements.
+func ExpandHostList(hostStr string) ([]string, error) {
+	if strings.TrimSpace(hostStr) == "" {
+		return nil, nil
+	}
+
+	hostList, ok := ParseHostList(hostStr)
+	if !ok || len(hostList) == 0 {
+		return nil, fmt.Errorf("invalid host list")
+	}
+	for _, host := range hostList {
+		if host == "" {
+			return nil, fmt.Errorf("invalid host list")
+		}
+	}
+	return hostList, nil
+}
+
+// NormalizeNodeList expands a node expression for submission to the backend.
+func NormalizeNodeList(nodeStr string) (string, error) {
+	hostList, err := ExpandHostList(nodeStr)
+	if err != nil {
+		return "", err
+	}
+	if len(hostList) == 0 {
+		return "", nil
+	}
+
+	normalized := strings.Join(hostList, ",")
+	if !CheckNodeList(normalized) {
+		return "", fmt.Errorf("invalid host list")
+	}
+	return normalized, nil
+}
+
+func parseNodeList(nodeStr string) ([]string, bool) {
 	bracketsRegex := regexp.MustCompile(`.*\[(.*)\]`)
 	numRegex := regexp.MustCompile(`^\d+$`)
 	scopeRegex := regexp.MustCompile(`^(\d+)-(\d+)$`)
@@ -1074,6 +1127,9 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 		nodeNum := strings.FieldsFunc(str, func(r rune) bool {
 			return r == '[' || r == ','
 		})
+		if len(nodeNum) == 0 {
+			return nil, false
+		}
 		unitList := []string{}
 		headStr := nodeNum[0]
 
