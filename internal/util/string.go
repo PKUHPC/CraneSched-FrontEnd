@@ -762,8 +762,7 @@ func ParseLicensesString(val string) ([]*protos.JobToCtld_License, bool, error) 
 	return licCount, hasPipe, nil
 }
 
-// CheckNodeList check if the node list is comma separated node names.
-// The node name should contain only letters and numbers, and start with a letter, end with a number.
+// CheckNodeList checks a comma-separated node list or hostlist expression.
 func CheckNodeList(nodeStr string) bool {
 	nameStr := strings.ReplaceAll(nodeStr, " ", "")
 	if nameStr == "" {
@@ -772,7 +771,16 @@ func CheckNodeList(nodeStr string) bool {
 	ValidHostnameRegex := "(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])"
 	ValidHostListRegex := "^(" + ValidHostnameRegex + ")(," + ValidHostnameRegex + ")*$"
 	re := regexp.MustCompile(ValidHostListRegex)
-	return re.MatchString(nameStr)
+	hostList, ok := ParseHostList(nameStr)
+	if !ok || len(hostList) == 0 {
+		return false
+	}
+	for _, host := range hostList {
+		if host == "" || !re.MatchString(host) {
+			return false
+		}
+	}
+	return true
 }
 
 // CheckFileLength check if the file length is within the limit.
@@ -862,8 +870,22 @@ func CheckJobArgs(job *protos.JobToCtld) error {
 	if !CheckNodeList(job.Nodelist) {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
+	if job.Nodelist != "" {
+		hostList, ok := ParseHostList(job.Nodelist)
+		if !ok {
+			return fmt.Errorf("invalid format for --nodelist")
+		}
+		job.Nodelist = strings.Join(hostList, ",")
+	}
 	if !CheckNodeList(job.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
+	}
+	if job.Excludes != "" {
+		hostList, ok := ParseHostList(job.Excludes)
+		if !ok {
+			return fmt.Errorf("invalid format for --exclude")
+		}
+		job.Excludes = strings.Join(hostList, ",")
 	}
 	// Calculate total CPUs if cpus_per_task is specified
 	if job.CpusPerTask != nil && job.Ntasks > 0 {
@@ -945,8 +967,22 @@ func CheckStepArgs(step *protos.StepToCtld) error {
 	if !CheckNodeList(step.Nodelist) {
 		return fmt.Errorf("invalid format for --nodelist")
 	}
+	if step.Nodelist != "" {
+		hostList, ok := ParseHostList(step.Nodelist)
+		if !ok {
+			return fmt.Errorf("invalid format for --nodelist")
+		}
+		step.Nodelist = strings.Join(hostList, ",")
+	}
 	if !CheckNodeList(step.Excludes) {
 		return fmt.Errorf("invalid format for --exclude")
+	}
+	if step.Excludes != "" {
+		hostList, ok := ParseHostList(step.Excludes)
+		if !ok {
+			return fmt.Errorf("invalid format for --exclude")
+		}
+		step.Excludes = strings.Join(hostList, ",")
 	}
 	// Calculate total CPUs if cpus_per_task is specified
 	if step.CpusPerTask != nil && step.Ntasks > 0 {
@@ -1046,7 +1082,7 @@ func ParseHostList(hostStr string) ([]string, bool) {
 		if !regex.MatchString(strS) {
 			hostList = append(hostList, strS)
 		} else {
-			nodes, ok := ParseNodeList(strS)
+			nodes, ok := parseNodeList(strS)
 			if !ok {
 				return nil, false
 			}
@@ -1056,7 +1092,7 @@ func ParseHostList(hostStr string) ([]string, bool) {
 	return hostList, true
 }
 
-func ParseNodeList(nodeStr string) ([]string, bool) {
+func parseNodeList(nodeStr string) ([]string, bool) {
 	bracketsRegex := regexp.MustCompile(`.*\[(.*)\]`)
 	numRegex := regexp.MustCompile(`^\d+$`)
 	scopeRegex := regexp.MustCompile(`^(\d+)-(\d+)$`)
@@ -1071,9 +1107,10 @@ func ParseNodeList(nodeStr string) ([]string, bool) {
 	resList := []string{""}
 
 	for _, str := range unitStrList {
-		nodeNum := strings.FieldsFunc(str, func(r rune) bool {
-			return r == '[' || r == ','
-		})
+		nodeNum := strings.Split(strings.ReplaceAll(str, "[", ","), ",")
+		if len(nodeNum) == 0 {
+			return nil, false
+		}
 		unitList := []string{}
 		headStr := nodeNum[0]
 
