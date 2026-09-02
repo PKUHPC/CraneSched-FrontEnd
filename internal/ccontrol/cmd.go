@@ -19,6 +19,7 @@
 package ccontrol
 
 import (
+	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"errors"
 	"fmt"
@@ -579,11 +580,102 @@ func executeResumeCommand(command *CControlCommand) error {
 func executeCreateCommand(command *CControlCommand) error {
 	entity := command.GetEntity()
 	switch entity {
+	case "node":
+		return executeCreateNodeCommand(command)
 	case "reservation":
 		return executeCreateReservationCommand(command)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
+}
+
+func executeCreateNodeCommand(command *CControlCommand) error {
+	nodeRegex := command.GetID()
+	if nodeRegex == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, "no node name specified")
+	}
+
+	kvParams := command.GetKVMaps()
+	if err := checkEmptyKVParams(kvParams, []string{"cpu", "memory", "partitions"}); err != nil {
+		return err
+	}
+
+	options := dynamicNodeCreateOptions{
+		// Sockets is optional; the backend rejects a node spec with 0 sockets.
+		sockets: 1,
+	}
+	for key, value := range kvParams {
+		switch strings.ToLower(key) {
+		case "cpu":
+			parsed, err := strconv.ParseUint(value, 10, 32)
+			if err != nil || parsed == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid CPU value: %s", value))
+			}
+			options.cpuCount = uint32(parsed)
+		case "memory":
+			parsed, err := util.ParseMemStringAsByte(value)
+			if err != nil || parsed == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid memory value: %s", value))
+			}
+			options.memoryBytes = parsed
+		case "sockets":
+			parsed, err := strconv.ParseUint(value, 10, 32)
+			if err != nil || parsed == 0 {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid sockets value: %s", value))
+			}
+			options.sockets = uint32(parsed)
+		case "partitions":
+			parsed, err := util.ParseStringParamList(value, ",")
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid partitions value: %s", value))
+			}
+			options.partitionNames = parsed
+		case "gres":
+			gres, err := parseDynamicNodeGres(value)
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid GRES value: %s", value))
+			}
+			options.gres = gres
+		case "pool":
+			options.pool = value
+		case "features":
+			parsed, err := util.ParseStringParamList(value, ",")
+			if err != nil {
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid features value: %s", value))
+			}
+			options.features = parsed
+		// Admin-created nodes always start as FUTURE; the key is accepted
+		// for compatibility but carries no information.
+		case "state":
+			if !strings.EqualFold(value, "future") {
+				return util.NewCraneErr(util.ErrorCmdArg, "new dynamic nodes must use state=future")
+			}
+		case "provider":
+			options.provider = value
+		case "providerprofile":
+			options.providerProfile = value
+		default:
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown node attribute: %s", key))
+		}
+	}
+
+	return CreateNodes(nodeRegex, options)
+}
+
+func parseDynamicNodeGres(value string) (*protos.GresMap, error) {
+	gres, err := util.ParseGres(value)
+	if err != nil {
+		return nil, err
+	}
+	if len(gres.NameGresMap) == 0 {
+		return nil, fmt.Errorf("GRES must contain a positive resource count")
+	}
+	for name := range gres.NameGresMap {
+		if name == "" {
+			return nil, fmt.Errorf("GRES name cannot be empty")
+		}
+	}
+	return gres, nil
 }
 
 func executeCreateReservationCommand(command *CControlCommand) error {
@@ -633,11 +725,21 @@ func executeCreateReservationCommand(command *CControlCommand) error {
 func executeDeleteCommand(command *CControlCommand) error {
 	entity := command.GetEntity()
 	switch entity {
+	case "node":
+		return executeDeleteNodeCommand(command)
 	case "reservation":
 		return executeDeleteReservationCommand(command)
 	default:
 		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown entity type: %s\n", entity))
 	}
+}
+
+func executeDeleteNodeCommand(command *CControlCommand) error {
+	nodeRegex := command.GetID()
+	if nodeRegex == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, "no node name specified")
+	}
+	return DeleteNodes(nodeRegex)
 }
 
 func executeDeleteReservationCommand(command *CControlCommand) error {

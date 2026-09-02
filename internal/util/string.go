@@ -1418,7 +1418,7 @@ func ParseGres(gres string) (*protos.GresMap, error) {
 				specified[gresType] = count
 				result.NameGresMap[name] = &protos.GresCount{Specified: specified, Total: count}
 			} else {
-				result.NameGresMap[name].Specified[gresType] = count
+				result.NameGresMap[name].Specified[gresType] += count
 				result.NameGresMap[name].Total += count
 			}
 		} else {

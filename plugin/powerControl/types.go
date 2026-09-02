@@ -1,6 +1,17 @@
 package main
 
-import "time"
+import (
+	"errors"
+	"sync"
+	"time"
+)
+
+var (
+	errStaleNodeGeneration = errors.New("stale node generation")
+	// The node's definition is current but it has no runtime info, e.g. the
+	// power tool registration failed for lack of a BMC mapping.
+	errNodeNotTracked = errors.New("node not tracked by power manager")
+)
 
 type NodeState string
 
@@ -20,6 +31,19 @@ type NodeInfo struct {
 	State               NodeState
 	LastStateChangeTime time.Time
 	Jobs                map[string]struct{}
+	Generation          uint64
+	Revision            uint64
+}
+
+type nodeVersion struct {
+	generation uint64
+	revision   uint64
+	updatedAt  time.Time
+}
+
+type nodeOperationLock struct {
+	mutex sync.Mutex
+	users int
 }
 
 type PredictionResponse struct {
@@ -34,8 +58,10 @@ type NetworkInterface struct {
 
 type PowerTool interface {
 	RegisterNode(nodeID string, interfaces []NetworkInterface) error
+	UnregisterNode(nodeID string)
 	GetPowerState(nodeID string) (bool, error)
 	CheckNodeAlive(nodeID string) bool
+	HasNetworkInfo(nodeID string) bool
 
 	WakeUp(nodeID string) error
 	Sleep(nodeID string) error

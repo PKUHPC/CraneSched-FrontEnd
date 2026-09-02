@@ -34,6 +34,10 @@ message StepStatusChangeRequest {
   string reason = 6;
   google.protobuf.Timestamp timestamp = 7;
   optional JobStatus final_status = 8;
+  // Session issued in CranedRegisterReply. Fences out uplink RPCs from a
+  // stale craned incarnation after the node was deleted or re-registered.
+  // Empty for static nodes.
+  string session_token = 9;
 }
 
 message StepStatusChangeReply {
@@ -43,6 +47,8 @@ message StepStatusChangeReply {
 message CranedTriggerReverseConnRequest {
   string craned_id = 1;
   google.protobuf.Timestamp token = 2;
+  uint64 generation = 3;
+  string registration_token = 4;
 }
 
 message ConfigureCranedRequest {
@@ -99,14 +105,52 @@ message CranedRegisterRequest {
   string craned_id = 1;
   CranedRemoteMeta remote_meta = 2;
   google.protobuf.Timestamp token = 3;
+  uint64 generation = 4;
+  string registration_token = 5;
 }
 
 message CranedRegisterReply {
   bool ok = 1;
+  // Session for this registration of a dynamic node; must be echoed in
+  // subsequent uplink RPCs (CranedPing, StepStatusChange). Rotates on every
+  // successful registration, so RPCs from a previous incarnation are
+  // rejected even within the same generation. Empty for static nodes.
+  string session_token = 2;
+}
+
+message PrepareCranedRegistrationRequest {
+  DynamicNodeRegistrationMode mode = 1;
+  string requested_node_name = 2;
+  string pool = 3;
+  string physical_hostname = 4;
+  DynamicNodeSpec reported_spec = 5;
+  repeated string requested_partitions = 6;
+  // Random identifier of one craned bootstrap attempt. A retry with the same
+  // nonce and physical hostname re-claims the pending lease (e.g. after the
+  // reply was lost) instead of leasing another node. Each retry still
+  // rotates the registration token: only its digest is stored server-side,
+  // so the original token cannot be returned twice.
+  string client_nonce = 7;
+  uint64 generation = 8;
+}
+
+message PrepareCranedRegistrationReply {
+  bool ok = 1;
+  string reason = 2;
+  string node_name = 3;
+  uint64 generation = 4;
+  string registration_token = 5;
+  DynamicNodeSpec effective_spec = 6;
+  repeated string partition_names = 7;
+  google.protobuf.Timestamp expire_time = 8;
+  uint64 catalog_revision = 9;
+  ErrCode code = 10;
 }
 
 message CranedPingRequest {
   string craned_id = 1;
+  // See StepStatusChangeRequest.session_token.
+  string session_token = 2;
 }
 
 message CranedPingReply {
@@ -300,6 +344,44 @@ message QueryCranedInfoRequest {
 
 message QueryCranedInfoReply {
   repeated CranedInfo craned_info_list = 1;
+}
+
+// Admin-created nodes always start as powered-off FUTURE nodes with origin
+// DYNAMIC_ADMIN; the initial lifecycle and power state are therefore not
+// part of the request.
+message CreateNodesRequest {
+  uint32 uid = 1;
+  repeated string node_names = 2;
+  DynamicNodeSpec spec = 3;
+  repeated string partition_names = 4;
+  string pool = 5;
+  string provider = 6;
+  string provider_profile = 7;
+}
+
+// Creation is all-or-nothing, so a single code/reason pair describes the
+// whole request.
+message CreateNodesReply {
+  bool ok = 1;
+  string reason = 2;
+  ErrCode code = 3;
+}
+
+message DeleteNodesRequest {
+  uint32 uid = 1;
+  repeated string node_names = 2;
+}
+
+message NodeOperationResult {
+  string node_name = 1;
+  ErrCode code = 2;
+  string reason = 3;
+}
+
+// Deletion is per-node and may partially succeed.
+message DeleteNodesReply {
+  repeated string deleted_nodes = 1;
+  repeated NodeOperationResult not_deleted_nodes = 2;
 }
 
 message QueryPartitionInfoRequest {
@@ -1331,6 +1413,13 @@ message PowerStateChangeRequest {
   string craned_id = 1;
   CranedPowerState state = 2;
   string reason = 3;
+  uint64 generation = 4;
+  uint32 uid = 5;
+  // Per-node monotonic sequence assigned by the reporter. The controller
+  // rejects reports whose sequence is not greater than the last accepted
+  // one for the same generation, so reordered reports cannot regress the
+  // node's power state.
+  uint64 report_sequence = 6;
 }
 
 message PowerStateChangeReply {
@@ -1594,6 +1683,10 @@ service CraneCtld {
 
   rpc QueryCranedInfo(QueryCranedInfoRequest) returns (QueryCranedInfoReply);
 
+  rpc CreateNodes(CreateNodesRequest) returns (CreateNodesReply);
+
+  rpc DeleteNodes(DeleteNodesRequest) returns (DeleteNodesReply);
+
   rpc QueryPartitionInfo(QueryPartitionInfoRequest) returns (QueryPartitionInfoReply);
 
   rpc QueryReservationInfo(QueryReservationInfoRequest) returns (QueryReservationInfoReply);
@@ -1784,6 +1877,8 @@ service CraneCtldForInternal {
   rpc StepStatusChange(StepStatusChangeRequest) returns (StepStatusChangeReply);
   rpc CranedTriggerReverseConn(CranedTriggerReverseConnRequest) returns (google.protobuf.Empty);
   rpc CranedRegister(CranedRegisterRequest) returns (CranedRegisterReply);
+  rpc PrepareCranedRegistration(PrepareCranedRegistrationRequest)
+      returns (PrepareCranedRegistrationReply);
   rpc CranedPing(CranedPingRequest) returns (CranedPingReply);
   rpc BroadcastPmixPort(BroadcastPmixPortRequest) returns (BroadcastPmixPortReply);
 

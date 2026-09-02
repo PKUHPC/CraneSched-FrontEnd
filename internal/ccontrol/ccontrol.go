@@ -77,6 +77,19 @@ func SummarizeReply(proto interface{}) error {
 			return util.NewCraneErr(util.ErrorBackend, msg)
 		}
 		return nil
+	case *protos.DeleteNodesReply:
+		if len(reply.DeletedNodes) > 0 {
+			nodeListString := util.ConvertSliceToString(reply.DeletedNodes, ", ")
+			fmt.Printf("Nodes %s deleted successfully.\n", nodeListString)
+		}
+		if len(reply.NotDeletedNodes) > 0 {
+			msg := ""
+			for _, result := range reply.NotDeletedNodes {
+				msg += fmt.Sprintf("Failed to delete node: %s. Reason: %s.\n", result.NodeName, result.Reason)
+			}
+			return util.NewCraneErr(util.ErrorBackend, msg)
+		}
+		return nil
 	case *protos.ModifyJobsExtraAttrsReply:
 		if len(reply.ModifiedJobs) > 0 {
 			modifiedJobsString := util.ConvertSliceToString(reply.ModifiedJobs, ", ")
@@ -555,6 +568,79 @@ func ChangeNodeState(nodeRegex string, state string, reason string) error {
 		}
 	}
 
+	return SummarizeReply(reply)
+}
+
+type dynamicNodeCreateOptions struct {
+	cpuCount        uint32
+	memoryBytes     uint64
+	sockets         uint32
+	partitionNames  []string
+	gres            *protos.GresMap
+	pool            string
+	features        []string
+	provider        string
+	providerProfile string
+}
+
+func CreateNodes(nodeRegex string, options dynamicNodeCreateOptions) error {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok || len(nodeNames) == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", nodeRegex))
+	}
+
+	req := &protos.CreateNodesRequest{
+		Uid:       userUid,
+		NodeNames: nodeNames,
+		Spec: &protos.DynamicNodeSpec{
+			CpuCount:    options.cpuCount,
+			MemoryBytes: options.memoryBytes,
+			Sockets:     options.sockets,
+			Gres:        options.gres,
+			Features:    options.features,
+		},
+		PartitionNames:  options.partitionNames,
+		Pool:            options.pool,
+		Provider:        options.provider,
+		ProviderProfile: options.providerProfile,
+	}
+	reply, err := stub.CreateNodes(context.Background(), req)
+	if err != nil {
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to create nodes")
+	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if reply.GetOk() {
+			return nil
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
+	if !reply.GetOk() {
+		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to create nodes: %s.", reply.GetReason()))
+	}
+
+	fmt.Printf("Nodes %s created successfully.\n", util.ConvertSliceToString(nodeNames, ", "))
+	return nil
+}
+
+func DeleteNodes(nodeRegex string) error {
+	nodeNames, ok := util.ParseHostList(nodeRegex)
+	if !ok || len(nodeNames) == 0 {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.", nodeRegex))
+	}
+
+	req := &protos.DeleteNodesRequest{Uid: userUid, NodeNames: nodeNames}
+	reply, err := stub.DeleteNodes(context.Background(), req)
+	if err != nil {
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to delete nodes")
+	}
+	if FlagJson {
+		fmt.Println(util.FmtJson.FormatReply(reply))
+		if len(reply.NotDeletedNodes) == 0 {
+			return nil
+		}
+		return &util.CraneError{Code: util.ErrorBackend}
+	}
 	return SummarizeReply(reply)
 }
 

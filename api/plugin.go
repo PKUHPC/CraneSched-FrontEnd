@@ -22,6 +22,8 @@ import "google.golang.org/grpc"
 
 type HookType uint8
 
+// New hook types must be appended at the end: inserting in the middle
+// shifts the iota values of the following entries.
 const (
 	StartHook HookType = iota
 	EndHook
@@ -33,6 +35,7 @@ const (
 	RegisterCranedHook
 	UpdateLicensesHook
 	TraceHook
+	NodeDefinitionHook
 )
 
 type PluginHandler func(*PluginContext)
@@ -93,6 +96,11 @@ type PowerManagementHooks interface {
 // CranedLifecycleHooks handles craned daemon lifecycle events
 type CranedLifecycleHooks interface {
 	RegisterCranedHook(ctx *PluginContext)
+}
+
+// NodeDefinitionHooks handles dynamic node catalog changes
+type NodeDefinitionHooks interface {
+	NodeDefinitionHook(ctx *PluginContext)
 }
 
 // GrpcServiceRegistrar allows a plugin to register its own gRPC services

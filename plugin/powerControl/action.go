@@ -7,46 +7,60 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (c *PowerManager) filterExcludedNodes(nodeIDs []string) []string {
-	var allowedNodes []string
-	for _, nodeID := range nodeIDs {
-		value, exists := c.nodesInfo.Load(nodeID)
+func (c *PowerManager) filterExcludedNodes(nodes []nodeTarget) []nodeTarget {
+	var allowedNodes []nodeTarget
+	for _, node := range nodes {
+		value, exists := c.nodesInfo.Load(node.nodeID)
 		if !exists {
-			log.Warnf("Node %s not found in nodesInfo, skipping", nodeID)
+			log.Warnf("Node %s not found in nodesInfo, skipping", node.nodeID)
 			continue
 		}
 
 		info := value.(*NodeInfo)
+		if info.Generation != node.generation {
+			log.Debugf("Skipping stale power decision for node %s generation %d", node.nodeID, node.generation)
+			continue
+		}
 		if !info.Exclude {
-			allowedNodes = append(allowedNodes, nodeID)
+			allowedNodes = append(allowedNodes, node)
 		} else {
-			log.Infof("Node %s is excluded from power management", nodeID)
+			log.Infof("Node %s is excluded from power management", node.nodeID)
 		}
 	}
 	return allowedNodes
 }
 
-func (c *PowerManager) wakeupNodes(nodeIDs []string) error {
-	for _, nodeID := range nodeIDs {
-		err := c.wakeUpNode(nodeID)
-		if err != nil {
-			return err
+func (c *PowerManager) wakeupNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
+	var failedNodes []string
+	for _, node := range allowedNodes {
+		if err := c.wakeUpNode(node.nodeID, node.generation); err != nil {
+			log.Errorf("Failed to wake up node %s: %v", node.nodeID, err)
+			failedNodes = append(failedNodes, node.nodeID)
 		}
+	}
+	if len(failedNodes) > 0 {
+		return fmt.Errorf("failed to wake up nodes: %v", failedNodes)
 	}
 	return nil
 }
 
-func (c *PowerManager) sleepNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
-	for _, nodeID := range allowedNodes {
-		if err := c.sleepNode(nodeID); err != nil {
-			return err
+func (c *PowerManager) sleepNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
+	var failedNodes []string
+	for _, node := range allowedNodes {
+		if err := c.sleepNode(node.nodeID, node.generation); err != nil {
+			log.Errorf("Failed to sleep node %s: %v", node.nodeID, err)
+			failedNodes = append(failedNodes, node.nodeID)
 		}
+	}
+	if len(failedNodes) > 0 {
+		return fmt.Errorf("failed to sleep nodes: %v", failedNodes)
 	}
 	return nil
 }
 
-func (c *PowerManager) processBatchNodes(nodes []string, operation string, nodeFunc func(string) error,
+func (c *PowerManager) processBatchNodes(nodes []nodeTarget, operation string, nodeFunc func(string, uint64) error,
 	maxNodesPerBatch int, batchIntervalSeconds int) error {
 
 	if len(nodes) == 0 {
@@ -65,11 +79,11 @@ func (c *PowerManager) processBatchNodes(nodes []string, operation string, nodeF
 			currentBatch := nodes[i:end]
 			log.Infof("Processing %s batch %d-%d of %d nodes", operation, i, end-1, len(nodes))
 
-			for _, nodeID := range currentBatch {
-				if err := nodeFunc(nodeID); err != nil {
-					log.Errorf("Failed to %s node %s: %v", operation, nodeID, err)
+			for _, node := range currentBatch {
+				if err := nodeFunc(node.nodeID, node.generation); err != nil {
+					log.Errorf("Failed to %s node %s: %v", operation, node.nodeID, err)
 				} else {
-					log.Infof("Successfully %s node %s", operation, nodeID)
+					log.Infof("Successfully %s node %s", operation, node.nodeID)
 				}
 			}
 
@@ -84,8 +98,8 @@ func (c *PowerManager) processBatchNodes(nodes []string, operation string, nodeF
 	return nil
 }
 
-func (c *PowerManager) powerOnNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
+func (c *PowerManager) powerOnNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
 
 	maxNodesPerBatch := c.config.IPMI.MaxNodesPerBatch
 	batchIntervalSeconds := c.config.IPMI.BatchIntervalSeconds
@@ -97,8 +111,8 @@ func (c *PowerManager) powerOnNodes(nodeIDs []string) error {
 		maxNodesPerBatch, batchIntervalSeconds)
 }
 
-func (c *PowerManager) powerOffNodes(nodeIDs []string) error {
-	allowedNodes := c.filterExcludedNodes(nodeIDs)
+func (c *PowerManager) powerOffNodes(nodes []nodeTarget) error {
+	allowedNodes := c.filterExcludedNodes(nodes)
 
 	maxNodesPerBatch := c.config.IPMI.MaxNodesPerBatch
 	batchIntervalSeconds := c.config.IPMI.BatchIntervalSeconds
@@ -107,76 +121,147 @@ func (c *PowerManager) powerOffNodes(nodeIDs []string) error {
 		maxNodesPerBatch, batchIntervalSeconds)
 }
 
-func (c *PowerManager) wakeUpNode(nodeID string) error {
+func (c *PowerManager) wakeUpNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
 		return fmt.Errorf("node %s not found", nodeID)
 	}
 
 	info := value.(*NodeInfo)
-	if info.State != Sleep {
+	if info.State != Sleep && info.State != Wakingup {
 		return fmt.Errorf("node %s is not in sleeping state", nodeID)
 	}
 
-	c.updateNodeState(nodeID, Wakingup)
+	if info.State == Sleep {
+		info = c.updateNodeStateIfCurrent(nodeID, info, Wakingup)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before wake-up", nodeID)
+		}
+	}
 
 	err := c.powerTool.WakeUp(nodeID)
 	if err != nil {
 		log.Errorf("Failed to wake up node %s: %v", nodeID, err)
-		c.updateNodeState(nodeID, Sleep)
+		c.updateNodeStateIfCurrent(nodeID, info, Sleep)
 		return err
 	}
 
 	return nil
 }
 
-func (c *PowerManager) powerOnNode(nodeID string) error {
+func (c *PowerManager) powerOnNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
-		return fmt.Errorf("node %s not found", nodeID)
+		if err := c.powerTool.RegisterNode(nodeID, nil); err != nil {
+			return err
+		}
+		c.RegisterNode(nodeID, PoweredOff, nil, 0, 0)
+		value, exists = c.nodesInfo.Load(nodeID)
+		if !exists {
+			return fmt.Errorf("node %s not found", nodeID)
+		}
 	}
 
 	info := value.(*NodeInfo)
-	if info.State != PoweredOff {
-		return fmt.Errorf("node %s is not in powered off state", nodeID)
+	oldState := info.State
+	if oldState != PoweredOff && oldState != Sleep && oldState != PoweringOn {
+		return fmt.Errorf("node %s is not powered off or sleeping", nodeID)
 	}
 
-	c.updateNodeState(nodeID, PoweringOn)
+	if oldState != PoweringOn {
+		info = c.updateNodeStateIfCurrent(nodeID, info, PoweringOn)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before power-on", nodeID)
+		}
+	}
 
 	err := c.powerTool.PowerOn(nodeID)
 	if err != nil {
 		log.Errorf("Failed to power on node %s: %v", nodeID, err)
-		c.updateNodeState(nodeID, PoweredOff)
+		if oldState == PoweringOn {
+			c.updateNodeStateIfCurrent(nodeID, info, PoweredOff)
+		} else {
+			c.updateNodeStateIfCurrent(nodeID, info, oldState)
+		}
 		return err
 	}
 
 	return nil
 }
 
-func (c *PowerManager) sleepNode(nodeID string) error {
+func (c *PowerManager) sleepNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
 		return fmt.Errorf("node %s not found", nodeID)
 	}
 
 	info := value.(*NodeInfo)
-	if info.State != Idle {
+	if info.State != Idle && info.State != ToSleeping {
 		return fmt.Errorf("node %s is not in idle state", nodeID)
 	}
 
-	c.updateNodeState(nodeID, ToSleeping)
+	if info.State == Idle {
+		info = c.updateNodeStateIfCurrent(nodeID, info, ToSleeping)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before sleep", nodeID)
+		}
+	}
 
 	err := c.powerTool.Sleep(nodeID)
 	if err != nil {
 		log.Errorf("Failed to put node %s to sleep: %v", nodeID, err)
-		c.updateNodeState(nodeID, Idle)
+		c.updateNodeStateIfCurrent(nodeID, info, Idle)
 		return err
 	}
 
 	return nil
 }
 
-func (c *PowerManager) powerOffNode(nodeID string) error {
+func (c *PowerManager) powerOffNode(nodeID string, generation uint64) error {
+	unlock := c.lockNodeOperation(nodeID)
+	defer unlock()
+	if generation != 0 {
+		switch c.NodeTrackingStatus(nodeID, generation) {
+		case nodeTrackingStale:
+			return errStaleNodeGeneration
+		case nodeTrackingUntracked:
+			return errNodeNotTracked
+		}
+	}
+
 	value, exists := c.nodesInfo.Load(nodeID)
 	if !exists {
 		return fmt.Errorf("node %s not found", nodeID)
@@ -184,16 +269,28 @@ func (c *PowerManager) powerOffNode(nodeID string) error {
 
 	info := value.(*NodeInfo)
 	oldState := info.State
-	if oldState != Sleep && oldState != Idle {
+	if oldState != Sleep && oldState != Idle && oldState != PoweringOff {
 		return fmt.Errorf("node %s is not in sleep or idle state", nodeID)
 	}
 
-	c.updateNodeState(nodeID, PoweringOff)
+	if oldState != PoweringOff {
+		info = c.updateNodeStateIfCurrent(nodeID, info, PoweringOff)
+		if info == nil {
+			return fmt.Errorf("node %s state changed before power-off", nodeID)
+		}
+	}
 
 	err := c.powerTool.PowerOff(nodeID)
 	if err != nil {
 		log.Errorf("Failed to power off node %s: %v", nodeID, err)
-		c.updateNodeState(nodeID, oldState)
+		if oldState == PoweringOff {
+			// A re-entered power-off does not know the pre-transition state;
+			// Sleep is a guess that the power state monitor converges to the
+			// observed state on its next round.
+			c.updateNodeStateIfCurrent(nodeID, info, Sleep)
+		} else {
+			c.updateNodeStateIfCurrent(nodeID, info, oldState)
+		}
 		return err
 	}
 

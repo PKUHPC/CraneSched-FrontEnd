@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const defaultActionTimeoutSeconds = 300
+
 type Config struct {
 	PowerControl struct {
 		PredictorScript               string  `yaml:"PredictorScript"`
@@ -17,6 +19,7 @@ type Config struct {
 		IdleReserveRatio              float64 `yaml:"IdleReserveRatio"`
 		CheckIntervalSeconds          int     `yaml:"CheckIntervalSeconds"`
 		NodeStateCheckIntervalSeconds int     `yaml:"NodeStateCheckIntervalSeconds"`
+		ActionTimeoutSeconds          int     `yaml:"ActionTimeoutSeconds"`
 		PowerControlLogFile           string  `yaml:"PowerControlLogFile"`
 		NodeStateChangeFile           string  `yaml:"NodeStateChangeFile"`
 		ClusterStateFile              string  `yaml:"ClusterStateFile"`
@@ -64,6 +67,9 @@ func LoadConfig(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
+	if config.PowerControl.ActionTimeoutSeconds == 0 {
+		config.PowerControl.ActionTimeoutSeconds = defaultActionTimeoutSeconds
+	}
 
 	var expandedNodes []string
 	for _, nodeExpr := range config.IPMI.ExcludeNodes {
@@ -94,6 +100,7 @@ func PrintConfig(cfg *Config) {
 	log.Infof("  IdleReserveRatio: %.2f", cfg.PowerControl.IdleReserveRatio)
 	log.Infof("  CheckIntervalSeconds: %d", cfg.PowerControl.CheckIntervalSeconds)
 	log.Infof("  NodeStateCheckIntervalSeconds: %d", cfg.PowerControl.NodeStateCheckIntervalSeconds)
+	log.Infof("  ActionTimeoutSeconds: %d", cfg.PowerControl.ActionTimeoutSeconds)
 	log.Infof("  PowerControlLogFile: %s", cfg.PowerControl.PowerControlLogFile)
 	log.Infof("  NodeStateChangeFile: %s", cfg.PowerControl.NodeStateChangeFile)
 	log.Infof("  ClusterStateFile: %s", cfg.PowerControl.ClusterStateFile)
@@ -134,6 +141,9 @@ func validateConfig(config *Config) error {
 	}
 	if config.PowerControl.NodeStateCheckIntervalSeconds <= 0 {
 		return fmt.Errorf("Predictor.NodeStateCheckIntervalSeconds must be positive")
+	}
+	if config.PowerControl.ActionTimeoutSeconds <= 0 {
+		return fmt.Errorf("PowerControl.ActionTimeoutSeconds must be positive")
 	}
 	if config.PowerControl.PowerControlLogFile == "" {
 		return fmt.Errorf("PowerControl.PowerControlLogFile cannot be empty")
