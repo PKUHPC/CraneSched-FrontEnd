@@ -143,9 +143,9 @@ Supported format identifiers or string, string case insensitive:
 	%e/%ElapsedTime        - Display the elapsed time from the start of the job/step.
 	%h/%Held               - Display the hold state of the job. (For jobs only)
 	%i/%StepId             - Display the ID of the step (format: jobId.stepId). (For steps only)
-	                              Materialized array steps use jobId_arrayTaskId.stepId.
+	                             Materialized array steps use jobId_arrayTaskId.stepId.
 	%j/%JobID              - Display the logical queue ID (or parent job ID for steps).
-	                              Materialized array tasks use jobId_arrayTaskId; pending tasks use jobId_[range].
+	                             Materialized array tasks use jobId_arrayTaskId; pending tasks use jobId_[range].
 	%k/%Comment            - Display the comment of the job. (For jobs only)
 	%K/%Wckey              - Display the wckey of the job.
 	%L/%NodeList           - Display the list of nodes the job/step is running on.
