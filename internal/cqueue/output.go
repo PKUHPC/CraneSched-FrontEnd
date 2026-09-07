@@ -39,6 +39,22 @@ func GetReasonInfo(job *protos.JobInfo) string {
 	return job.GetCranedList()
 }
 
+func FormatQueueJobID(job *protos.JobInfo) string {
+	if pendingSpec := job.GetPendingArraySpec(); pendingSpec != nil {
+		return fmt.Sprintf("%d_[%s]", job.GetJobId(),
+			util.FormatArraySpec(pendingSpec, false))
+	}
+	return util.FormatJobId(job.GetJobId(), job.GetArrayTask())
+}
+
+func FormatQueueState(job *protos.JobInfo) string {
+	if util.IsSlurmOutputMode() && job.GetPendingArraySpec() != nil &&
+		job.GetStatus() == protos.JobStatus_Pending {
+		return "PD"
+	}
+	return job.GetStatus().String()
+}
+
 func FormatTimeLimit(seconds int64) string {
 	if seconds >= util.InvalidDuration().Seconds {
 		return "unlimited"
@@ -61,7 +77,7 @@ func GenerateTableConfig() TableConfig {
 					timeLimit = FormatTimeLimit(job.TimeLimit.Seconds)
 				}
 				return []string{
-					util.FormatJobId(job.JobId, job.ArrayTask),
+					FormatQueueJobID(job),
 					job.Name,
 					job.Username,
 					job.Partition,
@@ -71,7 +87,7 @@ func GenerateTableConfig() TableConfig {
 					ProcessReqMemPerNode(job),
 					ProcessAllocCpus(job),
 					ProcessAllocMemPerNode(job),
-					job.Status.String(),
+					FormatQueueState(job),
 					GetElapsedTime(job),
 					timeLimit,
 					FormatTime(job.StartTime, "unknown"),
@@ -94,12 +110,12 @@ func GenerateTableConfig() TableConfig {
 			},
 			RowMapper: func(job *protos.JobInfo) []string {
 				return []string{
-					util.FormatJobId(job.JobId, job.ArrayTask),
+					FormatQueueJobID(job),
 					job.Partition,
 					job.Name,
 					job.Username,
 					job.Account,
-					job.Status.String(),
+					FormatQueueState(job),
 					job.Type.String(),
 					GetElapsedTime(job),
 					FormatTimeLimit(job.TimeLimit.Seconds),

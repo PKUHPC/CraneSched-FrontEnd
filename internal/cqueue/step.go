@@ -80,7 +80,7 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 			stepInfo := stepData.stepInfo
 			job := stepData.job
 
-			stepIdStr := util.FormatStepId(stepInfo.JobId, job.ArrayTask, stepInfo.StepId)
+			stepIdStr := ProcessStepId(stepData)
 
 			name := stepInfo.Name
 
@@ -188,7 +188,7 @@ func ProcessStepCommand(stepData StepData) string {
 }
 
 func ProcessStepJobId(stepData StepData) string {
-	return util.FormatJobId(stepData.job.JobId, stepData.job.ArrayTask)
+	return FormatQueueJobID(stepData.job)
 }
 
 type StepFieldProcessor struct {

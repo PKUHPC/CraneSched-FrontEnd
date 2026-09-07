@@ -60,7 +60,7 @@ func ProcessHeld(job *protos.JobInfo) string {
 
 // 'j' group
 func ProcessJobId(job *protos.JobInfo) string {
-	return util.FormatJobId(job.JobId, job.ArrayTask)
+	return FormatQueueJobID(job)
 }
 
 // 'k'wckey
@@ -171,7 +171,7 @@ func ProcessStartTime(job *protos.JobInfo) string {
 
 // 't' group
 func ProcessState(job *protos.JobInfo) string {
-	return job.Status.String()
+	return FormatQueueState(job)
 }
 
 func ProcessJobType(job *protos.JobInfo) string {
