@@ -46,7 +46,10 @@ const (
 
 // QueryJob will query all pending, running and completed jobs.
 func QueryJob() error {
-	request := protos.QueryJobsInfoRequest{OptionIncludeCompletedJobs: true}
+	request := protos.QueryJobsInfoRequest{
+		OptionIncludeCompletedJobs: true,
+		Mode:                       protos.QueryJobsInfoMode_QUERY_JOBS_INFO_ACCOUNTING,
+	}
 
 	if FlagFilterStartTime != "" {
 		request.FilterStartTimeInterval = &protos.TimeInterval{}
@@ -201,12 +204,13 @@ func QueryJob() error {
 		if util.IsSlurmOutputMode() {
 			nodeListHeader = "NodeList"
 		}
-		header = []string{"JobId", "JobName", "UserName", "Partition",
+		header = []string{"JobId", "ArrayJobId", "JobName", "UserName", "Partition",
 			"NodeNum", "Account", "ReqCPUs", "ReqMemPerNode", "AllocCPUs", "AllocMemPerNode", "State", "TimeLimit",
 			"StartTime", "EndTime", "SubmitTime", "Qos", "Exclusive", "Held", "Priority", nodeListHeader, "ExitCode", "wckey", "Deadline"}
 		for i, jobOrStep := range items {
 			tableData[i] = []string{
 				ProcessJobID(jobOrStep),
+				ProcessArrayJobID(jobOrStep),
 				ProcessName(jobOrStep),
 				jobOrStep.job.Username,
 				jobOrStep.job.Partition,
@@ -228,15 +232,17 @@ func QueryJob() error {
 				ProcessNodeList(jobOrStep),
 				ProcessExitCode(jobOrStep),
 				jobOrStep.job.Wckey,
+				ProcessDeadline(jobOrStep),
 			}
 		}
 	} else {
-		header = []string{"JobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
+		header = []string{"JobId", "ArrayJobId", "JobName", "Partition", "Account", "AllocCPUs", "State", "ExitCode"}
 
 		for i, jobOrStep := range items {
 
 			tableData[i] = []string{
 				ProcessJobID(jobOrStep),
+				ProcessArrayJobID(jobOrStep),
 				ProcessName(jobOrStep),
 				ProcessPartition(jobOrStep),
 				ProcessAccount(jobOrStep),
@@ -459,10 +465,14 @@ func ProcessHeld(item *JobOrStep) string {
 
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
-	if item.isStep {
-		return util.FormatStepId(item.job.JobId, item.job.ArrayTask, item.stepInfo.StepId)
+	if !item.isStep && item.job.GetPendingArraySpec() != nil {
+		return fmt.Sprintf("%d_[%s]", item.job.GetJobId(),
+			util.FormatArraySpec(item.job.GetPendingArraySpec(), false))
 	}
-	return util.FormatJobId(item.job.JobId, item.job.ArrayTask)
+	if item.isStep {
+		return util.FormatStepId(item.job.GetJobId(), nil, item.stepInfo.GetStepId())
+	}
+	return strconv.FormatUint(uint64(item.job.GetJobId()), 10)
 }
 
 // ArrayJobId
@@ -486,22 +496,7 @@ func ProcessArrayTaskID(item *JobOrStep) string {
 
 // ArraySpec
 func ProcessArraySpec(item *JobOrStep) string {
-	arraySpec := item.job.ArraySpec
-	if arraySpec == nil {
-		return ""
-	}
-
-	spec := strconv.FormatUint(uint64(arraySpec.Start), 10)
-	if arraySpec.Start != arraySpec.End {
-		spec = fmt.Sprintf("%s-%d", spec, arraySpec.End)
-	}
-	if arraySpec.Stride != nil && *arraySpec.Stride > 1 {
-		spec = fmt.Sprintf("%s:%d", spec, *arraySpec.Stride)
-	}
-	if arraySpec.MaxConcurrent != nil && *arraySpec.MaxConcurrent > 0 {
-		spec = fmt.Sprintf("%s%%%d", spec, *arraySpec.MaxConcurrent)
-	}
-	return spec
+	return util.FormatArraySpec(item.job.GetArraySpec(), true)
 }
 
 // Wckey (K)
