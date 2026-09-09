@@ -473,7 +473,11 @@ func applyEnvironmentOptions(_ *Flags, job *protos.JobToCtld) error {
 
 	// Set UID/GID for job execution
 	job.Uid = uint32(os.Getuid())
-	job.Gid = uint32(os.Getgid())
+	gids, err := util.CollectEffectiveGroups()
+	if err != nil {
+		return fmt.Errorf("failed to collect effective groups: %w", err)
+	}
+	job.Gids = gids
 
 	// Set command line for auditing
 	job.CmdLine = strings.Join(os.Args, " ")
@@ -493,6 +497,14 @@ func applyStepEnvironmentOptions(step *protos.StepToCtld) error {
 
 	if step.Uid == 0 {
 		step.Uid = uint32(os.Getuid())
+	}
+
+	if len(step.Gids) == 0 {
+		gids, err := util.CollectEffectiveGroups()
+		if err != nil {
+			return fmt.Errorf("failed to collect effective groups: %w", err)
+		}
+		step.Gids = gids
 	}
 
 	return nil
@@ -609,9 +621,33 @@ func buildPodMeta(_ *cobra.Command, f *Flags, job *protos.JobToCtld) (*protos.Po
 		if err := parseUserSpec(f.Run.User, podMeta); err != nil {
 			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
 		}
-	} else if !podMeta.Userns {
+		if strings.Contains(f.Run.User, ":") {
+			gids, err := util.CollectGroupsForUser(podMeta.RunAsUser, podMeta.RunAsGroup)
+			if err != nil {
+				return nil, fmt.Errorf("failed to collect requested user groups: %w", err)
+			}
+			job.Gids = gids
+		} else {
+			gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
+			if err != nil {
+				return nil, fmt.Errorf("failed to collect requested user groups: %w", err)
+			}
+			job.Gids = gids
+			podMeta.RunAsGroup = gids[0]
+		}
+	} else if podMeta.Userns {
+		gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
+		if err != nil {
+			return nil, fmt.Errorf("failed to collect container user groups: %w", err)
+		}
+		job.Gids = gids
+		podMeta.RunAsGroup = gids[0]
+	} else {
+		if len(job.Gids) == 0 {
+			return nil, fmt.Errorf("effective group list is empty")
+		}
 		podMeta.RunAsUser = job.Uid
-		podMeta.RunAsGroup = job.Gid
+		podMeta.RunAsGroup = job.Gids[0]
 	}
 
 	if networkMode == protos.PodJobAdditionalMeta_NODE && len(f.Run.Ports) != 0 {
@@ -751,7 +787,7 @@ func validateContainerJob(job *protos.JobToCtld) error {
 	}
 
 	if job.Uid != 0 && !job.PodMeta.Userns {
-		if job.PodMeta.RunAsUser != job.Uid || job.PodMeta.RunAsGroup != job.Gid {
+		if len(job.Gids) == 0 || job.PodMeta.RunAsUser != job.Uid || job.PodMeta.RunAsGroup != job.Gids[0] {
 			return fmt.Errorf("with --userns=false, only current user and accessible groups are allowed")
 		}
 	}
