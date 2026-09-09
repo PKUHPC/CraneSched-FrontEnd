@@ -98,7 +98,7 @@ else
 endif
 
 # Targets
-.PHONY: all build protos clean install plugin plugin-monitor plugin-trace plugin-other tool service format package check-goreleaser
+.PHONY: all build protos clean install plugin plugin-monitor plugin-trace plugin-other tool service format package check-goreleaser execution-flow-acceptance-helper
 
 all: build plugin service
 
@@ -125,6 +125,16 @@ build: protos
 	@echo "    - Source date epoch: $(SOURCE_DATE_EPOCH)"
 	@echo "    - Commit hash: $(GIT_COMMIT_HASH)"
 	@echo "    - Binaries are in ./$(BIN_DIR)/"
+
+# Explicit acceptance-only helper. Keep this out of all normal build,
+# installation, and packaging dependency graphs.
+execution-flow-acceptance-helper: protos
+	@echo "- Building execution-flow acceptance helper with $(GO_VERSION)..."
+	@mkdir -p $(BIN_DIR)
+	@$(GO) build $(BUILD_FLAGS) $(LDFLAGS) \
+		-tags execution_flow_acceptance \
+		-o $(BIN_DIR)/crane-flow-fault-fixture \
+		./internal/acceptance/tracehook
 
 plugin: plugin-monitor plugin-trace plugin-other
 
