@@ -383,8 +383,19 @@ func GetNodeList() []string {
 func ExtraDealNodeList(reply *protos.QueryClusterInfoReply) {
 	var redList []string
 	requestedNodes_, _ := util.ParseHostList(strings.Join(GetNodeList(), ","))
+	foundedNodes := GetFoundedNodes(reply)
 	for _, node := range requestedNodes_ {
-		if _, exist := GetFoundedNodes(reply)[node]; !exist {
+		_, exist := foundedNodes[node]
+		if !exist {
+			shortNode := shortHostname(node)
+			for foundedNode := range foundedNodes {
+				if shortHostname(foundedNode) == shortNode {
+					exist = true
+					break
+				}
+			}
+		}
+		if !exist {
 			redList = append(redList, node)
 		}
 	}
@@ -405,6 +416,13 @@ func trimTableLinePadding(output string) string {
 		}
 	}
 	return strings.Join(lines, "")
+}
+
+func shortHostname(hostname string) string {
+	if dot := strings.IndexByte(hostname, '.'); dot >= 0 {
+		return hostname[:dot]
+	}
+	return hostname
 }
 
 func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {

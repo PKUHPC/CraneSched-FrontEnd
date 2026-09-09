@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -147,10 +148,23 @@ func resolveTargetNode(step *protos.StepInfo, targetNode string) (string, error)
 	if len(executionNodes) > 0 {
 		found := slices.Contains(executionNodes, targetNode)
 		if !found {
+			targetShort := shortHostname(targetNode)
+			for _, executionNode := range executionNodes {
+				if shortHostname(executionNode) == targetShort {
+					return executionNode, nil
+				}
+			}
 			return "", util.NewCraneErr(util.ErrorCmdArg,
 				fmt.Sprintf("container is not running on the target node %q: %s", targetNode, step.GetCranedList()))
 		}
 	}
 
 	return targetNode, nil
+}
+
+func shortHostname(hostname string) string {
+	if dot := strings.IndexByte(hostname, '.'); dot >= 0 {
+		return hostname[:dot]
+	}
+	return hostname
 }
