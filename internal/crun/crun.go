@@ -1641,17 +1641,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 
 	var job *protos.JobToCtld
 	var step *protos.StepToCtld
-	egid := syscall.Getegid()
-	groups, err := syscall.Getgroups()
+	gids, err := util.CollectEffectiveGroups()
 	if err != nil {
-		return util.NewCraneErr(util.ErrorSystem, fmt.Sprintf("Failed to get user groups: %s.", err))
-	}
-	gids := []uint32{uint32(egid)}
-
-	for _, g := range groups {
-		if g != egid {
-			gids = append(gids, uint32(g))
-		}
+		return util.WrapCraneErr(util.ErrorSystem, "%s", err)
 	}
 
 	if jobMode {
@@ -1661,7 +1653,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			PartitionName:   "",
 			Type:            protos.JobType_Interactive,
 			Uid:             uint32(os.Getuid()),
-			Gid:             gids[0],
+			Gids:            gids,
 			NodeNumMin:      0,
 			NodeNumMax:      0,
 			NtasksPerNode:   0,
@@ -1686,7 +1678,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			JobId:           jobId,
 			Type:            protos.JobType_Interactive,
 			Uid:             uint32(os.Getuid()),
-			Gid:             gids,
+			Gids:            gids,
 			NodeNum:         0,
 			NtasksPerNode:   0,
 			Ntasks:          0,

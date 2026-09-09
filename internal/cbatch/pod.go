@@ -159,7 +159,7 @@ func parsePodPortMapping(portSpec string, ports *[]*protos.PodJobAdditionalMeta_
 
 func validatePodMeta(job *protos.JobToCtld, meta *protos.PodJobAdditionalMeta) error {
 	if job.Uid != 0 && !meta.Userns {
-		if meta.RunAsUser != job.Uid || meta.RunAsGroup != job.Gid {
+		if len(job.Gids) == 0 || meta.RunAsUser != job.Uid || meta.RunAsGroup != job.Gids[0] {
 			return fmt.Errorf("with --pod-userns=false, only current user and accessible groups are allowed")
 		}
 	}
@@ -182,9 +182,33 @@ func buildPodMeta(job *protos.JobToCtld, podOpts *podOptions) (*protos.PodJobAdd
 		if err := parsePodUser(podOpts.user, podMeta); err != nil {
 			return nil, err
 		}
-	} else if !podMeta.Userns {
+		if strings.Contains(podOpts.user, ":") {
+			gids, err := util.CollectGroupsForUser(podMeta.RunAsUser, podMeta.RunAsGroup)
+			if err != nil {
+				return nil, err
+			}
+			job.Gids = gids
+		} else {
+			gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
+			if err != nil {
+				return nil, err
+			}
+			job.Gids = gids
+			podMeta.RunAsGroup = gids[0]
+		}
+	} else if podMeta.Userns {
+		gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
+		if err != nil {
+			return nil, err
+		}
+		job.Gids = gids
+		podMeta.RunAsGroup = gids[0]
+	} else {
 		podMeta.RunAsUser = uint32(os.Getuid())
-		podMeta.RunAsGroup = uint32(os.Getgid())
+		if len(job.Gids) == 0 {
+			return nil, fmt.Errorf("effective group list is empty")
+		}
+		podMeta.RunAsGroup = job.Gids[0]
 	}
 
 	for _, port := range podOpts.ports {
