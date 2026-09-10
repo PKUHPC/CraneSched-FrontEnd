@@ -256,6 +256,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 
 	fmt.Printf(
 		"NodeName=%v State=%v %s\n"+
+			"\tNodeAddr=%s NodeHostName=%s\n"+
 			"\t%s\n"+
 			"\t%s\n"+
 			"\tSockets=%d\n"+
@@ -264,6 +265,7 @@ func printNodeDetails(node *protos.CranedInfo) {
 			"\tBootTime=%s %s=%s\n"+
 			"\tLastBusyTime=%s\n",
 		node.Hostname, stateStr, cpuInfo,
+		node.NodeAddr, node.NodeHostname,
 		memInfo,
 		gresInfo,
 		node.GetNodeTopoInfo().GetSockets(),

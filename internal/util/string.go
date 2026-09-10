@@ -1838,15 +1838,6 @@ func GetValidNodeList(CranedNodeList []ConfigNodesList) ([]string, error) {
 	return nodeNameList, nil
 }
 
-// ShortHostname returns the first label of a hostname, matching the alias
-// registration performed by CraneCtld.
-func ShortHostname(hostname string) string {
-	if dot := strings.IndexByte(hostname, '.'); dot >= 0 {
-		return hostname[:dot]
-	}
-	return hostname
-}
-
 // BuildNodeAliasMap expands the configured NodeName and NodeHostname lists
 // and maps every supported user-facing alias to its canonical NodeName.
 func BuildNodeAliasMap(nodes []ConfigNodesList) (map[string]string, error) {
@@ -1883,9 +1874,7 @@ func BuildNodeAliasMap(nodes []ConfigNodesList) (map[string]string, error) {
 		for i, nodeName := range nodeNames {
 			for _, alias := range []string{
 				nodeName,
-				ShortHostname(nodeName),
 				hostnames[i],
-				ShortHostname(hostnames[i]),
 			} {
 				if err := register(alias, nodeName); err != nil {
 					return nil, err

@@ -37,12 +37,15 @@ func TestBuildNodeAliasMapSupportsNodeNameAndHostname(t *testing.T) {
 		"crnd2":              "crnd2",
 		"host01.example.com": "crnd1",
 		"host02.example.com": "crnd2",
-		"host01":             "crnd1",
-		"host02":             "crnd2",
 	}
 	for alias, nodeName := range want {
 		if got := aliases[alias]; got != nodeName {
 			t.Errorf("alias %q = %q, want %q", alias, got, nodeName)
+		}
+	}
+	for _, unsupported := range []string{"host01", "host02"} {
+		if _, ok := aliases[unsupported]; ok {
+			t.Errorf("unexpected short-hostname alias %q", unsupported)
 		}
 	}
 }

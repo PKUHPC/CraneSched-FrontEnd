@@ -1019,25 +1019,24 @@ func GetPlugindClient(config *util.Config, pluginConfig *util.PluginConfig) (pro
 	return protos.NewPluginQueryServiceClient(conn), conn, nil
 }
 
-func MissingElements(ConfigNodesList []util.ConfigNodesList, nodes []string) ([]string, error) {
-	nodeNameSet := make(map[string]struct{})
-	nodeNameList, err := util.GetValidNodeList(config.CranedNodeList)
+func resolveNodeAliases(configNodes []util.ConfigNodesList, nodes []string) ([]string, []string, error) {
+	aliases, err := util.BuildNodeAliasMap(configNodes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	for _, name := range nodeNameList {
-		nodeNameSet[name] = struct{}{}
-	}
-
-	missing := []string{}
+	resolved := make([]string, 0, len(nodes))
+	missing := make([]string, 0)
 	for _, node := range nodes {
-		if _, exists := nodeNameSet[node]; !exists {
+		canonical, exists := aliases[node]
+		if !exists {
 			missing = append(missing, node)
+			continue
 		}
+		resolved = append(resolved, canonical)
 	}
 
-	return missing, nil
+	return resolved, missing, nil
 }
 
 func SortNodeEventRecords(records []*protos.NodeEventInfo, maxLines int) ([]*protos.NodeEventInfo, error) {
@@ -1094,14 +1093,15 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.\n", nodeRegex))
 		}
 
-		// Validate nodes exist in configuration
-		missingList, err := MissingElements(config.CranedNodeList, nodeNames)
+		// Validate node identifiers and normalize NodeHostname to NodeName.
+		resolvedNodes, missingList, err := resolveNodeAliases(config.CranedNodeList, nodeNames)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid input for nodes: %v\n", err)
 		}
 		if len(missingList) > 0 {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid input nodes: %v\n", missingList))
 		}
+		nodeNames = resolvedNodes
 	}
 	// If no nodes specified, nodeNames will be empty and query all nodes
 

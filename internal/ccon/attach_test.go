@@ -18,7 +18,7 @@ func TestResolveTargetNodeSupportsConfiguredAliases(t *testing.T) {
 		ExecutionNode: []string{"crnd1"},
 		CranedList:    "crnd1",
 	}
-	for _, target := range []string{"crnd1", "host01.example.com", "host01"} {
+	for _, target := range []string{"crnd1", "host01.example.com"} {
 		got, err := resolveTargetNode(step, target)
 		if err != nil {
 			t.Errorf("resolveTargetNode(%q) returned error: %v", target, err)
@@ -27,5 +27,8 @@ func TestResolveTargetNodeSupportsConfiguredAliases(t *testing.T) {
 		if got != "crnd1" {
 			t.Errorf("resolveTargetNode(%q) = %q, want %q", target, got, "crnd1")
 		}
+	}
+	if _, err := resolveTargetNode(step, "host01"); err == nil {
+		t.Error("resolveTargetNode accepted an unconfigured short hostname")
 	}
 }
