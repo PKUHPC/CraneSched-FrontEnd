@@ -1838,6 +1838,65 @@ func GetValidNodeList(CranedNodeList []ConfigNodesList) ([]string, error) {
 	return nodeNameList, nil
 }
 
+// ShortHostname returns the first label of a hostname, matching the alias
+// registration performed by CraneCtld.
+func ShortHostname(hostname string) string {
+	if dot := strings.IndexByte(hostname, '.'); dot >= 0 {
+		return hostname[:dot]
+	}
+	return hostname
+}
+
+// BuildNodeAliasMap expands the configured NodeName and NodeHostname lists
+// and maps every supported user-facing alias to its canonical NodeName.
+func BuildNodeAliasMap(nodes []ConfigNodesList) (map[string]string, error) {
+	aliases := make(map[string]string)
+	register := func(alias, nodeName string) error {
+		if alias == "" {
+			return nil
+		}
+		if existing, ok := aliases[alias]; ok && existing != nodeName {
+			return fmt.Errorf("node alias %q refers to both %q and %q", alias,
+				existing, nodeName)
+		}
+		aliases[alias] = nodeName
+		return nil
+	}
+
+	for _, nodeConfig := range nodes {
+		nodeNames, ok := ParseHostList(nodeConfig.Name)
+		if !ok || len(nodeNames) == 0 {
+			return nil, fmt.Errorf("invalid node name list %q", nodeConfig.Name)
+		}
+
+		hostnames := nodeNames
+		if nodeConfig.NodeHostname != "" {
+			parsedHostnames, parsed := ParseHostList(nodeConfig.NodeHostname)
+			if !parsed || len(parsedHostnames) != len(nodeNames) {
+				return nil, fmt.Errorf(
+					"NodeHostname list %q must contain %d entries to match %q",
+					nodeConfig.NodeHostname, len(nodeNames), nodeConfig.Name)
+			}
+			hostnames = parsedHostnames
+		}
+
+		for i, nodeName := range nodeNames {
+			for _, alias := range []string{
+				nodeName,
+				ShortHostname(nodeName),
+				hostnames[i],
+				ShortHostname(hostnames[i]),
+			} {
+				if err := register(alias, nodeName); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	return aliases, nil
+}
+
 // Merge two JSON strings.
 // If there are overlapping keys, values from the second JSON take precedence.
 func AmendJobExtraAttrs(origin, new string) string {

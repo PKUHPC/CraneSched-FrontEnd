@@ -107,7 +107,10 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		if f.Log.TargetNode == "" {
 			return util.NewCraneErr(util.ErrorCmdArg, "Target node must be specified for non-running containers")
 		}
-		nodeName = f.Log.TargetNode
+		nodeName, err = resolveNodeAlias(f.Log.TargetNode)
+		if err != nil {
+			return err
+		}
 	}
 
 	logPath, err := buildLogPath(cwd, nodeName, jobID, stepID)

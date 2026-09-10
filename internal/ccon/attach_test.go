@@ -1,0 +1,31 @@
+package ccon
+
+import (
+	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/util"
+	"testing"
+)
+
+func TestResolveTargetNodeSupportsConfiguredAliases(t *testing.T) {
+	originalConfig := config
+	config = &util.Config{CranedNodeList: []util.ConfigNodesList{{
+		Name:         "crnd1",
+		NodeHostname: "host01.example.com",
+	}}}
+	t.Cleanup(func() { config = originalConfig })
+
+	step := &protos.StepInfo{
+		ExecutionNode: []string{"crnd1"},
+		CranedList:    "crnd1",
+	}
+	for _, target := range []string{"crnd1", "host01.example.com", "host01"} {
+		got, err := resolveTargetNode(step, target)
+		if err != nil {
+			t.Errorf("resolveTargetNode(%q) returned error: %v", target, err)
+			continue
+		}
+		if got != "crnd1" {
+			t.Errorf("resolveTargetNode(%q) = %q, want %q", target, got, "crnd1")
+		}
+	}
+}

@@ -380,21 +380,16 @@ func GetNodeList() []string {
 	return nodeList
 }
 
-func ExtraDealNodeList(reply *protos.QueryClusterInfoReply) {
+func ExtraDealNodeList(reply *protos.QueryClusterInfoReply, aliases map[string]string) {
 	var redList []string
 	requestedNodes_, _ := util.ParseHostList(strings.Join(GetNodeList(), ","))
 	foundedNodes := GetFoundedNodes(reply)
 	for _, node := range requestedNodes_ {
-		_, exist := foundedNodes[node]
-		if !exist {
-			shortNode := shortHostname(node)
-			for foundedNode := range foundedNodes {
-				if shortHostname(foundedNode) == shortNode {
-					exist = true
-					break
-				}
-			}
+		canonicalNode, ok := aliases[node]
+		if !ok {
+			canonicalNode = node
 		}
+		_, exist := foundedNodes[canonicalNode]
 		if !exist {
 			redList = append(redList, node)
 		}
@@ -418,14 +413,7 @@ func trimTableLinePadding(output string) string {
 	return strings.Join(lines, "")
 }
 
-func shortHostname(hostname string) string {
-	if dot := strings.IndexByte(hostname, '.'); dot >= 0 {
-		return hostname[:dot]
-	}
-	return hostname
-}
-
-func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
+func QueryTableOutput(reply *protos.QueryClusterInfoReply, aliases map[string]string) error {
 	var output bytes.Buffer
 	table := tablewriter.NewWriter(&output)
 	util.SetBorderlessTable(table)
@@ -436,7 +424,7 @@ func QueryTableOutput(reply *protos.QueryClusterInfoReply) error {
 	fmt.Fprint(os.Stdout, trimTableLinePadding(output.String()))
 
 	if len(FlagFilterNodes) != 0 {
-		ExtraDealNodeList(reply)
+		ExtraDealNodeList(reply, aliases)
 	}
 	return nil
 }

@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -145,26 +144,33 @@ func resolveTargetNode(step *protos.StepInfo, targetNode string) (string, error)
 		}
 	}
 
+	canonicalTarget, err := resolveNodeAlias(targetNode)
+	if err != nil {
+		return "", err
+	}
+
 	if len(executionNodes) > 0 {
-		found := slices.Contains(executionNodes, targetNode)
-		if !found {
-			targetShort := shortHostname(targetNode)
-			for _, executionNode := range executionNodes {
-				if shortHostname(executionNode) == targetShort {
-					return executionNode, nil
-				}
-			}
+		if !slices.Contains(executionNodes, canonicalTarget) {
 			return "", util.NewCraneErr(util.ErrorCmdArg,
 				fmt.Sprintf("container is not running on the target node %q: %s", targetNode, step.GetCranedList()))
 		}
 	}
 
-	return targetNode, nil
+	return canonicalTarget, nil
 }
 
-func shortHostname(hostname string) string {
-	if dot := strings.IndexByte(hostname, '.'); dot >= 0 {
-		return hostname[:dot]
+func resolveNodeAlias(node string) (string, error) {
+	if config == nil || len(config.CranedNodeList) == 0 {
+		return node, nil
 	}
-	return hostname
+
+	aliases, err := util.BuildNodeAliasMap(config.CranedNodeList)
+	if err != nil {
+		return "", util.WrapCraneErr(util.ErrorCmdArg,
+			"invalid node aliases in config: %v", err)
+	}
+	if canonical, ok := aliases[node]; ok {
+		return canonical, nil
+	}
+	return node, nil
 }
