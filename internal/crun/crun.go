@@ -1702,21 +1702,9 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Env: make(map[string]string), TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
 		}
-		// Inherit from job environment variables
-		if ntasksStr, exists := syscall.Getenv("CRANE_NTASKS"); exists {
-			if ntasks, err := strconv.ParseUint(ntasksStr, 10, 32); err == nil {
-				step.Ntasks = uint32(ntasks)
-			}
-		}
-		if numNodesStr, exists := syscall.Getenv("CRANE_JOB_NUM_NODES"); exists {
-			if numNodes, err := strconv.ParseUint(numNodesStr, 10, 32); err == nil {
-				step.NodeNum = uint32(numNodes)
-			}
-		}
-		if ntasksPerNodeStr, exists := syscall.Getenv("CRANE_NTASKS_PER_NODE"); exists {
-			if ntasksPerNode, err := strconv.ParseUint(ntasksPerNodeStr, 10, 32); err == nil {
-				step.NtasksPerNode = uint32(ntasksPerNode)
-			}
+		inheritMemory := !cmd.Flags().Changed("mem") && !cmd.Flags().Changed("mem-per-cpu")
+		if err := setInheritedStepFieldsFromEnv(step, inheritMemory); err != nil {
+			return err
 		}
 	}
 
