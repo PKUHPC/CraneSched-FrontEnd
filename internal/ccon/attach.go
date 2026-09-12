@@ -169,8 +169,10 @@ func resolveNodeAlias(node string) (string, error) {
 		return "", util.WrapCraneErr(util.ErrorCmdArg,
 			"invalid node aliases in config: %v", err)
 	}
+
 	if canonical, ok := aliases[node]; ok {
 		return canonical, nil
 	}
+	// Unknown nodes are kept for the backend to validate.
 	return node, nil
 }

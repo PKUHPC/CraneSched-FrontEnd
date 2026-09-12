@@ -1886,6 +1886,28 @@ func BuildNodeAliasMap(nodes []ConfigNodesList) (map[string]string, error) {
 	return aliases, nil
 }
 
+// ResolveNodeAliases resolves configured node aliases and reports unknown
+// inputs separately from configuration errors.
+func ResolveNodeAliases(configNodes []ConfigNodesList, nodes []string) ([]string, []string, error) {
+	aliases, err := BuildNodeAliasMap(configNodes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resolved := make([]string, 0, len(nodes))
+	missing := make([]string, 0)
+	for _, node := range nodes {
+		canonical, exists := aliases[node]
+		if !exists {
+			missing = append(missing, node)
+			continue
+		}
+		resolved = append(resolved, canonical)
+	}
+
+	return resolved, missing, nil
+}
+
 // Merge two JSON strings.
 // If there are overlapping keys, values from the second JSON take precedence.
 func AmendJobExtraAttrs(origin, new string) string {

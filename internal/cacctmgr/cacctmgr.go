@@ -1019,26 +1019,6 @@ func GetPlugindClient(config *util.Config, pluginConfig *util.PluginConfig) (pro
 	return protos.NewPluginQueryServiceClient(conn), conn, nil
 }
 
-func resolveNodeAliases(configNodes []util.ConfigNodesList, nodes []string) ([]string, []string, error) {
-	aliases, err := util.BuildNodeAliasMap(configNodes)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	resolved := make([]string, 0, len(nodes))
-	missing := make([]string, 0)
-	for _, node := range nodes {
-		canonical, exists := aliases[node]
-		if !exists {
-			missing = append(missing, node)
-			continue
-		}
-		resolved = append(resolved, canonical)
-	}
-
-	return resolved, missing, nil
-}
-
 func SortNodeEventRecords(records []*protos.NodeEventInfo, maxLines int) ([]*protos.NodeEventInfo, error) {
 	if len(records) == 0 {
 		return nil, fmt.Errorf("records list is empty")
@@ -1094,7 +1074,7 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) error {
 		}
 
 		// Validate node identifiers and normalize NodeHostname to NodeName.
-		resolvedNodes, missingList, err := resolveNodeAliases(config.CranedNodeList, nodeNames)
+		resolvedNodes, missingList, err := util.ResolveNodeAliases(config.CranedNodeList, nodeNames)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid input for nodes: %v\n", err)
 		}

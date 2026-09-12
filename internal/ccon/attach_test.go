@@ -28,6 +28,10 @@ func TestResolveTargetNodeSupportsConfiguredAliases(t *testing.T) {
 			t.Errorf("resolveTargetNode(%q) = %q, want %q", target, got, "crnd1")
 		}
 	}
+	if got, err := resolveNodeAlias("host01"); err != nil || got != "host01" {
+		t.Errorf("resolveNodeAlias(%q) = (%q, %v), want (%q, nil)",
+			"host01", got, err, "host01")
+	}
 	if _, err := resolveTargetNode(step, "host01"); err == nil {
 		t.Error("resolveTargetNode accepted an unconfigured short hostname")
 	}
