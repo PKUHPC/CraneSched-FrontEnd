@@ -280,6 +280,7 @@ var errMsgMap = map[protos.ErrCode]string{
 	protos.ErrCode_ERR_PARTITION_TIME_BEYOND:                 "Time limit exceeds the partition's per-job wall time limit",
 	protos.ErrCode_ERR_PARTITION_MAX_SUBMIT_JOBS_PER_USER:    "Partition max submit jobs per user exceeded",
 	protos.ErrCode_ERR_PARTITION_MAX_SUBMIT_JOBS_PER_ACCOUNT: "Partition max submit jobs per account exceeded",
+	protos.ErrCode_ERR_REQUESTED_NODES_NOT_IN_PARTITION:      "Requested nodes are not in the partition",
 }
 
 func ErrMsg(err_code protos.ErrCode) string {
