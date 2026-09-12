@@ -44,9 +44,6 @@ var (
 const (
 	kTerminationSignalBase = 256
 	kCraneExitCodeBase     = 320
-	// Keep this aligned with google.protobuf.util.TimeUtil's timestamp max;
-	// the backend uses that exact second as the unset/future sentinel.
-	kAccountingMaxTimestampSeconds int64 = 253402300799
 )
 
 // QueryJob will query all pending, running and completed jobs.
@@ -325,79 +322,33 @@ type accountingTiming struct {
 	endTime   *timestamppb.Timestamp
 }
 
-func getAccountingTiming(item *JobOrStep) accountingTiming {
+func getAccountingTiming(item *JobOrStep) (accountingTiming, bool) {
 	if item == nil {
-		return accountingTiming{}
+		return accountingTiming{}, false
 	}
 	if item.isStep {
 		if item.stepInfo == nil {
-			return accountingTiming{}
+			return accountingTiming{}, false
 		}
-		return accountingTiming{
-			status:    item.stepInfo.Status,
-			elapsed:   item.stepInfo.ElapsedTime,
-			startTime: item.stepInfo.StartTime,
-			endTime:   item.stepInfo.EndTime,
-		}
+		return accountingTiming{item.stepInfo.Status, item.stepInfo.ElapsedTime,
+			item.stepInfo.StartTime, item.stepInfo.EndTime}, true
 	}
 	if item.job == nil {
-		return accountingTiming{}
+		return accountingTiming{}, false
 	}
-	return accountingTiming{
-		status:    item.job.Status,
-		elapsed:   item.job.ElapsedTime,
-		startTime: item.job.StartTime,
-		endTime:   item.job.EndTime,
-	}
+	return accountingTiming{item.job.Status, item.job.ElapsedTime,
+		item.job.StartTime, item.job.EndTime}, true
 }
 
 func isTerminalAccountingStatus(status protos.JobStatus) bool {
 	switch status {
-	case protos.JobStatus_Completed,
-		protos.JobStatus_Failed,
-		protos.JobStatus_ExceedTimeLimit,
-		protos.JobStatus_Cancelled,
-		protos.JobStatus_OutOfMemory,
-		protos.JobStatus_Deadline:
+	case protos.JobStatus_Completed, protos.JobStatus_Failed,
+		protos.JobStatus_Cancelled, protos.JobStatus_ExceedTimeLimit,
+		protos.JobStatus_OutOfMemory, protos.JobStatus_Deadline:
 		return true
 	default:
 		return false
 	}
-}
-
-func validAccountingTime(timestamp *timestamppb.Timestamp) (time.Time, bool) {
-	if timestamp == nil || !timestamp.IsValid() ||
-		(timestamp.Seconds == 0 && timestamp.Nanos == 0) {
-		return time.Time{}, false
-	}
-	if timestamp.Seconds >= kAccountingMaxTimestampSeconds {
-		return time.Time{}, false
-	}
-	timestampTime := timestamp.AsTime()
-	accountingEpoch := time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)
-	// The protobuf timestamp maximum is the backend's unset/future sentinel,
-	// not a real accounting event.
-	if timestampTime.Before(accountingEpoch) {
-		return time.Time{}, false
-	}
-	return timestampTime, true
-}
-
-func validElapsedSeconds(duration *durationpb.Duration) (int64, bool) {
-	if duration == nil || !duration.IsValid() || duration.Seconds < 0 ||
-		duration.Nanos < 0 {
-		return 0, false
-	}
-	return duration.Seconds, true
-}
-
-func formatAccountingTime(timestamp *timestamppb.Timestamp,
-	requirePast bool) string {
-	value, ok := validAccountingTime(timestamp)
-	if !ok || (requirePast && value.After(time.Now())) {
-		return "unknown"
-	}
-	return value.In(time.Local).Format("2006-01-02 15:04:05")
 }
 
 type FieldProcessor struct {
@@ -437,9 +388,12 @@ func ProcessAllocCPUs(item *JobOrStep) string {
 
 // ElapsedTime (D)
 func ProcessElapsedTime(item *JobOrStep) string {
-	timing := getAccountingTiming(item)
+	timing, ok := getAccountingTiming(item)
+	if !ok {
+		return "unknown"
+	}
 	if timing.status == protos.JobStatus_Running {
-		if seconds, ok := validElapsedSeconds(timing.elapsed); ok {
+		if seconds, valid := util.ValidDurationSeconds(timing.elapsed); valid {
 			return util.SecondTimeFormat(seconds)
 		}
 		return ""
@@ -448,27 +402,15 @@ func ProcessElapsedTime(item *JobOrStep) string {
 		return ""
 	}
 
-	startTime, startOK := validAccountingTime(timing.startTime)
-	endTime, endOK := validAccountingTime(timing.endTime)
-	// A persisted reversal is corrupt even when a stale elapsed field happens
-	// to be present. Never let that field hide the invalid timestamp pair.
+	startTime, startOK := util.ParseCraneTimestamp(timing.startTime)
+	endTime, endOK := util.ParseCraneTimestamp(timing.endTime)
 	if startOK && endOK && endTime.Before(startTime) {
 		return "unknown"
 	}
-
-	// The backend value is authoritative when present, including a valid zero
-	// duration for a job cancelled before it started. A malformed value is
-	// evidence of corrupt accounting data, not an invitation to fabricate a
-	// replacement duration from timestamps.
-	if timing.elapsed != nil {
-		seconds, ok := validElapsedSeconds(timing.elapsed)
-		if !ok {
-			return "unknown"
-		}
+	if seconds, valid := util.ValidDurationSeconds(timing.elapsed); valid {
 		return util.SecondTimeFormat(seconds)
 	}
-
-	if !startOK || !endOK || endTime.Before(startTime) {
+	if timing.elapsed != nil || !startOK || !endOK {
 		return "unknown"
 	}
 	return util.SecondTimeFormat(int64(endTime.Sub(startTime) / time.Second))
@@ -485,39 +427,21 @@ func ProcessDeadline(item *JobOrStep) string {
 
 // EndTime (E)
 func ProcessEndTime(item *JobOrStep) string {
-	timing := getAccountingTiming(item)
-	if timing.status == protos.JobStatus_Pending ||
+	timing, ok := getAccountingTiming(item)
+	if !ok || timing.status == protos.JobStatus_Pending ||
 		timing.status == protos.JobStatus_Running {
 		return "unknown"
 	}
-	if timing.status == protos.JobStatus_Completing {
-		startTime, startOK := validAccountingTime(timing.startTime)
-		endTime, endOK := validAccountingTime(timing.endTime)
-		if !startOK || !endOK || !startTime.Before(time.Now()) ||
-			!endTime.After(startTime) {
-			return "unknown"
-		}
-		return endTime.In(time.Local).Format("2006-01-02 15:04:05")
-	}
-	if !isTerminalAccountingStatus(timing.status) {
-		// Keep the historical predicted-end display for intermediate states
-		// such as Suspended and Starting. Pending and Running returned above.
-		startTime, startOK := validAccountingTime(timing.startTime)
-		endTime, endOK := validAccountingTime(timing.endTime)
-		if !startOK || !endOK || !startTime.Before(time.Now()) ||
-			!endTime.After(startTime) {
-			return "unknown"
-		}
-		return endTime.In(time.Local).Format("2006-01-02 15:04:05")
-	}
-	endTime, endOK := validAccountingTime(timing.endTime)
+	endTime, endOK := util.ParseCraneTimestamp(timing.endTime)
 	if !endOK {
 		return "unknown"
 	}
-	// A valid end timestamp is independently useful for accounting output.
-	// Only reject a reversal when both timestamps are present and valid.
-	if startTime, startOK := validAccountingTime(timing.startTime); startOK &&
-		endTime.Before(startTime) {
+	startTime, startOK := util.ParseCraneTimestamp(timing.startTime)
+	if !startOK || endTime.Before(startTime) {
+		return "unknown"
+	}
+	if !isTerminalAccountingStatus(timing.status) &&
+		(!startTime.Before(time.Now()) || !endTime.After(startTime)) {
 		return "unknown"
 	}
 	return endTime.In(time.Local).Format("2006-01-02 15:04:05")
@@ -748,22 +672,35 @@ func ProcessReqNodes(item *JobOrStep) string {
 
 // StartTime (S)
 func ProcessStartTime(item *JobOrStep) string {
-	return formatAccountingTime(getAccountingTiming(item).startTime, true)
+	startTimeStr := "unknown"
+	var startTime time.Time
+	if item.isStep {
+		startTime = item.stepInfo.StartTime.AsTime()
+	} else {
+		startTime = item.job.StartTime.AsTime()
+	}
+
+	if !startTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) &&
+		startTime.Before(time.Now()) {
+		startTimeStr = startTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return startTimeStr
 }
 
 // SubmitTime (s)
 func ProcessSubmitTime(item *JobOrStep) string {
-	var timestamp *timestamppb.Timestamp
-	if item != nil {
-		if item.isStep {
-			if item.stepInfo != nil {
-				timestamp = item.stepInfo.SubmitTime
-			}
-		} else if item.job != nil {
-			timestamp = item.job.SubmitTime
-		}
+	submitTimeStr := "unknown"
+	var submitTime time.Time
+	if item.isStep {
+		submitTime = item.stepInfo.SubmitTime.AsTime()
+	} else {
+		submitTime = item.job.SubmitTime.AsTime()
 	}
-	return formatAccountingTime(timestamp, false)
+
+	if !submitTime.Before(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		submitTimeStr = submitTime.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return submitTimeStr
 }
 
 // JobType (T)

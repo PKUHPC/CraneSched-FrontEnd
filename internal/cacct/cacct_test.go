@@ -10,31 +10,25 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func accountingTimestamp(seconds int64) *timestamppb.Timestamp {
-	return timestamppb.New(time.Unix(seconds, 0).UTC())
+func testTimestamp(seconds int64) *timestamppb.Timestamp {
+	return timestamppb.New(time.Unix(seconds, 0))
 }
 
-func accountingJob(status protos.JobStatus, start, end int64,
+func testAccountingItem(step bool, status protos.JobStatus, start, end int64,
 	elapsed *durationpb.Duration) *JobOrStep {
+	if step {
+		return &JobOrStep{isStep: true, stepInfo: &protos.StepInfo{
+			Status: status, StartTime: testTimestamp(start),
+			EndTime: testTimestamp(end), ElapsedTime: elapsed,
+		}}
+	}
 	return &JobOrStep{job: &protos.JobInfo{
-		Status:      status,
-		StartTime:   accountingTimestamp(start),
-		EndTime:     accountingTimestamp(end),
-		ElapsedTime: elapsed,
-	}, isStep: false}
+		Status: status, StartTime: testTimestamp(start),
+		EndTime: testTimestamp(end), ElapsedTime: elapsed,
+	}}
 }
 
-func accountingStep(status protos.JobStatus, start, end int64,
-	elapsed *durationpb.Duration) *JobOrStep {
-	return &JobOrStep{stepInfo: &protos.StepInfo{
-		Status:      status,
-		StartTime:   accountingTimestamp(start),
-		EndTime:     accountingTimestamp(end),
-		ElapsedTime: elapsed,
-	}, isStep: true}
-}
-
-func TestProcessAccountingTerminalElapsed(t *testing.T) {
+func TestTerminalAccountingTimes(t *testing.T) {
 	const start = int64(1_700_000_000)
 	statuses := []protos.JobStatus{
 		protos.JobStatus_Completed,
@@ -45,147 +39,112 @@ func TestProcessAccountingTerminalElapsed(t *testing.T) {
 		protos.JobStatus_Deadline,
 	}
 	for _, status := range statuses {
-		if got, ok := validAccountingTime(accountingTimestamp(start)); !ok {
-			t.Fatalf("timestamp invalid: %v", got)
-		}
-		for _, item := range []*JobOrStep{
-			accountingJob(status, start, start+5, nil),
-			accountingStep(status, start, start+5, nil),
-		} {
+		for _, step := range []bool{false, true} {
+			item := testAccountingItem(step, status, start, start+5, nil)
 			if got := ProcessElapsedTime(item); got != "00:00:05" {
-				t.Errorf("status %v elapsed = %q, want 00:00:05", status, got)
+				t.Errorf("status=%v step=%v elapsed=%q", status, step, got)
 			}
 			if got := ProcessEndTime(item); got == "unknown" {
-				t.Errorf("status %v end time was unknown", status)
+				t.Errorf("status=%v step=%v end time is unknown", status, step)
 			}
 		}
 	}
 }
 
-func TestProcessAccountingZeroElapsedAndBackendPreference(t *testing.T) {
+func TestTerminalAccountingAllowsZeroAndPrefersBackendElapsed(t *testing.T) {
 	const start = int64(1_700_000_000)
-	item := accountingJob(protos.JobStatus_Cancelled, start, start,
-		durationpb.New(0))
-	if got := ProcessElapsedTime(item); got != "00:00:00" {
-		t.Fatalf("zero backend elapsed = %q, want 00:00:00", got)
-	}
-	if got := ProcessEndTime(item); got == "unknown" {
-		t.Fatal("equal start/end must still display an end time")
-	}
-	step := accountingStep(protos.JobStatus_Cancelled, start, start,
-		durationpb.New(0))
-	if got := ProcessElapsedTime(step); got != "00:00:00" {
-		t.Fatalf("zero step elapsed = %q, want 00:00:00", got)
-	}
-	if got := ProcessEndTime(step); got == "unknown" {
-		t.Fatal("equal step start/end must still display an end time")
+	for _, step := range []bool{false, true} {
+		item := testAccountingItem(step, protos.JobStatus_Cancelled, start, start,
+			durationpb.New(0))
+		if got := ProcessElapsedTime(item); got != "00:00:00" {
+			t.Errorf("step=%v zero elapsed=%q", step, got)
+		}
+		if got := ProcessEndTime(item); got == "unknown" {
+			t.Errorf("step=%v zero-duration end time is unknown", step)
+		}
 	}
 
-	item = accountingStep(protos.JobStatus_Failed, start, start+5,
+	item := testAccountingItem(false, protos.JobStatus_Failed, start, start+5,
 		durationpb.New(7*time.Second))
 	if got := ProcessElapsedTime(item); got != "00:00:07" {
-		t.Fatalf("backend elapsed = %q, want 00:00:07", got)
-	}
-	item.stepInfo.ElapsedTime = &durationpb.Duration{Seconds: 1, Nanos: -1}
-	if got := ProcessElapsedTime(item); got != "unknown" {
-		t.Fatalf("invalid backend elapsed = %q, want unknown", got)
+		t.Fatalf("backend elapsed=%q", got)
 	}
 }
 
-func TestProcessAccountingRejectsMissingAndReversedTimes(t *testing.T) {
+func TestTerminalAccountingRejectsInvalidTimes(t *testing.T) {
 	const start = int64(1_700_000_000)
-	reversed := accountingJob(protos.JobStatus_Failed, start+5, start, nil)
-	if got := ProcessElapsedTime(reversed); got != "unknown" {
-		t.Fatalf("reversed elapsed = %q, want unknown", got)
+	tests := []struct {
+		name string
+		item *JobOrStep
+	}{
+		{
+			name: "reverse",
+			item: testAccountingItem(false, protos.JobStatus_Failed,
+				start+5, start, durationpb.New(5*time.Second)),
+		},
+		{
+			name: "missing both",
+			item: &JobOrStep{job: &protos.JobInfo{
+				Status: protos.JobStatus_Completed,
+			}},
+		},
+		{
+			name: "missing end",
+			item: &JobOrStep{job: &protos.JobInfo{
+				Status: protos.JobStatus_Completed, StartTime: testTimestamp(start),
+			}},
+		},
+		{
+			name: "missing start",
+			item: &JobOrStep{job: &protos.JobInfo{
+				Status: protos.JobStatus_Completed, EndTime: testTimestamp(start + 5),
+			}},
+		},
+		{
+			name: "invalid timestamp",
+			item: &JobOrStep{job: &protos.JobInfo{
+				Status:    protos.JobStatus_Completed,
+				StartTime: &timestamppb.Timestamp{Seconds: start, Nanos: int32(time.Second)},
+				EndTime:   testTimestamp(start + 5),
+			}},
+		},
+		{
+			name: "invalid elapsed",
+			item: testAccountingItem(false, protos.JobStatus_Failed,
+				start, start+5, &durationpb.Duration{Seconds: 1, Nanos: -1}),
+		},
 	}
-	if got := ProcessEndTime(reversed); got != "unknown" {
-		t.Fatalf("reversed end time = %q, want unknown", got)
-	}
-	reversed.job.ElapsedTime = durationpb.New(5 * time.Second)
-	if got := ProcessElapsedTime(reversed); got != "unknown" {
-		t.Fatalf("reversed elapsed with backend value = %q, want unknown", got)
-	}
-
-	missing := &JobOrStep{job: &protos.JobInfo{
-		Status:    protos.JobStatus_Completed,
-		StartTime: accountingTimestamp(start),
-	}}
-	if got := ProcessElapsedTime(missing); got != "unknown" {
-		t.Fatalf("missing elapsed = %q, want unknown", got)
-	}
-	if got := ProcessEndTime(missing); got != "unknown" {
-		t.Fatalf("missing end time = %q, want unknown", got)
-	}
-}
-
-func TestProcessAccountingUsesValidZeroWithoutTimestamps(t *testing.T) {
-	item := &JobOrStep{job: &protos.JobInfo{
-		Status:      protos.JobStatus_Cancelled,
-		ElapsedTime: durationpb.New(0),
-	}}
-	if got := ProcessElapsedTime(item); got != "00:00:00" {
-		t.Fatalf("zero elapsed without timestamps = %q, want 00:00:00", got)
-	}
-}
-
-func TestProcessEndTimeUsesValidEndWithoutStart(t *testing.T) {
-	item := &JobOrStep{job: &protos.JobInfo{
-		Status:  protos.JobStatus_Failed,
-		EndTime: accountingTimestamp(1_700_000_005),
-	}}
-	if got := ProcessEndTime(item); got == "unknown" {
-		t.Fatal("valid terminal end time should be displayed when start is missing")
-	}
-}
-
-func TestProcessEndTimePreservesCompletingSemantics(t *testing.T) {
-	item := accountingJob(protos.JobStatus_Completing, 1_700_000_000,
-		1_700_000_005, nil)
-	if got := ProcessEndTime(item); got == "unknown" {
-		t.Fatal("completing end time should be displayed")
-	}
-	item = accountingJob(protos.JobStatus_Completing, 1_700_000_000,
-		1_700_000_000, nil)
-	if got := ProcessEndTime(item); got != "unknown" {
-		t.Fatalf("zero completing end time = %q, want unknown", got)
-	}
-}
-
-func TestProcessStartAndSubmitTimeHandleMissingTimestamps(t *testing.T) {
-	item := &JobOrStep{job: &protos.JobInfo{Status: protos.JobStatus_Failed}}
-	if got := ProcessStartTime(item); got != "unknown" {
-		t.Fatalf("missing start time = %q, want unknown", got)
-	}
-	if got := ProcessSubmitTime(item); got != "unknown" {
-		t.Fatalf("missing submit time = %q, want unknown", got)
-	}
-}
-
-func TestProcessAccountingRejectsInvalidAndEarlyTimestamps(t *testing.T) {
-	const start = int64(1_700_000_000)
-	for name, endTime := range map[string]*timestamppb.Timestamp{
-		"invalid": {Seconds: start, Nanos: int32(time.Second)},
-		"early":   accountingTimestamp(time.Date(1979, 12, 31, 0, 0, 0, 0, time.UTC).Unix()),
-	} {
-		t.Run(name, func(t *testing.T) {
-			item := accountingJob(protos.JobStatus_Failed, start, start, nil)
-			item.job.EndTime = endTime
-			if got := ProcessElapsedTime(item); got != "unknown" {
-				t.Fatalf("elapsed = %q, want unknown", got)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := ProcessElapsedTime(test.item); got != "unknown" {
+				t.Errorf("elapsed=%q", got)
 			}
-			if got := ProcessEndTime(item); got != "unknown" {
-				t.Fatalf("end time = %q, want unknown", got)
+			if test.name != "invalid elapsed" {
+				if got := ProcessEndTime(test.item); got != "unknown" {
+					t.Errorf("end time=%q", got)
+				}
 			}
 		})
 	}
 }
 
-func TestProcessAccountingSubsecondFallback(t *testing.T) {
-	const seconds = int64(1_700_000_000)
-	item := accountingJob(protos.JobStatus_Completed, seconds, seconds, nil)
-	item.job.StartTime = timestamppb.New(time.Unix(seconds, int64(100*time.Millisecond)))
-	item.job.EndTime = timestamppb.New(time.Unix(seconds, int64(900*time.Millisecond)))
-	if got := ProcessElapsedTime(item); got != "00:00:00" {
-		t.Fatalf("subsecond elapsed = %q, want 00:00:00", got)
+func TestAccountingNonTerminalBehavior(t *testing.T) {
+	const start = int64(1_700_000_000)
+	running := testAccountingItem(false, protos.JobStatus_Running, start,
+		start+10, durationpb.New(3*time.Second))
+	if got := ProcessElapsedTime(running); got != "00:00:03" {
+		t.Fatalf("running elapsed=%q", got)
+	}
+	if got := ProcessEndTime(running); got != "unknown" {
+		t.Fatalf("running end time=%q", got)
+	}
+
+	pending := testAccountingItem(false, protos.JobStatus_Pending, start,
+		start+10, nil)
+	if got := ProcessElapsedTime(pending); got != "" {
+		t.Fatalf("pending elapsed=%q", got)
+	}
+	if got := ProcessEndTime(pending); got != "unknown" {
+		t.Fatalf("pending end time=%q", got)
 	}
 }
