@@ -1073,10 +1073,21 @@ func QueryEventInfoByNodes(nodeRegex string, maxLines int) error {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid node pattern: %s.\n", nodeRegex))
 		}
 
-		// Validate node identifiers and normalize NodeHostname to NodeName.
-		resolvedNodes, missingList, err := util.ResolveNodeAliases(config.CranedNodeList, nodeNames)
+		// Resolve configured aliases while keeping unknown nodes separate so the
+		// command can report all invalid inputs together.
+		aliases, err := util.BuildNodeAliasMap(config.CranedNodeList)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid input for nodes: %v\n", err)
+		}
+		resolvedNodes := make([]string, 0, len(nodeNames))
+		missingList := make([]string, 0)
+		for _, node := range nodeNames {
+			canonical, exists := aliases[node]
+			if !exists {
+				missingList = append(missingList, node)
+				continue
+			}
+			resolvedNodes = append(resolvedNodes, canonical)
 		}
 		if len(missingList) > 0 {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid input nodes: %v\n", missingList))

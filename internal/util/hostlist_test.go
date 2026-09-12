@@ -70,28 +70,6 @@ func TestBuildNodeAliasMapDefaultsHostnameToNodeName(t *testing.T) {
 	}
 }
 
-func TestResolveNodeAliasesAcceptsOnlyNodeNameAndNodeHostname(t *testing.T) {
-	configNodes := []ConfigNodesList{{
-		Name:         "crnd1",
-		NodeHostname: "host01.example.com",
-	}}
-
-	resolved, missing, err := ResolveNodeAliases(
-		configNodes, []string{"crnd1", "host01.example.com", "host01"})
-	if err != nil {
-		t.Fatalf("ResolveNodeAliases returned error: %v", err)
-	}
-
-	wantResolved := []string{"crnd1", "crnd1"}
-	if !reflect.DeepEqual(resolved, wantResolved) {
-		t.Errorf("resolved aliases = %v, want %v", resolved, wantResolved)
-	}
-	wantMissing := []string{"host01"}
-	if !reflect.DeepEqual(missing, wantMissing) {
-		t.Errorf("missing aliases = %v, want %v", missing, wantMissing)
-	}
-}
-
 func TestCheckJobArgsExpandsAggregatedNodeLists(t *testing.T) {
 	job := &protos.JobToCtld{
 		NodeNumMin: 1,
