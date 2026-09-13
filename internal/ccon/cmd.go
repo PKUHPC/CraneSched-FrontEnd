@@ -45,9 +45,11 @@ func initConfigAndStub(cmd *cobra.Command, args []string) {
 
 var (
 	RootCmd = &cobra.Command{
-		Use:     "ccon",
-		Short:   "Container job management tool",
-		Version: util.Version(),
+		Use:           "ccon",
+		Short:         "Container job management tool",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			util.DetectNetworkProxy()
 			util.InitDiagLogger(GetFlags().Global.DebugLevel)

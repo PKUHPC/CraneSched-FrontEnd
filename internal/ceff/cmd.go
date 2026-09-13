@@ -31,11 +31,13 @@ var (
 	FlagJson                 bool
 
 	RootCmd = &cobra.Command{
-		Use:     "ceff [flags] [job_id, ...]",
-		Short:   "Display the status and details of the job",
-		Long:    "",
-		Version: util.Version(),
-		Args:    cobra.MaximumNArgs(1),
+		Use:           "ceff [flags] [job_id, ...]",
+		Short:         "Display the status and details of the job",
+		Long:          "",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Args:          cobra.MaximumNArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)

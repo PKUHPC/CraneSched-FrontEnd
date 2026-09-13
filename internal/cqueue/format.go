@@ -4,13 +4,11 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 )
 
@@ -460,20 +458,19 @@ func ParseFormatSegments(format string, re *regexp.Regexp) ([]formatSegment, err
 // ID:JOBID | Status:STATE   | user:USER
 // ID:44    | Status:Running | user:internthree
 // ID:45    | Status:Running | user:internthree
-func FormatData(reply *protos.QueryJobsInfoReply) (header []string, tableData [][]string) {
+func FormatData(reply *protos.QueryJobsInfoReply) (header []string, tableData [][]string, err error) {
 	var formatSpecRegex = regexp.MustCompile(`%(\.)?(\d+)?([a-zA-Z]+)`)
 
 	segments, err := ParseFormatSegments(FlagFormat, formatSpecRegex)
 	if err != nil {
-		log.Errorln(err)
-		os.Exit(util.ErrorInvalidFormat)
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, err.Error())
 	}
 
 	builder := NewTableBuilder(len(reply.JobInfoList))
 	if err := BuildColumns(builder, reply, segments); err != nil {
-		log.Errorln(err)
-		os.Exit(util.ErrorInvalidFormat)
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, err.Error())
 	}
 
-	return util.FormatTable(builder.widths, builder.headers, builder.cells, builder.rightAlign)
+	header, tableData = util.FormatTable(builder.widths, builder.headers, builder.cells, builder.rightAlign)
+	return header, tableData, nil
 }

@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -54,8 +53,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	queryReply, err := stub.QueryJobsInfo(context.Background(), queryReq)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query job information")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query job information")
 	}
 
 	if !queryReply.GetOk() {
@@ -82,8 +80,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 	// Send cancel request
 	reply, err := stub.CancelJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to stop container job")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to stop container job")
 	}
 
 	if f.Global.Json {
@@ -103,8 +100,8 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 
 	if len(reply.NotCancelled) > 0 {
 		reason := reply.NotCancelled[0].GetReason()
-		log.Errorf("Failed to stop container %d.%d: %s", jobId, stepId, reason)
-		return util.NewCraneErr(util.ErrorBackend, "")
+		return util.NewCraneErr(util.ErrorBackend,
+			fmt.Sprintf("Failed to stop container %d.%d: %s", jobId, stepId, reason))
 	}
 
 	return nil

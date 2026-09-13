@@ -40,7 +40,9 @@ var (
 		Long: `Wrapper of CraneSched commands.
 This is a highly EXPERIMENTAL feature. 
 If any error occurs, please refer to original commands.`,
-		Version: util.Version(),
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 	wrappers = []Wrapper{
 		LSFWrapper{},
@@ -50,6 +52,7 @@ If any error occurs, please refer to original commands.`,
 )
 
 func ParseCmdArgs() {
+	util.InitCraneLogger()
 	rootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	for _, wrapper := range wrappers {

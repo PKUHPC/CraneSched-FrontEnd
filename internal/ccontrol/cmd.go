@@ -79,18 +79,21 @@ func ParseCmdArgs(args []string) {
 	cmdStr := getCmdStringByArgs(commandArgs)
 	command, err := ParseCControlCommand(cmdStr)
 	if err != nil {
-		log.Errorf("Error: command format is incorrect %v", err)
+		log.Errorf("ccontrol: error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
 	result := executeCommand(command)
 	if result != nil {
 		var craneError *util.CraneError
-		errors.As(result, &craneError)
-		if craneError.Message != "" {
-			log.Error(craneError.Message)
+		if errors.As(result, &craneError) {
+			if craneError.Message != "" {
+				log.Errorf("ccontrol: error: %s", strings.TrimSpace(craneError.Message))
+			}
+			os.Exit(craneError.Code)
 		}
-		os.Exit(craneError.Code)
+		log.Errorf("ccontrol: error: %s", strings.TrimSpace(result.Error()))
+		os.Exit(util.ErrorGeneric)
 	} else {
 		os.Exit(util.ErrorSuccess)
 	}

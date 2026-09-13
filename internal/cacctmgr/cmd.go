@@ -149,18 +149,21 @@ func ParseCmdArgs(args []string) {
 	command, err := ParseCAcctMgrCommand(cmdStr)
 
 	if err != nil {
-		log.Errorf("Error: command format is incorrect %v", err)
+		log.Errorf("cacctmgr: error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
 	result := executeCommand(command)
 	if result != nil {
 		var craneError *util.CraneError
-		errors.As(result, &craneError)
-		if craneError.Message != "" {
-			log.Error(craneError.Message)
+		if errors.As(result, &craneError) {
+			if craneError.Message != "" {
+				log.Errorf("cacctmgr: error: %s", strings.TrimSpace(craneError.Message))
+			}
+			os.Exit(craneError.Code)
 		}
-		os.Exit(craneError.Code)
+		log.Errorf("cacctmgr: error: %s", strings.TrimSpace(result.Error()))
+		os.Exit(util.ErrorGeneric)
 	} else {
 		os.Exit(util.ErrorSuccess)
 	}
@@ -303,7 +306,6 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 		case "maxcpusperuser":
 			maxCpus, err := strconv.ParseFloat(value, 64)
 			if err != nil || maxCpus < 0 || maxCpus > util.UnlimitedCpuThreshold {
-				log.Errorf("Invalid value for maxCpusPerUser: %s\n", value)
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid value for maxCpusPerUser: %s", value))
 			}
 			FlagQos.MaxCpusPerUser = maxCpus

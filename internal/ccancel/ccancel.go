@@ -122,8 +122,7 @@ func CancelJob(args []string) error {
 
 	reply, err := stub.CancelJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to cancel jobs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to cancel jobs")
 	}
 
 	if FlagJson {
@@ -133,7 +132,7 @@ func CancelJob(args []string) error {
 		}
 		fmt.Println(output)
 		if len(reply.NotCancelled) > 0 {
-			return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
+			return &util.CraneError{Code: util.ErrorBackend}
 		} else {
 			return nil
 		}
@@ -177,7 +176,7 @@ func CancelJob(args []string) error {
 				fmt.Printf("Failed to cancel step: %s-%d. Reason: %s.\n", id, *entry.StepId, entry.Reason)
 			}
 		}
-		return util.NewCraneErr(util.ErrorBackend, "some jobs were not cancelled")
+		return &util.CraneError{Code: util.ErrorBackend}
 	}
 	return nil
 }

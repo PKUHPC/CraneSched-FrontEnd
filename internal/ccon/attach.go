@@ -87,8 +87,7 @@ func attachExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.AttachContainerStep(context.Background(), attachReq)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to attach to container job")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to attach to container job")
 	}
 
 	if !reply.Ok {

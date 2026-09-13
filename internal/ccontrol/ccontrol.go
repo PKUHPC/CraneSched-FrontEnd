@@ -156,8 +156,7 @@ func ChangeDeadlineTime(jobStr string, deadline string) error {
 
 	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to change task deadline")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to change task deadline")
 	}
 
 	if FlagJson {
@@ -316,8 +315,7 @@ func HoldReleaseJobs(jobs string, hold bool) error {
 func SuspendJobs(jobs string) error {
 	jobIds, err := util.ParseJobIdSelectorList(jobs, ",")
 	if err != nil {
-		log.Errorf("invalid job list: %s", err)
-		return &util.CraneError{Code: util.ErrorCmdArg}
+		return util.WrapCraneErr(util.ErrorCmdArg, "invalid job list: %s", err)
 	}
 
 	req := &protos.ModifyJobRequest{
@@ -328,8 +326,7 @@ func SuspendJobs(jobs string) error {
 
 	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to suspend jobs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to suspend jobs")
 	}
 
 	if FlagJson {
@@ -347,8 +344,7 @@ func SuspendJobs(jobs string) error {
 func ResumeJobs(jobs string) error {
 	jobIds, err := util.ParseJobIdSelectorList(jobs, ",")
 	if err != nil {
-		log.Errorf("invalid job list: %s", err)
-		return &util.CraneError{Code: util.ErrorCmdArg}
+		return util.WrapCraneErr(util.ErrorCmdArg, "invalid job list: %s", err)
 	}
 
 	req := &protos.ModifyJobRequest{
@@ -359,8 +355,7 @@ func ResumeJobs(jobs string) error {
 
 	reply, err := stub.ModifyJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to resume jobs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to resume jobs")
 	}
 
 	if FlagJson {
@@ -715,8 +710,7 @@ func ResetNextJobId(nextJobId uint32, nextJobDbId int64) error {
 
 	reply, err := stub.ResetNextJobId(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to reset next job ID")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to reset next job ID")
 	}
 
 	if FlagJson {
@@ -742,8 +736,7 @@ func ResetNextStepDbId() error {
 
 	reply, err := stub.ResetNextStepDbId(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to reset next step DB ID")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to reset next step DB ID")
 	}
 
 	if reply.GetOk() {
@@ -761,8 +754,7 @@ func PurgeJobHistory() error {
 
 	reply, err := stub.PurgeJobHistory(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to purge job history")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to purge job history")
 	}
 
 	if reply.GetOk() {
@@ -781,8 +773,7 @@ func ResetPartitionAcl() error {
 
 	reply, err := stub.ResetPartitionAcl(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to reset partition ACLs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to reset partition ACLs")
 	}
 
 	if reply.GetOk() {

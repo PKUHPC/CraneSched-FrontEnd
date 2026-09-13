@@ -21,6 +21,7 @@ package cqueue
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"fmt"
 	"os"
 	"regexp"
 	"sort"
@@ -28,7 +29,6 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
-	log "github.com/sirupsen/logrus"
 )
 
 // StepData holds both stepInfo and parent job for processing
@@ -66,10 +66,14 @@ func QueryStepsTableOutput(reply *protos.QueryJobsInfoReply) error {
 
 	var header []string
 	var tableData [][]string
+	var err error
 
 	// Support custom format
 	if FlagFormat != "" {
-		header, tableData = FormatStepData(stepDataList)
+		header, tableData, err = FormatStepData(stepDataList)
+		if err != nil {
+			return err
+		}
 		table.SetTablePadding("")
 		table.SetAutoFormatHeaders(false)
 	} else {
@@ -242,12 +246,11 @@ var stepFieldMap = map[string]StepFieldProcessor{
 }
 
 // FormatStepData formats the step output data according to the format string
-func FormatStepData(stepDataList []StepData) (header []string, tableData [][]string) {
+func FormatStepData(stepDataList []StepData) (header []string, tableData [][]string, err error) {
 	re := regexp.MustCompile(`%(\.\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
-		log.Errorln("Invalid format specifier.")
-		os.Exit(util.ErrorInvalidFormat)
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid format specifier.")
 	}
 
 	tableOutputWidth := make([]int, 0, len(specifiers))
@@ -283,8 +286,7 @@ func FormatStepData(stepDataList []StepData) (header []string, tableData [][]str
 			// with width specifier
 			width, err := strconv.ParseUint(FlagFormat[spec[2]+1:spec[3]], 10, 32)
 			if err != nil {
-				log.Errorln("Invalid width specifier.")
-				os.Exit(util.ErrorInvalidFormat)
+				return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid width specifier.")
 			}
 			tableOutputWidth = append(tableOutputWidth, int(width))
 		}
@@ -297,9 +299,8 @@ func FormatStepData(stepDataList []StepData) (header []string, tableData [][]str
 
 		fieldProcessor, found := stepFieldMap[field]
 		if !found {
-			log.Errorf("Invalid format specifier or string for step: %s, string unfold case insensitive, reference:\n"+
-				"i/StepId, j/JobId, n/Name, P/Partition, u/User, U/Uid, e/ElapsedTime, L/NodeList, t/State, l/TimeLimit, N/NodeNum, a/Account, q/QoS, o/Command", field)
-			os.Exit(util.ErrorInvalidFormat)
+			return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf(
+				"Invalid format specifier or string for step: %s, string unfold case insensitive, reference: i/StepId, j/JobId, n/Name, P/Partition, u/User, U/Uid, e/ElapsedTime, L/NodeList, t/State, l/TimeLimit, N/NodeNum, a/Account, q/QoS, o/Command", field))
 		}
 
 		tableOutputHeader = append(tableOutputHeader, strings.ToUpper(fieldProcessor.header))
@@ -318,5 +319,6 @@ func FormatStepData(stepDataList []StepData) (header []string, tableData [][]str
 		}
 	}
 
-	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+	header, tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell)
+	return header, tableData, nil
 }
