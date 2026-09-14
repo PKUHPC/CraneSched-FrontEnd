@@ -1702,8 +1702,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Env: make(map[string]string), TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
 		}
-		inheritMemory := !cmd.Flags().Changed("mem") && !cmd.Flags().Changed("mem-per-cpu")
-		if err := setInheritedStepFieldsFromEnv(step, inheritMemory); err != nil {
+		if err := setInheritedStepFieldsFromEnv(step); err != nil {
 			return err
 		}
 	}
@@ -1787,9 +1786,13 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
+		// Explicit CLI memory selects one dimension over inherited memory.
+		// Clear the other dimension before mutual-exclusion validation.
 		if jobMode {
+			job.MemPerCpu = nil
 			job.MemPerNode = &memInByte
 		} else {
+			step.MemPerCpu = nil
 			step.MemPerNode = &memInByte
 		}
 	}
@@ -1798,9 +1801,13 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
 		}
+		// Explicit CLI memory selects one dimension over inherited memory.
+		// Clear the other dimension before mutual-exclusion validation.
 		if jobMode {
+			job.MemPerNode = nil
 			job.MemPerCpu = &memInBytePerCpu
 		} else {
+			step.MemPerNode = nil
 			step.MemPerCpu = &memInBytePerCpu
 		}
 	}

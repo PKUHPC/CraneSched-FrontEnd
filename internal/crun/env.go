@@ -26,7 +26,7 @@ import (
 	"strconv"
 )
 
-func setInheritedStepFieldsFromEnv(step *protos.StepToCtld, inheritMemory bool) error {
+func setInheritedStepFieldsFromEnv(step *protos.StepToCtld) error {
 	if ntasksString, exists := os.LookupEnv("CRANE_NTASKS"); exists {
 		ntasks, err := strconv.ParseUint(ntasksString, 10, 32)
 		if err != nil {
@@ -48,7 +48,7 @@ func setInheritedStepFieldsFromEnv(step *protos.StepToCtld, inheritMemory bool) 
 		}
 		step.NtasksPerNode = uint32(ntasksPerNode)
 	}
-	if memoryPerNodeString, exists := os.LookupEnv("CRANE_MEM_PER_NODE"); exists && inheritMemory {
+	if memoryPerNodeString, exists := os.LookupEnv("CRANE_MEM_PER_NODE"); exists {
 		memoryPerNode, err := util.ParseMemStringAsByte(memoryPerNodeString)
 		if err != nil {
 			return util.NewCraneErr(util.ErrorInvalidFormat,

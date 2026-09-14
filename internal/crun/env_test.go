@@ -79,10 +79,10 @@ func TestCrunMemorySubmission(t *testing.T) {
 		{name: "inherit_512M", env: []string{"CRANE_MEM_PER_NODE=512M"}, flags: []string{"--nodes=1", "--ntasks=4"}, wantNode: 536870912},
 		{name: "explicit_mem_overrides_env", env: []string{"CRANE_MEM_PER_NODE=512M"}, flags: []string{"--mem=100M"}, wantNode: 104857600},
 		{name: "explicit_mem_per_cpu_overrides_env", env: []string{"CRANE_MEM_PER_NODE=512M"}, flags: []string{"--mem-per-cpu=64M"}, wantCPU: 67108864},
-		{name: "explicit_mem_ignores_invalid_env", env: []string{"CRANE_MEM_PER_NODE=invalid"}, flags: []string{"--mem=100M"}, wantNode: 104857600},
-		{name: "explicit_mem_per_cpu_ignores_invalid_env", env: []string{"CRANE_MEM_PER_NODE=invalid"}, flags: []string{"--mem-per-cpu=64M"}, wantCPU: 67108864},
 		{name: "unset_memory_stays_unspecified"},
 		{name: "invalid_memory_rejected", env: []string{"CRANE_MEM_PER_NODE=invalid"}, wantError: "invalid CRANE_MEM_PER_NODE from env", wantCode: util.ErrorInvalidFormat},
+		{name: "invalid_memory_rejected_with_mem", env: []string{"CRANE_MEM_PER_NODE=invalid"}, flags: []string{"--mem=100M"}, wantError: "invalid CRANE_MEM_PER_NODE from env", wantCode: util.ErrorInvalidFormat},
+		{name: "invalid_memory_rejected_with_mem_per_cpu", env: []string{"CRANE_MEM_PER_NODE=invalid"}, flags: []string{"--mem-per-cpu=64M"}, wantError: "invalid CRANE_MEM_PER_NODE from env", wantCode: util.ErrorInvalidFormat},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			directory := t.TempDir()
