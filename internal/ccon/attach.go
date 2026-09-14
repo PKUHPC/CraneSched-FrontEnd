@@ -144,13 +144,35 @@ func resolveTargetNode(step *protos.StepInfo, targetNode string) (string, error)
 		}
 	}
 
+	canonicalTarget, err := resolveNodeAlias(targetNode)
+	if err != nil {
+		return "", err
+	}
+
 	if len(executionNodes) > 0 {
-		found := slices.Contains(executionNodes, targetNode)
-		if !found {
+		if !slices.Contains(executionNodes, canonicalTarget) {
 			return "", util.NewCraneErr(util.ErrorCmdArg,
 				fmt.Sprintf("container is not running on the target node %q: %s", targetNode, step.GetCranedList()))
 		}
 	}
 
-	return targetNode, nil
+	return canonicalTarget, nil
+}
+
+func resolveNodeAlias(node string) (string, error) {
+	if config == nil || len(config.CranedNodeList) == 0 {
+		return node, nil
+	}
+
+	aliases, err := util.BuildNodeAliasMap(config.CranedNodeList)
+	if err != nil {
+		return "", util.WrapCraneErr(util.ErrorCmdArg,
+			"invalid node aliases in config: %v", err)
+	}
+
+	if canonical, ok := aliases[node]; ok {
+		return canonical, nil
+	}
+	// Unknown nodes are kept for the backend to validate.
+	return node, nil
 }

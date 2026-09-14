@@ -179,8 +179,7 @@ func FillReqByFilterFlag() (*protos.QueryClusterInfoRequest, error) {
 	return req, nil
 }
 
-func QueryClusterInfo() (*protos.QueryClusterInfoReply, error) {
-	config := util.ParseConfig(FlagConfigFilePath)
+func queryClusterInfo(config *util.Config) (*protos.QueryClusterInfoReply, error) {
 	stub := util.GetStubToCtldByConfig(config)
 
 	req, err := FillReqByFilterFlag()
@@ -196,15 +195,27 @@ func QueryClusterInfo() (*protos.QueryClusterInfoReply, error) {
 	return reply, nil
 }
 
+func QueryClusterInfo() (*protos.QueryClusterInfoReply, error) {
+	return queryClusterInfo(util.ParseConfig(FlagConfigFilePath))
+}
+
 func Query() error {
-	reply, err := QueryClusterInfo()
+	config := util.ParseConfig(FlagConfigFilePath)
+	reply, err := queryClusterInfo(config)
 	if err != nil {
 		return err
 	}
 	if FlagJson {
 		return JsonOutput(reply)
 	}
-	return QueryTableOutput(reply)
+	aliases := map[string]string{}
+	if len(FlagFilterNodes) != 0 {
+		aliases, err = util.BuildNodeAliasMap(config.CranedNodeList)
+		if err != nil {
+			return util.WrapCraneErr(util.ErrorCmdArg, "invalid node aliases in config: %v", err)
+		}
+	}
+	return QueryTableOutput(reply, aliases)
 }
 
 func loopedQuery(iterate uint64) error {

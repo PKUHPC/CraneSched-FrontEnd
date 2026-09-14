@@ -847,9 +847,15 @@ func submitContainerJob(job *protos.JobToCtld) (*protos.SubmitBatchJobReply, err
 
 	if reply.GetOk() {
 		return reply, nil
-	} else {
-		return reply, util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Container job submission failed: %s", util.ErrMsg(reply.GetCode())))
 	}
+
+	if reply.GetReason() != "" {
+		return reply, util.NewCraneErr(util.ErrorBackend,
+			fmt.Sprintf("Container job submission failed: %s", reply.GetReason()))
+	}
+
+	return reply, util.NewCraneErr(util.ErrorBackend,
+		fmt.Sprintf("Container job submission failed: %s", util.ErrMsg(reply.GetCode())))
 }
 
 // submitContainerStep submits a container step via gRPC

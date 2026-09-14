@@ -98,9 +98,10 @@ type InfluxDbConfig struct {
 }
 
 type ConfigNodesList struct {
-	Name   string `yaml:"name"`
-	CPU    int    `yaml:"cpu"`
-	Memory string `yaml:"memory"`
+	Name         string `yaml:"name"`
+	NodeHostname string `yaml:"NodeHostname"`
+	CPU          int    `yaml:"cpu"`
+	Memory       string `yaml:"memory"`
 }
 
 // Path = BaseDir + Dir + Name

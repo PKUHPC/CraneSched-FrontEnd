@@ -31,6 +31,8 @@ type slurmNodesOutput struct {
 
 type slurmNodeInfo struct {
 	Hostname        string          `json:"hostname"`
+	NodeHostname    string          `json:"node_hostname"`
+	NodeAddr        string          `json:"node_addr"`
 	State           string          `json:"state"`
 	ResTotal        json.RawMessage `json:"res_total,omitempty"`
 	ResAvail        json.RawMessage `json:"res_avail,omitempty"`
@@ -120,6 +122,8 @@ func newSlurmNodeInfo(node *protos.CranedInfo) (slurmNodeInfo, error) {
 
 	return slurmNodeInfo{
 		Hostname:        node.Hostname,
+		NodeHostname:    node.NodeHostname,
+		NodeAddr:        node.NodeAddr,
 		State:           util.FormatSlurmNodeState(node.ResourceState, node.ControlState, node.PowerState),
 		ResTotal:        resTotal,
 		ResAvail:        resAvail,
