@@ -33,6 +33,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -313,6 +315,42 @@ type JobOrStep struct {
 	isStep   bool
 }
 
+type accountingTiming struct {
+	status    protos.JobStatus
+	elapsed   *durationpb.Duration
+	startTime *timestamppb.Timestamp
+	endTime   *timestamppb.Timestamp
+}
+
+func getAccountingTiming(item *JobOrStep) (accountingTiming, bool) {
+	if item == nil {
+		return accountingTiming{}, false
+	}
+	if item.isStep {
+		if item.stepInfo == nil {
+			return accountingTiming{}, false
+		}
+		return accountingTiming{item.stepInfo.Status, item.stepInfo.ElapsedTime,
+			item.stepInfo.StartTime, item.stepInfo.EndTime}, true
+	}
+	if item.job == nil {
+		return accountingTiming{}, false
+	}
+	return accountingTiming{item.job.Status, item.job.ElapsedTime,
+		item.job.StartTime, item.job.EndTime}, true
+}
+
+func isTerminalAccountingStatus(status protos.JobStatus) bool {
+	switch status {
+	case protos.JobStatus_Completed, protos.JobStatus_Failed,
+		protos.JobStatus_Cancelled, protos.JobStatus_ExceedTimeLimit,
+		protos.JobStatus_OutOfMemory, protos.JobStatus_Deadline:
+		return true
+	default:
+		return false
+	}
+}
+
 type FieldProcessor struct {
 	header  string
 	process func(item *JobOrStep) string
@@ -350,52 +388,32 @@ func ProcessAllocCPUs(item *JobOrStep) string {
 
 // ElapsedTime (D)
 func ProcessElapsedTime(item *JobOrStep) string {
-	var status protos.JobStatus
-	var startTime, endTime time.Time
-	if item.isStep {
-		status = item.stepInfo.Status
-		if item.stepInfo.StartTime == nil || item.stepInfo.EndTime == nil {
-			return ""
+	timing, ok := getAccountingTiming(item)
+	if !ok {
+		return "unknown"
+	}
+	if timing.status == protos.JobStatus_Running {
+		if seconds, valid := util.ValidDurationSeconds(timing.elapsed); valid {
+			return util.SecondTimeFormat(seconds)
 		}
-		startTime = item.stepInfo.StartTime.AsTime()
-		endTime = item.stepInfo.EndTime.AsTime()
-	} else {
-		status = item.job.Status
-		if item.job.StartTime == nil || item.job.EndTime == nil {
-			return ""
-		}
-		startTime = item.job.StartTime.AsTime()
-		endTime = item.job.EndTime.AsTime()
+		return ""
+	}
+	if !isTerminalAccountingStatus(timing.status) {
+		return ""
 	}
 
-	if status == protos.JobStatus_Running {
-		if item.isStep {
-			return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
-		} else {
-			return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
-		}
-	} else if status == protos.JobStatus_Completed {
-		// Prefer backend elapsed time (already excludes suspended duration).
-		if item.isStep {
-			if item.stepInfo.ElapsedTime != nil && item.stepInfo.ElapsedTime.Seconds > 0 {
-				return util.SecondTimeFormat(item.stepInfo.ElapsedTime.Seconds)
-			}
-		} else {
-			if item.job.ElapsedTime != nil && item.job.ElapsedTime.Seconds > 0 {
-				return util.SecondTimeFormat(item.job.ElapsedTime.Seconds)
-			}
-		}
-
-		// Fallback to derived duration if elapsed time is unavailable.
-		if startTime.IsZero() || endTime.IsZero() {
-			return "-"
-		}
-		if startTime.Before(time.Now()) && endTime.After(startTime) {
-			duration := endTime.Sub(startTime)
-			return util.SecondTimeFormat(int64(duration.Seconds()))
-		}
+	startTime, startOK := util.ParseCraneTimestamp(timing.startTime)
+	endTime, endOK := util.ParseCraneTimestamp(timing.endTime)
+	if startOK && endOK && endTime.Before(startTime) {
+		return "unknown"
 	}
-	return ""
+	if seconds, valid := util.ValidDurationSeconds(timing.elapsed); valid {
+		return util.SecondTimeFormat(seconds)
+	}
+	if timing.elapsed != nil || !startOK || !endOK {
+		return "unknown"
+	}
+	return util.SecondTimeFormat(int64(endTime.Sub(startTime) / time.Second))
 }
 
 // Deadline (D)
@@ -409,25 +427,24 @@ func ProcessDeadline(item *JobOrStep) string {
 
 // EndTime (E)
 func ProcessEndTime(item *JobOrStep) string {
-	endTimeStr := "unknown"
-	var status protos.JobStatus
-	var startTime, endTime time.Time
-
-	if item.isStep {
-		status = item.stepInfo.Status
-		startTime = item.stepInfo.StartTime.AsTime()
-		endTime = item.stepInfo.EndTime.AsTime()
-	} else {
-		status = item.job.Status
-		startTime = item.job.StartTime.AsTime()
-		endTime = item.job.EndTime.AsTime()
+	timing, ok := getAccountingTiming(item)
+	if !ok || timing.status == protos.JobStatus_Pending ||
+		timing.status == protos.JobStatus_Running {
+		return "unknown"
 	}
-	if status != protos.JobStatus_Pending && status != protos.JobStatus_Running {
-		if startTime.Before(time.Now()) && endTime.After(startTime) {
-			endTimeStr = endTime.In(time.Local).Format("2006-01-02 15:04:05")
-		}
+	endTime, endOK := util.ParseCraneTimestamp(timing.endTime)
+	if !endOK {
+		return "unknown"
 	}
-	return endTimeStr
+	startTime, startOK := util.ParseCraneTimestamp(timing.startTime)
+	if !startOK || endTime.Before(startTime) {
+		return "unknown"
+	}
+	if !isTerminalAccountingStatus(timing.status) &&
+		(!startTime.Before(time.Now()) || !endTime.After(startTime)) {
+		return "unknown"
+	}
+	return endTime.In(time.Local).Format("2006-01-02 15:04:05")
 }
 
 // ExitCode (e)
