@@ -550,6 +550,9 @@ func buildContainerMeta(f *Flags, image string, command []string) (*protos.Conta
 		Env:      make(map[string]string),
 		Mounts:   make(map[string]string),
 	}
+	if f.Run.ImagePullingTimeout > 0 {
+		containerMeta.Image.ImagePullingTimeoutSeconds = &f.Run.ImagePullingTimeout
+	}
 
 	if f.Run.Name != "" {
 		containerMeta.Name = f.Run.Name
