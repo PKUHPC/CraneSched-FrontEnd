@@ -212,6 +212,7 @@ func InitializeCommandFlags() {
 	RunCmd.Flags().Lookup("userns").DefValue = "from config"
 	RunCmd.Flags().StringVarP(&f.Run.Workdir, "workdir", "w", "", "Working directory inside the container")
 	RunCmd.Flags().StringVar(&f.Run.PullPolicy, "pull-policy", "", "Image pull policy: Always, IfNotPresent, or Never")
+	RunCmd.Flags().Int64Var(&f.Run.ImagePullingTimeout, "pull-timeout", 0, "Timeout for pulling the image, in seconds (0 uses the server configuration)")
 	RunCmd.Flags().StringVar(&f.Run.Network, "network", "default", "Network mode for the container (currently only 'host' and 'default' is supported)")
 
 	RunCmd.Flags().Float64Var(&f.Run.Cpus, "cpus", 0, "Number of CPUs (maps to cpus-per-task)")
