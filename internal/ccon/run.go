@@ -527,6 +527,9 @@ func applyIOOptions(f *Flags, containerMeta *protos.ContainerJobAdditionalMeta) 
 
 // buildContainerMeta builds container-level settings shared by job and step submissions.
 func buildContainerMeta(f *Flags, image string, command []string) (*protos.ContainerJobAdditionalMeta, error) {
+	if f.Run.ImagePullingTimeout < 0 || f.Run.ImagePullingTimeout > 3600 {
+		return nil, fmt.Errorf("--pull-timeout must be between 0 and 3600 seconds (0 uses the server configuration)")
+	}
 	imageRef, err := NormalizeImageRef(image)
 	if err != nil {
 		return nil, fmt.Errorf("invalid image reference '%s': %v", image, err)
@@ -549,6 +552,9 @@ func buildContainerMeta(f *Flags, image string, command []string) (*protos.Conta
 		Detached: f.Run.Detach,
 		Env:      make(map[string]string),
 		Mounts:   make(map[string]string),
+	}
+	if f.Run.ImagePullingTimeout > 0 {
+		containerMeta.Image.ImagePullingTimeoutSeconds = &f.Run.ImagePullingTimeout
 	}
 
 	if f.Run.Name != "" {
