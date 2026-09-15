@@ -604,7 +604,7 @@ func SendRequest(config *util.Config, job *protos.JobToCtld) error {
 		}
 	}
 	if reply.GetOk() {
-		fmt.Printf("Job id allocated: %d.\n", reply.GetJobId())
+		fmt.Print(formatJobSubmissionOutput([]uint32{reply.GetJobId()}))
 		return nil
 	} else {
 		if len(reply.GetReason()) > 0 {
@@ -635,8 +635,7 @@ func SendMultipleRequests(config *util.Config, job *protos.JobToCtld, count uint
 	}
 
 	if len(reply.JobIdList) > 0 {
-		jobIdListString := util.ConvertSliceToString(reply.JobIdList, ", ")
-		fmt.Printf("Job id allocated: %s.\n", jobIdListString)
+		fmt.Print(formatJobSubmissionOutput(reply.JobIdList))
 	}
 
 	if len(reply.GetCodeList()) > 0 {
