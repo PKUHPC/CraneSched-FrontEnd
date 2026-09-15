@@ -359,8 +359,10 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		return util.WrapCraneErr(util.ErrorSystem, "Failed to get current user: %s", err)
 	}
 
-	// Get egid using os.Getgid() instead of using user.Current()
-	gid := os.Getgid()
+	gids, err := util.CollectEffectiveGroups()
+	if err != nil {
+		return util.WrapCraneErr(util.ErrorSystem, "%s", err)
+	}
 
 	uid, err := strconv.Atoi(gVars.user.Uid)
 	if err != nil {
@@ -378,7 +380,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		PartitionName:   "",
 		Type:            protos.JobType_Interactive,
 		Uid:             uint32(uid),
-		Gid:             uint32(gid),
+		Gids:            gids,
 		NodeNumMin:      0,
 		NodeNumMax:      0,
 		NtasksPerNode:   0,

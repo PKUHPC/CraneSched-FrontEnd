@@ -49,6 +49,11 @@ var (
 // BuildCbatchJob reads flags and script file to build a job
 func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*protos.JobToCtld, error) {
 	job := new(protos.JobToCtld)
+	gids, err := util.CollectEffectiveGroups()
+	if err != nil {
+		return nil, err
+	}
+	job.Gids = gids
 	warnUnsupportedCLIFlags(cmd)
 
 	// Parse the script file or use wrapped script
