@@ -98,7 +98,7 @@ else
 endif
 
 # Targets
-.PHONY: all build protos clean install plugin plugin-monitor plugin-trace plugin-other tool service format package check-goreleaser
+.PHONY: all build test protos clean install plugin plugin-monitor plugin-trace plugin-other tool service format package check-goreleaser
 
 all: build plugin service
 
@@ -111,6 +111,10 @@ protos:
 	@mkdir -p ./generated/protos/supervisor && mv generated/protos/Supervisor*.go ./generated/protos/supervisor
 	@echo "  - Summary:"
 	@echo "    - Protobuf files generated in ./generated/protos/"
+
+test: protos
+	@echo "- Running Go tests..."
+	@$(GO) test ./...
 
 build: protos
 	@echo "- Building executables with $(GO_VERSION)..."
