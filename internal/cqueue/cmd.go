@@ -53,11 +53,13 @@ var (
 	FlagCount            bool
 
 	RootCmd = &cobra.Command{
-		Use:     "cqueue [flags]",
-		Short:   "Display the job information and queue status",
-		Long:    "",
-		Version: util.Version(),
-		Args:    cobra.ExactArgs(0),
+		Use:           "cqueue [flags]",
+		Short:         "Display the job information and queue status",
+		Long:          "",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Args:          cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},

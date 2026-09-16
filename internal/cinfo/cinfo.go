@@ -188,8 +188,7 @@ func queryClusterInfo(config *util.Config) (*protos.QueryClusterInfoReply, error
 	}
 	reply, err := stub.QueryClusterInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query cluster information")
-		return nil, &util.CraneError{Code: util.ErrorNetwork}
+		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query cluster information")
 	}
 
 	return reply, nil

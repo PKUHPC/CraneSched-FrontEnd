@@ -188,8 +188,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 
 	stream, err := stub.QueryJobSizeSummary(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query JobSizeSummary info")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query JobSizeSummary info")
 	}
 
 	var JobSummaryItemList []*protos.JobSizeSummaryItem
@@ -199,8 +198,7 @@ func QueryJobSizeSummary(CheckType CheckStatus) error {
 			break
 		}
 		if err != nil {
-			util.GrpcErrorPrintf(err, "Failed to receive item")
-			return util.NewCraneErr(util.ErrorNetwork, "")
+			return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to receive item")
 		}
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}

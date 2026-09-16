@@ -420,7 +420,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagGres != "" {
 		gresMap, err := util.ParseGres(FlagGres)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --gres: %s", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --gres value '%s'", FlagGres))
 		}
 		job.GresPerNode = gresMap
 		if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
@@ -430,7 +430,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --mem value '%s'", FlagMem))
 		}
 		job.MemPerNode = &memInByte
 	}
@@ -438,15 +438,14 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --time value '%s'", FlagTime))
 		}
 		job.TimeLimit.Seconds = seconds
 	}
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg,
-				fmt.Sprintf("Invalid argument: invalid --mem-per-cpu value '%s': %v", FlagMemPerCpu, err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --mem-per-cpu value '%s'", FlagMemPerCpu))
 		}
 		job.MemPerCpu = &memInBytePerCpu
 	}
@@ -502,10 +501,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagDeadlineTime != "" {
 		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: --deadline: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --deadline value '%s'", FlagDeadlineTime))
 		}
 		job.DeadlineTime = timestamppb.New(deadlineTime)
 	}
@@ -518,10 +514,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 		}
 		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
 		if err != nil {
-			return &util.CraneError{
-				Code:    util.ErrorCmdArg,
-				Message: fmt.Sprintf("Invalid argument: invalid --gpus-per-node: %s", err),
-			}
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --gpus-per-node value '%s'", FlagGpusPerNode))
 
 		}
 		job.GresPerNode = gpuDeviceMap
@@ -536,7 +529,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagLicenses != "" {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
 		if err != nil {
-			return util.WrapCraneErr(util.ErrorCmdArg, "Invalid argument: %s", err)
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --licenses value '%s'", FlagLicenses))
 		}
 		job.LicensesCount = licCount
 		job.IsLicensesOr = isLicenseOr
@@ -555,7 +548,7 @@ func MainCalloc(cmd *cobra.Command, args []string) error {
 	if FlagSignal != "" {
 		signals, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
-			return util.WrapCraneErr(util.ErrorCmdArg, "invalid argument: %s", err)
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --signal value '%s'", FlagSignal))
 		}
 		for _, signal := range signals {
 			if signal.SignalFlag == protos.Signal_BATCH_ONLY {

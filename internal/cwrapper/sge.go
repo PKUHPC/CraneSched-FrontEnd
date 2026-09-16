@@ -168,7 +168,7 @@ Currently supports a practical subset of qsub options that can be mapped to Cran
 			if FlagQsubAt != "" {
 				beginAt, err := convertSGEDateTime(FlagQsubAt)
 				if err != nil {
-					log.Error(err)
+					log.Errorf("qsub: error: %v", err)
 					os.Exit(util.ErrorCmdArg)
 				}
 				cbatchArgs = append(cbatchArgs, "--begin", beginAt)
@@ -190,7 +190,7 @@ Currently supports a practical subset of qsub options that can be mapped to Cran
 			} else if FlagQsubCwd {
 				wd, err := os.Getwd()
 				if err != nil {
-					log.Errorf("failed to get current working directory: %v", err)
+					log.Errorf("qsub: error: failed to get current working directory: %v", err)
 					os.Exit(util.ErrorCmdArg)
 				}
 				cbatchArgs = append(cbatchArgs, "--chdir", wd)
@@ -201,7 +201,7 @@ Currently supports a practical subset of qsub options that can be mapped to Cran
 			if FlagQsubm != "" {
 				mailType, err := convertSGEMailType(FlagQsubm)
 				if err != nil {
-					log.Error(err)
+					log.Errorf("qsub: error: %v", err)
 					os.Exit(util.ErrorCmdArg)
 				}
 				if mailType != "" {
@@ -333,7 +333,7 @@ func qacct() *cobra.Command {
 			if FlagQacctB != "" || FlagQacctE != "" || FlagQacctD > 0 {
 				start, end, err := buildQacctTimeRange()
 				if err != nil {
-					log.Error(err)
+					log.Errorf("qacct: error: %v", err)
 					os.Exit(util.ErrorCmdArg)
 				}
 
@@ -391,7 +391,7 @@ func qstat() *cobra.Command {
 			}
 
 			if FlagQstatI && FlagQstatR {
-				log.Error("options -i and -r are mutually exclusive")
+				log.Error("qstat: error: options -i and -r are mutually exclusive")
 				os.Exit(util.ErrorCmdArg)
 			}
 

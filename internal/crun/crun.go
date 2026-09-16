@@ -1773,7 +1773,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagTime != "" {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --time: %s.", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --time value '%s'.", FlagTime))
 		}
 		if jobMode {
 			job.TimeLimit.Seconds = seconds
@@ -1784,7 +1784,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagMem != "" {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --mem value '%s'.", FlagMem))
 		}
 		// Explicit CLI memory selects one dimension over inherited memory.
 		// Clear the other dimension before mutual-exclusion validation.
@@ -1799,7 +1799,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagMemPerCpu != "" {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: %s.", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --mem-per-cpu value '%s'.", FlagMemPerCpu))
 		}
 		// Explicit CLI memory selects one dimension over inherited memory.
 		// Clear the other dimension before mutual-exclusion validation.
@@ -1815,7 +1815,7 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	if FlagGres != "" {
 		gresMap, err := util.ParseGres(FlagGres)
 		if err != nil {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: invalid --gres: %s", err))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid argument: --gres value '%s'.", FlagGres))
 		}
 		if jobMode {
 			job.GresPerNode = gresMap

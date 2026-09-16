@@ -601,16 +601,16 @@ func ConvertInterval(t string) string {
 	}
 	ts := strings.Split(t, ",")
 	if len(ts) == 1 {
-		log.Fatal("Invalid LSF time format\n")
+		log.Fatal("bacct: error: Invalid LSF time format")
 	}
 	t1, t2 := ts[0], ts[1]
 	t1, err1 := ConvertTime(t1, "left")
 	if err1 != nil {
-		log.Fatalf("Failed to parse LSF time format: %s\n", err1)
+		log.Fatalf("bacct: error: Failed to parse LSF time format: %s", err1)
 	}
 	t2, err2 := ConvertTime(t2, "right")
 	if err2 != nil {
-		log.Fatalf("Failed to parse LSF time format: %s\n", err2)
+		log.Fatalf("bacct: error: Failed to parse LSF time format: %s", err2)
 	}
 	return t1 + "~" + t2
 }

@@ -158,7 +158,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		setGpusPerNodeFlag = true
 		gpuDeviceMap, err := util.ParseGpusPerNodeStr(FlagGpusPerNode)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: invalid --gpus-per-node value '%s': %w", FlagGpusPerNode, err)
+			return nil, fmt.Errorf("invalid argument: --gpus-per-node value '%s'", FlagGpusPerNode)
 		}
 		job.GresPerNode = gpuDeviceMap
 	}
@@ -169,21 +169,21 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	if cmd.Flags().Changed("time") {
 		seconds, err := util.ParseDurationStrToSeconds(FlagTime)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: invalid --time value '%s': %w", FlagTime, err)
+			return nil, fmt.Errorf("invalid argument: --time value '%s'", FlagTime)
 		}
 		job.TimeLimit.Seconds = seconds
 	}
 	if cmd.Flags().Changed("mem") {
 		memInByte, err := util.ParseMemStringAsByte(FlagMem)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: invalid --mem value '%s': %w", FlagMem, err)
+			return nil, fmt.Errorf("invalid argument: --mem value '%s'", FlagMem)
 		}
 		job.MemPerNode = &memInByte
 	}
 	if cmd.Flags().Changed("mem-per-cpu") {
 		memInBytePerCpu, err := util.ParseMemStringAsByte(FlagMemPerCpu)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: invalid --mem-per-cpu value '%s': %w", FlagMemPerCpu, err)
+			return nil, fmt.Errorf("invalid argument: --mem-per-cpu value '%s'", FlagMemPerCpu)
 		}
 		job.MemPerCpu = &memInBytePerCpu
 	}
@@ -199,7 +199,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	if cmd.Flags().Changed("licenses") {
 		licCount, isLicenseOr, err := util.ParseLicensesString(FlagLicenses)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: invalid --licenses value '%s': %w", FlagLicenses, err)
+			return nil, fmt.Errorf("invalid argument: --licenses value '%s'", FlagLicenses)
 		}
 		job.LicensesCount = licCount
 		job.IsLicensesOr = isLicenseOr
@@ -260,14 +260,14 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	if cmd.Flags().Changed("begin") {
 		beginTime, err := util.ParseTime(FlagBeginTime)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: invalid --begin value '%s': %w", FlagBeginTime, err)
+			return nil, fmt.Errorf("invalid argument: --begin value '%s'", FlagBeginTime)
 		}
 		job.BeginTime = timestamppb.New(beginTime)
 	}
 	if cmd.Flags().Changed("deadline") {
 		deadlineTime, err := util.ParseTime(FlagDeadlineTime)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: invalid --deadline value '%s': %w", FlagDeadlineTime, err)
+			return nil, fmt.Errorf("invalid argument: --deadline value '%s'", FlagDeadlineTime)
 		}
 		job.DeadlineTime = timestamppb.New(deadlineTime)
 	}
@@ -288,7 +288,7 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	if cmd.Flags().Changed("signal") {
 		signals, err := util.ParseSignalParamString(FlagSignal)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument: signal value '%s' : %w", FlagSignal, err)
+			return nil, fmt.Errorf("invalid argument: --signal value '%s'", FlagSignal)
 		}
 		for _, signal := range signals {
 			job.Signals = append(job.Signals, signal)
@@ -327,13 +327,13 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 
 	// Check the validity of the parameters
 	if err := util.CheckFileLength(job.GetIoMeta().InputFilePattern); err != nil {
-		return nil, fmt.Errorf("invalid argument: invalid input file path: %w", err)
+		return nil, fmt.Errorf("invalid argument: input file path is invalid: %w", err)
 	}
 	if err := util.CheckFileLength(job.GetIoMeta().OutputFilePattern); err != nil {
-		return nil, fmt.Errorf("invalid argument: invalid output file path: %w", err)
+		return nil, fmt.Errorf("invalid argument: output file path is invalid: %w", err)
 	}
 	if err := util.CheckFileLength(job.GetIoMeta().ErrorFilePattern); err != nil {
-		return nil, fmt.Errorf("invalid argument: invalid error file path: %w", err)
+		return nil, fmt.Errorf("invalid argument: error file path is invalid: %w", err)
 	}
 	if err := util.CheckJobArgs(job); err != nil {
 		return nil, fmt.Errorf("invalid argument: %w", err)
@@ -348,7 +348,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "--nodes", "-N":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			if num == 0 {
 				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
@@ -358,13 +358,13 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "--cpus-per-task", "-c":
 			num, err := util.ParseFloatWithPrecision(arg.val, 10)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.CpusPerTask = &num
 		case "--gres":
 			gresMap, err := util.ParseGres(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			if _, exist := gresMap.NameGresMap[util.GresGpuName]; exist {
 				if setGpusPerNodeFlag {
@@ -380,13 +380,13 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 			setGpusPerNodeFlag = true
 			gpuDeviceMap, err := util.ParseGpusPerNodeStr(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.GresPerNode = gpuDeviceMap
 		case "--ntasks-per-node":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			if num == 0 {
 				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
@@ -395,7 +395,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "--ntasks", "-n":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			if num == 0 {
 				return fmt.Errorf("invalid argument: %s must be > 0 in script", arg.name)
@@ -404,31 +404,31 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "--array", "-a":
 			arraySpec, err := util.ParseArrayRangeSpec(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.ArraySpec = arraySpec
 		case "--time", "-t":
 			seconds, err := util.ParseDurationStrToSeconds(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.TimeLimit.Seconds = seconds
 		case "--begin", "-b":
 			beginTime, err := util.ParseTime(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.BeginTime = timestamppb.New(beginTime)
 		case "--mem":
 			memInByte, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.MemPerNode = &memInByte
 		case "--mem-per-cpu":
 			memInBytePerCpu, err := util.ParseMemStringAsByte(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.MemPerCpu = &memInBytePerCpu
 		case "-p", "--partition":
@@ -442,7 +442,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "--licenses", "-L":
 			licCount, isLicenseOr, err := util.ParseLicensesString(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.LicensesCount = licCount
 			job.IsLicensesOr = isLicenseOr
@@ -515,13 +515,13 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "--pod-userns":
 			val, err := strconv.ParseBool(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			podOpts.userns = val
 		case "--pod-host-network":
 			val, err := strconv.ParseBool(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			podOpts.hostNet = val
 		case "--pod-dns":
@@ -541,7 +541,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "-s", "--signal":
 			signals, err := util.ParseSignalParamString(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			for _, signal := range signals {
 				job.Signals = append(job.Signals, signal)
@@ -549,7 +549,7 @@ func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.Job
 		case "--deadline":
 			deadlineTime, err := util.ParseTime(arg.val)
 			if err != nil {
-				return fmt.Errorf("invalid argument: invalid --deadline value '%s' in script: %w", arg.val, err)
+				return fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 			}
 			job.DeadlineTime = timestamppb.New(deadlineTime)
 		case "--requeue":
@@ -580,7 +580,7 @@ func parseScriptBool(arg CbatchArg) (bool, error) {
 	}
 	val, err := strconv.ParseBool(arg.val)
 	if err != nil {
-		return false, fmt.Errorf("invalid argument: %s value '%s' in script: %w", arg.name, arg.val, err)
+		return false, fmt.Errorf("invalid argument: %s value '%s' in script", arg.name, arg.val)
 	}
 	return val, nil
 }
@@ -591,8 +591,7 @@ func SendRequest(config *util.Config, job *protos.JobToCtld) error {
 
 	reply, err := stub.SubmitBatchJob(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to submit the job")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to submit the job")
 	}
 
 	if FlagJson {
@@ -621,8 +620,7 @@ func SendMultipleRequests(config *util.Config, job *protos.JobToCtld, count uint
 
 	reply, err := stub.SubmitBatchJobs(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to submit jobs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to submit jobs")
 	}
 
 	if FlagJson {
@@ -640,11 +638,13 @@ func SendMultipleRequests(config *util.Config, job *protos.JobToCtld, count uint
 	}
 
 	if len(reply.GetCodeList()) > 0 {
+		reasons := make([]string, 0, len(reply.GetCodeList()))
 		for _, reason := range reply.GetCodeList() {
-			log.Errorf("Job allocation failed: %s.\n", util.ErrMsg(reason))
+			reasons = append(reasons, util.ErrMsg(reason))
 		}
 
-		return &util.CraneError{Code: util.ErrorBackend}
+		return util.NewCraneErr(util.ErrorBackend,
+			fmt.Sprintf("Job allocation failed: %s.", strings.Join(reasons, "; ")))
 	}
 	return nil
 }

@@ -70,10 +70,12 @@ var (
 	FlagVerbose bool
 
 	RootCmd = &cobra.Command{
-		Use:     "calloc",
-		Short:   "Allocate resource and create terminal",
-		Version: util.Version(),
-		Args:    cobra.ExactArgs(0),
+		Use:           "calloc",
+		Short:         "Allocate resource and create terminal",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Args:          cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},

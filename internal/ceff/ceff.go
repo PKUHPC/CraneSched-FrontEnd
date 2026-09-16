@@ -447,8 +447,7 @@ func QueryJobsInfoByIds(jobIds string) error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query job info")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query job info")
 	}
 	if !reply.GetOk() {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("Failed to query job info for %s", jobIds))
