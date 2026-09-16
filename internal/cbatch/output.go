@@ -1,7 +1,6 @@
 package cbatch
 
 import (
-	"CraneFrontEnd/internal/util"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,12 +13,18 @@ func formatJobSubmissionOutput(jobIDs []uint32) string {
 		return ""
 	}
 
-	if util.IsSlurmOutputMode() {
-		lines := make([]string, 0, len(jobIDs))
-		for _, jobID := range jobIDs {
-			lines = append(lines, fmt.Sprintf("Submitted batch job %d", jobID))
-		}
-		return strings.Join(lines, "\n") + "\n"
+	lines := make([]string, 0, len(jobIDs))
+	for _, jobID := range jobIDs {
+		lines = append(lines, fmt.Sprintf("Submitted batch job %d", jobID))
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// formatCraneJobSubmissionOutput keeps the original Crane-specific output
+// available for future output-mode extensions.
+func formatCraneJobSubmissionOutput(jobIDs []uint32) string {
+	if len(jobIDs) == 0 {
+		return ""
 	}
 
 	if len(jobIDs) == 1 {
