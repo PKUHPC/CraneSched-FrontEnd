@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	logrus "github.com/sirupsen/logrus"
 )
 
 func writeTraceConfig(t *testing.T, body string) string {
@@ -14,6 +17,27 @@ func writeTraceConfig(t *testing.T, body string) string {
 		t.Fatalf("write config: %v", err)
 	}
 	return path
+}
+
+func TestPrintConfigNeverLogsInfluxToken(t *testing.T) {
+	var output bytes.Buffer
+	logger := logrus.StandardLogger()
+	previousOutput := logger.Out
+	logger.SetOutput(&output)
+	t.Cleanup(func() { logger.SetOutput(previousOutput) })
+
+	const token = "DO-NOT-LOG-THIS-TOKEN"
+	PrintConfig(&Config{
+		DB: DBConfig{
+			Type: "influxdb",
+			InfluxDB: &InfluxDBConfig{
+				URL: "http://influxdb:8086", Token: token, Org: "crane",
+			},
+		},
+	})
+	if strings.Contains(output.String(), token) {
+		t.Fatalf("PrintConfig leaked Influx token: %s", output.String())
+	}
 }
 
 func TestLoadConfigRequiresInfluxDBConnectionFields(t *testing.T) {
@@ -50,6 +74,7 @@ Database:
     FlushIntervalMs: 0
     RetryBackoffMs: 0
     MaxRetryBackoffMs: 0
+    WriteTimeoutMs: 0
 `)
 
 	cfg, err := LoadConfig(path)
@@ -73,7 +98,8 @@ Database:
 		cfg.DB.TraceWriter.QueueBatches != defaultTraceQueueBatches ||
 		cfg.DB.TraceWriter.FlushIntervalMs != defaultTraceFlushMs ||
 		cfg.DB.TraceWriter.RetryBackoffMs != defaultTraceRetryBackoffMs ||
-		cfg.DB.TraceWriter.MaxRetryBackoffMs != defaultTraceMaxBackoffMs {
+		cfg.DB.TraceWriter.MaxRetryBackoffMs != defaultTraceMaxBackoffMs ||
+		cfg.DB.TraceWriter.WriteTimeoutMs != defaultTraceWriteTimeoutMs {
 		t.Fatalf("writer defaults = %+v", cfg.DB.TraceWriter)
 	}
 }

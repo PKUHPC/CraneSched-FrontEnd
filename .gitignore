@@ -21,3 +21,6 @@ test/
 
 # Git worktrees
 .worktrees/
+
+# Others
+.cache/

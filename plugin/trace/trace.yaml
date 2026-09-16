@@ -12,6 +12,7 @@ Database:
     TraceDetailBucket: "crane_trace_detail"
     TraceErrorBucket: "crane_trace_error"
     TraceShardBuckets: []
+    StartupTimeoutMs: 5000
   TraceWriter:
     Shards: 4
     BatchSpans: 1024
@@ -19,3 +20,5 @@ Database:
     FlushIntervalMs: 50
     RetryBackoffMs: 200
     MaxRetryBackoffMs: 5000
+    WriteTimeoutMs: 5000
+    CloseTimeoutMs: 10000

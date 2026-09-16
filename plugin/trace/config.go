@@ -7,14 +7,17 @@ import (
 )
 
 const (
-	defaultTraceLogPath        = "/var/log/crane/trace.log"
-	defaultTraceBucket         = "crane_trace"
-	defaultTraceWriterShards   = 4
-	defaultTraceBatchSpans     = 1024
-	defaultTraceQueueBatches   = 8192
-	defaultTraceFlushMs        = 50
-	defaultTraceRetryBackoffMs = 200
-	defaultTraceMaxBackoffMs   = 5000
+	defaultTraceLogPath           = "/var/log/crane/trace.log"
+	defaultTraceBucket            = "crane_trace"
+	defaultTraceWriterShards      = 4
+	defaultTraceBatchSpans        = 1024
+	defaultTraceQueueBatches      = 8192
+	defaultTraceFlushMs           = 50
+	defaultTraceRetryBackoffMs    = 200
+	defaultTraceMaxBackoffMs      = 5000
+	defaultTraceWriteTimeoutMs    = 5000
+	defaultTraceCloseTimeoutMs    = 10000
+	defaultInfluxStartupTimeoutMs = 5000
 )
 
 type Config struct {
@@ -41,6 +44,7 @@ type InfluxDBConfig struct {
 	TraceDetailBucket string   `mapstructure:"TraceDetailBucket"`
 	TraceErrorBucket  string   `mapstructure:"TraceErrorBucket"`
 	TraceShardBuckets []string `mapstructure:"TraceShardBuckets"`
+	StartupTimeoutMs  int      `mapstructure:"StartupTimeoutMs"`
 }
 
 type TraceWriterConfig struct {
@@ -50,6 +54,8 @@ type TraceWriterConfig struct {
 	FlushIntervalMs   int `mapstructure:"FlushIntervalMs"`
 	RetryBackoffMs    int `mapstructure:"RetryBackoffMs"`
 	MaxRetryBackoffMs int `mapstructure:"MaxRetryBackoffMs"`
+	WriteTimeoutMs    int `mapstructure:"WriteTimeoutMs"`
+	CloseTimeoutMs    int `mapstructure:"CloseTimeoutMs"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -100,6 +106,9 @@ func validateConfig(cfg *Config) error {
 		if cfg.DB.InfluxDB.TraceErrorBucket == "" {
 			cfg.DB.InfluxDB.TraceErrorBucket = cfg.DB.InfluxDB.TraceBucket
 		}
+		if cfg.DB.InfluxDB.StartupTimeoutMs <= 0 {
+			cfg.DB.InfluxDB.StartupTimeoutMs = defaultInfluxStartupTimeoutMs
+		}
 	default:
 		return fmt.Errorf("unsupported database type: %s", cfg.DB.Type)
 	}
@@ -130,6 +139,12 @@ func normalizeTraceWriterConfig(cfg *TraceWriterConfig) {
 	if cfg.MaxRetryBackoffMs < cfg.RetryBackoffMs {
 		cfg.MaxRetryBackoffMs = cfg.RetryBackoffMs
 	}
+	if cfg.WriteTimeoutMs <= 0 {
+		cfg.WriteTimeoutMs = defaultTraceWriteTimeoutMs
+	}
+	if cfg.CloseTimeoutMs <= 0 {
+		cfg.CloseTimeoutMs = defaultTraceCloseTimeoutMs
+	}
 }
 
 func PrintConfig(cfg *Config) {
@@ -147,17 +162,12 @@ func PrintConfig(cfg *Config) {
 		log.Infof("    Trace Detail Bucket: %s", cfg.DB.InfluxDB.TraceDetailBucket)
 		log.Infof("    Trace Error Bucket: %s", cfg.DB.InfluxDB.TraceErrorBucket)
 		log.Infof("    Trace Shard Buckets: %v", cfg.DB.InfluxDB.TraceShardBuckets)
-		if cfg.DB.InfluxDB.Token != "" {
-			tokenPreview := cfg.DB.InfluxDB.Token
-			if len(tokenPreview) > 10 {
-				tokenPreview = tokenPreview[:10] + "..."
-			}
-			log.Infof("    Token: %s", tokenPreview)
-		}
+		log.Infof("    Startup Timeout: %dms", cfg.DB.InfluxDB.StartupTimeoutMs)
 	}
-	log.Infof("  TraceWriter: shards=%d batch_spans=%d queue_batches=%d flush_interval_ms=%d retry_backoff_ms=%d max_retry_backoff_ms=%d",
+	log.Infof("  TraceWriter: shards=%d batch_spans=%d queue_batches=%d flush_interval_ms=%d retry_backoff_ms=%d max_retry_backoff_ms=%d write_timeout_ms=%d close_timeout_ms=%d",
 		cfg.DB.TraceWriter.Shards, cfg.DB.TraceWriter.BatchSpans,
 		cfg.DB.TraceWriter.QueueBatches, cfg.DB.TraceWriter.FlushIntervalMs,
-		cfg.DB.TraceWriter.RetryBackoffMs, cfg.DB.TraceWriter.MaxRetryBackoffMs)
+		cfg.DB.TraceWriter.RetryBackoffMs, cfg.DB.TraceWriter.MaxRetryBackoffMs,
+		cfg.DB.TraceWriter.WriteTimeoutMs, cfg.DB.TraceWriter.CloseTimeoutMs)
 	log.Infof("=== Current Trace Configuration End ===")
 }

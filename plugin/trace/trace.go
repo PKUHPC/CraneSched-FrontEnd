@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -58,12 +59,6 @@ var _ api.TraceHooks = TracePlugin{}
 
 var PluginInstance = TracePlugin{}
 
-type GlobalTrace struct {
-	config *Config
-	store  TraceStore
-	writer *TraceWriter
-}
-
 var globalTrace GlobalTrace
 
 type TracePlugin struct{}
@@ -78,6 +73,9 @@ func (p TracePlugin) Version() string {
 
 func (p TracePlugin) Load(meta api.PluginMeta) error {
 	log.Info("Initializing trace plugin")
+	if globalTrace.loaded() {
+		return errors.New("trace plugin is already loaded")
+	}
 
 	cfg, err := LoadConfig(meta.Config)
 	if err != nil {
@@ -88,14 +86,25 @@ func (p TracePlugin) Load(meta api.PluginMeta) error {
 		log.Warnf("Failed to setup logging: %v, using default stderr", err)
 	}
 
+	processor, err := newTracePointPipelineFromEnv()
+	if err != nil {
+		return fmt.Errorf("failed to initialize trace point pipeline: %w", err)
+	}
+
 	store, err := NewTraceStore(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize trace store: %w", err)
 	}
 
-	globalTrace.config = cfg
-	globalTrace.store = store
-	globalTrace.writer = NewTraceWriter(store, cfg.DB.TraceWriter)
+	writer := NewTraceWriter(
+		store,
+		processor,
+		cfg.DB.TraceWriter,
+	)
+	runtime := newTraceRuntime(writer, store)
+	if err := globalTrace.install(runtime); err != nil {
+		return errors.Join(err, runtime.Close())
+	}
 	PrintConfig(cfg)
 
 	log.Info("Trace plugin initialized successfully")
@@ -104,21 +113,9 @@ func (p TracePlugin) Load(meta api.PluginMeta) error {
 
 func (p TracePlugin) Unload(meta api.PluginMeta) error {
 	log.Info("Unloading trace plugin")
-
-	if globalTrace.writer != nil {
-		globalTrace.writer.Close()
-		globalTrace.writer = nil
+	if err := globalTrace.close(); err != nil {
+		return err
 	}
-
-	if globalTrace.store != nil {
-		if err := globalTrace.store.Close(); err != nil {
-			return fmt.Errorf("error closing trace store: %w", err)
-		}
-		globalTrace.store = nil
-	}
-
-	globalTrace = GlobalTrace{}
-
 	log.Info("Trace plugin gracefully unloaded")
 	return nil
 }
@@ -130,12 +127,13 @@ func (p TracePlugin) TraceHook(ctx *api.PluginContext) {
 		return
 	}
 
-	if globalTrace.writer == nil {
+	writer := globalTrace.writerSnapshot()
+	if writer == nil {
 		log.Error("Trace writer is not initialized")
 		return
 	}
 
-	if err := globalTrace.writer.Enqueue(ctx.GrpcCtx, req.GetSpans()); err != nil {
+	if err := writer.Enqueue(ctx.GrpcCtx, req.GetSpans()); err != nil {
 		log.Errorf("Failed to enqueue trace spans: %v", err)
 	}
 }
