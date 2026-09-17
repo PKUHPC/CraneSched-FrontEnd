@@ -125,7 +125,6 @@ var (
 			}
 
 			job.Uid = uint32(os.Getuid())
-			job.Gid = uint32(os.Getgid())
 			job.CmdLine = strings.Join(os.Args, " ")
 
 			// Process the content of --get-user-env
