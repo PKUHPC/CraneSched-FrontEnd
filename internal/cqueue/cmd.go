@@ -100,7 +100,7 @@ func init() {
 		"Specify step ids to view (comma separated list), default is all")
 	RootCmd.Flags().Lookup("step").NoOptDefVal = DefaultStepIdFilter
 	RootCmd.Flags().StringVarP(&FlagFilterJobIDs, "job", "j", "",
-		"Specify job ids to view (comma separated list), default is all. Supports jobid or jobid_arraytaskid; pending tasks are displayed as jobid_[range]")
+		"Specify job ids to view (comma separated list), default is all. Supports jobid or jobid_arraytaskid; active array parents are displayed as jobid_[range%maxConcurrent] when limited")
 	RootCmd.Flags().StringVarP(&FlagFilterJobNames, "name", "n", "",
 		"Specify job names to view (comma separated list), default is all")
 	RootCmd.Flags().StringVarP(&FlagFilterQos, "qos", "q", "",
@@ -145,7 +145,7 @@ Supported format identifiers or string, string case insensitive:
 	%i/%StepId             - Display the ID of the step (format: jobId.stepId). (For steps only)
                               Materialized array steps use jobId_arrayTaskId.stepId.
 	%j/%JobID              - Display the logical queue ID (or parent job ID for steps).
-                              Materialized array tasks use jobId_arrayTaskId; pending tasks use jobId_[range].
+                              Materialized array tasks use jobId_arrayTaskId; active array parents use jobId_[range%maxConcurrent] when limited.
 	%k/%Comment            - Display the comment of the job. (For jobs only)
 	%K/%Wckey              - Display the wckey of the job.
 	%L/%NodeList           - Display the list of nodes the job/step is running on.

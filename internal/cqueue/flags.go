@@ -140,9 +140,6 @@ func (p *JobIDsProcessor) Process(req *protos.QueryJobsInfoRequest) error {
 
 	req.FilterJobIds = selectors
 	if !FlagStep {
-		// A plain array-parent selector expands to the pending projection plus
-		// every materialized child. Leave the limit to the server for that case;
-		// exact task selectors still have a one-row result each.
 		req.NumLimit = uint32(len(selectors))
 		for _, selector := range selectors {
 			if selector.ArrayTaskId == nil {

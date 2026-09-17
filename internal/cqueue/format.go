@@ -174,6 +174,10 @@ func ProcessState(job *protos.JobInfo) string {
 	return FormatQueueState(job)
 }
 
+func ProcessStateCompact(job *protos.JobInfo) string {
+	return FormatSlurmJobStateCompact(job.GetStatus())
+}
+
 func ProcessJobType(job *protos.JobInfo) string {
 	return job.Type.String()
 }
@@ -281,10 +285,11 @@ var fieldMap = map[string]FieldProcessor{
 	"starttime":  {"StartTime", ProcessStartTime},
 
 	// 't' group
-	"t":       {"State", ProcessState},
-	"state":   {"State", ProcessState},
-	"T":       {"JobType", ProcessJobType},
-	"jobtype": {"JobType", ProcessJobType},
+	"t":            {"State", ProcessState},
+	"state":        {"State", ProcessState},
+	"statecompact": {"ST", ProcessStateCompact},
+	"T":            {"JobType", ProcessJobType},
+	"jobtype":      {"JobType", ProcessJobType},
 
 	// 'u' group
 	"u":    {"User", ProcessUser},

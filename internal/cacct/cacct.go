@@ -482,9 +482,10 @@ func ProcessHeld(item *JobOrStep) string {
 
 // JobID (j)
 func ProcessJobID(item *JobOrStep) string {
-	if !item.isStep && item.job.GetPendingArraySpec() != nil {
-		return fmt.Sprintf("%d_[%s]", item.job.GetJobId(),
-			util.FormatArraySpec(item.job.GetPendingArraySpec(), false))
+	if !item.isStep {
+		if pendingID := util.FormatPendingArrayJobID(item.job); pendingID != "" {
+			return pendingID
+		}
 	}
 	if item.isStep {
 		return util.FormatStepId(item.job.GetJobId(), nil, item.stepInfo.GetStepId())

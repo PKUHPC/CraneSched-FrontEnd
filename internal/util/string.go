@@ -285,8 +285,6 @@ func ParseArrayRangeSpec(spec string) (*protos.ArraySpec, error) {
 }
 
 // FormatArraySpec renders an ArraySpec using the syntax accepted by --array.
-// Pending queue projections intentionally omit max_concurrent because that
-// limit controls scheduling and is not part of the remaining task range.
 func FormatArraySpec(arraySpec *protos.ArraySpec, includeMaxConcurrent bool) string {
 	if arraySpec == nil {
 		return ""
@@ -303,6 +301,22 @@ func FormatArraySpec(arraySpec *protos.ArraySpec, includeMaxConcurrent bool) str
 		spec = fmt.Sprintf("%s%%%d", spec, arraySpec.GetMaxConcurrent())
 	}
 	return spec
+}
+
+func IsArrayParent(job *protos.JobInfo) bool {
+	return job != nil && job.GetArraySpec() != nil && job.GetArrayTask() == nil
+}
+
+func IsPendingArrayParent(job *protos.JobInfo) bool {
+	return IsArrayParent(job) && job.GetStatus() == protos.JobStatus_Pending
+}
+
+func FormatPendingArrayJobID(job *protos.JobInfo) string {
+	if !IsPendingArrayParent(job) {
+		return ""
+	}
+	return fmt.Sprintf("%d_[%s]", job.GetJobId(),
+		FormatArraySpec(job.GetArraySpec(), true))
 }
 
 func FormatJobId(jobId uint32, arrayTask *protos.ArrayTaskIdentity) string {

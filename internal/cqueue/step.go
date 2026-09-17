@@ -161,7 +161,14 @@ func ProcessStepNodeList(stepData StepData) string {
 }
 
 func ProcessStepState(stepData StepData) string {
-	return stepData.stepInfo.Status.String()
+	if util.IsSlurmOutputMode() {
+		return FormatSlurmJobState(stepData.stepInfo.GetStatus())
+	}
+	return stepData.stepInfo.GetStatus().String()
+}
+
+func ProcessStepStateCompact(stepData StepData) string {
+	return FormatSlurmJobStateCompact(stepData.stepInfo.GetStatus())
 }
 
 func ProcessStepTimeLimit(stepData StepData) string {
@@ -222,8 +229,9 @@ var stepFieldMap = map[string]StepFieldProcessor{
 	"L":        {"NodeList", ProcessStepNodeList},
 	"nodelist": {"NodeList", ProcessStepNodeList},
 
-	"t":     {"State", ProcessStepState},
-	"state": {"State", ProcessStepState},
+	"t":            {"State", ProcessStepState},
+	"state":        {"State", ProcessStepState},
+	"statecompact": {"ST", ProcessStepStateCompact},
 
 	"l":         {"TimeLimit", ProcessStepTimeLimit},
 	"timelimit": {"TimeLimit", ProcessStepTimeLimit},
