@@ -2,6 +2,7 @@ package cbatch
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -11,10 +12,13 @@ func formatJobSubmissionOutput(jobIDs []uint32) string {
 	if len(jobIDs) == 0 {
 		return ""
 	}
-
 	lines := make([]string, 0, len(jobIDs))
 	for _, jobID := range jobIDs {
-		lines = append(lines, fmt.Sprintf("Submitted batch job %d", jobID))
+		if FlagParsable {
+			lines = append(lines, strconv.FormatUint(uint64(jobID), 10))
+		} else {
+			lines = append(lines, fmt.Sprintf("Submitted batch job %d", jobID))
+		}
 	}
 	return strings.Join(lines, "\n") + "\n"
 }

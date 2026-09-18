@@ -78,10 +78,10 @@ var (
 
 	FlagRequeue   bool
 	FlagNoRequeue bool
+	FlagParsable  bool
 
 	// not implement feature:
 	FlagNTasks          string
-	FlagParsable        bool
 	FlagVerbose         bool
 	FlagNTasksPerSocket string
 	FlagCpuFreq         string

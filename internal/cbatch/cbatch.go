@@ -350,6 +350,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 func applyScriptArgs(cmd *cobra.Command, cbatchArgs []CbatchArg, job *protos.JobToCtld, extraFromScript *util.JobExtraAttrs, podOpts *podOptions) error {
 	for _, arg := range cbatchArgs {
 		switch arg.name {
+		case "--parsable":
+			FlagParsable = true
 		case "--nodes", "-N":
 			num, err := strconv.ParseUint(arg.val, 10, 32)
 			if err != nil {
@@ -712,7 +714,6 @@ func ParseCbatchScript(path string, args *[]CbatchArg, sh *[]string) error {
 }
 
 var unsupportedFlags = map[string]string{
-	"parsable":          "The feature --parsable is not yet supported by Crane, the use is ignored.",
 	"ntasks-per-socket": "The feature --ntasks-per-socket is not yet supported by Crane, the use is ignored.",
 	"cpu-freq":          "The feature --cpu-freq is not yet supported by Crane, the use is ignored.",
 	"priority":          "The feature --priority is not yet supported by Crane, the use is ignored.",

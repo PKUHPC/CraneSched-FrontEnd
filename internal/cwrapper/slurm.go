@@ -1454,9 +1454,6 @@ func PrintSallocIgnoreDummyArgsMessage() {
 }
 
 func PrintSbatchIgnoreArgsMessage() {
-	if cbatch.FlagParsable {
-		log.Warning("The feature --parsable is not yet supported by Crane, the use is ignored.")
-	}
 	if cbatch.FlagVerbose {
 		log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 	}
