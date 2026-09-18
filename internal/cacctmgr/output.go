@@ -1159,8 +1159,7 @@ func ShowWckey(wckeyStr string) error {
 	req := protos.QueryWckeyInfoRequest{Uid: userUid, WckeyList: wckeyList}
 	reply, err := stub.QueryWckeyInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show the wckey")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show the wckey")
 	}
 
 	if FlagJson {

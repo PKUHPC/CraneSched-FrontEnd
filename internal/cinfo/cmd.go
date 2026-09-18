@@ -39,11 +39,13 @@ var (
 	FlagListReason bool
 
 	RootCmd = &cobra.Command{
-		Use:     "cinfo [flags]",
-		Short:   "Display the state of partitions and nodes",
-		Long:    "",
-		Version: util.Version(),
-		Args:    cobra.ExactArgs(0),
+		Use:           "cinfo [flags]",
+		Short:         "Display the state of partitions and nodes",
+		Long:          "",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Args:          cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},

@@ -45,10 +45,12 @@ var (
 	FlagJson             bool
 
 	RootCmd = &cobra.Command{
-		Use:     "creport",
-		Short:   "Display system jobs info report",
-		Long:    "",
-		Version: util.Version(),
+		Use:           "creport",
+		Short:         "Display system jobs info report",
+		Long:          "",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)

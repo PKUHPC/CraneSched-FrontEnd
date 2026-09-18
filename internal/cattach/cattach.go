@@ -804,18 +804,21 @@ func MainCattach(args []string) error {
 
 	parts := strings.Split(args[0], ".")
 	if len(parts) != 2 {
-		return fmt.Errorf("Failed to parse stepid from command line options: %s", args[0])
+		return util.NewCraneErr(util.ErrorCmdArg,
+			fmt.Sprintf("Failed to parse stepid from command line options: %s", args[0]))
 	}
 
 	jobId, err := strconv.ParseUint(parts[0], 10, 32)
 	if err != nil {
-		return fmt.Errorf("invalid job id %q: must be a non-negative integer in [0, 4294967295]", parts[0])
+		return util.NewCraneErr(util.ErrorCmdArg,
+			fmt.Sprintf("invalid job id %q: must be a non-negative integer in [0, 4294967295]", parts[0]))
 	}
 	m.jobId = uint32(jobId)
 
 	stepId, err := strconv.ParseUint(parts[1], 10, 32)
 	if err != nil {
-		return fmt.Errorf("invalid step id %q: must be a non-negative integer in [0, 4294967295]", parts[1])
+		return util.NewCraneErr(util.ErrorCmdArg,
+			fmt.Sprintf("invalid step id %q: must be a non-negative integer in [0, 4294967295]", parts[1]))
 	}
 	m.stepId = uint32(stepId)
 

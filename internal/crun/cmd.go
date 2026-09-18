@@ -98,9 +98,11 @@ var (
 	FlagTaskEpilog string
 
 	RootCmd = &cobra.Command{
-		Use:     "crun [flags] executable",
-		Short:   "Allocate resource and run executable interactive",
-		Version: util.Version(),
+		Use:           "crun [flags] executable",
+		Short:         "Allocate resource and run executable interactive",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},

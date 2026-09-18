@@ -166,7 +166,10 @@ func QueryTableOutput(reply *protos.QueryJobsInfoReply) error {
 	}
 
 	if FlagFormat != "" {
-		customHeader, customData := FormatData(reply)
+		customHeader, customData, err := FormatData(reply)
+		if err != nil {
+			return err
+		}
 		header, tableData = customHeader, customData
 		table.SetAutoFormatHeaders(false)
 	}

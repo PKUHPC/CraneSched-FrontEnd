@@ -948,8 +948,7 @@ func ShowSteps(stepIds string, queryAll bool) error {
 	}
 	reply, err := stub.QueryJobsInfo(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show steps")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show steps")
 	}
 
 	if !reply.GetOk() {

@@ -121,8 +121,7 @@ func QueryQueueStateSummary() (*protos.QueryQueueStateSummaryReply, error) {
 
 	reply, err := stub.QueryQueueStateSummary(ctx, req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query queue state summary")
-		return nil, &util.CraneError{Code: util.ErrorNetwork}
+		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query queue state summary")
 	}
 	return reply, nil
 }

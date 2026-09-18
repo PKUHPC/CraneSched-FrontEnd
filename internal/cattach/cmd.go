@@ -38,9 +38,11 @@ var (
 	// output but does not forward any stdin to the running tasks.
 	FlagReadOnly bool
 	RootCmd      = &cobra.Command{
-		Use:     "cattach [flags] jobid.stepid",
-		Short:   "Attach to a crane job step",
-		Version: util.Version(),
+		Use:           "cattach [flags] jobid.stepid",
+		Short:         "Attach to a crane job step",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 		},
@@ -63,4 +65,5 @@ func init() {
 	RootCmd.PersistentFlags().BoolVar(&FlagLabel, "label", false, "prepend task number to lines of stdout & stderr")
 	RootCmd.PersistentFlags().BoolVar(&FlagLayout, "layout", false, "print task layout info and exit (does not attach to tasks)")
 	RootCmd.PersistentFlags().BoolVar(&FlagQuiet, "quiet", false, "quiet mode (suppress informational messages)")
+	util.InitCraneLogger()
 }

@@ -613,7 +613,7 @@ func salloc() *cobra.Command {
 
 			// Parse flags
 			if err := calloc.RootCmd.ParseFlags(args); err != nil {
-				log.Error(err)
+				log.Errorf("salloc: error: %v", err)
 				os.Exit(util.ErrorCmdArg)
 			}
 			args = calloc.RootCmd.Flags().Args()
@@ -630,7 +630,7 @@ func salloc() *cobra.Command {
 			calloc.RootCmd.PersistentPreRun(cmd, args)
 			// Validate the arguments
 			if err := Validate(calloc.RootCmd, args); err != nil {
-				log.Error(err)
+				log.Errorf("salloc: error: %v", err)
 				os.Exit(util.ErrorCmdArg)
 			}
 			return calloc.RootCmd.RunE(calloc.RootCmd, args)
@@ -757,7 +757,7 @@ func sbatch() *cobra.Command {
 			}
 
 			if err := cbatch.RootCmd.ParseFlags(args); err != nil {
-				log.Error(err)
+				log.Errorf("sbatch: error: %v", err)
 				os.Exit(util.ErrorCmdArg)
 			}
 			args = cbatch.RootCmd.Flags().Args()
@@ -771,7 +771,7 @@ func sbatch() *cobra.Command {
 			PrintSbatchIgnoreArgsMessage()
 			cbatch.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(cbatch.RootCmd, args); err != nil {
-				log.Error(err)
+				log.Errorf("sbatch: error: %v", err)
 				os.Exit(util.ErrorCmdArg)
 			}
 			return cbatch.RootCmd.RunE(cbatch.RootCmd, args)
@@ -877,7 +877,7 @@ func normalizeScontrolArgs(args []string) []string {
 				if strings.EqualFold(key, "job") || strings.EqualFold(key, "jobid") {
 					jobIDs, nextIdx, err := collectScontrolJobIDs(args, i, value)
 					if err != nil {
-						log.Errorf("Invalid job list specified: %v.\n", err)
+						log.Errorf("scontrol: error: Invalid job list specified: %v.", err)
 						os.Exit(util.ErrorCmdArg)
 					}
 					convertedArgs = append(convertedArgs, jobIDs)
@@ -895,7 +895,7 @@ func normalizeScontrolArgs(args []string) []string {
 			}
 			jobIDs, nextIdx, err := collectScontrolJobIDs(args, i, arg)
 			if err != nil {
-				log.Errorf("Invalid job list specified: %v.\n", err)
+				log.Errorf("scontrol: error: Invalid job list specified: %v.", err)
 				os.Exit(util.ErrorCmdArg)
 			}
 			convertedArgs = append(convertedArgs, jobIDs)
@@ -1108,7 +1108,7 @@ func squeue() *cobra.Command {
 					if i+1 < len(args) {
 						converted, err := convertSqueueFormat(args[i+1])
 						if err != nil {
-							log.Error(err)
+							log.Errorf("squeue: error: %v", err)
 							os.Exit(util.ErrorCmdArg)
 						}
 						convertedArgs = append(convertedArgs, converted)
@@ -1117,7 +1117,7 @@ func squeue() *cobra.Command {
 				case strings.HasPrefix(arg, "--format="):
 					converted, err := convertSqueueFormat(strings.TrimPrefix(arg, "--format="))
 					if err != nil {
-						log.Error(err)
+						log.Errorf("squeue: error: %v", err)
 						os.Exit(util.ErrorCmdArg)
 					}
 					convertedArgs = append(convertedArgs, "--format="+converted)
@@ -1343,7 +1343,7 @@ func srun() *cobra.Command {
 			}
 
 			if err := crun.RootCmd.ParseFlags(args); err != nil {
-				log.Error(err)
+				log.Errorf("srun: error: %v", err)
 				os.Exit(util.ErrorCmdArg)
 			}
 			args = crun.RootCmd.Flags().Args()
@@ -1357,7 +1357,7 @@ func srun() *cobra.Command {
 			PrintSrunIgnoreDummyArgsMessage()
 			crun.RootCmd.PersistentPreRun(cmd, args)
 			if err := Validate(crun.RootCmd, args); err != nil {
-				log.Error(err)
+				log.Errorf("srun: error: %v", err)
 				os.Exit(util.ErrorCmdArg)
 			}
 

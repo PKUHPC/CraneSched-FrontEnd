@@ -64,8 +64,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container job")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container job")
 	}
 
 	if !reply.GetOk() {
