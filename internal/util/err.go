@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -156,9 +157,11 @@ func RunAndHandleExit(cmd *cobra.Command) {
 		// path as their single error reporting point.
 		if cmd.SilenceErrors {
 			printError := func(message string) {
-				if message != "" {
-					log.Error(fmt.Sprintf("%s: error: %s", cmd.CommandPath(), message))
+				message = strings.TrimSpace(message)
+				if message == "" {
+					return
 				}
+				fmt.Fprintln(os.Stderr, fmt.Sprintf("%s: error: %s", cmd.CommandPath(), message))
 			}
 			var craneErr *CraneError
 			if errors.As(err, &craneErr) && craneErr != nil {
