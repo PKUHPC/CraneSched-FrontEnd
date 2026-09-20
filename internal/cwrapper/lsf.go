@@ -165,12 +165,7 @@ func bacct() *cobra.Command {
 			cacct.RootCmd.SetArgs(cacctArgs)
 			err := cacct.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("bacct", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -324,12 +319,7 @@ func bsub() *cobra.Command {
 			cbatch.RootCmd.SetArgs(cbatchArgs)
 			err := cbatch.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("bsub", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -438,12 +428,7 @@ func bjobs() *cobra.Command {
 			cqueue.RootCmd.SetArgs(cqueueArgs)
 			err := cqueue.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("bjobs", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -501,12 +486,7 @@ func bqueues() *cobra.Command {
 			cinfo.RootCmd.SetArgs(cinfoArgs)
 			err := cinfo.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("bqueues", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -573,12 +553,7 @@ func bkill() *cobra.Command {
 			ccancel.RootCmd.SetArgs(ccancelArgs)
 			err := ccancel.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("bkill", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}

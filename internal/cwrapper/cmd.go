@@ -20,6 +20,8 @@ package cwrapper
 
 import (
 	"CraneFrontEnd/internal/util"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -68,4 +70,21 @@ func ParseCmdArgs() {
 
 func addConfigPathFlag(cmd *cobra.Command, target *string) {
 	cmd.Flags().StringVar(target, "config", util.DefaultConfigPath, "Path to configuration file")
+}
+
+func exitWithCommandError(command string, err error) {
+	var craneErr *util.CraneError
+	if errors.As(err, &craneErr) && craneErr != nil {
+		message := strings.TrimSpace(craneErr.Message)
+		if message != "" {
+			fmt.Fprintf(os.Stderr, "%s: error: %s\n", command, message)
+		}
+		os.Exit(craneErr.Code)
+	}
+
+	message := strings.TrimSpace(err.Error())
+	if message != "" {
+		fmt.Fprintf(os.Stderr, "%s: error: %s\n", command, message)
+	}
+	os.Exit(util.ErrorGeneric)
 }

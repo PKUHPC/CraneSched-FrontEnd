@@ -220,12 +220,7 @@ Currently supports a practical subset of qsub options that can be mapped to Cran
 
 			err := cbatch.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("qsub", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -274,12 +269,7 @@ func qdel() *cobra.Command {
 			ccancel.RootCmd.SetArgs(ccancelArgs)
 			err := ccancel.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("qdel", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -351,12 +341,7 @@ func qacct() *cobra.Command {
 			cacct.RootCmd.SetArgs(cacctArgs)
 			err := cacct.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("qacct", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -435,12 +420,7 @@ func qstat() *cobra.Command {
 			cqueue.RootCmd.SetArgs(cqueueArgs)
 			err := cqueue.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("qstat", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}

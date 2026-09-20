@@ -144,12 +144,7 @@ func sacct() *cobra.Command {
 			cacct.RootCmd.SetArgs(convertedArgs)
 			err := cacct.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("sacct", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -698,12 +693,7 @@ func scancel() *cobra.Command {
 			ccancel.RootCmd.SetArgs(ccancelArgs)
 			err := ccancel.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("scancel", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
@@ -1128,12 +1118,7 @@ func squeue() *cobra.Command {
 			cqueue.RootCmd.SetArgs(convertedArgs)
 			err := cqueue.RootCmd.Execute()
 			if err != nil {
-				switch e := err.(type) {
-				case *util.CraneError:
-					os.Exit(e.Code)
-				default:
-					os.Exit(util.ErrorGeneric)
-				}
+				exitWithCommandError("squeue", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
 			}
