@@ -53,23 +53,24 @@ type CraneFlags struct {
 }
 
 type RunFlags struct {
-	Name        string
-	Ports       []string
-	Env         []string
-	Volume      []string
-	Detach      bool
-	Interactive bool
-	Tty         bool
-	Entrypoint  string
-	User        string
-	UserNS      bool
-	Network     string
-	Workdir     string
-	Cpus        float64
-	Memory      string
-	Gpus        string
-	PullPolicy  string
-	Dns         []string
+	Name                string
+	Ports               []string
+	Env                 []string
+	Volume              []string
+	Detach              bool
+	Interactive         bool
+	Tty                 bool
+	Entrypoint          string
+	User                string
+	UserNS              bool
+	Network             string
+	Workdir             string
+	Cpus                float64
+	Memory              string
+	Gpus                string
+	PullPolicy          string
+	ImagePullingTimeout int64
+	Dns                 []string
 }
 
 type StopFlags struct {
