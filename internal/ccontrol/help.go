@@ -119,6 +119,15 @@ COMMANDS:
   resume <jobid>
     Resume previously suspended job(s).
 
+  create node NodeName=<hostlist> State=FUTURE CPUs=<count> RealMemory=<size>
+              Partition=<partition-list> [Sockets=<count>] [Features=<feature-list>]
+    Create FUTURE placeholders in existing partitions. RealMemory defaults to MiB;
+    suffixes B, K, M and G are supported. Sockets defaults to 1.
+
+  delete node NodeName=<hostlist>
+    Delete eligible dynamic nodes, or reset mapped configured FUTURE nodes.
+    Nodes must have no running jobs or active reservations.
+
   create reservation <name> [startTime=<time>] [duration=<duration>] [partition=<partition>]
                     [nodes=<nodelist>] [account=<account>] [user=<username>]
     Create a new reservation.
