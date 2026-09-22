@@ -54,8 +54,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container jobs")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container jobs")
 	}
 
 	if !reply.GetOk() {
@@ -179,8 +178,7 @@ func podExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container pods")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container pods")
 	}
 
 	if !reply.GetOk() {
@@ -315,8 +313,7 @@ func inspectPodExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container pod")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container pod")
 	}
 
 	if !reply.GetOk() {
@@ -365,8 +362,7 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container step")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container step")
 	}
 
 	if !reply.GetOk() {
@@ -408,8 +404,7 @@ func GetContainerJob(jobId uint32, includeCompleted bool) (*protos.JobInfo, erro
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container job")
-		return nil, util.NewCraneErr(util.ErrorNetwork, "")
+		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container job")
 	}
 	if !reply.GetOk() {
 		return nil, util.NewCraneErr(util.ErrorBackend, "")
@@ -431,8 +426,7 @@ func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.JobI
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query container step")
-		return nil, nil, util.NewCraneErr(util.ErrorNetwork, "")
+		return nil, nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container step")
 	}
 	if !reply.GetOk() {
 		return nil, nil, util.NewCraneErr(util.ErrorBackend, "")

@@ -46,11 +46,13 @@ var (
 	FlagDeadlineTime     bool
 
 	RootCmd = &cobra.Command{
-		Use:     "cacct [flags]",
-		Short:   "Display the recent job information",
-		Version: util.Version(),
-		Long:    "",
-		Args:    cobra.ExactArgs(0),
+		Use:           "cacct [flags]",
+		Short:         "Display the recent job information",
+		Version:       util.Version(),
+		Long:          "",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Args:          cobra.ExactArgs(0),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			util.DetectNetworkProxy()
 			config := util.ParseConfig(FlagConfigFilePath)

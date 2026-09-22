@@ -36,10 +36,12 @@ var (
 	FlagJson           bool
 
 	RootCmd = &cobra.Command{
-		Use:     "ccancel [flags] JOBID.STEPID[,JOBID.STEPID...]",
-		Short:   "Cancel pending, running or suspended jobs/steps",
-		Long:    "",
-		Version: util.Version(),
+		Use:           "ccancel [flags] JOBID.STEPID[,JOBID.STEPID...]",
+		Short:         "Cancel pending, running or suspended jobs/steps",
+		Long:          "",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			err := cobra.MaximumNArgs(1)(cmd, args)
 			if err != nil {

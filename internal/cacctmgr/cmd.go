@@ -149,18 +149,21 @@ func ParseCmdArgs(args []string) {
 	command, err := ParseCAcctMgrCommand(cmdStr)
 
 	if err != nil {
-		log.Errorf("Error: command format is incorrect %v", err)
+		log.Errorf("cacctmgr: error: command format is incorrect %v", err)
 		os.Exit(util.ErrorCmdArg)
 	}
 
 	result := executeCommand(command)
 	if result != nil {
 		var craneError *util.CraneError
-		errors.As(result, &craneError)
-		if craneError.Message != "" {
-			log.Error(craneError.Message)
+		if errors.As(result, &craneError) {
+			if craneError.Message != "" {
+				log.Errorf("cacctmgr: error: %s", strings.TrimSpace(craneError.Message))
+			}
+			os.Exit(craneError.Code)
 		}
-		os.Exit(craneError.Code)
+		log.Errorf("cacctmgr: error: %s", strings.TrimSpace(result.Error()))
+		os.Exit(util.ErrorGeneric)
 	} else {
 		os.Exit(util.ErrorSuccess)
 	}
@@ -303,7 +306,6 @@ func executeAddQosCommand(command *CAcctMgrCommand) error {
 		case "maxcpusperuser":
 			maxCpus, err := strconv.ParseFloat(value, 64)
 			if err != nil || maxCpus < 0 || maxCpus > util.UnlimitedCpuThreshold {
-				log.Errorf("Invalid value for maxCpusPerUser: %s\n", value)
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Invalid value for maxCpusPerUser: %s", value))
 			}
 			FlagQos.MaxCpusPerUser = maxCpus
@@ -402,7 +404,7 @@ func executeAddWckeyCommand(command *CAcctMgrCommand) error {
 
 	FlagWckey.Name = command.GetID()
 	if FlagWckey.Name == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, "Error: required entity wckey not set")
+		return util.NewCraneErr(util.ErrorCmdArg, "required entity wckey not set")
 	}
 
 	err := checkEmptyKVParams(KVParams, []string{"user"})
@@ -508,7 +510,7 @@ func executeDeleteAccountCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = command.GetID()
 
 	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity account not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -527,7 +529,7 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) error {
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity user not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -550,7 +552,7 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = command.GetID()
 
 	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity qos not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity qos not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -569,7 +571,7 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) error {
 
 	FlagWckey.Name = command.GetID()
 	if FlagWckey.Name == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, "Error: required entity wckey not set")
+		return util.NewCraneErr(util.ErrorCmdArg, "required entity wckey not set")
 	}
 
 	// When deleting ALL, user param is not required
@@ -595,7 +597,7 @@ func executeDeleteResourceCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = command.GetID()
 	FlagServer := ""
 	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, "Error: required entity resource not set")
+		return util.NewCraneErr(util.ErrorCmdArg, "required entity resource not set")
 	}
 	KVParams := command.GetKVMaps()
 
@@ -639,7 +641,7 @@ func executeBlockAccountCommand(command *CAcctMgrCommand) error {
 	FlagEntityAccount = ""
 
 	if Name == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity account not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -662,7 +664,7 @@ func executeBlockUserCommand(command *CAcctMgrCommand) error {
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity user not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -703,7 +705,7 @@ func executeUnblockAccountCommand(command *CAcctMgrCommand) error {
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity account not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity account not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -726,7 +728,7 @@ func executeUnblockUserCommand(command *CAcctMgrCommand) error {
 	FlagEntityAccount = ""
 
 	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: required entity user not set"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity user not set"))
 	}
 
 	KVParams := command.GetKVMaps()
@@ -785,7 +787,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify account command requires 'where' clause to specify which account to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("modify account command requires 'where' clause to specify which account to modify"))
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"name"})
@@ -800,12 +802,12 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 		case "partition":
 			FlagPartition = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for account modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify account command requires 'set' clause to specify what to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("modify account command requires 'set' clause to specify what to modify"))
 	}
 
 	var params []ModifyParam
@@ -849,7 +851,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxsubmitjobs":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxSubmitJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -861,7 +863,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxjobs":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -873,7 +875,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtres":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v\n", value, err))
@@ -885,7 +887,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtresperjob":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v\n", value, err))
@@ -897,7 +899,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwall":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWall", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -909,7 +911,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwallperjob":
 			if FlagPartition == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWallPerJob", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -920,7 +922,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 				RequestType: protos.OperationType_Overwrite,
 			})
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown set parameter '%s' for account modification\n", key))
 		}
 	}
 
@@ -941,7 +943,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 				RequestType: protos.OperationType_Add,
 			})
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown add parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown add parameter '%s' for account modification\n", key))
 		}
 	}
 
@@ -962,7 +964,7 @@ func executeModifyAccountCommand(command *CAcctMgrCommand) error {
 				RequestType: protos.OperationType_Delete,
 			})
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown delete parameter '%s' for account modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown delete parameter '%s' for account modification\n", key))
 		}
 	}
 
@@ -986,7 +988,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify user command requires 'where' clause to specify which user to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("modify user command requires 'where' clause to specify which user to modify"))
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"name"})
@@ -1003,12 +1005,12 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 		case "partition":
 			FlagEntityPartitions = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for user modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 && len(AddParams) == 0 && len(DeleteParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify user command requires 'set' clause to specify what to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("modify user command requires 'set' clause to specify what to modify"))
 	}
 
 	var params []ModifyParam
@@ -1051,7 +1053,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxsubmitjobs":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxSubmitJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxSubmitJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1063,7 +1065,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxjobs":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxJobs' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxJobs", 32); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1075,7 +1077,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtres":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxTres' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTres flag: %v\n", value, err))
@@ -1087,7 +1089,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxtresperjob":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxTresPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if _, err := util.ParseTres(value); err != nil {
 				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid argument %s for maxTresPerJob flag: %v\n", value, err))
@@ -1099,7 +1101,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwall":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxWall' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWall", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1111,7 +1113,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 			})
 		case "maxwallperjob":
 			if FlagEntityPartitions == "" {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: 'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
+				return util.NewCraneErr(util.ErrorCmdArg, "'maxWallPerJob' can only be set for a specific partition. Please specify the partition in the where clause.\n")
 			}
 			if err := validateUintValue(value, "maxWallPerJob", 64); err != nil {
 				return util.WrapCraneErr(util.ErrorCmdArg, "%s\n", err)
@@ -1122,7 +1124,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 				RequestType: protos.OperationType_Overwrite,
 			})
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown set parameter '%s' for user modification\n", key))
 		}
 	}
 
@@ -1143,7 +1145,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 				RequestType: protos.OperationType_Add,
 			})
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown add parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown add parameter '%s' for user modification\n", key))
 		}
 	}
 
@@ -1164,7 +1166,7 @@ func executeModifyUserCommand(command *CAcctMgrCommand) error {
 				RequestType: protos.OperationType_Delete,
 			})
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown delete parameter '%s' for user modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown delete parameter '%s' for user modification\n", key))
 		}
 	}
 
@@ -1178,7 +1180,7 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) error {
 	SetParams, AddParams, DeleteParams := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify wckey command requires 'where' clause to specify which user to modify")
+		return util.NewCraneErr(util.ErrorCmdArg, "modify wckey command requires 'where' clause to specify which user to modify")
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"user"})
@@ -1191,12 +1193,12 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) error {
 		case "user":
 			FlagWckey.UserName = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for wckey modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for wckey modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 || len(AddParams) != 0 || len(DeleteParams) != 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify wckey command requires only 'set' clause (add/delete not supported)")
+		return util.NewCraneErr(util.ErrorCmdArg, "modify wckey command requires only 'set' clause (add/delete not supported)")
 	}
 
 	for key, value := range SetParams {
@@ -1204,11 +1206,11 @@ func executeModifyWckeyCommand(command *CAcctMgrCommand) error {
 		case "defaultwckey":
 			FlagWckey.Name = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for wckey modification", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown set parameter '%s' for wckey modification", key))
 		}
 	}
 	if FlagWckey.Name == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify wckey command requires non-empty 'defaultwckey'")
+		return util.NewCraneErr(util.ErrorCmdArg, "modify wckey command requires non-empty 'defaultwckey'")
 	}
 	return ModifyDefaultWckey(FlagWckey.Name, FlagWckey.UserName)
 }
@@ -1224,7 +1226,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 	SetParams, _, _ := command.GetSetParams()
 
 	if len(WhereParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify qos command requires 'where' clause to specify which qos to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("modify qos command requires 'where' clause to specify which qos to modify"))
 	}
 
 	err := checkEmptyKVParams(WhereParams, []string{"name"})
@@ -1237,12 +1239,12 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 		case "name":
 			FlagEntityName = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for qos modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for qos modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("Error: modify qos command requires 'set' clause to specify what to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("modify qos command requires 'set' clause to specify what to modify"))
 	}
 	var params []ModifyParam
 	for key, value := range SetParams {
@@ -1394,7 +1396,7 @@ func executeModifyQosCommand(command *CAcctMgrCommand) error {
 				NewValue:    strings.ToUpper(value),
 			})
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for qos modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown set parameter '%s' for qos modification\n", key))
 		}
 	}
 	return ModifyQos(params, FlagEntityName)
@@ -1409,7 +1411,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) error {
 	SetParams, _, _ := command.GetSetParams()
 
 	if len(KvParams) == 0 && len(WhereParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, "Error: modify resource command requires 'where' clause to specify which resource to modify")
+		return util.NewCraneErr(util.ErrorCmdArg, "modify resource command requires 'where' clause to specify which resource to modify")
 	}
 
 	if len(KvParams) > 0 {
@@ -1428,7 +1430,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) error {
 		case "cluster":
 			FlagClusters = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for resource modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for resource modification\n", key))
 
 		}
 	}
@@ -1449,12 +1451,12 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) error {
 		case "cluster":
 			FlagClusters = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for resource modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for resource modification\n", key))
 		}
 	}
 
 	if len(SetParams) == 0 {
-		return util.NewCraneErr(util.ErrorCmdArg, ("Error: modify resource command requires 'set' clause to specify what to modify"))
+		return util.NewCraneErr(util.ErrorCmdArg, ("modify resource command requires 'set' clause to specify what to modify"))
 
 	}
 
@@ -1479,7 +1481,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) error {
 			FlagOperators[protos.LicenseResource_ResourceType] = value
 		case "allowed":
 			if len(FlagClusters) == 0 {
-				return util.NewCraneErr(util.ErrorCmdArg, "Error: modify 'allowed' requires 'cluster' clause to specify which cluster resource to modify")
+				return util.NewCraneErr(util.ErrorCmdArg, "modify 'allowed' requires 'cluster' clause to specify which cluster resource to modify")
 
 			}
 			if err := validateUintValue(value, "allowed", 32); err != nil {
@@ -1489,7 +1491,7 @@ func executeModifyResourceCommand(command *CAcctMgrCommand) error {
 		case "servertype":
 			FlagOperators[protos.LicenseResource_ServerType] = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown set parameter '%s' for resource modification\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown set parameter '%s' for resource modification\n", key))
 		}
 	}
 
@@ -1562,7 +1564,7 @@ func executeShowEventCommand(command *CAcctMgrCommand) error {
 		case "nodes":
 			nodesStr = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for show event", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for show event", key))
 		}
 	}
 
@@ -1570,7 +1572,7 @@ func executeShowEventCommand(command *CAcctMgrCommand) error {
 		var err error
 		FlagMaxLines, err = strconv.Atoi(maxLinesStr)
 		if err != nil || FlagMaxLines <= 0 {
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: invalid maxlines: '%s'\n", maxLinesStr))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("invalid maxlines: '%s'\n", maxLinesStr))
 		}
 	}
 
@@ -1618,7 +1620,7 @@ func executeShowTxnLogCommand(command *CAcctMgrCommand) error {
 		case "starttime":
 			FlagStartTime = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for show transaction\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for show transaction\n", key))
 		}
 	}
 
@@ -1641,7 +1643,7 @@ func executeShowResourceCommand(command *CAcctMgrCommand) error {
 		case "cluster":
 			FlagClusters = value
 		default:
-			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: unknown where parameter '%s' for show resource\n", key))
+			return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("unknown where parameter '%s' for show resource\n", key))
 		}
 	}
 
@@ -1671,9 +1673,9 @@ func checkEmptyKVParams(kvParams map[string]string, requiredFields []string) err
 
 		if len(missingFields) > 0 {
 			if len(missingFields) == 1 {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: required argument %s not set\n", missingFields[0]))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("required argument %s not set\n", missingFields[0]))
 			} else {
-				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("Error: required arguments %s not set\n", strings.Join(missingFields, "\", \"")))
+				return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintf("required arguments %s not set\n", strings.Join(missingFields, "\", \"")))
 			}
 		}
 	}

@@ -20,6 +20,8 @@ package cwrapper
 
 import (
 	"CraneFrontEnd/internal/util"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -40,7 +42,9 @@ var (
 		Long: `Wrapper of CraneSched commands.
 This is a highly EXPERIMENTAL feature. 
 If any error occurs, please refer to original commands.`,
-		Version: util.Version(),
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 	wrappers = []Wrapper{
 		LSFWrapper{},
@@ -50,6 +54,7 @@ If any error occurs, please refer to original commands.`,
 )
 
 func ParseCmdArgs() {
+	util.InitCraneLogger()
 	rootCmd.SetVersionTemplate(util.VersionTemplate())
 
 	for _, wrapper := range wrappers {
@@ -65,4 +70,21 @@ func ParseCmdArgs() {
 
 func addConfigPathFlag(cmd *cobra.Command, target *string) {
 	cmd.Flags().StringVar(target, "config", util.DefaultConfigPath, "Path to configuration file")
+}
+
+func exitWithCommandError(command string, err error) {
+	var craneErr *util.CraneError
+	if errors.As(err, &craneErr) && craneErr != nil {
+		message := strings.TrimSpace(craneErr.Message)
+		if message != "" {
+			fmt.Fprintf(os.Stderr, "%s: error: %s\n", command, message)
+		}
+		os.Exit(craneErr.Code)
+	}
+
+	message := strings.TrimSpace(err.Error())
+	if message != "" {
+		fmt.Fprintf(os.Stderr, "%s: error: %s\n", command, message)
+	}
+	os.Exit(util.ErrorGeneric)
 }

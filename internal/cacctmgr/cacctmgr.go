@@ -1218,8 +1218,7 @@ func ResetUserCredential(value string) error {
 	req := protos.ResetUserCredentialRequest{Uid: userUid, UserList: userList}
 	reply, err := stub.ResetUserCredential(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to reset user credential")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to reset user credential")
 	}
 	if FlagJson {
 		fmt.Println(util.FmtJson.FormatReply(reply))
@@ -1253,8 +1252,7 @@ func AddWckey(wckey *protos.WckeyInfo) error {
 
 	reply, err := stub.AddWckey(context.Background(), req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to add wckey")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to add wckey")
 	}
 
 	if FlagJson {
@@ -1282,8 +1280,7 @@ func DeleteWckey(name, userName string) error {
 		req := protos.DeleteWckeyRequest{Uid: userUid, Name: "ALL", Force: true}
 		reply, err := stub.DeleteWckey(context.Background(), &req)
 		if err != nil {
-			util.GrpcErrorPrintf(err, "Failed to delete all wckeys")
-			return &util.CraneError{Code: util.ErrorNetwork}
+			return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to delete all wckeys")
 		}
 		if FlagJson {
 			fmt.Println(util.FmtJson.FormatReply(reply))
@@ -1303,8 +1300,7 @@ func DeleteWckey(name, userName string) error {
 
 	reply, err := stub.DeleteWckey(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to delete wckey %s, user %s", name, userName)
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to delete wckey %s, user %s", name, userName)
 	}
 
 	if FlagJson {
@@ -1333,8 +1329,7 @@ func ModifyDefaultWckey(name, userName string) error {
 
 	reply, err := stub.ModifyDefaultWckey(context.Background(), &req)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to modify default wckey")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to modify default wckey")
 	}
 
 	if FlagJson {

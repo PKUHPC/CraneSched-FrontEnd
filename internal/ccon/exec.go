@@ -87,8 +87,7 @@ func execExecute(cmd *cobra.Command, args []string) error {
 
 	reply, err := stub.ExecInContainerStep(context.Background(), execReq)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to exec into container job")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to exec into container job")
 	}
 
 	if !reply.Ok {

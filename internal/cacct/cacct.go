@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
-	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -150,8 +149,7 @@ func QueryJob() error {
 
 	reply, err := stub.QueryJobsInfo(context.Background(), &request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to show jobs")
-		return &util.CraneError{Code: util.ErrorNetwork}
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show jobs")
 	}
 
 	if FlagJson {
@@ -248,7 +246,10 @@ func QueryJob() error {
 		}
 
 		if FlagFormat != "" {
-			header, tableData = FormatData(items)
+			header, tableData, err = FormatData(items)
+			if err != nil {
+				return err
+			}
 			table.SetTablePadding("")
 			table.SetAutoFormatHeaders(false)
 		}
@@ -883,12 +884,11 @@ var fieldProcessors = map[string]FieldProcessor{
 //   - %.5j    : JobID with minimum width 5, right-aligned (pad left)
 //   - %10t    : State with minimum width 10, left-aligned
 //   - %.10t   : State with minimum width 10, right-aligned
-func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
+func FormatData(items []*JobOrStep) (header []string, tableData [][]string, err error) {
 	re := regexp.MustCompile(`%(\.)?(\d+)?([a-zA-Z]+)`)
 	specifiers := re.FindAllStringSubmatchIndex(FlagFormat, -1)
 	if specifiers == nil {
-		log.Errorln("Invalid format specifier.")
-		os.Exit(util.ErrorInvalidFormat)
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid format specifier.")
 	}
 
 	tableOutputWidth := make([]int, 0, len(specifiers))
@@ -934,8 +934,7 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 			// with width specifier
 			width, err := strconv.ParseUint(FlagFormat[spec[4]:spec[5]], 10, 32)
 			if err != nil {
-				log.Errorln("Invalid width specifier.")
-				os.Exit(util.ErrorInvalidFormat)
+				return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid width specifier.")
 			}
 			tableOutputWidth = append(tableOutputWidth, int(width))
 		}
@@ -948,11 +947,8 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 
 		fieldProcessor, found := fieldProcessors[field]
 		if !found {
-			log.Errorln("Invalid format specifier or string, string unfold case insensitive, reference:\n" +
-				"a/Account, ArrayJobId, ArraySpec, ArrayTaskId, C/ReqCpus, c/AllocCPUs, deadline/Deadline, D/ElapsedTime, E/EndTime, e/ExitCode, h/Held, j/JobID, K-Wckey, k/Comment, L/NodeList, l/TimeLimit,\n" +
-				"M/ReqMemPerNode, m/AllocMemPerNode, N/NodeNum, n/JobName, P/Partition, p/Priority, q/Qos, r/ReqNodes, R/Reason, S/StartTime,\n" +
-				"s/SubmitTime, T/JobType, t/State, U/UserName, u/Uid, X/Exclusive, x/ExcludeNodes.")
-			os.Exit(util.ErrorInvalidFormat)
+			return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf(
+				"Invalid format specifier or string: %s", field))
 		}
 
 		// Add header and process data
@@ -973,5 +969,6 @@ func FormatData(items []*JobOrStep) (header []string, tableData [][]string) {
 			tableOutputCell[j] = append(tableOutputCell[j], suffix)
 		}
 	}
-	return util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell, tableOutputRightAlign)
+	header, tableData = util.FormatTable(tableOutputWidth, tableOutputHeader, tableOutputCell, tableOutputRightAlign)
+	return header, tableData, nil
 }

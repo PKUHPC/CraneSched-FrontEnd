@@ -165,8 +165,7 @@ func QueryUsersTopSummaryItem() error {
 
 	stream, err := stub.QueryJobSummary(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query AccountUserSummary info")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query AccountUserSummary info")
 	}
 
 	var JobSummaryItemList []*protos.JobSummaryItem
@@ -176,8 +175,7 @@ func QueryUsersTopSummaryItem() error {
 			break
 		}
 		if err != nil {
-			util.GrpcErrorPrintf(err, "Failed to receive item")
-			return util.NewCraneErr(util.ErrorNetwork, "")
+			return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to receive item")
 		}
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}
@@ -265,8 +263,7 @@ func QueryJobSummary(reportType protos.QueryJobSummaryRequest_JobSummaryReportTy
 
 	stream, err := stub.QueryJobSummary(context.Background(), request)
 	if err != nil {
-		util.GrpcErrorPrintf(err, "Failed to query AccountUserSummary info")
-		return util.NewCraneErr(util.ErrorNetwork, "")
+		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query AccountUserSummary info")
 	}
 
 	var JobSummaryItemList []*protos.JobSummaryItem
@@ -276,8 +273,7 @@ func QueryJobSummary(reportType protos.QueryJobSummaryRequest_JobSummaryReportTy
 			break
 		}
 		if err != nil {
-			util.GrpcErrorPrintf(err, "Failed to receive item")
-			return util.NewCraneErr(util.ErrorNetwork, "")
+			return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to receive item")
 		}
 		JobSummaryItemList = append(JobSummaryItemList, batch.ItemList...)
 	}

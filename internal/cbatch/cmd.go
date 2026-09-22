@@ -94,9 +94,11 @@ var (
 	FlagWait            string
 
 	RootCmd = &cobra.Command{
-		Use:     "cbatch [flags] file",
-		Short:   "Submit batch job",
-		Version: util.Version(),
+		Use:           "cbatch [flags] file",
+		Short:         "Submit batch job",
+		Version:       util.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("wrap") {
 				if len(args) != 0 {
