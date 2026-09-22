@@ -304,7 +304,11 @@ func formatNodeTimes(node *protos.CranedInfo) nodeTimes {
 
 func formatNodeState(node *protos.CranedInfo) string {
 	if util.IsSlurmOutputMode() {
-		return util.FormatSlurmNodeState(node.ResourceState, node.ControlState, node.PowerState)
+		state := util.FormatSlurmNodeState(node.ResourceState, node.ControlState, node.PowerState)
+		if node.DynamicMapped {
+			state += "+dynamic_future"
+		}
+		return state
 	}
 	if node.ResourceState == protos.CranedResourceState_CRANE_FUTURE {
 		// An unmapped FUTURE node has no craned attached, so no power state.
@@ -315,6 +319,9 @@ func formatNodeState(node *protos.CranedInfo) string {
 		stateStr += "(" + strings.ToLower(node.ControlState.String()[6:]) + ")"
 	}
 	stateStr += "[" + strings.ToLower(node.PowerState.String()[6:]) + "]"
+	if node.DynamicMapped {
+		stateStr += "+dynamic_future"
+	}
 	return stateStr
 }
 
