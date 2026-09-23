@@ -1694,11 +1694,11 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			Env: make(map[string]string), TaskProlog: FlagTaskProlog,
 			TaskEpilog: FlagTaskEpilog,
 		}
+		step.ExternalLauncher = FlagExternalLauncher
 		if err := setInheritedStepFieldsFromEnv(step); err != nil {
 			return err
 		}
 	}
-
 	structExtraFromCli := &util.JobExtraAttrs{}
 
 	if jobMode {
