@@ -2010,9 +2010,6 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		util.SetPropagatedEnviron(&job.Env, &job.GetUserEnv)
 	} else {
 		util.SetPropagatedEnviron(&step.Env, &step.GetUserEnv)
-		if step.ExternalLauncher {
-			step.Env["SLURM_EXTERNAL_LAUNCHER"] = "1"
-		}
 	}
 
 	// Check the validity of the parameters
