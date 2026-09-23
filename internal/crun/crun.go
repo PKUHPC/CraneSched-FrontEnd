@@ -1699,11 +1699,6 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
-
-		}
-		}
-	}
-
 	structExtraFromCli := &util.JobExtraAttrs{}
 
 	if jobMode {
@@ -2133,13 +2128,4 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	m.Run()
 
 	return m.resultError()
-}
-
-func slurmExternalLauncherFromEnv() bool {
-	value, exists := syscall.Getenv("SLURM_EXTERNAL_LAUNCHER")
-	if !exists {
-		return false
-	}
-	value = strings.TrimSpace(strings.ToLower(value))
-	return value != "" && value != "0" && value != "false" && value != "no"
 }
