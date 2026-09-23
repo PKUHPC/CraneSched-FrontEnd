@@ -1698,6 +1698,8 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 		if err := setInheritedStepFieldsFromEnv(step); err != nil {
 			return err
 		}
+	}
+		}
 		}
 	}
 
@@ -2127,4 +2129,13 @@ func MainCrun(cmd *cobra.Command, args []string) error {
 	m.Run()
 
 	return m.resultError()
+}
+
+func slurmExternalLauncherFromEnv() bool {
+	value, exists := syscall.Getenv("SLURM_EXTERNAL_LAUNCHER")
+	if !exists {
+		return false
+	}
+	value = strings.TrimSpace(strings.ToLower(value))
+	return value != "" && value != "0" && value != "false" && value != "no"
 }
