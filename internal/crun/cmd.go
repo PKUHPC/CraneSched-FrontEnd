@@ -46,6 +46,7 @@ var (
 	FlagExport             string
 	FlagGres               string
 	FlagDependency         string
+	FlagExternalLauncher   bool
 
 	FlagInput       string
 	FlagOutput      string

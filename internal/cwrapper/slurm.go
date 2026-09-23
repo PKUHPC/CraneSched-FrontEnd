@@ -1365,6 +1365,7 @@ func srun() *cobra.Command {
 	cmd.Flags().StringVarP(&crun.FlagConstraint, "constraint", "C", "", "")
 	cmd.Flags().StringVar(&crun.FlagDistribution, "distribution", "", "")
 	cmd.Flags().BoolVar(&crun.FlagLabel, "label", false, "")
+	cmd.Flags().BoolVar(&crun.FlagExternalLauncher, "external-launcher", false, "")
 	return cmd
 }
 
