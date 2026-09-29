@@ -670,9 +670,9 @@ func printJobDetails(job *protos.JobInfo) error {
 	// time
 	timeInfo := formatJobTimes(job)
 	fmt.Printf("\tJobState=%v RunTime=%v TimeLimit=%s SubmitTime=%v\n"+
-		"\tStartTime=%v EndTime=%v Partition=%v NodeList=%v ExecutionHost=%v\n",
+		"\tStartTime=%v EndTime=%v Deadline=%v Partition=%v NodeList=%v ExecutionHost=%v\n",
 		job.Status.String(), timeInfo.runTime, timeInfo.timeLimit, timeInfo.submitTime,
-		timeInfo.startTime, timeInfo.endTime, job.Partition,
+		timeInfo.startTime, timeInfo.endTime, timeInfo.deadline, job.Partition,
 		formatHostNameStr(job.GetCranedList()),
 		formatHostNameStr(util.HostNameListToStr(job.GetExecutionNode())))
 
@@ -730,6 +730,7 @@ type jobTimeInfo struct {
 	submitTime string
 	startTime  string
 	endTime    string
+	deadline   string
 	runTime    string
 	timeLimit  string
 }
@@ -759,6 +760,14 @@ func formatJobTimes(job *protos.JobInfo) jobTimeInfo {
 	if !timeEnd.Before(job.StartTime.AsTime()) && timeEnd.Unix() < util.MaxJobTimeStamp {
 		endTime = timeEnd.In(time.Local).Format("2006-01-02 15:04:05")
 	}
+	// deadline
+	deadline := "unknown"
+	if job.DeadlineTime != nil {
+		deadlineTime := job.DeadlineTime.AsTime()
+		if !deadlineTime.Equal(util.InfiniteFuture) {
+			deadline = deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
+		}
+	}
 	// time limit
 	timeLimitStr := "unlimited"
 	if job.TimeLimit.Seconds < util.MaxJobTimeLimit {
@@ -772,6 +781,7 @@ func formatJobTimes(job *protos.JobInfo) jobTimeInfo {
 		submitTime: submitTime,
 		startTime:  startTime,
 		endTime:    endTime,
+		deadline:   deadline,
 		runTime:    runTimeStr,
 		timeLimit:  timeLimitStr,
 	}
