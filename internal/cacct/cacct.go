@@ -228,6 +228,7 @@ func QueryJob() error {
 				ProcessNodeList(jobOrStep),
 				ProcessExitCode(jobOrStep),
 				jobOrStep.job.Wckey,
+				ProcessDeadline(jobOrStep),
 			}
 		}
 	} else {
@@ -419,7 +420,11 @@ func ProcessElapsedTime(item *JobOrStep) string {
 
 // Deadline (D)
 func ProcessDeadline(item *JobOrStep) string {
-	deadlineTime := item.job.DeadlineTime.AsTime()
+	deadlineTimestamp := item.job.DeadlineTime
+	if deadlineTimestamp == nil {
+		return "unknown"
+	}
+	deadlineTime := deadlineTimestamp.AsTime()
 	if !deadlineTime.Equal(util.InfiniteFuture) {
 		return deadlineTime.In(time.Local).Format("2006-01-02 15:04:05")
 	}
