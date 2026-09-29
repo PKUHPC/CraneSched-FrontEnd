@@ -147,7 +147,7 @@ func QueryJob() error {
 		request.NumLimit = FlagNumLimit
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &request)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show jobs")
 	}
@@ -537,6 +537,13 @@ func ProcessWckey(item *JobOrStep) string {
 
 // Comment (k)
 func ProcessComment(item *JobOrStep) string {
+	visibility := item.job.GetQueryVisibility()
+	if item.isStep {
+		visibility = item.stepInfo.GetQueryVisibility()
+	}
+	if visibility != protos.QueryVisibility_QUERY_VISIBILITY_DETAILS {
+		return util.RestrictedJobField
+	}
 	var extraAttr string
 	if item.isStep {
 		extraAttr = item.stepInfo.ExtraAttr

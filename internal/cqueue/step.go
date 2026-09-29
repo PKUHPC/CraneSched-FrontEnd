@@ -188,7 +188,7 @@ func ProcessStepQoS(stepData StepData) string {
 }
 
 func ProcessStepCommand(stepData StepData) string {
-	return stepData.stepInfo.CmdLine
+	return util.PrivateJobField(stepData.stepInfo.CmdLine, stepData.stepInfo.QueryVisibility)
 }
 
 func ProcessStepJobId(stepData StepData) string {

@@ -445,7 +445,7 @@ func QueryJobsInfoByIds(jobIds string) error {
 		OptionIncludeCompletedJobs: true,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), req)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, req)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query job info")
 	}

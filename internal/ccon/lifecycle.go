@@ -51,7 +51,7 @@ func stopExecute(cmd *cobra.Command, args []string) error {
 		FilterJobTypes: []protos.JobType{protos.JobType_Container},
 	}
 
-	queryReply, err := stub.QueryJobsInfo(context.Background(), queryReq)
+	queryReply, err := util.QueryJobsInfo(context.Background(), stub, queryReq)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query job information")
 	}

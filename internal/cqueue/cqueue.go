@@ -78,7 +78,7 @@ func QueryJobsInfo() (*protos.QueryJobsInfoReply, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	reply, err := stub.QueryJobsInfo(ctx, req)
+	reply, err := util.QueryJobsInfo(ctx, stub, req)
 	if err != nil {
 		if rpcErr, ok := grpcstatus.FromError(err); ok {
 			switch rpcErr.Code() {

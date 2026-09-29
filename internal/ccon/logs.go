@@ -62,7 +62,7 @@ func logExecute(cmd *cobra.Command, args []string) error {
 		OptionIncludeCompletedJobs: true,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &request)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container job")
 	}
@@ -86,6 +86,9 @@ func logExecute(cmd *cobra.Command, args []string) error {
 	}
 	if targetStep == nil {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container %d.%d not found", jobID, stepID))
+	}
+	if err := util.RequireJobDetails(targetStep.QueryVisibility); err != nil {
+		return err
 	}
 	if targetStep.GetContainerMeta() == nil {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("step %d.%d is not a container", jobID, stepID))
