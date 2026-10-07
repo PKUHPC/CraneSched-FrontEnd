@@ -623,37 +623,21 @@ func buildPodMeta(_ *cobra.Command, f *Flags, job *protos.JobToCtld) (*protos.Po
 		Userns: f.Run.UserNS,
 	}
 
+	if len(job.Gids) == 0 {
+		return nil, fmt.Errorf("effective group list is empty")
+	}
+	if !podMeta.Userns {
+		podMeta.RunAsUser = job.Uid
+		podMeta.RunAsGroup = job.Gids[0]
+	}
 	if f.Run.User != "" {
+		// Keep the mode's default GID when only a UID is specified.
 		if err := parseUserSpec(f.Run.User, podMeta); err != nil {
 			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
 		}
-		if strings.Contains(f.Run.User, ":") {
-			gids, err := util.CollectGroupsForUser(podMeta.RunAsUser, podMeta.RunAsGroup)
-			if err != nil {
-				return nil, fmt.Errorf("failed to collect requested user groups: %w", err)
-			}
-			job.Gids = gids
-		} else {
-			gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
-			if err != nil {
-				return nil, fmt.Errorf("failed to collect requested user groups: %w", err)
-			}
-			job.Gids = gids
-			podMeta.RunAsGroup = gids[0]
-		}
-	} else if podMeta.Userns {
-		gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
-		if err != nil {
-			return nil, fmt.Errorf("failed to collect container user groups: %w", err)
-		}
-		job.Gids = gids
-		podMeta.RunAsGroup = gids[0]
-	} else {
-		if len(job.Gids) == 0 {
-			return nil, fmt.Errorf("effective group list is empty")
-		}
-		podMeta.RunAsUser = job.Uid
-		podMeta.RunAsGroup = job.Gids[0]
+	}
+	if err := util.ValidateContainerIdentity(job.Uid, job.Gids, podMeta); err != nil {
+		return nil, err
 	}
 
 	if networkMode == protos.PodJobAdditionalMeta_NODE && len(f.Run.Ports) != 0 {
@@ -703,12 +687,12 @@ func buildContainerJob(cmd *cobra.Command, f *Flags, image string, command []str
 		return nil, fmt.Errorf("failed to apply environment options: %v", err)
 	}
 
-	containerMeta, err := buildContainerMeta(f, image, command)
+	podMeta, err := buildPodMeta(cmd, f, job)
 	if err != nil {
 		return nil, err
 	}
 
-	podMeta, err := buildPodMeta(cmd, f, job)
+	containerMeta, err := buildContainerMeta(f, image, command)
 	if err != nil {
 		return nil, err
 	}
@@ -792,10 +776,8 @@ func validateContainerJob(job *protos.JobToCtld) error {
 		return fmt.Errorf("job type must be Container")
 	}
 
-	if job.Uid != 0 && !job.PodMeta.Userns {
-		if len(job.Gids) == 0 || job.PodMeta.RunAsUser != job.Uid || job.PodMeta.RunAsGroup != job.Gids[0] {
-			return fmt.Errorf("with --userns=false, only current user and accessible groups are allowed")
-		}
+	if err := util.ValidateContainerIdentity(job.Uid, job.Gids, job.PodMeta); err != nil {
+		return err
 	}
 
 	// Validate image specification

@@ -4,7 +4,6 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -44,7 +43,7 @@ func initPodFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&FlagPod, kPodGateFlag, false, "Submit as container enabled job (pod will be created)")
 	cmd.Flags().StringVar(&FlagPodName, "pod-name", "", "Name of pod (defaults to job name)")
 	cmd.Flags().StringSliceVar(&FlagPodPorts, "pod-port", []string{}, "Publish pod port(s) in HOST:CONTAINER or PORT form")
-	cmd.Flags().StringVar(&FlagPodUser, "pod-user", "", "Run pod as UID[:GID] (default: current user when --pod-userns=false)")
+	cmd.Flags().StringVar(&FlagPodUser, "pod-user", "", "Run pod as UID[:GID]; mapped container IDs with userns (default 0:0), otherwise submitter UID/effective GID")
 	cmd.Flags().BoolVar(&FlagPodUserns, "pod-userns", util.DefaultUserNsEnabledByDefault, "Enable pod user namespace; default follows Container.UserNsEnabledByDefault in config")
 	cmd.Flags().Lookup("pod-userns").DefValue = "from config"
 	cmd.Flags().BoolVar(&FlagPodHostNet, "pod-host-network", false, "Use host network namespace for the pod")
@@ -158,13 +157,7 @@ func parsePodPortMapping(portSpec string, ports *[]*protos.PodJobAdditionalMeta_
 }
 
 func validatePodMeta(job *protos.JobToCtld, meta *protos.PodJobAdditionalMeta) error {
-	if job.Uid != 0 && !meta.Userns {
-		if len(job.Gids) == 0 || meta.RunAsUser != job.Uid || meta.RunAsGroup != job.Gids[0] {
-			return fmt.Errorf("with --pod-userns=false, only current user and accessible groups are allowed")
-		}
-	}
-
-	return nil
+	return util.ValidateContainerIdentity(job.Uid, job.Gids, meta)
 }
 
 func buildPodMeta(job *protos.JobToCtld, podOpts *podOptions) (*protos.PodJobAdditionalMeta, error) {
@@ -178,37 +171,21 @@ func buildPodMeta(job *protos.JobToCtld, podOpts *podOptions) (*protos.PodJobAdd
 		podMeta.Name = job.Name
 	}
 
+	if len(job.Gids) == 0 {
+		return nil, fmt.Errorf("effective group list is empty")
+	}
+	if !podMeta.Userns {
+		podMeta.RunAsUser = job.Uid
+		podMeta.RunAsGroup = job.Gids[0]
+	}
 	if podOpts.user != "" {
+		// Keep the mode's default GID when only a UID is specified.
 		if err := parsePodUser(podOpts.user, podMeta); err != nil {
 			return nil, err
 		}
-		if strings.Contains(podOpts.user, ":") {
-			gids, err := util.CollectGroupsForUser(podMeta.RunAsUser, podMeta.RunAsGroup)
-			if err != nil {
-				return nil, err
-			}
-			job.Gids = gids
-		} else {
-			gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
-			if err != nil {
-				return nil, err
-			}
-			job.Gids = gids
-			podMeta.RunAsGroup = gids[0]
-		}
-	} else if podMeta.Userns {
-		gids, err := util.CollectDefaultGroupsForUser(podMeta.RunAsUser)
-		if err != nil {
-			return nil, err
-		}
-		job.Gids = gids
-		podMeta.RunAsGroup = gids[0]
-	} else {
-		podMeta.RunAsUser = uint32(os.Getuid())
-		if len(job.Gids) == 0 {
-			return nil, fmt.Errorf("effective group list is empty")
-		}
-		podMeta.RunAsGroup = job.Gids[0]
+	}
+	if err := validatePodMeta(job, podMeta); err != nil {
+		return nil, err
 	}
 
 	for _, port := range podOpts.ports {
@@ -228,10 +205,6 @@ func buildPodMeta(job *protos.JobToCtld, podOpts *podOptions) (*protos.PodJobAdd
 		}
 	}
 	podMeta.DnsServers = podOpts.dns
-
-	if err := validatePodMeta(job, podMeta); err != nil {
-		return nil, err
-	}
 
 	return podMeta, nil
 }
