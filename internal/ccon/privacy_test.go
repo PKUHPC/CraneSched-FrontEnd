@@ -2,12 +2,11 @@ package ccon
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/testutil"
 	"CraneFrontEnd/internal/util"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -35,24 +34,8 @@ func usePublicContainer(t *testing.T) {
 	public := protos.QueryVisibility_QUERY_VISIBILITY_PUBLIC
 	stub = privacyQueryClient{reply: &protos.QueryJobsInfoReply{Ok: true, JobInfoList: []*protos.JobInfo{{
 		JobId: 42, Type: protos.JobType_Container, QueryVisibility: public, Partition: "cpu",
-		StepInfoList: []*protos.StepInfo{{JobId: 42, StepId: 1, Type: protos.JobType_Container, Status: protos.JobStatus_Running, QueryVisibility: public}},
+		StepInfoList: []*protos.StepInfo{{JobId: 42, StepId: 1, Type: protos.JobType_Container, IsContainer: true, Status: protos.JobStatus_Running, QueryVisibility: public}},
 	}}}}
-}
-
-func capturePrivacyOutput(t *testing.T, run func() error) (string, error) {
-	t.Helper()
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	old := os.Stdout
-	os.Stdout = w
-	defer func() { os.Stdout = old; r.Close(); w.Close() }()
-	result := make(chan string, 1)
-	go func() { data, _ := io.ReadAll(r); result <- string(data) }()
-	err = run()
-	w.Close()
-	return <-result, err
 }
 
 func TestRestrictedContainerDetailsFailBeforeMetadataOrFileAccess(t *testing.T) {
@@ -69,7 +52,7 @@ func TestRestrictedContainerDetailsFailBeforeMetadataOrFileAccess(t *testing.T) 
 			t.Run(tc.name, func(t *testing.T) {
 				usePublicContainer(t)
 				flags.Global.Json = asJSON
-				output, err := capturePrivacyOutput(t, func() error { return tc.run(&cobra.Command{}, tc.args) })
+				output, err := testutil.CaptureStdout(t, func() error { return tc.run(&cobra.Command{}, tc.args) })
 				var craneErr *util.CraneError
 				if !errors.As(err, &craneErr) || craneErr.Code == 0 || !strings.Contains(err.Error(), "restricted") {
 					t.Fatalf("expected restricted nonzero error, got %v", err)
@@ -90,18 +73,36 @@ func TestWaitDoesNotTreatRestrictedContainerAsFinished(t *testing.T) {
 	}
 }
 
+func TestContainerQueriesExcludeRunningPodHostScript(t *testing.T) {
+	usePublicContainer(t)
+	job := stub.(privacyQueryClient).reply.JobInfoList[0]
+	job.StepInfoList[0].Status = protos.JobStatus_Completed
+	job.StepInfoList = append(job.StepInfoList, &protos.StepInfo{
+		JobId: 42, StepId: 2, Type: protos.JobType_Container, StepType: protos.StepType_PRIMARY,
+		Status: protos.JobStatus_Running, QueryVisibility: protos.QueryVisibility_QUERY_VISIBILITY_PUBLIC,
+	})
+	done, result, err := checkContainerStepsDone(42)
+	if err != nil || !done || len(result.Steps) != 1 {
+		t.Fatalf("wait included the pod host script: done=%v result=%v err=%v", done, result, err)
+	}
+	output, err := testutil.CaptureStdout(t, func() error { return psExecute(&cobra.Command{}, nil) })
+	if err != nil || strings.Contains(output, "42.2") || !strings.Contains(output, "42.1") {
+		t.Fatalf("ps confused host script with container: %q, %v", output, err)
+	}
+}
+
 func TestPublicContainerSummariesRemainVisible(t *testing.T) {
 	usePublicContainer(t)
-	text, err := capturePrivacyOutput(t, func() error { return psExecute(&cobra.Command{}, nil) })
+	text, err := testutil.CaptureStdout(t, func() error { return psExecute(&cobra.Command{}, nil) })
 	if err != nil || !strings.Contains(text, "42.1") || strings.Count(text, util.RestrictedJobField) != 2 {
 		t.Fatalf("text=%q err=%v", text, err)
 	}
-	text, err = capturePrivacyOutput(t, func() error { return podExecute(&cobra.Command{}, nil) })
+	text, err = testutil.CaptureStdout(t, func() error { return podExecute(&cobra.Command{}, nil) })
 	if err != nil || strings.Count(text, util.RestrictedJobField) != 2 {
 		t.Fatalf("text=%q err=%v", text, err)
 	}
 	flags.Global.Json = true
-	text, err = capturePrivacyOutput(t, func() error { return psExecute(&cobra.Command{}, nil) })
+	text, err = testutil.CaptureStdout(t, func() error { return psExecute(&cobra.Command{}, nil) })
 	if err != nil {
 		t.Fatal(err)
 	}

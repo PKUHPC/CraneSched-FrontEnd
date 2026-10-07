@@ -2,10 +2,10 @@ package ccontrol
 
 import (
 	"CraneFrontEnd/generated/protos"
+	"CraneFrontEnd/internal/testutil"
 	"CraneFrontEnd/internal/util"
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,28 +18,12 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-func capturePrivacyOutput(t *testing.T, run func() error) (string, error) {
-	t.Helper()
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	old := os.Stdout
-	os.Stdout = w
-	defer func() { os.Stdout = old; r.Close(); w.Close() }()
-	result := make(chan string, 1)
-	go func() { data, _ := io.ReadAll(r); result <- string(data) }()
-	err = run()
-	w.Close()
-	return <-result, err
-}
-
 func TestJobTextRespectsVisibility(t *testing.T) {
 	job := &protos.JobInfo{JobId: 42, Uid: uint32(os.Getuid()), Gid: uint32(os.Getgid()),
 		TimeLimit: durationpb.New(time.Hour), CmdLine: "owner-command", Cwd: "owner-directory",
 		ExtraAttr:      `{"comment":"owner-comment","mail":{"user":"private@example.invalid","type":"ALL"}}`,
 		SubmitHostname: "public-login", QueryVisibility: protos.QueryVisibility_QUERY_VISIBILITY_PUBLIC}
-	output, err := capturePrivacyOutput(t, func() error { return printJobDetails(job) })
+	output, err := testutil.CaptureStdout(t, func() error { return printJobDetails(job) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +36,7 @@ func TestJobTextRespectsVisibility(t *testing.T) {
 		}
 	}
 	job.QueryVisibility = protos.QueryVisibility_QUERY_VISIBILITY_DETAILS
-	output, err = capturePrivacyOutput(t, func() error { return printJobDetails(job) })
+	output, err = testutil.CaptureStdout(t, func() error { return printJobDetails(job) })
 	if err != nil || !strings.Contains(output, "owner-command") || strings.Contains(output, util.RestrictedJobField) {
 		t.Fatalf("owner output=%q err=%v", output, err)
 	}
@@ -91,7 +75,7 @@ func TestQueryFailureDoesNotPrintJSON(t *testing.T) {
 		{reply: &protos.QueryJobsInfoReply{JobInfoList: []*protos.JobInfo{{CmdLine: "private-marker"}}}},
 	} {
 		stub = reply
-		output, err := capturePrivacyOutput(t, func() error { return ShowSteps("42.1", false) })
+		output, err := testutil.CaptureStdout(t, func() error { return ShowSteps("42.1", false) })
 		var craneErr *util.CraneError
 		if !errors.As(err, &craneErr) || craneErr.Code == 0 || output != "" {
 			t.Fatalf("output=%q err=%v", output, err)
@@ -110,7 +94,7 @@ func TestShowConfigRemainsLocalAndPublic(t *testing.T) {
 	}
 	for _, asJSON := range []bool{false, true} {
 		FlagJson = asJSON
-		output, err := capturePrivacyOutput(t, func() error { return ShowConfig(path) })
+		output, err := testutil.CaptureStdout(t, func() error { return ShowConfig(path) })
 		if err != nil || !strings.Contains(output, "control.example.invalid") || !strings.Contains(output, "/etc/crane/tls/ca.pem") {
 			t.Fatalf("config output=%q err=%v", output, err)
 		}
