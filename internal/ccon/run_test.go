@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestBuildPodMetaKeepsSubmitterIdentity(t *testing.T) {
+func TestBuildPodMetaAppliesContainerIdentityPolicy(t *testing.T) {
 	tests := []struct {
 		name    string
 		uid     uint32
@@ -25,15 +25,15 @@ func TestBuildPodMetaKeepsSubmitterIdentity(t *testing.T) {
 		{"userns root UID only", 1000, []uint32{1000}, "0", true, 0, 0, ""},
 		{"userns effective group differs from UID", 1000, []uint32{2000}, "", true, 0, 0, ""},
 		{"userns duplicate effective group", 1000, []uint32{1000, 1000}, "", true, 0, 0, ""},
-		{"userns supplementary groups rejected", 1000, []uint32{1000, 2000, 2001}, "", true, 0, 0, "supplementary groups"},
-		{"userns explicit root rejects supplementary groups", 1000, []uint32{1000, 2000}, "0:0", true, 0, 0, "supplementary groups"},
+		{"userns supplementary groups reduced", 1000, []uint32{1000, 2000, 2001}, "", true, 0, 0, ""},
+		{"userns explicit root reduces supplementary groups", 1000, []uint32{1000, 2000}, "0:0", true, 0, 0, ""},
 		{"userns nonzero UID", 1000, []uint32{1000}, "42:0", true, 42, 0, ""},
 		{"userns nonzero GID", 1000, []uint32{1000}, "0:42", true, 0, 42, ""},
 		{"userns UID only keeps zero GID", 1000, []uint32{2000}, "123", true, 123, 0, ""},
 		{"userns explicit identity", 1000, []uint32{2000}, "123:456", true, 123, 456, ""},
 		{"userns IDs independent of host NSS", 1000, []uint32{2000}, "42420:42421", true, 42420, 42421, ""},
 		{"root may select a userns identity", 0, []uint32{0}, "123:456", true, 123, 456, ""},
-		{"userns nonroot still rejects supplementary groups", 1000, []uint32{2000, 2001}, "123:456", true, 0, 0, "supplementary groups"},
+		{"userns nonroot reduces supplementary groups", 1000, []uint32{2000, 2001}, "123:456", true, 123, 456, ""},
 		{"host defaults preserve groups", 1000, []uint32{1000, 2000, 2001}, "", false, 1000, 1000, ""},
 		{"host effective group differs from UID", 1000, []uint32{2000, 2001}, "", false, 1000, 2000, ""},
 		{"host UID only keeps effective group", 1000, []uint32{2000, 2001}, "1000", false, 1000, 2000, ""},
@@ -48,8 +48,12 @@ func TestBuildPodMetaKeepsSubmitterIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			job := &protos.JobToCtld{Uid: tt.uid, Gids: append([]uint32(nil), tt.gids...)}
 			meta, err := buildPodMeta(nil, &Flags{Run: RunFlags{Network: "default", User: tt.user, UserNS: tt.userns}}, job)
-			if job.Uid != tt.uid || !reflect.DeepEqual(job.Gids, tt.gids) {
-				t.Fatalf("submitter identity changed: got %d:%v, want %d:%v", job.Uid, job.Gids, tt.uid, tt.gids)
+			wantGids := tt.gids
+			if tt.userns && len(wantGids) > 1 {
+				wantGids = wantGids[:1]
+			}
+			if job.Uid != tt.uid || !reflect.DeepEqual(job.Gids, wantGids) {
+				t.Fatalf("execution identity = %d:%v, want %d:%v", job.Uid, job.Gids, tt.uid, wantGids)
 			}
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {

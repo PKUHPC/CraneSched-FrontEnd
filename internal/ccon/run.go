@@ -636,6 +636,10 @@ func buildPodMeta(_ *cobra.Command, f *Flags, job *protos.JobToCtld) (*protos.Po
 			return nil, fmt.Errorf("invalid user specification '%s': %v", f.Run.User, err)
 		}
 	}
+	if podMeta.Userns && len(job.Gids) > 1 {
+		// User namespaces currently execute with the effective group only.
+		job.Gids = job.Gids[:1]
+	}
 	if err := util.ValidateContainerIdentity(job.Uid, job.Gids, podMeta); err != nil {
 		return nil, err
 	}

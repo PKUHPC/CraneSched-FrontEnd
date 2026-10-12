@@ -184,6 +184,10 @@ func buildPodMeta(job *protos.JobToCtld, podOpts *podOptions) (*protos.PodJobAdd
 			return nil, err
 		}
 	}
+	if podMeta.Userns && len(job.Gids) > 1 {
+		// User namespaces currently execute with the effective group only.
+		job.Gids = job.Gids[:1]
+	}
 	if err := validatePodMeta(job, podMeta); err != nil {
 		return nil, err
 	}

@@ -106,8 +106,8 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		return nil, err
 	}
 
-	// CLI overrides are now known, so reject unsupported identities before
-	// processing the remaining submission options.
+	// CLI overrides are now known, so finalize and validate the container
+	// identity before processing the remaining submission options.
 	if job.Type == protos.JobType_Container {
 		overridePodFromFlags(cmd, &podOpts)
 		podMeta, err := buildPodMeta(job, &podOpts)

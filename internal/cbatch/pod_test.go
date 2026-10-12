@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestBuildPodMetaKeepsSubmitterIdentity(t *testing.T) {
+func TestBuildPodMetaAppliesContainerIdentityPolicy(t *testing.T) {
 	tests := []struct {
 		name    string
 		uid     uint32
@@ -28,15 +28,15 @@ func TestBuildPodMetaKeepsSubmitterIdentity(t *testing.T) {
 		{"userns root UID only", 1000, []uint32{1000}, "0", true, 0, 0, ""},
 		{"userns effective group differs from UID", 1000, []uint32{2000}, "", true, 0, 0, ""},
 		{"userns duplicate effective group", 1000, []uint32{1000, 1000}, "", true, 0, 0, ""},
-		{"userns supplementary groups rejected", 1000, []uint32{1000, 2000, 2001}, "", true, 0, 0, "supplementary groups"},
-		{"userns explicit root rejects supplementary groups", 1000, []uint32{1000, 2000}, "0:0", true, 0, 0, "supplementary groups"},
+		{"userns supplementary groups reduced", 1000, []uint32{1000, 2000, 2001}, "", true, 0, 0, ""},
+		{"userns explicit root reduces supplementary groups", 1000, []uint32{1000, 2000}, "0:0", true, 0, 0, ""},
 		{"userns nonzero UID", 1000, []uint32{1000}, "42:0", true, 42, 0, ""},
 		{"userns nonzero GID", 1000, []uint32{1000}, "0:42", true, 0, 42, ""},
 		{"userns UID only keeps zero GID", 1000, []uint32{2000}, "123", true, 123, 0, ""},
 		{"userns explicit identity", 1000, []uint32{2000}, "123:456", true, 123, 456, ""},
 		{"userns IDs independent of host NSS", 1000, []uint32{2000}, "42420:42421", true, 42420, 42421, ""},
 		{"root may select a userns identity", 0, []uint32{0}, "123:456", true, 123, 456, ""},
-		{"userns nonroot still rejects supplementary groups", 1000, []uint32{2000, 2001}, "123:456", true, 0, 0, "supplementary groups"},
+		{"userns nonroot reduces supplementary groups", 1000, []uint32{2000, 2001}, "123:456", true, 123, 456, ""},
 		{"host defaults preserve groups", 1000, []uint32{1000, 2000, 2001}, "", false, 1000, 1000, ""},
 		{"host effective group differs from UID", 1000, []uint32{2000, 2001}, "", false, 1000, 2000, ""},
 		{"host UID only keeps effective group", 1000, []uint32{2000, 2001}, "1000", false, 1000, 2000, ""},
@@ -51,8 +51,12 @@ func TestBuildPodMetaKeepsSubmitterIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			job := &protos.JobToCtld{Uid: tt.uid, Gids: append([]uint32(nil), tt.gids...)}
 			meta, err := buildPodMeta(job, &podOptions{user: tt.user, userns: tt.userns})
-			if job.Uid != tt.uid || !reflect.DeepEqual(job.Gids, tt.gids) {
-				t.Fatalf("submitter identity changed: got %d:%v, want %d:%v", job.Uid, job.Gids, tt.uid, tt.gids)
+			wantGids := tt.gids
+			if tt.userns && len(wantGids) > 1 {
+				wantGids = wantGids[:1]
+			}
+			if job.Uid != tt.uid || !reflect.DeepEqual(job.Gids, wantGids) {
+				t.Fatalf("execution identity = %d:%v, want %d:%v", job.Uid, job.Gids, tt.uid, wantGids)
 			}
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -120,16 +124,11 @@ func TestBuildCbatchJobUsernsGroupPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	job, err := BuildCbatchJob(cmd, nil, &util.Config{})
-	if len(groups) > 1 {
-		if err == nil || !strings.Contains(err.Error(), "supplementary groups") {
-			t.Fatalf("groups %v: error = %v, want rejection of supplementary groups", groups, err)
-		}
-		return
-	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	if job.PodMeta.RunAsUser != 0 || job.PodMeta.RunAsGroup != 0 || !reflect.DeepEqual(job.Gids, groups) {
+	if job.PodMeta.RunAsUser != 0 || job.PodMeta.RunAsGroup != 0 ||
+		len(job.Gids) != 1 || job.Gids[0] != groups[0] {
 		t.Fatalf("incorrect fakeroot identity: %v", job)
 	}
 }
@@ -167,17 +166,12 @@ func TestBuildCbatchJobUsernsRunAsOptions(t *testing.T) {
 				t.Fatal(err)
 			}
 			job, err := BuildCbatchJob(cmd, []string{script}, &util.Config{})
-			if len(groups) > 1 {
-				if err == nil || !strings.Contains(err.Error(), "supplementary groups") {
-					t.Fatalf("error = %v, want rejection of supplementary groups", err)
-				}
-				return
-			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			if job.Uid != uint32(os.Getuid()) || !reflect.DeepEqual(job.Gids, groups) {
-				t.Fatalf("submitter identity changed: %d:%v", job.Uid, job.Gids)
+			if job.Uid != uint32(os.Getuid()) || len(job.Gids) != 1 ||
+				job.Gids[0] != groups[0] {
+				t.Fatalf("execution identity changed: %d:%v", job.Uid, job.Gids)
 			}
 			if !job.PodMeta.Userns || job.PodMeta.RunAsUser != tt.wantUID || job.PodMeta.RunAsGroup != tt.wantGID {
 				t.Fatalf("Pod identity = %v, want userns %d:%d", job.PodMeta, tt.wantUID, tt.wantGID)
