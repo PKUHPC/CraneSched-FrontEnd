@@ -77,7 +77,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	var rows []stepRow
 	for _, job := range reply.JobInfoList {
 		for _, step := range job.StepInfoList {
-			if step.StepId == 0 || !step.IsContainer {
+			if step.StepId == 0 || step.ContainerMeta == nil {
 				// Skip pod step or non-container step
 				continue
 			}

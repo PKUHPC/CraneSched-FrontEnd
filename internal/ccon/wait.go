@@ -109,7 +109,7 @@ func checkContainerStepsDone(jobId uint32) (bool, waitResult, error) {
 	var containerSteps []*protos.StepInfo
 	for _, step := range job.StepInfoList {
 		// Skip daemon and non-container steps
-		if step.StepId == 0 || !step.IsContainer {
+		if step.StepId == 0 || step.ContainerMeta == nil {
 			continue
 		}
 		containerSteps = append(containerSteps, step)

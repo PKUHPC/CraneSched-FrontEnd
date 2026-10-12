@@ -34,7 +34,7 @@ func usePublicContainer(t *testing.T) {
 	public := protos.QueryVisibility_QUERY_VISIBILITY_PUBLIC
 	stub = privacyQueryClient{reply: &protos.QueryJobsInfoReply{Ok: true, JobInfoList: []*protos.JobInfo{{
 		JobId: 42, Type: protos.JobType_Container, QueryVisibility: public, Partition: "cpu",
-		StepInfoList: []*protos.StepInfo{{JobId: 42, StepId: 1, Type: protos.JobType_Container, IsContainer: true, Status: protos.JobStatus_Running, QueryVisibility: public}},
+		StepInfoList: []*protos.StepInfo{{JobId: 42, StepId: 1, Type: protos.JobType_Container, ContainerMeta: &protos.ContainerJobAdditionalMeta{}, Status: protos.JobStatus_Running, QueryVisibility: public}},
 	}}}}
 }
 
