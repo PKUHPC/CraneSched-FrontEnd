@@ -52,7 +52,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 		FilterUsers:                filterUsers,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &request)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container jobs")
 	}
@@ -63,14 +63,15 @@ func psExecute(cmd *cobra.Command, args []string) error {
 
 	// Flatten steps for container view
 	type stepRow struct {
-		jobId     uint32
-		stepId    uint32
-		image     string
-		command   string
-		createdAt time.Time
-		status    protos.JobStatus
-		name      string
-		nodeList  string
+		JobId           uint32                 `json:"job_id"`
+		StepId          uint32                 `json:"step_id"`
+		Image           string                 `json:"image"`
+		Command         string                 `json:"command"`
+		CreatedAt       time.Time              `json:"created_at"`
+		Status          protos.JobStatus       `json:"status"`
+		Name            string                 `json:"name"`
+		NodeList        string                 `json:"node_list"`
+		QueryVisibility protos.QueryVisibility `json:"query_visibility"`
 	}
 
 	var rows []stepRow
@@ -82,14 +83,15 @@ func psExecute(cmd *cobra.Command, args []string) error {
 			}
 
 			row := stepRow{
-				jobId:  job.JobId,
-				stepId: step.StepId,
-				name:   step.Name,
-				status: step.Status,
+				JobId:           job.JobId,
+				StepId:          step.StepId,
+				Name:            step.Name,
+				Status:          step.Status,
+				QueryVisibility: step.QueryVisibility,
 			}
 
-			if step.ContainerMeta.Image != nil {
-				row.image = step.ContainerMeta.Image.Image
+			if step.GetContainerMeta().GetImage() != nil {
+				row.Image = step.ContainerMeta.Image.Image
 			}
 			if step.ContainerMeta != nil {
 				var cmdParts []string
@@ -100,18 +102,18 @@ func psExecute(cmd *cobra.Command, args []string) error {
 					cmdParts = append(cmdParts, step.ContainerMeta.Args...)
 				}
 				if len(cmdParts) > 0 {
-					row.command = strings.Join(cmdParts, " ")
+					row.Command = strings.Join(cmdParts, " ")
 				}
 			}
 			if step.SubmitTime != nil {
-				row.createdAt = step.SubmitTime.AsTime()
+				row.CreatedAt = step.SubmitTime.AsTime()
 			} else if job.SubmitTime != nil {
-				row.createdAt = job.SubmitTime.AsTime()
+				row.CreatedAt = job.SubmitTime.AsTime()
 			}
 
-			row.nodeList = step.GetCranedList()
-			if row.nodeList == "" {
-				row.nodeList = job.GetCranedList()
+			row.NodeList = step.GetCranedList()
+			if row.NodeList == "" {
+				row.NodeList = job.GetCranedList()
 			}
 
 			rows = append(rows, row)
@@ -119,10 +121,10 @@ func psExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].jobId == rows[j].jobId {
-			return rows[i].stepId > rows[j].stepId
+		if rows[i].JobId == rows[j].JobId {
+			return rows[i].StepId > rows[j].StepId
 		}
-		return rows[i].jobId > rows[j].jobId
+		return rows[i].JobId > rows[j].JobId
 	})
 
 	if f.Global.Json {
@@ -132,7 +134,7 @@ func psExecute(cmd *cobra.Command, args []string) error {
 
 	if f.Ps.Quiet {
 		for _, row := range rows {
-			fmt.Printf("%d.%d\n", row.jobId, row.stepId)
+			fmt.Printf("%d.%d\n", row.JobId, row.StepId)
 		}
 		return nil
 	}
@@ -143,16 +145,16 @@ func psExecute(cmd *cobra.Command, args []string) error {
 
 	for _, row := range rows {
 		createdStr := "-"
-		if !row.createdAt.IsZero() {
-			createdStr = formatDuration(time.Since(row.createdAt)) + " ago"
+		if !row.CreatedAt.IsZero() {
+			createdStr = formatDuration(time.Since(row.CreatedAt)) + " ago"
 		}
 		table.Append([]string{
-			fmt.Sprintf("%d.%d", row.jobId, row.stepId),
-			row.image,
-			truncateCommand(row.command, 20),
+			fmt.Sprintf("%d.%d", row.JobId, row.StepId),
+			util.PrivateJobField(row.Image, row.QueryVisibility),
+			util.PrivateJobField(truncateCommand(row.Command, 20), row.QueryVisibility),
 			createdStr,
-			strings.ToUpper(row.status.String()),
-			row.nodeList,
+			strings.ToUpper(row.Status.String()),
+			row.NodeList,
 		})
 	}
 	table.Render()
@@ -176,7 +178,7 @@ func podExecute(cmd *cobra.Command, args []string) error {
 		FilterUsers:                filterUsers,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &request)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container pods")
 	}
@@ -225,6 +227,10 @@ func podExecute(cmd *cobra.Command, args []string) error {
 			ports = strings.Join(portStrs, ", ")
 		} else {
 			ports = "-"
+		}
+		if job.QueryVisibility == protos.QueryVisibility_QUERY_VISIBILITY_PUBLIC {
+			podName = util.RestrictedJobField
+			ports = util.RestrictedJobField
 		}
 
 		table.Append([]string{
@@ -311,7 +317,7 @@ func inspectPodExecute(cmd *cobra.Command, args []string) error {
 		FilterUsers:                filterUsers,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &request)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container pod")
 	}
@@ -325,6 +331,9 @@ func inspectPodExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	job := reply.JobInfoList[0]
+	if err := util.RequireJobDetails(job.QueryVisibility); err != nil {
+		return err
+	}
 	jsonData, err := json.MarshalIndent(job, "", "  ")
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorBackend, "failed to format data from backend: %v", err)
@@ -360,7 +369,7 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 		FilterUsers:                filterUsers,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &request)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container step")
 	}
@@ -385,6 +394,9 @@ func inspectStepExecute(cmd *cobra.Command, args []string) error {
 		return util.NewCraneErr(util.ErrorBackend, fmt.Sprintf("container step %d.%d not found", jobID, stepID))
 	}
 
+	if err := util.RequireJobDetails(targetStep.QueryVisibility); err != nil {
+		return err
+	}
 	jsonData, err := json.MarshalIndent(targetStep, "", "  ")
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorBackend, "failed to format data from backend: %v", err)
@@ -402,7 +414,7 @@ func GetContainerJob(jobId uint32, includeCompleted bool) (*protos.JobInfo, erro
 		OptionIncludeCompletedJobs: includeCompleted,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &request)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &request)
 	if err != nil {
 		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container job")
 	}
@@ -424,7 +436,7 @@ func GetContainerStep(jobID, stepID uint32, includeCompleted bool) (*protos.JobI
 		OptionIncludeCompletedJobs: includeCompleted,
 	}
 
-	reply, err := stub.QueryJobsInfo(context.Background(), &req)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, &req)
 	if err != nil {
 		return nil, nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to query container step")
 	}

@@ -123,7 +123,10 @@ func (s *QueryService) getJobInformation(ctx context.Context, jobIds []uint32) (
 	}
 
 	ctldClient := util.GetStubToCtldByConfig(s.craneConfig)
+	return getJobInformationWithClient(ctx, ctldClient, jobIds)
+}
 
+func getJobInformationWithClient(ctx context.Context, ctldClient protos.CraneCtldClient, jobIds []uint32) ([]*protos.JobInfo, error) {
 	selectors := make([]*protos.JobIdSelector, 0, len(jobIds))
 	for _, id := range jobIds {
 		selectors = append(selectors, &protos.JobIdSelector{JobId: id})
@@ -137,7 +140,8 @@ func (s *QueryService) getJobInformation(ctx context.Context, jobIds []uint32) (
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	reply, err := ctldClient.QueryJobsInfo(timeoutCtx, req)
+	// Query as the monitor process; efficiency ownership is checked separately.
+	reply, err := util.QueryJobsInfo(timeoutCtx, ctldClient, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query jobs info from CraneCtld: %w", err)
 	}

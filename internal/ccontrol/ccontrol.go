@@ -424,7 +424,7 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 		FilterJobIds:               selectors,
 		OptionIncludeCompletedJobs: false,
 	}
-	reply, err := stub.QueryJobsInfo(context.Background(), req)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, req)
 	if err != nil {
 		return util.WrapCraneErr(util.ErrorNetwork, "Failed to query job information: %s", err)
 	}
@@ -459,6 +459,9 @@ func ChangeJobExtraAttrs(jobStr string, valueMap map[UpdateJobParamFlags]string)
 	pdOrRJobMap := make(map[uint32]string)
 	validJobList := map[util.JobIdentifier]bool{}
 	for _, jobInfo := range reply.JobInfoList {
+		if err := util.RequireJobDetails(jobInfo.QueryVisibility); err != nil {
+			return err
+		}
 		newJsonStr, err := updateJobExtraAttr(jobInfo.ExtraAttr, valueMap)
 		if err != nil {
 			return util.WrapCraneErr(util.ErrorCmdArg, "Failed to set extra attributes JSON: %s", err)

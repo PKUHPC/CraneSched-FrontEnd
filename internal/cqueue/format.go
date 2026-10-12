@@ -68,6 +68,9 @@ func ProcessWckey(job *protos.JobInfo) string {
 
 // 'k' group
 func ProcessComment(job *protos.JobInfo) string {
+	if job.QueryVisibility != protos.QueryVisibility_QUERY_VISIBILITY_DETAILS {
+		return util.RestrictedJobField
+	}
 	if !gjson.Valid(job.ExtraAttr) {
 		return ""
 	}
@@ -115,7 +118,7 @@ func ProcessNodeNum(job *protos.JobInfo) string {
 
 // 'o' group
 func ProcessCommand(job *protos.JobInfo) string {
-	return job.CmdLine
+	return util.PrivateJobField(job.CmdLine, job.QueryVisibility)
 }
 
 // 'p' group

@@ -603,7 +603,7 @@ func getJobInfoReply(selectors []*protos.JobIdSelector) (*protos.QueryJobsInfoRe
 	req := &protos.QueryJobsInfoRequest{
 		FilterJobIds: selectors,
 	}
-	reply, err := stub.QueryJobsInfo(context.Background(), req)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, req)
 	if err != nil {
 		return nil, util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show jobs")
 	}
@@ -677,18 +677,22 @@ func printJobDetails(job *protos.JobInfo) error {
 		formatHostNameStr(util.HostNameListToStr(job.GetExecutionNode())))
 
 	// cmd / work
-	fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n", job.CmdLine, job.Cwd)
+	fmt.Printf("\tCmdLine=\"%v\" Workdir=%v\n",
+		util.PrivateJobField(job.CmdLine, job.QueryVisibility),
+		util.PrivateJobField(job.Cwd, job.QueryVisibility))
 	// resource
 	printResourceRequests(job)
 	fmt.Printf("\tReqNodeList=%v ExcludeNodeList=%v\n"+
 		"\tExclusive=%v Comment=%v Wckey=%v\n",
 		formatHostNameStr(util.HostNameListToStr(job.GetReqNodes())),
 		formatHostNameStr(util.HostNameListToStr(job.GetExcludeNodes())),
-		strconv.FormatBool(job.Exclusive), getJobExtraAttr(job.ExtraAttr, "comment"),
+		strconv.FormatBool(job.Exclusive), util.PrivateJobField(getJobExtraAttr(job.ExtraAttr, "comment"), job.QueryVisibility),
 		job.Wckey)
 
 	//  mail
-	printMailNotification(job.ExtraAttr)
+	if job.QueryVisibility == protos.QueryVisibility_QUERY_VISIBILITY_DETAILS {
+		printMailNotification(job.ExtraAttr)
+	}
 
 	// dependency
 	if job.DependencyStatus != nil {
@@ -956,7 +960,7 @@ func ShowSteps(stepIds string, queryAll bool) error {
 	req = &protos.QueryJobsInfoRequest{
 		FilterJobIds: selectors,
 	}
-	reply, err := stub.QueryJobsInfo(context.Background(), req)
+	reply, err := util.QueryJobsInfo(context.Background(), stub, req)
 	if err != nil {
 		return util.NewCraneErrFromGrpc(util.ErrorNetwork, err, "Failed to show steps")
 	}
