@@ -404,7 +404,7 @@ func normalizeSacctmgrKey(action, entity, clause, key string) string {
 			case "name", "names":
 				return "name"
 			case "account", "accounts":
-				return "accounts"
+				return "account"
 			case "format":
 				return "format"
 			}
