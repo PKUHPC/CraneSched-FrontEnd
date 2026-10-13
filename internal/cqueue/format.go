@@ -300,6 +300,31 @@ var fieldMap = map[string]FieldProcessor{
 	"exclusive":    {"Exclusive", ProcessExclusive},
 }
 
+// Fields the squeue wrapper maps Slurm specifiers to. They follow Slurm
+// semantics and are only available in Slurm output mode.
+var slurmFieldMap = map[string]FieldProcessor{
+	"slurmstate":          {"State", ProcessSlurmState},
+	"slurmstatecompact":   {"ST", ProcessSlurmStateCompact},
+	"slurmnodelistreason": {"NodeList(Reason)", ProcessSlurmNodeListReason},
+}
+
+func ProcessSlurmState(job *protos.JobInfo) string {
+	return util.FormatSlurmJobState(job.Status, false)
+}
+
+func ProcessSlurmStateCompact(job *protos.JobInfo) string {
+	return util.FormatSlurmJobState(job.Status, true)
+}
+
+// ProcessSlurmNodeListReason prints the pending reason in parentheses for
+// pending jobs and the allocated node list otherwise, like Slurm's %R.
+func ProcessSlurmNodeListReason(job *protos.JobInfo) string {
+	if job.Status == protos.JobStatus_Pending {
+		return "(" + job.GetPendingReason() + ")"
+	}
+	return job.GetCranedList()
+}
+
 type segmentType int
 
 const (
@@ -356,6 +381,9 @@ func AddSpecifierColumn(builder *tableBuilder, reply *protos.QueryJobsInfoReply,
 		key = strings.ToLower(key)
 	}
 	processor, found := fieldMap[key]
+	if !found && util.IsSlurmOutputMode() {
+		processor, found = slurmFieldMap[key]
+	}
 	if !found {
 		return fmt.Errorf("invalid format specifier: %s", key)
 	}

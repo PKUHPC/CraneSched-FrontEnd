@@ -23,6 +23,7 @@ import (
 	"CraneFrontEnd/internal/util"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"sort"
@@ -286,6 +287,18 @@ func QueryJob() error {
 		}
 	}
 
+	if FlagParsable || FlagParsable2 {
+		if FlagFormat != "" {
+			header, tableData, err = parsableFormatData(items)
+			if err != nil {
+				return err
+			}
+		}
+		printParsable(os.Stdout, header, tableData)
+		printIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
+		return nil
+	}
+
 	if !FlagNoHeader {
 		table.SetHeader(header)
 	}
@@ -298,6 +311,67 @@ func QueryJob() error {
 	table.Render()
 	printIncompleteQueryWarning(reply.GetHasMore(), len(reply.GetJobInfoList()))
 	return nil
+}
+
+// parsableFormatData returns only the --format fields, without the literal
+// text between specifiers, so that parsable output has one cell per field.
+func parsableFormatData(items []*JobOrStep) ([]string, [][]string, error) {
+	re := regexp.MustCompile(`%(\.)?(\d+)?([a-zA-Z]+)`)
+	var processors []FieldProcessor
+	for _, match := range re.FindAllStringSubmatch(FlagFormat, -1) {
+		field := match[3]
+		if len(field) > 1 {
+			field = strings.ToLower(field)
+		}
+		processor, found := fieldProcessors[field]
+		if !found {
+			return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, fmt.Sprintf(
+				"Invalid format specifier or string: %s", field))
+		}
+		processors = append(processors, processor)
+	}
+	if len(processors) == 0 {
+		return nil, nil, util.NewCraneErr(util.ErrorInvalidFormat, "Invalid format specifier.")
+	}
+
+	header := make([]string, len(processors))
+	for i, processor := range processors {
+		header[i] = processor.header
+	}
+	rows := make([][]string, len(items))
+	for i, item := range items {
+		for _, processor := range processors {
+			rows[i] = append(rows[i], processor.process(item))
+		}
+	}
+	return header, rows, nil
+}
+
+// printParsable writes Slurm parsable output: fields separated by "|", with
+// a trailing "|" for --parsable and none for --parsable2. Fields are not
+// padded or truncated.
+func printParsable(w io.Writer, header []string, rows [][]string) {
+	write := func(fields []string) {
+		cells := make([]string, len(fields))
+		for i, field := range fields {
+			cells[i] = strings.TrimSpace(field)
+		}
+		line := strings.Join(cells, "|")
+		if !FlagParsable2 {
+			line += "|"
+		}
+		fmt.Fprintln(w, line)
+	}
+	if !FlagNoHeader {
+		upper := make([]string, len(header))
+		for i, h := range header {
+			upper[i] = strings.ToUpper(h)
+		}
+		write(upper)
+	}
+	for _, row := range rows {
+		write(row)
+	}
 }
 
 func printIncompleteQueryWarning(hasMore bool, returnedJobs int) {
