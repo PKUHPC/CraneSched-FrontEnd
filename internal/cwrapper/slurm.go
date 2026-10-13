@@ -114,36 +114,22 @@ func sacct() *cobra.Command {
 			cacct.RootCmd.Use = "sacct [flags]"
 			// Slurm uses -V for version and -v for verbose.
 			cacct.RootCmd.Flags().BoolP("version", "V", false, "version for sacct")
-			convertedArgs := make([]string, 0, len(args))
-			for i := 0; i < len(args); i++ {
-				arg := args[i]
-				switch {
-				case isSlurmVerboseArg(arg) || arg == "--verbose":
+			for _, arg := range args {
+				if arg == "--help" || arg == "-h" {
+					_ = cmd.Help()
+					os.Exit(util.ErrorSuccess)
+				}
+				if isSlurmVerboseArg(arg) || arg == "--verbose" {
 					log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
-				case arg == "--jobs":
-					convertedArgs = append(convertedArgs, "--job")
-				case arg == "--starttime":
-					convertedArgs = append(convertedArgs, "--start-time")
-				case arg == "--endtime":
-					convertedArgs = append(convertedArgs, "--end-time")
-				case arg == "-n":
-					convertedArgs = append(convertedArgs, "-N")
-				case arg == "-o" || arg == "--format":
-					convertedArgs = append(convertedArgs, arg)
-					if i+1 < len(args) {
-						convertedArgs = append(convertedArgs, convertSacctFormat(args[i+1]))
-						i++
-					}
-				case strings.HasPrefix(arg, "--format="):
-					convertedArgs = append(convertedArgs,
-						"--format="+convertSacctFormat(strings.TrimPrefix(arg, "--format=")))
-				default:
-					convertedArgs = append(convertedArgs, arg)
 				}
 			}
-			cacct.RootCmd.SetArgs(convertedArgs)
-			err := cacct.RootCmd.Execute()
+			convertedArgs, err := convertSacctArgs(args)
 			if err != nil {
+				log.Errorf("sacct: error: %v", err)
+				os.Exit(util.ErrorCmdArg)
+			}
+			cacct.RootCmd.SetArgs(convertedArgs)
+			if err := cacct.RootCmd.Execute(); err != nil {
 				exitWithCommandError("sacct", err)
 			} else {
 				os.Exit(util.ErrorSuccess)
@@ -152,15 +138,170 @@ func sacct() *cobra.Command {
 	}
 
 	addConfigPathFlag(cmd, &cacct.FlagConfigFilePath)
+	cmd.Flags().BoolP("help", "h", false, "Help for this command.")
+	cmd.Flags().BoolP("version", "V", false, "Print version information and exit.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterAccounts, "account", "A", "",
 		"Displays jobs when a comma separated list of accounts are given as the argument.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterJobIDs, "jobs", "j", "",
 		"Displays information about specified jobs. Supports jobid, jobid.stepid, jobid_arraytaskid, and jobid_arraytaskid.stepid.")
 	cmd.Flags().StringVarP(&cacct.FlagFilterUsers, "user", "u", "",
 		"Use this comma separated list of user names to select jobs to display.")
+	cmd.Flags().BoolVarP(&cacct.FlagNoHeader, "noheader", "n", false, "No heading will be added to the output.")
+	cmd.Flags().BoolVarP(&cacct.FlagParsable, "parsable", "p", false,
+		"Output will be '|' delimited with a '|' at the end.")
+	cmd.Flags().BoolVarP(&cacct.FlagParsable2, "parsable2", "P", false,
+		"Output will be '|' delimited without a '|' at the end.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterPartitions, "partition", "r", "",
+		"Comma separated list of partitions to select jobs from.")
+	cmd.Flags().StringVar(&cacct.FlagFilterJobNames, "name", "",
+		"Display jobs that have any of these name(s).")
+	cmd.Flags().StringVarP(&cacct.FlagFilterStates, "state", "s", "all",
+		"Select jobs based on their state: pending(p), running(r), completed(c), failed(f), cancelled(x), time-limit-exceeded(t) or all.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterStartTime, "starttime", "S", "",
+		"Select jobs that started in the given interval, e.g. 2024-01-02T15:04:05~2024-01-11T11:12:41.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterEndTime, "endtime", "E", "",
+		"Select jobs that ended in the given interval, e.g. 2024-01-02T15:04:05~2024-01-11T11:12:41.")
+	cmd.Flags().StringVar(&cacct.FlagFilterSubmitTime, "submittime", "",
+		"Select jobs submitted in the given interval, e.g. 2024-01-02T15:04:05~2024-01-11T11:12:41.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterQos, "qos", "q", "", "Only send data about jobs using these qos.")
+	cmd.Flags().StringVarP(&cacct.FlagFilterNodeNames, "nodelist", "N", "",
+		"Display jobs that ran on any of these node(s).")
+	cmd.Flags().StringVar(&cacct.FlagFilterJobTypes, "type", "",
+		"Select jobs by type: Interactive, Batch or Container.")
+	cmd.Flags().BoolVar(&cacct.FlagDeadlineTime, "deadline", false, "Display the deadline time of jobs.")
+	cmd.Flags().BoolVarP(&cacct.FlagFull, "full", "F", false,
+		"Display full information instead of truncating each cell to 30 characters.")
+	cmd.Flags().Uint32VarP(&cacct.FlagNumLimit, "max-lines", "m", util.DefaultCacctMaxLines,
+		"Limit the number of jobs returned.")
+	cmd.Flags().BoolVar(&cacct.FlagJson, "json", false, "Output in JSON format.")
+	cmd.Flags().StringVarP(&cacct.FlagFormat, "format", "o", "",
+		sacctFormatHelp+"\n\n"+cacct.RootCmd.Flags().Lookup("format").Usage)
 
 	return cmd
 }
+
+// sacctOptions maps the Slurm sacct options supported by the wrapper to the
+// cacct long options. Options mapped to "" are boolean output options handled
+// by the wrapper itself.
+var sacctOptions = map[string]struct {
+	native    string
+	takesArg  bool
+	shorthand byte
+}{
+	"account":    {"--account", true, 'A'},
+	"jobs":       {"--job", true, 'j'},
+	"user":       {"--user", true, 'u'},
+	"noheader":   {"--noheader", false, 'n'},
+	"parsable":   {"", false, 'p'},
+	"parsable2":  {"", false, 'P'},
+	"partition":  {"--partition", true, 'r'},
+	"name":       {"--name", true, 0},
+	"state":      {"--state", true, 's'},
+	"starttime":  {"--start-time", true, 'S'},
+	"endtime":    {"--end-time", true, 'E'},
+	"submittime": {"--submit-time", true, 0},
+	"qos":        {"--qos", true, 'q'},
+	"nodelist":   {"--nodelist", true, 'N'},
+	"type":       {"--type", true, 0},
+	"deadline":   {"--deadline", false, 0},
+	"full":       {"--full", false, 'F'},
+	"max-lines":  {"--max-lines", true, 'm'},
+	"json":       {"--json", false, 0},
+	"format":     {"--format", true, 'o'},
+	"config":     {"--config", true, 'C'},
+	"version":    {"--version", false, 'V'},
+	"verbose":    {"", false, 'v'},
+}
+
+// convertSacctArgs translates Slurm sacct arguments into cacct arguments.
+// Slurm and cacct assign different meanings to several short options, so
+// every option is forwarded in its unambiguous long form.
+func convertSacctArgs(args []string) ([]string, error) {
+	byShorthand := map[byte]string{}
+	for name, opt := range sacctOptions {
+		if opt.shorthand != 0 {
+			byShorthand[opt.shorthand] = name
+		}
+	}
+
+	converted := make([]string, 0, len(args))
+	appendOption := func(name, value string, hasValue bool) {
+		opt := sacctOptions[name]
+		switch name {
+		case "parsable":
+			cacct.FlagParsable = true
+			return
+		case "parsable2":
+			cacct.FlagParsable2 = true
+			return
+		case "verbose":
+			return
+		case "format":
+			value = convertSacctFormat(value)
+		}
+		if opt.takesArg {
+			converted = append(converted, opt.native+"="+value)
+		} else if hasValue {
+			converted = append(converted, opt.native+"="+value)
+		} else {
+			converted = append(converted, opt.native)
+		}
+	}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--":
+			converted = append(converted, args[i:]...)
+			return converted, nil
+		case strings.HasPrefix(arg, "--"):
+			name, value, hasValue := strings.Cut(arg[2:], "=")
+			opt, ok := sacctOptions[name]
+			if !ok {
+				return nil, fmt.Errorf("unknown flag: --%s", name)
+			}
+			if opt.takesArg && !hasValue {
+				if i+1 >= len(args) {
+					return nil, fmt.Errorf("flag needs an argument: --%s", name)
+				}
+				i++
+				value = args[i]
+			}
+			appendOption(name, value, hasValue)
+		case len(arg) > 1 && arg[0] == '-':
+			for pos := 1; pos < len(arg); pos++ {
+				name, ok := byShorthand[arg[pos]]
+				if !ok {
+					return nil, fmt.Errorf("unknown shorthand flag: '%c' in %s", arg[pos], arg)
+				}
+				if !sacctOptions[name].takesArg {
+					appendOption(name, "", false)
+					continue
+				}
+				value := strings.TrimPrefix(arg[pos+1:], "=")
+				if pos+1 >= len(arg) {
+					if i+1 >= len(args) {
+						return nil, fmt.Errorf("flag needs an argument: '%c' in %s", arg[pos], arg)
+					}
+					i++
+					value = args[i]
+				}
+				appendOption(name, value, true)
+				break
+			}
+		default:
+			converted = append(converted, arg)
+		}
+	}
+	return converted, nil
+}
+
+const sacctFormatHelp = `Comma separated list of fields, e.g. JobID,JobName%20,State.
+A field may be followed by "%<width>" to set its width.
+Native cacct %-specifiers listed below (e.g. "%j %n %t") are also accepted.
+Supported Slurm field names include Account, AllocCPUS, Comment, Elapsed, End,
+ExitCode, JobID, JobName, NNodes, NodeList, Partition, Priority, QOS, Reason,
+ReqCPUS, Start, State, Submit, Timelimit, UID, User and WCKey.`
 
 var sacctFormatSpecRegex = regexp.MustCompile(`%\.?\d*[a-zA-Z]`)
 
@@ -1037,6 +1178,9 @@ func sinfo() *cobra.Command {
 			if FlagVerbose {
 				log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
 			}
+			if cinfo.FlagSlurmFormat != "" && cinfo.FlagSlurmFormatLong != "" {
+				return util.NewCraneErr(util.ErrorCmdArg, "-o/--format and -O/--Format cannot be used together")
+			}
 			cinfo.RootCmd.PersistentPreRun(cmd, args)
 			return cinfo.RootCmd.RunE(cmd, args)
 		},
@@ -1047,6 +1191,14 @@ func sinfo() *cobra.Command {
 	cmd.Flags().BoolVar(&FlagVerbose, "verbose", false, "")
 
 	addConfigPathFlag(cmd, &cinfo.FlagConfigFilePath)
+	// Slurm uses -h for --noheader, so help is only available as --help.
+	cmd.Flags().Bool("help", false, "Help for this command.")
+	cmd.Flags().BoolVarP(&cinfo.FlagNoHeader, "noheader", "h", false,
+		"Do not print a header on the output.")
+	cmd.Flags().StringVarP(&cinfo.FlagSlurmFormat, "format", "o", "", cinfo.SlurmSinfoFormatHelp)
+	cmd.Flags().StringVarP(&cinfo.FlagSlurmFormatLong, "Format", "O", "", cinfo.SlurmSinfoFormatLongHelp)
+	cmd.Flags().BoolVarP(&cinfo.FlagSlurmNodeView, "Node", "N", false,
+		"Print information in a node-oriented format, one line per node and partition.")
 	// cmd.Flags().BoolVarP(&cinfo.FlagSummarize, "summarize", "s", false,
 	// 	"List only a partition state summary with no node state details.")
 	cmd.Flags().BoolVarP(&cinfo.FlagListReason, "list-reasons", "R", false,
@@ -1087,12 +1239,24 @@ func squeue() *cobra.Command {
 				switch {
 				case isSlurmVerboseArg(arg) || arg == "--verbose":
 					log.Warning("The feature --verbose/-v is not yet supported by Crane, the use is ignored.")
-				case arg == "-h":
-					convertedArgs = append(convertedArgs, "-N")
+				case arg == "-h" || arg == "--noheader":
+					convertedArgs = append(convertedArgs, "--noheader")
+				case arg == "--help":
+					cmd.SetArgs(nil)
+					_ = cmd.Help()
+					os.Exit(util.ErrorSuccess)
 				case arg == "--jobs":
 					convertedArgs = append(convertedArgs, "--job")
 				case arg == "--states":
 					convertedArgs = append(convertedArgs, "--state")
+				case strings.HasPrefix(arg, "--states="):
+					convertedArgs = append(convertedArgs, "--state="+strings.TrimPrefix(arg, "--states="))
+				case arg == "--steps":
+					convertedArgs = append(convertedArgs, "--step")
+				case strings.HasPrefix(arg, "--steps="):
+					convertedArgs = append(convertedArgs, "--step="+strings.TrimPrefix(arg, "--steps="))
+				case arg == "--me":
+					convertedArgs = append(convertedArgs, "--self")
 				case arg == "-o" || arg == "--format":
 					convertedArgs = append(convertedArgs, arg)
 					if i+1 < len(args) {
@@ -1126,8 +1290,11 @@ func squeue() *cobra.Command {
 	}
 
 	addConfigPathFlag(cmd, &cqueue.FlagConfigFilePath)
-	// As --noheader will use -h, we need to add the help flag manually
-	cmd.Flags().BoolP("help", "", false, "Help for this command.")
+	// Slurm uses -h for --noheader, so help is only available as --help.
+	cmd.Flags().Bool("help", false, "Help for this command.")
+	cmd.Flags().BoolP("version", "V", false, "Print version information and exit.")
+	cmd.Flags().BoolVarP(&cqueue.FlagNoHeader, "noheader", "h", false,
+		"Do not print a header on the output.")
 	cmd.Flags().BoolVarP(&cqueue.FlagStartTime, "start", "S", false,
 		"Report the expected start time and resources to be allocated for pending jobs in order of \nincreasing start time.")
 	cmd.Flags().StringVarP(&cqueue.FlagFilterPartitions, "partition", "p", "",
@@ -1144,46 +1311,60 @@ func squeue() *cobra.Command {
 		"Specify the accounts of the jobs to view. Accepts a comma separated list of account names.")
 	cmd.Flags().Uint64VarP(&cqueue.FlagIterate, "iterate", "i", 0,
 		"Repeatedly gather and report the requested information at the interval specified (in seconds). \nBy default, prints a time stamp with the header.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterStates, "states", "t", "all",
+		"Specify the states of jobs to view: pending(p), running(r) or all.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterStepIDs, "steps", "s", "",
+		"Specify the job steps to view. Without a value, all steps are shown.")
+	cmd.Flags().Lookup("steps").NoOptDefVal = cqueue.DefaultStepIdFilter
+	cmd.Flags().StringVarP(&cqueue.FlagFilterNodeNames, "nodelist", "w", "",
+		"Report only on jobs allocated to the specified node or list of nodes.")
+	cmd.Flags().StringVarP(&cqueue.FlagFilterLicenses, "licenses", "L", "",
+		"Request jobs requesting or using one or more of the named licenses.")
+	cmd.Flags().StringVar(&cqueue.FlagFilterJobTypes, "type", "",
+		"Specify job types to view: Interactive, Batch or Container.")
+	cmd.Flags().BoolVar(&cqueue.FlagSelf, "me", false, "Equivalent to --user=<my username>.")
+	cmd.Flags().BoolVar(&cqueue.FlagDeadlineTime, "deadline", false, "Display the deadline time of jobs.")
+	cmd.Flags().BoolVarP(&cqueue.FlagFull, "full", "F", false,
+		"Display full information instead of truncating each cell to 30 characters.")
+	cmd.Flags().Uint32VarP(&cqueue.FlagNumLimit, "max-lines", "m", util.DefaultCqueueMaxLines,
+		"Limit the number of lines in the output, 0 means no limit.")
+	cmd.Flags().BoolVar(&cqueue.FlagJson, "json", false, "Output in JSON format.")
+	cmd.Flags().BoolVar(&cqueue.FlagCount, "count", false, "Output lightweight queue state counts only.")
 	cmd.Flags().StringVarP(&cqueue.FlagFormat, "format", "o", "",
 		`Specify the output format.
-	Fields are identified by a percent sign (%) followed by a character or string. 
-	Use a dot (.) and a number between % and the format character or string to specify a minimum width for the field.
-	
-Supported format identifiers or string, string case insensitive:
-	%a/%Account            - Display the account associated with the job.
-	%C/%ReqCpus            - Display the cpus requested to the job.
-	%c/%AllocCpus          - Display the cpus allocated to the job.
-	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
-	%h/%Held               - Display the hold state of the job.
-	%j/%JobID              - Display the ID of the job (array jobs use jobid_arraytaskid).
-	%k/%Comment            - Display the comment of the job.
-	%L/%NodeList           - Display the list of nodes the job is running on.
-	%l/%TimeLimit          - Display the time limit for the job.
-	%M/%ReqMemPerNode      - Display the requested mem per node of the job.
-	%m/%AllocMemPerNode    - Display the requested mem per node of the job.
-	%N/%NodeNum            - Display the number of nodes requested by the job.
-	%n/%Name               - Display the name of the job.
-	%o/%Command            - Display the command line of the job.
-	%P/%Partition          - Display the partition the job is running in.
-	%p/%Priority           - Display the priority of the job.
-	%Q/%ReqCpuPerNode      - Display the requested cpu per node of the job.
-	%q/%QoS                - Display the Quality of Service level for the job.
-	%R/%Reason             - Display the reason of pending.
-	%r/%ReqNodes           - Display the reqnodes of the job.
-	%S/%StartTime          - Display the start time of the job.
-	%s/%SubmitTime         - Display the submission time of the job.
-	%t/%State              - Display the current state of the job.
-	%T/%JobType            - Display the job type.
-	%U/%Uid                - Display the uid of the job.
-	%u/%User               - Display the user who submitted the job.
-	%X/%Exclusive          - Display the exclusive status of the job.
-	%x/%ExcludeNodes       - Display the exclude nodes of the job.
-Each format specifier or string can be modified with a width specifier (e.g., "%.5j").
-If the width is specified, the field will be formatted to at least that width. 
+	Fields are identified by a percent sign (%) followed by a Slurm format letter.
+	Use a dot (.) and a number between % and the letter to specify a minimum width for the field.
+
+Supported Slurm format specifiers:
+	%a - Account associated with the job.
+	%C - Number of CPUs requested by the job.
+	%D - Number of nodes requested by the job.
+	%i - Job ID (array jobs use jobid_arraytaskid).
+	%j - Job name.
+	%k - Comment of the job.
+	%l - Time limit of the job.
+	%M - Time used by the job.
+	%m - Memory requested per node.
+	%N - List of nodes allocated to the job.
+	%n - List of nodes requested by the job.
+	%o - Command line of the job.
+	%P - Partition of the job.
+	%p - Priority of the job.
+	%q - Quality of Service of the job.
+	%R - Pending reason for pending jobs, otherwise the allocated node list.
+	%r - Pending reason of the job.
+	%S - Start time of the job.
+	%T - Job state in extended form, e.g. PENDING, RUNNING, COMPLETED.
+	%t - Job state in compact form, e.g. PD, R, CD.
+	%U - User ID of the job.
+	%u - User name of the job.
+	%V - Submission time of the job.
+Other Slurm single-letter specifiers are rejected. Multi-letter cqueue field names
+such as %Account, %JobType or %Reason are passed through unchanged; see cqueue --help.
 If the format is invalid or unrecognized, the program will terminate with an error message.
 
-Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum width of 5,
-         Name with a minimum width of 20, and the State.
+Example: --format "%.10i %.20j %.8T %R" would output the job ID with a minimum width of 10,
+         the name with a minimum width of 20, the extended state and the node list or reason.
 `)
 	return cmd
 }
@@ -1193,28 +1374,29 @@ var squeueFormatSpecRegex = regexp.MustCompile(`%(\.?\d*)([a-zA-Z]+)`)
 // Slurm single-letter format specifiers that cqueue supports with the same
 // meaning, mapped to their cqueue specifiers.
 var squeueFormatSpecMapping = map[string]string{
-	"a": "a", // account
-	"C": "C", // requested cpus
-	"D": "N", // number of nodes
-	"i": "j", // job id
-	"j": "n", // job name
-	"k": "k", // comment
-	"l": "l", // time limit
-	"M": "e", // elapsed time
-	"m": "M", // requested memory per node
-	"N": "L", // node list
-	"n": "r", // requested nodes
-	"o": "o", // command
-	"P": "P", // partition
-	"p": "p", // priority
-	"q": "q", // qos
-	"r": "R", // reason
-	"S": "S", // start time
-	"T": "t", // job state
-	"t": "t", // state
-	"u": "u", // user
-	"U": "U", // user id
-	"V": "s", // submit time
+	"a": "a",                   // account
+	"C": "C",                   // requested cpus
+	"D": "N",                   // number of nodes
+	"i": "j",                   // job id
+	"j": "n",                   // job name
+	"k": "k",                   // comment
+	"l": "l",                   // time limit
+	"M": "e",                   // elapsed time
+	"m": "M",                   // requested memory per node
+	"N": "L",                   // node list
+	"n": "r",                   // requested nodes
+	"o": "o",                   // command
+	"P": "P",                   // partition
+	"p": "p",                   // priority
+	"q": "q",                   // qos
+	"R": "slurmnodelistreason", // pending reason, otherwise node list
+	"r": "R",                   // reason
+	"S": "S",                   // start time
+	"T": "slurmstate",          // extended job state, e.g. PENDING
+	"t": "slurmstatecompact",   // compact job state, e.g. PD
+	"u": "u",                   // user
+	"U": "U",                   // user id
+	"V": "s",                   // submit time
 }
 
 // convertSqueueFormat rewrites the Slurm single-letter format specifiers in a

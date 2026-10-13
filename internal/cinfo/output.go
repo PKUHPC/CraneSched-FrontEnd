@@ -414,6 +414,20 @@ func trimTableLinePadding(output string) string {
 }
 
 func QueryTableOutput(reply *protos.QueryClusterInfoReply, aliases map[string]string) error {
+	if UseSlurmFormat() {
+		lines, err := FormatSlurmSinfo(reply)
+		if err != nil {
+			return err
+		}
+		for _, line := range lines {
+			fmt.Println(line)
+		}
+		if len(FlagFilterNodes) != 0 {
+			ExtraDealNodeList(reply, aliases)
+		}
+		return nil
+	}
+
 	var output bytes.Buffer
 	table := tablewriter.NewWriter(&output)
 	util.SetBorderlessTable(table)

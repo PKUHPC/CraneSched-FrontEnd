@@ -62,3 +62,31 @@ func FormatSlurmNodeState(resourceState protos.CranedResourceState,
 
 	return strings.Join(states, "+")
 }
+
+var slurmJobStates = map[protos.JobStatus][2]string{
+	protos.JobStatus_Pending:         {"PENDING", "PD"},
+	protos.JobStatus_Running:         {"RUNNING", "R"},
+	protos.JobStatus_Completed:       {"COMPLETED", "CD"},
+	protos.JobStatus_Failed:          {"FAILED", "F"},
+	protos.JobStatus_ExceedTimeLimit: {"TIMEOUT", "TO"},
+	protos.JobStatus_Cancelled:       {"CANCELLED", "CA"},
+	protos.JobStatus_OutOfMemory:     {"OUT_OF_MEMORY", "OOM"},
+	protos.JobStatus_Configuring:     {"CONFIGURING", "CF"},
+	protos.JobStatus_Starting:        {"CONFIGURING", "CF"},
+	protos.JobStatus_Completing:      {"COMPLETING", "CG"},
+	protos.JobStatus_Suspended:       {"SUSPENDED", "S"},
+	protos.JobStatus_Deadline:        {"DEADLINE", "DL"},
+}
+
+// FormatSlurmJobState returns the Slurm extended (e.g. PENDING) or compact
+// (e.g. PD) job state name. Unknown states fall back to the upper-case name.
+func FormatSlurmJobState(status protos.JobStatus, compact bool) string {
+	names, ok := slurmJobStates[status]
+	if !ok {
+		return strings.ToUpper(status.String())
+	}
+	if compact {
+		return names[1]
+	}
+	return names[0]
+}

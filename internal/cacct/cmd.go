@@ -44,6 +44,9 @@ var (
 	FlagFull             bool
 	FlagJson             bool
 	FlagDeadlineTime     bool
+	// Set by the sacct wrapper for Slurm --parsable/--parsable2 output.
+	FlagParsable  bool
+	FlagParsable2 bool
 
 	RootCmd = &cobra.Command{
 		Use:           "cacct [flags]",
