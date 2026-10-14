@@ -480,6 +480,10 @@ func executeAddResourceCommand(command *CAcctMgrCommand) error {
 		}
 	}
 
+	if FlagResourceName == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, "required entity resource not set")
+	}
+
 	if hasCluster != hasAllowed {
 		return util.NewCraneErr(util.ErrorCmdArg, "'allowed' and 'cluster' must be specified together")
 	}
@@ -509,16 +513,16 @@ func executeDeleteCommand(command *CAcctMgrCommand) error {
 func executeDeleteAccountCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = command.GetID()
 
-	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity account not set"))
-	}
-
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
 		}
+	}
+
+	if FlagEntityName == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity account not set"))
 	}
 	return DeleteAccount(FlagEntityName)
 }
@@ -527,10 +531,6 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) error {
 	// Reset related flags
 	FlagEntityName = command.GetID()
 	FlagEntityAccount = ""
-
-	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity user not set"))
-	}
 
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
@@ -544,6 +544,10 @@ func executeDeleteUserCommand(command *CAcctMgrCommand) error {
 		}
 	}
 
+	if FlagEntityName == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity user not set"))
+	}
+
 	return DeleteUser(FlagEntityName, FlagEntityAccount)
 }
 
@@ -551,16 +555,16 @@ func executeDeleteQosCommand(command *CAcctMgrCommand) error {
 	// Reset FlagEntityName
 	FlagEntityName = command.GetID()
 
-	if FlagEntityName == "" {
-		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity qos not set"))
-	}
-
 	KVParams := command.GetKVMaps()
 	for key, value := range KVParams {
 		switch strings.ToLower(key) {
 		case "name":
 			FlagEntityName = value
 		}
+	}
+
+	if FlagEntityName == "" {
+		return util.NewCraneErr(util.ErrorCmdArg, fmt.Sprintln("required entity qos not set"))
 	}
 	return DeleteQos(FlagEntityName)
 }
@@ -596,10 +600,15 @@ func executeDeleteWckeyCommand(command *CAcctMgrCommand) error {
 func executeDeleteResourceCommand(command *CAcctMgrCommand) error {
 	FlagEntityName = command.GetID()
 	FlagServer := ""
+	KVParams := command.GetKVMaps()
+	for key, value := range KVParams {
+		if strings.EqualFold(key, "name") {
+			FlagEntityName = value
+		}
+	}
 	if FlagEntityName == "" {
 		return util.NewCraneErr(util.ErrorCmdArg, "required entity resource not set")
 	}
-	KVParams := command.GetKVMaps()
 
 	// When deleting ALL, server param is not required
 	if strings.ToUpper(FlagEntityName) != "ALL" {
@@ -1523,7 +1532,7 @@ func executeShowCommand(command *CAcctMgrCommand) error {
 
 func executeShowAccountCommand(command *CAcctMgrCommand) error {
 	name := command.GetID()
-	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+	if nameParam := command.GetFilterValue("name"); nameParam != "" {
 		name = nameParam
 	}
 	if name == "" {
@@ -1540,11 +1549,11 @@ func executeShowWckeyCommand(command *CAcctMgrCommand) error {
 
 func executeShowUserCommand(command *CAcctMgrCommand) error {
 	name := command.GetID()
-	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+	if nameParam := command.GetFilterValue("name"); nameParam != "" {
 		name = nameParam
 	}
 
-	account := command.GetKVParamValue("account")
+	account := command.GetFilterValue("account")
 	return ShowUser(name, account)
 }
 
@@ -1581,7 +1590,7 @@ func executeShowEventCommand(command *CAcctMgrCommand) error {
 
 func executeShowQosCommand(command *CAcctMgrCommand) error {
 	name := command.GetID()
-	if nameParam := command.GetKVParamValue("name"); nameParam != "" {
+	if nameParam := command.GetFilterValue("name"); nameParam != "" {
 		name = nameParam
 	}
 

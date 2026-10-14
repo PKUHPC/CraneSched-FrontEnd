@@ -62,7 +62,7 @@ func showHelp() {
       QosList=<qos1,qos2,...>    Allowed QoS list (comma-separated)
       Name=<name1,name2,...>    List of account name for batch creation
   
-	delete account <name>
+	delete account <name> | Name=<name1,name2,...>
     Remove the specified account(s) from the system.
     Parameter details:
       Name=<name1,name2,...>    Name of accounts to delete (comma-separated)
@@ -71,6 +71,7 @@ func showHelp() {
     Display information about accounts.
     Parameter details:
       Name=<name1,name2,...>    Show only these accounts (comma-separated)
+      (Equivalent forms: show account <name1,...> / show account where Name=<name1,...>)
       (If not specified, all accounts will be displayed)
       format=<Name,Description,AllowedPartition,Users,DefaultQos,AllowedQosList,
               Coordinators,Blocked> (Spelling must be correct, case is not important)
@@ -99,6 +100,7 @@ func showHelp() {
     Parameter details:
       Account=<account>          Show users of this account only
       Name=<name1,name2,...>    Show only these users (comma-separated)
+      (Equivalent forms: show user <name1,...> / show user where Name=<name1,...> [Account=<account>])
       (If not specified, all users will be displayed)
       format=<Account,UserName,Uid,AllowedPartition,AllowedQosList,DefaultQos,Coordinated,
               AdminLevel,Blocked> (Spelling must be correct, case is not important)
@@ -212,6 +214,7 @@ func showHelp() {
     Display information about QoS.
     Parameter details:
       Name=<name1,name2,...>    Show only these QoS (comma-separated)
+      (Equivalent forms: show qos <name1,...> / show qos where Name=<name1,...>)
       (If not specified, all QoS will be displayed)
       format=<Name,Description,Priority,MaxJobsPerUser,MaxCpusPerUser,MaxJobsPerAccount,
               MaxSubmitJobsPerUser,MaxSubmitJobsPerAccount,MaxTresPerUser,MaxTresPerAccount,

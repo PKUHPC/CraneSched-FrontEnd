@@ -36,7 +36,7 @@ type CAcctMgrCommand struct {
 type AddCommand struct {
 	Action      string           `parser:"@'add'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	ID          string           `parser:"( (?! Ident AssignOp) ( @String | @Ident | @Number ) )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -44,7 +44,7 @@ type AddCommand struct {
 type DeleteCommand struct {
 	Action      string           `parser:"@'delete'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	ID          string           `parser:"( (?! Ident AssignOp) ( @String | @Ident | @Number ) )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -52,7 +52,7 @@ type DeleteCommand struct {
 type BlockCommand struct {
 	Action      string           `parser:"@'block'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	ID          string           `parser:"( (?! Ident AssignOp) ( @String | @Ident | @Number ) )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -60,7 +60,7 @@ type BlockCommand struct {
 type UnblockCommand struct {
 	Action      string           `parser:"@'unblock'"`
 	Entity      *EntityType      `parser:"@@"`
-	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	ID          string           `parser:"( (?! Ident AssignOp) ( @String | @Ident | @Number ) )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -77,7 +77,7 @@ type ModifyCommand struct {
 type ShowCommand struct {
 	Action      string           `parser:"@'show'"`
 	Entity      *EntityType      `parser:"@@?"`
-	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	ID          string           `parser:"( (?! Ident AssignOp) ( @String | @Ident | @Number ) )?"`
 	Where       *WhereClause     `parser:"@@?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
@@ -85,7 +85,7 @@ type ShowCommand struct {
 
 type ResetCommand struct {
 	Action      string           `parser:"@'reset'"`
-	ID          string           `parser:"( @String | @Ident | @Number )?"`
+	ID          string           `parser:"( (?! Ident AssignOp) ( @String | @Ident | @Number ) )?"`
 	KVParams    []*KeyValueParam `parser:"@@*"`
 	GlobalFlags []*Flag          `parser:"@@*"`
 }
@@ -249,6 +249,20 @@ func (c *CAcctMgrCommand) GetKVParamValue(key string) string {
 	for _, param := range params {
 		if strings.EqualFold(param.Key, key) {
 			return unquoteIfQuoted(param.Value)
+		}
+	}
+	return ""
+}
+
+// GetFilterValue returns a show filter given either as Key=value or inside a
+// where clause, so both the documented and the Slurm-style forms work.
+func (c *CAcctMgrCommand) GetFilterValue(key string) string {
+	if value := c.GetKVParamValue(key); value != "" {
+		return value
+	}
+	for whereKey, value := range c.GetWhereParams() {
+		if strings.EqualFold(whereKey, key) {
+			return value
 		}
 	}
 	return ""
