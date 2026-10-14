@@ -28,6 +28,9 @@ var (
 const (
 	SlurmDefaultFormat     = "%#P %.5a %.10l %.6D %.6t %N"
 	SlurmDefaultNodeFormat = "%#N %.6D %#P %6t"
+	// Slurm's -R default also has USER and TIMESTAMP columns, which the
+	// controller does not report.
+	SlurmDefaultReasonFormat = "%#E %N"
 )
 
 const autoWidth = -2
@@ -299,10 +302,10 @@ func buildSlurmSinfoRows(reply *protos.QueryClusterInfoReply, nodeView bool) []*
 	return rows
 }
 
-// UseSlurmFormat reports whether the Slurm-style renderer should be used.
+// UseSlurmFormat reports whether the Slurm-style renderer should be used. All
+// sinfo wrapper output uses it; -o/-O/-N/-R only select the columns and rows.
 func UseSlurmFormat() bool {
-	return util.IsSlurmOutputMode() &&
-		(FlagSlurmFormat != "" || FlagSlurmFormatLong != "" || FlagSlurmNodeView)
+	return util.IsSlurmOutputMode()
 }
 
 func slurmSinfoColumns() ([]slurmSinfoColumn, error) {
@@ -313,6 +316,8 @@ func slurmSinfoColumns() ([]slurmSinfoColumn, error) {
 		return parseSlurmSinfoFormat(FlagSlurmFormat)
 	case FlagSlurmNodeView:
 		return parseSlurmSinfoFormat(SlurmDefaultNodeFormat)
+	case FlagListReason:
+		return parseSlurmSinfoFormat(SlurmDefaultReasonFormat)
 	default:
 		return parseSlurmSinfoFormat(SlurmDefaultFormat)
 	}
@@ -325,6 +330,9 @@ func FormatSlurmSinfo(reply *protos.QueryClusterInfoReply) ([]string, error) {
 		return nil, util.NewCraneErr(util.ErrorInvalidFormat, err.Error())
 	}
 	rows := buildSlurmSinfoRows(reply, FlagSlurmNodeView)
+	if FlagListReason {
+		rows = filterSlurmReasonRows(rows)
+	}
 	resolveAutoWidths(columns, rows)
 
 	var lines []string
@@ -335,6 +343,26 @@ func FormatSlurmSinfo(reply *protos.QueryClusterInfoReply) ([]string, error) {
 		lines = append(lines, renderSlurmSinfoLine(columns, row))
 	}
 	return lines, nil
+}
+
+// filterSlurmReasonRows keeps down or drained nodes for -R. A node set listed
+// under several partitions is reported once, as in Slurm.
+func filterSlurmReasonRows(rows []*slurmSinfoRow) []*slurmSinfoRow {
+	seen := map[string]bool{}
+	var filtered []*slurmSinfoRow
+	for _, row := range rows {
+		if !row.hasNodes || (row.resource != protos.CranedResourceState_CRANE_DOWN &&
+			row.control != protos.CranedControlState_CRANE_DRAIN) {
+			continue
+		}
+		key := row.reason + "\x00" + row.nodeList
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		filtered = append(filtered, row)
+	}
+	return filtered
 }
 
 func resolveAutoWidths(columns []slurmSinfoColumn, rows []*slurmSinfoRow) {

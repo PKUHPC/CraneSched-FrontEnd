@@ -147,12 +147,85 @@ func TestFormatSlurmSinfoRejectsUnsupportedFields(t *testing.T) {
 }
 
 func TestUseSlurmFormatOnlyInSlurmMode(t *testing.T) {
-	setSlurmSinfoFlags(t, "%P", "", false, false)
+	setSlurmSinfoFlags(t, "", "", false, false)
 	if !UseSlurmFormat() {
-		t.Fatal("UseSlurmFormat() = false in Slurm mode with -o")
+		t.Fatal("UseSlurmFormat() = false for default sinfo in Slurm mode")
 	}
 	util.SetOutputMode(util.OutputModeNative)
 	if UseSlurmFormat() {
 		t.Fatal("UseSlurmFormat() = true in native mode")
+	}
+}
+
+func TestFormatSlurmSinfoDefaults(t *testing.T) {
+	tests := []struct {
+		name       string
+		noHeader   bool
+		listReason bool
+		want       []string
+	}{
+		{
+			name: "default six columns",
+			want: []string{
+				"PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST",
+				"CPU*         up   infinite      2   idle crnd[1-2]",
+				"CPU*         up   infinite      1  drain crnd3",
+				"GPU        down   infinite      0    n/a",
+			},
+		},
+		{
+			name:     "noheader keeps all columns",
+			noHeader: true,
+			want: []string{
+				"CPU*         up   infinite      2   idle crnd[1-2]",
+				"CPU*         up   infinite      1  drain crnd3",
+				"GPU        down   infinite      0    n/a",
+			},
+		},
+		{
+			name:       "list reasons",
+			listReason: true,
+			want:       []string{"REASON      NODELIST", "maintenance crnd3"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setSlurmSinfoFlags(t, "", "", false, tt.noHeader)
+			oldListReason := FlagListReason
+			t.Cleanup(func() { FlagListReason = oldListReason })
+			FlagListReason = tt.listReason
+			got, err := FormatSlurmSinfo(slurmSinfoTestReply())
+			if err != nil {
+				t.Fatalf("FormatSlurmSinfo() error: %v", err)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("FormatSlurmSinfo() =\n%q\nwant\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatSlurmSinfoListReasonsDeduplicatesPartitions(t *testing.T) {
+	setSlurmSinfoFlags(t, "", "", false, false)
+	oldListReason := FlagListReason
+	t.Cleanup(func() { FlagListReason = oldListReason })
+	FlagListReason = true
+
+	drained := &protos.TrimmedPartitionInfo_TrimmedCranedInfo{
+		ResourceState: protos.CranedResourceState_CRANE_IDLE,
+		ControlState:  protos.CranedControlState_CRANE_DRAIN,
+		Count:         1, CranedListRegex: "crnd2", Reason: "add test reason",
+	}
+	reply := &protos.QueryClusterInfoReply{Ok: true, Partitions: []*protos.TrimmedPartitionInfo{
+		{Name: "computing*", State: protos.PartitionState_PARTITION_UP, CranedLists: []*protos.TrimmedPartitionInfo_TrimmedCranedInfo{drained}},
+		{Name: "CPU", State: protos.PartitionState_PARTITION_UP, CranedLists: []*protos.TrimmedPartitionInfo_TrimmedCranedInfo{drained}},
+	}}
+	got, err := FormatSlurmSinfo(reply)
+	if err != nil {
+		t.Fatalf("FormatSlurmSinfo() error: %v", err)
+	}
+	want := []string{"REASON          NODELIST", "add test reason crnd2"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("FormatSlurmSinfo() = %q, want %q", got, want)
 	}
 }
