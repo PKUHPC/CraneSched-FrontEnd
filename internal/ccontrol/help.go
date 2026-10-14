@@ -85,8 +85,10 @@ COMMANDS:
 
   update nodeName=<nodename> state=<state> [reason=<reason>]
     Update attributes of a node.
-    state: Valid states are 'drain' or 'resume'
+    state: Valid states are 'drain', 'resume', 'future', 'on', 'off', 'sleep' or 'wake'
     reason: Required when setting state to 'drain'
+    future: Release a FUTURE node's machine binding while preserving its definition.
+            Stop its craned first; jobs and reservations must have finished.
 
   update jobid=<jobid> [priority=<priority>] [timelimit=<timelimit>] [comment=<comment>] [mailuser=<mailuser>] [mailtype=<mailtype>] [deadline=<deadline>]
     Update attributes of a job.
@@ -125,8 +127,8 @@ COMMANDS:
     suffixes B, K, M and G are supported. Sockets defaults to 1.
 
   delete node NodeName=<hostlist>
-    Delete eligible dynamic nodes, or reset mapped configured FUTURE nodes.
-    Nodes must have no running jobs or active reservations.
+    Delete nodes created at runtime.
+    Nodes must have no allocated or completing jobs or reservations.
 
   create reservation <name> [startTime=<time>] [duration=<duration>] [partition=<partition>]
                     [nodes=<nodelist>] [account=<account>] [user=<username>]

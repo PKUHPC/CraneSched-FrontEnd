@@ -314,7 +314,7 @@ func executeUpdateCommand(command *CControlCommand) error {
 func executeUpdateNodeCommand(command *CControlCommand) error {
 	kvParams := command.GetKVMaps()
 
-	if err := checkEmptyKVParams(kvParams, []string{"state", "reason"}); err != nil {
+	if err := checkEmptyKVParams(kvParams, []string{"state"}); err != nil {
 		return err
 	}
 
