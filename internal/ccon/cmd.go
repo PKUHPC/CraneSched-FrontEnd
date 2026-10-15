@@ -209,7 +209,7 @@ func InitializeCommandFlags() {
 	RunCmd.Flags().BoolVarP(&f.Run.Interactive, "interactive", "i", false, "Make STDIN available to the contained process")
 	RunCmd.Flags().BoolVarP(&f.Run.Tty, "tty", "t", false, "Allocate a pseudo-TTY for container")
 	RunCmd.Flags().StringVar(&f.Run.Entrypoint, "entrypoint", "", "Override the default entrypoint of the image")
-	RunCmd.Flags().StringVarP(&f.Run.User, "user", "u", "", "UID (format: <uid>[:<gid>]). With --userns=false, only current user and accessible groups are allowed")
+	RunCmd.Flags().StringVarP(&f.Run.User, "user", "u", "", "UID[:GID]; mapped container IDs with userns (default 0:0), otherwise submitter UID/effective GID")
 	RunCmd.Flags().BoolVar(&f.Run.UserNS, "userns", util.DefaultUserNsEnabledByDefault, "Enable user namespace; default follows Container.UserNsEnabledByDefault in config")
 	RunCmd.Flags().Lookup("userns").DefValue = "from config"
 	RunCmd.Flags().StringVarP(&f.Run.Workdir, "workdir", "w", "", "Working directory inside the container")

@@ -126,7 +126,6 @@ var (
 				return util.NewCraneErr(util.ErrorCmdArg, "--repeat is incompatible with --array")
 			}
 
-			job.Uid = uint32(os.Getuid())
 			job.CmdLine = strings.Join(os.Args, " ")
 
 			// Process the content of --get-user-env

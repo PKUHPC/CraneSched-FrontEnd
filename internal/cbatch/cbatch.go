@@ -49,6 +49,7 @@ var (
 // BuildCbatchJob reads flags and script file to build a job
 func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*protos.JobToCtld, error) {
 	job := new(protos.JobToCtld)
+	job.Uid = uint32(os.Getuid())
 	gids, err := util.CollectEffectiveGroups()
 	if err != nil {
 		return nil, err
@@ -103,6 +104,17 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	// Set args from the script
 	if err := applyScriptArgs(cmd, cbatchArgs, job, &structExtraFromScript, &podOpts); err != nil {
 		return nil, err
+	}
+
+	// CLI overrides are now known, so finalize and validate the container
+	// identity before processing the remaining submission options.
+	if job.Type == protos.JobType_Container {
+		overridePodFromFlags(cmd, &podOpts)
+		podMeta, err := buildPodMeta(job, &podOpts)
+		if err != nil {
+			return nil, fmt.Errorf("invalid container options: %v", err)
+		}
+		job.PodMeta = podMeta
 	}
 
 	var extraFromScript string
@@ -197,6 +209,9 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 	}
 	if cmd.Flags().Changed("job-name") {
 		job.Name = FlagJob
+	}
+	if job.PodMeta != nil && podOpts.name == "" {
+		job.PodMeta.Name = job.Name
 	}
 	if cmd.Flags().Changed("qos") {
 		job.Qos = FlagQos
@@ -298,16 +313,6 @@ func BuildCbatchJob(cmd *cobra.Command, args []string, config *util.Config) (*pr
 		for _, signal := range signals {
 			job.Signals = append(job.Signals, signal)
 		}
-	}
-
-	// Set pod meta if it's a container job
-	if job.Type == protos.JobType_Container {
-		overridePodFromFlags(cmd, &podOpts)
-		podMeta, err := buildPodMeta(job, &podOpts)
-		if err != nil {
-			return nil, fmt.Errorf("invalid container options: %v", err)
-		}
-		job.PodMeta = podMeta
 	}
 
 	// Set and check the extra attributes
