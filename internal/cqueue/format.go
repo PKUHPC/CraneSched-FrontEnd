@@ -24,9 +24,12 @@ func ProcessAllocCpus(job *protos.JobInfo) string {
 
 // 'C' group
 func ProcessReqCpuPerTask(job *protos.JobInfo) string {
+	if job.Ntasks == nil {
+		return "unknown"
+	}
 	totalCpu := job.GetReqTotalResView().GetCpuCount()
-	if job.Ntasks > 0 {
-		return strconv.FormatFloat(totalCpu/float64(job.Ntasks), 'f', 2, 64)
+	if job.GetNtasks() > 0 {
+		return strconv.FormatFloat(totalCpu/float64(job.GetNtasks()), 'f', 2, 64)
 	}
 	return strconv.FormatFloat(totalCpu, 'f', 2, 64)
 }

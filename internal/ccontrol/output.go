@@ -795,11 +795,11 @@ func printResourceRequests(job *protos.JobInfo) {
 	totalCpu := job.GetReqTotalResView().GetCpuCount()
 	totalMem := job.GetReqTotalResView().GetMemoryBytes()
 
-	var cpusPerTask float64
+	cpusPerTask := "Unknown"
 	var memPerNode uint64
 
-	if job.Ntasks > 0 {
-		cpusPerTask = totalCpu / float64(job.Ntasks)
+	if job.GetNtasks() > 0 {
+		cpusPerTask = fmt.Sprint(totalCpu / float64(job.GetNtasks()))
 	}
 	if job.NodeNum > 0 {
 		memPerNode = totalMem / uint64(job.NodeNum)
@@ -810,12 +810,16 @@ func printResourceRequests(job *protos.JobInfo) {
 		job.Priority, job.Qos,
 		cpusPerTask,
 		util.FormatMemToMB(memPerNode))
+	requestedGres := "Unknown"
+	if job.GetReqTotalResView().GetGresMap() != nil {
+		requestedGres = formatGresMap(job.GetReqTotalResView().GetGresMap())
+	}
 	// ReqRes
 	fmt.Printf("\tReqRes:node=%d cpu=%.2f mem=%v gres=%s\n",
 		job.NodeNum,
 		totalCpu,
 		util.FormatMemToMB(totalMem),
-		formatGresMap(job.GetReqTotalResView().GetGresMap()))
+		requestedGres)
 	// AllocRes
 	if job.Status == protos.JobStatus_Running {
 		fmt.Printf("\tAllocRes:node=%d cpu=%.2f mem=%v gres=%s\n",

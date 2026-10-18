@@ -100,3 +100,16 @@ func TestShowConfigRemainsLocalAndPublic(t *testing.T) {
 		}
 	}
 }
+
+func TestHistoricalResourceRequestsKeepUnknownValues(t *testing.T) {
+	job := &protos.JobInfo{ReqTotalResView: &protos.ResourceView{CpuCount: 12}}
+	output, err := testutil.CaptureStdout(t, func() error { printResourceRequests(job); return nil })
+	if err != nil || !strings.Contains(output, "CpusPerTask=Unknown") || !strings.Contains(output, "gres=Unknown") {
+		t.Fatalf("unknown history output=%q err=%v", output, err)
+	}
+	job.ReqTotalResView.GresMap = &protos.GresMap{}
+	output, err = testutil.CaptureStdout(t, func() error { printResourceRequests(job); return nil })
+	if err != nil || !strings.Contains(output, "gres=None") {
+		t.Fatalf("empty request output=%q err=%v", output, err)
+	}
+}
