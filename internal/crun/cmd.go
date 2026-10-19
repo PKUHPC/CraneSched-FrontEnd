@@ -46,6 +46,7 @@ var (
 	FlagExport             string
 	FlagGres               string
 	FlagDependency         string
+	FlagExternalLauncher   bool
 
 	FlagInput       string
 	FlagOutput      string
@@ -141,6 +142,7 @@ func init() {
 
 	RootCmd.Flags().BoolVar(&FlagGetUserEnv, "get-user-env", false, "Load login environment variables of the user")
 	RootCmd.Flags().StringVar(&FlagExport, "export", "", "Propagate environment variables")
+	RootCmd.Flags().BoolVar(&FlagExternalLauncher, "external-launcher", false, "")
 
 	RootCmd.Flags().StringVarP(&FlagInput, "input", "i", "all", "Source and destination of stdin redirection")
 	RootCmd.Flags().StringVarP(&FlagOutput, "output", "o", "all", "Source and destination of stdout redirection")

@@ -24,9 +24,15 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func setInheritedStepFieldsFromEnv(step *protos.StepToCtld) error {
+	if value, exists := os.LookupEnv("SLURM_EXTERNAL_LAUNCHER"); exists {
+		value = strings.TrimSpace(strings.ToLower(value))
+		step.ExternalLauncher = step.ExternalLauncher ||
+			(value != "" && value != "0" && value != "false" && value != "no")
+	}
 	if ntasksString, exists := os.LookupEnv("CRANE_NTASKS"); exists {
 		ntasks, err := strconv.ParseUint(ntasksString, 10, 32)
 		if err != nil {
