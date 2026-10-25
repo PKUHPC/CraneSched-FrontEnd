@@ -53,17 +53,16 @@ type GlobalVariables struct {
 	// state machine may think the channel of a calloc is not in both maps
 	// but the channel is actually being moving from one map to another map.
 	ctldReplyChannelMapMtx sync.Mutex
+	frontEndsStopping      bool // Protected by ctldReplyChannelMapMtx.
+	frontEndWG             sync.WaitGroup
 
 	// Used by Cfored <--> Ctld state machine to de-multiplex messages
 	// Used for calloc/crun with job id not allocated.
 	// A calloc is identified by its pid.
 	ctldReplyChannelMapByPid map[int32]chan *protos.StreamCtldReply
 
-	// Used for cattach processes waiting for STEP_META_REPLY (before job id
-	// is confirmed). Kept separate from ctldReplyChannelMapByPid so that
-	// WaitAllFrontEnd can send the correct termination message type to each
-	// class (JOB_ID_REPLY for crun/calloc, STEP_META_REPLY(Ok=false) for cattach
-	// that are still waiting for step metadata).
+	// Used for cattach processes waiting for STEP_META_REPLY. Kept separate
+	// from crun/calloc requests, which receive JOB_ID_REPLY.
 	// The map key (int32) is the cattach process PID.
 	ctldReplyChannelMapForCattachByPid map[int32]chan *protos.StreamCtldReply
 
@@ -88,6 +87,35 @@ type GlobalVariables struct {
 }
 
 var gVars GlobalVariables
+
+// Serialize admission with WaitAllFrontEnd, so no Add can follow its Wait.
+func startFrontEnd() bool {
+	gVars.ctldReplyChannelMapMtx.Lock()
+	defer gVars.ctldReplyChannelMapMtx.Unlock()
+	if gVars.frontEndsStopping || gVars.globalCtx.Err() != nil {
+		return false
+	}
+	gVars.frontEndWG.Add(1)
+	return true
+}
+
+func waitFrontEnds() {
+	gVars.ctldReplyChannelMapMtx.Lock()
+	gVars.frontEndsStopping = true
+	gVars.ctldReplyChannelMapMtx.Unlock()
+	gVars.frontEndWG.Wait()
+}
+
+// Existing sessions may queue requests while Ctld reconnects. Shutdown must
+// unblock producers even when the queue is full and its consumer has stopped.
+func sendCtldRequest(request *protos.StreamCforedRequest) bool {
+	select {
+	case <-gVars.globalCtx.Done():
+		return false
+	case gVars.cforedRequestCtldChannel <- request:
+		return true
+	}
+}
 
 const gReloadSignal = syscall.SIGUSR2
 

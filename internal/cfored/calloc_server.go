@@ -24,20 +24,43 @@ const (
 )
 
 func (cforedServer *GrpcCforedServer) CallocStream(toCallocStream protos.CraneForeD_CallocStreamServer) error {
+	if !startFrontEnd() {
+		return nil
+	}
+	defer gVars.frontEndWG.Done()
+
 	var callocPid int32
 	var jobId uint32
 	var stepId uint32
 	var reply *protos.StreamCallocReply
+	var completionAck *protos.StreamCtldReply
 	var step StepIdentifier
 
 	requestChannel := make(chan grpcMessage[protos.StreamCallocRequest], 8)
-	go grpcStreamReceiver[protos.StreamCallocRequest](toCallocStream, requestChannel)
+	receiverDone := make(chan struct{})
+	defer close(receiverDone)
+	go grpcStreamReceiver[protos.StreamCallocRequest](toCallocStream, requestChannel, receiverDone)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
 
 	jobId = math.MaxUint32
 	stepId = math.MaxUint32
 	callocPid = -1
+
+	defer func() {
+		gVars.ctldReplyChannelMapMtx.Lock()
+		if gVars.ctldReplyChannelMapByPid[callocPid] == ctldReplyChannel {
+			delete(gVars.ctldReplyChannelMapByPid, callocPid)
+		}
+		ownsStep := gVars.ctldReplyChannelMapByStep[step] == ctldReplyChannel
+		if ownsStep {
+			delete(gVars.ctldReplyChannelMapByStep, step)
+			gVars.pidStepMapMtx.Lock()
+			delete(gVars.pidStepMap, callocPid)
+			gVars.pidStepMapMtx.Unlock()
+		}
+		gVars.ctldReplyChannelMapMtx.Unlock()
+	}()
 
 	state := WaitJobIdAllocReq
 
@@ -47,16 +70,15 @@ CforedStateMachineLoop:
 		case WaitJobIdAllocReq:
 			log.Debug("[Cfored<->Calloc] Enter State WAIT_JOB_ID_ALLOC_REQ")
 
-			item := <-requestChannel
+			var item grpcMessage[protos.StreamCallocRequest]
+			select {
+			case item = <-requestChannel:
+			case <-gVars.globalCtx.Done():
+				return nil
+			}
 			callocRequest, err := item.message, item.err
-			if err != nil { // Failure Edge
-				switch err {
-				case io.EOF:
-					fallthrough
-				default:
-					log.Fatal(err)
-					return nil
-				}
+			if err != nil {
+				return err
 			}
 
 			log.Debug("[Cfored<->Calloc] Receive JobIdAllocReq")
@@ -130,7 +152,9 @@ CforedStateMachineLoop:
 					},
 				}
 
-				gVars.cforedRequestCtldChannel <- cforedRequest
+				if !sendCtldRequest(cforedRequest) {
+					return nil
+				}
 
 				state = WaitCtldAllocJobId
 			}
@@ -139,6 +163,8 @@ CforedStateMachineLoop:
 			log.Debug("[Cfored<->Calloc] Enter State WAIT_CTLD_ALLOC_JOB_ID")
 
 			select {
+			case <-gVars.globalCtx.Done():
+				return nil
 			case item := <-requestChannel:
 				callocRequest, err := item.message, item.err
 				if callocRequest != nil || err == nil {
@@ -200,6 +226,8 @@ CforedStateMachineLoop:
 			log.Debug("[Cfored<->Calloc] Enter State WAIT_CTLD_ALLOC_RES")
 
 			select {
+			case <-gVars.globalCtx.Done():
+				return nil
 			case item := <-requestChannel:
 				callocRequest, err := item.message, item.err
 				if callocRequest != nil || err == nil {
@@ -243,6 +271,8 @@ CforedStateMachineLoop:
 			log.Debug("[Cfored<->Calloc] Enter State WAIT_CALLOC_COMPLETE")
 
 			select {
+			case <-gVars.globalCtx.Done():
+				return nil
 			case ctldReply := <-ctldReplyChannel:
 				log.Tracef("[Cfored<->Calloc] Receive %s from CraneCtld", ctldReply.Type.String())
 				switch ctldReply.Type {
@@ -250,7 +280,7 @@ CforedStateMachineLoop:
 					state = WaitCallocCancel
 
 				case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
-					ctldReplyChannel <- ctldReply
+					completionAck = ctldReply
 					state = WaitCtldAck
 				}
 
@@ -281,7 +311,9 @@ CforedStateMachineLoop:
 							},
 						},
 					}
-					gVars.cforedRequestCtldChannel <- toCtldRequest
+					if !sendCtldRequest(toCtldRequest) {
+						return nil
+					}
 
 					state = WaitCtldAck
 				}
@@ -303,7 +335,12 @@ CforedStateMachineLoop:
 					"The connection to calloc was broken.", err.Error())
 				state = CancelJobOfDeadCalloc
 			} else {
-				item := <-requestChannel
+				var item grpcMessage[protos.StreamCallocRequest]
+				select {
+				case item = <-requestChannel:
+				case <-gVars.globalCtx.Done():
+					return nil
+				}
 				callocRequest, err := item.message, item.err
 				if err != nil { // Failure Edge
 					switch err {
@@ -331,7 +368,9 @@ CforedStateMachineLoop:
 							},
 						},
 					}
-					gVars.cforedRequestCtldChannel <- toCtldRequest
+					if !sendCtldRequest(toCtldRequest) {
+						return nil
+					}
 
 					state = WaitCtldAck
 				}
@@ -340,10 +379,16 @@ CforedStateMachineLoop:
 		case WaitCtldAck:
 			log.Debug("[Cfored<->Calloc] Enter State WAIT_CTLD_ACK")
 
-			ctldReply := <-ctldReplyChannel
-			if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+			if completionAck == nil {
+				select {
+				case completionAck = <-ctldReplyChannel:
+				case <-gVars.globalCtx.Done():
+					return nil
+				}
+			}
+			if completionAck.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
 				log.Warningf("[Cfored<->Calloc] Expect JOB_COMPLETION_ACK_REPLY, "+
-					"but %s received.", ctldReply.Type)
+					"but %s received.", completionAck.Type)
 			} else {
 				log.Tracef("[Cfored<->Calloc] JOB_COMPLETION_ACK_REPLY of job #%d received",
 					jobId)
@@ -357,10 +402,6 @@ CforedStateMachineLoop:
 					},
 				},
 			}
-
-			gVars.ctldReplyChannelMapMtx.Lock()
-			delete(gVars.ctldReplyChannelMapByStep, step)
-			gVars.ctldReplyChannelMapMtx.Unlock()
 
 			if err := toCallocStream.Send(reply); err != nil {
 				log.Errorf("[Cfored<->Calloc] The stream to calloc executing "+
@@ -383,10 +424,17 @@ CforedStateMachineLoop:
 					},
 				},
 			}
-			gVars.cforedRequestCtldChannel <- toCtldRequest
+			if !sendCtldRequest(toCtldRequest) {
+				return nil
+			}
 
 			for {
-				ctldReply := <-ctldReplyChannel
+				var ctldReply *protos.StreamCtldReply
+				select {
+				case ctldReply = <-ctldReplyChannel:
+				case <-gVars.globalCtx.Done():
+					return nil
+				}
 				if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
 					log.Tracef("[Cfored<->Calloc] Expect JOB_COMPLETION_ACK_REPLY, "+
 						"but %s received. Just ignore it...", ctldReply.Type.String())
@@ -394,18 +442,6 @@ CforedStateMachineLoop:
 					break
 				}
 			}
-
-			gVars.ctldReplyChannelMapMtx.Lock()
-			if jobId != math.MaxUint32 {
-				delete(gVars.ctldReplyChannelMapByStep, step)
-
-				gVars.pidStepMapMtx.Lock()
-				delete(gVars.pidStepMap, callocPid)
-				gVars.pidStepMapMtx.Unlock()
-			} else {
-				delete(gVars.ctldReplyChannelMapByPid, callocPid)
-			}
-			gVars.ctldReplyChannelMapMtx.Unlock()
 
 			break CforedStateMachineLoop
 		}

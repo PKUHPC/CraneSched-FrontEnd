@@ -24,12 +24,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"sync"
 	"sync/atomic"
-	"syscall"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -647,12 +643,13 @@ type grpcStreamServer[RecvT any] interface {
 	grpc.ServerStream
 }
 
-func grpcStreamReceiver[RecvT any](stream grpcStreamServer[RecvT], requestChannel chan grpcMessage[RecvT]) {
+func grpcStreamReceiver[RecvT any](stream grpcStreamServer[RecvT], requestChannel chan grpcMessage[RecvT], done <-chan struct{}) {
 	for {
 		callocRequest, err := stream.Recv()
-		requestChannel <- grpcMessage[RecvT]{
-			message: callocRequest,
-			err:     err,
+		select {
+		case requestChannel <- grpcMessage[RecvT]{message: callocRequest, err: err}:
+		case <-done:
+			return
 		}
 		if err != nil {
 			break
@@ -675,7 +672,9 @@ func (cforedServer *GrpcCforedServer) StepIOStream(toSupervisorStream protos.Cra
 	var reply *protos.StreamStepIOReply
 
 	requestChannel := make(chan grpcMessage[protos.StreamStepIORequest], 8)
-	go grpcStreamReceiver[protos.StreamStepIORequest](toSupervisorStream, requestChannel)
+	receiverDone := make(chan struct{})
+	defer close(receiverDone)
+	go grpcStreamReceiver[protos.StreamStepIORequest](toSupervisorStream, requestChannel, receiverDone)
 
 	pendingCrunReqToSupervisorChannel := make(chan *protos.StreamCrunRequest, 2)
 	pendingCattachReqToSupervisorChannel := make(chan *protos.StreamCattachRequest, 2)
@@ -996,9 +995,6 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 	tcpGrpcServer := grpc.NewServer(tcpServerOptions...)
 	protos.RegisterCraneForeDServer(tcpGrpcServer, &cforedServer)
 
-	signals := make(chan os.Signal, 2)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
 	wgAllRoutines.Add(2)
 	go func() {
 		defer wgAllRoutines.Done()
@@ -1014,41 +1010,12 @@ func startGrpcServer(config *util.Config, wgAllRoutines *sync.WaitGroup) {
 	}()
 
 	wgAllRoutines.Add(1)
-	go func(sigs chan os.Signal, unixServer *grpc.Server, tcpServer *grpc.Server, wg *sync.WaitGroup) {
-		select {
-		case sig := <-sigs:
-			log.Infof("Receive signal: %s. Exiting...", sig.String())
-
-			switch sig {
-			case syscall.SIGINT:
-				gVars.globalCtxCancel()
-				// GracefulStop waits for all active RPCs to finish, which can block
-				// indefinitely if any stream handler (e.g. CattachStream or CrunStream)
-				// is stuck.  Give it 5 s and then force-stop both servers so the
-				// process always terminates in a bounded time.
-				const gracefulStopTimeout = 5 * time.Second
-				done := make(chan struct{})
-				go func() {
-					unixServer.GracefulStop()
-					tcpServer.GracefulStop()
-					close(done)
-				}()
-				select {
-				case <-done:
-					log.Infof("Graceful stop completed.")
-				case <-time.After(gracefulStopTimeout):
-					log.Warningf("Graceful stop timed out after %s, forcing stop.", gracefulStopTimeout)
-					unixServer.Stop()
-					tcpServer.Stop()
-				}
-			case syscall.SIGTERM:
-				unixServer.Stop()
-				tcpServer.Stop()
-			}
-		case <-gVars.globalCtx.Done():
-			break
-		}
-		wg.Done()
-	}(signals, unixGrpcServer, tcpGrpcServer, wgAllRoutines)
-
+	go func() {
+		defer wgAllRoutines.Done()
+		<-gVars.globalCtx.Done()
+		// Stop accepting RPCs and unblock network Send/Recv. Stream handlers
+		// observe the same shutdown signal and release their local state.
+		unixGrpcServer.Stop()
+		tcpGrpcServer.Stop()
+	}()
 }
