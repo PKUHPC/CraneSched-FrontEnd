@@ -395,6 +395,9 @@ CforedCrunStateMachineLoop:
 
 				if err := toCrunStream.Send(reply); err != nil {
 					log.Debugf("[Cfored<->Crun][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
+					if !Ok {
+						break CforedCrunStateMachineLoop
+					}
 					state = CancelJobOfDeadCrun
 					break
 				}

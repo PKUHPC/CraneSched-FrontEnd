@@ -35,6 +35,7 @@ func (cforedServer *GrpcCforedServer) CallocStream(toCallocStream protos.CraneFo
 	var reply *protos.StreamCallocReply
 	var completionAck *protos.StreamCtldReply
 	var step StepIdentifier
+	callocDownWithoutJobId := false
 
 	requestChannel := make(chan grpcMessage[protos.StreamCallocRequest], 8)
 	receiverDone := make(chan struct{})
@@ -172,7 +173,8 @@ CforedStateMachineLoop:
 				}
 				log.Debug("[Cfored<->Calloc] Connection to calloc was broken.")
 
-				state = CancelJobOfDeadCalloc
+				// Wait for the ID before cancelling an accepted submission.
+				callocDownWithoutJobId = true
 
 			case ctldReply := <-ctldReplyChannel:
 				if ctldReply.Type != protos.StreamCtldReply_JOB_ID_REPLY {
@@ -209,16 +211,22 @@ CforedStateMachineLoop:
 				}
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
+				if callocDownWithoutJobId {
+					if !Ok {
+						return nil
+					}
+					state = CancelJobOfDeadCalloc
+					break
+				}
+
 				if err := toCallocStream.Send(reply); err != nil {
 					log.Debug("[Cfored<->Calloc] Connection to calloc was broken.")
 					state = CancelJobOfDeadCalloc
 				} else {
-					if Ok {
-						state = WaitCtldAllocRes
-					} else {
-						// channel was already removed from gVars.ctldReplyChannelMapByPid
-						break CforedStateMachineLoop
-					}
+					state = WaitCtldAllocRes
+				}
+				if !Ok {
+					break CforedStateMachineLoop
 				}
 			}
 
@@ -389,6 +397,8 @@ CforedStateMachineLoop:
 			if completionAck.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
 				log.Warningf("[Cfored<->Calloc] Expect JOB_COMPLETION_ACK_REPLY, "+
 					"but %s received.", completionAck.Type)
+				completionAck = nil
+				continue
 			} else {
 				log.Tracef("[Cfored<->Calloc] JOB_COMPLETION_ACK_REPLY of job #%d received",
 					jobId)

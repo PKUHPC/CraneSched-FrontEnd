@@ -2,6 +2,7 @@ package cfored
 
 import (
 	"context"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -222,22 +223,61 @@ func crunRequestTest(pid int32) *protos.StreamCrunRequest {
 
 func startCrunTest(t *testing.T, f *cforedTest, c *testCtldStream, pid int32) (protos.CraneForeD_CrunStreamClient, context.CancelFunc) {
 	t.Helper()
+	stream, cancel := submitCrunTest(t, f, c, crunRequestTest(pid))
+	c.replies <- jobIDReplyTest(pid)
+	r, err := stream.Recv()
+	if err != nil || !r.GetPayloadStepIdReply().GetOk() {
+		t.Fatalf("job ID reply: %v, %v", r, err)
+	}
+	return stream, cancel
+}
+
+func submitCrunTest(t *testing.T, f *cforedTest, c *testCtldStream, request *protos.StreamCrunRequest) (protos.CraneForeD_CrunStreamClient, context.CancelFunc) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
 	stream, err := f.front.CrunStream(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := stream.Send(crunRequestTest(pid)); err != nil {
+	if err := stream.Send(request); err != nil {
+		t.Fatal(err)
+	}
+	want := protos.StreamCforedRequest_JOB_REQUEST
+	pid := request.GetPayloadJobReq().GetCrunPid()
+	if request.Type == protos.StreamCrunRequest_STEP_REQUEST {
+		want = protos.StreamCforedRequest_STEP_REQUEST
+		pid = request.GetPayloadStepReq().CrunPid
+	}
+	r := receiveTest(t, c.requests)
+	gotPid := r.GetPayloadJobReq().GetPid()
+	if r.Type == protos.StreamCforedRequest_STEP_REQUEST {
+		gotPid = r.GetPayloadStepReq().Pid
+	}
+	if r.Type != want || gotPid != pid {
+		t.Fatalf("expected %s for PID %d, got %v", want, pid, r)
+	}
+	return stream, cancel
+}
+
+func submitCallocTest(t *testing.T, f *cforedTest, c *testCtldStream, pid int32) (protos.CraneForeD_CallocStreamClient, context.CancelFunc) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	t.Cleanup(cancel)
+	stream, err := f.front.CallocStream(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Send(&protos.StreamCallocRequest{
+		Type: protos.StreamCallocRequest_JOB_REQUEST,
+		Payload: &protos.StreamCallocRequest_PayloadJobReq{PayloadJobReq: &protos.StreamCallocRequest_JobReq{
+			CallocPid: pid, Job: crunRequestTest(pid).GetPayloadJobReq().Job,
+		}},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if r := receiveTest(t, c.requests); r.Type != protos.StreamCforedRequest_JOB_REQUEST {
 		t.Fatalf("expected job request, got %v", r.Type)
-	}
-	c.replies <- jobIDReplyTest(pid)
-	r, err := stream.Recv()
-	if err != nil || !r.GetPayloadStepIdReply().GetOk() {
-		t.Fatalf("job ID reply: %v, %v", r, err)
 	}
 	return stream, cancel
 }
@@ -290,7 +330,8 @@ func TestCtldReconnectPreservesSessionsAwaitingCompletion(t *testing.T) {
 		t.Fatalf("I/O ready reply: %v, %v", r, err)
 	}
 	for pid := int32(1003); pid <= 1005; pid++ {
-		startCrunTest(t, f, c, pid)
+		stream, _ := startCrunTest(t, f, c, pid)
+		allocateCrunTest(t, c, stream, uint32(pid))
 	}
 	deadCancel()
 	if r := receiveTest(t, c.requests); r.Type != protos.StreamCforedRequest_JOB_COMPLETION_REQUEST {
@@ -371,6 +412,175 @@ func TestCtldReconnectRetriesUnacknowledgedCompletion(t *testing.T) {
 	gVars.globalCtxCancel()
 	receiveTest(t, f.done)
 	assertNoSessionsTest(t)
+}
+
+func TestCtldDisconnectFailsPendingReplies(t *testing.T) {
+	for _, disconnected := range []bool{false, true} {
+		name := "connected_frontends"
+		if disconnected {
+			name = "disconnected_frontends"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := startCforedTest(t)
+			c := registerTest(t, f.ctld)
+			crun, cancelCrun := submitCrunTest(t, f, c, crunRequestTest(5001))
+			step, cancelStep := submitCrunTest(t, f, c, &protos.StreamCrunRequest{
+				Type: protos.StreamCrunRequest_STEP_REQUEST,
+				Payload: &protos.StreamCrunRequest_PayloadStepReq{PayloadStepReq: &protos.StreamCrunRequest_StepReq{
+					CrunPid: 5002, Step: &protos.StepToCtld{JobId: 5001,
+						Payload: &protos.StepToCtld_InteractiveMeta{InteractiveMeta: &protos.InteractiveJobAdditionalMeta{}}},
+				}},
+			})
+			calloc, cancelCalloc := submitCallocTest(t, f, c, 5003)
+			ctx, cancelAttach := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancelAttach()
+			attach, err := f.front.CattachStream(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := attach.Send(&protos.StreamCattachRequest{
+				Type: protos.StreamCattachRequest_STEP_CONNECT_REQUEST,
+				Payload: &protos.StreamCattachRequest_PayloadStepConnectReq{
+					PayloadStepConnectReq: &protos.StreamCattachRequest_StepConnectReq{CattachPid: 5004, JobId: 5001, StepId: 1},
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if r := receiveTest(t, c.requests); r.Type != protos.StreamCforedRequest_STEP_META_REQUEST {
+				t.Fatalf("expected metadata request, got %v", r.Type)
+			}
+			if disconnected {
+				cancelCrun()
+				cancelStep()
+				cancelCalloc()
+				cancelAttach()
+			}
+			// Ctld consumed the requests, but every one-shot reply is lost.
+			close(c.disconnect)
+			if !disconnected {
+				for _, stream := range []protos.CraneForeD_CrunStreamClient{crun, step} {
+					r, err := stream.Recv()
+					if err != nil || r.Type != protos.StreamCrunReply_STEP_ID_REPLY || r.GetPayloadStepIdReply().Ok || r.GetPayloadStepIdReply().FailureReason == "" {
+						t.Fatalf("expected submission failure, got %v, %v", r, err)
+					}
+					if _, err := stream.Recv(); err != io.EOF {
+						t.Fatalf("failed submission did not exit: %v", err)
+					}
+				}
+				if r, err := calloc.Recv(); err != nil || r.Type != protos.StreamCallocReply_JOB_ID_REPLY || r.GetPayloadJobIdReply().Ok || r.GetPayloadJobIdReply().FailureReason == "" {
+					t.Fatalf("expected calloc failure, got %v, %v", r, err)
+				}
+				if _, err := calloc.Recv(); err != io.EOF {
+					t.Fatalf("failed calloc did not exit: %v", err)
+				}
+				if r, err := attach.Recv(); err != nil || r.Type != protos.StreamCattachReply_STEP_CONNECT_REPLY || r.GetPayloadStepConnectReply().Ok || r.GetPayloadStepConnectReply().FailureReason == "" {
+					t.Fatalf("expected cattach failure, got %v, %v", r, err)
+				}
+				if _, err := attach.Recv(); err != io.EOF {
+					t.Fatalf("failed cattach did not exit: %v", err)
+				}
+			}
+			c = registerTest(t, f.ctld)
+			eventuallyTest(t, func() bool {
+				gVars.ctldReplyChannelMapMtx.Lock()
+				defer gVars.ctldReplyChannelMapMtx.Unlock()
+				return len(gVars.ctldReplyChannelMapByPid)+len(gVars.ctldReplyChannelMapForCattachByPid) == 0
+			})
+			assertNoSessionsTest(t)
+			// No duplicate submission, metadata retry or completion with an unknown
+			// ID may precede this new request after registration.
+			startCrunTest(t, f, c, 5005)
+		})
+	}
+}
+
+func TestCtldDisconnectCancelsPendingAllocations(t *testing.T) {
+	f := startCforedTest(t)
+	c := registerTest(t, f.ctld)
+	crun, _ := startCrunTest(t, f, c, 6001)
+	calloc, _ := submitCallocTest(t, f, c, 6002)
+	c.replies <- jobIDReplyTest(6002)
+	if r, err := calloc.Recv(); err != nil || !r.GetPayloadJobIdReply().GetOk() {
+		t.Fatalf("calloc ID reply: %v, %v", r, err)
+	}
+	close(c.disconnect) // Neither resource allocation reply was delivered.
+	if r, err := crun.Recv(); err != nil || r.Type != protos.StreamCrunReply_STEP_CANCEL_REQUEST {
+		t.Fatalf("crun cancellation: %v, %v", r, err)
+	}
+	if r, err := calloc.Recv(); err != nil || r.Type != protos.StreamCallocReply_JOB_CANCEL_REQUEST {
+		t.Fatalf("calloc cancellation: %v, %v", r, err)
+	}
+	if err := crun.Send(&protos.StreamCrunRequest{Type: protos.StreamCrunRequest_STEP_COMPLETION_REQUEST}); err != nil {
+		t.Fatal(err)
+	}
+	if err := calloc.Send(&protos.StreamCallocRequest{Type: protos.StreamCallocRequest_JOB_COMPLETION_REQUEST}); err != nil {
+		t.Fatal(err)
+	}
+	c = registerTest(t, f.ctld)
+	completed := make(map[uint32]bool)
+	for range 2 {
+		r := receiveTest(t, c.requests)
+		p := r.GetPayloadJobCompleteReq()
+		if r.Type != protos.StreamCforedRequest_JOB_COMPLETION_REQUEST || p.StepId != 1 || (p.JobId != 6001 && p.JobId != 6002) || completed[p.JobId] {
+			t.Fatalf("unexpected completion: %v", r)
+		}
+		completed[p.JobId] = true
+		c.replies <- completionAckTest(p.JobId)
+	}
+	if r, err := crun.Recv(); err != nil || !r.GetPayloadStepCompletionAckReply().GetOk() {
+		t.Fatalf("crun completion: %v, %v", r, err)
+	}
+	if r, err := calloc.Recv(); err != nil || !r.GetPayloadJobCompletionAckReply().GetOk() {
+		t.Fatalf("calloc completion: %v, %v", r, err)
+	}
+	if _, err := crun.Recv(); err != io.EOF {
+		t.Fatalf("crun did not exit: %v", err)
+	}
+	if _, err := calloc.Recv(); err != io.EOF {
+		t.Fatalf("calloc did not exit: %v", err)
+	}
+	assertNoSessionsTest(t)
+}
+
+func TestCtldReconnectSendsQueuedSubmissionOnce(t *testing.T) {
+	f := startCforedTest(t)
+	c := registerTest(t, f.ctld)
+	close(c.disconnect)
+	c = receiveTest(t, f.ctld.streams)
+	receiveTest(t, c.requests) // Hold the new stream in WaitReg.
+	// Model a submission admitted just before disconnect, still in the input
+	// queue. It must survive another failed registration without being failed.
+	replies := make(chan *protos.StreamCtldReply, 2)
+	gVars.ctldReplyChannelMapMtx.Lock()
+	gVars.ctldReplyChannelMapByPid[7001] = replies
+	gVars.ctldReplyChannelMapMtx.Unlock()
+	request := &protos.StreamCforedRequest{
+		Type: protos.StreamCforedRequest_JOB_REQUEST,
+		Payload: &protos.StreamCforedRequest_PayloadJobReq{
+			PayloadJobReq: &protos.StreamCforedRequest_JobReq{Pid: 7001, Job: crunRequestTest(7001).GetPayloadJobReq().Job},
+		},
+	}
+	sendCtldRequest(request)
+	close(c.disconnect)
+	c = registerTest(t, f.ctld)
+	if r := receiveTest(t, c.requests); !proto.Equal(r, request) {
+		t.Fatalf("queued submission changed: %v", r)
+	}
+	c.replies <- &protos.StreamCtldReply{
+		Type: protos.StreamCtldReply_JOB_ID_REPLY,
+		Payload: &protos.StreamCtldReply_PayloadJobIdReply{
+			PayloadJobIdReply: &protos.StreamCtldReply_JobIdReply{Pid: 7001, FailureReason: "test rejection"},
+		},
+	}
+	if r := receiveTest(t, replies); r.GetPayloadJobIdReply().FailureReason != "test rejection" {
+		t.Fatalf("unsent submission was failed on disconnect: %v", r)
+	}
+	gVars.ctldReplyChannelMapMtx.Lock()
+	delete(gVars.ctldReplyChannelMapByPid, 7001)
+	gVars.ctldReplyChannelMapMtx.Unlock()
+	close(c.disconnect)
+	c = registerTest(t, f.ctld)
+	startCrunTest(t, f, c, 7002) // No retry of the previous submission.
 }
 
 func TestShutdownCleansWaitingAndUnallocatedSessions(t *testing.T) {

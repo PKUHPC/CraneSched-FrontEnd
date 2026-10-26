@@ -67,6 +67,13 @@ func (client *GrpcCtldClient) CtldReplyReceiveRoutine(ctx context.Context, strea
 	}
 }
 
+func deliverCtldReply(channel chan<- *protos.StreamCtldReply, reply *protos.StreamCtldReply) {
+	select {
+	case channel <- reply:
+	case <-gVars.globalCtx.Done():
+	}
+}
+
 // Route replies without holding the map lock across channel sends. If Ctld
 // cancels an already-removed session, the caller sends its completion directly;
 // enqueueing it on our own input channel could deadlock when that queue is full.
@@ -122,11 +129,7 @@ func dispatchCtldReply(reply *protos.StreamCtldReply) *protos.StreamCforedReques
 	gVars.ctldReplyChannelMapMtx.Unlock()
 
 	for _, c := range channels {
-		select {
-		case c <- reply:
-		case <-gVars.globalCtx.Done():
-			return nil
-		}
+		deliverCtldReply(c, reply)
 	}
 	return completion
 }
@@ -148,10 +151,40 @@ func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 	// acknowledges steps that have already gone. Keep it until the real ACK,
 	// including when Send succeeds but the connection loses the reply.
 	pendingCompletions := make(map[StepIdentifier]*protos.StreamCforedRequest)
+	// Track only requests actually sent on this stream. Requests still in the
+	// input queue can be sent once after reconnect; submissions must not be retried.
+	pendingJobIDs := make(map[int32]chan *protos.StreamCtldReply)
+	pendingMetadata := make(map[int32]chan *protos.StreamCtldReply)
+	pendingAllocations := make(map[StepIdentifier]chan *protos.StreamCtldReply)
 	sendRequest := func(request *protos.StreamCforedRequest) error {
+		switch request.Type {
+		case protos.StreamCforedRequest_JOB_REQUEST, protos.StreamCforedRequest_STEP_REQUEST:
+			pid := request.GetPayloadJobReq().GetPid()
+			if request.Type == protos.StreamCforedRequest_STEP_REQUEST {
+				pid = request.GetPayloadStepReq().Pid
+			}
+			gVars.ctldReplyChannelMapMtx.Lock()
+			channel := gVars.ctldReplyChannelMapByPid[pid]
+			gVars.ctldReplyChannelMapMtx.Unlock()
+			if channel == nil {
+				return nil
+			}
+			pendingJobIDs[pid] = channel
+		case protos.StreamCforedRequest_STEP_META_REQUEST:
+			pid := request.GetPayloadStepMetaReq().CattachPid
+			gVars.ctldReplyChannelMapMtx.Lock()
+			channel := gVars.ctldReplyChannelMapForCattachByPid[pid]
+			gVars.ctldReplyChannelMapMtx.Unlock()
+			if channel == nil {
+				return nil
+			}
+			pendingMetadata[pid] = channel
+		}
 		if request.Type == protos.StreamCforedRequest_JOB_COMPLETION_REQUEST {
 			p := request.GetPayloadJobCompleteReq()
-			pendingCompletions[StepIdentifier{JobId: p.JobId, StepId: p.StepId}] = request
+			step := StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+			delete(pendingAllocations, step)
+			pendingCompletions[step] = request
 		}
 		// A flow-controlled Send must also unblock on process shutdown.
 		stopCancel := context.AfterFunc(gVars.globalCtx, cancelStream)
@@ -169,6 +202,40 @@ func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 			}
 			if cancelStream != nil {
 				cancelStream()
+				// Ctld registration does not replay these replies. Fail only the
+				// incomplete handshakes, keeping established I/O sessions alive.
+				for pid, channel := range pendingJobIDs {
+					deliverCtldReply(channel, &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_JOB_ID_REPLY,
+						Payload: &protos.StreamCtldReply_PayloadJobIdReply{
+							PayloadJobIdReply: &protos.StreamCtldReply_JobIdReply{
+								Pid: pid, FailureReason: "Connection to CraneCtld lost before the submission result; the job or step may have been accepted.",
+							},
+						},
+					})
+				}
+				clear(pendingJobIDs)
+				for pid, channel := range pendingMetadata {
+					deliverCtldReply(channel, &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_STEP_META_REPLY,
+						Payload: &protos.StreamCtldReply_PayloadStepMetaReply{
+							PayloadStepMetaReply: &protos.StreamCtldReply_StepMetaReply{
+								CattachPid: pid, FailureReason: "Connection to CraneCtld lost before the step metadata reply.",
+							},
+						},
+					})
+				}
+				clear(pendingMetadata)
+				for step, channel := range pendingAllocations {
+					// Let the handler follow its normal cancellation/completion path.
+					deliverCtldReply(channel, &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_JOB_CANCEL_REQUEST,
+						Payload: &protos.StreamCtldReply_PayloadJobCancelRequest{
+							PayloadJobCancelRequest: &protos.StreamCtldReply_JobCancelRequest{JobId: step.JobId, StepId: step.StepId},
+						},
+					})
+				}
+				clear(pendingAllocations)
 				select {
 				case <-gVars.globalCtx.Done():
 					state = WaitAllFrontEnd
@@ -201,7 +268,7 @@ func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 			state = WaitReg
 
 		case WaitReg, WaitChannelReq:
-			// Keep admitted sessions and their routes across a transport failure.
+			// Keep established sessions and their routes across a transport failure.
 			// Requests queued while disconnected are sent only after registration.
 			var requests <-chan *protos.StreamCforedRequest
 			if state == WaitChannelReq {
@@ -242,6 +309,41 @@ func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 				if reply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
 					p := reply.GetPayloadJobCompletionAck()
 					delete(pendingCompletions, StepIdentifier{JobId: p.JobId, StepId: p.StepId})
+				}
+				// Keep the original channel until allocation is delivered: the
+				// handler may not yet have moved its PID route to the step map.
+				var waiting chan *protos.StreamCtldReply
+				switch reply.Type {
+				case protos.StreamCtldReply_JOB_ID_REPLY:
+					p := reply.GetPayloadJobIdReply()
+					waiting = pendingJobIDs[p.Pid]
+					delete(pendingJobIDs, p.Pid)
+					if p.Ok && waiting != nil {
+						pendingAllocations[StepIdentifier{JobId: p.JobId, StepId: p.StepId}] = waiting
+					}
+				case protos.StreamCtldReply_STEP_META_REPLY:
+					p := reply.GetPayloadStepMetaReply()
+					waiting = pendingMetadata[p.CattachPid]
+					delete(pendingMetadata, p.CattachPid)
+				case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY, protos.StreamCtldReply_JOB_CANCEL_REQUEST, protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
+					var step StepIdentifier
+					switch reply.Type {
+					case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
+						p := reply.GetPayloadJobResAllocReply()
+						step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+					case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
+						p := reply.GetPayloadJobCancelRequest()
+						step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+					case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
+						p := reply.GetPayloadJobCompletionAck()
+						step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+					}
+					waiting = pendingAllocations[step]
+					delete(pendingAllocations, step)
+				}
+				if waiting != nil {
+					deliverCtldReply(waiting, reply)
+					continue
 				}
 				// Ctld replaces its stream writer before sending registration ACK;
 				// an existing session's callback may therefore arrive first.
