@@ -42,6 +42,11 @@ const (
 )
 
 func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.CraneForeD_CattachStreamServer) error {
+	if !startFrontEnd() {
+		return nil
+	}
+	defer gVars.frontEndWG.Done()
+
 	var cattachPid int32
 	var jobId uint32
 	var stepId uint32
@@ -58,10 +63,10 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 	taskCranedMap := make(map[uint32]string)
 
 	RequestChannel := make(chan grpcMessage[protos.StreamCattachRequest], 8)
-	go grpcStreamReceiver[protos.StreamCattachRequest](toCattachStream, RequestChannel)
+	receiverDone := make(chan struct{})
+	defer close(receiverDone)
+	go grpcStreamReceiver[protos.StreamCattachRequest](toCattachStream, RequestChannel, receiverDone)
 
-	// Use capacity 8 for ctldReplyChannel: WaitAllFrontEnd may pre-send
-	// JOB_COMPLETION_ACK_REPLY while there may already be a message in it.
 	// Use capacity 64 for TaskIoRequestChannel to reduce the drop rate in
 	// forwardRemoteIoToFront when the supervisor produces output faster than
 	// cattach consumes it.
@@ -70,6 +75,29 @@ func (cforedServer *GrpcCforedServer) CattachStream(toCattachStream protos.Crane
 	jobId = math.MaxUint32
 	cattachPid = -1
 
+	defer func() {
+		step := StepIdentifier{JobId: jobId, StepId: stepId}
+		gVars.ctldReplyChannelMapMtx.Lock()
+		if gVars.ctldReplyChannelMapForCattachByPid[cattachPid] == ctldReplyChannel {
+			delete(gVars.ctldReplyChannelMapForCattachByPid, cattachPid)
+		}
+		channels := gVars.ctldReplyChannelMapForCattachByStep[step]
+		ownsStep := channels[cattachPid] == ctldReplyChannel
+		if ownsStep {
+			delete(channels, cattachPid)
+			if len(channels) == 0 {
+				delete(gVars.ctldReplyChannelMapForCattachByStep, step)
+			}
+			gVars.pidStepMapMtx.Lock()
+			delete(gVars.pidStepMap, cattachPid)
+			gVars.pidStepMapMtx.Unlock()
+		}
+		gVars.ctldReplyChannelMapMtx.Unlock()
+		if ownsStep {
+			gSupervisorChanKeeper.cattachStopAndRemoveChannel(jobId, stepId, cattachPid)
+		}
+	}()
+
 	state := CattachWaitConnectReq
 
 CforedCattachStateMachineLoop:
@@ -77,7 +105,12 @@ CforedCattachStateMachineLoop:
 		switch state {
 		case CattachWaitConnectReq:
 			log.Infof("[Cfored<->Cattach] Enter State WAIT_CONNECT_REQ")
-			item := <-RequestChannel
+			var item grpcMessage[protos.StreamCattachRequest]
+			select {
+			case item = <-RequestChannel:
+			case <-gVars.globalCtx.Done():
+				return nil
+			}
 			cattachRequest, err := item.message, item.err
 			if err != nil { // Failure Edge
 				log.Errorf("[Cfored<-Cattach] Stream error in WaitConnectReq: %s", err)
@@ -144,9 +177,7 @@ CforedCattachStateMachineLoop:
 				stepId = cattachRequest.GetPayloadStepConnectReq().GetStepId()
 
 				gVars.ctldReplyChannelMapMtx.Lock()
-				// Use the dedicated cattach-by-pid map so WaitAllFrontEnd can
-				// send the correct termination message type (STEP_META_REPLY(Ok=false))
-				// instead of the crun/calloc-specific JOB_ID_REPLY.
+				// STEP_META_REPLY is routed separately from crun/calloc replies.
 				gVars.ctldReplyChannelMapForCattachByPid[cattachPid] = ctldReplyChannel
 				gVars.ctldReplyChannelMapMtx.Unlock()
 
@@ -162,13 +193,17 @@ CforedCattachStateMachineLoop:
 					},
 				}
 
-				gVars.cforedRequestCtldChannel <- cforedRequest
+				if !sendCtldRequest(cforedRequest) {
+					return nil
+				}
 
 				state = CattachWaitStepMeta
 			}
 		case CattachWaitStepMeta:
 			log.Infof("[Cfored<->Cattach][Pid #%d] Enter State WAIT_STEP_META", cattachPid)
 			select {
+			case <-gVars.globalCtx.Done():
+				return nil
 			case item := <-RequestChannel:
 				cattachRequest, err := item.message, item.err
 				if err != nil {
@@ -287,6 +322,10 @@ CforedCattachStateMachineLoop:
 			go gSupervisorChanKeeper.waitAnySupervisorReady(execCranedIds, readyChannel, &stopWaiting, jobId, stepId)
 
 			select {
+			case <-gVars.globalCtx.Done():
+				stopWaiting.Store(true)
+				gSupervisorChanKeeper.broadcastStopWaiting()
+				return nil
 			case ctldReply := <-ctldReplyChannel:
 				// Always stop the waitAnySupervisorReady goroutine before transitioning,
 				// regardless of message type.
@@ -344,6 +383,8 @@ CforedCattachStateMachineLoop:
 			}
 
 			select {
+			case <-gVars.globalCtx.Done():
+				return nil
 			case ctldReply := <-ctldReplyChannel:
 				if ctldReply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
 					log.Debugf("[Ctld->Cfored->Cattach][Step #%d.%d] Receive JOB_COMPLETION_ACK_REPLY "+
@@ -360,6 +401,8 @@ CforedCattachStateMachineLoop:
 		forwarding:
 			for {
 				select {
+				case <-gVars.globalCtx.Done():
+					return nil
 				case ctldReply := <-ctldReplyChannel:
 					if ctldReply.Type != protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
 						log.Warningf("[Ctld->Cfored->Cattach][Step #%d.%d] Expect type JOB_COMPLETION_ACK_REPLY but got %s, ignored",
@@ -453,24 +496,6 @@ CforedCattachStateMachineLoop:
 			state = End
 		case End:
 			log.Infof("[Cfored<->Cattach][Job #%d] Enter State End", jobId)
-
-			// remove cattach by [jobid, stepId] for ctldReplyChannel
-			gVars.ctldReplyChannelMapMtx.Lock()
-			if gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}] != nil {
-				delete(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}], cattachPid)
-			}
-			if len(gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]) == 0 {
-				delete(gVars.ctldReplyChannelMapForCattachByStep, StepIdentifier{JobId: jobId, StepId: stepId})
-			}
-			// remove cattach by pid for ctldReplyChannel
-			gVars.pidStepMapMtx.Lock()
-			delete(gVars.pidStepMap, cattachPid)
-			gVars.pidStepMapMtx.Unlock()
-
-			gVars.ctldReplyChannelMapMtx.Unlock()
-
-			// remove task IO channel
-			gSupervisorChanKeeper.cattachStopAndRemoveChannel(jobId, stepId, cattachPid)
 
 			break CforedCattachStateMachineLoop
 		}

@@ -154,6 +154,11 @@ func drainReadyStepIO(channel <-chan *protos.StreamStepIORequest,
 }
 
 func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_CrunStreamServer) error {
+	if !startFrontEnd() {
+		return nil
+	}
+	defer gVars.frontEndWG.Done()
+
 	var crunPid int32
 	var jobId uint32
 	var stepId uint32
@@ -167,7 +172,9 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	//Whether crun down before get jobid
 	crunDownWithoutJobId := false
 	crunRequestChannel := make(chan grpcMessage[protos.StreamCrunRequest], 8)
-	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel)
+	receiverDone := make(chan struct{})
+	defer close(receiverDone)
+	go grpcStreamReceiver[protos.StreamCrunRequest](toCrunStream, crunRequestChannel, receiverDone)
 
 	ctldReplyChannel := make(chan *protos.StreamCtldReply, 2)
 	StepIoRequestChannel := make(chan *protos.StreamStepIORequest, crunTaskIOChannelCapacity)
@@ -175,6 +182,24 @@ func (cforedServer *GrpcCforedServer) CrunStream(toCrunStream protos.CraneForeD_
 	crunPid = -1
 	forwardEstablished := atomic.Bool{}
 	forwardEstablished.Store(false)
+
+	defer func() {
+		gVars.ctldReplyChannelMapMtx.Lock()
+		if gVars.ctldReplyChannelMapByPid[crunPid] == ctldReplyChannel {
+			delete(gVars.ctldReplyChannelMapByPid, crunPid)
+		}
+		ownsStep := gVars.ctldReplyChannelMapByStep[step] == ctldReplyChannel
+		if ownsStep {
+			delete(gVars.ctldReplyChannelMapByStep, step)
+			gVars.pidStepMapMtx.Lock()
+			delete(gVars.pidStepMap, crunPid)
+			gVars.pidStepMapMtx.Unlock()
+		}
+		gVars.ctldReplyChannelMapMtx.Unlock()
+		if ownsStep {
+			gSupervisorChanKeeper.crunStepStopAndRemoveChannel(jobId, stepId)
+		}
+	}()
 
 	state := CrunWaitJobIdAllocReq
 
@@ -184,17 +209,16 @@ CforedCrunStateMachineLoop:
 		case CrunWaitJobIdAllocReq:
 			log.Infof("[Cfored<->Crun] Enter State WAIT_JOB_ID_ALLOC_REQ")
 
-			item := <-crunRequestChannel
+			var item grpcMessage[protos.StreamCrunRequest]
+			select {
+			case item = <-crunRequestChannel:
+			case <-gVars.globalCtx.Done():
+				return nil
+			}
 			crunRequest, err := item.message, item.err
 			// If crun down before req job id, do nothing
-			if err != nil { // Failure Edge
-				switch err {
-				case io.EOF:
-					fallthrough
-				default:
-					log.Fatal(err)
-					return nil
-				}
+			if err != nil {
+				return err
 			}
 
 			if crunRequest.Type != protos.StreamCrunRequest_JOB_REQUEST && crunRequest.Type != protos.StreamCrunRequest_STEP_REQUEST {
@@ -299,7 +323,9 @@ CforedCrunStateMachineLoop:
 					}
 				}
 
-				gVars.cforedRequestCtldChannel <- cforedRequest
+				if !sendCtldRequest(cforedRequest) {
+					return nil
+				}
 
 				state = CrunWaitCtldAllocJobId
 			}
@@ -308,6 +334,8 @@ CforedCrunStateMachineLoop:
 			log.Infof("[Cfored<->Crun][Pid #%d] Enter State WAIT_CTLD_ALLOC_JOB_ID", crunPid)
 
 			select {
+			case <-gVars.globalCtx.Done():
+				return nil
 			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
 				if err != nil {
@@ -367,6 +395,9 @@ CforedCrunStateMachineLoop:
 
 				if err := toCrunStream.Send(reply); err != nil {
 					log.Debugf("[Cfored<->Crun][Step #%d.%d] Connection to crun was broken.", jobId, stepId)
+					if !Ok {
+						break CforedCrunStateMachineLoop
+					}
 					state = CancelJobOfDeadCrun
 					break
 				}
@@ -386,6 +417,8 @@ CforedCrunStateMachineLoop:
 			log.Infof("[Cfored<->Crun][Step #%d.%d] Enter State WAIT_CTLD_ALLOC_RES", jobId, stepId)
 
 			select {
+			case <-gVars.globalCtx.Done():
+				return nil
 			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
 				if err != nil {
@@ -410,7 +443,9 @@ CforedCrunStateMachineLoop:
 								},
 							},
 						}
-						gVars.cforedRequestCtldChannel <- toCtldRequest
+						if !sendCtldRequest(toCtldRequest) {
+							return nil
+						}
 						state = CrunWaitCtldAck
 					}
 				}
@@ -489,14 +524,9 @@ CforedCrunStateMachineLoop:
 				gSupervisorChanKeeper.broadcastStopWaiting()
 
 			case <-gVars.globalCtx.Done():
-				// cfored is shutting down (SIGINT). Exit immediately to CancelJobOfDeadCrun
-				// instead of waiting up to 30 s for ctld_client.WaitAllFrontEnd to deliver a
-				// synthetic JOB_CANCEL_REQUEST (a race that can fail to arrive in time).
-				log.Debugf("[Cfored<->Crun][Step #%d.%d] Global context cancelled in WAIT_TASK_IO_FORWARD, "+
-					"cancelling job.", jobId, stepId)
 				stopWaiting.Store(true)
 				gSupervisorChanKeeper.broadcastStopWaiting()
-				state = CancelJobOfDeadCrun
+				return nil
 
 			case item := <-crunRequestChannel:
 				crunRequest, err := item.message, item.err
@@ -529,9 +559,11 @@ CforedCrunStateMachineLoop:
 						},
 					},
 				}
-				gVars.cforedRequestCtldChannel <- toCtldRequest
 				stopWaiting.Store(true)
 				gSupervisorChanKeeper.broadcastStopWaiting()
+				if !sendCtldRequest(toCtldRequest) {
+					return nil
+				}
 				state = CrunWaitCtldAck
 
 			case <-readyChannel:
@@ -559,6 +591,8 @@ CforedCrunStateMachineLoop:
 		forwarding:
 			for {
 				select {
+				case <-gVars.globalCtx.Done():
+					return nil
 				case ctldReply := <-ctldReplyChannel:
 					if ctldReply.Type != protos.StreamCtldReply_JOB_CANCEL_REQUEST {
 						log.Warningf("[Ctld->Cfored->Crun][Step #%d.%d] Expect type JOB_CANCEL_REQUEST but got %s, ignored",
@@ -639,7 +673,9 @@ CforedCrunStateMachineLoop:
 									},
 								},
 							}
-							gVars.cforedRequestCtldChannel <- toCtldRequest
+							if !sendCtldRequest(toCtldRequest) {
+								return nil
+							}
 							state = CrunWaitCtldAck
 							break forwarding
 						default:
@@ -694,6 +730,8 @@ CforedCrunStateMachineLoop:
 		waitingCompleteReq:
 			for {
 				select {
+				case <-gVars.globalCtx.Done():
+					return nil
 				//If we don't process the Task IO from supervisor here, it may block the TaskIO server forever dur to channel full,
 				// And supervisor unregister msg will not be processed, causing supervisor blocked.
 				case jobMsg := <-StepIoRequestChannel:
@@ -755,7 +793,9 @@ CforedCrunStateMachineLoop:
 					},
 				},
 			}
-			gVars.cforedRequestCtldChannel <- toCtldRequest
+			if !sendCtldRequest(toCtldRequest) {
+				return nil
+			}
 
 			state = CrunWaitCtldAck
 
@@ -767,6 +807,8 @@ CforedCrunStateMachineLoop:
 		waitingAck:
 			for {
 				select {
+				case <-gVars.globalCtx.Done():
+					return nil
 				//If we don't process the Task IO from supervisor here, it may block the TaskIO server forever dur to channel full,
 				// And supervisor unregister msg will not be processed, causing supervisor blocked.
 				case jobMsg := <-StepIoRequestChannel:
@@ -836,6 +878,8 @@ CforedCrunStateMachineLoop:
 			drainLoop:
 				for {
 					select {
+					case <-gVars.globalCtx.Done():
+						return nil
 					case stepMsg := <-StepIoRequestChannel:
 						if !forwardDrainMessage(stepMsg) {
 							drainFailed = true
@@ -859,10 +903,6 @@ CforedCrunStateMachineLoop:
 				}
 			}
 
-			gVars.ctldReplyChannelMapMtx.Lock()
-			delete(gVars.ctldReplyChannelMapByStep, step)
-			gVars.ctldReplyChannelMapMtx.Unlock()
-			gSupervisorChanKeeper.crunStepStopAndRemoveChannel(jobId, stepId)
 			if gotReply && drainFailed {
 				log.Errorf("[Cfored<->Crun][Step #%d.%d] Supervisor I/O drain failed; sending a failed completion result.",
 					jobId, stepId)
@@ -902,7 +942,9 @@ CforedCrunStateMachineLoop:
 					},
 				},
 			}
-			gVars.cforedRequestCtldChannel <- toCtldRequest
+			if !sendCtldRequest(toCtldRequest) {
+				return nil
+			}
 
 			// Drain StepIoRequestChannel concurrently while waiting for the ACK.
 			// This prevents forwardRemoteIoToFront from dropping supervisor output
@@ -911,6 +953,8 @@ CforedCrunStateMachineLoop:
 		waitForDeadCrunAck:
 			for {
 				select {
+				case <-gVars.globalCtx.Done():
+					return nil
 				case jobMsg := <-StepIoRequestChannel:
 					if jobMsg == nil {
 						log.Errorf("[Supervisor->Cfored->Crun][Step #%d.%d] Craned down during CancelJobOfDeadCrun, ignored.",
@@ -930,21 +974,6 @@ CforedCrunStateMachineLoop:
 					}
 				}
 			}
-
-			gVars.ctldReplyChannelMapMtx.Lock()
-			if jobId != math.MaxUint32 {
-				delete(gVars.ctldReplyChannelMapByStep, step)
-
-				gVars.pidStepMapMtx.Lock()
-				delete(gVars.pidStepMap, crunPid)
-				gVars.pidStepMapMtx.Unlock()
-
-				gSupervisorChanKeeper.crunStepStopAndRemoveChannel(jobId, stepId)
-			} else {
-				log.Errorf("[Cfored<->Crun][Step #%d.%d] BUG: Job id is MaxUint32 in CancelJobOfDeadCrun, "+
-					"this should never happen. Skipping cleanup.", jobId, stepId)
-			}
-			gVars.ctldReplyChannelMapMtx.Unlock()
 
 			log.Infof("[Cfored<->Crun][Step #%d.%d] Job cancelled due to Crun down", jobId, stepId)
 

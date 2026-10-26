@@ -47,400 +47,342 @@ const (
 	GracefulExit    StateOfCtldClient = 4
 )
 
-func (client *GrpcCtldClient) CtldReplyReceiveRoutine(stream protos.CraneCtldForInternal_CforedStreamClient) {
+// The channel belongs to this stream. An old receiver cannot publish a late
+// reply or EOF into a subsequent registration attempt.
+func (client *GrpcCtldClient) CtldReplyReceiveRoutine(ctx context.Context, stream protos.CraneCtldForInternal_CforedStreamClient, replies chan<- *protos.StreamCtldReply) {
 	for {
-		m := new(protos.StreamCtldReply)
-		if err := stream.RecvMsg(m); err != nil {
-			client.ctldReplyChannel <- nil
-			log.Infof("CtlClientStreamError: %s. "+
-				"Exiting CtldReplyReceiveRoutine...", err.Error())
-			break
+		m, err := stream.Recv()
+		if err != nil {
+			log.Infof("CtlClientStreamError: %s. Exiting CtldReplyReceiveRoutine...", err)
+			m = nil
 		}
-		client.ctldReplyChannel <- m
+		select {
+		case replies <- m:
+		case <-ctx.Done():
+			return
+		}
+		if err != nil {
+			return
+		}
 	}
 }
 
-func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
-	var request *protos.StreamCforedRequest
-	var stream protos.CraneCtldForInternal_CforedStreamClient
-	var err error
-	client.ctldConn = nil
+func deliverCtldReply(channel chan<- *protos.StreamCtldReply, reply *protos.StreamCtldReply) {
+	select {
+	case channel <- reply:
+	case <-gVars.globalCtx.Done():
+	}
+}
 
-	state := StartReg
-CtldClientStateMachineLoop:
-	for {
-		switch state {
-		case StartReg:
-			log.Tracef("[Cfored<->Ctld] Enter START_REG state.")
-
-			select {
-			case <-gVars.globalCtx.Done():
-				// SIGINT or SIGTERM received.
-				break CtldClientStateMachineLoop
-			default: // SIGINT or SIGTERM received.
-			}
-			if client.ctldConn != nil {
-				err = client.ctldConn.Close()
-				if err != nil {
-					log.Errorf("Failed to close to ctld connection: %s", err.Error())
-				}
-			}
-
-			client.ctldConn, client.ctldClientStub = util.GetStubToCtldForInternalByConfig(client.config)
-			stream, err = client.ctldClientStub.CforedStream(context.Background())
-			if err != nil {
-				log.Errorf("[Cfored<->Ctld] Cannot connect to CraneCtld: %s. "+
-					"Waiting for 1 second and reconnect...", err.Error())
-				time.Sleep(time.Second * 1)
-				continue CtldClientStateMachineLoop
-			}
-			go client.CtldReplyReceiveRoutine(stream)
-
-			request = &protos.StreamCforedRequest{
-				Type: protos.StreamCforedRequest_CFORED_REGISTRATION,
-				Payload: &protos.StreamCforedRequest_PayloadCforedReg{
-					PayloadCforedReg: &protos.StreamCforedRequest_CforedReg{
-						CforedName: gVars.hostName,
+// Route replies without holding the map lock across channel sends. If Ctld
+// cancels an already-removed session, the caller sends its completion directly;
+// enqueueing it on our own input channel could deadlock when that queue is full.
+func dispatchCtldReply(reply *protos.StreamCtldReply) *protos.StreamCforedRequest {
+	var channels []chan *protos.StreamCtldReply
+	var completion *protos.StreamCforedRequest
+	gVars.ctldReplyChannelMapMtx.Lock()
+	switch reply.Type {
+	case protos.StreamCtldReply_JOB_ID_REPLY:
+		if c := gVars.ctldReplyChannelMapByPid[reply.GetPayloadJobIdReply().Pid]; c != nil {
+			channels = append(channels, c)
+		}
+	case protos.StreamCtldReply_STEP_META_REPLY:
+		if c := gVars.ctldReplyChannelMapForCattachByPid[reply.GetPayloadStepMetaReply().CattachPid]; c != nil {
+			channels = append(channels, c)
+		}
+	case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY,
+		protos.StreamCtldReply_JOB_CANCEL_REQUEST,
+		protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
+		var step StepIdentifier
+		switch reply.Type {
+		case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
+			p := reply.GetPayloadJobResAllocReply()
+			step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+		case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
+			p := reply.GetPayloadJobCancelRequest()
+			step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+		case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
+			p := reply.GetPayloadJobCompletionAck()
+			step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+		}
+		if c := gVars.ctldReplyChannelMapByStep[step]; c != nil {
+			channels = append(channels, c)
+		} else if reply.Type == protos.StreamCtldReply_JOB_CANCEL_REQUEST {
+			completion = &protos.StreamCforedRequest{
+				Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
+				Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
+					PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
+						CforedName: gVars.hostName, JobId: step.JobId, StepId: step.StepId,
+						InteractiveType: protos.InteractiveJobType_Crun,
 					},
 				},
 			}
-
-			if err := stream.Send(request); err != nil {
-				log.Error("[Cfored<->Ctld] Failed to send registration msg to ctld. " +
-					"Wait for 1 second and reconnect...")
-				time.Sleep(time.Second * 1)
-			} else {
-				state = WaitReg
+		}
+		if reply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+			for _, c := range gVars.ctldReplyChannelMapForCattachByStep[step] {
+				channels = append(channels, c)
 			}
+		}
+	default:
+		log.Warnf("[Cfored<->Ctld] Unexpected reply %s", reply.Type)
+	}
+	gVars.ctldReplyChannelMapMtx.Unlock()
 
-		case WaitReg:
-			log.Tracef("[Cfored<->Ctld] Enter WAIT_REG state.")
+	for _, c := range channels {
+		deliverCtldReply(c, reply)
+	}
+	return completion
+}
 
-			select {
-			case reply := <-client.ctldReplyChannel:
-				if reply == nil {
-					log.Error("[Cfored<->Ctld] Failed to receive registration msg from ctld. " +
-						"Wait for 1 second and reconnect...")
-					state = StartReg
-					time.Sleep(time.Second * 1)
-				} else {
-					if reply.Type != protos.StreamCtldReply_CFORED_REGISTRATION_ACK {
-						log.Fatal("[Cfored<->Ctld] Expect CFORED_REGISTRATION_ACK type.")
-					}
+func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
+	defer wg.Done()
+	defer gVars.ctldConnected.Store(false)
+	client.ctldConn, client.ctldClientStub = util.GetStubToCtldForInternalByConfig(client.config)
+	defer client.ctldConn.Close()
 
-					if reply.GetPayloadCforedRegAck().Ok {
-						log.Infof("[Cfored<->Ctld] Cfored %s successfully registered.", gVars.hostName)
-
-						gVars.ctldConnected.Store(true)
-						state = WaitChannelReq
-					} else {
-						log.Errorf("[Cfored<->Ctld] Failed to register with CraneCtld: %s. Exiting...",
-							reply.GetPayloadCforedRegAck().FailureReason)
-						gVars.globalCtxCancel()
-						break CtldClientStateMachineLoop
-					}
+	var stream protos.CraneCtldForInternal_CforedStreamClient
+	var cancelStream context.CancelFunc
+	defer func() {
+		if cancelStream != nil {
+			cancelStream()
+		}
+	}()
+	// Completion can be retried: Ctld suppresses repeated step termination and
+	// acknowledges steps that have already gone. Keep it until the real ACK,
+	// including when Send succeeds but the connection loses the reply.
+	pendingCompletions := make(map[StepIdentifier]*protos.StreamCforedRequest)
+	// Track only requests actually sent on this stream. Requests still in the
+	// input queue can be sent once after reconnect; submissions must not be retried.
+	pendingJobIDs := make(map[int32]chan *protos.StreamCtldReply)
+	pendingMetadata := make(map[int32]chan *protos.StreamCtldReply)
+	pendingAllocations := make(map[StepIdentifier]chan *protos.StreamCtldReply)
+	sendRequest := func(request *protos.StreamCforedRequest) error {
+		switch request.Type {
+		case protos.StreamCforedRequest_JOB_REQUEST, protos.StreamCforedRequest_STEP_REQUEST:
+			pid := request.GetPayloadJobReq().GetPid()
+			if request.Type == protos.StreamCforedRequest_STEP_REQUEST {
+				pid = request.GetPayloadStepReq().Pid
+			}
+			gVars.ctldReplyChannelMapMtx.Lock()
+			channel := gVars.ctldReplyChannelMapByPid[pid]
+			gVars.ctldReplyChannelMapMtx.Unlock()
+			if channel == nil {
+				return nil
+			}
+			pendingJobIDs[pid] = channel
+		case protos.StreamCforedRequest_STEP_META_REQUEST:
+			pid := request.GetPayloadStepMetaReq().CattachPid
+			gVars.ctldReplyChannelMapMtx.Lock()
+			channel := gVars.ctldReplyChannelMapForCattachByPid[pid]
+			gVars.ctldReplyChannelMapMtx.Unlock()
+			if channel == nil {
+				return nil
+			}
+			pendingMetadata[pid] = channel
+		}
+		if request.Type == protos.StreamCforedRequest_JOB_COMPLETION_REQUEST {
+			p := request.GetPayloadJobCompleteReq()
+			step := StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+			delete(pendingAllocations, step)
+			pendingCompletions[step] = request
+		}
+		// A flow-controlled Send must also unblock on process shutdown.
+		stopCancel := context.AfterFunc(gVars.globalCtx, cancelStream)
+		defer stopCancel()
+		return stream.Send(request)
+	}
+	state := StartReg
+	for {
+		switch state {
+		case StartReg:
+			gVars.ctldConnected.Store(false)
+			if gVars.globalCtx.Err() != nil {
+				state = WaitAllFrontEnd
+				continue
+			}
+			if cancelStream != nil {
+				cancelStream()
+				// Ctld registration does not replay these replies. Fail only the
+				// incomplete handshakes, keeping established I/O sessions alive.
+				for pid, channel := range pendingJobIDs {
+					deliverCtldReply(channel, &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_JOB_ID_REPLY,
+						Payload: &protos.StreamCtldReply_PayloadJobIdReply{
+							PayloadJobIdReply: &protos.StreamCtldReply_JobIdReply{
+								Pid: pid, FailureReason: "Connection to CraneCtld lost before the submission result; the job or step may have been accepted.",
+							},
+						},
+					})
 				}
-
-			case <-gVars.globalCtx.Done():
-				break CtldClientStateMachineLoop
-			}
-
-		case WaitChannelReq:
-			log.Tracef("[Cfored<->Ctld] Enter WAIT_CHANNEL_REQ state.")
-
-			var jobId uint32
-			var stepId uint32
-
-		WaitChannelReqLoop:
-			for {
+				clear(pendingJobIDs)
+				for pid, channel := range pendingMetadata {
+					deliverCtldReply(channel, &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_STEP_META_REPLY,
+						Payload: &protos.StreamCtldReply_PayloadStepMetaReply{
+							PayloadStepMetaReply: &protos.StreamCtldReply_StepMetaReply{
+								CattachPid: pid, FailureReason: "Connection to CraneCtld lost before the step metadata reply.",
+							},
+						},
+					})
+				}
+				clear(pendingMetadata)
+				for step, channel := range pendingAllocations {
+					// Let the handler follow its normal cancellation/completion path.
+					deliverCtldReply(channel, &protos.StreamCtldReply{
+						Type: protos.StreamCtldReply_JOB_CANCEL_REQUEST,
+						Payload: &protos.StreamCtldReply_PayloadJobCancelRequest{
+							PayloadJobCancelRequest: &protos.StreamCtldReply_JobCancelRequest{JobId: step.JobId, StepId: step.StepId},
+						},
+					})
+				}
+				clear(pendingAllocations)
 				select {
 				case <-gVars.globalCtx.Done():
 					state = WaitAllFrontEnd
-					break WaitChannelReqLoop
+					continue
+				case <-time.After(time.Second):
+				}
+			}
+			log.Trace("[Cfored<->Ctld] Enter START_REG state.")
+			ctx, cancel := context.WithCancel(context.Background())
+			cancelStream = cancel
+			// Opening a stream may wait for a transport; shutdown must interrupt it.
+			stopCancel := context.AfterFunc(gVars.globalCtx, cancel)
+			var err error
+			stream, err = client.ctldClientStub.CforedStream(ctx)
+			if err == nil {
+				err = stream.Send(&protos.StreamCforedRequest{
+					Type: protos.StreamCforedRequest_CFORED_REGISTRATION,
+					Payload: &protos.StreamCforedRequest_PayloadCforedReg{
+						PayloadCforedReg: &protos.StreamCforedRequest_CforedReg{CforedName: gVars.hostName},
+					},
+				})
+			}
+			stopCancel()
+			if err != nil {
+				log.Errorf("[Cfored<->Ctld] Cannot register with CraneCtld: %s. Retrying...", err)
+				continue
+			}
+			client.ctldReplyChannel = make(chan *protos.StreamCtldReply, 8)
+			go client.CtldReplyReceiveRoutine(ctx, stream, client.ctldReplyChannel)
+			state = WaitReg
 
-				// Multiplex requests from calloc/crun to ctld.
-				case request = <-gVars.cforedRequestCtldChannel:
-					if err := stream.Send(request); err != nil {
-						log.Error("[Cfored<->Ctld] Failed to forward msg to ctld. " +
-							"Connection to ctld is broken.")
-
-						gVars.ctldConnected.Store(false)
+		case WaitReg, WaitChannelReq:
+			// Keep established sessions and their routes across a transport failure.
+			// Requests queued while disconnected are sent only after registration.
+			var requests <-chan *protos.StreamCforedRequest
+			if state == WaitChannelReq {
+				requests = gVars.cforedRequestCtldChannel
+			}
+			select {
+			case <-gVars.globalCtx.Done():
+				state = WaitAllFrontEnd
+			case request := <-requests:
+				if err := sendRequest(request); err != nil {
+					log.Errorf("[Cfored<->Ctld] Failed to forward %s: %s. Reconnecting...", request.Type, err)
+					state = StartReg
+				}
+			case reply := <-client.ctldReplyChannel:
+				if reply == nil {
+					state = StartReg
+					continue
+				}
+				if reply.Type == protos.StreamCtldReply_CFORED_REGISTRATION_ACK {
+					if !reply.GetPayloadCforedRegAck().Ok {
+						log.Errorf("[Cfored<->Ctld] Registration rejected: %s", reply.GetPayloadCforedRegAck().FailureReason)
+						gVars.globalCtxCancel()
 						state = WaitAllFrontEnd
-						break WaitChannelReqLoop
-					}
-
-				// De-multiplex requests from ctl to calloc/crun.
-				case ctldReply := <-client.ctldReplyChannel:
-					if ctldReply == nil {
-						log.Trace("[Cfored<->Ctld] Failed to receive msg from ctld. " +
-							"Connection to cfored is broken.")
-
-						gVars.ctldConnected.Store(false)
-						state = WaitAllFrontEnd
-						break WaitChannelReqLoop
-					}
-
-					switch ctldReply.Type {
-
-					case protos.StreamCtldReply_JOB_ID_REPLY:
-						frontPid := ctldReply.GetPayloadJobIdReply().Pid
-
-						gVars.ctldReplyChannelMapMtx.Lock()
-
-						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapByPid[frontPid]
-						if ok {
-							toFrontCtlReplyChannel <- ctldReply
-						} else {
-							log.Fatalf("[Cfored<->Ctld] Front pid %d shall exist "+
-								"in ctldReplyChannelMapByPid!", frontPid)
+					} else {
+						log.Infof("[Cfored<->Ctld] Cfored %s successfully registered.", gVars.hostName)
+						gVars.ctldConnected.Store(true)
+						state = WaitChannelReq
+						for _, request := range pendingCompletions {
+							if err := sendRequest(request); err != nil {
+								log.Errorf("[Cfored<->Ctld] Failed to retry completion: %s", err)
+								state = StartReg
+								break
+							}
 						}
-
-						gVars.ctldReplyChannelMapMtx.Unlock()
-
-					case protos.StreamCtldReply_STEP_META_REPLY:
-						frontPid := ctldReply.GetPayloadStepMetaReply().CattachPid
-
-						gVars.ctldReplyChannelMapMtx.Lock()
-						// Use the dedicated cattach-by-pid map (see ctldReplyChannelMapForCattachByPid).
-						toFrontCtlReplyChannel, ok := gVars.ctldReplyChannelMapForCattachByPid[frontPid]
-						if ok {
-							toFrontCtlReplyChannel <- ctldReply
-						} else {
-							// The cattach client may have disconnected before ctld replied.
-							// The channel was removed in CattachWaitStepMeta; just drop this reply.
-							log.Warnf("[Cfored<->Ctld] STEP_META_REPLY for cattach pid %d "+
-								"not found in ctldReplyChannelMapForCattachByPid "+
-								"(cattach may have disconnected). Dropping.", frontPid)
-						}
-						gVars.ctldReplyChannelMapMtx.Unlock()
-
+					}
+					continue
+				}
+				if reply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
+					p := reply.GetPayloadJobCompletionAck()
+					delete(pendingCompletions, StepIdentifier{JobId: p.JobId, StepId: p.StepId})
+				}
+				// Keep the original channel until allocation is delivered: the
+				// handler may not yet have moved its PID route to the step map.
+				var waiting chan *protos.StreamCtldReply
+				switch reply.Type {
+				case protos.StreamCtldReply_JOB_ID_REPLY:
+					p := reply.GetPayloadJobIdReply()
+					waiting = pendingJobIDs[p.Pid]
+					delete(pendingJobIDs, p.Pid)
+					if p.Ok && waiting != nil {
+						pendingAllocations[StepIdentifier{JobId: p.JobId, StepId: p.StepId}] = waiting
+					}
+				case protos.StreamCtldReply_STEP_META_REPLY:
+					p := reply.GetPayloadStepMetaReply()
+					waiting = pendingMetadata[p.CattachPid]
+					delete(pendingMetadata, p.CattachPid)
+				case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY, protos.StreamCtldReply_JOB_CANCEL_REQUEST, protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
+					var step StepIdentifier
+					switch reply.Type {
 					case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
-						fallthrough
+						p := reply.GetPayloadJobResAllocReply()
+						step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
 					case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
-						fallthrough
+						p := reply.GetPayloadJobCancelRequest()
+						step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
 					case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
-						switch ctldReply.Type {
-						case protos.StreamCtldReply_JOB_RES_ALLOC_REPLY:
-							jobId = ctldReply.GetPayloadJobResAllocReply().JobId
-							stepId = ctldReply.GetPayloadJobResAllocReply().StepId
-						case protos.StreamCtldReply_JOB_CANCEL_REQUEST:
-							jobId = ctldReply.GetPayloadJobCancelRequest().JobId
-							stepId = ctldReply.GetPayloadJobCancelRequest().StepId
-						case protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY:
-							jobId = ctldReply.GetPayloadJobCompletionAck().JobId
-							stepId = ctldReply.GetPayloadJobCompletionAck().StepId
-						}
-
-						log.Tracef("[Cfored<->Ctld][Step #%d.%d] %s message received.", jobId, stepId, ctldReply.Type)
-
-						gVars.ctldReplyChannelMapMtx.Lock()
-
-						toFeCtlReplyChannel, ok := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
-						if ok {
-							toFeCtlReplyChannel <- ctldReply
-						} else {
-							log.Warningf("[Cfored<->Ctld][Step #%d.%d] shall exist in "+
-								"ctldReplyChannelMapByStep!", jobId, stepId)
-							if ctldReply.Type == protos.StreamCtldReply_JOB_CANCEL_REQUEST {
-								log.Debugf("Cfored->Ctld Step #%d.%d JOB_COMPLETION_REQUEST ", jobId, stepId)
-								toCtldRequest := &protos.StreamCforedRequest{
-									Type: protos.StreamCforedRequest_JOB_COMPLETION_REQUEST,
-									Payload: &protos.StreamCforedRequest_PayloadJobCompleteReq{
-										PayloadJobCompleteReq: &protos.StreamCforedRequest_JobCompleteReq{
-											CforedName:      gVars.hostName,
-											JobId:           jobId,
-											StepId:          stepId,
-											InteractiveType: protos.InteractiveJobType_Crun,
-										},
-									},
-								}
-								gVars.cforedRequestCtldChannel <- toCtldRequest
-							}
-						}
-						// cattach only focus on JOB_COMPLETION_ACK_REPLY
-						if ctldReply.Type == protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY {
-							toCattachCtlReplyChannelMap, ok := gVars.ctldReplyChannelMapForCattachByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
-							if ok {
-								for _, toCattachCtlReplyChannel := range toCattachCtlReplyChannelMap {
-									toCattachCtlReplyChannel <- ctldReply
-								}
-							}
-						}
-
-						gVars.ctldReplyChannelMapMtx.Unlock()
+						p := reply.GetPayloadJobCompletionAck()
+						step = StepIdentifier{JobId: p.JobId, StepId: p.StepId}
+					}
+					waiting = pendingAllocations[step]
+					delete(pendingAllocations, step)
+				}
+				if waiting != nil {
+					deliverCtldReply(waiting, reply)
+					continue
+				}
+				// Ctld replaces its stream writer before sending registration ACK;
+				// an existing session's callback may therefore arrive first.
+				if request := dispatchCtldReply(reply); request != nil {
+					if err := sendRequest(request); err != nil {
+						log.Errorf("[Cfored<->Ctld] Failed to complete removed session: %s", err)
+						state = StartReg
 					}
 				}
 			}
 
 		case WaitAllFrontEnd:
-			log.Tracef("[Cfored<->Ctld] Enter WAIT_ALL_FRONT_END state.")
-
+			log.Trace("[Cfored<->Ctld] Enter WAIT_ALL_FRONT_END state.")
 			gVars.ctldConnected.Store(false)
-			gVars.ctldReplyChannelMapMtx.Lock()
-
-			for pid, c := range gVars.ctldReplyChannelMapByPid {
-				reply := &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_JOB_ID_REPLY,
-					Payload: &protos.StreamCtldReply_PayloadJobIdReply{
-						PayloadJobIdReply: &protos.StreamCtldReply_JobIdReply{
-							Pid:           pid,
-							Ok:            false,
-							FailureReason: "Cfored is not connected to CraneCtld.",
-						},
-					},
-				}
-				c <- reply
-			}
-
-			gVars.ctldReplyChannelMapByPid = make(map[int32]chan *protos.StreamCtldReply)
-
-			// Notify cattach sessions that are still waiting for STEP_META_REPLY.
-			// Send STEP_META_REPLY(Ok=false) so they cleanly forward STEP_CONNECT_REPLY(Ok=false)
-			// to the client and exit without blocking. Do NOT send JOB_COMPLETION_ACK_REPLY here,
-			// as that would cause cattach to send STEP_COMPLETION_ACK_REPLY to a client still in
-			// the connection phase, which would be semantically incorrect.
-			for pid, c := range gVars.ctldReplyChannelMapForCattachByPid {
-				c <- &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_STEP_META_REPLY,
-					Payload: &protos.StreamCtldReply_PayloadStepMetaReply{
-						PayloadStepMetaReply: &protos.StreamCtldReply_StepMetaReply{
-							CattachPid:    pid,
-							Ok:            false,
-							FailureReason: "Cfored is not connected to CraneCtld.",
-						},
-					},
-				}
-			}
-
-			gVars.ctldReplyChannelMapForCattachByPid = make(map[int32]chan *protos.StreamCtldReply)
-
-			for step, c := range gVars.ctldReplyChannelMapByStep {
-				reply := &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_JOB_CANCEL_REQUEST,
-					Payload: &protos.StreamCtldReply_PayloadJobCancelRequest{
-						PayloadJobCancelRequest: &protos.StreamCtldReply_JobCancelRequest{
-							JobId:  step.JobId,
-							StepId: step.StepId,
-						},
-					},
-				}
-				c <- reply
-			}
-
-			for step, c := range gVars.ctldReplyChannelMapByStep {
-				reply := &protos.StreamCtldReply{
-					Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
-					Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
-						PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
-							JobId:  step.JobId,
-							StepId: step.StepId,
-						},
-					},
-				}
-				c <- reply
-			}
-
-			num := len(gVars.ctldReplyChannelMapByStep)
-			count := 0
-
-			if num > 0 {
-				log.Debugf("[Cfored<->Ctld] Sending cancel request to %d front ends "+
-					"with job id allocated.", num)
-				for {
-					request = <-gVars.cforedRequestCtldChannel
-					if request.Type != protos.StreamCforedRequest_JOB_COMPLETION_REQUEST {
-						log.Fatal("[Cfored<->Ctld] Expect type JOB_COMPLETION_REQUEST")
-					}
-
-					jobId := request.GetPayloadJobCompleteReq().JobId
-					stepId := request.GetPayloadJobCompleteReq().StepId
-
-					toCallocCtlReplyChannel, ok := gVars.ctldReplyChannelMapByStep[StepIdentifier{JobId: jobId, StepId: stepId}]
-					if ok {
-						toCallocCtlReplyChannel <- &protos.StreamCtldReply{
-							Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
-							Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
-								PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
-									JobId:  jobId,
-									StepId: stepId,
-								},
-							},
-						}
-					} else {
-						log.Fatalf("[Cfored<->Ctld][Step #%d.%d] Step shall exist in ctldReplyChannelMapByStep!", jobId, stepId)
-					}
-
-					count += 1
-					log.Debugf("[Cfored<->Ctld][Step #%d.%d] Receive job completion request. %d/%d front ends is cancelled",
-						jobId, stepId, count, num)
-
-					if count >= num {
-						break
-					}
-				}
-			}
-
-			gVars.ctldReplyChannelMapByStep = make(map[StepIdentifier]chan *protos.StreamCtldReply)
-
-			for step, toCattachCtlReplyChannelMap := range gVars.ctldReplyChannelMapForCattachByStep {
-				for _, c := range toCattachCtlReplyChannelMap {
-					c <- &protos.StreamCtldReply{
-						Type: protos.StreamCtldReply_JOB_COMPLETION_ACK_REPLY,
-						Payload: &protos.StreamCtldReply_PayloadJobCompletionAck{
-							PayloadJobCompletionAck: &protos.StreamCtldReply_JobCompletionAckReply{
-								JobId:  step.JobId,
-								StepId: step.StepId,
-							},
-						},
-					}
-				}
-			}
-
-			gVars.ctldReplyChannelMapForCattachByStep = make(map[StepIdentifier]map[int32]chan *protos.StreamCtldReply)
-
-			gVars.ctldReplyChannelMapMtx.Unlock()
-
-			select {
-			case <-gVars.globalCtx.Done():
-				state = GracefulExit
-			default:
-				state = StartReg
-			}
+			// Only process shutdown reaches this state. Handlers observe globalCtx,
+			// release their own maps/I/O channels, and then decrement the counter.
+			waitFrontEnds()
+			state = GracefulExit
 
 		case GracefulExit:
-			request = &protos.StreamCforedRequest{
+			if stream == nil || stream.Context().Err() != nil {
+				return
+			}
+			request := &protos.StreamCforedRequest{
 				Type: protos.StreamCforedRequest_CFORED_GRACEFUL_EXIT,
 				Payload: &protos.StreamCforedRequest_PayloadGracefulExitReq{
-					PayloadGracefulExitReq: &protos.StreamCforedRequest_GracefulExitReq{
-						CforedName: gVars.hostName,
-					},
+					PayloadGracefulExitReq: &protos.StreamCforedRequest_GracefulExitReq{CforedName: gVars.hostName},
 				},
 			}
-
-			if err = stream.Send(request); err != nil {
-				log.Errorf("[Cfored<->Ctld] Failed to send graceful exit msg to ctld: %s. "+
-					"Exiting...", err)
-				break CtldClientStateMachineLoop
-			} else {
-				ctldReply := <-client.ctldReplyChannel
-				if ctldReply == nil {
-					log.Trace("[Cfored<->Ctld] Failed to receive msg from ctld. " +
-						"Connection to cfored is broken.")
-
-					gVars.ctldConnected.Store(false)
-					break CtldClientStateMachineLoop
+			if err := stream.Send(request); err != nil {
+				log.Errorf("[Cfored<->Ctld] Failed to notify CraneCtld of shutdown: %s", err)
+				return
+			}
+			for reply := range client.ctldReplyChannel {
+				if reply == nil || reply.Type == protos.StreamCtldReply_CFORED_GRACEFUL_EXIT_ACK {
+					return
 				}
-
-				if ctldReply.Type != protos.StreamCtldReply_CFORED_GRACEFUL_EXIT_ACK {
-					log.Fatal("[Cfored<->Ctld] Expect CFORED_GRACEFUL_EXIT_ACK type.")
-				}
-
-				log.Debugf("Receive CFORED_GRACEFUL_EXIT_ACK with ok = %t",
-					ctldReply.GetPayloadGracefulExitAck().Ok)
-				break CtldClientStateMachineLoop
+				// Other session replies may already be queued ahead of the exit ACK.
 			}
 		}
 	}
-
-	wg.Done()
 }
