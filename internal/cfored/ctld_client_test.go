@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -181,6 +183,88 @@ func registerTest(t *testing.T, ctld *testCtld) *testCtldStream {
 	c.replies <- registrationAckTest()
 	eventuallyTest(t, gVars.ctldConnected.Load)
 	return c
+}
+
+type registrationFailureHook chan string
+
+func (registrationFailureHook) Levels() []log.Level { return []log.Level{log.ErrorLevel} }
+
+func (h registrationFailureHook) Fire(entry *log.Entry) error {
+	if strings.Contains(entry.Message, "Cannot register with CraneCtld:") {
+		select {
+		case h <- entry.Message:
+		default:
+		}
+	}
+	return nil
+}
+
+func TestCtldRecoversAfterListenerUnavailable(t *testing.T) {
+	for _, restart := range []bool{false, true} {
+		name := "delayed_start"
+		if restart {
+			name = "restart_same_port"
+		}
+		t.Run(name, func(t *testing.T) {
+			initCforedTest(t)
+			failures := make(registrationFailureHook, 8)
+			oldHooks := log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
+			log.AddHook(failures)
+			t.Cleanup(func() { log.StandardLogger().ReplaceHooks(oldHooks) })
+
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			address := listener.Addr().String()
+			_, port, _ := net.SplitHostPort(address)
+			ctld := &testCtld{streams: make(chan *testCtldStream, 8), exits: make(chan struct{}, 1)}
+			server := grpc.NewServer()
+			protos.RegisterCraneCtldForInternalServer(server, ctld)
+			t.Cleanup(func() { server.Stop() })
+			if restart {
+				go server.Serve(listener)
+			} else if err := listener.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			client := &GrpcCtldClient{config: &util.Config{
+				ControlMachine: "127.0.0.1", CraneCtldForInternalListenPort: port,
+			}}
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go client.StartCtldClientStream(&wg)
+			done := make(chan struct{})
+			go func() { wg.Wait(); close(done) }()
+			t.Cleanup(func() {
+				gVars.globalCtxCancel()
+				server.Stop()
+				receiveTest(t, done)
+			})
+			if restart {
+				registerTest(t, ctld)
+				server.Stop() // Close the transport and listener, not just the RPC.
+			}
+
+			// Keep the port closed across retries. With the current connection
+			// parameters, a reused ClientConn exhausts its nonzero dial budget
+			// after the first failed attempt and cannot recover when Ctld returns.
+			for range 3 {
+				t.Log(receiveTest(t, failures))
+			}
+			listener, err = net.Listen("tcp", address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server = grpc.NewServer()
+			protos.RegisterCraneCtldForInternalServer(server, ctld)
+			go server.Serve(listener)
+			registerTest(t, ctld)
+			gVars.globalCtxCancel()
+			receiveTest(t, ctld.exits)
+			receiveTest(t, done)
+		})
+	}
 }
 
 func registrationAckTest() *protos.StreamCtldReply {
