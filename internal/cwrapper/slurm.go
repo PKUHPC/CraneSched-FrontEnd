@@ -1078,6 +1078,13 @@ func squeue() *cobra.Command {
 		GroupID:            "slurm",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
+			if slices.Contains(args, "--help") {
+				if err := cmd.Help(); err != nil {
+					log.Error(err)
+				}
+				return
+			}
+
 			cqueue.RootCmd.Use = "squeue [flags]"
 			// Slurm uses -V for version and -v for verbose.
 			cqueue.RootCmd.Flags().BoolP("version", "V", false, "version for squeue")
@@ -1153,10 +1160,14 @@ Supported format identifiers or string, string case insensitive:
 	%a/%Account            - Display the account associated with the job.
 	%C/%ReqCpus            - Display the cpus requested to the job.
 	%c/%AllocCpus          - Display the cpus allocated to the job.
+	%deadline/%Deadline    - Display the deadline time of jobs.
 	%e/%ElapsedTime        - Display the elapsed time from the start of the job. 
 	%h/%Held               - Display the hold state of the job.
-	%j/%JobID              - Display the ID of the job (array jobs use jobid_arraytaskid).
+	%i/%StepId             - Display the ID of the step (format: jobId.stepId).
+	%j/%JobID              - Display the logical queue ID.
+	                          Materialized array tasks use jobId_arrayTaskId; active array parents use jobId_[range%maxConcurrent] when limited.
 	%k/%Comment            - Display the comment of the job.
+	%K/%Wckey              - Display the wckey of the job.
 	%L/%NodeList           - Display the list of nodes the job is running on.
 	%l/%TimeLimit          - Display the time limit for the job.
 	%M/%ReqMemPerNode      - Display the requested mem per node of the job.
@@ -1172,8 +1183,9 @@ Supported format identifiers or string, string case insensitive:
 	%r/%ReqNodes           - Display the reqnodes of the job.
 	%S/%StartTime          - Display the start time of the job.
 	%s/%SubmitTime         - Display the submission time of the job.
-	%t/%State              - Display the current state of the job.
-	%T/%JobType            - Display the job type.
+	%t/%StateCompact       - Display the compact state of the job.
+	%T/%State              - Display the full state of the job.
+	%JobType               - Display the job type (Crane extension).
 	%U/%Uid                - Display the uid of the job.
 	%u/%User               - Display the user who submitted the job.
 	%X/%Exclusive          - Display the exclusive status of the job.
@@ -1190,31 +1202,30 @@ Example: --format "%.5jobid %.20n %t" would output the job's ID with a minimum w
 
 var squeueFormatSpecRegex = regexp.MustCompile(`%(\.?\d*)([a-zA-Z]+)`)
 
-// Slurm single-letter format specifiers that cqueue supports with the same
-// meaning, mapped to their cqueue specifiers.
+// Maps Slurm squeue format specifiers to cqueue equivalents.
 var squeueFormatSpecMapping = map[string]string{
-	"a": "a", // account
-	"C": "C", // requested cpus
-	"D": "N", // number of nodes
-	"i": "j", // job id
-	"j": "n", // job name
-	"k": "k", // comment
-	"l": "l", // time limit
-	"M": "e", // elapsed time
-	"m": "M", // requested memory per node
-	"N": "L", // node list
-	"n": "r", // requested nodes
-	"o": "o", // command
-	"P": "P", // partition
-	"p": "p", // priority
-	"q": "q", // qos
-	"r": "R", // reason
-	"S": "S", // start time
-	"T": "t", // job state
-	"t": "t", // state
-	"u": "u", // user
-	"U": "U", // user id
-	"V": "s", // submit time
+	"a": "a",
+	"C": "C",
+	"D": "N",
+	"i": "j",
+	"j": "n",
+	"k": "k",
+	"l": "l",
+	"M": "e",
+	"m": "M",
+	"N": "L",
+	"n": "r",
+	"o": "o",
+	"P": "P",
+	"p": "p",
+	"q": "q",
+	"r": "R",
+	"S": "S",
+	"T": "state",
+	"t": "statecompact",
+	"u": "u",
+	"U": "U",
+	"V": "s",
 }
 
 // convertSqueueFormat rewrites the Slurm single-letter format specifiers in a
