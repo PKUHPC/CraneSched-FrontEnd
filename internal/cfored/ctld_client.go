@@ -137,14 +137,15 @@ func dispatchCtldReply(reply *protos.StreamCtldReply) *protos.StreamCforedReques
 func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer gVars.ctldConnected.Store(false)
-	client.ctldConn, client.ctldClientStub = util.GetStubToCtldForInternalByConfig(client.config)
-	defer client.ctldConn.Close()
 
 	var stream protos.CraneCtldForInternal_CforedStreamClient
 	var cancelStream context.CancelFunc
 	defer func() {
 		if cancelStream != nil {
 			cancelStream()
+		}
+		if client.ctldConn != nil {
+			client.ctldConn.Close()
 		}
 	}()
 	// Completion can be retried: Ctld suppresses repeated step termination and
@@ -202,6 +203,7 @@ func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 			}
 			if cancelStream != nil {
 				cancelStream()
+				client.ctldConn.Close()
 				// Ctld registration does not replay these replies. Fail only the
 				// incomplete handshakes, keeping established I/O sessions alive.
 				for pid, channel := range pendingJobIDs {
@@ -244,6 +246,9 @@ func (client *GrpcCtldClient) StartCtldClientStream(wg *sync.WaitGroup) {
 				}
 			}
 			log.Trace("[Cfored<->Ctld] Enter START_REG state.")
+			// Retain the pre-existing connection retry policy: each registration
+			// attempt gets a fresh transport and backoff state. Sessions live above it.
+			client.ctldConn, client.ctldClientStub = util.GetStubToCtldForInternalByConfig(client.config)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancelStream = cancel
 			// Opening a stream may wait for a transport; shutdown must interrupt it.
