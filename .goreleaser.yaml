@@ -176,10 +176,6 @@ nfpms:
         dst: /usr/bin/sinfo
         file_info:
           mode: 0755
-      - src: docs/sinfo.md
-        dst: /usr/share/doc/cranesched-slurm-compat/sinfo.md
-        file_info:
-          mode: 0644
       - src: LICENSE
         dst: /usr/share/doc/cranesched-slurm-compat/LICENSE
         file_info:
