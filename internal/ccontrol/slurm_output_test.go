@@ -26,3 +26,14 @@ func TestNewSlurmNodeInfoKeepsNodeIdentitiesDistinct(t *testing.T) {
 		t.Errorf("NodeAddr = %q, want %q", got.NodeAddr, node.NodeAddr)
 	}
 }
+
+func TestNativeCPUTextRoundsExactQueryValues(t *testing.T) {
+	node := &protos.CranedInfo{
+		ResTotal: &protos.ResourceInNodeV3{CpuCount: 4},
+		ResAlloc: &protos.ResourceInNodeV3{CpuCount: 32.0 / 256},
+		ResAvail: &protos.ResourceInNodeV3{CpuCount: 992.0 / 256},
+	}
+	if got := formatCpuInfo(node); got != "CPU=4.00 AllocCPU=0.13 FreeCPU=3.88" {
+		t.Fatal(got)
+	}
+}

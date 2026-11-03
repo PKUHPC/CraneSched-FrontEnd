@@ -7,10 +7,11 @@ package sinfo
 import (
 	"CraneFrontEnd/compat/utils"
 	"CraneFrontEnd/generated/protos"
+	"cmp"
 	"context"
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -37,14 +38,17 @@ func openCraneSource(ctx context.Context, configPath string) (snapshotSource, er
 }
 
 func (s *craneSource) Load(ctx context.Context, q query) (*snapshot, error) {
-	var reply *protos.QuerySinfoInfoReply
+	var reply *protos.QueryClusterInfoReply
 	err := s.session.Query(ctx, func(ctx context.Context, client protos.CraneCtldClient, uid uint32) error {
 		var err error
-		reply, err = client.QuerySinfoInfo(ctx, &protos.QuerySinfoInfoRequest{Uid: uid, ReservationsOnly: q.ReservationsOnly})
+		reply, err = client.QueryClusterInfo(ctx, &protos.QueryClusterInfoRequest{
+			Uid: &uid, IncludeNodes: !q.ReservationsOnly, IncludePartitions: !q.ReservationsOnly,
+			IncludeReservations: true, IncludeAllocationCleanup: !q.ReservationsOnly,
+		})
 		return err
 	})
 	if status.Code(err) == codes.Unimplemented {
-		return nil, fmt.Errorf("Crane controller does not support the sinfo query API")
+		return nil, fmt.Errorf("Crane controller does not support the cluster query API")
 	}
 	if err != nil {
 		return nil, err
@@ -54,9 +58,9 @@ func (s *craneSource) Load(ctx context.Context, q query) (*snapshot, error) {
 
 func (s *craneSource) Close() error { return s.session.Close() }
 
-func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error) {
-	if reply == nil {
-		return nil, fmt.Errorf("controller returned no sinfo query reply")
+func adaptSnapshot(reply *protos.QueryClusterInfoReply, q query) (*snapshot, error) {
+	if reply == nil || !reply.Ok {
+		return nil, fmt.Errorf("controller returned no successful cluster query reply")
 	}
 	s := &snapshot{Cluster: reply.ClusterName, UnsupportedFields: map[string]string{}}
 	for _, field := range fieldSpecs {
@@ -68,7 +72,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 		return nil, fmt.Errorf("controller returned no valid observation time")
 	}
 	now := reply.ObservedAt.AsTime()
-	reservations := append([]*protos.ReservationInfo(nil), reply.Reservations...)
+	reservations := slices.Clone(reply.Reservations)
 	for _, raw := range reservations {
 		if raw == nil || raw.StartTime == nil || raw.Duration == nil || raw.StartTime.CheckValid() != nil || raw.Duration.CheckValid() != nil {
 			return nil, fmt.Errorf("reservation %q is missing its time interval", raw.GetReservationName())
@@ -77,7 +81,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 			return nil, fmt.Errorf("reservation %q is missing its creation order", raw.ReservationName)
 		}
 	}
-	sort.SliceStable(reservations, func(i, j int) bool { return reservations[i].CreationOrder < reservations[j].CreationOrder })
+	slices.SortStableFunc(reservations, func(a, b *protos.ReservationInfo) int { return cmp.Compare(a.CreationOrder, b.CreationOrder) })
 	activeReservations := make(map[string][]string)
 	for _, raw := range reservations {
 		start := raw.StartTime.AsTime()
@@ -92,8 +96,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 	if q.ReservationsOnly {
 		return s, nil
 	}
-	for _, raw := range reply.Nodes {
-		detail := raw.GetNode()
+	for _, detail := range reply.Nodes {
 		if detail == nil || detail.ResTotal == nil || detail.ResAlloc == nil {
 			return nil, fmt.Errorf("controller returned an incomplete node record")
 		}
@@ -101,7 +104,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 		if err != nil {
 			return nil, err
 		}
-		allocation, err := activeAllocation(detail, raw)
+		allocation, err := activeAllocation(detail)
 		if err != nil {
 			return nil, err
 		}
@@ -116,8 +119,8 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 			Port: uint64(detail.Port), Reason: detail.StateReason, ReasonUID: detail.StateReasonUid,
 			TelemetryExpected: detail.HasRegistered,
 		}
-		gresIssue := subtractCleanupGRES(allocation.Gres, raw.CleanupResources.Gres)
-		n.Gres, n.GresUsed, n.GresIssue = projectGRES(detail.ResTotal.Gres, allocation.Gres, raw.GresOrder)
+		gresIssue := subtractCleanupGRES(allocation.Gres, detail.CleanupResources.Gres)
+		n.Gres, n.GresUsed, n.GresIssue = projectGRES(detail.ResTotal.Gres, allocation.Gres, detail.GresOrder)
 		if gresIssue != nil {
 			n.GresIssue = gresIssue
 		}
@@ -179,7 +182,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 				n.State.Base = "mixed"
 			}
 		}
-		n.State.Completing = raw.CleanupPending && detail.Responding && n.State.Power != "powered_down" && n.State.Power != "powering_up"
+		n.State.Completing = detail.CleanupPending && detail.Responding && n.State.Power != "powered_down" && n.State.Power != "powering_up"
 		if names := activeReservations[n.Name]; len(names) != 0 {
 			// Crane excludes overlapping whole-node reservations. The Slurm
 			// node record exposes one name, not a fabricated comma-separated list.
@@ -191,8 +194,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 		}
 		s.Nodes = append(s.Nodes, n)
 	}
-	for _, raw := range reply.Partitions {
-		detail := raw.Partition
+	for _, detail := range reply.Partitions {
 		if detail == nil {
 			return nil, fmt.Errorf("controller returned an incomplete partition record")
 		}
@@ -201,22 +203,22 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 			return nil, fmt.Errorf("partition %q has an invalid node list: %w", detail.Name, err)
 		}
 		p := partition{
-			Name: detail.Name, Default: raw.IsDefault, Available: "up", TimeLimit: durationLimit{Infinite: true},
-			DefaultTime: durationLimit{Unset: true}, PriorityFactor: uint64(raw.PriorityJobFactor),
+			Name: detail.Name, Default: detail.IsDefault, Available: "up", TimeLimit: durationLimit{Infinite: true},
+			DefaultTime: durationLimit{Unset: true}, PriorityFactor: uint64(detail.Priority),
 			Groups: "all", AllocNodes: "all", OverSubscribe: "NO", MaxNodes: 0xffffffff, MaxCPUs: 0xffffffff, MinNodes: 1,
-			AllowedAccounts: append([]string(nil), detail.AllowedAccounts...), DeniedAccounts: append([]string(nil), detail.DeniedAccounts...),
+			AllowedAccounts: slices.Clone(detail.AllowedAccounts), DeniedAccounts: slices.Clone(detail.DeniedAccounts),
 			DefaultMemCPU: detail.DefaultMemPerCpu / (1024 * 1024), MaxMemCPU: detail.MaxMemPerCpu / (1024 * 1024),
 			DefaultMemNode: detail.DefaultMemPerNode / (1024 * 1024), MaxMemNode: detail.MaxMemPerNode / (1024 * 1024),
 			ConfiguredNodes: detail.Hostlist,
 		}
-		sort.Strings(p.AllowedAccounts)
-		sort.Strings(p.DeniedAccounts)
+		slices.Sort(p.AllowedAccounts)
+		slices.Sort(p.DeniedAccounts)
 		// Crane currently has no partition administrative-down or partition
 		// time-limit setting. Node liveness and job/QoS limits do not substitute.
 		mode, ok := map[protos.PreemptMode]string{
 			protos.PreemptMode_PREEMPT_MODE_OFF: "OFF", protos.PreemptMode_PREEMPT_MODE_CANCEL: "CANCEL",
 			protos.PreemptMode_PREEMPT_MODE_REQUEUE: "REQUEUE", protos.PreemptMode_PREEMPT_MODE_SUSPEND: "SUSPEND",
-		}[raw.PreemptMode]
+		}[detail.PreemptMode]
 		if !ok {
 			return nil, fmt.Errorf("partition %q has an unknown preemption mode", p.Name)
 		}
@@ -238,18 +240,18 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 
 // The controller reads held resources and ending allocations under the same
 // locks. Only the client excludes cleanup holdings from Slurm's active totals.
-func activeAllocation(node *protos.CranedInfo, raw *protos.SinfoNodeInfo) (*protos.ResourceInNodeV3, error) {
-	cleanup := raw.CleanupResources
-	if cleanup == nil || raw.AllocatedCpus == nil {
+func activeAllocation(node *protos.CranedInfo) (*protos.ResourceInNodeV3, error) {
+	cleanup := node.CleanupResources
+	if cleanup == nil {
 		return nil, fmt.Errorf("node %q is missing allocation cleanup data", node.Hostname)
 	}
 	held := node.ResAlloc
-	if math.IsNaN(*raw.AllocatedCpus) || math.IsInf(*raw.AllocatedCpus, 0) || math.IsNaN(cleanup.CpuCount) || math.IsInf(cleanup.CpuCount, 0) || cleanup.CpuCount < 0 || cleanup.CpuCount > *raw.AllocatedCpus || cleanup.MemoryBytes > held.MemoryBytes || cleanup.MemorySwBytes > held.MemorySwBytes {
+	if math.IsNaN(held.CpuCount) || math.IsInf(held.CpuCount, 0) || math.IsNaN(cleanup.CpuCount) || math.IsInf(cleanup.CpuCount, 0) || cleanup.CpuCount < 0 || cleanup.CpuCount > held.CpuCount || cleanup.MemoryBytes > held.MemoryBytes || cleanup.MemorySwBytes > held.MemorySwBytes {
 		return nil, fmt.Errorf("node %q has inconsistent allocation cleanup resources", node.Hostname)
 	}
 	active := proto.Clone(held).(*protos.ResourceInNodeV3)
 	// Native display precision is applied after subtraction, not to each operand.
-	active.CpuCount = math.Round((*raw.AllocatedCpus-cleanup.CpuCount)*100) / 100
+	active.CpuCount = math.Round((held.CpuCount-cleanup.CpuCount)*100) / 100
 	active.MemoryBytes -= cleanup.MemoryBytes
 	active.MemorySwBytes -= cleanup.MemorySwBytes
 	return active, nil
@@ -300,7 +302,7 @@ type gresDevice struct{ kind, path string }
 // of protobuf map iteration. GPU devices use natural file order, as in Slurm's
 // file-backed GPU configuration without Links/AutoDetect. Other file-backed
 // resources retain declaration order. Crane has no GPU topology/Links policy.
-func projectGRES(total, allocated *protos.DedicatedResourceInNode, order []*protos.SinfoGresResource) (string, string, error) {
+func projectGRES(total, allocated *protos.DedicatedResourceInNode, order []*protos.GresResource) (string, string, error) {
 	names := []string{}
 	devices := map[string][]gresDevice{}
 	declared := map[string]map[string]string{}
@@ -362,7 +364,15 @@ func projectGRES(total, allocated *protos.DedicatedResourceInNode, order []*prot
 		}
 		ordered := devices[name]
 		if name == "gpu" {
-			sort.SliceStable(ordered, func(i, j int) bool { return utils.NaturalLess(ordered[i].path, ordered[j].path) })
+			slices.SortStableFunc(ordered, func(a, b gresDevice) int {
+				if utils.NaturalLess(a.path, b.path) {
+					return -1
+				}
+				if utils.NaturalLess(b.path, a.path) {
+					return 1
+				}
+				return 0
+			})
 		}
 		kinds := []string{}
 		counts := map[string]uint64{}
