@@ -18,6 +18,10 @@ import (
 )
 
 func SignAndSaveUserCertificate(config *Config) error {
+	return SignAndSaveUserCertificateContext(context.Background(), config)
+}
+
+func SignAndSaveUserCertificateContext(ctx context.Context, config *Config) error {
 
 	certPath := fmt.Sprintf("%s/user.pem", config.TlsConfig.UserTlsCertPath)
 	keyPath := fmt.Sprintf("%s/user.key", config.TlsConfig.UserTlsCertPath)
@@ -26,10 +30,14 @@ func SignAndSaveUserCertificate(config *Config) error {
 		return nil
 	}
 
-	return DoSignAndSaveUserCertificate(config)
+	return DoSignAndSaveUserCertificateContext(ctx, config)
 }
 
 func DoSignAndSaveUserCertificate(config *Config) error {
+	return DoSignAndSaveUserCertificateContext(context.Background(), config)
+}
+
+func DoSignAndSaveUserCertificateContext(ctx context.Context, config *Config) error {
 	var client protos.CraneCtldClient
 
 	uid := uint32(os.Getuid())
@@ -89,10 +97,11 @@ func DoSignAndSaveUserCertificate(config *Config) error {
 	}
 
 	client = protos.NewCraneCtldClient(conn)
+	defer conn.Close()
 
 	request := &protos.SignUserCertificateRequest{Uid: uid, CsrContent: string(csrPEM), AltNames: fmt.Sprintf("localhost, *.%s", config.TlsConfig.DomainSuffix)}
 
-	response, err := client.SignUserCertificate(context.Background(), request)
+	response, err := client.SignUserCertificate(ctx, request)
 	if err != nil {
 		return err
 	}
