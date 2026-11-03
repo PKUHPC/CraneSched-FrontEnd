@@ -5,6 +5,7 @@
 package sinfo
 
 import (
+	"CraneFrontEnd/compat/utils"
 	"bytes"
 	"context"
 	"errors"
@@ -60,9 +61,9 @@ func reportError(w io.Writer, err error) {
 
 func (r runner) run(ctx context.Context, argv []string, env map[string]string, stdout, stderr io.Writer) int {
 	clock := r.now
-	location := commandTimezone(env)
+	location := utils.CommandTimezone(env)
 	r.now = func() time.Time { return clock().In(location) }
-	o, err := parseOptions(argv, env)
+	o, err := parseCommand(argv, env)
 	if err != nil {
 		reportError(stderr, err)
 		return 1
@@ -112,7 +113,7 @@ func (r runner) run(ctx context.Context, argv []string, env map[string]string, s
 			}
 		}
 		queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		s, loadErr := source.Load(queryCtx, o)
+		s, loadErr := source.Load(queryCtx, o.Query)
 		cancel()
 		if ctx.Err() != nil {
 			return rc
@@ -146,7 +147,7 @@ func (r runner) run(ctx context.Context, argv []string, env map[string]string, s
 	}
 }
 
-func (r runner) render(w, stderr io.Writer, argv []string, s *snapshot, o *options) error {
+func (r runner) render(w, stderr io.Writer, argv []string, s *snapshot, o *plan) error {
 	if o.Reservations {
 		return r.renderer.reservations(w, s.Reservations, o.NoHeader, r.now())
 	}
@@ -165,4 +166,60 @@ func (r runner) render(w, stderr io.Writer, argv []string, s *snapshot, o *optio
 		return renderStructured(w, stderr, argv, rows, s, o, r.renderer.UserName)
 	}
 	return r.renderer.table(w, rows, o)
+}
+
+func writeVerbose(w io.Writer, o *plan) error {
+	groups := make(map[string]bool)
+	for _, item := range o.Fields {
+		if item.Field != nil {
+			groups[item.Field.Group] = true
+		}
+	}
+	optional := func(value string, set bool, absent string) string {
+		if set {
+			return value
+		}
+		return absent
+	}
+	var out strings.Builder
+	states := optional(o.States, o.HasStates || o.Reasons, "(null)")
+	if o.Reasons && !o.HasStates {
+		states = "down" // The reference tokenizes its implicit state string in place.
+	}
+	out.WriteString("-----------------------------\n")
+	for _, item := range []struct {
+		name  string
+		value any
+	}{
+		{"dead", o.Dead}, {"exact", map[bool]int{true: 1}[o.Exact]},
+		{"filtering", o.Dead || o.Responding || o.HasNodes || o.HasPartition || o.HasStates || o.Reasons},
+		{"format", o.Format}, {"iterate", o.Iterate}, {"long", o.Long}, {"no_header", o.NoHeader},
+		{"node_field", o.AutoNodeWidth}, {"node_format", o.Node},
+		{"nodes", optional(o.Nodes, o.HasNodes, "n/a")}, {"part_field", o.AutoPartitionWidth},
+		{"partition", optional(o.Partition, o.HasPartition, "n/a")}, {"responding", o.Responding},
+		{"states", states}, {"sort", optional(o.Sort, o.HasSort, "(null)")},
+		{"summarize", o.Summary}, {"verbose", o.Verbose},
+	} {
+		fmt.Fprintf(&out, "%-12s= %v\n", item.name, item.value)
+	}
+	out.WriteString("-----------------------------\n")
+	groups["all"], groups["reservation_mode"] = o.All, o.Reservations
+	for _, item := range []struct{ label, group string }{
+		{"all_flag        = ", "all"}, {"alloc_mem_flag  = ", "allocmem"}, {"avail_flag      = ", "available"},
+		{"comment_flag    = ", "comment"}, {"cpus_flag       = ", "cpus"}, {"default_time_flag =", "defaulttime"},
+		{"disk_flag       = ", "disk"}, {"extra_flag      = ", "extra"}, {"features_flag   = ", "features"},
+		{"features_flag_act = ", "activefeatures"}, {"groups_flag     = ", "groups"}, {"gres_flag       = ", "gres"},
+		{"gres_used_flag  = ", "gresused"}, {"job_size_flag   = ", "size"}, {"max_time_flag   = ", "time"},
+		{"memory_flag     = ", "memory"}, {"partition_flag  = ", "partition"}, {"port_flag       = ", "port"},
+		{"priority_job_factor_flag   = ", "priorityfactor"}, {"priority_tier_flag   = ", "prioritytier"},
+		{"reason_flag     = ", "reason"}, {"reason_timestamp_flag = ", "reasontime"}, {"reason_user_flag = ", "reasonuser"},
+		{"reservation_flag = ", "reservation_mode"}, {"resv_name_flag   = ", "reservation"}, {"root_flag       = ", "root"},
+		{"oversubscribe_flag      = ", "oversubscribe"}, {"state_flag      = ", "state"},
+		{"statecomplete_flag = ", "statecomplete"}, {"weight_flag     = ", "weight"},
+	} {
+		fmt.Fprintf(&out, "%s%t\n", item.label, groups[item.group])
+	}
+	out.WriteString("-----------------------------\n\n")
+	_, err := io.WriteString(w, out.String())
+	return err
 }

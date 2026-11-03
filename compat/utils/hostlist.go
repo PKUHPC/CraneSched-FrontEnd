@@ -2,7 +2,7 @@
 // Changsha Institute for Computing and Digital Economy
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package sinfo
+package utils
 
 import (
 	"fmt"
@@ -16,7 +16,9 @@ import (
 
 // The grammar preserves numeric spelling: leading zeroes are part of a name.
 // Expansion is bounded separately from parsing and is never needed for Match.
-type hostList struct {
+type HostList struct{ hosts []*hostPattern }
+
+type hostSyntax struct {
 	Hosts []*hostPattern `parser:"Separator* (@@ Separator*)*"`
 }
 type hostPattern struct {
@@ -32,7 +34,7 @@ type hostRange struct {
 	width     int
 }
 
-var hostParser = participle.MustBuild[hostList](participle.Lexer(lexer.MustStateful(lexer.Rules{
+var hostParser = participle.MustBuild[hostSyntax](participle.Lexer(lexer.MustStateful(lexer.Rules{
 	"Root": {
 		{Name: "Open", Pattern: `\[`, Action: lexer.Push("Range")},
 		{Name: "Separator", Pattern: `[,\s]+`},
@@ -45,7 +47,7 @@ var hostParser = participle.MustBuild[hostList](participle.Lexer(lexer.MustState
 	},
 })))
 
-func parseHostList(input string) (*hostList, error) {
+func ParseHostList(input string) (*HostList, error) {
 	result, err := hostParser.ParseString("", input)
 	if err != nil {
 		return nil, err
@@ -59,18 +61,18 @@ func parseHostList(input string) (*hostList, error) {
 			}
 		}
 	}
-	return result, nil
+	return &HostList{hosts: result.Hosts}, nil
 }
 
 // Keep each range's spelling until semantic decoding. The reference accepts
 // whitespace and a leading plus; the raw lower endpoint controls name padding.
-type hostRangeError struct{ message string }
+type HostRangeError struct{ message string }
 
-func (e *hostRangeError) Error() string { return e.message }
+func (e *HostRangeError) Error() string { return e.message }
 
 func (r *hostRange) decode() error {
 	invalid := func() error {
-		return &hostRangeError{fmt.Sprintf("_parse_single_range: Invalid range: `%s'", r.Raw)}
+		return &HostRangeError{fmt.Sprintf("_parse_single_range: Invalid range: `%s'", r.Raw)}
 	}
 	left, right, hasDash := strings.Cut(r.Raw, "-")
 	r.width = len(left)
@@ -88,7 +90,7 @@ func (r *hostRange) decode() error {
 	// Subtraction avoids overflow at the unsigned-long boundary. Matching never
 	// expands a hostlist, even for multiple large Cartesian dimensions.
 	if high-low >= 65536 {
-		return &hostRangeError{fmt.Sprintf("_parse_single_range: Too many hosts in range `%s'", r.Raw)}
+		return &HostRangeError{fmt.Sprintf("_parse_single_range: Too many hosts in range `%s'", r.Raw)}
 	}
 	r.low, r.high = low, high
 	return nil
@@ -108,8 +110,8 @@ func hostEndpoint(raw string) (uint64, string, bool) {
 	return value, text[end:], err == nil
 }
 
-func (h *hostList) Match(name string) bool {
-	for _, pattern := range h.Hosts {
+func (h *HostList) Match(name string) bool {
+	for _, pattern := range h.hosts {
 		if matchSegments(pattern.Segments, name) {
 			return true
 		}
@@ -139,12 +141,12 @@ func matchSegments(segments []*hostSegment, name string) bool {
 	return false
 }
 
-func (h *hostList) Single() (string, bool) {
-	if h == nil || len(h.Hosts) != 1 {
+func (h *HostList) Single() (string, bool) {
+	if h == nil || len(h.hosts) != 1 {
 		return "", false
 	}
 	var name strings.Builder
-	for _, segment := range h.Hosts[0].Segments {
+	for _, segment := range h.hosts[0].Segments {
 		if segment.Literal != "" {
 			name.WriteString(segment.Literal)
 			continue
@@ -161,9 +163,9 @@ func (h *hostList) Single() (string, bool) {
 	return name.String(), true
 }
 
-// naturalLess compares digit runs without integer conversion. If either run
+// NaturalLess compares digit runs without integer conversion. If either run
 // starts with zero, Slurm orders the digits lexically rather than by magnitude.
-func naturalLess(a, b string) bool {
+func NaturalLess(a, b string) bool {
 	for i, j := 0, 0; ; {
 		if i == len(a) || j == len(b) {
 			return i == len(a) && j != len(b)
@@ -220,7 +222,7 @@ func splitName(name string) nameSuffix {
 	return nameSuffix{name[:start], digits, name[end:], value, width}
 }
 
-func compressHosts(names []string) string {
+func CompressHosts(names []string) string {
 	unique := make(map[string]bool, len(names))
 	ordered := make([]string, 0, len(names))
 	for _, name := range names {
@@ -229,7 +231,7 @@ func compressHosts(names []string) string {
 			ordered = append(ordered, name)
 		}
 	}
-	sort.Slice(ordered, func(i, j int) bool { return hostLess(ordered[i], ordered[j]) })
+	sort.Slice(ordered, func(i, j int) bool { return HostLess(ordered[i], ordered[j]) })
 	var output []string
 	for i := 0; i < len(ordered); {
 		first := splitName(ordered[i])
@@ -272,10 +274,10 @@ func compressHosts(names []string) string {
 	return strings.Join(output, ",")
 }
 
-func hostLess(a, b string) bool {
+func HostLess(a, b string) bool {
 	x, y := splitName(a), splitName(b)
 	if x.prefix != y.prefix {
-		return naturalLess(x.prefix, y.prefix)
+		return NaturalLess(x.prefix, y.prefix)
 	}
 	if len(x.digits) != len(y.digits) {
 		return len(x.digits) < len(y.digits)

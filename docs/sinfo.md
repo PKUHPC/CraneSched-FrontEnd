@@ -76,7 +76,7 @@ when a structured output option is also supplied.
 The supported text fields cover partitions, node identity, configured CPU/memory
 capacity, CPU and node state counts, scheduling topology, load/free-memory
 observations, GRES, allocation, reasons, reservation names and daemon versions.
-The field registry in `internal/sinfo/format.go` is authoritative. Requests for
+The field registry in `compat/sinfo/format.go` is authoritative. Requests for
 node comments/extra attributes/features/weight/temporary disk, partition default
 time/Unix groups/oversubscription/size/root restriction/priority tier and other
 absent policies produce an explicit unsupported diagnostic. Consequently, a
@@ -105,3 +105,22 @@ produces a data-representation diagnostic rather than silently truncating them.
 
 The query copies nodes, partitions and reservations under their existing locks;
 it does not promise a cross-domain atomic snapshot.
+
+## Development layout
+
+`cmd/sinfo` is the executable entry point; `compat/sinfo` owns the command's
+options, execution plan, query adapter, grouping and rendering. The query source
+accepts only query conditions and returns a snapshot, so the same command logic
+can run against a controller or an in-memory test source.
+
+`compat/utils` is one package containing the shared option scanner, Crane
+connection lifecycle, hostlists, time utilities and ordered JSON/YAML/schema
+encoding. It reuses existing configuration and authentication helpers. Keep
+command-specific defaults, repeated-option rules and diagnostics in the command.
+Additional packages can be considered when more compatibility commands provide
+concrete reuse requirements.
+
+`compat/protocol/v45` contains the Go report types and schema metadata. The
+encoder accepts these values without depending on a command or Crane protobufs.
+Future commands add their own query and presentation logic, plus the protocol
+types they need; they do not invoke another command's implementation.

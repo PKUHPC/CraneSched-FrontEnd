@@ -5,6 +5,7 @@
 package sinfo
 
 import (
+	"CraneFrontEnd/compat/utils"
 	"fmt"
 	"io"
 	"os/user"
@@ -33,7 +34,7 @@ func newTextRenderer() textRenderer {
 	}
 }
 
-func (r textRenderer) table(w io.Writer, rows []*row, o *options) error {
+func (r textRenderer) table(w io.Writer, rows []*row, o *plan) error {
 	if err := validateProjection(rows, o); err != nil {
 		return err
 	}
@@ -46,7 +47,7 @@ func (r textRenderer) table(w io.Writer, rows []*row, o *options) error {
 			}
 			partWidth = max(partWidth, width)
 		}
-		nodeWidth = max(nodeWidth, len(compressHosts(entry.names(""))))
+		nodeWidth = max(nodeWidth, len(utils.CompressHosts(entry.names(""))))
 	}
 	writeRow := func(entry *row) error {
 		var line strings.Builder
@@ -88,52 +89,7 @@ func (r textRenderer) table(w io.Writer, rows []*row, o *options) error {
 	return nil
 }
 
-func validateProjection(rows []*row, o *options) error {
-	needsTopology, needsIntegralCPUs := false, o.Serialization != ""
-	needsGRES := o.Serialization != ""
-	needsLoad := o.Serialization != "" || strings.ContainsRune(o.Sort, 'O')
-	needsFreeMemory := o.Serialization != "" || strings.ContainsRune(o.Sort, 'e')
-	for _, item := range o.Fields {
-		if item.Field == nil {
-			continue
-		}
-		switch item.Field.Name {
-		case "CPUsLoad":
-			needsLoad = true
-		case "FreeMem":
-			needsFreeMemory = true
-		case "Gres", "GresUsed":
-			needsGRES = true
-		case "CPUsState":
-			needsIntegralCPUs = true
-		case "Sockets", "Cores", "Threads", "SocketCoreThread":
-			needsTopology = true
-		}
-	}
-	needsTopology = needsTopology || o.Serialization != ""
-	for _, r := range rows {
-		for _, n := range r.Nodes {
-			if n.TelemetryExpected && needsLoad && n.CPULoad == nil {
-				return fmt.Errorf("controller has no CPU load observation for registered node %q", n.Name)
-			}
-			if n.TelemetryExpected && needsFreeMemory && n.FreeMemory == nil {
-				return fmt.Errorf("controller has no free-memory observation for registered node %q", n.Name)
-			}
-			if needsGRES && n.GresIssue != nil {
-				return fmt.Errorf("node %q: %w", n.Name, n.GresIssue)
-			}
-			if needsIntegralCPUs && n.FractionalAllocation {
-				return fmt.Errorf("node %q has fractional CPU allocations that Slurm sinfo cannot represent", n.Name)
-			}
-			if needsTopology && (n.Sockets == 0 || n.Cores == 0 || n.Threads == 0) {
-				return fmt.Errorf("controller has no representable scheduling CPU topology for node %q", n.Name)
-			}
-		}
-	}
-	return nil
-}
-
-func (r textRenderer) value(entry *row, field *fieldSpec, o *options, width int) string {
+func (r textRenderer) value(entry *row, field *fieldSpec, o *plan, width int) string {
 	p := entry.Partition
 	// Empty partition rows retain the aggregate's zero UID. A real node
 	// without a reason instead has an unset UID and renders as Unknown.
@@ -221,11 +177,11 @@ func (r textRenderer) value(entry *row, field *fieldSpec, o *options, width int)
 	case "CPUsState":
 		return cpus.String()
 	case "NodeList":
-		return compressHosts(entry.names(""))
+		return utils.CompressHosts(entry.names(""))
 	case "NodeAddr":
-		return compressHosts(entry.names("address"))
+		return utils.CompressHosts(entry.names("address"))
 	case "NodeHost":
-		return compressHosts(entry.names("hostname"))
+		return utils.CompressHosts(entry.names("hostname"))
 	case "StateCompact", "StateComplete", "StateLong":
 		if nodes.Total == 0 {
 			return "n/a"
@@ -298,7 +254,7 @@ func (r textRenderer) value(entry *row, field *fieldSpec, o *options, width int)
 	}
 }
 
-func numericRange(entry *row, group string, o *options) string {
+func numericRange(entry *row, group string, o *plan) string {
 	lo, hi := entry.minmax(group)
 	format := func(value uint64) string {
 		switch group {
@@ -405,4 +361,52 @@ func (r textRenderer) reservations(w io.Writer, reservations []reservation, noHe
 		}
 	}
 	return nil
+}
+
+func timeFormatter(format string, now time.Time, diagnostics io.Writer) func(time.Time) string {
+	return func(t time.Time) string {
+		switch t.Unix() {
+		case 0, 0xffffffff:
+			return "Unknown"
+		case 0xfffffffe:
+			return "None"
+		}
+		if t.IsZero() {
+			return "Unknown"
+		}
+		t = t.In(now.Location())
+		pattern := "%FT%T"
+		switch format {
+		case "", "standard":
+		case "relative":
+			// The reference uses a year/day-of-year key, including its deliberate
+			// year-boundary discontinuity. now is fixed at command startup.
+			distance := (t.Year()-now.Year())*1000 + t.YearDay() - now.YearDay()
+			switch {
+			case distance == -1:
+				pattern = "Ystday %H:%M"
+			case distance == 0:
+				pattern = "%H:%M:%S"
+			case distance == 1:
+				pattern = "Tomorr %H:%M"
+			case distance < -365 || distance > 365:
+				pattern = "%-d %b %Y"
+			case distance < -1 || distance > 6:
+				pattern = "%-d %b %H:%M"
+			default:
+				pattern = "%a %H:%M"
+			}
+		default:
+			if !strings.Contains(format, "%") || len(format) >= 32 {
+				fmt.Fprintf(diagnostics, "sinfo: error: invalid SLURM_TIME_FORMAT = '%s'\n", format)
+			} else {
+				pattern = format
+			}
+		}
+		value := utils.Strftime(pattern, t)
+		if len(value) >= 256 || value == "" {
+			return strings.Repeat("#", 255)
+		}
+		return value
+	}
 }

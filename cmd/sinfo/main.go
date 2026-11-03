@@ -5,7 +5,7 @@
 package main
 
 import (
-	"CraneFrontEnd/internal/sinfo"
+	"CraneFrontEnd/compat/sinfo"
 	"context"
 	"os"
 	"os/signal"

@@ -5,6 +5,7 @@
 package sinfo
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -266,4 +267,65 @@ func column(text string, width int, right bool, cut bool) string {
 		return pad + text
 	}
 	return text + pad
+}
+
+// Validate facts only after querying, in the same order for each output mode.
+func validateProjection(rows []*row, o *plan) error {
+	needsTopology, needsIntegralCPUs := false, o.Serialization != ""
+	needsGRES := o.Serialization != ""
+	needsLoad := o.Serialization != "" || strings.ContainsRune(o.Sort, 'O')
+	needsFreeMemory := o.Serialization != "" || strings.ContainsRune(o.Sort, 'e')
+	for _, item := range o.Fields {
+		if item.Field == nil {
+			continue
+		}
+		switch item.Field.Name {
+		case "CPUsLoad":
+			needsLoad = true
+		case "FreeMem":
+			needsFreeMemory = true
+		case "Gres", "GresUsed":
+			needsGRES = true
+		case "CPUsState":
+			needsIntegralCPUs = true
+		case "Sockets", "Cores", "Threads", "SocketCoreThread":
+			needsTopology = true
+		}
+	}
+	needsTopology = needsTopology || o.Serialization != ""
+	for _, r := range rows {
+		for _, n := range r.Nodes {
+			if n.TelemetryExpected && needsLoad && n.CPULoad == nil {
+				return fmt.Errorf("controller has no CPU load observation for registered node %q", n.Name)
+			}
+			if n.TelemetryExpected && needsFreeMemory && n.FreeMemory == nil {
+				return fmt.Errorf("controller has no free-memory observation for registered node %q", n.Name)
+			}
+			if needsGRES && n.GresIssue != nil {
+				return fmt.Errorf("node %q: %w", n.Name, n.GresIssue)
+			}
+			if needsIntegralCPUs && n.FractionalAllocation {
+				return fmt.Errorf("node %q has fractional CPU allocations that Slurm sinfo cannot represent", n.Name)
+			}
+			if needsTopology && (n.Sockets == 0 || n.Cores == 0 || n.Threads == 0) {
+				return fmt.Errorf("controller has no representable scheduling CPU topology for node %q", n.Name)
+			}
+		}
+	}
+	return nil
+}
+
+func validateStructuredProjection(rows []*row, snap *snapshot, o *plan) error {
+	// The v45 schema implicitly requests these fields,
+	// even when -o selects a smaller text/grouping vocabulary. An absent
+	// Crane feature must not turn into a plausible zero or empty JSON value.
+	for _, field := range []string{"Disk", "Weight", "Features", "features_act", "Comment", "Extra", "MaxCPUsPerNode", "AllocNodes", "Groups", "DefaultTime", "OverSubscribe", "Root", "Size", "PriorityTier"} {
+		if capability := snap.UnsupportedFields[field]; capability != "" {
+			return unsupported("--"+o.Serialization+" field "+field, capability)
+		}
+	}
+	if err := validateProjection(rows, o); err != nil {
+		return err
+	}
+	return nil
 }

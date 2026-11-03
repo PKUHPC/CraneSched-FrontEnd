@@ -2,7 +2,7 @@
 // Changsha Institute for Computing and Digital Economy
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package sinfo
+package utils
 
 import (
 	"bytes"
@@ -10,10 +10,146 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// SerializerOptions controls encoding independently of data-parser complex values.
+type SerializerOptions struct{ Compact, NoTag, Complex bool }
+
+// WriteSchema emits a report type's ordered schema without a second definition.
+func WriteSchema[T any](w io.Writer, format string, options SerializerOptions) error {
+	return writeOutput(w, reportSchema(reflect.TypeFor[T](), "", ""), format, options)
+}
+
+// WriteReport encodes a typed report. complexValues controls numeric wrappers and
+// absent strings; options.Complex controls serializer-level special numbers.
+func WriteReport(w io.Writer, report any, format string, options SerializerOptions, complexValues bool) error {
+	return writeOutput(w, reportValue(reflect.ValueOf(report), complexValues, false), format, options)
+}
+
+func writeOutput(w io.Writer, root any, format string, options SerializerOptions) error {
+	switch format {
+	case "json":
+		return writeJSON(w, root, options)
+	case "yaml":
+		mapping, ok := root.(object)
+		if !ok {
+			return fmt.Errorf("YAML report root must be an object")
+		}
+		return writeYAML(w, mapping, options)
+	default:
+		return fmt.Errorf("unknown serialization format %q", format)
+	}
+}
+
+// An ordered object is shared by the JSON and YAML encoders. Ordering is part
+// of the CLI contract; Go maps would silently reorder its output vocabulary.
+type member struct {
+	name  string
+	value any
+}
+type object []member
+type array []any
+
+func stringsArray(values []string) array {
+	a := make(array, len(values))
+	for i, value := range values {
+		a[i] = value
+	}
+	return a
+}
+
+// Walk only our report types. Unlike a general OpenAPI generator, this preserves
+// declaration order, inline types and explicit empty required arrays used by
+// the CLI's spec_only response. The same types also carry the actual data.
+func reportSchema(t reflect.Type, description, enum string) object {
+	var kind, format string
+	switch t.Kind() {
+	case reflect.Struct:
+		kind = "object"
+	case reflect.Slice:
+		kind = "array"
+	case reflect.String:
+		kind = "string"
+	case reflect.Bool:
+		kind = "boolean"
+	case reflect.Uint64, reflect.Int64:
+		kind, format = "integer", "int64"
+		if annotated, ok := reflect.Zero(t).Interface().(interface{ SchemaFormat() string }); ok {
+			format = annotated.SchemaFormat()
+		}
+	default:
+		panic(fmt.Sprintf("unsupported compatibility report type %s", t))
+	}
+	result := object{{"type", kind}}
+	if format != "" {
+		result = append(result, member{"format", format})
+	}
+	if description != "" {
+		result = append(result, member{"description", description})
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		properties := object{}
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			properties = append(properties, member{field.Tag.Get("json"), reportSchema(field.Type, field.Tag.Get("description"), field.Tag.Get("enum"))})
+		}
+		result = append(result, member{"properties", properties})
+		if required, ok := reflect.Zero(t).Interface().(interface{ SchemaRequired() []string }); ok {
+			result = append(result, member{"required", stringsArray(required.SchemaRequired())})
+		}
+	case reflect.Slice:
+		items := reportSchema(t.Elem(), "", "")
+		if enum != "" {
+			items = append(object{{"enum", stringsArray(strings.Split(enum, "|"))}}, items...)
+		}
+		result = append(result, member{"items", items})
+	}
+	return result
+}
+
+// Preserve the report's field order for both encoders. Complex mode changes
+// optional scalar values, but leaves string array elements (including argv)
+// intact. Numeric wrappers own their unset/infinite representation.
+func reportValue(v reflect.Value, complex, keepEmpty bool) any {
+	if complex {
+		if number, ok := v.Interface().(interface{ ComplexValue() any }); ok {
+			return number.ComplexValue()
+		}
+	}
+	switch v.Kind() {
+	case reflect.Struct:
+		result := object{}
+		for i := 0; i < v.NumField(); i++ {
+			field := v.Type().Field(i)
+			result = append(result, member{field.Tag.Get("json"), reportValue(v.Field(i), complex, field.Tag.Get("complex") == "keep_empty")})
+		}
+		return result
+	case reflect.Slice:
+		result := make(array, v.Len())
+		for i := range result {
+			result[i] = reportValue(v.Index(i), complex, true)
+		}
+		return result
+	case reflect.String:
+		if complex && !keepEmpty && v.String() == "" {
+			return nil
+		}
+		return v.String()
+	case reflect.Bool:
+		return v.Bool()
+	case reflect.Uint64:
+		return v.Uint()
+	case reflect.Int64:
+		return v.Int()
+	default:
+		panic(fmt.Sprintf("unsupported compatibility report type %s", v.Type()))
+	}
+}
 
 func jsonScalar(v any) string {
 	var b bytes.Buffer
@@ -24,7 +160,7 @@ func jsonScalar(v any) string {
 	return strings.ReplaceAll(strings.TrimSuffix(b.String(), "\n"), "/", `\/`)
 }
 
-func writeJSON(w io.Writer, root any, options serializerOptions) error {
+func writeJSON(w io.Writer, root any, options SerializerOptions) error {
 	var out strings.Builder
 	var emit func(any, int)
 	indent := func(depth int) { out.WriteString(strings.Repeat("  ", depth)) }
@@ -139,7 +275,7 @@ func yamlScalar(value any, noTag bool) (string, error) {
 	return s, nil
 }
 
-func writeYAML(w io.Writer, root object, options serializerOptions) error {
+func writeYAML(w io.Writer, root object, options SerializerOptions) error {
 	var out strings.Builder
 	out.WriteString("%YAML 1.1\n---")
 	if !options.NoTag {

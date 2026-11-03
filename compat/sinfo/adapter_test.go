@@ -58,11 +58,11 @@ func TestCompletingAllocationProjection(t *testing.T) {
 			if tc.drain {
 				reply.Nodes[0].Node.ControlState = protos.CranedControlState_CRANE_DRAIN
 			}
-			o, err := parseOptions([]string{"sinfo", "-h", "-t", "completing", "-O", "StateCompact:0|,CPUsState:0|,NodeAIOT:0|,AllocMem:0"}, nil)
+			o, err := parseCommand([]string{"sinfo", "-h", "-t", "completing", "-O", "StateCompact:0|,CPUsState:0|,NodeAIOT:0|,AllocMem:0"}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s, err := adaptSnapshot(reply, o)
+			s, err := adaptSnapshot(reply, o.Query)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -80,7 +80,7 @@ func TestCompletingAllocationProjection(t *testing.T) {
 func TestMissingAllocationProjectionIsNotIdle(t *testing.T) {
 	reply := adapterFixture()
 	reply.Nodes[0].ActiveAllocatedResources = nil
-	if _, err := adaptSnapshot(reply, &options{}); err == nil || !strings.Contains(err.Error(), "active allocation") {
+	if _, err := adaptSnapshot(reply, query{}); err == nil || !strings.Contains(err.Error(), "active allocation") {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -101,7 +101,7 @@ func TestPowerTransitionsDoNotBecomeNodeFailures(t *testing.T) {
 		reply.Nodes[0].Responding = false
 		reply.Nodes[0].ActiveAllocatedResources.CpuCount = 0
 		reply.Nodes[0].Node.PowerState = tc.power
-		s, err := adaptSnapshot(reply, &options{})
+		s, err := adaptSnapshot(reply, query{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,12 +112,12 @@ func TestPowerTransitionsDoNotBecomeNodeFailures(t *testing.T) {
 	}
 	reply := adapterFixture()
 	reply.Nodes[0].Responding = false
-	s, err := adaptSnapshot(reply, &options{})
+	s, err := adaptSnapshot(reply, query{})
 	if err != nil || s.Nodes[0].State.compact() != "down*" {
 		t.Fatalf("unplanned outage: %+v, %v", s, err)
 	}
 	reply.Nodes[0].HasRegistered = false
-	s, err = adaptSnapshot(reply, &options{})
+	s, err = adaptSnapshot(reply, query{})
 	if err != nil || s.Nodes[0].State.compact() != "unk*" {
 		t.Fatalf("initial registration: %+v, %v", s, err)
 	}
@@ -157,11 +157,11 @@ func TestGRESOrderAndIndexBuffer(t *testing.T) {
 }
 
 func TestAdapterKeepsSchedulerFacts(t *testing.T) {
-	o, err := parseOptions([]string{"sinfo", "-h", "-o", "%P|%a|%l|%t|%C|%m|%v"}, nil)
+	o, err := parseCommand([]string{"sinfo", "-h", "-o", "%P|%a|%l|%t|%C|%m|%v"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := adaptSnapshot(adapterFixture(), o)
+	s, err := adaptSnapshot(adapterFixture(), o.Query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,11 +180,11 @@ func TestAdapterKeepsSchedulerFacts(t *testing.T) {
 func TestFractionalCPUProjection(t *testing.T) {
 	reply := adapterFixture()
 	reply.Nodes[0].Node.ResAlloc.CpuCount = .25
-	o, err := parseOptions([]string{"sinfo", "-h", "-t", "allocated", "-o", "%t|%N"}, nil)
+	o, err := parseCommand([]string{"sinfo", "-h", "-t", "allocated", "-o", "%t|%N"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := adaptSnapshot(reply, o)
+	s, err := adaptSnapshot(reply, o.Query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,11 +204,11 @@ func TestFractionalCPUProjection(t *testing.T) {
 }
 
 func TestMissingTopologyIsNotInvented(t *testing.T) {
-	o, err := parseOptions([]string{"sinfo", "-O", "SocketCoreThread"}, nil)
+	o, err := parseCommand([]string{"sinfo", "-O", "SocketCoreThread"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := adaptSnapshot(adapterFixture(), o)
+	s, err := adaptSnapshot(adapterFixture(), o.Query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,11 +220,11 @@ func TestMissingTopologyIsNotInvented(t *testing.T) {
 
 func TestAbsentTelemetryIsNotAConfiguredValue(t *testing.T) {
 	for _, field := range []string{"CPUsLoad", "FreeMem"} {
-		o, err := parseOptions([]string{"sinfo", "-O", field}, nil)
+		o, err := parseCommand([]string{"sinfo", "-O", field}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		s, err := adaptSnapshot(adapterFixture(), o)
+		s, err := adaptSnapshot(adapterFixture(), o.Query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -237,11 +237,11 @@ func TestAbsentTelemetryIsNotAConfiguredValue(t *testing.T) {
 
 func TestStructuredImplicitCapabilitiesDoNotBecomeZeroValues(t *testing.T) {
 	for _, kind := range []string{"json", "yaml"} {
-		o, err := parseOptions([]string{"sinfo", "--" + kind, "-o", "%N"}, nil)
+		o, err := parseCommand([]string{"sinfo", "--" + kind, "-o", "%N"}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		s, err := adaptSnapshot(adapterFixture(), o)
+		s, err := adaptSnapshot(adapterFixture(), o.Query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -286,11 +286,11 @@ func TestGRESDataErrorOnlyAffectsRequestsForGRES(t *testing.T) {
 	reply.Nodes[0].Node.ResAlloc.Gres = &protos.DedicatedResourceInNode{NameTypeMap: map[string]*protos.DeviceTypeSlotsMap{
 		"gpu": {TypeSlotsMap: map[string]*protos.Slots{"a": {Slots: []string{"/dev/unknown"}}}},
 	}}
-	o, err := parseOptions([]string{"sinfo", "-h", "-o", "%N"}, nil)
+	o, err := parseCommand([]string{"sinfo", "-h", "-o", "%N"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := adaptSnapshot(reply, o)
+	s, err := adaptSnapshot(reply, o.Query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +340,7 @@ func TestCraneSourceUsesCallerAndDedicatedRPC(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	s, err := source.Load(ctx, &options{})
+	s, err := source.Load(ctx, query{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,12 +15,12 @@ import (
 )
 
 type memorySource struct {
-	load   func(context.Context, *options) (*snapshot, error)
+	load   func(context.Context, query) (*snapshot, error)
 	closed bool
 }
 
-func (s *memorySource) Load(ctx context.Context, o *options) (*snapshot, error) {
-	return s.load(ctx, o)
+func (s *memorySource) Load(ctx context.Context, q query) (*snapshot, error) {
+	return s.load(ctx, q)
 }
 func (s *memorySource) Close() error { s.closed = true; return nil }
 
@@ -47,7 +47,7 @@ func TestRunRepeatedStateFilters(t *testing.T) {
 		{[]string{"all", "idle+down"}, ""},
 	} {
 		t.Run(strings.Join(tc.states, "/"), func(t *testing.T) {
-			source := &memorySource{load: func(context.Context, *options) (*snapshot, error) { return testSnapshot(), nil }}
+			source := &memorySource{load: func(context.Context, query) (*snapshot, error) { return testSnapshot(), nil }}
 			r := testRunner(source)
 			args := []string{"sinfo", "-h", "-p", "compute", "-o", "%N"}
 			for _, state := range tc.states {
@@ -76,7 +76,7 @@ func TestRunEmptyPartitionFields(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := testSnapshot()
 			s.Nodes[0].Version = "Crane-test"
-			source := &memorySource{load: func(context.Context, *options) (*snapshot, error) { return s, nil }}
+			source := &memorySource{load: func(context.Context, query) (*snapshot, error) { return s, nil }}
 			r := testRunner(source)
 			r.renderer.UserName = func(uid uint32) (string, bool) {
 				if uid != 0 {
@@ -133,8 +133,8 @@ func TestRunActionsAndCapabilityPrecedence(t *testing.T) {
 }
 
 func TestRunReservationsOverrideUnusedProjections(t *testing.T) {
-	source := &memorySource{load: func(_ context.Context, o *options) (*snapshot, error) {
-		if !o.Reservations {
+	source := &memorySource{load: func(_ context.Context, q query) (*snapshot, error) {
+		if !q.ReservationsOnly {
 			t.Fatal("wrong query mode")
 		}
 		return &snapshot{}, nil
@@ -149,7 +149,7 @@ func TestRunReservationsOverrideUnusedProjections(t *testing.T) {
 
 func TestRunIterationKeepsFailureAndClosesSource(t *testing.T) {
 	loads, waits := 0, 0
-	source := &memorySource{load: func(context.Context, *options) (*snapshot, error) {
+	source := &memorySource{load: func(context.Context, query) (*snapshot, error) {
 		loads++
 		if loads == 1 {
 			return nil, errors.New("temporary query failure")
@@ -180,7 +180,7 @@ func TestRunIterationKeepsFailureAndClosesSource(t *testing.T) {
 func TestRunProjectionFailureDoesNotPublishHeader(t *testing.T) {
 	s := testSnapshot()
 	s.Nodes[0].FractionalAllocation = true
-	source := &memorySource{load: func(context.Context, *options) (*snapshot, error) { return s, nil }}
+	source := &memorySource{load: func(context.Context, query) (*snapshot, error) { return s, nil }}
 	r := testRunner(source)
 	var out, err bytes.Buffer
 	if code := r.run(context.Background(), []string{"sinfo", "-o", "%C"}, nil, &out, &err); code != 1 || out.Len() != 0 || !strings.Contains(err.String(), "fractional") {
@@ -190,7 +190,7 @@ func TestRunProjectionFailureDoesNotPublishHeader(t *testing.T) {
 
 func TestCancellationInterruptsQueryAndTimer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	source := &memorySource{load: func(ctx context.Context, _ *options) (*snapshot, error) {
+	source := &memorySource{load: func(ctx context.Context, _ query) (*snapshot, error) {
 		cancel()
 		<-ctx.Done()
 		return nil, ctx.Err()

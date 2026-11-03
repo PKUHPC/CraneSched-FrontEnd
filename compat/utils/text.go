@@ -2,67 +2,20 @@
 // Changsha Institute for Computing and Digital Economy
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package sinfo
+package utils
 
 import (
 	"fmt"
-	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func timeFormatter(format string, now time.Time, diagnostics io.Writer) func(time.Time) string {
-	return func(t time.Time) string {
-		switch t.Unix() {
-		case 0, 0xffffffff:
-			return "Unknown"
-		case 0xfffffffe:
-			return "None"
-		}
-		if t.IsZero() {
-			return "Unknown"
-		}
-		t = t.In(now.Location())
-		pattern := "%FT%T"
-		switch format {
-		case "", "standard":
-		case "relative":
-			// The reference uses a year/day-of-year key, including its deliberate
-			// year-boundary discontinuity. now is fixed at command startup.
-			distance := (t.Year()-now.Year())*1000 + t.YearDay() - now.YearDay()
-			switch {
-			case distance == -1:
-				pattern = "Ystday %H:%M"
-			case distance == 0:
-				pattern = "%H:%M:%S"
-			case distance == 1:
-				pattern = "Tomorr %H:%M"
-			case distance < -365 || distance > 365:
-				pattern = "%-d %b %Y"
-			case distance < -1 || distance > 6:
-				pattern = "%-d %b %H:%M"
-			default:
-				pattern = "%a %H:%M"
-			}
-		default:
-			if !strings.Contains(format, "%") || len(format) >= 32 {
-				fmt.Fprintf(diagnostics, "sinfo: error: invalid SLURM_TIME_FORMAT = '%s'\n", format)
-			} else {
-				pattern = format
-			}
-		}
-		value := strftime(pattern, t)
-		if len(value) >= 256 || value == "" {
-			return strings.Repeat("#", 255)
-		}
-		return value
-	}
-}
-
-// strftime implements the C-locale time vocabulary used by the command,
+// Strftime implements the C-locale time vocabulary used by the command,
 // including GNU padding/case modifiers. Slurm sinfo does not call setlocale.
-func strftime(pattern string, t time.Time) string {
+func Strftime(pattern string, t time.Time) string {
 	isoYear, isoWeek := t.ISOWeek()
 	yearDay, weekday := t.YearDay()-1, int(t.Weekday())
 	isoDay := (weekday+6)%7 + 1
@@ -249,4 +202,48 @@ func strftime(pattern string, t time.Time) string {
 		out.WriteString(value)
 	}
 	return out.String()
+}
+
+// CommandTimezone supports both zoneinfo names/files and POSIX TZ expressions.
+// Go's time.Local only supports the former. Supplying the expression as a TZif
+// v2 footer lets the standard library evaluate offsets and DST transitions.
+func CommandTimezone(env map[string]string) *time.Location {
+	name, set := env["TZ"]
+	if !set {
+		return time.Local
+	}
+	name = strings.TrimPrefix(name, ":")
+	if name == "" {
+		return time.UTC
+	}
+	path := name
+	if !filepath.IsAbs(path) {
+		dir, ok := env["TZDIR"]
+		if !ok {
+			dir = "/usr/share/zoneinfo"
+		}
+		path = filepath.Join(dir, name)
+	}
+	if data, err := os.ReadFile(path); err == nil {
+		if location, err := time.LoadLocationFromTZData(name, data); err == nil {
+			return location
+		}
+	}
+	// Each TZif section contains one UTC type and no transitions; the footer
+	// supplies the rule for all instants. The UTC type is also the fallback for
+	// malformed expressions. The two sections have the same size without times.
+	section := make([]byte, 54)
+	copy(section, "TZif2")
+	section[39] = 1 // typecnt
+	section[43] = 4 // charcnt
+	copy(section[50:], "UTC\x00")
+	data := append(append([]byte{}, section...), section...)
+	data = append(data, ('\n'))
+	data = append(data, name...)
+	data = append(data, '\n')
+	location, err := time.LoadLocationFromTZData(name, data)
+	if err != nil {
+		return time.UTC
+	}
+	return location
 }
