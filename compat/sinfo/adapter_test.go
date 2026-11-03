@@ -17,23 +17,26 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func adapterFixture() *protos.QuerySinfoInfoReply {
+	cpus := 1.0
 	allocation := &protos.ResourceInNodeV3{CpuCount: 1, MemoryBytes: 1 << 30}
 	return &protos.QuerySinfoInfoReply{
-		SchemaVersion: 1, ClusterName: "example",
+		SchemaVersion: 2, ClusterName: "example", ObservedAt: timestamppb.New(time.Unix(100, 0)),
 		Nodes: []*protos.SinfoNodeInfo{{
 			Node: &protos.CranedInfo{
 				Hostname: "n1", NodeHostname: "host1", NodeAddr: "192.0.2.1", CranedVersion: "Crane-test",
 				ResourceState: protos.CranedResourceState_CRANE_ALLOC,
 				ResTotal:      &protos.ResourceInNodeV3{CpuCount: 4, MemoryBytes: 1 << 30},
-				ResAlloc:      allocation,
-			}, Responding: true, HasRegistered: true, Port: 1234, ActiveAllocatedResources: allocation,
+				ResAlloc:      allocation, Responding: true, HasRegistered: true, Port: 1234,
+			}, CleanupResources: &protos.ResourceInNodeV3{}, AllocatedCpus: &cpus,
 		}},
 		Partitions: []*protos.SinfoPartitionInfo{{
 			Partition: &protos.PartitionInfo{Name: "batch", Hostlist: "n1", TotalNodes: 1, State: protos.PartitionState_PARTITION_DOWN},
-			IsDefault: true, AcceptsJobs: true, TimeLimitUnlimited: true, PriorityJobFactor: 5,
+			IsDefault: true, PriorityJobFactor: 5,
 		}},
 	}
 }
@@ -52,9 +55,10 @@ func TestCompletingAllocationProjection(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reply := adapterFixture()
-			reply.Nodes[0].Completing = true
+			reply.Nodes[0].CleanupPending = true
 			reply.Nodes[0].Node.ResAlloc.CpuCount = 4
-			reply.Nodes[0].ActiveAllocatedResources = &protos.ResourceInNodeV3{CpuCount: tc.active}
+			*reply.Nodes[0].AllocatedCpus = 4
+			reply.Nodes[0].CleanupResources = &protos.ResourceInNodeV3{CpuCount: 4 - tc.active, MemoryBytes: 1 << 30}
 			if tc.drain {
 				reply.Nodes[0].Node.ControlState = protos.CranedControlState_CRANE_DRAIN
 			}
@@ -79,8 +83,8 @@ func TestCompletingAllocationProjection(t *testing.T) {
 
 func TestMissingAllocationProjectionIsNotIdle(t *testing.T) {
 	reply := adapterFixture()
-	reply.Nodes[0].ActiveAllocatedResources = nil
-	if _, err := adaptSnapshot(reply, query{}); err == nil || !strings.Contains(err.Error(), "active allocation") {
+	reply.Nodes[0].CleanupResources = nil
+	if _, err := adaptSnapshot(reply, query{}); err == nil || !strings.Contains(err.Error(), "allocation cleanup") {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -98,8 +102,9 @@ func TestPowerTransitionsDoNotBecomeNodeFailures(t *testing.T) {
 		{protos.CranedPowerState_CRANE_POWER_POWERING_ON, "idle#"},
 	} {
 		reply := adapterFixture()
-		reply.Nodes[0].Responding = false
-		reply.Nodes[0].ActiveAllocatedResources.CpuCount = 0
+		reply.Nodes[0].Node.Responding = false
+		reply.Nodes[0].Node.ResAlloc.CpuCount = 0
+		*reply.Nodes[0].AllocatedCpus = 0
 		reply.Nodes[0].Node.PowerState = tc.power
 		s, err := adaptSnapshot(reply, query{})
 		if err != nil {
@@ -111,12 +116,12 @@ func TestPowerTransitionsDoNotBecomeNodeFailures(t *testing.T) {
 		}
 	}
 	reply := adapterFixture()
-	reply.Nodes[0].Responding = false
+	reply.Nodes[0].Node.Responding = false
 	s, err := adaptSnapshot(reply, query{})
 	if err != nil || s.Nodes[0].State.compact() != "down*" {
 		t.Fatalf("unplanned outage: %+v, %v", s, err)
 	}
-	reply.Nodes[0].HasRegistered = false
+	reply.Nodes[0].Node.HasRegistered = false
 	s, err = adaptSnapshot(reply, query{})
 	if err != nil || s.Nodes[0].State.compact() != "unk*" {
 		t.Fatalf("initial registration: %+v, %v", s, err)
@@ -180,6 +185,7 @@ func TestAdapterKeepsSchedulerFacts(t *testing.T) {
 func TestFractionalCPUProjection(t *testing.T) {
 	reply := adapterFixture()
 	reply.Nodes[0].Node.ResAlloc.CpuCount = .25
+	*reply.Nodes[0].AllocatedCpus = .25
 	o, err := parseCommand([]string{"sinfo", "-h", "-t", "allocated", "-o", "%t|%N"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -354,5 +360,159 @@ func TestCraneSourceUsesCallerAndDedicatedRPC(t *testing.T) {
 		}
 	default:
 		t.Fatal("request not observed")
+	}
+}
+
+func TestNativeOutagePresentation(t *testing.T) {
+	for _, tc := range []struct {
+		name, reason, want string
+		responding, outage bool
+	}{
+		{"admin", "maintenance", "maintenance", true, false},
+		{"down", "maintenance", "maintenance : Not responding", false, true},
+		{"reconnected_drained", "maintenance", "maintenance : Not responding", true, true},
+		{"no_admin_reason", "", "Not responding", false, true},
+		{"already_suffixed", "maintenance : Not responding", "maintenance : Not responding", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := adapterFixture()
+			raw := reply.Nodes[0].Node
+			uid := uint32(1000)
+			raw.StateReason, raw.StateReasonUid = tc.reason, &uid
+			raw.StateReasonTime = timestamppb.New(time.Unix(10, 0))
+			raw.Responding = tc.responding
+			if tc.outage {
+				raw.Outage = &protos.NodeOutage{Uid: 0, Time: timestamppb.New(time.Unix(20, 0))}
+			}
+			s, err := adaptSnapshot(reply, query{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			n := s.Nodes[0]
+			wantUID, wantTime := uint32(1000), int64(10)
+			if tc.outage {
+				wantUID, wantTime = 0, 20
+			}
+			if n.Reason != tc.want || n.ReasonUID == nil || *n.ReasonUID != wantUID || n.ReasonTime.Unix() != wantTime {
+				t.Fatalf("got %q, %v, %v", n.Reason, n.ReasonUID, n.ReasonTime)
+			}
+			if raw.StateReason != tc.reason || *raw.StateReasonUid != 1000 {
+				t.Fatal("mutated native reason")
+			}
+		})
+	}
+}
+
+func TestNativeTopologyAndTelemetryPresentation(t *testing.T) {
+	for _, sockets := range []uint32{0, 2, 3} {
+		reply := adapterFixture()
+		raw := reply.Nodes[0].Node
+		raw.ConfiguredSockets = sockets
+		raw.NodeTopoInfo = &protos.NodeTopoInfo{Sockets: 8, CoresPerSocket: 64, ThreadsPerCore: 2}
+		load := uint32(731)
+		raw.CpuLoad, raw.Responding = &load, false
+		s, err := adaptSnapshot(reply, query{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := s.Nodes[0]
+		if sockets == 2 {
+			if n.Sockets != 2 || n.Cores != 2 || n.Threads != 1 {
+				t.Fatalf("topology: %+v", n)
+			}
+		} else if n.Sockets != 0 {
+			t.Fatal("invented topology")
+		}
+		if n.CPULoad == nil || *n.CPULoad != 0 || *raw.CpuLoad != 731 {
+			t.Fatal("lost telemetry sample or down-node projection")
+		}
+	}
+}
+
+func TestReservationProjectionUsesAllocationOrderAndControllerTime(t *testing.T) {
+	for _, seconds := range []int64{99, 100, 109, 110} {
+		reply := adapterFixture()
+		reply.ObservedAt = timestamppb.New(time.Unix(seconds, 0))
+		makeReservation := func(name string, order uint64, nodes ...string) *protos.ReservationInfo {
+			return &protos.ReservationInfo{ReservationName: name, CreationOrder: order,
+				StartTime: timestamppb.New(time.Unix(100, 0)), Duration: durationpb.New(10 * time.Second),
+				CranedRegex: "candidate[1-99]", AllocatedNodes: nodes}
+		}
+		reply.Reservations = []*protos.ReservationInfo{makeReservation("first_by_name", 2, "n4", "n3"), makeReservation("first_created", 1, "n1")}
+		s, err := adaptSnapshot(reply, query{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.Reservations[0].Name != "first_created" || s.Reservations[0].Nodes != "n1" || s.Reservations[1].Nodes != "n[3-4]" {
+			t.Fatalf("reservations: %+v", s.Reservations)
+		}
+		if s.Nodes[0].State.Reserved != (seconds >= 100 && seconds < 110) {
+			t.Fatalf("interval at %d: %+v", seconds, s.Nodes[0])
+		}
+		if reply.Reservations[0].CreationOrder != 2 {
+			t.Fatal("sorted input in place")
+		}
+		only, err := adaptSnapshot(reply, query{ReservationsOnly: true})
+		if err != nil || len(only.Nodes) != 0 || len(only.Reservations) != 2 {
+			t.Fatalf("reservation-only: %+v %v", only, err)
+		}
+	}
+}
+
+func TestCleanupSubtractionPreservesPrecisionAndGRES(t *testing.T) {
+	reply := adapterFixture()
+	raw := reply.Nodes[0]
+	*raw.AllocatedCpus = 66.0 / 256
+	raw.Node.ResAlloc.CpuCount = .26 // Existing native display precision.
+	raw.CleanupResources.CpuCount = 1.0 / 256
+	resources := func(slots ...string) *protos.DedicatedResourceInNode {
+		return &protos.DedicatedResourceInNode{NameTypeMap: map[string]*protos.DeviceTypeSlotsMap{
+			"gpu": {TypeSlotsMap: map[string]*protos.Slots{"a": {Slots: slots}}},
+		}}
+	}
+	raw.Node.ResTotal.Gres = resources("/dev/g0", "/dev/g1")
+	raw.Node.ResAlloc.Gres = resources("/dev/g0", "/dev/g1")
+	raw.CleanupResources.Gres = resources("/dev/g0")
+	raw.GresOrder = []*protos.SinfoGresResource{{Name: "gpu", Type: "a", Devices: []string{"/dev/g0", "/dev/g1"}}}
+	active, err := activeAllocation(raw.Node, raw)
+	if err != nil || active.CpuCount != .25 {
+		t.Fatalf("active=%v err=%v", active, err)
+	}
+	s, err := adaptSnapshot(reply, query{})
+	if err != nil || s.Nodes[0].GresUsed != "gpu:a:1(IDX:1)" {
+		t.Fatalf("snapshot=%+v err=%v", s, err)
+	}
+	if len(raw.Node.ResAlloc.Gres.NameTypeMap["gpu"].TypeSlotsMap["a"].Slots) != 2 {
+		t.Fatal("mutated scheduler holdings")
+	}
+	raw.CleanupResources.Gres = resources("/dev/missing")
+	s, err = adaptSnapshot(reply, query{})
+	if err != nil || s.Nodes[0].GresIssue == nil {
+		t.Fatalf("GRES error must remain field-specific: %+v %v", s, err)
+	}
+	raw.CleanupResources.CpuCount = 1
+	if _, err = adaptSnapshot(reply, query{}); err == nil {
+		t.Fatal("accepted cleanup exceeding holdings")
+	}
+	raw.CleanupResources.CpuCount = 0
+	raw.CleanupResources.MemoryBytes = 2 << 30
+	if _, err = adaptSnapshot(reply, query{}); err == nil {
+		t.Fatal("accepted memory underflow")
+	}
+}
+
+func TestSnapshotRejectsOldOrIncompleteFacts(t *testing.T) {
+	for _, change := range []func(*protos.QuerySinfoInfoReply){
+		func(r *protos.QuerySinfoInfoReply) { r.SchemaVersion = 1 },
+		func(r *protos.QuerySinfoInfoReply) { r.ObservedAt = nil },
+		func(r *protos.QuerySinfoInfoReply) { r.Nodes[0].AllocatedCpus = nil },
+		func(r *protos.QuerySinfoInfoReply) { r.Nodes[0].Node.Outage = &protos.NodeOutage{} },
+		func(r *protos.QuerySinfoInfoReply) { r.Reservations = []*protos.ReservationInfo{nil} },
+	} {
+		r := adapterFixture()
+		change(r)
+		if _, err := adaptSnapshot(r, query{}); err == nil {
+			t.Fatal("accepted incomplete facts")
+		}
 	}
 }

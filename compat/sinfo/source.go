@@ -15,6 +15,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // query contains only facts needed by the controller and snapshot adapter.
@@ -54,8 +55,8 @@ func (s *craneSource) Load(ctx context.Context, q query) (*snapshot, error) {
 func (s *craneSource) Close() error { return s.session.Close() }
 
 func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error) {
-	if reply.GetSchemaVersion() != 1 {
-		return nil, fmt.Errorf("Crane controller does not provide sinfo query schema 1")
+	if reply.GetSchemaVersion() != 2 {
+		return nil, fmt.Errorf("Crane controller does not provide sinfo query schema 2")
 	}
 	s := &snapshot{Cluster: reply.ClusterName, UnsupportedFields: map[string]string{}}
 	for _, field := range fieldSpecs {
@@ -63,12 +64,30 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 			s.UnsupportedFields[field.Name] = field.Capability
 		}
 	}
-	for _, raw := range reply.Reservations {
-		if raw.StartTime == nil || raw.Duration == nil {
-			return nil, fmt.Errorf("reservation %q is missing its time interval", raw.ReservationName)
+	if reply.ObservedAt == nil || reply.ObservedAt.CheckValid() != nil {
+		return nil, fmt.Errorf("controller returned no valid observation time")
+	}
+	now := reply.ObservedAt.AsTime()
+	reservations := append([]*protos.ReservationInfo(nil), reply.Reservations...)
+	for _, raw := range reservations {
+		if raw == nil || raw.StartTime == nil || raw.Duration == nil || raw.StartTime.CheckValid() != nil || raw.Duration.CheckValid() != nil {
+			return nil, fmt.Errorf("reservation %q is missing its time interval", raw.GetReservationName())
 		}
+		if raw.CreationOrder == 0 {
+			return nil, fmt.Errorf("reservation %q is missing its creation order", raw.ReservationName)
+		}
+	}
+	sort.SliceStable(reservations, func(i, j int) bool { return reservations[i].CreationOrder < reservations[j].CreationOrder })
+	activeReservations := make(map[string][]string)
+	for _, raw := range reservations {
 		start := raw.StartTime.AsTime()
-		s.Reservations = append(s.Reservations, reservation{Name: raw.ReservationName, Nodes: raw.CranedRegex, Start: start, End: start.Add(raw.Duration.AsDuration())})
+		end := start.Add(raw.Duration.AsDuration())
+		s.Reservations = append(s.Reservations, reservation{Name: raw.ReservationName, Nodes: utils.CompressHosts(raw.AllocatedNodes), Start: start, End: end})
+		if !now.Before(start) && now.Before(end) {
+			for _, name := range raw.AllocatedNodes {
+				activeReservations[name] = append(activeReservations[name], raw.ReservationName)
+			}
+		}
 	}
 	if q.ReservationsOnly {
 		return s, nil
@@ -82,9 +101,9 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 		if err != nil {
 			return nil, err
 		}
-		allocation := raw.ActiveAllocatedResources
-		if allocation == nil {
-			return nil, fmt.Errorf("node %q is missing active allocation data", detail.Hostname)
+		allocation, err := activeAllocation(detail, raw)
+		if err != nil {
+			return nil, err
 		}
 		allocated := allocation.CpuCount
 		if math.IsNaN(allocated) || math.IsInf(allocated, 0) || allocated < 0 || allocated > float64(cpus) {
@@ -94,28 +113,47 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 			Name: detail.Hostname, Hostname: detail.NodeHostname, Address: detail.NodeAddr, Version: detail.CranedVersion,
 			CPUs: cpus, AllocCPUs: uint64(allocated), FractionalAllocation: allocated != math.Trunc(allocated), HasCPUAllocation: allocated > 0,
 			Memory: detail.ResTotal.MemoryBytes / (1024 * 1024), AllocMemory: allocation.MemoryBytes / (1024 * 1024),
-			Port: uint64(raw.Port), Reason: raw.Reason, ReasonUID: raw.ReasonUid,
-			TelemetryExpected: raw.HasRegistered,
+			Port: uint64(detail.Port), Reason: detail.StateReason, ReasonUID: detail.StateReasonUid,
+			TelemetryExpected: detail.HasRegistered,
 		}
+		gresIssue := subtractCleanupGRES(allocation.Gres, raw.CleanupResources.Gres)
 		n.Gres, n.GresUsed, n.GresIssue = projectGRES(detail.ResTotal.Gres, allocation.Gres, raw.GresOrder)
-		if raw.CpuLoad != nil {
-			value := uint64(*raw.CpuLoad)
+		if gresIssue != nil {
+			n.GresIssue = gresIssue
+		}
+		if !detail.Responding {
+			zero := uint64(0)
+			n.CPULoad = &zero
+		} else if detail.CpuLoad != nil {
+			value := uint64(*detail.CpuLoad)
 			n.CPULoad = &value
 		}
-		n.FreeMemory = raw.FreeMemoryMb
-		if raw.ReasonTime != nil {
-			n.ReasonTime = raw.ReasonTime.AsTime()
+		n.FreeMemory = detail.FreeMemoryMb
+		if detail.StateReasonTime != nil {
+			n.ReasonTime = detail.StateReasonTime.AsTime()
 		}
-		if raw.SchedulingTopology != nil {
-			n.Sockets = uint64(raw.SchedulingTopology.Sockets)
-			n.Cores = uint64(raw.SchedulingTopology.CoresPerSocket)
-			n.Threads = uint64(raw.SchedulingTopology.ThreadsPerCore)
+		if outage := detail.Outage; outage != nil {
+			if outage.Time == nil || outage.Time.CheckValid() != nil {
+				return nil, fmt.Errorf("node %q has an incomplete outage event", n.Name)
+			}
+			if n.Reason == "" {
+				n.Reason = "Not responding"
+			} else if !strings.Contains(n.Reason, " : Not responding") {
+				n.Reason += " : Not responding"
+			}
+			uid := outage.Uid
+			n.ReasonUID, n.ReasonTime = &uid, outage.Time.AsTime()
 		}
-		n.State = nodeState{Base: "idle", NoRespond: !raw.Responding, Drain: detail.ControlState == protos.CranedControlState_CRANE_DRAIN}
+		// Crane schedules logical CPUs without a separate SMT policy. Its
+		// configured capacity is distinct from the daemon's physical topology.
+		if sockets := uint64(detail.ConfiguredSockets); sockets != 0 && cpus != 0 && cpus%sockets == 0 {
+			n.Sockets, n.Cores, n.Threads = sockets, cpus/sockets, 1
+		}
+		n.State = nodeState{Base: "idle", NoRespond: !detail.Responding, Drain: detail.ControlState == protos.CranedControlState_CRANE_DRAIN}
 		switch {
-		case !raw.Responding && !raw.HasRegistered:
+		case !detail.Responding && !detail.HasRegistered:
 			n.State.Base = "unknown"
-		case !raw.Responding:
+		case !detail.Responding:
 			n.State.Base = "down"
 		case allocated >= float64(cpus) && cpus != 0:
 			n.State.Base = "allocated"
@@ -133,7 +171,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 		if n.State.Power != "" {
 			// A successful suspend/resume transition is expected to stop
 			// heartbeats. Crane has no separate administrative DOWN state.
-			n.State.NoRespond = n.State.Power == "powering_up" && !raw.Responding
+			n.State.NoRespond = n.State.Power == "powering_up" && !detail.Responding
 			n.State.Base = "idle"
 			if allocated >= float64(cpus) && cpus != 0 {
 				n.State.Base = "allocated"
@@ -141,14 +179,14 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 				n.State.Base = "mixed"
 			}
 		}
-		n.State.Completing = raw.Completing && raw.Responding && n.State.Power != "powered_down" && n.State.Power != "powering_up"
-		if len(raw.ActiveReservations) != 0 {
+		n.State.Completing = raw.CleanupPending && detail.Responding && n.State.Power != "powered_down" && n.State.Power != "powering_up"
+		if names := activeReservations[n.Name]; len(names) != 0 {
 			// Crane excludes overlapping whole-node reservations. The Slurm
 			// node record exposes one name, not a fabricated comma-separated list.
-			if len(raw.ActiveReservations) != 1 {
+			if len(names) != 1 {
 				return nil, fmt.Errorf("node %q has overlapping reservations without an ordered reservation projection", n.Name)
 			}
-			n.Reservation = raw.ActiveReservations[0]
+			n.Reservation = names[0]
 			n.State.Reserved = true
 		}
 		s.Nodes = append(s.Nodes, n)
@@ -163,7 +201,7 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 			return nil, fmt.Errorf("partition %q has an invalid node list: %w", detail.Name, err)
 		}
 		p := partition{
-			Name: detail.Name, Default: raw.IsDefault, Available: "up", TimeLimit: durationLimit{Infinite: raw.TimeLimitUnlimited},
+			Name: detail.Name, Default: raw.IsDefault, Available: "up", TimeLimit: durationLimit{Infinite: true},
 			DefaultTime: durationLimit{Unset: true}, PriorityFactor: uint64(raw.PriorityJobFactor),
 			Groups: "all", AllocNodes: "all", OverSubscribe: "NO", MaxNodes: 0xffffffff, MaxCPUs: 0xffffffff, MinNodes: 1,
 			AllowedAccounts: append([]string(nil), detail.AllowedAccounts...), DeniedAccounts: append([]string(nil), detail.DeniedAccounts...),
@@ -173,12 +211,8 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 		}
 		sort.Strings(p.AllowedAccounts)
 		sort.Strings(p.DeniedAccounts)
-		if !raw.AcceptsJobs {
-			p.Available = "down"
-		}
-		if !raw.TimeLimitUnlimited {
-			return nil, fmt.Errorf("partition %q is missing its partition time limit", p.Name)
-		}
+		// Crane currently has no partition administrative-down or partition
+		// time-limit setting. Node liveness and job/QoS limits do not substitute.
 		mode, ok := map[protos.PreemptMode]string{
 			protos.PreemptMode_PREEMPT_MODE_OFF: "OFF", protos.PreemptMode_PREEMPT_MODE_CANCEL: "CANCEL",
 			protos.PreemptMode_PREEMPT_MODE_REQUEUE: "REQUEUE", protos.PreemptMode_PREEMPT_MODE_SUSPEND: "SUSPEND",
@@ -200,6 +234,57 @@ func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error
 		s.Partitions = append(s.Partitions, p)
 	}
 	return s, nil
+}
+
+// The controller reads held resources and ending allocations under the same
+// locks. Only the client excludes cleanup holdings from Slurm's active totals.
+func activeAllocation(node *protos.CranedInfo, raw *protos.SinfoNodeInfo) (*protos.ResourceInNodeV3, error) {
+	cleanup := raw.CleanupResources
+	if cleanup == nil || raw.AllocatedCpus == nil {
+		return nil, fmt.Errorf("node %q is missing allocation cleanup data", node.Hostname)
+	}
+	held := node.ResAlloc
+	if math.IsNaN(*raw.AllocatedCpus) || math.IsInf(*raw.AllocatedCpus, 0) || math.IsNaN(cleanup.CpuCount) || math.IsInf(cleanup.CpuCount, 0) || cleanup.CpuCount < 0 || cleanup.CpuCount > *raw.AllocatedCpus || cleanup.MemoryBytes > held.MemoryBytes || cleanup.MemorySwBytes > held.MemorySwBytes {
+		return nil, fmt.Errorf("node %q has inconsistent allocation cleanup resources", node.Hostname)
+	}
+	active := proto.Clone(held).(*protos.ResourceInNodeV3)
+	// Native display precision is applied after subtraction, not to each operand.
+	active.CpuCount = math.Round((*raw.AllocatedCpus-cleanup.CpuCount)*100) / 100
+	active.MemoryBytes -= cleanup.MemoryBytes
+	active.MemorySwBytes -= cleanup.MemorySwBytes
+	return active, nil
+}
+
+// Mutates only the client's cloned holdings. GRES errors remain field-specific,
+// so a malformed device inventory does not prevent queries for node names.
+func subtractCleanupGRES(held, cleanup *protos.DedicatedResourceInNode) error {
+	for name, types := range cleanup.GetNameTypeMap() {
+		for kind, slots := range types.GetTypeSlotsMap() {
+			allocated := held.GetNameTypeMap()[name].GetTypeSlotsMap()[kind]
+			remove := make(map[string]bool, len(slots.GetSlots()))
+			for _, slot := range slots.GetSlots() {
+				if remove[slot] {
+					return fmt.Errorf("cleanup GRES %s:%s contains duplicate device %q", name, kind, slot)
+				}
+				remove[slot] = true
+			}
+			var remaining []string
+			for _, slot := range allocated.GetSlots() {
+				if remove[slot] {
+					delete(remove, slot)
+				} else {
+					remaining = append(remaining, slot)
+				}
+			}
+			if len(remove) != 0 {
+				return fmt.Errorf("cleanup GRES %s:%s contains unallocated devices", name, kind)
+			}
+			if allocated != nil {
+				allocated.Slots = remaining
+			}
+		}
+	}
+	return nil
 }
 
 func wholeCPUs(value float64, name string) (uint64, error) {
