@@ -4,6 +4,8 @@ import (
 	"CraneFrontEnd/generated/protos"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -11,11 +13,11 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"math/big"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -152,10 +154,29 @@ func TestCertificateRenewalFailurePreservesExistingPair(t *testing.T) {
 }
 
 func TestCertificateProvisionAndRenewal(t *testing.T) {
-	for _, initial := range []bool{false, true} {
-		t.Run(fmt.Sprint(initial), func(t *testing.T) {
+	for _, mode := range []string{"initial", "pkcs1", "pkcs8"} {
+		t.Run(mode, func(t *testing.T) {
 			config, oldKey, oldCert := certificateFixture(t, "success")
 			dir := config.TlsConfig.UserTlsCertPath
+			initial := mode == "initial"
+			if mode == "pkcs8" {
+				block, _ := pem.Decode(oldKey)
+				key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+				if err != nil {
+					t.Fatal(err)
+				}
+				der, err := x509.MarshalPKCS8PrivateKey(key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				oldKey = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+				if err := os.WriteFile(filepath.Join(dir, "user.key"), oldKey, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := tls.LoadX509KeyPair(filepath.Join(dir, "user.pem"), filepath.Join(dir, "user.key")); err != nil {
+					t.Fatalf("PKCS#8 fixture is not a usable pair: %v", err)
+				}
+			}
 			if initial {
 				for _, name := range []string{"user.key", "user.pem"} {
 					if err := os.Remove(filepath.Join(dir, name)); err != nil {
@@ -171,6 +192,10 @@ func TestCertificateProvisionAndRenewal(t *testing.T) {
 			pair, err := tls.LoadX509KeyPair(filepath.Join(dir, "user.pem"), filepath.Join(dir, "user.key"))
 			if err != nil || pair.Leaf.SerialNumber.Int64() != 3 {
 				t.Fatalf("new credentials are not a valid signed pair: %v", err)
+			}
+			now := time.Now()
+			if now.Before(pair.Leaf.NotBefore) || !now.Before(pair.Leaf.NotAfter) {
+				t.Fatalf("renewed certificate is outside its validity window: %v to %v", pair.Leaf.NotBefore, pair.Leaf.NotAfter)
 			}
 			key, err := os.ReadFile(filepath.Join(dir, "user.key"))
 			if err != nil || !initial && !bytes.Equal(key, oldKey) {
@@ -192,6 +217,44 @@ func TestCertificateProvisionAndRenewal(t *testing.T) {
 			}
 			if _, err := tls.LoadX509KeyPair(filepath.Join(dir, "user.pem"), filepath.Join(dir, "user.key")); err != nil {
 				t.Fatalf("concurrent installation damaged the pair: %v", err)
+			}
+		})
+	}
+}
+
+func TestCertificateRenewalRejectsInvalidPrivateKey(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, keyPEM := range map[string][]byte{
+		"invalid PEM":     []byte("invalid private key"),
+		"invalid PKCS1":   pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: []byte("invalid")}),
+		"invalid PKCS8":   pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("invalid")}),
+		"non-RSA PKCS8":   pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}),
+		"unsupported PEM": pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			files := map[string][]byte{"user.key": keyPEM, "user.pem": []byte("existing certificate"), "user.csr": []byte("existing CSR")}
+			for name, data := range files {
+				if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			config := &Config{TlsConfig: TLSConfig{UserTlsCertPath: dir}}
+			if err := DoSignAndSaveUserCertificateContext(t.Context(), config); err == nil || !strings.Contains(err.Error(), "invalid user private key") {
+				t.Fatalf("got %v, want private-key validation failure", err)
+			}
+			for name, want := range files {
+				got, err := os.ReadFile(filepath.Join(dir, name))
+				if err != nil || !bytes.Equal(got, want) {
+					t.Fatalf("%s changed after failed renewal: %v", name, err)
+				}
 			}
 		})
 	}

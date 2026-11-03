@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -161,6 +162,10 @@ func TestHostLists(t *testing.T) {
 		{"n[001-3]", []string{"n001", "n003"}, []string{"n1", "n004"}},
 		{"n[09-10]", []string{"n09", "n10"}, []string{"n9", "n010"}},
 		{"r[1-2]n[03,05-07]", []string{"r1n03", "r2n06"}, []string{"r3n03", "r1n04"}},
+		{"n[1,11][1,11]z", []string{"n11z", "n111z", "n1111z"}, []string{"n1z", "n11111z", "n111y"}},
+		{"n[01,11][1,11]z", []string{"n011z", "n0111z", "n111z", "n1111z"}, []string{"n11z", "n0011z", "n11111z"}},
+		{"n[1,11]1[1,11]z", []string{"n111z", "n1111z", "n11111z"}, []string{"n11z", "n111111z"}},
+		{"n[1,11][1,11]x,n[1,11][1,11]y", []string{"n111y", "n11x"}, []string{"n111z"}},
 		{", n1,, n2 ,", []string{"n1", "n2"}, []string{"n3"}},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
@@ -197,6 +202,31 @@ func TestHostLists(t *testing.T) {
 	} {
 		if got := CompressHosts(strings.Split(input, ",")); got != want {
 			t.Errorf("%q: got %q, want %q", input, got, want)
+		}
+	}
+}
+
+func BenchmarkHostListMatch(b *testing.B) {
+	for _, segments := range []int{4, 8, 12} {
+		for _, match := range []bool{false, true} {
+			b.Run(fmt.Sprintf("segments=%d/match=%t", segments, match), func(b *testing.B) {
+				h, err := ParseHostList("n" + strings.Repeat("[1,11]", segments) + "x")
+				if err != nil {
+					b.Fatal(err)
+				}
+				name := "n" + strings.Repeat("1", segments+segments/2)
+				if match {
+					name += "x"
+				} else {
+					name += "y"
+				}
+				b.ReportAllocs()
+				for b.Loop() {
+					if got := h.Match(name); got != match {
+						b.Fatalf("got match=%t, want %t", got, match)
+					}
+				}
+			})
 		}
 	}
 }

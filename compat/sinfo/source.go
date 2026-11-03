@@ -41,6 +41,8 @@ func (s *craneSource) Load(ctx context.Context, q query) (*snapshot, error) {
 	var reply *protos.QueryClusterInfoReply
 	err := s.session.Query(ctx, func(ctx context.Context, client protos.CraneCtldClient, uid uint32) error {
 		var err error
+		// Adapt complete memberships against full partition totals before applying
+		// Slurm filters and grouping. RPC name filters would leave partial facts.
 		reply, err = client.QueryClusterInfo(ctx, &protos.QueryClusterInfoRequest{
 			Uid: &uid, IncludeNodes: !q.ReservationsOnly, IncludePartitions: !q.ReservationsOnly,
 			IncludeReservations: true, IncludeAllocationCleanup: !q.ReservationsOnly,
@@ -76,6 +78,9 @@ func adaptSnapshot(reply *protos.QueryClusterInfoReply, q query) (*snapshot, err
 	for _, raw := range reservations {
 		if raw == nil || raw.StartTime == nil || raw.Duration == nil || raw.StartTime.CheckValid() != nil || raw.Duration.CheckValid() != nil {
 			return nil, fmt.Errorf("reservation %q is missing its time interval", raw.GetReservationName())
+		}
+		if raw.Duration.Seconds < 0 || raw.Duration.Nanos < 0 {
+			return nil, fmt.Errorf("reservation %q has a negative duration", raw.ReservationName)
 		}
 		if raw.CreationOrder == 0 {
 			return nil, fmt.Errorf("reservation %q is missing its creation order", raw.ReservationName)
@@ -133,6 +138,9 @@ func adaptSnapshot(reply *protos.QueryClusterInfoReply, q query) (*snapshot, err
 		}
 		n.FreeMemory = detail.FreeMemoryMb
 		if detail.StateReasonTime != nil {
+			if err := detail.StateReasonTime.CheckValid(); err != nil {
+				return nil, fmt.Errorf("node %q has an invalid state reason time: %w", n.Name, err)
+			}
 			n.ReasonTime = detail.StateReasonTime.AsTime()
 		}
 		if outage := detail.Outage; outage != nil {

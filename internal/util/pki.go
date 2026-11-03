@@ -113,11 +113,30 @@ func userCertificateKey(path string) (*rsa.PrivateKey, []byte, bool, error) {
 	keyPEM, err := os.ReadFile(path)
 	if err == nil {
 		block, _ := pem.Decode(keyPEM)
-		if block == nil || block.Type != "RSA PRIVATE KEY" {
+		if block == nil {
 			return nil, nil, false, fmt.Errorf("invalid user private key in %s", path)
 		}
-		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		return key, keyPEM, false, err
+		var key *rsa.PrivateKey
+		switch block.Type {
+		case "RSA PRIVATE KEY":
+			key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		case "PRIVATE KEY":
+			var parsed any
+			parsed, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+			if err == nil {
+				var ok bool
+				key, ok = parsed.(*rsa.PrivateKey)
+				if !ok {
+					err = errors.New("private key is not RSA")
+				}
+			}
+		default:
+			err = fmt.Errorf("unsupported PEM type %q", block.Type)
+		}
+		if err != nil {
+			return nil, nil, false, fmt.Errorf("invalid user private key in %s: %w", path, err)
+		}
+		return key, keyPEM, false, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return nil, nil, false, err

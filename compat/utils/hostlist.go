@@ -120,25 +120,41 @@ func (h *HostList) Match(name string) bool {
 }
 
 func matchSegments(segments []*hostSegment, name string) bool {
-	if len(segments) == 0 {
-		return name == ""
-	}
-	segment := segments[0]
-	if segment.Literal != "" {
-		return strings.HasPrefix(name, segment.Literal) && matchSegments(segments[1:], name[len(segment.Literal):])
-	}
-	for end := 1; end <= len(name) && name[end-1] >= '0' && name[end-1] <= '9'; end++ {
-		value, err := strconv.ParseUint(name[:end], 10, 64)
-		if err != nil {
-			break
+	// Adjacent numeric segments can reach the same suffix through different
+	// splits. Evaluate each failed (segment, byte offset) only once per name.
+	type position struct{ segment, offset int }
+	failed := make(map[position]bool)
+	var match func(int, int) bool
+	match = func(index, offset int) bool {
+		if index == len(segments) {
+			return offset == len(name)
 		}
-		for _, r := range segment.Ranges {
-			if value >= r.low && value <= r.high && fmt.Sprintf("%0*d", r.width, value) == name[:end] && matchSegments(segments[1:], name[end:]) {
+		pos := position{index, offset}
+		if failed[pos] {
+			return false
+		}
+		segment, rest := segments[index], name[offset:]
+		if segment.Literal != "" {
+			if strings.HasPrefix(rest, segment.Literal) && match(index+1, offset+len(segment.Literal)) {
 				return true
 			}
+		} else {
+			for end := 1; end <= len(rest) && rest[end-1] >= '0' && rest[end-1] <= '9'; end++ {
+				value, err := strconv.ParseUint(rest[:end], 10, 64)
+				if err != nil {
+					break
+				}
+				for _, r := range segment.Ranges {
+					if value >= r.low && value <= r.high && fmt.Sprintf("%0*d", r.width, value) == rest[:end] && match(index+1, offset+end) {
+						return true
+					}
+				}
+			}
 		}
+		failed[pos] = true
+		return false
 	}
-	return false
+	return match(0, 0)
 }
 
 func (h *HostList) Single() (string, bool) {

@@ -527,3 +527,78 @@ func TestSnapshotRejectsIncompleteFacts(t *testing.T) {
 		}
 	}
 }
+
+func TestReservationDurationValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		duration *durationpb.Duration
+		wantErr  string
+	}{
+		{"positive", durationpb.New(time.Hour), ""},
+		{"zero", durationpb.New(0), ""},
+		{"negative_seconds", durationpb.New(-time.Second), "negative duration"},
+		{"negative_nanos", durationpb.New(-time.Nanosecond), "negative duration"},
+		{"invalid", &durationpb.Duration{Seconds: 1, Nanos: -1}, "time interval"},
+	} {
+		for _, only := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/reservations_only=%t", tc.name, only), func(t *testing.T) {
+				reply := adapterFixture()
+				start := reply.ObservedAt.AsTime()
+				reply.Reservations = []*protos.ReservationInfo{{
+					ReservationName: "maintenance", StartTime: timestamppb.New(start),
+					Duration: tc.duration, CreationOrder: 1,
+				}}
+				s, err := adaptSnapshot(reply, query{ReservationsOnly: only})
+				if tc.wantErr != "" {
+					if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !strings.Contains(err.Error(), "maintenance") {
+						t.Fatalf("got %v, want reservation error containing %q", err, tc.wantErr)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(s.Reservations) != 1 || !s.Reservations[0].End.Equal(start.Add(tc.duration.AsDuration())) {
+					t.Fatalf("unexpected reservation interval: %+v", s.Reservations)
+				}
+			})
+		}
+	}
+}
+
+func TestStateReasonTimestampValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		stamp   *timestamppb.Timestamp
+		wantErr bool
+	}{
+		{"missing", nil, false},
+		{"valid", timestamppb.New(time.Unix(100, 123)), false},
+		{"epoch", timestamppb.New(time.Unix(0, 0)), false},
+		{"out_of_range", &timestamppb.Timestamp{Seconds: 253402300800}, true},
+		{"negative_nanos", &timestamppb.Timestamp{Nanos: -1}, true},
+		{"excess_nanos", &timestamppb.Timestamp{Nanos: 1000000000}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := adapterFixture()
+			reply.Nodes[0].StateReasonTime = tc.stamp
+			s, err := adaptSnapshot(reply, query{})
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "n1") || !strings.Contains(err.Error(), "state reason time") {
+					t.Fatalf("got %v, want invalid state reason time for n1", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want time.Time
+			if tc.stamp != nil {
+				want = tc.stamp.AsTime()
+			}
+			if got := s.Nodes[0].ReasonTime; !got.Equal(want) {
+				t.Fatalf("got reason time %v, want %v", got, want)
+			}
+		})
+	}
+}
