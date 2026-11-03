@@ -322,6 +322,17 @@ func validateCapabilities(o *plan) error {
 	if o.Reservations {
 		return nil
 	}
+	if o.Serialization != "" && !strings.EqualFold(o.DataParser, "list") {
+		schema, err := selectSchema(o, io.Discard)
+		if err != nil {
+			return err
+		}
+		// Schema output still queries the controller, but does not project
+		// node fields, states or sort keys into a data report.
+		if schema.SpecOnly {
+			return nil
+		}
+	}
 	if o.Future {
 		return unsupported("--future", "future node registration")
 	}

@@ -181,29 +181,33 @@ func TestAdapterKeepsSchedulerFacts(t *testing.T) {
 }
 
 func TestFractionalCPUProjection(t *testing.T) {
-	reply := adapterFixture()
-	reply.Nodes[0].ResAlloc.CpuCount = .25
+	for _, cpus := range []float64{.25, 1.0 / 256, 4 - 1.0/256} {
+		t.Run(fmt.Sprint(cpus), func(t *testing.T) {
+			reply := adapterFixture()
+			reply.Nodes[0].ResAlloc.CpuCount = cpus
 
-	o, err := parseCommand([]string{"sinfo", "-h", "-t", "allocated", "-o", "%t|%N"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := adaptSnapshot(reply, o.Query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out bytes.Buffer
-	if err = newTextRenderer().table(&out, buildRows(s, o), o); err != nil {
-		t.Fatal(err)
-	}
-	if out.String() != "mix|n1\n" {
-		t.Fatal(out.String())
-	}
-	o.Fields, _ = parseFormat("%C", false)
-	out.Reset()
-	err = newTextRenderer().table(&out, buildRows(s, o), o)
-	if err == nil || !strings.Contains(err.Error(), "fractional") || out.Len() != 0 {
-		t.Fatalf("out=%q err=%v", out.String(), err)
+			o, err := parseCommand([]string{"sinfo", "-h", "-t", "allocated", "-o", "%t|%N"}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, err := adaptSnapshot(reply, o.Query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			if err = newTextRenderer().table(&out, buildRows(s, o), o); err != nil {
+				t.Fatal(err)
+			}
+			if out.String() != "mix|n1\n" {
+				t.Fatal(out.String())
+			}
+			o.Fields, _ = parseFormat("%C", false)
+			out.Reset()
+			err = newTextRenderer().table(&out, buildRows(s, o), o)
+			if err == nil || !strings.Contains(err.Error(), "fractional") || out.Len() != 0 {
+				t.Fatalf("out=%q err=%v", out.String(), err)
+			}
+		})
 	}
 }
 
@@ -479,7 +483,7 @@ func TestCleanupSubtractionPreservesPrecisionAndGRES(t *testing.T) {
 	raw.CleanupResources.Gres = resources("/dev/g0")
 	raw.GresOrder = []*protos.GresResource{{Name: "gpu", Type: "a", Devices: []string{"/dev/g0", "/dev/g1"}}}
 	active, err := activeAllocation(raw)
-	if err != nil || active.CpuCount != .25 {
+	if err != nil || active.CpuCount != 65.0/256 {
 		t.Fatalf("active=%v err=%v", active, err)
 	}
 	s, err := adaptSnapshot(reply, query{})
@@ -514,6 +518,7 @@ func TestSnapshotRejectsIncompleteFacts(t *testing.T) {
 		func(r *protos.QueryClusterInfoReply) { r.Nodes[0].ResAlloc = nil },
 		func(r *protos.QueryClusterInfoReply) { r.Nodes[0].Outage = &protos.NodeOutage{} },
 		func(r *protos.QueryClusterInfoReply) { r.Reservations = []*protos.ReservationInfo{nil} },
+		func(r *protos.QueryClusterInfoReply) { r.Partitions = []*protos.PartitionInfo{nil} },
 	} {
 		r := adapterFixture()
 		change(r)

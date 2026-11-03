@@ -36,4 +36,12 @@ func TestNativeCPUTextRoundsExactQueryValues(t *testing.T) {
 	if got := formatCpuInfo(node); got != "CPU=4.00 AllocCPU=0.13 FreeCPU=3.88" {
 		t.Fatal(got)
 	}
+	partition := &protos.PartitionInfo{
+		ResTotal: &protos.ResourceView{CpuCount: 4.125},
+		ResAlloc: &protos.ResourceView{CpuCount: 0.125},
+		ResAvail: &protos.ResourceView{CpuCount: 4},
+	}
+	if got := formatCpuResources(partition); got != "TotalCPU=4.13 AvailCPU=4.00 AllocCPU=0.13" {
+		t.Fatal(got)
+	}
 }

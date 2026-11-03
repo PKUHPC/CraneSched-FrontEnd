@@ -3,12 +3,15 @@ package cinfo
 import (
 	"CraneFrontEnd/generated/protos"
 	"CraneFrontEnd/internal/util"
+	"context"
 	"encoding/json"
+	"net"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -52,6 +55,20 @@ func TestNativeGroupingAndEmptyPartitions(t *testing.T) {
 }
 
 func TestClientStateFiltersKeepPartitionFacts(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := grpc.NewServer()
+	fixture := &clusterQueryController{requests: make(chan *protos.QueryClusterInfoRequest, 1)}
+	protos.RegisterCraneCtldServer(server, fixture)
+	go server.Serve(listener)
+	t.Cleanup(server.Stop)
+	host, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := &util.Config{ControlMachine: host, CraneCtldListenPort: port}
 	oldStates, oldResponding, oldDown := FlagFilterCranedStates, FlagFilterRespondingOnly, FlagFilterDownOnly
 	t.Cleanup(func() {
 		FlagFilterCranedStates, FlagFilterRespondingOnly, FlagFilterDownOnly = oldStates, oldResponding, oldDown
@@ -70,12 +87,14 @@ func TestClientStateFiltersKeepPartitionFacts(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			FlagFilterCranedStates, FlagFilterRespondingOnly, FlagFilterDownOnly = tc.states, tc.responding, tc.down
-			matches, err := parseStateFilter()
+			reply, err := queryClusterInfo(config)
 			if err != nil {
 				t.Fatal(err)
 			}
-			reply := clusterFixture()
-			reply.Nodes = slices.DeleteFunc(reply.Nodes, func(n *protos.CranedInfo) bool { return !matches(n) })
+			req := <-fixture.requests
+			if !req.IncludeNodes || !req.IncludePartitions || req.IncludeReservations || req.IncludeAllocationCleanup || req.Uid != nil {
+				t.Fatalf("unexpected query scope: %+v", req)
+			}
 			got := []string{}
 			for _, n := range reply.Nodes {
 				got = append(got, n.Hostname)
@@ -104,6 +123,16 @@ func TestClientStateFiltersKeepPartitionFacts(t *testing.T) {
 	if _, err := parseStateFilter(); err == nil {
 		t.Fatal("invalid state accepted")
 	}
+}
+
+type clusterQueryController struct {
+	protos.UnimplementedCraneCtldServer
+	requests chan *protos.QueryClusterInfoRequest
+}
+
+func (s *clusterQueryController) QueryClusterInfo(_ context.Context, req *protos.QueryClusterInfoRequest) (*protos.QueryClusterInfoReply, error) {
+	s.requests <- req
+	return clusterFixture(), nil
 }
 
 func TestExistingSlurmOutputUsesNativeRows(t *testing.T) {

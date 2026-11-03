@@ -250,8 +250,8 @@ func activeAllocation(node *protos.CranedInfo) (*protos.ResourceInNodeV3, error)
 		return nil, fmt.Errorf("node %q has inconsistent allocation cleanup resources", node.Hostname)
 	}
 	active := proto.Clone(held).(*protos.ResourceInNodeV3)
-	// Native display precision is applied after subtraction, not to each operand.
-	active.CpuCount = math.Round((held.CpuCount-cleanup.CpuCount)*100) / 100
+	// State selection and fractional-capability checks need scheduler precision.
+	active.CpuCount = held.CpuCount - cleanup.CpuCount
 	active.MemoryBytes -= cleanup.MemoryBytes
 	active.MemorySwBytes -= cleanup.MemorySwBytes
 	return active, nil

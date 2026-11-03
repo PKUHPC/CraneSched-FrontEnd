@@ -125,10 +125,38 @@ func TestRunActionsAndCapabilityPrecedence(t *testing.T) {
 			}
 			var out, err bytes.Buffer
 			code := r.run(context.Background(), append([]string{"sinfo"}, tc.args...), tc.env, &out, &err)
-			if code != tc.code || out.String() != tc.out || !strings.Contains(err.String(), tc.err) {
+			if code != tc.code || out.String() != tc.out || !strings.Contains(err.String(), tc.err) || tc.err == "" && err.Len() != 0 {
 				t.Fatalf("code=%d out=%q err=%q", code, &out, &err)
 			}
 		})
+	}
+}
+
+func TestRunSchemaOnlyIgnoresUnusedProjections(t *testing.T) {
+	for _, kind := range []string{"json", "yaml"} {
+		for _, flags := range [][]string{{"-o", "%f"}, {"-S", "f"}, {"-t", "cloud"}, {"--future"}, {"--long"}} {
+			t.Run(kind+strings.Join(flags, " "), func(t *testing.T) {
+				loads := 0
+				source := &memorySource{load: func(context.Context, query) (*snapshot, error) {
+					loads++
+					return testSnapshot(), nil
+				}}
+				r := testRunner(source)
+				var want, out, diagnostic bytes.Buffer
+				args := []string{"sinfo", "--" + kind + "=v0.0.45+spec_only"}
+				if code := r.run(t.Context(), args, nil, &want, &diagnostic); code != 0 || diagnostic.Len() != 0 {
+					t.Fatalf("schema baseline: code=%d stderr=%q", code, &diagnostic)
+				}
+				if code := r.run(t.Context(), append(args, flags...), nil, &out, &diagnostic); code != 0 || diagnostic.Len() != 0 || out.String() != want.String() || loads != 2 {
+					t.Fatalf("schema with flags: code=%d loads=%d stderr=%q", code, loads, &diagnostic)
+				}
+				source.load = func(context.Context, query) (*snapshot, error) { return nil, errors.New("controller unavailable") }
+				out.Reset()
+				if code := r.run(t.Context(), append(args, flags...), nil, &out, &diagnostic); code != 1 || out.Len() != 0 || !strings.Contains(diagnostic.String(), "controller unavailable") {
+					t.Fatalf("schema query failure: code=%d stdout=%q stderr=%q", code, &out, &diagnostic)
+				}
+			})
+		}
 	}
 }
 
