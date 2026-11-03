@@ -5,66 +5,100 @@
 package sinfo
 
 import (
-	"bytes"
-	"embed"
-	"encoding/json"
 	"fmt"
+	"reflect"
+	"strings"
 )
 
-// These are the public schema documents reported by sinfo 26.05.4's
-// +SPEC_ONLY interface, not imported Slurm implementation code. Descriptions
-// and property ordering are observable command output, like --help text.
-//
-//go:embed schema/*.json
-var publicSchemas embed.FS
+func publicSchema() object {
+	return reportSchema(reflect.TypeFor[reportResponse](), "", "")
+}
 
-func publicSchema(version int) (object, error) {
-	data, err := publicSchemas.ReadFile(fmt.Sprintf("schema/v%d.json", version))
-	if err != nil {
-		return nil, err
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	var read func() (any, error)
-	read = func() (any, error) {
-		token, err := decoder.Token()
-		if err != nil {
-			return nil, err
+// Walk only our report types. Unlike a general OpenAPI generator, this preserves
+// declaration order, inline types and explicit empty required arrays used by
+// the CLI's spec_only response. The same types also carry the actual data.
+func reportSchema(t reflect.Type, description, enum string) object {
+	var kind, format string
+	switch t.Kind() {
+	case reflect.Struct:
+		kind = "object"
+	case reflect.Slice:
+		kind = "array"
+	case reflect.String:
+		kind = "string"
+	case reflect.Bool:
+		kind = "boolean"
+	case reflect.Uint64, reflect.Int64:
+		kind, format = "integer", "int64"
+		if t == reflect.TypeFor[reportInt32]() {
+			format = "int32"
 		}
-		switch token {
-		case json.Delim('{'):
-			result := object{}
-			for decoder.More() {
-				key, err := decoder.Token()
-				if err != nil {
-					return nil, err
-				}
-				value, err := read()
-				if err != nil {
-					return nil, err
-				}
-				result = append(result, member{key.(string), value})
-			}
-			_, err = decoder.Token()
-			return result, err
-		case json.Delim('['):
-			result := array{}
-			for decoder.More() {
-				value, err := read()
-				if err != nil {
-					return nil, err
-				}
-				result = append(result, value)
-			}
-			_, err = decoder.Token()
-			return result, err
-		default:
-			return token, nil
+	default:
+		panic(fmt.Sprintf("unsupported sinfo report type %s", t))
+	}
+	result := object{{"type", kind}}
+	if format != "" {
+		result = append(result, member{"format", format})
+	}
+	if description != "" {
+		result = append(result, member{"description", description})
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		properties := object{}
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			properties = append(properties, member{field.Tag.Get("json"), reportSchema(field.Type, field.Tag.Get("description"), field.Tag.Get("enum"))})
+		}
+		result = append(result, member{"properties", properties})
+		if required, ok := reflect.Zero(t).Interface().(interface{ schemaRequired() []string }); ok {
+			result = append(result, member{"required", stringsArray(required.schemaRequired())})
+		}
+	case reflect.Slice:
+		items := reportSchema(t.Elem(), "", "")
+		if enum != "" {
+			items = append(object{{"enum", stringsArray(strings.Split(enum, "|"))}}, items...)
+		}
+		result = append(result, member{"items", items})
+	}
+	return result
+}
+
+// Preserve the report's field order for both encoders. Complex mode changes
+// optional scalar values, but leaves string array elements (including argv)
+// intact. Numeric wrappers own their unset/infinite representation.
+func reportValue(v reflect.Value, complex, keepEmpty bool) any {
+	if complex {
+		if number, ok := v.Interface().(interface{ complexValue() any }); ok {
+			return number.complexValue()
 		}
 	}
-	root, err := read()
-	if err != nil {
-		return nil, err
+	switch v.Kind() {
+	case reflect.Struct:
+		result := object{}
+		for i := 0; i < v.NumField(); i++ {
+			field := v.Type().Field(i)
+			result = append(result, member{field.Tag.Get("json"), reportValue(v.Field(i), complex, field.Tag.Get("complex") == "keep_empty")})
+		}
+		return result
+	case reflect.Slice:
+		result := make(array, v.Len())
+		for i := range result {
+			result[i] = reportValue(v.Index(i), complex, true)
+		}
+		return result
+	case reflect.String:
+		if complex && !keepEmpty && v.String() == "" {
+			return nil
+		}
+		return v.String()
+	case reflect.Bool:
+		return v.Bool()
+	case reflect.Uint64:
+		return v.Uint()
+	case reflect.Int64:
+		return v.Int()
+	default:
+		panic(fmt.Sprintf("unsupported sinfo report type %s", v.Type()))
 	}
-	return root.(object), nil
 }

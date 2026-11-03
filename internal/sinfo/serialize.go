@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"os/user"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,7 +43,6 @@ func parseSerializerEnvironment(env map[string]string) (map[string]serializerOpt
 }
 
 type schemaOptions struct {
-	Version  int
 	Complex  bool
 	SpecOnly bool
 	Plugin   string
@@ -58,21 +58,8 @@ func selectSchema(o *options, diagnostics io.Writer) (schemaOptions, error) {
 	if strings.Contains(o.DataParser, "+") {
 		result.Plugin += "+" + flags
 	}
-	switch version {
-	case "v0.0.42":
-		result.Version = 42
-	case "v0.0.43":
-		result.Version = 43
-	case "v0.0.44":
-		result.Version = 44
-	case "v0.0.45":
-		result.Version = 45
-	default:
-		message := "sinfo: error: data_parser_g_new: invalid plugin \n"
-		if version != "" {
-			message = fmt.Sprintf("sinfo: error: load_plugins: unable to find plugin: data_parser/%s\nsinfo: error: data_parser_g_new: failure loading plugins: Plugin has invalid format or unable to be loaded\n", version)
-		}
-		return result, &commandError{message + fmt.Sprintf("sinfo: error: application/%s output not supported by data_parser/v0.0.45\n", o.Serialization)}
+	if version != "v0.0.45" {
+		return result, unsupported("--"+o.Serialization, fmt.Sprintf("data parser %q (supported: v0.0.45)", version))
 	}
 	for _, flag := range strings.Split(flags, "+") {
 		switch strings.ToLower(flag) {
@@ -82,9 +69,9 @@ func selectSchema(o *options, diagnostics io.Writer) (schemaOptions, error) {
 		case "complex":
 			result.Complex = true
 		case "prefer_refs":
-			fmt.Fprintf(diagnostics, "sinfo: data_parser/v0.0.%d ignoring default flag FLAG_PREFER_REFS\n", result.Version)
+			fmt.Fprintln(diagnostics, "sinfo: data_parser/v0.0.45 ignoring default flag FLAG_PREFER_REFS")
 		default:
-			fmt.Fprintf(diagnostics, "sinfo: warning: data_parser/v0.0.%d ignoring unknown flag %s\n", result.Version, flag)
+			fmt.Fprintf(diagnostics, "sinfo: warning: data_parser/v0.0.45 ignoring unknown flag %s\n", flag)
 		}
 	}
 	return result, nil
@@ -107,27 +94,11 @@ func stringsArray(values []string) array {
 	return a
 }
 
-func (s schemaOptions) number(n uint64, unset, infinite bool) any {
-	if s.Complex {
-		if unset {
-			return nil
-		}
-		if infinite {
-			return "Infinity"
-		}
-		return n
-	}
-	if unset || infinite {
-		n = 0
-	}
-	return object{{"set", !unset && !infinite}, {"infinite", infinite}, {"number", n}}
+func reportLimit(l durationLimit) reportNumber[reportInt32] {
+	return reportNumeric[reportInt32](l.Seconds/60, l.Unset, l.Infinite)
 }
 
-func (s schemaOptions) limit(l durationLimit) any {
-	return s.number(l.Seconds/60, l.Unset, l.Infinite)
-}
-
-func orderedNames(names []string) array {
+func orderedNames(names []string) []string {
 	unique := make(map[string]bool)
 	result := make([]string, 0, len(names))
 	for _, name := range names {
@@ -137,81 +108,70 @@ func orderedNames(names []string) array {
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return hostLess(result[i], result[j]) })
-	return stringsArray(result)
+	return result
 }
 
-func (s schemaOptions) row(r *row, o *options, userName func(uint32) (string, bool)) object {
+func structuredRow(r *row, o *options, userName func(uint32) (string, bool)) reportSinfo {
 	n := &node{}
 	if len(r.Nodes) != 0 {
 		n = r.Nodes[0]
 	}
-	countsNodes, countsCPUs := r.counts()
-	rangeOf := func(group string) object {
-		lo, hi := r.minmax(group)
-		return object{{"minimum", lo}, {"maximum", hi}}
+	nodes, cpus := r.counts()
+	result := reportSinfo{
+		Port:     reportInt32(n.Port),
+		Nodes:    reportSinfoNodes{Allocated: reportInt32(nodes.Alloc), Idle: reportInt32(nodes.Idle), Other: reportInt32(nodes.Other), Total: reportInt32(nodes.Total), Nodes: orderedNames(r.names(""))},
+		CPUs:     reportSinfoCPUs{Allocated: reportInt32(cpus.Alloc), Idle: reportInt32(cpus.Idle), Other: reportInt32(cpus.Other), Total: reportInt32(cpus.Total)},
+		Features: reportSinfoFeatures{Total: n.Features, Active: n.ActiveFeatures},
+		GRES:     reportSinfoGRES{Total: n.Gres, Used: n.GresUsed},
+		Cluster:  r.Cluster, Comment: n.Comment, Extra: n.Extra,
+		Reason: reportSinfoReason{Description: n.Reason}, Reservation: n.Reservation,
+		Partition: structuredPartition(r.Partition),
 	}
-	freeLo, freeHi := r.minmax("freemem")
-	freeRange := object{{"minimum", s.number(freeLo, freeLo == 0xfffffffffffffffe, freeLo == 0xffffffffffffffff)}, {"maximum", s.number(freeHi, freeHi == 0xfffffffffffffffe, freeHi == 0xffffffffffffffff)}}
-	var addresses, hostnames array
 	for _, field := range o.Fields {
 		if field.Field == nil {
 			continue
 		}
 		switch field.Field.Group {
 		case "address":
-			addresses = orderedNames(r.names("address"))
+			result.Nodes.Addresses = orderedNames(r.names("address"))
 		case "hostname":
-			hostnames = orderedNames(r.names("hostname"))
+			result.Nodes.Hostnames = orderedNames(r.names("hostname"))
 		}
 	}
-	state := array{}
 	if len(r.Nodes) != 0 {
-		state = stringsArray(strings.Split(n.State.complete(), "+"))
+		result.Node.State = strings.Split(n.State.complete(), "+")
+		result.Memory.Allocated = r.Nodes[len(r.Nodes)-1].AllocMemory
 	}
-	reasonTime := int64(0)
 	if !n.ReasonTime.IsZero() {
-		reasonTime = n.ReasonTime.Unix()
+		result.Reason.Time = n.ReasonTime.Unix()
 	}
-	reasonUser := ""
 	if n.ReasonUID != nil {
-		var ok bool
-		reasonUser, ok = userName(*n.ReasonUID)
+		name, ok := userName(*n.ReasonUID)
 		if !ok {
-			reasonUser = strconv.FormatUint(uint64(*n.ReasonUID), 10)
+			name = strconv.FormatUint(uint64(*n.ReasonUID), 10)
 		}
+		result.ReasonSetByUser = name
 	}
-	reason := object{{"description", n.Reason}, {"time", reasonTime}}
-	if s.Version < 45 {
-		reason = append(reason, member{"user", reasonUser})
+	rangeOf := func(group string) (reportInt32, reportInt32) {
+		lo, hi := r.minmax(group)
+		return reportInt32(lo), reportInt32(hi)
 	}
-	cpus := object{{"allocated", countsCPUs.Alloc}, {"idle", countsCPUs.Idle}, {"other", countsCPUs.Other}, {"total", countsCPUs.Total}}
-	cpus = append(cpus, rangeOf("cpus")...)
-	cpus = append(cpus, member{"load", rangeOf("load")}, member{"per_node", object{{"max", s.number(r.Partition.MaxCPUs, false, r.Partition.MaxCPUs == 0xffffffff)}}})
-	memory := rangeOf("memory")
-	allocatedMemory := uint64(0)
-	if len(r.Nodes) != 0 {
-		allocatedMemory = r.Nodes[len(r.Nodes)-1].AllocMemory
-	}
-	memory = append(memory, member{"free", freeRange}, member{"allocated", allocatedMemory})
-	result := object{
-		{"port", n.Port}, {"node", object{{"state", state}}},
-		{"nodes", object{{"allocated", countsNodes.Alloc}, {"idle", countsNodes.Idle}, {"other", countsNodes.Other}, {"total", countsNodes.Total}, {"hostnames", hostnames}, {"addresses", addresses}, {"nodes", orderedNames(r.names(""))}}},
-		{"cpus", cpus}, {"sockets", rangeOf("sockets")}, {"cores", rangeOf("cores")}, {"threads", rangeOf("threads")},
-		{"disk", rangeOf("disk")}, {"memory", memory}, {"weight", rangeOf("weight")},
-		{"features", object{{"total", n.Features}, {"active", n.ActiveFeatures}}},
-		{"gres", object{{"total", n.Gres}, {"used", n.GresUsed}}},
-		{"cluster", r.Cluster}, {"comment", n.Comment}, {"extra", n.Extra}, {"reason", reason}, {"reservation", n.Reservation},
-	}
-	if s.Version >= 45 {
-		result = append(result, member{"reason_set_by_user", reasonUser})
-	}
-	return append(result, member{"resource_spec", object{{"cpus", ""}, {"memory", 0}}}, member{"partition", s.partition(r.Partition)})
+	result.CPUs.Minimum, result.CPUs.Maximum = rangeOf("cpus")
+	result.CPUs.Load.Minimum, result.CPUs.Load.Maximum = rangeOf("load")
+	result.CPUs.PerNode.Max = reportNumeric[reportInt32](r.Partition.MaxCPUs, false, r.Partition.MaxCPUs == 0xffffffff)
+	result.Sockets.Minimum, result.Sockets.Maximum = rangeOf("sockets")
+	result.Cores.Minimum, result.Cores.Maximum = rangeOf("cores")
+	result.Threads.Minimum, result.Threads.Maximum = rangeOf("threads")
+	result.Disk.Minimum, result.Disk.Maximum = rangeOf("disk")
+	result.Weight.Minimum, result.Weight.Maximum = rangeOf("weight")
+	result.Memory.Minimum, result.Memory.Maximum = r.minmax("memory")
+	freeLo, freeHi := r.minmax("freemem")
+	result.Memory.Free.Minimum = reportNumeric[uint64](freeLo, freeLo == 0xfffffffffffffffe, freeLo == 0xffffffffffffffff)
+	result.Memory.Free.Maximum = reportNumeric[uint64](freeHi, freeHi == 0xfffffffffffffffe, freeHi == 0xffffffffffffffff)
+	return result
 }
 
-func (s schemaOptions) partition(p *partition) object {
-	if p == nil {
-		return nil
-	}
+func structuredPartition(p *partition) reportSinfoPartition {
 	allAsEmpty := func(v string) string {
 		if v == "all" {
 			return ""
@@ -222,77 +182,48 @@ func (s schemaOptions) partition(p *partition) object {
 	if configured == "" {
 		configured = compressHosts(p.Nodes)
 	}
-	legacyMemory := func(cpu, node uint64) int64 {
-		if s.Version >= 45 {
-			return 0
-		}
-		if cpu != 0 {
-			return int64(cpu | 1<<63)
-		}
-		return int64(node)
-	}
-	memoryFields := func(cpu, node uint64) object {
-		return object{{"memory_per_cpu", legacyMemory(cpu, node)}, {"partition_memory_per_cpu", s.number(cpu, cpu == 0, false)}, {"partition_memory_per_node", s.number(node, node == 0, false)}}
-	}
-	defaults := memoryFields(p.DefaultMemCPU, p.DefaultMemNode)
-	defaults = append(defaults, member{"time", s.limit(p.DefaultTime)}, member{"job", ""})
-	var binding any = 0
-	selectType := array{}
-	if s.Version >= 45 {
-		binding = array{}
-		selectType = array{"NONE"}
-	}
 	tres := p.TRES
 	if tres == "" {
 		tres = fmt.Sprintf("cpu=%d,mem=%s,node=%d,billing=%d", p.TotalCPUs, memoryTRES(p.TotalMemory), len(p.Nodes), p.TotalCPUs)
 	}
-	result := object{
-		{"nodes", object{{"allowed_allocation", allAsEmpty(p.AllocNodes)}, {"configured", configured}, {"total", len(p.Nodes)}}},
-		{"accounts", object{{"allowed", strings.Join(p.AllowedAccounts, ",")}, {"deny", strings.Join(p.DeniedAccounts, ",")}}},
-		{"groups", object{{"allowed", allAsEmpty(p.Groups)}}},
-		{"qos", object{{"allowed", ""}, {"deny", ""}, {"assigned", p.DefaultQoS}}},
-		{"alternate", ""}, {"tres", object{{"billing_weights", ""}, {"configured", tres}}}, {"cluster", ""},
-		{"select_type", selectType}, {"cpus", object{{"task_binding", binding}, {"total", p.TotalCPUs}}}, {"defaults", defaults},
+	result := reportSinfoPartition{
+		Nodes:      reportSinfoPartitionNodes{AllowedAllocation: allAsEmpty(p.AllocNodes), Configured: configured, Total: reportInt32(len(p.Nodes))},
+		Accounts:   reportSinfoPartitionAccounts{Allowed: strings.Join(p.AllowedAccounts, ","), Deny: strings.Join(p.DeniedAccounts, ",")},
+		Groups:     reportSinfoPartitionGroups{Allowed: allAsEmpty(p.Groups)},
+		QoS:        reportSinfoPartitionQoS{Assigned: p.DefaultQoS},
+		TRES:       reportSinfoPartitionTRES{Configured: tres},
+		SelectType: []string{"NONE"},
+		CPUs:       reportSinfoPartitionCPUs{Total: reportInt32(p.TotalCPUs)},
+		Defaults: reportSinfoPartitionDefaults{
+			PartitionMemoryPerCPU:  reportNumeric[uint64](p.DefaultMemCPU, p.DefaultMemCPU == 0, false),
+			PartitionMemoryPerNode: reportNumeric[uint64](p.DefaultMemNode, p.DefaultMemNode == 0, false),
+			Time:                   reportLimit(p.DefaultTime),
+		},
+		Partition: reportSinfoPartitionPartition{Exclusive: "NO", Oversubscribe: p.OverSubscribe, State: []string{strings.ToUpper(p.Available)}},
+		Maximums: reportSinfoPartitionMaximums{
+			CPUsPerNode:            reportNumeric[reportInt32](p.MaxCPUs, false, p.MaxCPUs == 0xffffffff),
+			CPUsPerSocket:          reportNumeric[reportInt32](0, false, true),
+			PartitionMemoryPerCPU:  reportNumeric[uint64](p.MaxMemCPU, p.MaxMemCPU == 0, false),
+			PartitionMemoryPerNode: reportNumeric[uint64](p.MaxMemNode, p.MaxMemNode == 0, false),
+			Nodes:                  reportNumeric[reportInt32](p.MaxNodes, false, p.MaxNodes == 0xffffffff),
+			Time:                   reportLimit(p.TimeLimit), OverTimeLimit: reportNumeric[reportInt32](0, true, false),
+		},
+		Minimums: reportSinfoPartitionMinimums{Nodes: reportInt32(p.MinNodes)},
+		Name:     p.Name, NodeSets: p.NodeSets, PreemptMode: []string{"CLUSTER_GLOBAL"},
+		Priority:    reportSinfoPartitionPriority{JobFactor: reportInt32(p.PriorityFactor), Tier: reportInt32(p.PriorityTier)},
+		Timeouts:    reportSinfoPartitionTimeouts{Resume: reportNumeric[reportInt32](0, true, false), Suspend: reportNumeric[reportInt32](0, true, false)},
+		SuspendTime: reportNumeric[reportInt32](0, true, false),
 	}
-	state := strings.ToUpper(p.Available)
-	if s.Version >= 45 {
-		flags := array{}
-		if p.Default {
-			flags = append(flags, "DEFAULT")
-		}
-		if p.Hidden {
-			flags = append(flags, "HIDDEN")
-		}
-		if p.RootOnly {
-			flags = append(flags, "ROOT_ONLY")
-		}
-		result = append(result, member{"flags", flags}, member{"partition", object{{"exclusive", "NO"}, {"oversubscribe", p.OverSubscribe}, {"state", array{state}}}})
+	if p.Default {
+		result.Flags = append(result.Flags, "DEFAULT")
 	}
-	maximums := object{{"cpus_per_node", s.number(p.MaxCPUs, false, p.MaxCPUs == 0xffffffff)}, {"cpus_per_socket", s.number(0, false, true)}}
-	maximums = append(maximums, memoryFields(p.MaxMemCPU, p.MaxMemNode)...)
-	shares := 1
-	if s.Version >= 45 {
-		shares = 0
+	if p.Hidden {
+		result.Flags = append(result.Flags, "HIDDEN")
 	}
-	maximums = append(maximums,
-		member{"nodes", s.number(p.MaxNodes, false, p.MaxNodes == 0xffffffff)}, member{"shares", shares},
-		member{"oversubscribe", object{{"jobs", shares}, {"flags", array{}}}}, member{"time", s.limit(p.TimeLimit)}, member{"over_time_limit", s.number(0, true, false)},
-	)
-	result = append(result, member{"grace_time", 0}, member{"maximums", maximums}, member{"minimums", object{{"nodes", p.MinNodes}}}, member{"name", p.Name}, member{"node_sets", p.NodeSets})
-	if s.Version >= 45 {
-		result = append(result, member{"preempt_mode", array{"CLUSTER_GLOBAL"}})
+	if p.RootOnly {
+		result.Flags = append(result.Flags, "ROOT_ONLY")
 	}
-	result = append(result,
-		member{"priority", object{{"job_factor", p.PriorityFactor}, {"tier", p.PriorityTier}}},
-		member{"timeouts", object{{"resume", s.number(0, true, false)}, {"suspend", s.number(0, true, false)}}},
-	)
-	if s.Version >= 43 {
-		result = append(result, member{"topology", ""})
-	}
-	if s.Version < 45 {
-		result = append(result, member{"partition", object{{"state", array{state}}}})
-	}
-	return append(result, member{"suspend_time", s.number(0, true, false)})
+	return result
 }
 
 func memoryTRES(mib uint64) string {
@@ -312,18 +243,16 @@ func memoryTRES(mib uint64) string {
 func renderStructured(w, diagnostics io.Writer, argv []string, rows []*row, snap *snapshot, o *options, userName func(uint32) (string, bool)) error {
 	if strings.EqualFold(o.DataParser, "list") {
 		fmt.Fprintln(diagnostics, "Possible data_parser plugins:")
-		// The reference distribution's discovery order is stable for this
-		// compatibility baseline, and is not numerical version order.
-		_, err := io.WriteString(w, "data_parser/v0.0.45\ndata_parser/v0.0.43\ndata_parser/v0.0.42\ndata_parser/v0.0.44\n")
+		_, err := io.WriteString(w, "data_parser/v0.0.45\n")
 		return err
 	}
 	schema, err := selectSchema(o, diagnostics)
 	if err != nil {
 		return err
 	}
-	entries := make(array, 0)
+	entries := make([]reportSinfo, 0)
 	if !schema.SpecOnly {
-		// All supported sinfo schema versions implicitly request these fields,
+		// The v45 schema implicitly requests these fields,
 		// even when -o selects a smaller text/grouping vocabulary. An absent
 		// Crane feature must not turn into a plausible zero or empty JSON value.
 		for _, field := range []string{"Disk", "Weight", "Features", "features_act", "Comment", "Extra", "MaxCPUsPerNode", "AllocNodes", "Groups", "DefaultTime", "OverSubscribe", "Root", "Size", "PriorityTier"} {
@@ -335,7 +264,7 @@ func renderStructured(w, diagnostics io.Writer, argv []string, rows []*row, snap
 			return err
 		}
 		for _, row := range rows {
-			entries = append(entries, schema.row(row, o, userName))
+			entries = append(entries, structuredRow(row, o, userName))
 		}
 	}
 	name, _ := userName(uint32(os.Getuid()))
@@ -343,54 +272,22 @@ func renderStructured(w, diagnostics io.Writer, argv []string, rows []*row, snap
 	if g, err := user.LookupGroupId(group); err == nil {
 		group = g.Name
 	}
-	root := object{
-		{"sinfo", entries},
-		{"meta", object{
-			{"plugin", object{{"type", ""}, {"name", ""}, {"data_parser", schema.Plugin}, {"accounting_storage", snap.AccountingStorage}}},
-			{"client", object{{"source", ""}, {"user", name}, {"group", group}}}, {"command", stringsArray(argv)},
-			{"slurm", object{{"version", object{{"major", "26"}, {"micro", "4"}, {"minor", "05"}}}, {"release", compatibilityVersion}, {"cluster", snap.Cluster}}},
-		}}, {"errors", array{}}, {"warnings", array{}},
-	}
+	var root object
 	if schema.SpecOnly {
-		root, err = publicSchema(schema.Version)
-		if err != nil {
-			return err
+		root = publicSchema()
+	} else {
+		report := reportResponse{
+			Sinfo: entries,
+			Meta: reportMeta{
+				Plugin: reportMetaPlugin{DataParser: schema.Plugin, AccountingStorage: snap.AccountingStorage},
+				Client: reportMetaClient{User: name, Group: group}, Command: argv,
+				Slurm: reportMetaSlurm{Version: reportMetaSlurmVersion{Major: "26", Micro: "4", Minor: "05"}, Release: compatibilityVersion, Cluster: snap.Cluster},
+			},
 		}
-	} else if schema.Complex {
-		root = complexValues(root, schema.Version, "")
+		root = reportValue(reflect.ValueOf(report), schema.Complex, false).(object)
 	}
 	if o.Serialization == "yaml" {
 		return writeYAML(w, root, o.Serializer)
 	}
 	return writeJSON(w, root, o.Serializer)
-}
-
-// COMPLEX exposes absent optional values as null. These paths are fixed by
-// the public versioned schema, not inferred by decoding a text table.
-func complexValues(value object, version int, path string) object {
-	for i := range value {
-		field := &value[i]
-		key := path + "/" + field.name
-		switch child := field.value.(type) {
-		case object:
-			field.value = complexValues(child, version, key)
-		case array:
-			for j, element := range child {
-				if obj, ok := element.(object); ok {
-					child[j] = complexValues(obj, version, key)
-				}
-			}
-		case string:
-			if child == "" && key != "/sinfo/reason_set_by_user" && key != "/sinfo/reason/user" {
-				field.value = nil
-			}
-		}
-		if version >= 45 {
-			switch key {
-			case "/sinfo/partition/defaults/memory_per_cpu", "/sinfo/partition/maximums/memory_per_cpu", "/sinfo/partition/maximums/shares", "/sinfo/partition/maximums/oversubscribe/jobs", "/sinfo/partition/maximums/oversubscribe/flags":
-				field.value = nil
-			}
-		}
-	}
-	return value
 }

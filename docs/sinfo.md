@@ -55,10 +55,20 @@ Slurm's default public reservation visibility. This does not grant permission to
 create, change, delete or use a reservation. Native reservation queries retain
 their existing authorization rules.
 
-JSON/YAML argument parsing and schema versions 42–45 are implemented, including
-serializer options and the unset/infinite distinction. Full data reports are
-currently rejected: these schemas implicitly request features Crane does not
-have, including temporary disk capacity, node features and scheduling weight.
+JSON/YAML supports only `data_parser/v0.0.45`, the Slurm 26.05 default, including
+serializer options and the unset/infinite distinction. Older and newer parser
+versions are explicitly rejected; `--json=list` and `--yaml=list` list only v45.
+The schema is generated at runtime from the Go types used to serialize reports.
+
+Retired fields are omitted from both the schema and data model. Relative to
+`sinfo[].partition`, these are `defaults.memory_per_cpu`,
+`maximums.memory_per_cpu`, `maximums.shares`, and
+`maximums.oversubscribe.{jobs,flags}` (including the empty parent object).
+Slurm v45 still emits placeholders for these fields; this implementation does
+not provide that legacy compatibility. Active replacement fields remain.
+
+Full data reports are currently rejected: the schema implicitly requests features
+Crane does not have, including temporary disk capacity, node features and scheduling weight.
 Selecting fewer text fields with `-o` cannot remove those implicit schema fields.
 `--json=v0.0.45+spec_only` remains available. `-T` selects reservation text even
 when a structured output option is also supplied.

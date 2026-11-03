@@ -6,7 +6,6 @@ package sinfo
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"strings"
 	"testing"
@@ -37,66 +36,6 @@ func TestStructuredEncoderBytes(t *testing.T) {
 	}
 	if got := out.String(); got != "{\"list\":[],\"value\":\"\\/a<b>\",\"nested\":{\"empty\":\"\",\"count\":2}}\n" {
 		t.Fatal(got)
-	}
-}
-
-func TestSchemaModesKeepVersionAndCommand(t *testing.T) {
-	snap := testSnapshot()
-	for _, version := range []string{"42", "43", "44", "45"} {
-		t.Run(version, func(t *testing.T) {
-			argv := []string{"/opt/crane/bin/sinfo", "--json=v0.0." + version, "-p", "compute"}
-			o, err := parseOptions(argv, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var out, diagnostics bytes.Buffer
-			err = renderStructured(&out, &diagnostics, argv, buildRows(snap, o), snap, o, func(uint32) (string, bool) { return "user", true })
-			if err != nil {
-				t.Fatal(err)
-			}
-			var data struct {
-				Sinfo []map[string]any
-				Meta  struct {
-					Command []string
-					Plugin  struct {
-						Parser string `json:"data_parser"`
-					}
-				}
-			}
-			if err := json.Unmarshal(out.Bytes(), &data); err != nil {
-				t.Fatal(err)
-			}
-			if data.Meta.Command[0] != argv[0] || data.Meta.Plugin.Parser != "data_parser/v0.0."+version || len(data.Sinfo) != 1 {
-				t.Fatalf("%s", &out)
-			}
-			_, newReason := data.Sinfo[0]["reason_set_by_user"]
-			if newReason != (version == "45") {
-				t.Fatalf("wrong reason representation for %s", version)
-			}
-		})
-	}
-}
-
-func TestPublicSchemasAreUsableDocuments(t *testing.T) {
-	for version := 42; version <= 45; version++ {
-		doc, err := publicSchema(version)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var out bytes.Buffer
-		if err := writeJSON(&out, doc, serializerOptions{}); err != nil {
-			t.Fatal(err)
-		}
-		var parsed struct {
-			Type       string
-			Properties map[string]any
-		}
-		if err := json.Unmarshal(out.Bytes(), &parsed); err != nil {
-			t.Fatal(err)
-		}
-		if parsed.Type != "object" || parsed.Properties["sinfo"] == nil || parsed.Properties["meta"] == nil {
-			t.Fatalf("invalid schema version %d", version)
-		}
 	}
 }
 
