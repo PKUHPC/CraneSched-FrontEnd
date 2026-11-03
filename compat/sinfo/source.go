@@ -44,7 +44,7 @@ func (s *craneSource) Load(ctx context.Context, q query) (*snapshot, error) {
 		return err
 	})
 	if status.Code(err) == codes.Unimplemented {
-		return nil, fmt.Errorf("Crane controller lacks the sinfo query API; upgrade the controller")
+		return nil, fmt.Errorf("Crane controller does not support the sinfo query API")
 	}
 	if err != nil {
 		return nil, err
@@ -55,8 +55,8 @@ func (s *craneSource) Load(ctx context.Context, q query) (*snapshot, error) {
 func (s *craneSource) Close() error { return s.session.Close() }
 
 func adaptSnapshot(reply *protos.QuerySinfoInfoReply, q query) (*snapshot, error) {
-	if reply.GetSchemaVersion() != 2 {
-		return nil, fmt.Errorf("Crane controller does not provide sinfo query schema 2")
+	if reply == nil {
+		return nil, fmt.Errorf("controller returned no sinfo query reply")
 	}
 	s := &snapshot{Cluster: reply.ClusterName, UnsupportedFields: map[string]string{}}
 	for _, field := range fieldSpecs {

@@ -25,7 +25,7 @@ func adapterFixture() *protos.QuerySinfoInfoReply {
 	cpus := 1.0
 	allocation := &protos.ResourceInNodeV3{CpuCount: 1, MemoryBytes: 1 << 30}
 	return &protos.QuerySinfoInfoReply{
-		SchemaVersion: 2, ClusterName: "example", ObservedAt: timestamppb.New(time.Unix(100, 0)),
+		ClusterName: "example", ObservedAt: timestamppb.New(time.Unix(100, 0)),
 		Nodes: []*protos.SinfoNodeInfo{{
 			Node: &protos.CranedInfo{
 				Hostname: "n1", NodeHostname: "host1", NodeAddr: "192.0.2.1", CranedVersion: "Crane-test",
@@ -501,9 +501,11 @@ func TestCleanupSubtractionPreservesPrecisionAndGRES(t *testing.T) {
 	}
 }
 
-func TestSnapshotRejectsOldOrIncompleteFacts(t *testing.T) {
+func TestSnapshotRejectsIncompleteFacts(t *testing.T) {
+	if _, err := adaptSnapshot(nil, query{}); err == nil {
+		t.Fatal("accepted missing reply")
+	}
 	for _, change := range []func(*protos.QuerySinfoInfoReply){
-		func(r *protos.QuerySinfoInfoReply) { r.SchemaVersion = 1 },
 		func(r *protos.QuerySinfoInfoReply) { r.ObservedAt = nil },
 		func(r *protos.QuerySinfoInfoReply) { r.Nodes[0].AllocatedCpus = nil },
 		func(r *protos.QuerySinfoInfoReply) { r.Nodes[0].Node.Outage = &protos.NodeOutage{} },
