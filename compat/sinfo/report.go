@@ -232,22 +232,20 @@ func renderStructured(w, diagnostics io.Writer, argv []string, rows []*row, snap
 	if err != nil {
 		return err
 	}
-	entries := make([]v45.SinfoRecord, 0)
-	if !schema.SpecOnly {
-		if err := validateStructuredProjection(rows, snap, o); err != nil {
-			return err
-		}
-		for _, row := range rows {
-			entries = append(entries, structuredRow(row, o, userName))
-		}
+	if schema.SpecOnly {
+		return utils.WriteSchema[v45.SinfoResponse](w, o.Serialization, o.Serializer)
+	}
+	if err := validateStructuredProjection(rows, snap, o); err != nil {
+		return err
+	}
+	entries := make([]v45.SinfoRecord, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, structuredRow(row, o, userName))
 	}
 	name, _ := userName(uint32(os.Getuid()))
 	group := strconv.Itoa(os.Getgid())
 	if g, err := user.LookupGroupId(group); err == nil {
 		group = g.Name
-	}
-	if schema.SpecOnly {
-		return utils.WriteSchema[v45.SinfoResponse](w, o.Serialization, o.Serializer)
 	}
 	report := v45.SinfoResponse{
 		Sinfo: entries,

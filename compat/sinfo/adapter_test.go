@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -27,9 +28,10 @@ func adapterFixture() *protos.QueryClusterInfoReply {
 		Ok: true, ClusterName: "example", ObservedAt: timestamppb.New(time.Unix(100, 0)),
 		Nodes: []*protos.CranedInfo{{
 			Hostname: "n1", NodeHostname: "host1", NodeAddr: "192.0.2.1", CranedVersion: "Crane-test",
-			ResourceState: protos.CranedResourceState_CRANE_ALLOC,
-			ResTotal:      &protos.ResourceInNodeV3{CpuCount: 4, MemoryBytes: 1 << 30},
-			ResAlloc:      allocation, Responding: true, HasRegistered: true, Port: 1234,
+			PartitionNames: []string{"batch"},
+			ResourceState:  protos.CranedResourceState_CRANE_ALLOC,
+			ResTotal:       &protos.ResourceInNodeV3{CpuCount: 4, MemoryBytes: 1 << 30},
+			ResAlloc:       allocation, Responding: true, HasRegistered: true, Port: 1234,
 			CleanupResources: &protos.ResourceInNodeV3{},
 		}},
 		Partitions: []*protos.PartitionInfo{{
@@ -177,6 +179,42 @@ func TestAdapterKeepsSchedulerFacts(t *testing.T) {
 	want := "batch*|up|infinite|mix|1/3/0/4|1024|Crane-test\n"
 	if out.String() != want {
 		t.Fatalf("%q != %q", out.String(), want)
+	}
+}
+
+func TestNativePartitionMembershipOrderAndTotals(t *testing.T) {
+	reply := adapterFixture()
+	first := reply.Nodes[0]
+	first.Hostname, first.PartitionNames = "n2", []string{"short", "batch"}
+	second := adapterFixture().Nodes[0]
+	second.ResTotal.CpuCount, second.ResTotal.MemoryBytes = 8, 2<<30
+	reply.Nodes = append(reply.Nodes, second)
+	reply.Partitions[0].Hostlist, reply.Partitions[0].TotalNodes = "n[1-2]", 2
+	reply.Partitions = append(reply.Partitions,
+		&protos.PartitionInfo{Name: "short", Hostlist: "n2", TotalNodes: 1},
+		&protos.PartitionInfo{Name: "empty"})
+	s, err := adaptSnapshot(reply, query{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []struct {
+		name         string
+		nodes        []string
+		cpus, memory uint64
+	}{
+		{"batch", []string{"n2", "n1"}, 12, 3072},
+		{"short", []string{"n2"}, 4, 1024},
+		{"empty", nil, 0, 0},
+	} {
+		got := s.Partitions[i]
+		if got.Name != want.name || !slices.Equal(got.Nodes, want.nodes) || got.TotalCPUs != want.cpus || got.TotalMemory != want.memory || got.ConfiguredNodes != reply.Partitions[i].Hostlist {
+			t.Fatalf("partition %s: %+v", want.name, got)
+		}
+	}
+	// Missing membership must not be reconstructed from presentation text.
+	reply.Nodes[0].PartitionNames = nil
+	if _, err := adaptSnapshot(reply, query{}); err == nil || !strings.Contains(err.Error(), "nodes missing") {
+		t.Fatalf("accepted incomplete partition membership: %v", err)
 	}
 }
 

@@ -142,6 +142,10 @@ func TestRunSchemaOnlyIgnoresUnusedProjections(t *testing.T) {
 					return testSnapshot(), nil
 				}}
 				r := testRunner(source)
+				r.renderer.UserName = func(uint32) (string, bool) {
+					t.Fatal("schema-only output must not resolve report identities")
+					return "", false
+				}
 				var want, out, diagnostic bytes.Buffer
 				args := []string{"sinfo", "--" + kind + "=v0.0.45+spec_only"}
 				if code := r.run(t.Context(), args, nil, &want, &diagnostic); code != 0 || diagnostic.Len() != 0 {

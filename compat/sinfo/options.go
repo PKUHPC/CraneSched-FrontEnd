@@ -363,10 +363,10 @@ func validateCapabilities(o *plan) error {
 // The embedded options are a copy; selecting defaults never mutates raw input.
 type plan struct {
 	options
-	Query                                            query
-	Fields                                           []formatItem
-	Diagnostics                                      []string
-	DefaultFormat, AutoPartitionWidth, AutoNodeWidth bool
+	Query                             query
+	Fields                            []formatItem
+	Diagnostics                       []string
+	AutoPartitionWidth, AutoNodeWidth bool
 }
 
 func parseCommand(argv []string, env map[string]string) (*plan, error) {
@@ -379,7 +379,6 @@ func parseCommand(argv []string, env map[string]string) (*plan, error) {
 		return o, nil
 	}
 	if !o.HasFormat {
-		o.DefaultFormat = true
 		o.LongFormat = true
 		switch {
 		case o.Summary:

@@ -212,9 +212,9 @@ func NaturalLess(a, b string) bool {
 }
 
 type nameSuffix struct {
-	prefix, digits, suffix string
-	value                  uint64
-	width                  int
+	prefix, digits string
+	value          uint64
+	width          int
 }
 
 func splitName(name string) nameSuffix {
@@ -235,7 +235,7 @@ func splitName(name string) nameSuffix {
 	if len(digits) > 1 && digits[0] == '0' {
 		width = len(digits)
 	}
-	return nameSuffix{name[:start], digits, name[end:], value, width}
+	return nameSuffix{name[:start], digits, value, width}
 }
 
 func CompressHosts(names []string) string {
@@ -284,7 +284,7 @@ func CompressHosts(names []string) string {
 			ranges = append(ranges, value)
 			k = end
 		}
-		output = append(output, first.prefix+"["+strings.Join(ranges, ",")+"]"+first.suffix)
+		output = append(output, first.prefix+"["+strings.Join(ranges, ",")+"]")
 		i = j
 	}
 	return strings.Join(output, ",")

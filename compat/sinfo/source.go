@@ -101,7 +101,8 @@ func adaptSnapshot(reply *protos.QueryClusterInfoReply, q query) (*snapshot, err
 	if q.ReservationsOnly {
 		return s, nil
 	}
-	for _, detail := range reply.Nodes {
+	partitionNodes := make(map[string][]int, len(reply.Partitions))
+	for index, detail := range reply.Nodes {
 		if detail == nil || detail.ResTotal == nil || detail.ResAlloc == nil {
 			return nil, fmt.Errorf("controller returned an incomplete node record")
 		}
@@ -201,14 +202,13 @@ func adaptSnapshot(reply *protos.QueryClusterInfoReply, q query) (*snapshot, err
 			n.State.Reserved = true
 		}
 		s.Nodes = append(s.Nodes, n)
+		for _, name := range detail.PartitionNames {
+			partitionNodes[name] = append(partitionNodes[name], index)
+		}
 	}
 	for _, detail := range reply.Partitions {
 		if detail == nil {
 			return nil, fmt.Errorf("controller returned an incomplete partition record")
-		}
-		list, err := utils.ParseHostList(detail.Hostlist)
-		if err != nil {
-			return nil, fmt.Errorf("partition %q has an invalid node list: %w", detail.Name, err)
 		}
 		p := partition{
 			Name: detail.Name, Default: detail.IsDefault, Available: "up", TimeLimit: durationLimit{Infinite: true},
@@ -231,12 +231,11 @@ func adaptSnapshot(reply *protos.QueryClusterInfoReply, q query) (*snapshot, err
 			return nil, fmt.Errorf("partition %q has an unknown preemption mode", p.Name)
 		}
 		p.PreemptMode = mode
-		for _, n := range s.Nodes {
-			if list.Match(n.Name) {
-				p.Nodes = append(p.Nodes, n.Name)
-				p.TotalCPUs += n.CPUs
-				p.TotalMemory += n.Memory
-			}
+		for _, index := range partitionNodes[p.Name] {
+			n := s.Nodes[index]
+			p.Nodes = append(p.Nodes, n.Name)
+			p.TotalCPUs += n.CPUs
+			p.TotalMemory += n.Memory
 		}
 		if len(p.Nodes) != int(detail.TotalNodes) {
 			return nil, fmt.Errorf("partition %q references nodes missing from the controller snapshot", p.Name)
