@@ -18,7 +18,7 @@ import (
 const defaultConfigPath = "/etc/crane/config.yaml"
 
 // Run executes the standalone command. argv includes the invocation name;
-// environ contains KEY=value strings. Only main owns process exit and signals.
+// environ contains KEY=value strings. Only main owns process exit.
 func Run(ctx context.Context, argv, environ []string, stdout, stderr io.Writer) int {
 	env := make(map[string]string, len(environ))
 	for _, entry := range environ {
